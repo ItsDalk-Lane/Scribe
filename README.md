@@ -188,9 +188,10 @@ src/
 │   ├── pi/                      # Pi RPC adaptor, model discovery, JSONL history
 │   └── acp/                     # Agent Client Protocol shared mechanics
 ├── features/
+│   ├── agent-skills/            # Vault skill and Claude command management
 │   ├── chat/                    # Sidebar chat: tabs, workspace lifecycle, controllers, renderers
 │   ├── inline-edit/             # Inline edit modal and provider-backed edit services
-│   └── settings/                # Settings shell, provider tabs, Vault skill management
+│   └── settings/                # Settings shell and provider tabs
 ├── shared/                      # Reusable UI components, settings controls, mention/dropdown
 ├── i18n/                        # Internationalization (10 locales)
 ├── utils/                       # Domain-free leaf helpers
