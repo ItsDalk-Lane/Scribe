@@ -56,7 +56,8 @@ export function normalizeCodexToolName(rawName: string | undefined): string {
   const sessionName = rawName.startsWith('claudian_sessions__') ? rawName.slice('claudian_sessions__'.length) : rawName;
   if (isSessionTool(sessionName)) return sessionName;
   if (NATIVE_TOOLS.has(rawName)) return rawName;
-  return TOOL_NAME_MAP[rawName] ?? rawName;
+  // Own entries only: prototype keys (e.g. constructor) stay unknown names verbatim.
+  return Object.hasOwn(TOOL_NAME_MAP, rawName) ? TOOL_NAME_MAP[rawName] : rawName;
 }
 
 function sessionToolPayload(rawName: string | undefined): Pick<NormalizedCodexToolCall, 'providerPayload'> {

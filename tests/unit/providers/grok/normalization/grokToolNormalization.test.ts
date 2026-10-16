@@ -52,6 +52,16 @@ describe('grokToolNormalization', () => {
   });
 
   it.each([
+    ['constructor', 'constructor'],
+    ['__proto__', '__proto__'],
+    ['toString', 'toString'],
+    [' Constructor ', 'Constructor'],
+  ])('keeps unknown tool name %j as its trimmed literal string %j', (rawName, expected) => {
+    expect(typeof normalizeGrokToolName(rawName)).toBe('string');
+    expect(normalizeGrokToolName(rawName)).toBe(expected);
+  });
+
+  it.each([
     'task',
     'task_output',
     'wait_for_task',
@@ -136,6 +146,15 @@ describe('grokToolNormalization', () => {
     })).toEqual({ provenance: 'title', rawName: 'run_terminal_command' });
     expect(resolveGrokRawToolName(undefined, { kind: 'read', title: 'read_file' }))
       .toEqual({ provenance: 'title', rawName: 'read_file' });
+    // Only registered alias titles canonicalize; prototype-key titles keep their spelling and case.
+    expect(resolveGrokRawToolName(undefined, { title: 'Constructor' }))
+      .toEqual({ provenance: 'title', rawName: 'Constructor' });
+    expect(resolveGrokRawToolName(undefined, { title: 'constructor' }))
+      .toEqual({ provenance: 'title', rawName: 'constructor' });
+    expect(resolveGrokRawToolName(undefined, { title: '__proto__' }))
+      .toEqual({ provenance: 'title', rawName: '__proto__' });
+    expect(resolveGrokRawToolName(undefined, { title: 'toString' }))
+      .toEqual({ provenance: 'title', rawName: 'toString' });
   });
 
   it.each([

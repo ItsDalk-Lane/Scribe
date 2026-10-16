@@ -60,7 +60,8 @@ function isKnownToolName(value: unknown): value is OpencodeKnownToolName {
     return false;
   }
 
-  return value.trim().toLowerCase() in TOOL_NAME_MAP;
+  // Own entries only: prototype keys (e.g. constructor) are not known tool names.
+  return Object.hasOwn(TOOL_NAME_MAP, value.trim().toLowerCase());
 }
 
 function toKnownToolName(value: string | undefined): OpencodeKnownToolName | null {

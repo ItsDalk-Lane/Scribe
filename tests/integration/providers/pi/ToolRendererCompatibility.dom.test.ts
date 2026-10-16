@@ -76,12 +76,12 @@ function createChatStream() {
 }
 
 /** Replays native RPC execution events through Pi normalization and the chat stream. */
-async function restoreLive(call: NativeToolCall): Promise<ToolCallInfo> {
-  return (await restoreLiveWithCard(call)).tool;
+async function restoreLive(call: NativeToolCall, observe?: (messages: HTMLElement) => void | Promise<void>): Promise<ToolCallInfo> {
+  return (await restoreLiveWithCard(call, observe)).tool;
 }
 
 /** The same replay, keeping the write/edit card the live stream rendered before teardown. */
-async function restoreLiveWithCard(call: NativeToolCall): Promise<{ tool: ToolCallInfo; liveCard?: HTMLElement }> {
+async function restoreLiveWithCard(call: NativeToolCall, observe?: (messages: HTMLElement) => void | Promise<void>): Promise<{ tool: ToolCallInfo; liveCard?: HTMLElement }> {
   const normalization = createPiEventNormalizationState();
   const result = { content: contentParts(call), details: call.details ?? {} };
   const chunks = [
@@ -92,6 +92,7 @@ async function restoreLiveWithCard(call: NativeToolCall): Promise<{ tool: ToolCa
 
   const { stream, response, messages, close } = createChatStream();
   for (const chunk of chunks) await stream.handleStreamChunk(chunk, response);
+  await observe?.(messages);
   const liveCard = messages.querySelector<HTMLElement>('.claudian-write-edit-block') ?? undefined;
   close();
   expect(response.toolCalls).toHaveLength(1);
@@ -246,6 +247,34 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
     expect(block.querySelector('code')?.textContent).toBe(args.code);
     expect(within(block).queryAllByText('Generated')).toHaveLength(text.some(part => part === 'Generated') ? 1 : 0);
     expect((await axe(block)).violations).toEqual([]);
+  });
+
+  it('keeps an unknown tool name colliding with prototype keys on its generic card', async () => {
+    const call: NativeToolCall = { name: 'constructor', args: {}, text: 'prototype tool output' };
+
+    const assertGenericCard = async (block: HTMLElement | null | undefined) => {
+      expect(block).toBeDefined();
+      const card = block!;
+      const header = within(card).getByRole('button', { name: /constructor/ });
+      expect(within(card).getByText('constructor')).toBeDefined();
+      fireEvent.keyDown(header, { key: 'Enter' });
+      expect(header.getAttribute('aria-expanded')).toBe('true');
+      expect(within(card).getByText('prototype tool output')).toBeDefined();
+      fireEvent.keyDown(header, { key: ' ' });
+      expect(header.getAttribute('aria-expanded')).toBe('false');
+      fireEvent.click(header);
+      expect(header.getAttribute('aria-expanded')).toBe('true');
+      expect((await axe(card)).violations).toEqual([]);
+    };
+
+    if (mode === 'live') {
+      // The live stream card is asserted before teardown; no stored card stands in for it.
+      await restoreLive(call, async messages => {
+        await assertGenericCard(messages.querySelector<HTMLElement>('.claudian-tool-call'));
+      });
+    } else {
+      await assertGenericCard(renderStoredToolCall(document.body.createDiv(), restoreHistory(call)));
+    }
   });
 
   describe('codemode', () => {

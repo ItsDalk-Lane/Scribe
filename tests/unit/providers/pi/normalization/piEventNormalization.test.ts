@@ -5,6 +5,7 @@ import {
   normalizePiRPCEvent,
   type PiEventNormalizationState,
 } from '@/providers/pi/normalization/piEventNormalization';
+import { normalizePiToolName } from '@/providers/pi/normalization/piToolNormalization';
 
 describe('Pi event normalization', () => {
   it.each(['claudian_list_destinations', 'claudian_send_message'])('preserves the session tool name and native payload: %s', name => {
@@ -160,6 +161,61 @@ describe('Pi event normalization', () => {
       name: 'Glob',
       type: 'tool_use',
     }]);
+
+    // Unknown names colliding with Object.prototype stay literal; event names arrive trimmed.
+    expect(normalizePiRPCEvent({
+      args: {},
+      toolCallId: 'tool',
+      toolName: 'constructor',
+      type: 'tool_execution_start',
+    }, state)).toEqual([{
+      id: 'tool',
+      input: {},
+      name: 'constructor',
+      type: 'tool_use',
+    }]);
+
+    expect(normalizePiRPCEvent({
+      args: {},
+      toolCallId: 'spaced-1',
+      toolName: ' Constructor ',
+      type: 'tool_execution_start',
+    }, state)).toEqual([{
+      id: 'spaced-1',
+      input: {},
+      name: 'Constructor',
+      type: 'tool_use',
+    }]);
+
+    expect(normalizePiRPCEvent({
+      isError: false,
+      result: { content: [{ text: 'prototype tool output', type: 'text' }], details: {} },
+      toolCallId: 'tool',
+      toolName: 'constructor',
+      type: 'tool_execution_end',
+    }, state)).toEqual([{
+      content: 'prototype tool output',
+      id: 'tool',
+      isError: false,
+      type: 'tool_result',
+    }]);
+  });
+
+  it.each([
+    ['constructor', 'constructor'],
+    ['__proto__', '__proto__'],
+    ['toString', 'toString'],
+    [' Constructor ', ' Constructor '],
+  ])('keeps unknown tool name %j as its literal primitive string %j', (rawName, expected) => {
+    expect(typeof normalizePiToolName(rawName)).toBe('string');
+    expect(normalizePiToolName(rawName)).toBe(expected);
+  });
+
+  it.each([
+    ['powershell', 'Bash'],
+    ['codemode', 'exec'],
+  ])('retains registered alias %s mapping to %s', (rawName, expected) => {
+    expect(normalizePiToolName(rawName)).toBe(expected);
   });
 
   it('maps Pi web extension tools to shared renderer names', () => {

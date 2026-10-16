@@ -294,6 +294,24 @@ describe('createOpencodeToolStreamAdapter', () => {
   });
 });
 
+describe('normalizeOpencodeToolName', () => {
+  it.each([
+    ['constructor', 'constructor'],
+    ['__proto__', '__proto__'],
+    ['toString', 'toString'],
+    [' Constructor ', 'Constructor'],
+  ])('keeps unknown tool name %j as its trimmed literal string %j', (rawName, expected) => {
+    expect(typeof normalizeOpencodeToolName(rawName)).toBe('string');
+    expect(normalizeOpencodeToolName(rawName)).toBe(expected);
+  });
+
+  it.each([
+    ['READ', 'Read'],
+  ])('retains registered alias %s mapping to %s', (rawName, expected) => {
+    expect(normalizeOpencodeToolName(rawName)).toBe(expected);
+  });
+});
+
 describe('resolveOpencodeRawToolName', () => {
   it('tracks fallback and multiple late-title updates explicitly', () => {
     const fallback = resolveOpencodeRawToolName(undefined, { kind: 'other' });
@@ -305,6 +323,15 @@ describe('resolveOpencodeRawToolName', () => {
     expect(resolveOpencodeRawToolName(firstTitle, { title: 'future_tool_v2' })).toEqual({
       provenance: 'title',
       rawName: 'future_tool_v2',
+    });
+    // A prototype-key title is an unknown title: case preserved, accepted from absent or fallback state.
+    expect(resolveOpencodeRawToolName(undefined, { title: 'Constructor' })).toEqual({
+      provenance: 'title',
+      rawName: 'Constructor',
+    });
+    expect(resolveOpencodeRawToolName(fallback, { title: 'Constructor' })).toEqual({
+      provenance: 'title',
+      rawName: 'Constructor',
     });
   });
 
@@ -321,6 +348,7 @@ describe('resolveOpencodeRawToolName', () => {
       provenance: 'title',
       rawName: 'question',
     });
+    expect(resolveOpencodeRawToolName(knownKind, { title: 'constructor' })).toEqual(knownKind);
   });
 
   it('keeps authoritative known names when later titles are presentation labels', () => {

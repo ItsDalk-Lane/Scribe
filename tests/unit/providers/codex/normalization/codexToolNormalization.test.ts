@@ -61,8 +61,15 @@ describe('normalizeCodexToolName', () => {
     expect(normalizeCodexToolName(name)).toBe(name);
   });
 
-  it('passes through unknown tool names', () => {
-    expect(normalizeCodexToolName('custom_tool')).toBe('custom_tool');
+  it.each([
+    ['custom_tool', 'custom_tool'],
+    ['constructor', 'constructor'],
+    ['__proto__', '__proto__'],
+    ['toString', 'toString'],
+    [' Constructor ', ' Constructor '],
+  ])('passes through unknown tool name %j as its literal string %j', (raw, expected) => {
+    expect(typeof normalizeCodexToolName(raw)).toBe('string');
+    expect(normalizeCodexToolName(raw)).toBe(expected);
   });
 
   it('returns "tool" for undefined', () => {

@@ -94,9 +94,11 @@ const TOOL_ICONS: Record<string, string> = {
 export const MCP_ICON_MARKER = '__mcp_icon__';
 
 export function getToolIcon(toolName: string): string {
-  if (isScriptTool(toolName)) return TOOL_ICONS[toolName] ?? 'code';
+  // Own entries only: prototype keys (e.g. constructor) are unknown tool names.
+  const icon = Object.hasOwn(TOOL_ICONS, toolName) ? TOOL_ICONS[toolName] : undefined;
+  if (isScriptTool(toolName)) return icon ?? 'code';
   if (toolName.startsWith('mcp__')) {
     return MCP_ICON_MARKER;
   }
-  return TOOL_ICONS[toolName] || 'wrench';
+  return icon || 'wrench';
 }

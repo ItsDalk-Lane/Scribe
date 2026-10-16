@@ -105,7 +105,8 @@ export function normalizeGrokToolName(rawName: string, rawInput?: unknown, rawOu
   if (lookup === 'use_tool' && isRecord(rawInput) && typeof rawInput.tool_name === 'string' && rawInput.tool_name.trim()) {
     return `mcp__${rawInput.tool_name.trim()}`;
   }
-  return GROK_TOOL_NAME_MAP[lookup] ?? (normalized || 'tool');
+  // Own entries only: prototype keys (e.g. constructor) stay unknown names.
+  return Object.hasOwn(GROK_TOOL_NAME_MAP, lookup) ? GROK_TOOL_NAME_MAP[lookup] : (normalized || 'tool');
 }
 
 function resolveSessionToolName(rawName: string, rawInput?: unknown, rawOutput?: unknown): SessionToolName | undefined {
@@ -133,7 +134,7 @@ export function resolveGrokRawToolName(
   if (
     normalizedTitle
     && (
-      normalizedTitle in GROK_TOOL_NAME_MAP
+      Object.hasOwn(GROK_TOOL_NAME_MAP, normalizedTitle)
       || GROK_SUBAGENT_LIFECYCLE_TOOL_NAMES.has(normalizedTitle)
     )
   ) {
