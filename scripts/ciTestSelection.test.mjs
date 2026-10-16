@@ -106,6 +106,30 @@ test('filesystem-read documentation, styles, and captured fixtures retain their 
   }
   const fixture = select(['tests/fixtures/providers/grok/history/example.json']);
   assert.ok(fixture.testFiles.includes('tests/unit/providers/grok/history/GrokHistoryStore.test.ts'));
+  for (const status of ['A', 'M']) {
+    for (const event of ['pull_request', 'push']) {
+      for (const [file, consumers] of [
+        ['tests/fixtures/providers/grok/runtime/models-list.json', [
+          'tests/integration/providers/grok/runtime/GrokModels.test.ts',
+          'tests/integration/providers/grok/runtime/GrokModelDiscoveryService.test.ts',
+        ]],
+        ['tests/fixtures/providers/grok/runtime/models-list-byok.json', [
+          'tests/integration/providers/grok/runtime/GrokModels.test.ts',
+          'tests/integration/providers/grok/runtime/GrokModelDiscoveryService.test.ts',
+        ]],
+        ['tests/fixtures/providers/grok/runtime/turn-completed.json', [
+          'tests/unit/providers/grok/execution/GrokExecutionBackend.test.ts',
+        ]],
+      ]) {
+        const selected = select([{ status, path: file }], [], event);
+        for (const consumer of consumers) {
+          assert.ok(selected.testFiles.includes(consumer), `${status} ${file} on ${event} must select ${consumer}`);
+        }
+        assert.deepEqual([...selected.testFiles].sort(), [...consumers].sort(),
+          `${status} ${file} on ${event} must select exactly its filesystem consumers`);
+      }
+    }
+  }
 });
 
 test('native Pi launch runs only when affected', () => {

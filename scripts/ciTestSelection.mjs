@@ -38,6 +38,17 @@ const fileConsumers = [
     'tests/unit/providers/grok/history/GrokConversationHistoryService.test.ts',
     'tests/unit/providers/grok/history/GrokHistoryStore.test.ts',
   ]],
+  [/^tests\/fixtures\/providers\/grok\/runtime\/models-list\.json$/, [
+    'tests/integration/providers/grok/runtime/GrokModels.test.ts',
+    'tests/integration/providers/grok/runtime/GrokModelDiscoveryService.test.ts',
+  ]],
+  [/^tests\/fixtures\/providers\/grok\/runtime\/models-list-byok\.json$/, [
+    'tests/integration/providers/grok/runtime/GrokModels.test.ts',
+    'tests/integration/providers/grok/runtime/GrokModelDiscoveryService.test.ts',
+  ]],
+  [/^tests\/fixtures\/providers\/grok\/runtime\/turn-completed\.json$/, [
+    'tests/unit/providers/grok/execution/GrokExecutionBackend.test.ts',
+  ]],
   [/^src\/style\/base\/visibility\.css$/, ['tests/integration/features/chat/composer/PromptHistoryNavigation.dom.test.ts']],
 ];
 const scriptConsumers = new Map(suites.scriptTests.flatMap(file => [
