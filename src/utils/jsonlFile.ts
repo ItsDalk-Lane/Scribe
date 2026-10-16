@@ -31,9 +31,9 @@ export async function forEachJSONLLine(
     window.clearTimeout(timer);
     timer = window.setTimeout(() => input.destroy(new Error('Timed out reading JSONL history.')), idleTimeoutMs);
   };
-  let stopped = false;
+  const stop = new Error('JSONL read stopped.');
   const accept = (line: string): void => {
-    if (!stopped && onLine(line) === false) stopped = true;
+    if (onLine(line) === false) throw stop;
   };
 
   try {
@@ -41,9 +41,10 @@ export async function forEachJSONLLine(
     for await (const chunk of input as AsyncIterable<string>) {
       armTimer();
       lines.push(chunk, accept);
-      if (stopped) return;
     }
     if (lines.bufferedLength > 0) accept(lines.take());
+  } catch (error) {
+    if (error !== stop) throw error;
   } finally {
     window.clearTimeout(timer);
     input.destroy();

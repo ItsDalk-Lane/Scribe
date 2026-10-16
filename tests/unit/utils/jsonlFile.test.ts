@@ -41,11 +41,12 @@ describe('forEachJSONLLine', () => {
 
   it('rejects instead of skipping a line longer than the limit', async () => {
     // Skipping would hand consumers a history with a silently missing record.
-    const file = write(`short\n${'x'.repeat(50)}\nafter\n`);
+    const file = write('0\n123456789\n1\n');
     const lines: string[] = [];
 
-    await expect(forEachJSONLLine(file, line => { lines.push(line); }, { maxLineLength: 10 })).rejects.toThrow();
-    expect(lines).not.toContain('after');
+    await expect(forEachJSONLLine(file, line => { lines.push(line); }, { maxLineLength: 4 }))
+      .rejects.toThrow(new Error('Line exceeded the size limit.'));
+    expect(lines).toEqual(['0']);
   });
 
   it('stops when the handler returns false', async () => {
@@ -55,6 +56,33 @@ describe('forEachJSONLLine', () => {
     await forEachJSONLLine(file, line => { lines.push(line); return line !== 'b'; });
 
     expect(lines).toEqual(['a', 'b']);
+  });
+
+  it('stops when the handler returns false on an unterminated final line', async () => {
+    const file = write('0');
+    const lines: string[] = [];
+
+    await forEachJSONLLine(file, line => { lines.push(line); return false; });
+
+    expect(lines).toEqual(['0']);
+  });
+
+  it.each(['0\n', '0'])('rejects with the error the consumer threw for %j', async content => {
+    const file = write(content);
+    const failure = new Error('consumer failed');
+    const lines: string[] = [];
+
+    await expect(forEachJSONLLine(file, line => { lines.push(line); throw failure; })).rejects.toBe(failure);
+    expect(lines).toEqual(['0']);
+  });
+
+  it('stops before an unread oversized line', async () => {
+    const file = write('0\n123456789\n1\n');
+    const lines: string[] = [];
+
+    await forEachJSONLLine(file, line => { lines.push(line); return false; }, { maxLineLength: 4 });
+
+    expect(lines).toEqual(['0']);
   });
 
   it('rejects when the file cannot be read', async () => {
