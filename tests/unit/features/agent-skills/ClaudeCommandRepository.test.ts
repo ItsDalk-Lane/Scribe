@@ -118,6 +118,76 @@ describe('ClaudeCommandRepository', () => {
     expect(await dataAdapter.read(updated.filePath)).toBe('New body.\n');
   });
 
+  it.each([
+    ['LF', '---\n---\nPrompt\n'],
+    ['CRLF', '---\r\n---\r\nPrompt\r\n'],
+  ])('keeps adjacent empty frontmatter delimiters out of the instructions (%s)', async (_label, source) => {
+    addCommand('empty.md', source);
+    const repository = new ClaudeCommandRepository(files);
+
+    const result = await repository.list();
+
+    expect(result.diagnostics).toEqual([]);
+    const [loaded] = result.commands;
+    expect(loaded.frontmatter).toEqual({});
+    expect(loaded.description).toBe('');
+    expect(loaded.instructions).toBe('Prompt');
+
+    await repository.update('empty', loaded.revision, {
+      name: 'empty',
+      description: '',
+      instructions: 'Prompt',
+    });
+    expect(await dataAdapter.read(loaded.filePath)).toBe('Prompt\n');
+  });
+
+  it('treats a closing delimiter with trailing text as body instead of frontmatter', async () => {
+    addCommand('broken-close.md', '---\ndescription: test\n---suffix\nPrompt\n');
+    const repository = new ClaudeCommandRepository(files);
+
+    const result = await repository.list();
+
+    expect(result.diagnostics).toEqual([]);
+    const [loaded] = result.commands;
+    expect(loaded.frontmatter).toEqual({});
+    expect(loaded.description).toBe('');
+    expect(loaded.instructions).toBe('---\ndescription: test\n---suffix\nPrompt');
+
+    await repository.update('broken-close', loaded.revision, {
+      name: 'broken-close',
+      description: '',
+      instructions: loaded.instructions,
+    });
+    expect(await dataAdapter.read(loaded.filePath)).toBe('---\ndescription: test\n---suffix\nPrompt\n');
+  });
+
+  it('accepts a closing delimiter at end of file', async () => {
+    addCommand('tail.md', '---\ndescription: test\n---');
+
+    const result = await new ClaudeCommandRepository(files).list();
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.commands.map(command => [command.description, command.instructions])).toEqual([['test', '']]);
+  });
+
+  it.each<[string, string, string]>([
+    ['LF-space', '---\ndescription: Example\nargument-hint: target\n--- \nPrompt', 'Prompt'],
+    ['CRLF-tab', '---\r\ndescription: Example\r\nargument-hint: target\r\n---\t\r\nPrompt', 'Prompt'],
+    ['padded-EOF', '---\ndescription: Example\nargument-hint: target\n--- \t', ''],
+  ])('retains command metadata with a padded closing delimiter (%s)', async (_label, source, instructions) => {
+    addCommand('padded.md', source);
+
+    const result = await new ClaudeCommandRepository(files).list();
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.commands.map(command => [
+      command.description,
+      command.frontmatter['argument-hint'],
+      command.instructions,
+    ])).toEqual([['Example', 'target', instructions]]);
+    expect(await dataAdapter.read(`${CLAUDE_COMMANDS_ROOT}/padded.md`)).toBe(source);
+  });
+
   it('renames into a nested path, prunes empty folders and rejects collisions', async () => {
     addCommand('old/review.md', REVIEW_COMMAND);
     addCommand('taken.md', 'Taken.\n');

@@ -1,6 +1,6 @@
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
 import { MemoryDataAdapter } from '@test/helpers/MemoryDataAdapter';
-import type { App } from 'obsidian';
+import * as obsidian from 'obsidian';
 
 import {
   ManagedResourceCollisionError,
@@ -35,7 +35,7 @@ describe('AgentSkillRepository', () => {
 
   beforeEach(() => {
     dataAdapter = new MemoryDataAdapter();
-    const app = { vault: { adapter: dataAdapter } } as unknown as App;
+    const app = { vault: { adapter: dataAdapter } } as unknown as obsidian.App;
     vaultFiles = new VaultFileAdapter(app);
     repository = new AgentSkillRepository(vaultFiles);
   });
@@ -366,6 +366,137 @@ describe('AgentSkillRepository', () => {
       expect(result.diagnostics.map(item => item.directoryPath)).toEqual([
         `${AGENT_SKILLS_ROOT}/no-frontmatter`,
       ]);
+    });
+
+    it('rejects a closing delimiter with trailing text in strict and lenient reads', async () => {
+      const source = '---\nname: example\ndescription: Example\n---suffix\nPrompt';
+      addSkill('example', source);
+      dataAdapter.addFolder('.claude');
+      dataAdapter.addFolder(CLAUDE_SKILLS_ROOT);
+      dataAdapter.addFolder(`${CLAUDE_SKILLS_ROOT}/example`);
+      dataAdapter.addFile(`${CLAUDE_SKILLS_ROOT}/example/SKILL.md`, source);
+
+      const strict = await repository.list();
+      expect(strict.skills).toEqual([]);
+      expect(strict.diagnostics.map(item => [item.directoryPath, item.repairName])).toEqual([
+        [`${AGENT_SKILLS_ROOT}/example`, undefined],
+      ]);
+
+      const lenient = await claudeRepository().list();
+      expect(lenient.skills).toEqual([]);
+      expect(lenient.diagnostics.map(item => [item.directoryPath, item.repairName])).toEqual([
+        [`${CLAUDE_SKILLS_ROOT}/example`, undefined],
+      ]);
+
+      await expect(repository.readForRepair('example')).rejects.toThrow('cannot be repaired');
+      expect(await dataAdapter.read(`${AGENT_SKILLS_ROOT}/example/SKILL.md`)).toBe(source);
+      expect(await dataAdapter.read(`${CLAUDE_SKILLS_ROOT}/example/SKILL.md`)).toBe(source);
+    });
+
+    it('accepts a standalone closing delimiter after the same metadata', async () => {
+      addSkill('example', '---\nname: example\ndescription: Example\n---\nPrompt');
+
+      const result = await repository.list();
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.skills.map(skill => [skill.name, skill.description, skill.instructions])).toEqual([
+        ['example', 'Example', 'Prompt'],
+      ]);
+    });
+
+    it.each<[string, unknown]>([
+      ['undefined', undefined],
+      ['null', null],
+    ])('rejects an empty frontmatter document that external YAML parses as %s', async (_label, emptyDocument) => {
+      const source = '---\n---\nBody';
+      const parseYaml = obsidian.parseYaml;
+      // Narrow spy: only empty YAML returns the external empty-document value;
+      // every other input keeps the existing external parser.
+      const parseYamlSpy = jest.spyOn(obsidian, 'parseYaml').mockImplementation(content => (
+        content.trim() === '' ? emptyDocument as Record<string, unknown> : parseYaml(content)
+      ));
+      try {
+        addSkill('example', source);
+        dataAdapter.addFolder('.claude');
+        dataAdapter.addFolder(CLAUDE_SKILLS_ROOT);
+        dataAdapter.addFolder(`${CLAUDE_SKILLS_ROOT}/example`);
+        dataAdapter.addFile(`${CLAUDE_SKILLS_ROOT}/example/SKILL.md`, source);
+
+        const strict = await repository.list();
+        expect(strict.skills).toEqual([]);
+        expect(strict.diagnostics).toEqual([{
+          directoryPath: `${AGENT_SKILLS_ROOT}/example`,
+          message: 'SKILL.md frontmatter must be a YAML mapping',
+        }]);
+
+        const lenient = await claudeRepository().list();
+        expect(lenient.skills).toEqual([]);
+        expect(lenient.diagnostics).toEqual([{
+          directoryPath: `${CLAUDE_SKILLS_ROOT}/example`,
+          message: 'SKILL.md frontmatter must be a YAML mapping',
+        }]);
+
+        await expect(repository.readForRepair('example')).rejects.toThrow('cannot be repaired');
+        await expect(claudeRepository().readForRepair('example')).rejects.toThrow('cannot be repaired');
+        expect(await dataAdapter.read(`${AGENT_SKILLS_ROOT}/example/SKILL.md`)).toBe(source);
+        expect(await dataAdapter.read(`${CLAUDE_SKILLS_ROOT}/example/SKILL.md`)).toBe(source);
+      } finally {
+        parseYamlSpy.mockRestore();
+      }
+    });
+
+    it.each<[string, string, string, [string, string, string][], [string, string, string | undefined][]]>([
+      [
+        'LF-space',
+        '---\nname: example\ndescription: Example\n--- \nPrompt',
+        'Prompt',
+        [['example', 'Example', 'Prompt']],
+        [],
+      ],
+      [
+        'CRLF-tab',
+        '---\r\nname: example\r\ndescription: Example\r\n---\t\r\nPrompt',
+        'Prompt',
+        [['example', 'Example', 'Prompt']],
+        [],
+      ],
+      [
+        'padded-EOF',
+        '---\nname: example\ndescription: Example\n--- \t',
+        '',
+        [],
+        [[`${AGENT_SKILLS_ROOT}/example`, 'Skill instructions are required', 'example']],
+      ],
+    ])('reads skills through a padded closing delimiter (%s)', async (
+      _label,
+      source,
+      instructions,
+      strictSkills,
+      strictDiagnostics,
+    ) => {
+      addSkill('example', source);
+      dataAdapter.addFolder('.claude');
+      dataAdapter.addFolder(CLAUDE_SKILLS_ROOT);
+      dataAdapter.addFolder(`${CLAUDE_SKILLS_ROOT}/example`);
+      dataAdapter.addFile(`${CLAUDE_SKILLS_ROOT}/example/SKILL.md`, source);
+
+      const strict = await repository.list();
+      expect(strict.skills.map(skill => [skill.name, skill.description, skill.instructions])).toEqual(strictSkills);
+      expect(strict.diagnostics.map(item => [item.directoryPath, item.message, item.repairName]))
+        .toEqual(strictDiagnostics);
+
+      const lenient = await claudeRepository().list();
+      expect(lenient.skills.map(skill => [skill.name, skill.description, skill.instructions])).toEqual([
+        ['example', 'Example', instructions],
+      ]);
+      expect(lenient.diagnostics).toEqual([]);
+
+      await expect(repository.readForRepair('example')).resolves.toMatchObject({
+        input: { name: 'example', description: 'Example', instructions },
+      });
+
+      expect(await dataAdapter.read(`${AGENT_SKILLS_ROOT}/example/SKILL.md`)).toBe(source);
+      expect(await dataAdapter.read(`${CLAUDE_SKILLS_ROOT}/example/SKILL.md`)).toBe(source);
     });
   });
   describe('repairing packages that need attention', () => {
