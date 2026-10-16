@@ -91,3 +91,35 @@ it.each([
   fireEvent.click(within(dialog).getByRole('button', { name: 'Update' }));
   expect(save).toHaveBeenCalledWith(expect.objectContaining({ modelAliases, contextLimits }));
 });
+
+it.each(['de-DE', 'fr-FR', 'ar-EG', 'en-US'])(
+  'keeps an unchanged saved context limit through Update under the %s number locale',
+  async numberLocale => {
+    const originalToLocaleString = Number.prototype.toLocaleString;
+    Number.prototype.toLocaleString = function (this: number, locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string {
+      return originalToLocaleString.call(this, locales ?? numberLocale, options);
+    };
+    try {
+      const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+      const snippet = {
+        id: 'snippet', name: 'Custom endpoint', description: '', scope: 'provider:claude' as const,
+        envVars: 'ANTHROPIC_MODEL=custom',
+        modelAliases: { custom: 'Old alias' },
+        contextLimits: { custom: 256500 },
+      };
+      const save = jest.fn();
+      const host = { settings } as ProviderHost;
+      const modal = new EnvSnippetModal({} as ProviderHost['app'], host, snippet, 'provider:claude', save);
+      modal.open();
+      const dialog = within(document.body).getByRole('dialog', { name: 'Edit snippet' });
+      const contextInput = within(dialog).getByRole('textbox', { name: 'Context window for custom' }) as HTMLInputElement;
+      expect(contextInput.value).toBe('256,500');
+      const overrideRow = within(dialog).getByRole('textbox', { name: 'Alias for custom' }).parentElement!;
+      expect(await axe(overrideRow)).toHaveNoViolations();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Update' }));
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({ contextLimits: { custom: 256500 } }));
+    } finally {
+      Number.prototype.toLocaleString = originalToLocaleString;
+    }
+  },
+);
