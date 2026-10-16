@@ -139,6 +139,11 @@ export class ConversationRepository {
           this.#invalidateConversation(conversation.id);
         }
       },
+      invalidateSession: (conversation) => {
+        this.deps.providerSettings.invalidateConversationSessions([conversation], [conversation.providerId]);
+        this.hydratedConversationIds.delete(conversation.id);
+        this.#invalidateConversation(conversation.id);
+      },
     });
   }
 
@@ -711,6 +716,13 @@ export class ConversationRepository {
     const drafts = this.conversations
       .filter(conversation => providers.has(conversation.providerId))
       .map(conversation => cloneJSON(conversation));
+    // A session that outlives the transition, including one still creating its first native
+    // session, must not bind through a late snapshot. Bindings the provider preserves stay live.
+    for (const draft of drafts) {
+      if (!this.deps.providerSettings.preservesConversationSession(draft)) {
+        this.executionBindings.retire(draft.id);
+      }
+    }
     const invalidated = this.deps.providerSettings.invalidateConversationSessions(drafts, providerIds);
     return invalidated.flatMap(draft => {
       const conversation = this.#getRecord(draft.id);

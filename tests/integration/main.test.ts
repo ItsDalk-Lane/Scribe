@@ -748,6 +748,7 @@ describe('ClaudianPlugin', () => {
       expect(restored).toEqual(expect.objectContaining({
         sessionId: null,
         providerState: {
+          bindingRetired: true,
           previousProviderSessionIds: ['restored-provider-session-id'],
         },
         resumeAtMessageId: 'restored-message-id',
@@ -755,6 +756,7 @@ describe('ClaudianPlugin', () => {
       expect(deferred).toEqual(expect.objectContaining({
         sessionId: null,
         providerState: {
+          bindingRetired: true,
           previousProviderSessionIds: ['deferred-provider-session-id'],
         },
         resumeAtMessageId: 'deferred-message-id',
@@ -797,14 +799,12 @@ describe('ClaudianPlugin', () => {
       );
       const claudeReconciler = ProviderRegistry.getSettingsReconciler('claude');
       const reconcileSpy = jest.spyOn(claudeReconciler, 'reconcileModelWithEnvironment')
-        .mockReturnValue({ changed: true, invalidatedConversations: [] });
-      claudeReconciler.environmentSessionPolicy = 'reload';
+        .mockReturnValue({ changed: true, invalidatedConversations: [], sessionPolicy: 'reload' });
 
       try {
         await plugin.onload();
         await (plugin as any).sessionMetadata.loadRemaining();
       } finally {
-        delete claudeReconciler.environmentSessionPolicy;
         reconcileSpy.mockRestore();
         loadSpy.mockRestore();
         listSpy.mockRestore();
@@ -882,10 +882,12 @@ describe('ClaudianPlugin', () => {
 
       expect(first?.sessionId).toBeNull();
       expect(first?.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: ['first-provider-session-id'],
       });
       expect(later?.sessionId).toBeNull();
       expect(later?.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: ['later-provider-session-id'],
       });
       expect(pendingGeneration).toEqual(expect.any(Number));
@@ -1203,10 +1205,12 @@ describe('ClaudianPlugin', () => {
 
       expect(restartedConversation?.sessionId).toBeNull();
       expect(restartedConversation?.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: ['restart-provider-session-id'],
       });
       expect(persistedMetadata.sessionId).toBeNull();
       expect(persistedMetadata.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: ['restart-provider-session-id'],
       });
       expect(restartedSettings.pendingProviderSessionInvalidations?.claude).toBeUndefined();
@@ -2156,6 +2160,7 @@ describe('ClaudianPlugin', () => {
       expect(invalidateSpy).toHaveBeenCalledTimes(1);
       expect(chatHostOf(plugin).getConversationSync(live.id)?.sessionId).toBeNull();
       expect(chatHostOf(plugin).getConversationSync(live.id)?.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: [
           'live-previous-session',
           'live-provider-session',
@@ -2164,6 +2169,7 @@ describe('ClaudianPlugin', () => {
       expect(live.resumeAtMessageId).toBe('live-resume-message');
       expect(chatHostOf(plugin).getConversationSync(deferredMetadata.id)?.sessionId).toBeNull();
       expect(chatHostOf(plugin).getConversationSync(deferredMetadata.id)?.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: [
           'deferred-previous-session',
           'deferred-provider-session',
@@ -2384,8 +2390,7 @@ describe('ClaudianPlugin', () => {
 
       const claudeReconciler = ProviderRegistry.getSettingsReconciler('claude');
       const reconcileSpy = jest.spyOn(claudeReconciler, 'reconcileModelWithEnvironment')
-        .mockReturnValue({ changed: true, invalidatedConversations: [] });
-      claudeReconciler.environmentSessionPolicy = 'reload';
+        .mockReturnValue({ changed: true, invalidatedConversations: [], sessionPolicy: 'reload' });
       const stagePendingSpy = jest.spyOn(runtimeSettingsOf(plugin), 'stagePendingSessionInvalidations');
       const getTabManager = jest.fn();
       const mockView = {
@@ -2404,7 +2409,6 @@ describe('ClaudianPlugin', () => {
           ].join('\n'),
         );
       } finally {
-        delete claudeReconciler.environmentSessionPolicy;
         reconcileSpy.mockRestore();
       }
 
@@ -2421,7 +2425,10 @@ describe('ClaudianPlugin', () => {
       }));
       expect(invalidated).toEqual(expect.objectContaining({
         sessionId: null,
-        providerState: undefined,
+        providerState: {
+          nativeConversationContextEstablished: false,
+          previousSegments: [{ threadId: 'invalidated-thread' }],
+        },
       }));
       expect(getTabManager).not.toHaveBeenCalled();
     });
@@ -2473,7 +2480,7 @@ describe('ClaudianPlugin', () => {
   });
 
   describe('applyProviderRuntimeSettings', () => {
-    it('persists a CLI fingerprint and restart-safe session invalidation atomically', async () => {
+    it('persists a session-scope fingerprint and restart-safe session invalidation atomically', async () => {
       const settingsPath = '.claudian/claudian-settings.json';
       const deferredMetadata = {
         id: 'runtime-settings-restart-session',
@@ -2504,6 +2511,7 @@ describe('ClaudianPlugin', () => {
       await plugin.providerHost.applyProviderRuntimeSettings(['codex'], (settings) => {
         updateCodexProviderSettings(settings, {
           cliPathsByHost: { [hostnameKey]: '/custom/codex' },
+          environmentVariables: 'OPENAI_BASE_URL=https://restart.example.test',
         });
       });
 
@@ -2551,14 +2559,18 @@ describe('ClaudianPlugin', () => {
       loadSourceSpy.mockRestore();
       saveMetadataSpy.mockRestore();
 
+      const historyOnlyState = {
+        nativeConversationContextEstablished: false,
+        previousSegments: [{ threadId: 'codex-thread-id' }],
+      };
       expect(restartedConversation).toEqual(expect.objectContaining({
         sessionId: null,
-        providerState: undefined,
+        providerState: historyOnlyState,
       }));
       expect(persistedMetadata).toEqual(expect.objectContaining({
         sessionId: null,
+        providerState: historyOnlyState,
       }));
-      expect(persistedMetadata).not.toHaveProperty('providerState');
       expect(restartedSettings.providerConfigs.codex.environmentHash).toBe(fingerprint);
       expect(restartedSettings.pendingProviderSessionInvalidations?.codex).toBeUndefined();
       expect(invalidationWrites).toHaveLength(1);
@@ -2612,6 +2624,7 @@ describe('ClaudianPlugin', () => {
         (settings) => {
           updateCodexProviderSettings(settings, {
             cliPathsByHost: { [hostnameKey]: '/custom/post-commit-codex' },
+            environmentVariables: 'OPENAI_BASE_URL=https://post-commit.example.test',
           });
         },
         () => {
@@ -2628,7 +2641,10 @@ describe('ClaudianPlugin', () => {
       )).toBe(true);
       expect(chatHostOf(plugin).getConversationSync(conversation.id)).toEqual(expect.objectContaining({
         sessionId: null,
-        providerState: undefined,
+        providerState: {
+          nativeConversationContextEstablished: false,
+          previousSegments: [{ threadId: 'post-commit-thread' }],
+        },
       }));
       expect(plugin.settings.pendingProviderSessionInvalidations.codex).toBeUndefined();
     });
@@ -3204,6 +3220,7 @@ describe('ClaudianPlugin', () => {
       const preserved = chatHostOf(plugin).getConversationSync(conv.id);
       expect(preserved?.sessionId).toBeNull();
       expect(preserved?.providerState).toEqual({
+        bindingRetired: true,
         previousProviderSessionIds: ['temporarily-inaccessible'],
       });
     });

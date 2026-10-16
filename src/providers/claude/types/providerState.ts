@@ -5,6 +5,12 @@ import type { SubagentInfo } from '../../../core/types/tools';
 export interface ClaudeProviderState {
   providerSessionId?: string;
   previousProviderSessionIds?: string[];
+  /**
+   * Retired-binding migration (#1647, added 2026-10-16; remove after 2027-01-16). Set whenever Claudian retires the live
+   * binding, so only retirements left by earlier versions get the one-time restore. Remove this
+   * field, its writes, and every block tagged "Retired-binding migration" together.
+   */
+  bindingRetired?: boolean;
   historyReplayPending?: boolean;
   forkSource?: ForkSource;
   subagentData?: Record<string, SubagentInfo>;
@@ -62,6 +68,7 @@ export function clearClaudeResumeState(conversation: Conversation): boolean {
   }
 
   conversation.sessionId = null;
+  providerState.bindingRetired = true;
   delete providerState.providerSessionId;
   delete providerState.forkSource;
   conversation.providerState = Object.keys(providerState).length > 0

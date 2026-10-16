@@ -47,6 +47,7 @@ function fixture() {
   const runtimeSettings = new RuntimeSettingsCoordinator({
     settings: new SettingsCoordinator(settings, async () => undefined),
     conversations: repository, getSettings: () => settings, canCompleteInvalidations: () => false,
+    executionLifecycle: new ProviderExecutionLifecycleRegistry(),
   });
   return { conversation, persistence, repository, runtimeSettings };
 }
@@ -259,6 +260,116 @@ test('provider invalidation fences session fields while preserving the rest of a
   await Promise.all([update, invalidation]);
   expect(repository.getSync(conversation.id)).toMatchObject({ title: 'Renamed', sessionId: null });
   expect(persistence.saveMetadata.mock.calls.at(-1)?.[0]).toMatchObject({ title: 'Renamed', sessionId: null });
+});
+
+test('provider invalidation demotes later snapshots from an execution binding that survived it', async () => {
+  const { repository, persistence, conversation } = fixture();
+  repository.registerExecutionBinding(conversation.id, 'surviving-binding', 1);
+  // An open binding belongs to a session that kept running through the transition (e.g. a preserved Codex turn).
+  await repository.persistConversations(repository.invalidateProviderSessions(['claude']));
+  const writes = persistence.saveMetadata.mock.calls.length;
+
+  await expect(repository.persistExecutionSnapshot(conversation.id, 'surviving-binding', 1, {
+    providerId: 'claude',
+    revision: 1,
+    status: 'idle',
+    providerSessionId: 'native-late',
+  })).resolves.toBe(true);
+  // The late session stays readable as history but never becomes the live binding.
+  expect(repository.getSync(conversation.id)).toMatchObject({
+    sessionId: null,
+    providerState: { previousProviderSessionIds: ['native-shared', 'native-late'] },
+  });
+  expect(persistence.saveMetadata).toHaveBeenCalledTimes(writes + 1);
+  await expect(repository.assertConversationExecutionAuthority(conversation.id, 'surviving-binding', 1))
+    .rejects.toThrow('no longer available');
+
+  // The replacement session can still bind and persist.
+  repository.registerExecutionBinding(conversation.id, 'replacement-binding', 2);
+  await expect(repository.persistExecutionSnapshot(conversation.id, 'replacement-binding', 2, {
+    providerId: 'claude',
+    revision: 1,
+    status: 'idle',
+    providerSessionId: 'native-replacement',
+  })).resolves.toBe(true);
+  expect(repository.getSync(conversation.id)?.sessionId).toBe('native-replacement');
+});
+
+test('provider invalidation keeps execution bindings the provider preserved', async () => {
+  const { repository, persistence } = fixture();
+  // OpenCode V2 keeps sessions bound to a persistent native database across runtime changes.
+  const preserved: Conversation = {
+    id: 'preserved-conversation', providerId: 'opencode', title: 'Preserved',
+    sessionId: 'ses_preserved', createdAt: testDate().getTime(), lastActivityAt: testDate().getTime(),
+    messages: [], isPinned: false,
+    providerState: { nativeVersion: 2, databasePath: '/data/opencode/opencode.db', sessionId: 'ses_preserved' },
+  };
+  repository.replaceAll([preserved]);
+  repository.registerExecutionBinding(preserved.id, 'preserved-binding', 1);
+
+  expect(repository.invalidateProviderSessions(['opencode'])).toEqual([]);
+
+  await expect(repository.persistExecutionSnapshot(preserved.id, 'preserved-binding', 1, {
+    providerId: 'opencode',
+    revision: 1,
+    status: 'idle',
+    providerSessionId: 'ses_preserved',
+  })).resolves.toBe(true);
+  expect(persistence.saveMetadata).toHaveBeenCalledTimes(1);
+  await expect(repository.assertConversationExecutionAuthority(preserved.id, 'preserved-binding', 1)).resolves.toBeUndefined();
+});
+
+test('provider invalidation keeps the binding of a shared-runtime first run that has no native session yet', async () => {
+  const { repository, persistence } = fixture();
+  // OpenCode keeps shared-runtime sessions through the transition; a first V2 run has not
+  // captured its database yet, so its binding must stay live with the session.
+  const fresh: Conversation = {
+    id: 'fresh-conversation', providerId: 'opencode', title: 'Fresh',
+    sessionId: null, createdAt: testDate().getTime(), lastActivityAt: testDate().getTime(),
+    messages: [], isPinned: false,
+  };
+  repository.replaceAll([fresh]);
+  repository.registerExecutionBinding(fresh.id, 'first-run', 1);
+
+  expect(repository.invalidateProviderSessions(['opencode'])).toEqual([]);
+
+  await expect(repository.persistExecutionSnapshot(fresh.id, 'first-run', 1, {
+    providerId: 'opencode',
+    revision: 1,
+    status: 'idle',
+    providerSessionId: 'ses_first',
+    providerState: { nativeVersion: 2, databasePath: '/data/opencode/opencode.db', sessionId: 'ses_first' },
+  })).resolves.toBe(true);
+  expect(repository.getSync(fresh.id)?.sessionId).toBe('ses_first');
+  expect(persistence.saveMetadata).toHaveBeenCalledTimes(1);
+  await expect(repository.assertConversationExecutionAuthority(fresh.id, 'first-run', 1)).resolves.toBeUndefined();
+});
+
+test('provider invalidation demotes a snapshot that was admitted but not yet written', async () => {
+  const { repository, persistence, conversation } = fixture();
+  repository.registerExecutionBinding(conversation.id, 'surviving-binding', 1);
+  let finishWrite!: () => void;
+  persistence.saveMetadata.mockImplementationOnce(() => new Promise<void>(resolve => { finishWrite = resolve; }));
+  const rename = repository.rename(conversation.id, 'Renamed');
+  await waitFor(() => Boolean(finishWrite));
+  const lateSnapshot = repository.persistExecutionSnapshot(conversation.id, 'surviving-binding', 1, {
+    providerId: 'claude',
+    revision: 1,
+    status: 'idle',
+    providerSessionId: 'native-late',
+  });
+  const invalidation = repository.persistConversations(repository.invalidateProviderSessions(['claude']));
+  finishWrite();
+  await Promise.all([rename, invalidation]);
+
+  await expect(lateSnapshot).resolves.toBe(true);
+  const historyOnly = {
+    title: 'Renamed',
+    sessionId: null,
+    providerState: { previousProviderSessionIds: ['native-shared', 'native-late'] },
+  };
+  expect(repository.getSync(conversation.id)).toMatchObject(historyOnly);
+  expect(persistence.saveMetadata.mock.calls.at(-1)?.[0]).toMatchObject(historyOnly);
 });
 
 test('a missing-session check waits for an already-admitted binding write', async () => {

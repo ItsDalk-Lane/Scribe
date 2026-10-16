@@ -12,6 +12,7 @@ import {
   parseImageDataUri,
 } from '@/core/execution/imageAttachment';
 import { extractUserDisplayContent } from '@/core/prompt/promptContext';
+import { unwrapRecoveryPrompt } from '@/core/prompt/recoveryPrompt';
 import { decodeSessionMessage } from '@/core/session-tools/sessionMessageEnvelope';
 import type { NormalizedCodexToolCall } from '@/providers/codex/normalization/codexToolNormalization';
 import {
@@ -445,8 +446,9 @@ function extractUserMessageText(content: PersistedMessagePart[] | undefined): st
     return '';
   }
 
+  // Decode replay envelopes intact; image cleanup would change their recorded length.
   return joinCodexUserTextParts(
-    content.map(part => (typeof part?.text === 'string' ? part.text : '')),
+    content.map(part => (typeof part?.text === 'string' ? unwrapRecoveryPrompt(part.text) : '')),
   );
 }
 
@@ -1269,7 +1271,9 @@ function processEventMsg(
 
     case 'user_message': {
       const turn = ensureTurn(ctx.turns, ctx.turnOrder, nextTurnId(ctx), ctx.currentTurnId, timestamp);
-      const msg = payload.message;
+      const msg = typeof payload.message === 'string'
+        ? unwrapRecoveryPrompt(payload.message)
+        : payload.message;
       if (typeof msg === 'string') {
         const isQuestionReply = applyQuestionReplies(msg, ctx);
         const visibleText = extractCodexUserVisibleText(msg);

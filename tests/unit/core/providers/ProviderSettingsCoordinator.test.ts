@@ -372,7 +372,7 @@ describe('ProviderSettingsCoordinator', () => {
       reconcileSpy.mockRestore();
     });
 
-    it('defaults existing providers to invalidation and separates reload-policy providers', () => {
+    it('defaults existing providers to invalidation and separates reload-policy changes', () => {
       const defaultReconciler: ProviderSettingsReconciler = {
         invalidateConversationSessions: jest.fn(conversations => conversations),
         reconcileModelWithEnvironment: jest.fn((_settings, conversations) => ({
@@ -382,11 +382,11 @@ describe('ProviderSettingsCoordinator', () => {
         normalizeModelVariantSettings: jest.fn(() => false),
       };
       const reloadReconciler: ProviderSettingsReconciler = {
-        environmentSessionPolicy: 'reload',
         invalidateConversationSessions: jest.fn(conversations => conversations),
         reconcileModelWithEnvironment: jest.fn(() => ({
           changed: true,
           invalidatedConversations: [],
+          sessionPolicy: 'reload',
         })),
         normalizeModelVariantSettings: jest.fn(() => false),
       };
@@ -428,7 +428,6 @@ describe('ProviderSettingsCoordinator', () => {
       settingsProviderSpy.mockRestore();
       uiConfigSpy.mockRestore();
 
-      expect(defaultReconciler.environmentSessionPolicy).toBeUndefined();
       expect(result.environmentChangedProviderIds).toEqual([
         'fake-invalidate',
         'fake-reload',
@@ -990,7 +989,7 @@ describe('ProviderSettingsCoordinator', () => {
           codex: {
             enabled: true,
             discoveredModels: TEST_CODEX_CATALOG,
-            environmentVariables: `OPENAI_MODEL=${TEST_CODEX_MODEL}`,
+            environmentVariables: `OPENAI_MODEL=${TEST_CODEX_MODEL}\nOPENAI_BASE_URL=https://codex.example.test`,
           },
         },
         model: 'haiku',
@@ -1006,8 +1005,12 @@ describe('ProviderSettingsCoordinator', () => {
       );
 
       expect(result.changed).toBe(true);
+      expect(result.sessionInvalidationProviderIds).toContain('codex');
       expect(codexConv.sessionId).toBeNull();
-      expect(codexConv.providerState).toBeUndefined();
+      expect(codexConv.providerState).toEqual({
+        nativeConversationContextEstablished: false,
+        previousSegments: [{ threadId: 'thread-1' }],
+      });
       expect(settings.model).toBe('haiku');
       expect(settings.savedProviderModel).toEqual({
         claude: 'haiku',

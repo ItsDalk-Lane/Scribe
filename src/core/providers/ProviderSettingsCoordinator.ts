@@ -431,7 +431,7 @@ export class ProviderSettingsCoordinator {
         this.projectProviderState(targetSettings, providerId);
       }
 
-      const { changed, invalidatedConversations } = reconciler.reconcileModelWithEnvironment(
+      const { changed, invalidatedConversations, sessionPolicy } = reconciler.reconcileModelWithEnvironment(
         targetSettings,
         reconciliationConversations,
       );
@@ -439,7 +439,7 @@ export class ProviderSettingsCoordinator {
       if (changed) {
         anyChanged = true;
         environmentChangedProviderIds.push(providerId);
-        if ((reconciler.environmentSessionPolicy ?? 'invalidate') === 'invalidate') {
+        if ((sessionPolicy ?? 'invalidate') === 'invalidate') {
           sessionInvalidationProviderIds.push(providerId);
         }
         this.persistProjectedProviderState(targetSettings, providerId);
@@ -477,6 +477,11 @@ export class ProviderSettingsCoordinator {
       );
     }
     return invalidatedConversations;
+  }
+
+  static preservesConversationSession(conversation: Conversation): boolean {
+    return ProviderRegistry.getSettingsReconciler(conversation.providerId)
+      .preservesConversationSession?.(conversation) ?? false;
   }
 
   static normalizeAllModelVariants(settings: Record<string, unknown>): boolean {

@@ -14,7 +14,7 @@ import {
   getOpencodeProviderSettings,
   updateOpencodeProviderSettings
 } from '../settings';
-import { getOpencodeState } from '../types';
+import { clearOpencodeResumeState, getOpencodeState } from '../types';
 
 const OPENCODE_ENV_HASH_KEYS = [
   'OPENCODE_CONFIG',
@@ -35,25 +35,30 @@ function computeOpencodeRuntimeFingerprint(
   });
 }
 
+/**
+ * The one rule for what an environment change keeps: V2 resumes against its captured database,
+ * including while the old launch drains, and a conversation without native state has nothing to
+ * retire (a shared-runtime first run captures its database as it starts). The workspace hook keeps
+ * running sessions by the same rule, so a kept session always keeps its binding.
+ */
+export function preservesOpencodeConversationSession(
+  conversation: Pick<Conversation, 'sessionId' | 'providerState'>,
+): boolean {
+  const state = getOpencodeState(conversation.providerState);
+  if (state.nativeVersion === 2 && !!state.databasePath && state.databasePath !== ':memory:') return true;
+  return !conversation.sessionId && !state.sessionId && !state.forkSource
+    && !state.databasePath && !state.nativeVersion;
+}
+
 function invalidateOpencodeConversationSessions(conversations: Conversation[]): Conversation[] {
   const invalidatedConversations: Conversation[] = [];
   for (const conversation of conversations) {
-    if (conversation.providerId !== 'opencode') {
+    if (conversation.providerId !== 'opencode' || preservesOpencodeConversationSession(conversation)) {
       continue;
     }
-
-    const state = getOpencodeState(conversation.providerState);
-    // V2 resumes against its captured database, including while the old launch drains.
-    if (state.nativeVersion === 2 && state.databasePath && state.databasePath !== ':memory:') {
-      continue;
+    if (clearOpencodeResumeState(conversation, { releaseDatabase: true })) {
+      invalidatedConversations.push(conversation);
     }
-    if (!conversation.sessionId && !state.databasePath) {
-      continue;
-    }
-
-    conversation.sessionId = null;
-    conversation.providerState = undefined;
-    invalidatedConversations.push(conversation);
   }
   return invalidatedConversations;
 }
@@ -61,6 +66,8 @@ function invalidateOpencodeConversationSessions(conversations: Conversation[]): 
 export const opencodeSettingsReconciler = {
 
   invalidateConversationSessions: invalidateOpencodeConversationSessions,
+
+  preservesConversationSession: preservesOpencodeConversationSession,
 
   reconcileModelWithEnvironment(
     settings: Record<string, unknown>,

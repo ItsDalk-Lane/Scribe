@@ -1,5 +1,5 @@
 import type { ProviderExecutionRequest } from '@/core/execution';
-import { buildContextFromHistory, buildPromptWithHistoryContext } from '@/core/prompt/historyContext';
+import { buildContextFromHistory } from '@/core/prompt/historyContext';
 import { buildSystemPrompt, type SystemPromptSettings } from '@/core/prompt/mainAgent';
 import {
   appendLinkedContent,
@@ -7,6 +7,7 @@ import {
   appendSelectionContexts,
   appendSessionReferences,
 } from '@/core/prompt/promptContext';
+import { buildRecoveryPrompt } from '@/core/prompt/recoveryPrompt';
 import type { ChatMessage } from '@/core/types';
 import { getCodexModelOptions } from '@/providers/codex/modelOptions';
 import {
@@ -222,12 +223,8 @@ export function buildCodexTurnPrompt(
   }
   if (replayConversationHistory) {
     const historyContext = buildContextFromHistory(history as ChatMessage[]);
-    return buildPromptWithHistoryContext(
-      historyContext || null,
-      prompt,
-      prompt,
-      history as ChatMessage[],
-    );
+    // The envelope lets history parsing show only the visible input of the replayed turn.
+    return historyContext ? buildRecoveryPrompt(historyContext, prompt, history as ChatMessage[]) : prompt;
   }
   return prompt;
 }

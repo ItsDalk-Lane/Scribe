@@ -100,18 +100,33 @@ export interface ProviderSettingsStorageAdapter {
 
 export type ProviderEnvironmentSessionPolicy = 'invalidate' | 'reload';
 
-export interface ProviderSettingsReconciler {
-  /** Defaults to `invalidate` for backward compatibility. */
-  environmentSessionPolicy?: ProviderEnvironmentSessionPolicy;
+export interface ProviderEnvironmentReconciliation {
+  changed: boolean;
+  invalidatedConversations: Conversation[];
+  /** How this change treats conversation bindings; `invalidate` when omitted. */
+  sessionPolicy?: ProviderEnvironmentSessionPolicy;
+}
 
+export interface ProviderSettingsReconciler {
   handleEnvironmentChange?(settings: Record<string, unknown>): boolean;
 
+  /**
+   * Clears resumable native bindings only. History locators must survive as
+   * recovery-only state, readable while their native store remains trusted.
+   */
   invalidateConversationSessions(conversations: Conversation[]): Conversation[];
+
+  /**
+   * Whether invalidation deliberately keeps this conversation's binding live (its native
+   * store is unaffected), so a session still running for it keeps its execution authority.
+   * `invalidateConversationSessions` must leave exactly these conversations untouched.
+   */
+  preservesConversationSession?(conversation: Conversation): boolean;
 
   reconcileModelWithEnvironment(
     settings: Record<string, unknown>,
     conversations: Conversation[],
-  ): { changed: boolean; invalidatedConversations: Conversation[] };
+  ): ProviderEnvironmentReconciliation;
 
   normalizeModelVariantSettings?(settings: Record<string, unknown>): boolean;
 }
