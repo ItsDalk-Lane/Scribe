@@ -1,4 +1,4 @@
-import { Notice } from 'obsidian';
+import { type Keymap, Notice } from 'obsidian';
 import * as path from 'path';
 
 import { normalizeImageMediaType } from '@/core/execution/imageAttachment';
@@ -46,6 +46,7 @@ export class ImageContextManager {
   };
 
   constructor(
+    private readonly keymap: Keymap,
     containerEl: HTMLElement,
     inputEl: ComposerInputElement,
     callbacks: ImageContextCallbacks,
@@ -320,7 +321,7 @@ export class ImageContextManager {
     if (this.destroyed) return;
 
     const ownerDocument = this.containerEl.ownerDocument ?? window.document;
-    this.imagePreviewModal.open(ownerDocument, image);
+    this.imagePreviewModal.open(ownerDocument, image, this.keymap);
   }
 
   private generateId(): string {

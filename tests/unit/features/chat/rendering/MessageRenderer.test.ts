@@ -68,7 +68,7 @@ function createRenderer(
   const el = messagesEl ?? createMockEl();
   const comp = createMockComponent();
   const plugin = {
-    app: {},
+    app: { keymap: { pushScope: jest.fn(), popScope: jest.fn() } },
     settings: { mediaFolder: '', ...settings },
   };
   return {

@@ -346,7 +346,7 @@ it('keeps the explicit send shortcut focused inside the editor', () => {
 it('lets image attachment handling consume image paste before the rich editor inserts fallback text', () => {
   const parent = document.body.createDiv({ cls: 'claudian-input-wrapper' });
   const editor = createEditor(parent);
-  const images = new ImageContextManager(parent, editor.element, {});
+  const images = new ImageContextManager({ pushScope: jest.fn(), popScope: jest.fn() }, parent, editor.element, {});
   editor.element.value = 'Keep this';
   editor.element.focus();
   const clipboardData = {
@@ -883,7 +883,7 @@ it('localizes image attachment labels and removal controls', async () => {
   setLocale('zh-CN');
   const parent = document.body.createDiv();
   const editor = createEditor(parent);
-  const images = new ImageContextManager(parent, editor.element, {});
+  const images = new ImageContextManager({ pushScope: jest.fn(), popScope: jest.fn() }, parent, editor.element, {});
   try {
     images.setImages([{ id: 'image', name: 'photo.png', mediaType: 'image/png', data: 'dGVzdA==', size: 500, source: 'paste' }]);
     fireEvent.click(within(parent).getByRole('button', { name: '图片附件：photo.png · 500 B' }));
@@ -913,7 +913,7 @@ it('localizes image overflow controls and updates their accessible names on expa
   const editor = createEditor(parent);
   const trayEl = parent.createDiv();
   const tray = new ComposerContextTray(trayEl);
-  const images = new ImageContextManager(parent, editor.element, {}, undefined, tray);
+  const images = new ImageContextManager({ pushScope: jest.fn(), popScope: jest.fn() }, parent, editor.element, {}, undefined, tray);
   try {
     images.setImages(Array.from({ length: 4 }, (_, index) => ({
       id: `image-${index}`, name: `photo-${index}.png`, mediaType: 'image/png' as const,

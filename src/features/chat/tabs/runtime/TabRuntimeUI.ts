@@ -67,6 +67,7 @@ function buildContextManagers(
   linkedContentController.mountInfoRow(infoRow);
   if (dom.welcomeEl) linkedContentController.mountWelcome(dom.welcomeEl);
   const imageContextManager = new ImageContextManager(
+    plugin.app.keymap,
     dom.inputContainerEl,
     dom.inputEl,
     { onUserImagesChanged: onUserModified },

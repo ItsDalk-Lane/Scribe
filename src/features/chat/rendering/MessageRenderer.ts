@@ -620,7 +620,7 @@ export class MessageRenderer {
 
       imageWrapper.addEventListener('click', () => {
         if (this.#markdown.isDisposed) return;
-        this.imagePreviewModal.open(this.messagesEl.ownerDocument ?? window.document, image);
+        this.imagePreviewModal.open(this.messagesEl.ownerDocument ?? window.document, image, this.app.keymap);
       });
     }
     return imagesEl;
