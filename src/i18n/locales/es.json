@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "El servidor OpenCode no devolvió modelos habilitados para esta bóveda. Revise .opencode/opencode.json en la bóveda y los registros de OpenCode (opencode debug paths muestra su ubicación). En OpenCode v2, los plugins V1 configurados pueden ser incompatibles. Compare con opencode models --standalone en la bóveda y vuelva a descubrir modelos.",
       "environment": {
         "name": "Variables de entorno de OpenCode",
         "desc": "Variables de entorno adicionales que se pasan a OpenCode."

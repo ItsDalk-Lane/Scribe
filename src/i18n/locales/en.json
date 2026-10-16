@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "OpenCode server returned no enabled models for this vault. Check the vault's .opencode/opencode.json and OpenCode logs (run opencode debug paths to locate them). For OpenCode v2, configured V1 plugins may be incompatible. Compare opencode models --standalone in the vault, then click Discover.",
       "environment": {
         "name": "OpenCode environment variables",
         "desc": "Extra environment variables passed to OpenCode."

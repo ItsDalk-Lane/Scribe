@@ -54,7 +54,12 @@ export class OpencodeHTTPClient {
     }
     const text = Buffer.concat(chunks).toString('utf8');
     if (response.statusCode! < 200 || response.statusCode! >= 300) {
-      throw new OpencodeHTTPError(response.statusCode!, `OpenCode HTTP request failed (${response.statusCode}): ${text.slice(0, 1000)}`);
+      let reference = '';
+      try {
+        const error: unknown = JSON.parse(text);
+        if (isRecord(error) && typeof error.ref === 'string' && error.ref) reference = ` ref=${error.ref.slice(0, 1000)}`;
+      } catch { /* Non-JSON errors still retain the HTTP status and response text. */ }
+      throw new OpencodeHTTPError(response.statusCode!, `OpenCode HTTP request failed (${response.statusCode}): ${text.slice(0, 1000)}${reference}`);
     }
     return (text ? JSON.parse(text) : undefined) as T;
   }

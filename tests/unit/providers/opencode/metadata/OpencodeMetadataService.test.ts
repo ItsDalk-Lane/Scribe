@@ -74,7 +74,7 @@ describe('OpencodeMetadataService', () => {
     const create = jest.fn(() => probe);
     const service = new OpencodeMetadataService(plugin, { createProbe: create });
     try {
-      await expect(service.discoverModels()).resolves.toBe(true);
+      await expect(service.discoverModels()).resolves.toEqual({ changed: true });
       expect(create).toHaveBeenCalledTimes(1);
       expect(jest.mocked(probe.warmModel).mock.calls.map(([id]) => id)).toEqual(['a/one', 'b/two']);
       expect(getOpencodeProviderSettings(plugin.settings).thinkingOptionsByModel['b/two']).toEqual([]);
@@ -202,7 +202,7 @@ describe('OpencodeMetadataService', () => {
     await expect(Promise.all([catalog, commands, warm, discovery, batch])).resolves.toEqual([
       true,
       expect.objectContaining({ loaded: true }),
-      true, true, true,
+      true, { changed: true }, true,
     ]);
     expect(probeEnvironments).toEqual([
       'environment-b', 'environment-b', 'environment-b',
@@ -278,7 +278,7 @@ it.each(['catalog', 'warm', 'discovery', 'batch'] as const)('does not publish ca
   await waiting;
   controller.abort();
   release();
-  await expect(pending).resolves.toBe(false);
+  expect(await pending).toEqual(kind === 'discovery' ? { changed: false } : false);
   expect(getOpencodeProviderSettings(host.settings).discoveredModels).toEqual([]);
   expect(getOpencodeProviderSettings(host.settings).thinkingOptionsByModel).toEqual({});
   expect(host.notifyProviderChatOptionsChanged).not.toHaveBeenCalled();

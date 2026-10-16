@@ -28,10 +28,7 @@ export function createOpencodeModels(host: ProviderHost, native: Pick<OpencodeMe
         aliases: current.modelAliases,
       };
     },
-    discover: async signal => {
-      const loaded = await native.discoverModels(signal);
-      return loaded ? { changed: true } : { changed: false, diagnostics: 'Could not load OpenCode models. Check the CLI path and login, then click Discover.' };
-    },
+    discover: signal => native.discoverModels(signal),
     async afterSelect(addedIds) {
       await native.warmModelsMetadata(addedIds.map(encodeOpencodeModelId));
     },

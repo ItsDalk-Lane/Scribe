@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "Сервер OpenCode не вернул включённых моделей для этого хранилища. Проверьте .opencode/opencode.json в хранилище и журналы OpenCode (opencode debug paths покажет их расположение). В OpenCode v2 настроенные плагины V1 могут быть несовместимы. Сравните результат opencode models --standalone в хранилище и повторите поиск моделей.",
       "environment": {
         "name": "Переменные окружения OpenCode",
         "desc": "Дополнительные переменные окружения, передаваемые в OpenCode."

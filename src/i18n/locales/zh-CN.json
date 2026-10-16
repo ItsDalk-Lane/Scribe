@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "OpenCode 服务端没有为此仓库返回已启用的模型。请检查仓库的 .opencode/opencode.json 和 OpenCode 日志（运行 opencode debug paths 查看位置）。使用 OpenCode v2 时，配置的 V1 插件可能不兼容。请在仓库中运行 opencode models --standalone 对比，然后点击“发现”。",
       "environment": {
         "name": "OpenCode 环境变量",
         "desc": "传递给 OpenCode 的额外环境变量。"

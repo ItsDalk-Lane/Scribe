@@ -38,6 +38,12 @@ if (process.argv.includes('--version')) {
       res.setHeader('Content-Type', 'application/json');
       res.end('{}'); return;
     }
+    if (url.pathname === '/api/model' && fs.existsSync(process.env.CATALOG_FILE + '.error')) {
+      const error = JSON.parse(fs.readFileSync(process.env.CATALOG_FILE + '.error', 'utf8'));
+      res.writeHead(error.status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(error.body)); return;
+    }
+    if (url.pathname === '/api/model' && fs.existsSync(process.env.CATALOG_FILE + '.hang')) return;
     if (url.pathname === '/api/model') fs.writeFileSync(process.env.ENDPOINT_FILE + '.read', String(reads + 1));
     const catalog = JSON.parse(fs.readFileSync(process.env.CATALOG_FILE, 'utf8'))
       .filter(model => activated || model.providerID !== 'opencode-go')

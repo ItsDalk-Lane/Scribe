@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "Le serveur OpenCode n’a renvoyé aucun modèle activé pour ce coffre. Vérifiez .opencode/opencode.json dans le coffre et les journaux OpenCode (opencode debug paths indique leur emplacement). Avec OpenCode v2, les plugins V1 configurés peuvent être incompatibles. Comparez avec opencode models --standalone dans le coffre, puis relancez la découverte.",
       "environment": {
         "name": "Variables d'environnement OpenCode",
         "desc": "Variables d'environnement supplémentaires transmises à OpenCode."

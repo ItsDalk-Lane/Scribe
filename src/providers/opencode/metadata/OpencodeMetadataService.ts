@@ -4,6 +4,7 @@ import type { ProviderInteractionPort } from '@/core/execution';
 import { OwnedProbeRegistry } from '@/core/providers/metadata/OwnedProbeRegistry';
 import { ProviderTransitionFence } from '@/core/providers/metadata/ProviderTransitionFence';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
+import type { ProviderModelCatalogRefreshResult } from '@/core/providers/types';
 import type { SlashCommand } from '@/core/types';
 import { ACPSessionUpdateNormalizer } from '@/providers/acp';
 import { toAbortError } from '@/utils/abort';
@@ -104,8 +105,8 @@ export class OpencodeMetadataService {
     return await this.#runProbe((probe, ownedSignal) => this.#publishCatalog(probe, ownedSignal), signal) ?? false;
   }
 
-  async discoverModels(signal?: AbortSignal): Promise<boolean> {
-    return await this.#runProbe(async (probe, ownedSignal) => {
+  async discoverModels(signal?: AbortSignal): Promise<ProviderModelCatalogRefreshResult> {
+    return await this.#runProbe<ProviderModelCatalogRefreshResult>(async (probe, ownedSignal) => {
       await this.#publishCatalog(probe, ownedSignal);
       const selected = getOpencodeProviderSettings(this.plugin.settings).visibleModels;
       for (const id of selected) {
@@ -114,8 +115,11 @@ export class OpencodeMetadataService {
         if (!current.visibleModels.includes(id) || Object.hasOwn(current.thinkingOptionsByModel, id)) continue;
         await this.#warmModel(probe, id, ownedSignal);
       }
-      return true;
-    }, signal) ?? false;
+      return { changed: true };
+    }, signal, error => ({
+      changed: false,
+      diagnostics: `Could not load OpenCode models: ${toError(error, 'Model discovery failed.').message} Check the CLI path and login, the vault's .opencode/opencode.json, and OpenCode logs (run opencode debug paths to locate them), then click Discover.`,
+    })) ?? { changed: false };
   }
 
   async #publishCatalog(probe: OpencodeMetadataProbe, signal: AbortSignal): Promise<boolean> {
@@ -240,7 +244,9 @@ export class OpencodeMetadataService {
   async #runProbe<T>(
     operation: (probe: OpencodeMetadataProbe, signal: AbortSignal) => Promise<T>,
     signal?: AbortSignal,
+    onError?: (error: unknown) => T,
   ): Promise<T | null> {
+    let probeSignal: AbortSignal | undefined;
     try {
       if (this.disposed) return null;
       if (this.transitionFence.isUnavailable()) {
@@ -248,11 +254,15 @@ export class OpencodeMetadataService {
         if (!available) return null;
       }
       return await this.probes.run({
-        create: signal => this.createProbe(signal),
+        create: signal => {
+          probeSignal = signal;
+          return this.createProbe(signal);
+        },
         query: operation,
       }, signal);
-    } catch {
-      return null;
+    } catch (error) {
+      if (signal?.aborted || probeSignal?.aborted) return null;
+      return onError?.(error) ?? null;
     }
   }
 

@@ -134,6 +134,8 @@ Claudian discovers models from each configured provider rather than keeping its 
 
 If the model is still absent, the active provider runtime or account has not reported it to Claudian. Public or API availability alone does not guarantee catalog availability for every provider integration or account. Avoid editing Claudian's installed bundle to add the model manually; those changes are unsupported and will be overwritten by updates.
 
+For OpenCode, discovery failures show the request error, including a server error reference when supplied. A successful catalog with no enabled models instead shows configuration guidance. Check the vault's `.opencode/opencode.json`, compare `opencode models --standalone` from that vault using the same CLI and environment, and use `opencode debug paths` to locate OpenCode logs. With OpenCode v2, configured V1 plugins may be incompatible; an empty catalog alone does not establish a plugin failure.
+
 ### Node.js not found for an npm-installed CLI
 
 npm-installed provider CLIs need Node.js. Claudian prefers the Node.js next to the CLI, then the first one on PATH. If the CLI still reports that Node.js is missing (for example `env: node: No such file or directory`), check where your terminal finds it:

@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "OpenCode サーバーから、この保管庫で有効なモデルが返されませんでした。保管庫の .opencode/opencode.json と OpenCode ログを確認してください（opencode debug paths で場所を確認できます）。OpenCode v2 では、設定された V1 プラグインに互換性がない場合があります。保管庫で opencode models --standalone を実行して比較し、再度検出してください。",
       "environment": {
         "name": "OpenCode 環境変数",
         "desc": "OpenCode に渡す追加の環境変数。"

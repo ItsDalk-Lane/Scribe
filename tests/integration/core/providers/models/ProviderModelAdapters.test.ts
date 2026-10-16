@@ -46,7 +46,7 @@ it.each(modelCatalogCases)('$id keeps native selection, aliases and metadata beh
     claude: () => createClaudeModels(host, discovery),
     codex: () => createCodexModels(host, { refresh: discovery }),
     grok: () => createGrokModels(host, { refresh: discovery }),
-    opencode: () => createOpencodeModels(host, { discoverModels: async () => { await discovery(); return true; }, warmModelsMetadata }),
+    opencode: () => createOpencodeModels(host, { discoverModels: discovery, warmModelsMetadata }),
     pi: () => createPiModels(host),
   };
   const catalog = factories[id]();

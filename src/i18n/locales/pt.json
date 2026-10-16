@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "O servidor OpenCode não retornou modelos habilitados para este cofre. Verifique .opencode/opencode.json no cofre e os logs do OpenCode (opencode debug paths mostra a localização). No OpenCode v2, plugins V1 configurados podem ser incompatíveis. Compare com opencode models --standalone no cofre e descubra os modelos novamente.",
       "environment": {
         "name": "Variáveis de ambiente do OpenCode",
         "desc": "Variáveis de ambiente extras passadas ao OpenCode."

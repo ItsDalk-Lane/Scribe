@@ -394,6 +394,8 @@ export function renderProviderModelPicker(
     const models = state.models.filter(matchesFilter);
 
     if (models.length === 0) {
+      // The status above owns failed discovery; an empty-catalog hint would imply success.
+      if (state.status === 'failed' && state.models.length === 0) return;
       listEl.createDiv({
         cls: 'claudian-provider-model-picker-empty',
         text: isLoading()

@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "Der OpenCode-Server hat keine aktivierten Modelle für diesen Vault zurückgegeben. Prüfen Sie .opencode/opencode.json im Vault und die OpenCode-Protokolle (opencode debug paths zeigt deren Speicherort). Bei OpenCode v2 können konfigurierte V1-Plugins inkompatibel sein. Vergleichen Sie opencode models --standalone im Vault und klicken Sie erneut auf Entdecken.",
       "environment": {
         "name": "OpenCode-Umgebungsvariablen",
         "desc": "Zusätzliche Umgebungsvariablen, die an OpenCode übergeben werden."

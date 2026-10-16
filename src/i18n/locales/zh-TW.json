@@ -687,6 +687,7 @@
       }
     },
     "opencode": {
+      "emptyModels": "OpenCode 伺服器未為此儲存庫傳回已啟用的模型。請檢查儲存庫的 .opencode/opencode.json 與 OpenCode 日誌（執行 opencode debug paths 查看位置）。使用 OpenCode v2 時，設定的 V1 外掛可能不相容。請在儲存庫中執行 opencode models --standalone 比較，然後按「探索」。",
       "environment": {
         "name": "OpenCode 環境變數",
         "desc": "傳遞給 OpenCode 的額外環境變數。"
