@@ -8,6 +8,7 @@ import {
   submitInstruction,
   typeInstruction,
 } from '@test/helpers/features/inline-edit/InlineEditDOMHarness';
+import { testDate } from '@test/helpers/testClock';
 import { fireEvent, screen, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 import { MarkdownRenderer, Notice } from 'obsidian';
@@ -349,6 +350,75 @@ describe('Vault paths that resemble environment variables', () => {
     expect(screen.getByRole('listbox', { name: 'Input suggestions' })).toBe(listbox);
     fireEvent.click(option);
     expect(input().value).toBe(`@${percentPath} `);
+  });
+});
+
+describe('Vault mentions whose literal path ends in punctuation', () => {
+  function withVaultFiles(h: ReturnType<typeof createHarness>, paths: readonly string[]): void {
+    const timestamp = testDate().getTime();
+    h.app.vault.getFiles = () => paths.map(path => {
+      const name = path.split('/').pop()!;
+      return {
+        basename: name.replace(/\.[^.]+$/, ''),
+        extension: name.includes('.') ? name.split('.').pop()! : '',
+        name,
+        path,
+        stat: { ctime: timestamp, mtime: timestamp, size: 1 },
+      };
+    });
+  }
+
+  it.each([
+    {
+      name: 'only the punctuation-ended file is known',
+      vault: ['Report!'],
+      instruction: 'Improve @Report!',
+      contextBlock: '<context_files>\n<context_file path="Report!" />\n</context_files>',
+    },
+    {
+      name: 'a shorter stem is known as well',
+      vault: ['Report', 'Report!'],
+      instruction: 'Improve @Report!',
+      contextBlock: '<context_files>\n<context_file path="Report!" />\n</context_files>',
+    },
+    {
+      name: 'sentence punctuation follows the punctuation-ended file',
+      vault: ['Report', 'Report!'],
+      instruction: 'Improve @Report!,please',
+      contextBlock: '<context_files>\n<context_file path="Report!" />\n</context_files>',
+    },
+    {
+      name: 'sentence punctuation follows a normal file',
+      vault: ['note.md'],
+      instruction: 'Improve @note.md, please',
+      contextBlock: '<context_files>\n<context_file path="note.md" />\n</context_files>',
+    },
+    {
+      name: 'a sentence period follows a spaced file',
+      vault: ['src/my', 'src/my file.md'],
+      instruction: 'Check @src/my file.md. then continue',
+      contextBlock: '<context_files>\n<context_file path="src/my file.md" />\n</context_files>',
+    },
+    {
+      name: 'a repeated period follows a period-ended file',
+      vault: ['Report', 'Report.'],
+      instruction: 'Improve @Report..',
+      contextBlock: '<context_files>\n<context_file path="Report." />\n</context_files>',
+    },
+  ])('attaches the literal file for $name and keeps the complete instruction', async ({ vault, instruction, contextBlock }) => {
+    const h = createHarness();
+    withVaultFiles(h, vault);
+    const result = h.createModal().openAndWait();
+    await screen.findByRole('textbox', { name: 'Edit instructions' });
+    submitInstruction(instruction);
+    await waitFor(() => expect(h.backend.sessions[0]?.getStatus()).toBe('executing'));
+    const prompt = h.backend.sessions[0].requests[0].input
+      .map(block => block.type === 'text' ? block.text : '')
+      .join('\n');
+    expect(prompt).toContain(instruction);
+    expect(prompt).toContain(contextBlock);
+    h.owner.dispose();
+    await expect(result).resolves.toEqual({ decision: 'reject' });
   });
 });
 

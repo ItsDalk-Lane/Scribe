@@ -21,6 +21,71 @@ describe('resolveContextFiles', () => {
       .toEqual(['src/my file.md']);
   });
 
+  it.each([
+    {
+      name: 'only a punctuation-ended path is known',
+      vault: ['Report!'],
+      message: 'Improve @Report!',
+      expected: ['Report!'],
+    },
+    {
+      name: 'a shorter stem is known as well',
+      vault: ['Report', 'Report!'],
+      message: 'Improve @Report!',
+      expected: ['Report!'],
+    },
+    {
+      name: 'sentence punctuation follows a punctuation-ended path',
+      vault: ['Report', 'Report!'],
+      message: 'Improve @Report!,please',
+      expected: ['Report!'],
+    },
+    {
+      name: 'sentence punctuation follows a normal path',
+      vault: ['note.md'],
+      message: 'Improve @note.md, please',
+      expected: ['note.md'],
+    },
+    {
+      name: 'a sentence period follows a spaced path',
+      vault: ['src/my', 'src/my file.md'],
+      message: 'Check @src/my file.md. then continue',
+      expected: ['src/my file.md'],
+    },
+    {
+      name: 'a repeated period follows a period-ended path',
+      vault: ['Report', 'Report.'],
+      message: 'Improve @Report..',
+      expected: ['Report.'],
+    },
+    {
+      name: 'an unknown Unicode extension does not attach its shorter stem',
+      vault: ['Report'],
+      message: 'Improve @Report.\u4e2d\u6587',
+      expected: [],
+    },
+    {
+      name: 'a known Unicode extension remains a literal path',
+      vault: ['Report', 'Report.\u4e2d\u6587'],
+      message: 'Improve @Report.\u4e2d\u6587',
+      expected: ['Report.\u4e2d\u6587'],
+    },
+    {
+      name: 'an unknown ordinary extension does not attach its shorter stem',
+      vault: ['Report'],
+      message: 'Improve @Report.md',
+      expected: [],
+    },
+    {
+      name: 'an unknown dollar suffix does not attach its shorter stem',
+      vault: ['Report'],
+      message: 'Improve @Report.$draft',
+      expected: [],
+    },
+  ])('keeps the longest known literal path before punctuation fallback: $name', ({ vault, message, expected }) => {
+    expect(resolveContextFiles(message, files(...vault))).toEqual(expected);
+  });
+
   it('normalizes typed separators and leading ./ but returns the Vault path', () => {
     expect(resolveContextFiles('Use @./src\\folder//file.md/ please', files('src/folder/file.md')))
       .toEqual(['src/folder/file.md']);
