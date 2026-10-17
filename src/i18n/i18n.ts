@@ -93,6 +93,9 @@ function lookupTranslation(dictionary: TranslationDictionary, key: TranslationKe
  * @returns true if locale was set successfully, false if locale is invalid
  */
 export function setLocale(locale: Locale): boolean {
+  if (!AVAILABLE_LOCALES.includes(locale)) {
+    return false;
+  }
   const translation = translations[locale] ?? loadTranslation(locale);
   if (!translation) {
     return false;
@@ -125,5 +128,5 @@ export function getLocaleDisplayName(locale: Locale): string {
     'ru': 'Русский',
     'pt': 'Português',
   };
-  return names[locale] || locale;
+  return (Object.hasOwn(names, locale) ? names[locale] : undefined) || locale;
 }
