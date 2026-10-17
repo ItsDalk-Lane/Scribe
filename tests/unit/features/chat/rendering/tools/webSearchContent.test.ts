@@ -19,6 +19,13 @@ function createToolCall(overrides: Partial<ToolCallInfo> = {}): ToolCallInfo {
   };
 }
 
+function collectRenderedText(toolEl: HTMLElement): string {
+  return [
+    ...Array.from(toolEl.querySelectorAll('.claudian-tool-line')),
+    ...Array.from(toolEl.querySelectorAll('.claudian-tool-link-title')),
+  ].map(el => el.textContent ?? '').join('\n');
+}
+
 describe('webSearchContent', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -71,8 +78,10 @@ describe('webSearchContent', () => {
     });
 
     it.each([
-      ['structured hits', { webSearchResults: [{ title: 'Docs', url: 'https://docs.example.com/', snippet: 'Hit snippet', publishedAt: '2026-01-01' }], webSearchSummary: 'Synthesized answer', result: 'Provider result text' }, ['https://docs.example.com/']],
+      ['structured hits', { webSearchResults: [{ title: 'Docs', url: 'https://docs.example.com/', snippet: 'Hit snippet', publishedAt: '2026-01-01' }], webSearchSummary: 'Synthesized answer', result: 'Links: [{"title":"FallbackSource","url":"https://fallback.example.com/"}]\n\nProvider result text' }, ['https://docs.example.com/']],
       ['result links', { result: 'Links: [{"title":"Docs","url":"https://docs.example.com/"}]\n\nSynthesized answer' }, ['https://docs.example.com/']],
+      ['a mixed null and valid link list', { result: 'Links: [null,{"title":"Docs","url":"https://docs.example.com/"}]\n' }, ['https://docs.example.com/']],
+      ['a malformed whole link list', { result: 'Links: [not-json]\n' }, []],
       ['an unlinked result body', { result: 'Provider result text' }, []],
     ])('renders the request and linked titles only from %s', (_case, fields, links) => {
       const toolCall = createToolCall({ name: 'WebSearch', status: 'completed', input: { query: 'obsidian plugin API' }, ...fields });
@@ -84,7 +93,35 @@ describe('webSearchContent', () => {
         .toContain('Query: obsidian plugin API');
       expect(Array.from(toolEl.querySelectorAll('.claudian-tool-link')).map(link => link.getAttribute('href')))
         .toEqual(links);
-      expect(toolEl.textContent).not.toMatch(/Synthesized answer|Provider result text|Hit snippet|2026-01-01/);
+      expect(collectRenderedText(toolEl)).not.toMatch(/Synthesized answer|Provider result text|Hit snippet|2026-01-01|FallbackSource/);
+    });
+
+    it('skips malformed link entries without rendering them beside valid neighbors', () => {
+      const toolCall = createToolCall({
+        name: 'WebSearch',
+        status: 'completed',
+        input: { query: 'docs' },
+        result: `Links: ${JSON.stringify([
+          null, 42, 'scalar', ['KeepArr', 'https://arr.example.com/'],
+          { title: 'KeepFirst', url: 'https://first.example.com/' },
+          { title: 'BadUrlMarker7f3a', url: 424242 },
+          { url: 'https://missingtitle.example.com/' },
+          { title: '', url: 'https://emptytitle.example.com/' },
+          { title: 7, url: 'https://badtitle.example.com/' },
+          { title: 'KeepSecond', url: 'https://second.example.com/' },
+        ])}\n`,
+      });
+
+      const toolEl = renderStoredToolCall(createMockEl(), toolCall);
+      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
+
+      expect(Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent))
+        .toContain('Query: docs');
+      expect(Array.from(toolEl.querySelectorAll('.claudian-tool-link')).map(link => link.getAttribute('href')))
+        .toEqual(['https://first.example.com/', 'https://second.example.com/']);
+      const renderedText = collectRenderedText(toolEl);
+      expect(renderedText).not.toContain('BadUrlMarker7f3a');
+      expect(renderedText).not.toContain('https://missingtitle.example.com/');
     });
   });
 
