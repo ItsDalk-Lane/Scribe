@@ -109,6 +109,21 @@ describe('composer wikilinks', () => {
     fixture.controller.queue.withdrawToComposer();
     expect(fixture.input.value).toBe('[[Notes/A.md]]\n\n[[Notes/B.md]]');
   });
+
+  it('preserves a non-empty unsent suffix when a queued message returns to the composer', async () => {
+    const fixture = createFixture();
+    const release = fixture.holdResponse();
+    try {
+      fixture.input.value = 'Queued request';
+      await fixture.controller.sendMessage();
+      fixture.input.value = '    keepIndented()\n';
+      fixture.controller.queue.withdrawToComposer();
+      expect(fixture.input.value).toBe('Queued request\n\n    keepIndented()\n');
+      expect(fixture.state.queuedMessage).toBeNull();
+    } finally {
+      await release();
+    }
+  });
 });
 
 describe('InputController admission', () => {
