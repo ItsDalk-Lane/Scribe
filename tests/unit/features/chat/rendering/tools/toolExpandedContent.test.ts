@@ -35,6 +35,14 @@ describe('toolExpandedContent', () => {
       ['Read', '     1→alpha\n     2→beta', ['alpha', 'beta']],
       ['Read', 'alpha\n2→ literal arrow', ['alpha', '2→ literal arrow']],
       ['Read', '1→alpha\n7→ literal', ['1→alpha', '7→ literal']],
+      ['Read', '1→alpha\n2→beta\n9→literal arrow', ['1→alpha', '2→beta', '9→literal arrow']],
+      ['Read', '1→alpha\n\n2→beta', ['1→alpha', ' ', '2→beta']],
+      ['Read', '1→alpha\n2→beta\nplain line\n3→gamma', ['1→alpha', '2→beta', 'plain line', '3→gamma']],
+      ['Read', '1→alpha\n2→beta\n3→gamma', ['alpha', 'beta', 'gamma']],
+      ['Read', '5→alpha\n6→beta', ['alpha', 'beta']],
+      ['Read', '1→alpha\n2→beta\n', ['alpha', 'beta', ' ']],
+      ['Read', '1→alpha\n2→beta\n\n', ['1→alpha', '2→beta', ' ', ' ']],
+      ['Read', '1→alpha\r\n2→beta\r\n3→gamma', ['alpha', 'beta', 'gamma']],
       ['Grep', '1→match', ['1→match']],
     ])('strips %s line-number gutters only when numbering is consecutive', (name, result, lines) => {
       expect(expandedLines(createToolCall({ name, input: { file_path: 'a.md', pattern: 'x' }, status: 'completed', result }))).toEqual(lines);
