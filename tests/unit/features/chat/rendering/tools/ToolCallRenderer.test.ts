@@ -160,6 +160,68 @@ describe('ToolCallRenderer', () => {
       expect(answerEls[0].textContent).toBe('Blue');
     });
 
+    it.each(['toString', 'constructor'])('falls back to the own question-text answer when id %s has no own entry', id => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        name: 'AskUserQuestion',
+        status: 'completed',
+        input: { questions: [{ id, question: 'Color?', options: [{ label: 'Blue' }, { label: 'Red' }] }] },
+        result: '{"Color?":"Blue"}',
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+      const answerEls = toolEl.querySelectorAll('.claudian-ask-review-a-text');
+
+      expect(answerEls).toHaveLength(1);
+      expect(answerEls[0].textContent).toBe('Blue');
+    });
+
+    it('prefers the own question id answer over the own question-text answer', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        name: 'AskUserQuestion',
+        status: 'completed',
+        input: { questions: [{ id: 'toString', question: 'Color?', options: [{ label: 'Blue' }, { label: 'Red' }] }] },
+        result: '{"toString":"Red","Color?":"Blue"}',
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+      const answerEls = toolEl.querySelectorAll('.claudian-ask-review-a-text');
+
+      expect(answerEls).toHaveLength(1);
+      expect(answerEls[0].textContent).toBe('Red');
+    });
+
+    it('keeps the recorded options instead of completing a question from inherited answers', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        name: 'AskUserQuestion',
+        status: 'completed',
+        input: { questions: [{ question: 'Color?', options: [{ label: 'Blue' }, { label: 'Red' }] }] },
+        resolvedAnswers: Object.create({ 'Color?': 'Blue' }),
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+
+      expect(toolEl.querySelector('.claudian-ask-review-a-text')).toBeNull();
+      expect(Array.from(toolEl.querySelectorAll('.claudian-ask-item-label'), el => el.textContent)).toEqual(['Blue', 'Red']);
+    });
+
+    it('keeps key presence for an own empty answer as Not answered', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        name: 'AskUserQuestion',
+        status: 'completed',
+        input: { questions: [{ question: 'Color?', options: [{ label: 'Blue' }, { label: 'Red' }] }] },
+        resolvedAnswers: JSON.parse('{"Color?":""}'),
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+
+      expect(toolEl.querySelector('.claudian-ask-review-empty')?.textContent).toBe('Not answered');
+      expect(toolEl.querySelectorAll('.claudian-ask-item-label')).toHaveLength(0);
+    });
+
     it('renders AskUserQuestion options during fallback state', () => {
       const parentEl = createMockEl();
       const toolCall = createToolCall({

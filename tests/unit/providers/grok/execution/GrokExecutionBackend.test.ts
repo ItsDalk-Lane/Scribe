@@ -2857,6 +2857,107 @@ describe('GrokExecutionBackend', () => {
     await collect(run.events);
   });
 
+  it('emits own __proto__ question answers and preview annotation keys with native id/label mapping', async () => {
+    const native = new FakeNativeConnection();
+    native.promptImplementation = () => new Promise(() => {});
+    let nativeOptions: GrokExecutionNativeCreateOptions | undefined;
+    jest.mocked(interactionPort.askUserQuestion).mockImplementation(async request => ({
+      answers: JSON.parse('{"__proto__":["blue-id"],"Extras":["blue-id","red-id"]}'),
+      interactionId: request.interactionId,
+    }));
+    const session = new GrokExecutionBackend(
+      createGrokHost(),
+      {
+        nativeFactory: {
+          create: options => {
+            nativeOptions = options;
+            return native;
+          },
+        },
+      },
+    ).createSession(sessionConfig);
+    const run = session.execute(executionRequest());
+    while (native.promptRequests.length === 0) await Promise.resolve();
+
+    const result = await nativeOptions?.requestExtension('x.ai/ask_user_question', {
+      mode: 'default',
+      questions: [{
+        multiSelect: false,
+        options: [
+          { id: 'blue-id', label: 'Blue', description: '', preview: 'preview-blue' },
+          { id: 'red-id', label: 'Red', description: '' },
+        ],
+        question: '__proto__',
+      }, {
+        multiSelect: true,
+        options: [
+          { id: 'blue-id', label: 'Blue', description: '', preview: 'preview-extra-blue' },
+          { id: 'red-id', label: 'Red', description: '', preview: 'preview-extra-red' },
+        ],
+        question: 'Extras',
+      }],
+      sessionId: 'session-existing',
+      toolCallId: 'tool-question',
+    });
+    const record = result as Record<string, unknown>;
+    expect(Object.hasOwn(record.answers as object, '__proto__')).toBe(true);
+    expect(Object.hasOwn(record.annotations as object, '__proto__')).toBe(true);
+    expect(JSON.stringify(result)).toBe('{"annotations":{"__proto__":{"preview":"preview-blue"}},"answers":{"__proto__":["Blue"],"Extras":["Blue","Red"]},"outcome":"accepted"}');
+    run.cancel();
+    await collect(run.events);
+  });
+
+  it('uses own text answers when a prototype-named question id has no own answer and never fabricates from inherited answers', async () => {
+    const native = new FakeNativeConnection();
+    native.promptImplementation = () => new Promise(() => {});
+    let nativeOptions: GrokExecutionNativeCreateOptions | undefined;
+    jest.mocked(interactionPort.askUserQuestion).mockImplementation(async request => ({
+      answers: JSON.parse('{"Color?":"blue-id"}'),
+      interactionId: request.interactionId,
+    }));
+    const session = new GrokExecutionBackend(
+      createGrokHost(),
+      {
+        nativeFactory: {
+          create: options => {
+            nativeOptions = options;
+            return native;
+          },
+        },
+      },
+    ).createSession(sessionConfig);
+    const run = session.execute(executionRequest());
+    while (native.promptRequests.length === 0) await Promise.resolve();
+
+    const question = {
+      id: 'toString',
+      multiSelect: false,
+      options: [{ id: 'blue-id', label: 'Blue', description: '', preview: 'preview-blue' }],
+      question: 'Color?',
+    };
+    const result = await nativeOptions?.requestExtension('x.ai/ask_user_question', {
+      mode: 'default',
+      questions: [question],
+      sessionId: 'session-existing',
+      toolCallId: 'tool-question',
+    });
+    expect(JSON.stringify(result)).toBe('{"annotations":{"Color?":{"preview":"preview-blue"}},"answers":{"Color?":["Blue"]},"outcome":"accepted"}');
+
+    jest.mocked(interactionPort.askUserQuestion).mockImplementation(async request => ({
+      answers: Object.create({ 'Color?': 'blue-id' }),
+      interactionId: request.interactionId,
+    }));
+    const inherited = await nativeOptions?.requestExtension('x.ai/ask_user_question', {
+      mode: 'default',
+      questions: [question],
+      sessionId: 'session-existing',
+      toolCallId: 'tool-question-inherited',
+    });
+    expect(JSON.stringify(inherited)).toBe('{"answers":{},"outcome":"accepted"}');
+    run.cancel();
+    await collect(run.events);
+  });
+
   it.each(['read_file', 'claudian_send_message'])('fails closed before native startup for allow-list containing %s', async name => {
     const fixture = sessionToolFixture();
     const nativeFactory: GrokExecutionNativeFactory = {

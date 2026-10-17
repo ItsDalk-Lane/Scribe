@@ -306,6 +306,46 @@ function createSurface() {
   return { messages, composerHost, composer, draft, state, renderer, stream, input, delivery, response, ask };
 }
 
+it('renders the own question-text answer in the live review when the id entry is only inherited', async () => {
+  const h = createSurface();
+  await h.stream.handleStreamChunk({ type: 'tool_use', id: 'ask', name: 'AskUserQuestion', input: {
+    replyMode: 'user-message',
+    questions: [
+      { id: 'toString', question: 'Color?', options: [{ label: 'Blue' }, { label: 'Red' }] },
+      { id: '1', question: 'Which check?', options: [{ label: 'History' }] },
+    ],
+  } }, h.response);
+  await h.stream.handleStreamChunk({ type: 'tool_result', id: 'ask', content: 'Question sent.' }, h.response);
+  const tool = h.response.toolCalls![0];
+  tool.questionStatus = 'pending';
+  tool.resolvedAnswers = JSON.parse('{"Color?":"Blue","1":"History"}');
+  h.renderer.updateQuestionTool(tool);
+
+  const reviewTexts = Array.from(h.messages.querySelectorAll('.claudian-ask-review-a-text'), el => el.textContent);
+  expect(reviewTexts).toEqual(['Blue', 'History']);
+});
+
+it('keeps a partial user-message batch on the visible prompt', async () => {
+  const h = createSurface();
+  await h.stream.handleStreamChunk({ type: 'tool_use', id: 'ask', name: 'AskUserQuestion', input: {
+    replyMode: 'user-message',
+    questions: [
+      { id: 'toString', question: 'Color?', options: [{ label: 'Blue' }, { label: 'Red' }] },
+      { id: '1', question: 'Which check?', options: [{ label: 'History' }] },
+    ],
+  } }, h.response);
+  await h.stream.handleStreamChunk({ type: 'tool_result', id: 'ask', content: 'Question sent.' }, h.response);
+  const tool = h.response.toolCalls![0];
+  tool.questionStatus = 'pending';
+  tool.resolvedAnswers = JSON.parse('{"1":"History"}');
+  h.renderer.updateQuestionTool(tool);
+
+  expect(within(h.messages).queryByText('Answer in the question panel below.')).not.toBeNull();
+  expect(h.messages.querySelectorAll('.claudian-ask-review-a-text')).toHaveLength(0);
+  expect(Array.from(h.messages.querySelectorAll('.claudian-ask-item-label'), el => el.textContent))
+    .toEqual(expect.arrayContaining(['Blue', 'History']));
+});
+
 it('replaces the composer immediately and stays visible when the response history collapses', async () => {
   const h = createSurface();
   await h.ask();

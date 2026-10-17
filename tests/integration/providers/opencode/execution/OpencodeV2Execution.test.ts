@@ -7,7 +7,7 @@ import { testDate } from '@test/helpers/testClock';
 
 import { isSteerableExecutionSession, type ProviderExecutionEvent, ProviderExecutionLifecycleRegistry, type ProviderExecutionRequest, type ProviderSessionEvent } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
-import type { ChatMessage } from '@/core/types';
+import type { AskUserAnswers, ChatMessage } from '@/core/types';
 import { ChatExecutionCoordinator, type ChatSteerOutcome } from '@/features/chat/execution/ChatExecutionCoordinator';
 import { providerOutputEventToStreamChunk } from '@/features/chat/rendering/providerOutputChunks';
 import { OpencodeExecutionBackend } from '@/providers/opencode/execution/OpencodeExecutionBackend';
@@ -187,6 +187,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (body.text === 'cancel') { emit('session.text.delta', { assistantMessageID, ordinal: 0, delta: 'Waiting' }); return; }
       if (body.text === 'disconnect') { feed.end(); return; }
+      if (body.text === 'proto-form') {
+        emit('form.created', { form: { id: 'frm_test', sessionID: 'ses_test', title: 'Color', fields: [{ key: '__proto__', type: 'string', title: 'Pick a color', options: [{ value: 'Blue', label: 'Blue' }] }, { key: 'toString', type: 'number', title: 'Count' }] } });
+        const protoStart = Date.now();
+        while (!form && Date.now() - protoStart < 1500) await new Promise(r => setTimeout(r, 10));
+        emit('session.text.ended', { assistantMessageID, ordinal: 0, text: JSON.stringify(form === undefined ? null : form) });
+        emit('session.execution.succeeded', {}); idle = true;
+        return;
+      }
       emit('permission.asked', { id: 'per_test', action: 'shell', resources: ['echo test'] });
       if (body.text === 'question-wording') {
         emit('form.created', { form: { id: 'frm_test', sessionID: 'ses_test', title: 'Questions', metadata: { kind: 'question' }, fields: [{ key: 'q0', type: 'string', title: 'Color', description: 'Which color should the report use?', custom: true, options: [{ value: 'blue', label: 'Blue' }] }] } });
@@ -253,7 +261,7 @@ server.listen(0, '127.0.0.1', () => console.log(JSON.stringify({ url: 'http://12
 process.stdin.resume(); process.stdin.on('end', () => server.close());
 `;
 
-function createFixture(resume = false, approval?: (signal: AbortSignal) => Promise<void>, environmentVariables = '') {
+function createFixture(resume = false, approval?: (signal: AbortSignal) => Promise<void>, environmentVariables = '', resolveAnswers?: (questions: unknown) => AskUserAnswers) {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-execution-')));
   const cliPath = path.join(root, 'opencode.cjs');
   writeFileSync(cliPath, fixture, { mode: 0o700 });
@@ -271,7 +279,7 @@ function createFixture(resume = false, approval?: (signal: AbortSignal) => Promi
     vaultWorkingDirectory: root, lifecycle: 'ephemeral', nativePersistence: 'disabled-if-supported',
     interactionPort: {
       requestApproval: async (request, signal) => { approvals.push(request); await approval?.(signal); return { interactionId: request.interactionId, decision: 'allow' }; },
-      askUserQuestion: async request => { questions.push(request); const questionsInput = request.input.questions; return { interactionId: request.interactionId, answers: { q0: Array.isArray(questionsInput) ? questionsInput[0].options[0].value : '' } }; },
+      askUserQuestion: async request => { questions.push(request); const questionsInput = request.input.questions; return { interactionId: request.interactionId, answers: resolveAnswers ? resolveAnswers(questionsInput) : { q0: Array.isArray(questionsInput) ? questionsInput[0].options[0].value : '' } }; },
       dismissInteraction() {},
     },
   });
@@ -901,6 +909,16 @@ it('replies with a selected native value even when it matches another option lab
     for await (const event of f.session.execute(request('mcp-form-values')).events) events.push(event);
     expect(events.at(-1)).toMatchObject({ type: 'turn_completed' });
     expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'text_delta', text: '{"q0":"Blue"}' })]));
+  } finally { await f.dispose(); }
+}, 15000);
+
+it('serializes an own __proto__ form answer and omits inherited-only fields in the native reply body', async () => {
+  const f = createFixture(false, undefined, '', () => JSON.parse('{"__proto__":"Blue"}'));
+  try {
+    const events: ProviderExecutionEvent[] = [];
+    for await (const event of f.session.execute(request('proto-form')).events) events.push(event);
+    expect(events.at(-1)).toMatchObject({ type: 'turn_completed' });
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'text_delta', text: '{"__proto__":"Blue"}' })]));
   } finally { await f.dispose(); }
 }, 15000);
 

@@ -325,7 +325,12 @@ function questionAnswers(text: string): AskUserAnswers | undefined {
   for (const answer of parsed.answers) {
     if (!isRecord(answer) || typeof answer.id !== 'string') continue;
     const selected = Array.isArray(answer.selected) ? answer.selected.filter((label): label is string => typeof label === 'string' && label.length > 0) : [];
-    answers[answer.id] = typeof answer.custom === 'string' && answer.custom ? [...selected, answer.custom] : selected;
+    Object.defineProperty(answers, answer.id, {
+      value: typeof answer.custom === 'string' && answer.custom ? [...selected, answer.custom] : selected,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
   return normalizeResolvedAnswers(answers);
 }

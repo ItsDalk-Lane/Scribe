@@ -224,4 +224,52 @@ describe('grokToolNormalization', () => {
       'How should we continue?': jsonAnswer,
     });
   });
+
+  it('keeps own text and id __proto__ aliases for free-form answers', () => {
+    const textAliased = normalizeGrokToolResultDetails(
+      'ask_user_question',
+      {
+        questions: [{
+          id: 'color',
+          multiSelect: false,
+          options: [{ description: '', label: 'Blue' }],
+          question: '__proto__',
+        }],
+      },
+      { UserAnswered: { message: 'Blue' }, type: 'UserAnswered' },
+    );
+    expect(Object.hasOwn(textAliased!.resolvedAnswers!, '__proto__')).toBe(true);
+    expect(JSON.stringify(textAliased!.resolvedAnswers)).toBe('{"__proto__":"Blue","color":"Blue"}');
+
+    const idAliased = normalizeGrokToolResultDetails(
+      'ask_user_question',
+      {
+        questions: [{
+          id: '__proto__',
+          multiSelect: false,
+          options: [{ description: '', label: 'Blue' }],
+          question: 'Color?',
+        }],
+      },
+      { UserAnswered: { message: 'Blue' }, type: 'UserAnswered' },
+    );
+    expect(Object.hasOwn(idAliased!.resolvedAnswers!, '__proto__')).toBe(true);
+    expect(JSON.stringify(idAliased!.resolvedAnswers)).toBe('{"Color?":"Blue","__proto__":"Blue"}');
+  });
+
+  it('takes the literal message when a parsed unrelated-key payload meets a prototype-named id', () => {
+    const details = normalizeGrokToolResultDetails(
+      'ask_user_question',
+      {
+        questions: [{
+          id: 'toString',
+          multiSelect: false,
+          options: [{ description: '', label: 'Blue' }],
+          question: 'Color?',
+        }],
+      },
+      { UserAnswered: { message: '{"other":"keep this as the answer"}' }, type: 'UserAnswered' },
+    );
+    expect(JSON.stringify(details!.resolvedAnswers)).toBe('{"Color?":"{\\"other\\":\\"keep this as the answer\\"}","toString":"{\\"other\\":\\"keep this as the answer\\"}"}');
+  });
 });

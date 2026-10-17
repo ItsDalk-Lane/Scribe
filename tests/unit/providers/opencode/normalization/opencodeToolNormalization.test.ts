@@ -264,6 +264,123 @@ describe('createOpencodeToolStreamAdapter', () => {
     }]);
   });
 
+  it('keeps own text and id __proto__ aliases for positional question answers', () => {
+    const adapter = createOpencodeToolStreamAdapter();
+    adapter.normalizeToolCall({
+      rawInput: {
+        questions: [{
+          header: 'Color',
+          id: 'color',
+          options: [
+            { description: 'Blue option', label: 'Blue' },
+            { description: 'Red option', label: 'Red' },
+          ],
+          question: '__proto__',
+        }],
+      },
+      title: 'question',
+      toolCallId: 'tool-proto-text',
+    }, [{
+      id: 'tool-proto-text',
+      input: {},
+      name: 'question',
+      type: 'tool_use',
+    }]);
+    const textAliased = adapter.normalizeToolCallUpdate({
+      rawOutput: {
+        metadata: { answers: [['Blue', 'Red']] },
+        output: 'User has answered your questions.',
+      },
+      status: 'completed',
+      title: 'Asked 1 question',
+      toolCallId: 'tool-proto-text',
+    }, [{
+      content: 'User has answered your questions.',
+      id: 'tool-proto-text',
+      isError: false,
+      type: 'tool_result',
+    }]);
+    const textDetails = (textAliased[0] as { resultDetails: { resolvedAnswers: object } }).resultDetails;
+    expect(Object.hasOwn(textDetails.resolvedAnswers, '__proto__')).toBe(true);
+    expect(JSON.stringify(textDetails.resolvedAnswers)).toBe('{"__proto__":["Blue","Red"],"color":["Blue","Red"]}');
+
+    const second = createOpencodeToolStreamAdapter();
+    second.normalizeToolCall({
+      rawInput: {
+        questions: [{
+          header: 'Extras',
+          id: '__proto__',
+          options: [{ description: 'Extra option', label: 'Extra' }],
+          question: 'Extras',
+        }],
+      },
+      title: 'question',
+      toolCallId: 'tool-proto-id',
+    }, [{
+      id: 'tool-proto-id',
+      input: {},
+      name: 'question',
+      type: 'tool_use',
+    }]);
+    const idAliased = second.normalizeToolCallUpdate({
+      rawOutput: {
+        metadata: { answers: [['Extra']] },
+        output: 'User has answered your questions.',
+      },
+      status: 'completed',
+      title: 'Asked 1 question',
+      toolCallId: 'tool-proto-id',
+    }, [{
+      content: 'User has answered your questions.',
+      id: 'tool-proto-id',
+      isError: false,
+      type: 'tool_result',
+    }]);
+    const idDetails = (idAliased[0] as { resultDetails: { resolvedAnswers: object } }).resultDetails;
+    expect(Object.hasOwn(idDetails.resolvedAnswers, '__proto__')).toBe(true);
+    expect(JSON.stringify(idDetails.resolvedAnswers)).toBe('{"Extras":"Extra","__proto__":"Extra"}');
+  });
+
+  it('skips malformed, empty and missing positional answer entries', () => {
+    const adapter = createOpencodeToolStreamAdapter();
+    adapter.normalizeToolCall({
+      rawInput: {
+        questions: [
+          { header: 'First', id: 'first', options: [], question: 'First?' },
+          { header: 'Second', id: 'second', options: [], question: 'Second?' },
+          { header: 'Third', id: 'third', options: [], question: 'Third?' },
+        ],
+      },
+      title: 'question',
+      toolCallId: 'tool-skip',
+    }, [{
+      id: 'tool-skip',
+      input: {},
+      name: 'question',
+      type: 'tool_use',
+    }]);
+    const updates = adapter.normalizeToolCallUpdate({
+      rawOutput: {
+        metadata: { answers: [[null], '  ', ['Blue']] },
+        output: 'User has answered your questions.',
+      },
+      status: 'completed',
+      title: 'Asked 3 questions',
+      toolCallId: 'tool-skip',
+    }, [{
+      content: 'User has answered your questions.',
+      id: 'tool-skip',
+      isError: false,
+      type: 'tool_result',
+    }]);
+    expect((updates[0] as { resultDetails: unknown }).resultDetails).toEqual({
+      resolvedAnswers: {
+        third: 'Blue',
+        'Third?': 'Blue',
+      },
+    });
+  });
+
   it('normalizes websearch tool calls to the shared WebSearch renderer contract', () => {
     const adapter = createOpencodeToolStreamAdapter();
 

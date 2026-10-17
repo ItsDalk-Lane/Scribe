@@ -1132,7 +1132,11 @@ function localizedReason(request: Record<string, unknown>, locale: string): stri
 function questionAnswers(request: Record<string, unknown>, answers: Record<string, string | string[]> | null): unknown {
   return { answers: Array.isArray(request.questions) ? request.questions.filter(isRecord).map(question => {
     const id = typeof question.id === 'string' ? question.id : '';
-    const value = answers?.[id] ?? (typeof question.question === 'string' ? answers?.[question.question] : undefined);
+    const text = typeof question.question === 'string' ? question.question : '';
+    // Own-key reads keep inherited entries out; the string check and ?? retain the
+    // original question-text fallback, including an own empty-string text key.
+    const value = (answers && Object.hasOwn(answers, id) ? answers[id] : undefined)
+      ?? (answers && typeof question.question === 'string' && Object.hasOwn(answers, text) ? answers[text] : undefined);
     const values = Array.isArray(value) ? value : value ? [value] : [];
     const options = Array.isArray(question.options) ? question.options.filter(isRecord).map(option => option.label) : [];
     const selected = values.filter(value => options.includes(value));

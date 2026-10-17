@@ -302,11 +302,16 @@ export class CodexExecutionServerRequestRouter {
 
       const answers: UserInputResponse['answers'] = {};
       for (const [key, value] of Object.entries(response.answers)) {
-        answers[key] = {
-          answers: (Array.isArray(value) ? value : [value])
-            .map(answer => String(answer))
-            .filter(answer => answer.trim().length > 0),
-        };
+        Object.defineProperty(answers, key, {
+          value: {
+            answers: (Array.isArray(value) ? value : [value])
+              .map(answer => String(answer))
+              .filter(answer => answer.trim().length > 0),
+          },
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
       return { answers };
     } finally {

@@ -312,6 +312,69 @@ describe('CodexExecutionServerRequestRouter', () => {
       .resolves.toEqual({ action: 'cancel', content: null });
     expect(router.resolveNativeRequest('failed', 'thread-confirmation')).toBe(false);
   });
+
+  it('wraps a literal own __proto__ user-input answer as an own key through serialization', async () => {
+    const router = createRouter(async request => ({
+      interactionId: request.interactionId,
+      answers: JSON.parse('{"__proto__":"Blue"}') as ProviderQuestionInteractionResponse['answers'],
+    }));
+    await expect(router.handleServerRequest('own-proto', 'item/tool/requestUserInput', {
+      threadId: 'thread-confirmation',
+      turnId: 'turn-confirmation',
+      itemId: 'question-item',
+      questions: JSON.parse('[{"id":"__proto__","header":"Color?","question":"Color?","options":null,"isOther":false,"isSecret":false}]'),
+    })).resolves.toEqual(JSON.parse('{"answers":{"__proto__":{"answers":["Blue"]}}}'));
+
+    const wrapped = createRouter(async request => ({
+      interactionId: request.interactionId,
+      answers: JSON.parse('{"__proto__":["Blue",""]}') as ProviderQuestionInteractionResponse['answers'],
+    }));
+    const result = await wrapped.handleServerRequest('own-proto-array', 'item/tool/requestUserInput', {
+      threadId: 'thread-confirmation',
+      turnId: 'turn-confirmation',
+      itemId: 'question-item',
+      questions: [],
+    });
+    expect(Object.hasOwn((result as { answers: object }).answers, '__proto__')).toBe(true);
+    expect(JSON.stringify(result)).toBe('{"answers":{"__proto__":{"answers":["Blue"]}}}');
+  });
+
+  it('keeps user-input blank filtering and empty envelopes while rejecting mismatched interactions', async () => {
+    const router = createRouter(async request => ({
+      interactionId: request.interactionId,
+      answers: JSON.parse('{"color":["","  ","Blue"],"blank":"   "}') as ProviderQuestionInteractionResponse['answers'],
+    }));
+    await expect(router.handleServerRequest('filtered', 'item/tool/requestUserInput', {
+      threadId: 'thread-confirmation',
+      turnId: 'turn-confirmation',
+      itemId: 'question-item',
+      questions: [],
+    })).resolves.toEqual(JSON.parse('{"answers":{"color":{"answers":["Blue"]},"blank":{"answers":[]}}}'));
+
+    const empty = createRouter(async request => ({ interactionId: request.interactionId, answers: {} }));
+    await expect(empty.handleServerRequest('empty', 'item/tool/requestUserInput', {
+      threadId: 'thread-confirmation',
+      turnId: 'turn-confirmation',
+      itemId: 'question-item',
+      questions: [],
+    })).resolves.toEqual({ answers: {} });
+
+    const mismatched = createRouter(async () => ({ interactionId: 'another-interaction', answers: JSON.parse('{"color":"Blue"}') as ProviderQuestionInteractionResponse['answers'] }));
+    await expect(mismatched.handleServerRequest('mismatch', 'item/tool/requestUserInput', {
+      threadId: 'thread-confirmation',
+      turnId: 'turn-confirmation',
+      itemId: 'question-item',
+      questions: [],
+    })).resolves.toEqual({ answers: {} });
+
+    const dismissed = createRouter(async request => ({ interactionId: request.interactionId, answers: null }));
+    await expect(dismissed.handleServerRequest('dismissed', 'item/tool/requestUserInput', {
+      threadId: 'thread-confirmation',
+      turnId: 'turn-confirmation',
+      itemId: 'question-item',
+      questions: [],
+    })).resolves.toEqual({ answers: {} });
+  });
 });
 
 

@@ -93,6 +93,11 @@ it.each([
     respond: async () => fireEvent.click(await within(document.body).findByRole('button', { name: 'Blue' })),
     sent: { id: 'native-color', selected: ['Blue'] },
   },
+  {
+    name: 'a literal own __proto__ ID answer', question: { id: '__proto__', question: 'Which colour?', options: [{ label: 'Red' }, { label: 'Blue' }] },
+    respond: async () => fireEvent.click(await within(document.body).findByRole('button', { name: 'Blue' })),
+    sent: { id: '__proto__', selected: ['Blue'] },
+  },
 ])('renders a native question and sends $name under the native ID', async ({ question, respond, sent }) => {
   document.body.replaceChildren();
   port.askUserQuestion = input => new Promise(resolve => {
@@ -113,6 +118,53 @@ it.each([
   await respond();
   fireEvent.click(within(document.body).getByRole('button', { name: 'Submit' }));
   fireEvent.click(within(document.body).getByRole('button', { name: 'Submit answers' }));
+  await waitFor(() => expect(peer.calls.find(c => c.method === '$events/result')?.args).toEqual({ clientId: expect.any(String), eventId: 'question', outcome: { kind: 'result', value: { answers: [sent] } } }));
+  answer('saved');
+  await done;
+});
+
+it.each([
+  {
+    name: 'a prototype-named ID with no own answer falls back to the own question text',
+    question: { id: 'toString', question: 'Color?', options: [{ label: 'Red' }, { label: 'Blue' }] },
+    answers: () => JSON.parse('{"Color?":"Blue"}'),
+    sent: { id: 'toString', selected: ['Blue'] },
+  },
+  {
+    name: 'an own ID answer outranks the own question text',
+    question: { id: 'color', question: 'Color?', options: [{ label: 'Red' }, { label: 'Blue' }] },
+    answers: () => JSON.parse('{"color":"Red","Color?":"Blue"}'),
+    sent: { id: 'color', selected: ['Red'] },
+  },
+  {
+    name: 'an inherited-only answer fabricates no selection or custom text',
+    question: { id: 'constructor', question: 'Color?', options: [{ label: 'Red' }, { label: 'Blue' }] },
+    answers: () => Object.create({ 'Color?': 'Blue' }) as Record<string, string | string[]>,
+    sent: { id: 'constructor', selected: [] },
+  },
+  {
+    name: 'an own empty-string question-text answer under a non-empty ID',
+    question: { id: 'color', question: '', options: [{ label: 'Red' }, { label: 'Blue' }] },
+    answers: () => JSON.parse('{"":"Blue"}') as Record<string, string | string[]>,
+    sent: { id: 'color', selected: ['Blue'] },
+  },
+  {
+    name: 'a non-string question text that never reads the empty-string answer key',
+    question: { id: 'color', options: [{ label: 'Red' }, { label: 'Blue' }] },
+    answers: () => JSON.parse('{"":"Blue"}') as Record<string, string | string[]>,
+    sent: { id: 'color', selected: [] },
+  },
+])('sends $name in the native answer request', async ({ question, answers, sent }) => {
+  document.body.replaceChildren();
+  port.askUserQuestion = input => Promise.resolve({ interactionId: input.interactionId, answers: answers() });
+  create();
+  const run = session.execute(request());
+  const events: ProviderExecutionEvent[] = [];
+  const done = collect(run.events, events);
+  await waitFor(() => expect(peer.calls.some(c => c.method === 'session/prompt')).toBe(true));
+  begin(run.executionId);
+  await claimed(events);
+  peer.send('$events', { type: 'waterfall', eventId: 'question', event: 'user-questions/request', agentId: 'root', request: { questions: [question] } });
   await waitFor(() => expect(peer.calls.find(c => c.method === '$events/result')?.args).toEqual({ clientId: expect.any(String), eventId: 'question', outcome: { kind: 'result', value: { answers: [sent] } } }));
   answer('saved');
   await done;
@@ -145,6 +197,30 @@ it('restores an answered native question from history as its answered review, no
   expect(within(card).queryByText(nativeResult)).toBeNull();
   // The unanswered option list is replaced by the review.
   expect(within(card).queryByText('pi provider — pi:deepseek/deepseek-flash')).toBeNull();
+  expect((await axe(card)).violations).toEqual([]);
+});
+
+it('keeps own __proto__ answers through history hydration as a visible answered review', async () => {
+  const questions = [{ id: '__proto__', header: 'Colour', question: 'Which colour should the report use?', options: [{ label: 'Red' }, { label: 'Blue' }] }];
+  const nativeResult = JSON.stringify({ answers: [{ id: '__proto__', selected: ['Blue'] }] });
+  const records = [
+    { type: 'turn/start', seq: 1, time, data: { turn: 3 } },
+    { type: 'tool/call', seq: 2, time, data: { turn: 3, step: 2, callId: 'ask', name: 'ask_user_question', arguments: JSON.stringify({ questions }) } },
+    { type: 'tool/result', seq: 3, time, data: { turn: 3, step: 2, message: { role: 'tool', toolCallId: 'ask', content: [{ type: 'text', text: nativeResult }], isError: false } }, surfaceOp: 'append' },
+    { type: 'turn/end', seq: 4, time, data: { turn: 3, reason: { kind: 'completed' } } },
+  ].map(event => ({ type: 'event', event }));
+  const native = peer.onCall;
+  peer.onCall = (method, args) => method === 'session/projections' ? { asOfSeq: 4, values: { agentPreset: 'claudian' } }
+    : method === 'session/page' ? { records, hasMore: false } : native(method, args);
+  const providerState = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'claudian' };
+  const { messages } = await new DeepSeekConversationHistoryService(async () => deepseek).hydrateConversationHistory({ sessionId: 'root', providerState, messages: [] }, '/vault');
+  const tool = messages!.flatMap(message => message.toolCalls ?? [])[0];
+  document.body.replaceChildren();
+  const card = renderStoredToolCall(document.body.createDiv(), tool, { initiallyExpanded: true });
+  expect(within(card).getByText(questions[0].question)).toBeTruthy();
+  expect(within(card).getByText('Blue')).toBeTruthy();
+  expect(within(card).queryByText('Red')).toBeNull();
+  expect(within(card).queryByText(nativeResult)).toBeNull();
   expect((await axe(card)).violations).toEqual([]);
 });
 

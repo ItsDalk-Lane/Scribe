@@ -146,6 +146,24 @@ describe('native ask_user_question results', () => {
     expect(completed).toHaveProperty('resultDetails.resolvedAnswers', answers);
   });
 
+  it('keeps a literal own __proto__ native question ID through answer normalization', () => {
+    const completed = ask('{"answers":[{"id":"__proto__","selected":["Blue"]}]}');
+    expect(completed).toMatchObject({ isError: false });
+    const details = (completed as { resultDetails?: { resolvedAnswers?: object } } | undefined)?.resultDetails?.resolvedAnswers;
+    expect(Object.hasOwn(details as object, '__proto__')).toBe(true);
+    expect(JSON.stringify(details)).toBe('{"__proto__":"Blue"}');
+  });
+
+  it('preserves custom supplements and multi selections under a __proto__ question ID', () => {
+    const completed = ask('{"answers":[{"id":"__proto__","selected":["Blue","Red"],"custom":"Green"}]}');
+    const details = (completed as { resultDetails?: { resolvedAnswers?: object } } | undefined)?.resultDetails?.resolvedAnswers;
+    expect(JSON.stringify(details)).toBe('{"__proto__":["Blue","Red","Green"]}');
+  });
+
+  it('leaves a skipped __proto__ question unanswered', () => {
+    expect(ask('{"answers":[{"id":"__proto__","selected":[]}]}')).not.toHaveProperty('resultDetails.resolvedAnswers');
+  });
+
   it.each([
     { name: 'a fully skipped batch', text: '{"answers":[{"id":"round9","selected":[]},{"id":"tag","selected":[]}]}' },
     { name: 'a timed call still pending', text: '{"pending":true,"callId":"ask","message":"No answer batch arrived before the timeout."}' },
