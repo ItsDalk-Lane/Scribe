@@ -2,7 +2,6 @@ import type { ProviderCommandCatalog } from '../../../core/providers/commands/Pr
 import type {
   ProviderHost,
 } from '../../../core/providers/ProviderHost';
-import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -65,7 +64,3 @@ export const piWorkspaceRegistration: ProviderWorkspaceRegistration<PiWorkspaceS
   consumesAgentSkills: true,
   initialize: async ({ plugin }) => createPiWorkspaceServices(plugin),
 };
-
-export function getPiWorkspaceServices(): PiWorkspaceServices {
-  return ProviderWorkspaceRegistry.requireServices('pi') as PiWorkspaceServices;
-}
