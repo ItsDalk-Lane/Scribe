@@ -741,6 +741,49 @@ export class ConversationRepository {
     await this.persistConversations(this.conversations.filter(conversation => providers.has(conversation.providerId)));
   }
 
+  /**
+   * Rewrites unhydrated metadata whose provider state duplicates native history. Writes run one
+   * at a time through the persistence queue so this background pass never competes with startup.
+   */
+  async compactPersistedProviderState(isStopped: () => boolean): Promise<number> {
+    const vaultPath = this.deps.getVaultPath();
+    const checks = new Map<ProviderId, ((input: ProviderHistoryInput) => boolean) | null>();
+    const getCheck = (providerId: ProviderId): ((input: ProviderHistoryInput) => boolean) | null => {
+      if (!checks.has(providerId)) {
+        const historyService = this.deps.providers.getRegisteredProviderIds().includes(providerId)
+          ? this.deps.providers.getConversationHistoryService(providerId)
+          : null;
+        const pathContext = this.#getHistoryPathContext(providerId, vaultPath);
+        checks.set(providerId, historyService?.hasRedundantPersistedState
+          ? input => historyService.hasRedundantPersistedState!(input, vaultPath, pathContext)
+          : null);
+      }
+      return checks.get(providerId)!;
+    };
+    let compacted = 0;
+    for (const { id, providerId } of [...this.conversations]) {
+      if (isStopped()) break;
+      const current = this.#getRecord(id);
+      const isRedundant = current && !this.hydratedConversationIds.has(id) ? getCheck(providerId) : null;
+      if (!current || !isRedundant || !(
+        isRedundant(current)
+        || (current.modelRecoverySource && isRedundant({ ...current.modelRecoverySource, messages: [] }))
+      )) continue;
+      try {
+        await this.#enqueuePersistence(id, async () => {
+          const record = this.#getRecord(id);
+          if (isStopped() || !record || this.hydratedConversationIds.has(id)) return;
+          if (!await this.#canWriteConversation(record)) return;
+          await this.#writeMetadata(record, { preserveProviderState: true });
+          compacted += 1;
+        });
+      } catch {
+        // Best effort: the next save or launch retries.
+      }
+    }
+    return compacted;
+  }
+
   async persistConversations(
     conversations: readonly Conversation[],
   ): Promise<void> {
@@ -1244,8 +1287,12 @@ export class ConversationRepository {
     const historyService = this.deps.providers.getConversationHistoryService(
       conversation.providerId,
     );
+    const getNativeHistory = () => {
+      const vaultPath = this.deps.getVaultPath();
+      return { vaultPath, pathContext: this.#getHistoryPathContext(conversation.providerId, vaultPath) };
+    };
     const providerState = historyService.buildPersistedProviderState
-      ? historyService.buildPersistedProviderState(conversation, options)
+      ? historyService.buildPersistedProviderState(conversation, { ...options, getNativeHistory })
       : conversation.providerState;
     const modelRecoverySource = !getStoredModelSelection(conversation.selectedModel)
       && conversation.modelRecoverySource
@@ -1254,7 +1301,7 @@ export class ConversationRepository {
     if (modelRecoverySource && historyService.buildPersistedProviderState) {
       modelRecoverySource.providerState = historyService.buildPersistedProviderState(
         { ...modelRecoverySource, messages: [] },
-        { preserveProviderState: true },
+        { preserveProviderState: true, getNativeHistory },
       );
     }
     return {

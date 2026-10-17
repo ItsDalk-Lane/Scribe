@@ -298,7 +298,11 @@ export function collectAsyncSubagentResults(
       continue;
     }
 
-    results.set(notification.taskId, { result: notification.content, status });
+    results.set(notification.taskId, {
+      result: notification.content,
+      status,
+      summaryOnly: !notification.hasResult,
+    });
   }
 
   return results;
@@ -391,19 +395,22 @@ export function hydrateStructuredToolResults(messages: ChatMessage[], toolUseRes
     }
 
     for (const toolCall of msg.toolCalls) {
-      const toolUseResult = toolUseResults.get(toolCall.id);
-      const details = normalizeClaudeToolResultDetails(toolUseResult);
-      if (toolUseResult && !toolCall.diffData) {
-        toolCall.diffData = resolveToolDiffData(details?.diff, toolCall);
-      }
+      hydrateStructuredToolResult(toolCall, toolUseResults.get(toolCall.id));
+    }
+  }
+}
 
-      if (toolCall.name === TOOL_ASK_USER_QUESTION && !toolCall.resolvedAnswers) {
-        const answers = details?.resolvedAnswers
-          ?? extractResolvedAnswersFromResultText(toolCall.result);
-        if (answers) {
-          toolCall.resolvedAnswers = answers;
-        }
-      }
+export function hydrateStructuredToolResult(toolCall: ToolCallInfo, toolUseResult: unknown): void {
+  const details = normalizeClaudeToolResultDetails(toolUseResult);
+  if (toolUseResult && !toolCall.diffData) {
+    toolCall.diffData = resolveToolDiffData(details?.diff, toolCall);
+  }
+
+  if (toolCall.name === TOOL_ASK_USER_QUESTION && !toolCall.resolvedAnswers) {
+    const answers = details?.resolvedAnswers
+      ?? extractResolvedAnswersFromResultText(toolCall.result);
+    if (answers) {
+      toolCall.resolvedAnswers = answers;
     }
   }
 }
