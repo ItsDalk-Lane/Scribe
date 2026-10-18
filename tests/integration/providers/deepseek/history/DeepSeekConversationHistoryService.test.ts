@@ -157,6 +157,8 @@ it.each([
 it.each([
   ['a different native identity', { attachmentId: 'other-image', mediaType: 'image/png' }, /image attachment/i],
   ['an unsupported media type', { attachmentId: 'image', mediaType: 'image/svg+xml' }, /unsupported.*media type/i],
+  ['an inherited constructor entry', { attachmentId: 'image', mediaType: 'constructor' }, /unsupported.*media type/i],
+  ['an inherited __proto__ entry', { attachmentId: 'image', mediaType: '__proto__' }, /unsupported.*media type/i],
 ])('rejects an attachment response for %s', async (_case, attachment, error) => {
   const ordinary = peer.onCall;
   peer.onCall = (method, args) => method === 'session/attachment'
