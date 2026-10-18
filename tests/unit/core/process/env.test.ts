@@ -11,12 +11,21 @@ const {
   cliPathRequiresNode,
   findNodeDirectory,
   findNodeExecutable,
+  findNodeExecutables,
   getEnhancedPath,
   parseEnvironmentVariables,
 } = env;
 
 const isWindows = process.platform === 'win32';
 const SEP = isWindows ? ';' : ':';
+
+/** Narrow `fs.accessSync` boundary: listed candidates are executable, all others fail admission. */
+function mockExecuteAccess(...runnablePaths: string[]): void {
+  jest.spyOn(fs, 'accessSync').mockImplementation(((p: fsType.PathLike) => {
+    if (runnablePaths.includes(String(p))) return;
+    throw Object.assign(new Error(`EACCES: permission denied, access '${String(p)}'`), { code: 'EACCES' });
+  }) as typeof fs.accessSync);
+}
 
 describe('parseEnvironmentVariables', () => {
   it('parses simple KEY=VALUE pairs', () => {
@@ -443,6 +452,7 @@ describe('getEnhancedPath', () => {
       jest.spyOn(fs, 'statSync').mockImplementation(
         p => ({ isFile: () => String(p) === nodePath }) as fsType.Stats
       );
+      mockExecuteAccess(nodePath);
       return nodePath;
     }
 
@@ -507,6 +517,7 @@ describe('getEnhancedPath', () => {
       jest.spyOn(fs, 'statSync').mockImplementation(
         p => ({ isFile: () => String(p) === nodePath }) as fsType.Stats
       );
+      mockExecuteAccess(nodePath);
     }
 
     it('adds CLI directory to PATH when it contains node (Unix nvm)', () => {
@@ -554,6 +565,23 @@ describe('getEnhancedPath', () => {
       expect(result).not.toContain(cliDir);
     });
 
+    it('does not add a CLI directory whose sibling node lacks execute access', () => {
+      if (isWindows) return;
+
+      const cliDir = '/custom/bin';
+      const cliPath = path.join(cliDir, 'cli.js');
+      const nodePath = path.join(cliDir, 'node');
+      jest.spyOn(fs, 'existsSync').mockImplementation(p => String(p) === nodePath);
+      jest.spyOn(fs, 'statSync').mockImplementation(
+        p => ({ isFile: () => String(p) === nodePath }) as fsType.Stats
+      );
+      mockExecuteAccess();
+
+      process.env.PATH = '/usr/bin';
+      const result = getEnhancedPath(undefined, cliPath);
+      expect(result.split(SEP)).not.toContain(cliDir);
+    });
+
     it('CLI directory has higher priority than fallback node search', () => {
       if (isWindows) return;
 
@@ -566,6 +594,7 @@ describe('getEnhancedPath', () => {
       jest.spyOn(fs, 'statSync').mockImplementation(
         p => ({ isFile: () => String(p) === nodePath }) as fsType.Stats
       );
+      mockExecuteAccess(nodePath);
 
       process.env.PATH = '/usr/bin';
       const result = getEnhancedPath(undefined, cliPath);
@@ -739,6 +768,7 @@ describe('findNodeDirectory', () => {
     jest.spyOn(fs, 'statSync').mockImplementation(
       () => ({ isFile: () => true }) as fsType.Stats
     );
+    mockExecuteAccess(preferredNode, fallbackNode);
 
     process.env.PATH = fallbackDir;
 
@@ -755,9 +785,54 @@ describe('findNodeDirectory', () => {
     jest.spyOn(fs, 'statSync').mockImplementation(
       () => ({ isFile: () => true }) as fsType.Stats
     );
+    mockExecuteAccess(preferredNode);
 
     const result = findNodeExecutable(preferredDir);
     expect(result).toBe(preferredNode);
+  });
+
+  it('skips inaccessible and non-executable candidates in favor of a later usable one', () => {
+    if (isWindows) return;
+
+    const brokenNode = '/broken/bin/node';
+    const badNode = '/bad/bin/node';
+    const goodNode = '/good/bin/node';
+    jest.spyOn(fs, 'existsSync').mockImplementation(p => {
+      const candidate = String(p);
+      return candidate === brokenNode || candidate === badNode || candidate === goodNode;
+    });
+    jest.spyOn(fs, 'statSync').mockImplementation(((p: fsType.PathLike) => {
+      if (String(p) === brokenNode) {
+        throw Object.assign(new Error('EACCES: permission denied, stat'), { code: 'EACCES' });
+      }
+      return { isFile: () => true } as fsType.Stats;
+    }) as typeof fs.statSync);
+    mockExecuteAccess(goodNode);
+
+    process.env.PATH = '';
+    const search = `/broken/bin${SEP}/bad/bin${SEP}/good/bin`;
+    expect(findNodeDirectory(search)).toBe('/good/bin');
+    expect(findNodeExecutable(search)).toBe(goodNode);
+  });
+
+  it('reports no Node executable when every candidate lacks execute access', () => {
+    if (isWindows) return;
+
+    const firstNode = '/first/bin/node';
+    const secondNode = '/second/bin/node';
+    jest.spyOn(fs, 'existsSync').mockImplementation(p => {
+      const candidate = String(p);
+      return candidate === firstNode || candidate === secondNode;
+    });
+    jest.spyOn(fs, 'statSync').mockImplementation(
+      () => ({ isFile: () => true }) as fsType.Stats
+    );
+    mockExecuteAccess();
+
+    process.env.PATH = '';
+    const search = `/first/bin${SEP}/second/bin`;
+    expect(findNodeDirectory(search)).toBeNull();
+    expect(findNodeExecutables(search)).toEqual([]);
   });
 });
 
@@ -1057,6 +1132,7 @@ describe('environment variable parsing edge cases', () => {
 it('does not reopen a CLI whose directory already supplies Node', () => {
   const exists = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
   const stat = jest.spyOn(fs, 'statSync').mockReturnValue({ isFile: () => true } as fsType.Stats);
+  mockExecuteAccess('/cli/node');
   const open = jest.spyOn(fs, 'openSync').mockImplementation(() => { throw new Error('unnecessary read'); });
   try {
     getEnhancedPath(undefined, '/cli/claude');

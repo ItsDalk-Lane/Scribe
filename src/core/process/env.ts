@@ -252,6 +252,22 @@ function getExtraBinaryPaths(): string[] {
   return paths;
 }
 
+/**
+ * Node candidate admission shared by discovery and the CLI-directory shortcut.
+ * POSIX launchability requires execute access; Windows keeps its own executable
+ * semantics. An unusable candidate skips only that candidate.
+ */
+function isRunnableNodeFile(nodePath: string): boolean {
+  try {
+    if (!fs.existsSync(nodePath)) return false;
+    if (!fs.statSync(nodePath).isFile()) return false;
+    if (!isWindows) fs.accessSync(nodePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function* findNodeDirectories(additionalPaths?: string, searchPaths = getExtraBinaryPaths()): Generator<string, undefined> {
   const executables = new Set<string>();
 
@@ -262,17 +278,10 @@ function* findNodeDirectories(additionalPaths?: string, searchPaths = getExtraBi
 
   for (const dir of allPaths) {
     if (!dir) continue;
-    try {
-      const nodePath = path.join(dir, NODE_EXECUTABLE);
-      if (fs.existsSync(nodePath)) {
-        const stat = fs.statSync(nodePath);
-        if (stat.isFile() && !executables.has(nodePath)) {
-          executables.add(nodePath);
-          yield dir;
-        }
-      }
-    } catch {
-      // Inaccessible directory
+    const nodePath = path.join(dir, NODE_EXECUTABLE);
+    if (!executables.has(nodePath) && isRunnableNodeFile(nodePath)) {
+      executables.add(nodePath);
+      yield dir;
     }
   }
 }
@@ -337,12 +346,9 @@ export function getEnhancedPath(additionalPaths?: string, cliPath?: string): str
     try {
       const cliDir = path.dirname(cliPath);
       const nodeInCliDir = path.join(cliDir, NODE_EXECUTABLE);
-      if (fs.existsSync(nodeInCliDir)) {
-        const stat = fs.statSync(nodeInCliDir);
-        if (stat.isFile()) {
-          segments.push(cliDir);
-          cliDirHasNode = true;
-        }
+      if (isRunnableNodeFile(nodeInCliDir)) {
+        segments.push(cliDir);
+        cliDirHasNode = true;
       }
     } catch {
       // Ignore errors checking CLI directory

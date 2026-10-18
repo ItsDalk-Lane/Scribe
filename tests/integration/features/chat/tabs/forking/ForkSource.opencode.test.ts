@@ -152,7 +152,9 @@ describe('OpenCode fork integration', () => {
     const selected = await env.send(source, 'Remember apples');
     const cliPath = path.join(env.root, 'opencode');
     await fs.writeFile(cliPath, '#!/usr/bin/env node\n');
-    await fs.writeFile(path.join(env.root, process.platform === 'win32' ? 'node.exe' : 'node'), '');
+    const nodePath = path.join(env.root, process.platform === 'win32' ? 'node.exe' : 'node');
+    await fs.writeFile(nodePath, '');
+    if (process.platform !== 'win32') await fs.chmod(nodePath, 0o755);
     const settings = { providerConfigs: { opencode: { cliPath } } };
     const service = new OpencodeConversationHistoryService();
     await service.buildForkProviderState('ses-source', selected.assistantMessageId!, source.conversation.providerState, env.root, {
