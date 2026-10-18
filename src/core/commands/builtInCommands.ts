@@ -120,8 +120,11 @@ export function detectBuiltInCommand(
   input: string,
   context?: BuiltInCommandSupportContext,
 ): BuiltInCommandResult | null {
+  // This matcher is deliberately single-line: a line break is never a command
+  // separator, so one anywhere in the trimmed candidate rejects the match.
+  if (/[\r\n\u2028\u2029]/.test(input.trim())) return null;
   const parsed = parseLeadingBuiltInCommand(input);
-  if (!parsed || /[\r\n\u2028\u2029]/.test(parsed.rawArguments)) return null;
+  if (!parsed) return null;
   const { command } = parsed;
   if (!isBuiltInCommandSupported(command, context)) return null;
   const args = parsed.rawArguments.trim();

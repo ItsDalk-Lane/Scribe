@@ -1940,7 +1940,33 @@ describe('Tab provider execution ownership', () => {
     await tab.controllers.inputController!.sendMessage();
 
     expect(startNewConversation).toHaveBeenCalledTimes(1);
+    expect(tab.executionCoordinator.execute).not.toHaveBeenCalled();
     expect(tab.conversationId).toBe(conversation.id);
+  });
+
+  it('hands a /clear submission with a newline separator to provider execution instead of the manager', async () => {
+    const conversation = createConversation();
+    const cached: any = conversation;
+    const plugin = createPlugin({
+      getCachedConversation: jest.fn(() => cached),
+      getConversationById: jest.fn(async () => cached),
+      getConversationSync: jest.fn(() => cached),
+      renameConversation: jest.fn().mockResolvedValue(undefined),
+    });
+    const startNewConversation = jest.fn().mockResolvedValue(undefined);
+    const tab = await createTestTab({
+      plugin,
+      containerEl: createMockEl() as any,
+      conversation,
+    }, { startNewConversation });
+    tab.dom.inputEl.value = '/clear\nExplain this command';
+
+    await tab.controllers.inputController.sendMessage();
+
+    expect(startNewConversation).not.toHaveBeenCalled();
+    const coordinator = tab.executionCoordinator;
+    expect(coordinator.execute).toHaveBeenCalledTimes(1);
+    expect(coordinator.execute.mock.calls[0]![0].canonicalText).toBe('/clear\nExplain this command');
   });
 
   it('does not route manager-owned commands from a closing runtime', async () => {
