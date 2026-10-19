@@ -181,4 +181,64 @@ describe('TitleGenerationService', () => {
     });
     expect(backend.sessions[0].disposeCalls).toBe(1);
   });
+
+  it.each([
+    [
+      'backs off one unit when the input cut splits a surrogate pair',
+      `${'x'.repeat(499)}\uD83D\uDE00tail`,
+      `User's request:\n"""\n${'x'.repeat(499)}...\n"""\n\nGenerate a title for this conversation:`,
+    ],
+    [
+      'keeps a complete pair that fits before the input cut',
+      `${'x'.repeat(498)}\uD83D\uDE00tail`,
+      `User's request:\n"""\n${'x'.repeat(498)}\uD83D\uDE00...\n"""\n\nGenerate a title for this conversation:`,
+    ],
+  ])('truncates the captured prompt input safely: %s', async (_name, input, expectedPrompt) => {
+    const { backend, service } = createService();
+    const callback = jest.fn();
+    const generation = service.generateTitle('conversation-1', input, callback);
+    await waitFor(() => backend.sessions[0]?.requests.length === 1);
+
+    backend.sessions[0].emitText('Title');
+    backend.sessions[0].complete();
+    await generation;
+
+    expect(backend.sessions[0].requests[0].input[0]).toEqual({
+      text: expectedPrompt,
+      type: 'text',
+    });
+    expect(callback).toHaveBeenCalledWith('conversation-1', {
+      success: true,
+      title: 'Title',
+    });
+    expect(backend.sessions[0].disposeCalls).toBe(1);
+  });
+
+  it.each([
+    [
+      'backs off one unit when the title cut splits a surrogate pair',
+      `${'x'.repeat(46)}\uD83D\uDE00tail`,
+      `${'x'.repeat(46)}...`,
+    ],
+    [
+      'keeps a complete pair that fits before the title cut',
+      `${'x'.repeat(45)}\uD83D\uDE00tail`,
+      `${'x'.repeat(45)}\uD83D\uDE00...`,
+    ],
+  ])('truncates the generated title safely: %s', async (_name, payload, expectedTitle) => {
+    const { backend, service } = createService();
+    const callback = jest.fn();
+    const generation = service.generateTitle('conversation-1', 'Request', callback);
+    await waitFor(() => backend.sessions[0]?.requests.length === 1);
+
+    backend.sessions[0].emitText(payload);
+    backend.sessions[0].complete();
+    await generation;
+
+    expect(callback).toHaveBeenCalledWith('conversation-1', {
+      success: true,
+      title: expectedTitle,
+    });
+    expect(backend.sessions[0].disposeCalls).toBe(1);
+  });
 });
