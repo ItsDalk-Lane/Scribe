@@ -40,7 +40,10 @@ export class EnvironmentSettingsService {
 
   constructor(private readonly deps: EnvironmentSettingsServiceDeps) {}
 
-  /** Returns the runtime environment variables (fixed at plugin load). */
+  /**
+   * Returns shared and provider environment text from the current committed
+   * settings, read on each call.
+   */
   getActiveEnvironmentVariables(
     providerId: ProviderId = this.deps.providers.resolveSettingsProviderId(this.deps.getSettings()),
   ): string {
@@ -51,7 +54,10 @@ export class EnvironmentSettingsService {
     return getEnvironmentVariablesForScope(this.deps.getSettings(), scope);
   }
 
-  /** Updates and persists environment variables, restarting processes to apply changes. */
+  /**
+   * Applies and persists scoped environment changes through the serialized
+   * provider transition.
+   */
   applyEnvironmentVariables(scope: EnvironmentScope, envText: string): Promise<void> {
     return this.applyEnvironmentVariablesBatch([{ scope, envText }]);
   }
