@@ -22,8 +22,10 @@ import {
   collectAsyncSubagentResults,
   collectStructuredPatchResults,
   collectToolResults,
+  getSDKUserMessageTimestamp,
   hydrateStructuredToolResults,
   isCanonicalSDKUserMessage,
+  isQueuedPromptAttachment,
   isSystemInjectedMessage,
   mergeAssistantMessage,
   parseSDKMessageToChat,
@@ -165,8 +167,20 @@ export async function loadSDKSessionMessages(
     turnStats = new ClaudeTurnStats();
   };
 
+  // Resolve over every record, as live turn stats do: the active branch drops the progress
+  // records a fold can follow. Parents precede their children in file order.
+  const effectiveTimestamps = new Map<string, string | undefined>();
+  for (const entry of result.messages) {
+    if (entry.isSidechain || !entry.uuid) continue;
+    effectiveTimestamps.set(entry.uuid, getSDKUserMessageTimestamp(
+      entry, entry.parentUuid ? effectiveTimestamps.get(entry.parentUuid) : undefined,
+    ));
+  }
   // Preserve task notification boundaries without ending an unfinished requested response.
-  for (const sdkMsg of filteredEntries) {
+  for (const entry of filteredEntries) {
+    const timestamp = isQueuedPromptAttachment(entry) && entry.uuid && effectiveTimestamps.has(entry.uuid)
+      ? effectiveTimestamps.get(entry.uuid) : entry.timestamp;
+    const sdkMsg = timestamp === entry.timestamp ? entry : { ...entry, timestamp };
     const notification = parseTaskNotification(sdkMsg);
     if (notification !== null) {
       if (pendingAssistant && requestedResponsePending) {
