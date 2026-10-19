@@ -64,7 +64,7 @@ npm install
 npm run dev
 ```
 
-For a bug fix or new behavior, add or update a failing test first, then make the narrowest implementation change that passes it. Use focused checks while iterating. Before submitting a pull request, run the full verification suite:
+For a bug fix or new behavior, add or update a failing test first, then make the narrowest implementation change that passes it. Use focused checks while iterating. Before submitting a pull request with code or test changes, run the full verification suite:
 
 ```bash
 npm run typecheck
@@ -78,8 +78,11 @@ For local iteration, `npm run test:affected -- --base origin/main` selects tests
 committed, staged, unstaged and untracked changes using the CI dependency graph.
 It prints the selection and runs the selected Jest and script checks.
 Use `--list` to inspect without running, `--full` for all tests, and `-- --runInBand` to forward Jest
-options. Unknown inputs or an unavailable base retain full coverage. This does not
-replace typecheck, lint, build/performance checks or native checks on other platforms.
+options. Unknown inputs or an unavailable base retain full coverage. For code or test
+changes, this does not replace typecheck, lint, build/performance checks or native
+checks on other platforms.
+
+For documentation-only changes, a production build is not required. Follow the authoritative rules in [AGENTS.md](AGENTS.md): run `git diff --check` and the affected documentation tests.
 
 Full Linux CI verification uses two Jest shards, with script checks on the first
 shard. Affected selections use one job. Each Linux test job uses three workers.
