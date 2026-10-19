@@ -271,17 +271,19 @@ export class LinkedContentController {
       new Notice(t('chat.linkedContent.missingNotice', { path: this.path }));
       return;
     }
-    if (content.target instanceof TFile) {
+    if (content.target instanceof TFile || content.target instanceof TFolder) {
       try {
-        await this.#revealFile(content.target);
+        if (content.target instanceof TFile) {
+          await this.#revealFile(content.target);
+        } else {
+          await this.#revealFolder(content.target);
+        }
       } catch (error) {
         new Notice(
           t('chat.linkedContent.openFailed', { error: error instanceof Error ? error.message : String(error) }),
         );
       }
-      return;
     }
-    if (content.target instanceof TFolder) await this.#revealFolder(content.target);
   }
 
   destroy(): void {
