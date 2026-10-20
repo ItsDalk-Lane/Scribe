@@ -141,7 +141,7 @@ For OpenCode, discovery failures show the request error, including a server erro
 npm-installed provider CLIs need Node.js. Claudian prefers the Node.js next to the CLI, then the first one on PATH. If the CLI still reports that Node.js is missing (for example `env: node: No such file or directory`), check where your terminal finds it:
 
 ```bash
-dirname $(which node)
+dirname "$(which node)"
 ```
 
 Either:
