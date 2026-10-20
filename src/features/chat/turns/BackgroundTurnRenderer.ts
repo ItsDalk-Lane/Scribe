@@ -4,11 +4,12 @@ import type { ChatMessage, StreamChunk } from '@/core/types';
 import type { MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
 import { recordNotificationPredecessors, recordResponseContinuation } from '@/features/chat/rendering/NotificationBoundaries';
 import { providerOutputEventToStreamChunk } from '@/features/chat/rendering/providerOutputChunks';
-import { getAutomaticNotificationPredecessor, isStandaloneTaskNotification } from '@/features/chat/rendering/ResponseLayout';
+import { getAutomaticNotificationPredecessor, hasResponseOutput, isStandaloneTaskNotification } from '@/features/chat/rendering/ResponseLayout';
 import { ChatState } from '@/features/chat/state/ChatState';
 import {
   continueResponseAfterNotification,
   getTrailingNotificationsEnd,
+  getTurnIdentity,
   markStoppedTurn,
   type StoppedTurnEvents,
 } from '@/features/chat/turns/ResponseContinuation';
@@ -120,14 +121,6 @@ function isVisibleAutoTurnChunk(chunk: StreamChunk, hiddenToolIds: Set<string>):
   }
 }
 
-function hasVisibleAutoTurnMessageContent(message: ChatMessage): boolean {
-  if (message.content.trim().length > 0) return true;
-  if (message.toolCalls && message.toolCalls.length > 0) return true;
-  return message.contentBlocks?.some(block =>
-    block.type !== 'text' || block.content.trim().length > 0
-  ) ?? false;
-}
-
 /**
  * The stopped input span's last message carries the interrupt: its last reply, or a
  * notification that trailed it; a span without output keeps a bare marker after its
@@ -147,6 +140,7 @@ function markInterruptedTurn(
   if (!reply) {
     const marker: ChatMessage = {
       id: host.createMessageId(), role: 'assistant', content: '', timestamp: Date.now(), isInterrupt: true,
+      turnId: getTurnIdentity(terminal),
     };
     const index = getTrailingNotificationsEnd(messages, anchor ? messages.indexOf(anchor) : -1, turn);
     messages.splice(index + 1, 0, marker);
@@ -155,14 +149,10 @@ function markInterruptedTurn(
     if (contentEl) host.renderer?.appendInterruptIndicator(contentEl);
     return undefined;
   }
-  // Like a stopped requested reply, none of it has a completion.
-  for (const segment of stopped) segment.completedAt = undefined;
-  // The span is one native turn: chain its segments and the notifications between and after them.
-  let previous: ChatMessage | undefined;
-  for (const message of messages.slice(messages.indexOf(stopped[0]), messages.indexOf(reply) + 1)) {
-    if (!stopped.includes(message) && !isStandaloneTaskNotification(message)) continue;
-    if (previous) recordResponseContinuation(message, previous);
-    previous = message;
+  // The span is one native turn with no completion, like a stopped requested reply.
+  for (const segment of stopped) {
+    segment.turnId = getTurnIdentity(terminal);
+    segment.completedAt = undefined;
   }
   return markStoppedTurn(host.renderer, reply, host.renderer?.getMessageContentEl(reply.id) ?? null, messages, turn);
 }
@@ -244,13 +234,20 @@ export async function renderAutoTriggeredTurn(
       if (!isCurrent()) return false;
       stream.thinkingIndicator.hide();
       assistantMessage.completedAt = Date.now();
-      if (!hasVisibleAutoTurnMessageContent(assistantMessage) && host.state.messages.includes(assistantMessage)) {
+      if (!hasResponseOutput(assistantMessage) && host.state.messages.includes(assistantMessage)) {
         host.state.messages = host.state.messages.filter(message => message !== assistantMessage);
         host.renderer?.removeMessage(assistantMessage.id);
       }
       checkpointMessage = segments.slice(start).reverse().find(segment => host.state.messages.includes(segment));
     }
 
+    if (result.interruptedAt) {
+      // A stopped span ends at its output: output-free segments on either side of its notifications show nothing.
+      const empty = segments.slice(finalSpanStart).filter(segment => !hasResponseOutput(segment));
+      host.state.messages = host.state.messages.filter(message => !empty.includes(message));
+      for (const segment of empty) host.renderer?.removeMessage(segment.id);
+      checkpointMessage = segments.slice(finalSpanStart).reverse().find(segment => host.state.messages.includes(segment));
+    }
     const visible = segments.filter(segment => host.state.messages.includes(segment));
     if (checkpointMessage && metadata.assistantMessageId) checkpointMessage.assistantMessageId = metadata.assistantMessageId;
     const stopped = result.interruptedAt ? segments.slice(finalSpanStart).filter(segment => visible.includes(segment)) : [];
