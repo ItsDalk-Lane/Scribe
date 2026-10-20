@@ -108,7 +108,7 @@ export const piModelPolicy: ProviderModelPolicy = {
   },
 
   normalizeModelVariant(model: string): string {
-    return decodePiModelId(model) ? model : model;
+    return model;
   },
 
   getCustomModelIds(): Set<string> {
