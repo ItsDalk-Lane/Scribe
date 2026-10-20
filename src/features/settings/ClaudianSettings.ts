@@ -648,7 +648,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         };
 
         text
-          .setPlaceholder('Map w scrollup\nmap s scrolldown\nmap i focusinput')
+          .setPlaceholder(pendingValue)
           .setValue(pendingValue)
           .onChange((value) => {
             pendingValue = value;
