@@ -61,7 +61,10 @@ function digest(content: string): string {
   return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
-/** Parses a Claude command file; frontmatter is optional and malformed YAML falls back to the raw body. */
+/**
+ * Parses a Claude command file using parsed or recovered frontmatter when available,
+ * otherwise preserving raw input as the body.
+ */
 function parseClaudeCommandMarkdown(raw: string): {
   description: string;
   instructions: string;
