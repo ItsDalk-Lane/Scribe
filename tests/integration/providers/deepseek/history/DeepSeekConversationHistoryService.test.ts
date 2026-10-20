@@ -56,6 +56,20 @@ it('hydrates fixed-cut native messages, images, tools and exact completed-turn c
   expect(history.buildPersistedProviderState({ ...input, messages: result.messages! })).toEqual(state);
 });
 
+it('hydrates a prototype-named custom tool with its original input, payload and result', async () => {
+  records = [
+    wire(1, 'turn/start', { turn: 1 }),
+    wire(2, 'user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: 'run custom tool' }] }),
+    wire(3, 'tool/call', { callId: 'custom', name: 'constructor', arguments: '{"path":"note.md"}' }),
+    wire(4, 'tool/result', { message: { toolCallId: 'custom', content: [{ type: 'text', text: 'custom result' }], isError: false } }),
+    wire(5, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+  ];
+  const result = await history.hydrateConversationHistory(input, '/vault');
+  expect(result.messages?.[1]).toMatchObject({ role: 'assistant', toolCalls: [
+    { id: 'custom', name: 'constructor', input: { path: 'note.md' }, providerPayload: { rawName: 'constructor' }, result: 'custom result', status: 'completed' },
+  ] });
+});
+
 it('defers native forks to first execution and reads only the selected source prefix', async () => {
   const fork = history.buildForkProviderState('root', 'deepseek:seq:7', state);
   expect(fork).toMatchObject({ preset: 'claudian-code', pendingFork: { sessionId: 'root', atSeq: 7 } });

@@ -56,24 +56,52 @@ it('appends a live native retry and matches late durable records to their own at
   ]);
 });
 
-it('keeps native PTC dispatches nested under one execution and normalizes usage', () => {
+it.each([
+  ['read', 'Read', { file_path: 'note.md' }],
+  ['Custom.Tool', 'Custom.Tool', { path: 'note.md' }],
+  ['constructor', 'constructor', { path: 'note.md' }],
+  ['toString', 'toString', { path: 'note.md' }],
+  ['hasOwnProperty', 'hasOwnProperty', { path: 'note.md' }],
+  ['__proto__', '__proto__', { path: 'note.md' }],
+])('keeps native PTC %s dispatches nested under one execution and normalizes usage', (name, expectedName, input) => {
   const tool = { type: 'tool/call', seq: 12, time: now, data: { callId: 'outer', name: 'run_code', arguments: '{"code":"await read()"}' } };
   output.record(tool); output.record(tool);
-  output.record({ type: 'tool/ptc-dispatch-start', seq: 13, time: now, data: { rootCallId: 'outer', parentCallId: 'outer', subCallId: 'inner', name: 'read', arguments: { path: 'note.md' } } });
-  output.record({ type: 'tool/ptc-dispatch', seq: 14, time: now, data: { rootCallId: 'outer', parentCallId: 'outer', subCallId: 'inner', name: 'read', arguments: { path: 'note.md' }, content: [{ type: 'text', text: 'note' }], isError: false } });
+  output.record({ type: 'tool/ptc-dispatch-start', seq: 13, time: now, data: { rootCallId: 'outer', parentCallId: 'outer', subCallId: 'inner', name, arguments: { path: 'note.md' } } });
+  expect(output.call('inner')).toEqual({ name: expectedName, input });
+  output.record({ type: 'tool/ptc-dispatch', seq: 14, time: now, data: { rootCallId: 'outer', parentCallId: 'outer', subCallId: 'inner', name, arguments: { path: 'note.md' }, content: [{ type: 'text', text: 'note' }], isError: false } });
+  expect(output.call('inner')).toEqual({ name: expectedName, input });
   output.record({ type: 'tool/result', seq: 15, time: now, data: { message: { toolCallId: 'outer', content: [{ type: 'text', text: 'done' }], isError: false } } });
   output.record({ type: 'assistant/message', seq: 16, time: now, data: { turn: 1, step: 0, message: { content: [] }, usage: { inputTokens: 10, cacheReadTokens: 20, cacheWriteTokens: 5, outputTokens: 2 } } });
   expect(events.filter(e => e.type === 'tool_started')).toMatchObject([
     { toolCallId: 'outer', name: 'exec', input: { code: 'await read()' } },
   ]);
   expect(events.filter(e => e.type === 'tool_completed')).toMatchObject([
-    { toolCallId: 'outer', content: 'done', resultDetails: { scriptToolCalls: [{ name: 'Read', input: { file_path: 'note.md' }, status: 'completed' }] } },
+    { toolCallId: 'outer', content: 'done', resultDetails: { scriptToolCalls: [{ name: expectedName, input, status: 'completed' }] } },
   ]);
   expect(events.filter(e => e.type === 'tool_output')).toMatchObject([
-    { toolCallId: 'outer', resultDetails: { scriptToolCalls: [{ name: 'Read', status: 'running' }] } },
-    { toolCallId: 'outer', resultDetails: { scriptToolCalls: [{ name: 'Read', status: 'completed' }] } },
+    { toolCallId: 'outer', resultDetails: { scriptToolCalls: [{ name: expectedName, input, status: 'running' }] } },
+    { toolCallId: 'outer', resultDetails: { scriptToolCalls: [{ name: expectedName, input, status: 'completed' }] } },
   ]);
   expect(events.find(e => e.type === 'usage_updated')).toMatchObject({ usage: { inputTokens: 10, contextTokens: 35, contextWindow: 0, cacheReadInputTokens: 20, cacheCreationInputTokens: 5 } });
+});
+
+it.each([
+  ['read', 'Read', { file_path: 'note.md' }],
+  ['Custom.Tool', 'Custom.Tool', { path: 'note.md' }],
+  ['constructor', 'constructor', { path: 'note.md' }],
+  ['toString', 'toString', { path: 'note.md' }],
+  ['hasOwnProperty', 'hasOwnProperty', { path: 'note.md' }],
+  ['__proto__', '__proto__', { path: 'note.md' }],
+])('preserves the tool contract for %s through completion', (name, expectedName, input) => {
+  output.record({ type: 'tool/call', seq: 1, time: now, data: { callId: 'custom', name, arguments: '{"path":"note.md"}' } });
+  output.record({ type: 'tool/result', seq: 2, time: now, data: { message: { toolCallId: 'custom', content: [{ type: 'text', text: 'result text' }], isError: false } } });
+  expect(output.call('custom')).toEqual({ name: expectedName, input });
+  expect(events.filter(event => event.type === 'tool_started')).toEqual([
+    { type: 'tool_started', toolCallId: 'custom', name: expectedName, input, toolScope: { kind: 'main' }, providerPayload: { rawName: name } },
+  ]);
+  expect(events.filter(event => event.type === 'tool_completed')).toEqual([
+    { type: 'tool_completed', toolCallId: 'custom', content: 'result text', isError: false, toolScope: { kind: 'main' }, resultDetails: { resultFormat: 'plain' } },
+  ]);
 });
 
 it('uses the native request capacity and disjoint cache counts for context usage', () => {

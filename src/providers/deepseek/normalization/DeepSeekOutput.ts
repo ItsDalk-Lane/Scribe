@@ -242,7 +242,7 @@ export class DeepSeekOutput {
   }
 }
 
-export function deepseekToolName(name: string): string { return TOOL_NAMES[name] ?? name; }
+export function deepseekToolName(name: string): string { return Object.hasOwn(TOOL_NAMES, name) ? TOOL_NAMES[name] : name; }
 
 export function deepseekText(content: unknown): string {
   return Array.isArray(content) ? content.flatMap(block => isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []).join('\n') : '';
