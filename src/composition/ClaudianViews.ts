@@ -8,6 +8,7 @@ import {
 import { VIEW_TYPE_CLAUDIAN } from '@/core/types';
 import type { ChatViewPlacement } from '@/core/types/settings';
 import type { ClaudianView } from '@/features/chat/ClaudianView';
+import type { ZenModeController } from '@/features/chat/zen/ZenModeController';
 import { revealWorkspaceLeaf } from '@/utils/obsidianCompat';
 
 /** Identifies a mounted chat view without relying on class identity across reloads. */
@@ -19,6 +20,9 @@ export function isClaudianView(value: unknown): value is ClaudianView {
 
 /** Locates and opens the chat views mounted in the Obsidian workspace. */
 export class ClaudianViews {
+  /** The chat the toggle last hid, restored by its next show; only a preference, never a guard. */
+  #toggleHiddenLeaf: WorkspaceLeaf | null = null;
+
   constructor(
     private readonly workspace: Workspace,
     private readonly getPlacement: () => ChatViewPlacement,
@@ -81,9 +85,41 @@ export class ClaudianViews {
     return ids;
   }
 
-  async activateView(): Promise<void> {
+  /**
+   * Hides a chat the user can see, else shows one. A shown zen panel hides itself; a
+   * sidebar chat yields to a sibling tab so the sidebar stays open.
+   */
+  async toggleView(zen: Pick<ZenModeController, 'toggleVisibility' | 'hide'>): Promise<void> {
+    if (zen.toggleVisibility()) return;
+    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    // Main-area chats are revealed rather than closed, since closing shuts down their sessions.
+    const shown = leaves.filter(candidate => (
+      isClaudianView(candidate.view) && candidate.view.containerEl.isShown() && this.#getExpandedSidebar(candidate)
+    ));
+    const preferred = this.getView();
+    const leaf = shown.find(candidate => candidate.view === preferred) ?? shown[0];
+    const sidebar = leaf ? this.#getExpandedSidebar(leaf) : null;
+    if (!leaf || !sidebar) {
+      const hidden = this.#toggleHiddenLeaf;
+      this.#toggleHiddenLeaf = null;
+      await this.activateView(hidden && leaves.includes(hidden) ? hidden : undefined);
+      return;
+    }
+    this.#toggleHiddenLeaf = leaf;
+    const sibling = this.#findMostRecentSibling(leaf);
+    if (sibling) {
+      await revealWorkspaceLeaf(this.workspace, sibling);
+      return;
+    }
+    // A lone sidebar chat can only hide with its sidebar; zen must not replace it.
+    sidebar.collapse();
+    zen.hide(leaf);
+  }
+
+  /** Reveals and focuses the preferred chat leaf, else the first one, else opens one. */
+  async activateView(preferred?: WorkspaceLeaf): Promise<void> {
     const { workspace } = this;
-    const existingLeaf = workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
+    const existingLeaf = preferred ?? workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
     const leaf = existingLeaf
       ?? this.#getLeafForPlacement(this.getPlacement());
     if (!leaf) return;
@@ -110,6 +146,27 @@ export class ClaudianViews {
     } finally {
       workspace.offref(focusIntentRef);
     }
+  }
+
+  #getExpandedSidebar(leaf: WorkspaceLeaf): { collapse(): void } | null {
+    const root = leaf.getRoot();
+    const { leftSplit, rightSplit } = this.workspace;
+    if (root === leftSplit && !leftSplit.collapsed) return leftSplit;
+    if (root === rightSplit && !rightSplit.collapsed) return rightSplit;
+    return null;
+  }
+
+  #findMostRecentSibling(leaf: WorkspaceLeaf): WorkspaceLeaf | null {
+    const siblings: WorkspaceLeaf[] = [];
+    this.workspace.iterateAllLeaves((candidate) => {
+      if (candidate !== leaf && candidate.parent === leaf.parent) siblings.push(candidate);
+    });
+    // activeTime is Obsidian's unexposed focus timestamp; without it, tab order decides.
+    const activeTime = (candidate: WorkspaceLeaf) => (candidate as { activeTime?: number }).activeTime ?? 0;
+    return siblings.reduce<WorkspaceLeaf | null>(
+      (best, candidate) => (!best || activeTime(candidate) > activeTime(best) ? candidate : best),
+      null,
+    );
   }
 
   #getLeafForPlacement(placement: ChatViewPlacement): WorkspaceLeaf | null {
