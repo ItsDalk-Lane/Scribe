@@ -397,6 +397,25 @@ it('applies committed setting changes without reopening the sidebar or touching 
   session.complete();
 });
 
+it.each([
+  ['display crossing pair', 'A'.repeat(238) + '\uD83D\uDE00X', 'A'.repeat(238) + '…'],
+  ['display fitting pair', 'A'.repeat(237) + '\uD83D\uDE00XX', 'A'.repeat(237) + '\uD83D\uDE00…'],
+  ['display exact limit', 'A'.repeat(238) + '\uD83D\uDE00', 'A'.repeat(238) + '\uD83D\uDE00'],
+  ['scan crossing pair', ' '.repeat(3761) + 'A'.repeat(238) + '\uD83D\uDE00X', 'A'.repeat(238)],
+])('renders %s in the live preview and its accessible description', async (_name, input, expected) => {
+  const { tab, sessions, rightSplit, setCollapsed } = await createZenFixture();
+  setCollapsed(rightSplit, true);
+  const session = await sendFromZen(tab, sessions, 'Summarize the note');
+  await waitFor(() => expect(preview()).toBe('Summarize the note'));
+  session.emitText(input);
+  await waitFor(() => expect(preview()).toBe(expected));
+
+  const panel = screen.getByRole('region', { name: 'Claudian chat' });
+  const show = within(panel).getByRole('button', { name: 'Show conversation', description: expected });
+  expect(document.getElementById(show.getAttribute('aria-describedby')!)?.textContent).toBe(expected);
+  expect(await axe(panel.querySelector<HTMLElement>('.claudian-zen-bar')!)).toHaveNoViolations();
+});
+
 it('keeps one live turn, draft and node identity across repeated presentation changes', async () => {
   const fixture = await createZenFixture();
   const { tab, sessions, rightSplit, setCollapsed } = fixture;
