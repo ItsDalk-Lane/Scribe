@@ -49,7 +49,13 @@ export function formatSessionSnapshot(
     const cost = text.length + (body.length ? 2 : 0);
     if (body.length && used + cost > maxChars) break;
     // The newest turn is always returned, cut to the budget if it alone exceeds it.
-    body.unshift(text.length > maxChars ? text.slice(0, maxChars) + TRUNCATED : text);
+    let limit = maxChars;
+    if (text.length > limit) {
+      const before = text.charCodeAt(limit - 1);
+      const after = text.charCodeAt(limit);
+      if (before >= 0xD800 && before <= 0xDBFF && after >= 0xDC00 && after <= 0xDFFF) limit--;
+    }
+    body.unshift(text.length > maxChars ? text.slice(0, limit) + TRUNCATED : text);
     used += cost;
   }
   return {

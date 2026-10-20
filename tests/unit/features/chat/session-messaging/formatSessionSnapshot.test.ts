@@ -44,7 +44,37 @@ describe('paging', () => {
     const long = [user('q1'), assistant({ content: 'x'.repeat(100) })];
     const result = formatSessionSnapshot(metadata, long, false, { maxChars: 40 });
     expect(result).toMatchObject({ fromTurn: 1, toTurn: 1, totalTurns: 1 });
-    expect(result.content).toBe(`${header}\n\n${'## T1 user\nq1\n\n## T1 assistant\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.slice(0, 40)}\n(truncated)\n`);
+    expect(result.content).toBe(`${header}\n\n## T1 user\nq1\n\n## T1 assistant\nxxxxxxxxx\n(truncated)\n`);
+  });
+
+  describe.each(['prompt', 'reply'] as const)('%s truncation', position => {
+    const prefix = position === 'prompt' ? '## T1 user\n' : '## T1 user\nq1\n\n## T1 assistant\n';
+    const source = (text: string) => position === 'prompt'
+      ? [user(text), assistant({ content: 'done' })]
+      : [user('q1'), assistant({ content: text })];
+
+    it.each([
+      ['split pair', 'xxx\uD83D\uDE00tail', 'xxx'],
+      ['complete pair', 'xx\uD83D\uDE00tail', 'xx\uD83D\uDE00'],
+      ['BMP boundary', 'xxx\u4E2Dtail', 'xxx\u4E2D'],
+      ['ASCII boundary', 'xxxxtail', 'xxxx'],
+      ['unpaired high surrogate', 'xxx\uD83D!tail', 'xxx\uD83D'],
+      ['unpaired low surrogate', 'xxx\uDE00tail', 'xxx\uDE00'],
+      ['adjacent high surrogates', 'xxx\uD83D\uD83Dtail', 'xxx\uD83D'],
+    ])('truncates an oversized turn with %s', (_label, text, expected) => {
+      expect(formatSessionSnapshot(metadata, source(text), false, { maxChars: prefix.length + 4 })).toEqual({
+        content: `${header}\n\n${prefix}${expected}\n(truncated)\n`, fromTurn: 1, toTurn: 1, totalTurns: 1,
+      });
+    });
+
+    it('preserves supplementary characters when the whole turn fits exactly', () => {
+      const text = 'before\uD83D\uDE00after';
+      const suffix = position === 'prompt' ? '\n\n## T1 assistant\ndone' : '';
+      const expected = `${prefix}${text}${suffix}`;
+      expect(formatSessionSnapshot(metadata, source(text), false, { maxChars: expected.length })).toEqual({
+        content: `${header}\n\n${expected}\n`, fromTurn: 1, toTurn: 1, totalTurns: 1,
+      });
+    });
   });
 
   it.each([
