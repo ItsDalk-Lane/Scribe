@@ -68,6 +68,34 @@ describe('replaceImageEmbedsWithHTML', () => {
     });
   });
 
+  describe.each([true, false])('escaped markers with resolved image=%s', resolved => {
+    it.each([
+      [0, false],
+      [1, true],
+      [2, false],
+      [3, true],
+    ])('respects escape parity with %i preceding backslashes', (count, escaped) => {
+      const app = createMockApp(resolved ? new Map([['image.png', 'app://local/image.png']]) : new Map());
+      const prefix = '\\'.repeat(count);
+      const markdown = `${prefix}![[image.png]]`;
+      const active = resolved
+        ? '<span class="claudian-embedded-image"><img src="app://local/image.png" alt="image" loading="lazy"></span>'
+        : '<span class="claudian-embedded-image-fallback">![[image.png]]</span>';
+
+      expect(replaceImageEmbedsWithHTML(markdown, app)).toBe(escaped ? markdown : prefix + active);
+    });
+  });
+
+  it('preserves escaped markers while replacing an active neighboring embed', () => {
+    const app = createMockApp(new Map([['image.png', 'app://local/image.png']]));
+    const escaped = '\\![[image.png]]';
+    const markdown = `${escaped} beside ![[image.png]]`;
+
+    expect(replaceImageEmbedsWithHTML(markdown, app)).toBe(
+      `${escaped} beside <span class="claudian-embedded-image"><img src="app://local/image.png" alt="image" loading="lazy"></span>`
+    );
+  });
+
   describe('code syntax', () => {
     it('preserves image embed syntax in backtick and tilde fences', () => {
       const app = createMockApp(new Map([
