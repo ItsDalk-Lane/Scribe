@@ -6,6 +6,7 @@
  */
 
 import type { App, WorkspaceLeaf } from 'obsidian';
+import { Notice } from 'obsidian';
 
 import { getVaultFileByPath } from './obsidianCompat';
 
@@ -181,7 +182,9 @@ export function registerFileLinkHandler(
       event.preventDefault();
       const linkTarget = link.dataset.href || link.getAttribute('href');
       if (linkTarget) {
-        void openFileLink(app, linkTarget);
+        void openFileLink(app, linkTarget).catch(() => {
+          new Notice('Failed to open file.');
+        });
       }
     }
   };
