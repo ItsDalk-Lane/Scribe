@@ -1,6 +1,9 @@
 /**
  * @jest-environment jsdom
  */
+import { within } from '@testing-library/dom';
+import { axe } from 'jest-axe';
+
 import { processFileLinks } from '@/utils/fileLink';
 
 function createMockApp(existingFiles: string[]) {
@@ -98,18 +101,28 @@ describe('processFileLinks', () => {
       expect(links.length).toBe(2);
     });
 
-    it('handles display text in wikilinks', () => {
+    it.each([
+      ['span', '[[note.md|My Note]]', 'note.md', 'My Note'],
+      ['span', '[[note.md|Left | Right]]', 'note.md', 'Left | Right'],
+      ['code', '[[note.md#section|Left | Right]]', 'note.md#section', 'Left | Right'],
+      ['code', '[[note.md|Trailing |]]', 'note.md', 'Trailing |'],
+    ])('handles complete display text in %s: %s', async (tag, source, target, label) => {
       const app = createMockApp(['note.md']);
       const container = document.createElement('div');
-      const span = document.createElement('span');
-      span.textContent = 'See [[note.md|My Note]]';
-      container.appendChild(span);
+      const element = document.createElement(tag);
+      element.textContent = `See ${source} here`;
+      container.appendChild(element);
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
-      expect(link).not.toBeNull();
-      expect(link!.textContent).toBe('My Note');
+      const link = within(element).getByRole('link', { name: label });
+      expect(link.textContent).toBe(label);
+      expect(link.getAttribute('href')).toBe(target);
+      expect(link.getAttribute('data-href')).toBe(target);
+      expect(element.textContent).toBe(`See ${label} here`);
+      expect((await axe(element, {
+        runOnly: { type: 'rule', values: ['link-name'] },
+      })).violations).toEqual([]);
     });
 
     it('resolves files without .md extension using vault fallback', () => {
