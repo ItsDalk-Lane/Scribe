@@ -60,9 +60,12 @@ it.each([true, false])('shows the native request failure and only its supplied e
   writeFileSync(errorFile, JSON.stringify({ status: 500, body: {
     _tag: 'UnknownError', message: 'Catalog initialization failed' + 'x'.repeat(1_200), ...(hasRef ? { ref: 'err_catalog_test' } : {}),
   } }));
+  expect(f.catalog.getSnapshot().status).toBe('idle');
   const view = f.render();
   try {
-    await waitFor(() => expect(f.catalog.getSnapshot().status).toBe('failed'), { timeout: 3_000 });
+    await waitFor(() => expect(f.catalog.getSnapshot().status).not.toBe('idle'), { timeout: 3_000 });
+    await f.catalog.refresh();
+    expect(f.catalog.getSnapshot().status).toBe('failed');
     const status = within(f.container).getByRole('status');
     expect(status.textContent).toContain('Catalog initialization failed');
     expect(status.textContent).toContain('500');
@@ -86,9 +89,12 @@ it('reports a request timeout without inventing an error ref or a successful emp
   jest.spyOn(OpencodeHTTPClient.prototype, 'request').mockImplementation(function (this: OpencodeHTTPClient, route, options = {}) {
     return request.call(this, route, { ...options, ...(route === '/api/model' ? { timeoutMs: 100 } : {}) });
   });
+  expect(f.catalog.getSnapshot().status).toBe('idle');
   const view = f.render();
   try {
-    await waitFor(() => expect(f.catalog.getSnapshot().status).toBe('failed'), { timeout: 3_000 });
+    await waitFor(() => expect(f.catalog.getSnapshot().status).not.toBe('idle'), { timeout: 3_000 });
+    await f.catalog.refresh();
+    expect(f.catalog.getSnapshot().status).toBe('failed');
     const status = within(f.container).getByRole('status');
     expect(status.textContent).toContain('timed out');
     expect(status.textContent).toContain('opencode debug paths');
