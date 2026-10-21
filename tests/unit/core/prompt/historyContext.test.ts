@@ -67,20 +67,23 @@ describe('history context', () => {
       expect(result).toBe('[Tool Bash input: command=rm -rf / status=blocked] error: Access denied by user approval');
     });
 
-    it('truncates long input values', () => {
-      const longPath = '/very/long/path/' + 'x'.repeat(150);
+    it.each([
+      ['/very/long/path/' + 'x'.repeat(150), '/very/long/path/' + 'x'.repeat(84) + '...'],
+      ['x'.repeat(99) + '\uD83D\uDE00', 'x'.repeat(99) + '...'],
+      ['x'.repeat(98) + '\uD83D\uDE00', 'x'.repeat(98) + '\uD83D\uDE00'],
+      ['x'.repeat(98) + '\uD83D\uDE00tail', 'x'.repeat(98) + '\uD83D\uDE00...'],
+      ['x'.repeat(99) + '\u4E2Dtail', 'x'.repeat(99) + '\u4E2D...'],
+    ])('bounds input values without splitting surrogate pairs (%#)', (value, expected) => {
       const toolCall: ToolCallInfo = {
         id: 'tool-1',
         name: 'Read',
-        input: { file_path: longPath },
+        input: { file_path: value },
         status: 'completed',
       };
 
       const result = formatToolCallForContext(toolCall);
 
-      // Long values truncated to 100 chars (/very/long/path/ = 16 chars, so 84 x's + ...)
-      expect(result).toContain('file_path=/very/long/path/' + 'x'.repeat(84) + '...');
-      expect(result).not.toContain(longPath);
+      expect(result).toBe(`[Tool Read input: file_path=${expected} status=completed]`);
     });
 
     it('handles empty result string for failed tool', () => {
@@ -100,15 +103,20 @@ describe('history context', () => {
 
   describe('buildContextFromHistory', () => {
     it.each([
-      ['short', 'short'],
-      ['x'.repeat(500), 'x'.repeat(500)],
-      ['x'.repeat(700), 'x'.repeat(500) + '... (truncated)'],
-    ])('bounds failed tool results in compact history (%#)', (result, expected) => {
+      ['error', 'short', 'short'],
+      ['error', 'x'.repeat(500), 'x'.repeat(500)],
+      ['error', 'x'.repeat(700), 'x'.repeat(500) + '... (truncated)'],
+      ['error', 'x'.repeat(499) + '\uD83D\uDE00', 'x'.repeat(499) + '... (truncated)'],
+      ['blocked', 'x'.repeat(499) + '\uD83D\uDE00', 'x'.repeat(499) + '... (truncated)'],
+      ['error', 'x'.repeat(498) + '\uD83D\uDE00', 'x'.repeat(498) + '\uD83D\uDE00'],
+      ['error', 'x'.repeat(498) + '\uD83D\uDE00tail', 'x'.repeat(498) + '\uD83D\uDE00... (truncated)'],
+      ['error', 'x'.repeat(499) + '\u4E2Dtail', 'x'.repeat(499) + '\u4E2D... (truncated)'],
+    ] as const)('bounds failed tool results in compact history (%#)', (status, result, expected) => {
       const messages: ChatMessage[] = [{
         id: 'assistant', role: 'assistant', content: '', timestamp: 1000,
-        toolCalls: [{ id: 'tool', name: 'Bash', input: {}, status: 'error', result }],
+        toolCalls: [{ id: 'tool', name: 'Bash', input: {}, status, result }],
       }];
-      expect(buildContextFromHistory(messages)).toBe(`Assistant:\n[Tool Bash status=error] error: ${expected}`);
+      expect(buildContextFromHistory(messages)).toBe(`Assistant:\n[Tool Bash status=${status}] error: ${expected}`);
     });
 
     it.each([undefined, ''])('omits absent Linked content from history (%#)', (linkedContentPath) => {
@@ -119,19 +127,22 @@ describe('history context', () => {
     });
 
     it.each(['error', 'blocked'] as const)('preserves the full %s tool result in captured context', (status) => {
-      const diagnostic = `${'Diagnostic detail.\n'.repeat(40)}Recovery requires restoring project-48271.`;
+      const command = 'x'.repeat(199) + '\uD83D\uDE00';
+      const diagnostic = `${'x'.repeat(499)}\uD83D\uDE00${'Diagnostic detail.\n'.repeat(40)}Recovery requires restoring project-48271.`;
       const messages: ChatMessage[] = [{
         id: 'msg-1',
         role: 'assistant',
         content: '',
         timestamp: 1000,
-        toolCalls: [{ id: 'tool-1', name: 'Bash', input: {}, status, result: diagnostic }],
+        toolCalls: [{ id: 'tool-1', name: 'Bash', input: { command }, status, result: diagnostic }],
       }];
 
       const captured = buildContextFromHistory(messages, { preserveCapturedContext: true });
       const compact = buildContextFromHistory(messages);
 
       expect(captured).toContain(diagnostic);
+      expect(captured).toContain(`input: {"command":"${command}"}`);
+      expect(captured).not.toContain('(truncated)');
       expect(compact).toContain('(truncated)');
       expect(compact).not.toContain('Recovery requires restoring project-48271.');
     });
@@ -547,14 +558,21 @@ describe('history context', () => {
       expect(result).not.toContain('missing');
     });
 
-    it('truncates long overall input string', () => {
+    it.each([
+      ['z'.repeat(80), 'z'.repeat(30) + '...'],
+      ['z'.repeat(30), 'z'.repeat(30)],
+      ['z'.repeat(29) + '\uD83D\uDE00', 'z'.repeat(29) + '...'],
+      ['z'.repeat(28) + '\uD83D\uDE00', 'z'.repeat(28) + '\uD83D\uDE00'],
+      ['z'.repeat(28) + '\uD83D\uDE00tail', 'z'.repeat(28) + '\uD83D\uDE00...'],
+      ['z'.repeat(29) + '\u4E2Dtail', 'z'.repeat(29) + '\u4E2D...'],
+    ])('bounds overall input without splitting surrogate pairs (%#)', (value, expected) => {
       const toolCall: ToolCallInfo = {
         id: 'tool-1',
         name: 'Bash',
         input: {
           a: 'x'.repeat(80),
           b: 'y'.repeat(80),
-          c: 'z'.repeat(80),
+          c: value,
         },
         status: 'completed',
       };
@@ -563,7 +581,7 @@ describe('history context', () => {
 
       expect(result).toBe(
         '[Tool Bash input: a=' + 'x'.repeat(80) + ', b=' + 'y'.repeat(80)
-        + ', c=' + 'z'.repeat(30) + '... status=completed]',
+        + ', c=' + expected + ' status=completed]',
       );
     });
 
