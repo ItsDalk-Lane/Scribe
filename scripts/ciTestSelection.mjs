@@ -29,7 +29,6 @@ const fileConsumers = [
   [/^src\/i18n\/locales\/.*\.json$/, ['tests/integration/build/dependency-envelope.test.ts']],
   [/^src\/style\//, [
     ...styleSuites,
-    'tests/unit/features/chat/tabs/TabAttentionStyles.test.ts',
     'tests/unit/features/chat/navigation/NavigationSidebar.dom.test.ts',
     'tests/unit/features/chat/rendering/MessageRenderer.codeFences.dom.test.ts',
   ]],
