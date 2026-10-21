@@ -61,7 +61,7 @@ describe('VaultFolderCache', () => {
     expect(getAllLoadedFiles).toHaveBeenCalledTimes(2);
   });
 
-  it('supports lazy background initialization', () => {
+  it.each(['background', 'queued twice', 'foreground first'])('supports %s initialization without reloading', ordering => {
     jest.useFakeTimers();
     const getAllLoadedFiles = jest.fn(() => [createFolder('src')]);
     const app = {
@@ -70,7 +70,11 @@ describe('VaultFolderCache', () => {
     const cache = new VaultFolderCache(app);
 
     cache.initializeInBackground();
+    if (ordering === 'queued twice') cache.initializeInBackground();
     expect(getAllLoadedFiles).not.toHaveBeenCalled();
+    const foregroundFolders = ordering === 'foreground first' ? cache.getFolders().map(folder => folder.path) : undefined;
+    expect(foregroundFolders).toEqual(ordering === 'foreground first' ? ['src'] : undefined);
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(ordering === 'foreground first' ? 1 : 0);
 
     jest.runOnlyPendingTimers();
     expect(getAllLoadedFiles).toHaveBeenCalledTimes(1);
@@ -78,6 +82,28 @@ describe('VaultFolderCache', () => {
     const folders = cache.getFolders().map(folder => folder.path);
     expect(folders).toEqual(['src']);
     expect(getAllLoadedFiles).toHaveBeenCalledTimes(1);
+    cache.initializeInBackground();
+    jest.runOnlyPendingTimers();
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves dirty folders after foreground initialization overtakes the queued callback', () => {
+    jest.useFakeTimers();
+    const getAllLoadedFiles = jest.fn(() => [createFolder('src')]);
+    const cache = new VaultFolderCache({ vault: { getAllLoadedFiles } } as any);
+    cache.initializeInBackground();
+    expect(cache.getFolders().map(folder => folder.path)).toEqual(['src']);
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(1);
+
+    getAllLoadedFiles.mockReturnValue([createFolder('docs')]);
+    cache.markDirty();
+    jest.runOnlyPendingTimers();
+
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(1);
+    expect(cache.getFolders().map(folder => folder.path)).toEqual(['docs']);
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(2);
+    expect(cache.getFolders().map(folder => folder.path)).toEqual(['docs']);
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(2);
   });
 
   it('returns stale folders if reload fails', () => {
@@ -114,7 +140,7 @@ describe('VaultFolderCache', () => {
 
   it('marks background initialization as attempted after failure', () => {
     jest.useFakeTimers();
-    const getAllLoadedFiles = jest.fn(() => {
+    const getAllLoadedFiles = jest.fn((): TFolder[] => {
       throw new Error('Vault error');
     });
     const app = {
@@ -123,10 +149,16 @@ describe('VaultFolderCache', () => {
     const cache = new VaultFolderCache(app);
 
     cache.initializeInBackground();
+    cache.initializeInBackground();
     jest.runOnlyPendingTimers();
     cache.initializeInBackground();
     jest.runOnlyPendingTimers();
 
     expect(getAllLoadedFiles).toHaveBeenCalledTimes(1);
+    getAllLoadedFiles.mockImplementation(() => [createFolder('src')]);
+    expect(cache.getFolders().map(folder => folder.path)).toEqual(['src']);
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(2);
+    expect(cache.getFolders().map(folder => folder.path)).toEqual(['src']);
+    expect(getAllLoadedFiles).toHaveBeenCalledTimes(2);
   });
 });

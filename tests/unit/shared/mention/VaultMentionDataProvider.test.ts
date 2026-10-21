@@ -45,23 +45,38 @@ describe('VaultMentionDataProvider', () => {
     expect(app.vault.getAllLoadedFiles).toHaveBeenCalledTimes(2);
   });
 
-  it('initializes file and folder caches in background', () => {
+  it.each(['background', 'queued twice', 'foreground first'])('initializes real file and folder caches once with %s ordering', ordering => {
     jest.useFakeTimers();
+    const files = [createFile('notes/a.md')];
+    const folders = [createFolder('notes')];
     const app = {
       vault: {
-        getFiles: jest.fn(() => [createFile('notes/a.md')]),
-        getAllLoadedFiles: jest.fn(() => [createFolder('notes')]),
+        getFiles: jest.fn(() => files),
+        getAllLoadedFiles: jest.fn(() => folders),
       },
     } as any;
     const provider = new VaultMentionDataProvider(app);
 
     provider.initializeInBackground();
+    if (ordering === 'queued twice') provider.initializeInBackground();
 
     expect(app.vault.getFiles).not.toHaveBeenCalled();
     expect(app.vault.getAllLoadedFiles).not.toHaveBeenCalled();
+    const foregroundFiles = ordering === 'foreground first' ? provider.getCachedVaultFiles() : undefined;
+    const foregroundFolders = ordering === 'foreground first' ? provider.getCachedVaultFolders() : undefined;
+    expect(foregroundFiles).toEqual(ordering === 'foreground first' ? files : undefined);
+    expect(foregroundFolders).toEqual(ordering === 'foreground first' ? [{ name: 'notes', path: 'notes' }] : undefined);
+    expect(app.vault.getFiles).toHaveBeenCalledTimes(ordering === 'foreground first' ? 1 : 0);
+    expect(app.vault.getAllLoadedFiles).toHaveBeenCalledTimes(ordering === 'foreground first' ? 1 : 0);
 
     jest.runOnlyPendingTimers();
 
+    expect(app.vault.getFiles).toHaveBeenCalledTimes(1);
+    expect(app.vault.getAllLoadedFiles).toHaveBeenCalledTimes(1);
+    expect(provider.getCachedVaultFiles()).toEqual(files);
+    expect(provider.getCachedVaultFolders()).toEqual([{ name: 'notes', path: 'notes' }]);
+    provider.initializeInBackground();
+    jest.runOnlyPendingTimers();
     expect(app.vault.getFiles).toHaveBeenCalledTimes(1);
     expect(app.vault.getAllLoadedFiles).toHaveBeenCalledTimes(1);
   });
