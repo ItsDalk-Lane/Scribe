@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 
 import { fireEvent, waitFor, within } from '@testing-library/dom';
+import { axe } from 'jest-axe';
 import { Notice } from 'obsidian';
 
 import { SessionInlineRename } from '@/features/chat/session-manager/SessionInlineRename';
@@ -18,7 +19,7 @@ function setup(currentTitle = 'Original title', rename = jest.fn().mockResolvedV
   const onFinished = jest.fn();
   const inlineRename = new SessionInlineRename();
   inlineRename.begin(item, { currentTitle, rename, onFinished });
-  const input = within(item).getByRole('textbox') as HTMLInputElement;
+  const input = within(item).getByRole('textbox', { name: 'Conversation title' }) as HTMLInputElement;
   return { container, item, input, inlineRename, rename, onFinished };
 }
 
@@ -28,8 +29,14 @@ describe('SessionInlineRename', () => {
     jest.clearAllMocks();
   });
 
-  it('replaces the row title with a focused editor holding the current title', () => {
-    const { item, input } = setup('Test Title');
+  it('replaces the row title with a named, focused editor holding the current title', async () => {
+    const { item } = renderRow('Test Title');
+    new SessionInlineRename().begin(item, {
+      currentTitle: 'Test Title', rename: jest.fn(), onFinished: jest.fn(),
+    });
+
+    expect((await axe(item, { runOnly: { type: 'rule', values: ['label'] } })).violations).toEqual([]);
+    const input = within(item).getByRole('textbox', { name: 'Conversation title' }) as HTMLInputElement;
 
     expect(item.querySelector('.claudian-history-item-title')).toBeNull();
     expect(input.value).toBe('Test Title');
