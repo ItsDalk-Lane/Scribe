@@ -1,11 +1,14 @@
 import '@/providers';
 
+import { runInNewContext } from 'vm';
+
 import {
   classifyEnvironmentVariablesByOwnership,
   getEnvironmentReviewKeysForScope,
   getEnvironmentScopeUpdates,
   getProviderEnvironmentVariables,
   getRuntimeEnvironmentText,
+  getRuntimeEnvironmentVariables,
   getSharedEnvironmentVariables,
   inferEnvironmentSnippetScope,
   resolveEnvironmentSnippetScope,
@@ -48,6 +51,29 @@ describe('providerEnvironment', () => {
   });
 
   describe('runtime env accessors', () => {
+    it.each([
+      ['ANTHROPIC_MODEL=custom-model', 'shared'],
+      ['__proto__=provider', 'provider'],
+      ['__proto__=', ''],
+    ])('preserves explicit shared/provider keys with %s', (providerText, expectedValue) => {
+      const settings = {
+        sharedEnvironmentVariables: '__proto__=shared\nPATH=/usr/local/bin',
+        providerConfigs: {
+          claude: { environmentVariables: providerText },
+        },
+      };
+
+      const result = getRuntimeEnvironmentVariables(settings, 'claude');
+
+      expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+      expect(Object.prototype.hasOwnProperty.call(result, '__proto__')).toBe(true);
+      expect(result['__proto__']).toBe(expectedValue);
+      // Keep native spread semantics instead of Jest's ES6 Object.assign transform.
+      expect(runInNewContext('({ ...environment })', { environment: result })['__proto__'])
+        .toBe(expectedValue);
+      expect(result.PATH).toBe('/usr/local/bin');
+    });
+
     it('reads split shared/provider env from settings', () => {
       const settings: Record<string, unknown> = {
         sharedEnvironmentVariables: 'PATH=/usr/local/bin',

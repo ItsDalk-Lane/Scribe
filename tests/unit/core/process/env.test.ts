@@ -1,5 +1,6 @@
 import type * as fsType from 'fs';
 import type * as pathType from 'path';
+import { runInNewContext } from 'vm';
 
 const fs = jest.requireActual<typeof fsType>('fs');
 const path = jest.requireActual<typeof pathType>('path');
@@ -28,6 +29,29 @@ function mockExecuteAccess(...runnablePaths: string[]): void {
 }
 
 describe('parseEnvironmentVariables', () => {
+  it.each([
+    ['__proto__=literal', 'literal'],
+    ['__proto__="quoted value"', 'quoted value'],
+    ["export __proto__='exported value'", 'exported value'],
+    ['__proto__=first\n__proto__=last', 'last'],
+    ['__proto__=first\n__proto__=', ''],
+  ])('retains an own environment entry for %s', (input, value) => {
+    const result = parseEnvironmentVariables(input);
+
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(result, '__proto__')).toEqual({
+      value, enumerable: true, writable: true, configurable: true,
+    });
+    expect(Object.keys(result)).toEqual(['__proto__']);
+    // Keep native spread semantics instead of Jest's ES6 Object.assign transform.
+    const spread = runInNewContext('({ ...environment })', { environment: result });
+    expect(Object.keys(spread)).toEqual(['__proto__']);
+    expect(spread['__proto__']).toBe(value);
+    const roundTrip = JSON.parse(JSON.stringify(result));
+    expect(Object.keys(roundTrip)).toEqual(['__proto__']);
+    expect(roundTrip['__proto__']).toBe(value);
+  });
+
   it('parses simple KEY=VALUE pairs', () => {
     const input = 'FOO=bar\nBAZ=qux';
     expect(parseEnvironmentVariables(input)).toEqual({ FOO: 'bar', BAZ: 'qux' });
