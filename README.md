@@ -69,8 +69,8 @@ Or install directly from the [community plugin page](https://community.obsidian.
 1. Clone this repository into your vault's plugins folder:
    ```bash
    cd /path/to/vault/.obsidian/plugins
-   git clone https://github.com/YishenTu/claudian.git
-   cd claudian
+   git clone https://github.com/YishenTu/claudian.git realclaudian
+   cd realclaudian
    ```
 
 2. Install dependencies and build:
