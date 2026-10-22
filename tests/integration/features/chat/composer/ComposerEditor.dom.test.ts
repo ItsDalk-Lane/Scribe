@@ -2,9 +2,9 @@
 
 import { EditorView } from '@codemirror/view';
 import { testDate } from '@test/helpers/testClock';
-import { fireEvent, waitFor, within } from '@testing-library/dom';
+import { createEvent, fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
-import { type App, type Component, MarkdownRenderer, Platform, TFile } from 'obsidian';
+import { type App, type Component, MarkdownRenderer, Notice, Platform, TFile } from 'obsidian';
 
 import { createCatalogCommandDiscoveryStore } from '@/core/providers/commands/catalogCommandDiscovery';
 import type { ProviderCommandDiscoveryResult } from '@/core/providers/commands/ProviderCommandDiscoveryResult';
@@ -357,6 +357,131 @@ it('lets image attachment handling consume image paste before the rich editor in
   images.destroy();
   editor.destroy();
   parent.remove();
+});
+
+describe('image batch admission through the composer', () => {
+  function createFixture() {
+    const parent = document.body.createDiv();
+    const wrapper = parent.createDiv({ cls: 'claudian-input-wrapper' });
+    const editor = createEditor(wrapper);
+    const changed = jest.fn();
+    const images = new ImageContextManager({ pushScope: jest.fn(), popScope: jest.fn() }, parent, editor.element, {
+      onUserImagesChanged: changed,
+    });
+    editor.element.value = 'Keep this draft';
+    editor.element.focus();
+    editor.element.selectionStart = editor.element.selectionEnd = editor.element.value.length;
+    const textbox = within(parent).getByRole('textbox', { name: 'Message' });
+    const escapedDrop = jest.fn();
+    parent.addEventListener('drop', escapedDrop);
+    jest.mocked(Notice).mockClear();
+    return {
+      parent, wrapper, editor, images, changed, textbox, escapedDrop,
+      destroy: () => { images.destroy(); editor.destroy(); parent.remove(); },
+    };
+  }
+
+  function imageFile(name: string, type: string, bytes: number[]) {
+    const data = new Uint8Array(bytes);
+    const file = new File([data], name, { type });
+    const read = jest.fn(async () => data.buffer);
+    Object.defineProperty(file, 'arrayBuffer', { value: read });
+    return { file, read };
+  }
+
+  function dispatchBatch(fixture: ReturnType<typeof createFixture>, operation: 'paste' | 'drop', files: File[]) {
+    const event = operation === 'paste'
+      ? createEvent.paste(fixture.textbox, {
+        clipboardData: {
+          items: files.map(file => ({ type: file.type, getAsFile: () => file })),
+          files, getData: () => 'image fallback',
+        },
+      })
+      : createEvent.drop(fixture.wrapper, { dataTransfer: { types: ['Files'], files } });
+    const preventDefault = jest.spyOn(event, 'preventDefault');
+    fireEvent(operation === 'paste' ? fixture.textbox : fixture.wrapper, event);
+    return { event, preventDefault };
+  }
+
+  it.each(['paste', 'drop'] as const)('reports one unsupported Notice for a disabled two-image %s batch', async operation => {
+    const fixture = createFixture();
+    const first = imageFile('first.png', 'image/png', [1, 2, 3]);
+    const second = imageFile('second.jpg', 'image/jpeg', [4, 5]);
+    try {
+      fixture.images.setEnabled(false);
+      if (operation === 'drop') fireEvent.dragEnter(fixture.wrapper, { dataTransfer: { types: ['Files'] } });
+      const overlay = fixture.parent.querySelector('.claudian-drop-overlay');
+      expect(overlay?.classList.contains('visible')).toBe(operation === 'drop');
+      const { event, preventDefault } = dispatchBatch(fixture, operation, [first.file, second.file]);
+      // Rejected files settle synchronously through microtasks; observe the whole event, not its first Notice.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(event.defaultPrevented).toBe(true);
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+      expect(fixture.escapedDrop).not.toHaveBeenCalled();
+      expect(overlay?.classList.contains('visible')).toBe(false);
+      expect(fixture.images.getAttachedImages()).toEqual([]);
+      expect(within(fixture.parent).queryAllByRole('button', { name: /image attachment/i })).toEqual([]);
+      expect(fixture.changed).not.toHaveBeenCalled();
+      expect(first.read).not.toHaveBeenCalled();
+      expect(second.read).not.toHaveBeenCalled();
+      expect(fixture.editor.element.value).toBe('Keep this draft');
+      expect(Notice).toHaveBeenCalledTimes(1);
+      expect(Notice).toHaveBeenCalledWith('Image attachments are not supported by this provider.');
+    } finally { fixture.destroy(); }
+  });
+
+  it.each(['paste', 'drop'] as const)('attaches an enabled %s batch once in byte and selection order', async operation => {
+    const fixture = createFixture();
+    const first = imageFile(operation === 'paste' ? 'screenshot' : 'first.png', 'image/png', [1, 2, 3]);
+    const second = imageFile('second.jpg', 'image/jpeg', [4, 5]);
+    try {
+      const { event, preventDefault } = dispatchBatch(fixture, operation, [first.file, second.file]);
+      await waitFor(() => expect(fixture.images.getAttachedImages()).toHaveLength(2));
+      expect(fixture.images.getAttachedImages()).toEqual([
+        { id: expect.any(String), name: first.file.name, mediaType: 'image/png', data: 'AQID', size: 3, source: operation },
+        { id: expect.any(String), name: 'second.jpg', mediaType: 'image/jpeg', data: 'BAU=', size: 2, source: operation },
+      ]);
+      expect(first.read).toHaveBeenCalledTimes(1);
+      expect(second.read).toHaveBeenCalledTimes(1);
+      expect(fixture.changed).toHaveBeenCalledTimes(2);
+      expect(within(fixture.parent).getAllByRole('button', { name: /^Image attachment:/ }).map(button => button.getAttribute('aria-label')))
+        .toEqual([`Image attachment: ${first.file.name} \u00b7 3 B`, 'Image attachment: second.jpg \u00b7 2 B']);
+      expect(event.defaultPrevented).toBe(true);
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+      expect(fixture.editor.element.value).toBe('Keep this draft');
+      expect(Notice).not.toHaveBeenCalled();
+    } finally { fixture.destroy(); }
+  });
+
+  it.each(['text', 'empty', 'null-clipboard', 'null-image', 'empty-drop', 'ineligible-drop'] as const)(
+    'does not notify for a disabled %s operation without eligible images', async kind => {
+      const fixture = createFixture();
+      try {
+        fixture.images.setEnabled(false);
+        let event: Event;
+        if (kind === 'empty-drop' || kind === 'ineligible-drop') {
+          const files = kind === 'empty-drop' ? [] : [new File(['not an eligible extension'], 'image.svg', { type: 'image/png' })];
+          event = createEvent.drop(fixture.wrapper, { dataTransfer: { files } });
+          fireEvent(fixture.wrapper, event);
+        } else {
+          const items = kind === 'text' ? [{ type: 'text/plain', getAsFile: () => null }]
+            : kind === 'null-image' ? [{ type: 'image/png', getAsFile: () => null }] : [];
+          event = createEvent.paste(fixture.textbox, {
+            clipboardData: kind === 'null-clipboard' ? null : {
+              items, files: [], getData: () => kind === 'text' ? ' plain text' : '',
+            },
+          });
+          fireEvent(fixture.textbox, event);
+        }
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(Notice).not.toHaveBeenCalled();
+        expect(fixture.images.getAttachedImages()).toEqual([]);
+        expect(fixture.changed).not.toHaveBeenCalled();
+        expect(fixture.editor.element.value).toBe(kind === 'text' ? 'Keep this draft plain text' : 'Keep this draft');
+        expect(event.defaultPrevented).toBe(kind !== 'null-clipboard');
+      } finally { fixture.destroy(); }
+    },
+  );
 });
 
 it('focuses an already open note when its composer link is clicked', async () => {

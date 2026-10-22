@@ -201,6 +201,10 @@ export class ImageContextManager {
 
     const files = e.dataTransfer?.files;
     if (!files) return;
+    if (!this.enabled && Array.from(files).some(file => this.isImageFile(file))) {
+      new Notice(t('chat.images.unsupportedProvider'));
+      return;
+    }
 
     const generation = this.attachmentGeneration;
     for (let i = 0; i < files.length; i++) {
@@ -235,6 +239,10 @@ export class ImageContextManager {
     }
     if (!hasImage) return;
     e.preventDefault();
+    if (!this.enabled && files.length > 0) {
+      new Notice(t('chat.images.unsupportedProvider'));
+      return;
+    }
 
     const generation = this.attachmentGeneration;
     for (const file of files) {
