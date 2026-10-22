@@ -137,14 +137,24 @@ describe('codex settings', () => {
   });
 
   it('normalizes model aliases while retaining unknown model ids', () => {
-    expect(normalizeCodexModelAliases({
-      ' gpt-5.5 ': '  Primary  ',
-      'gpt-5.4-mini': ' ',
-      missing: 'Missing',
-      invalid: 42,
-    })).toEqual({
-      'gpt-5.5': 'Primary', missing: 'Missing',
+    const input = Object.setPrototypeOf(JSON.parse(
+      '{" gpt-5.5 ":"  Primary  ","gpt-5.4-mini":" ","missing":"Missing","invalid":42," ":"Blank key","__proto__":" Custom Proto ","constructor":"Custom Constructor"}',
+    ), { inherited: 'Ignore' });
+    const aliases = normalizeCodexModelAliases(input);
+
+    expect(aliases).toEqual(JSON.parse(
+      '{"gpt-5.5":"Primary","missing":"Missing","__proto__":"Custom Proto","constructor":"Custom Constructor"}',
+    ));
+    expect(Object.keys(aliases)).toEqual(['gpt-5.5', 'missing', '__proto__', 'constructor']);
+    expect(Object.getPrototypeOf(aliases)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(aliases, '__proto__')).toEqual({
+      value: 'Custom Proto', enumerable: true, writable: true, configurable: true,
     });
+    expect(JSON.parse(JSON.stringify(aliases))).toEqual(aliases);
+  });
+
+  it.each([null, undefined, 'alias', 42, []])('ignores non-record aliases: %p', value => {
+    expect(normalizeCodexModelAliases(value)).toEqual({});
   });
 
   it('persists aliases only for visible models', () => {

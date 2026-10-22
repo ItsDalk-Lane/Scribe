@@ -216,7 +216,7 @@ export function normalizeCodexModelAliases(value: unknown): Record<string, strin
     return {};
   }
 
-  const normalized: Record<string, string> = {};
+  const entries: Array<[string, string]> = [];
   for (const [rawModelId, rawAlias] of Object.entries(value as Record<string, unknown>)) {
     if (typeof rawAlias !== 'string') {
       continue;
@@ -227,9 +227,9 @@ export function normalizeCodexModelAliases(value: unknown): Record<string, strin
     if (!modelId || !alias) {
       continue;
     }
-    normalized[modelId] = alias;
+    entries.push([modelId, alias]);
   }
-  return normalized;
+  return Object.fromEntries(entries);
 }
 
 export function getVisibleCodexModelIds(
