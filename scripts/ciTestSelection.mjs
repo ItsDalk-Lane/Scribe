@@ -48,6 +48,9 @@ const fileConsumers = [
   [/^tests\/fixtures\/providers\/grok\/runtime\/turn-completed\.json$/, [
     'tests/unit/providers/grok/execution/GrokExecutionBackend.test.ts',
   ]],
+  [/^tests\/fixtures\/providers\/codex\/history\/codex-session-(?:persisted-tools|agent-lifecycle|websearch-persisted)\.jsonl$/, [
+    'tests/unit/providers/codex/history/CodexHistoryStore.test.ts',
+  ]],
   [/^src\/style\/base\/visibility\.css$/, ['tests/integration/features/chat/composer/PromptHistoryNavigation.dom.test.ts']],
 ];
 const scriptConsumers = new Map(suites.scriptTests.flatMap(file => [

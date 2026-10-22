@@ -155,6 +155,54 @@ test('filesystem-read documentation, styles, and captured fixtures retain their 
   }
 });
 
+const codexHistoryFixtures = [
+  'tests/fixtures/providers/codex/history/codex-session-persisted-tools.jsonl',
+  'tests/fixtures/providers/codex/history/codex-session-agent-lifecycle.jsonl',
+  'tests/fixtures/providers/codex/history/codex-session-websearch-persisted.jsonl',
+];
+
+for (const [name, selector] of [
+  ['pure', input => selectCiTests({ ...input, relatedTests: [] })],
+  ['related', selectRelatedCiTests],
+]) {
+  for (const fixture of codexHistoryFixtures) {
+    for (const status of ['A', 'M']) {
+      for (const eventName of ['pull_request', 'push']) {
+        test(`${name} selector registers ${status} ${fixture} on ${eventName}`, () => {
+          assert.deepEqual(selector({ changes: [{ status, path: fixture }], eventName }), {
+            testFiles: ['tests/unit/providers/codex/history/CodexHistoryStore.test.ts'],
+            scriptTests: [],
+            crossPlatformTests: ['tests/unit/providers/codex/history/CodexHistoryStore.test.ts'],
+            crossPlatform: true,
+            piWindows: false,
+          });
+        });
+      }
+    }
+  }
+
+  test(`${name} selector retains full verification outside the known Codex fixture boundary`, () => {
+    const full = {
+      testFiles: null, scriptTests: null, crossPlatformTests: null,
+      crossPlatform: true, piWindows: true,
+    };
+    for (const eventName of ['pull_request', 'push']) {
+      for (const changes of [
+        ...codexHistoryFixtures.map(path => [{ status: 'D', path }]),
+        [{ status: 'M', path: 'tests/fixtures/providers/codex/history/unregistered.jsonl' }],
+        [{ status: 'M', path: 'tests/fixtures/providers/codex/history/codex-session-persisted-tools-extra.jsonl' }],
+        [{ status: 'M', path: 'scripts/ciTestSelection.mjs' }],
+        [{ status: 'M', path: codexHistoryFixtures[0] }, { status: 'M', path: 'unknown-config' }],
+      ]) {
+        assert.deepEqual(selector({ changes, eventName }), full);
+      }
+    }
+    for (const eventName of ['schedule', 'workflow_call', 'workflow_dispatch']) {
+      assert.deepEqual(selector({ changes: [{ status: 'M', path: codexHistoryFixtures[0] }], eventName }), full);
+    }
+  });
+}
+
 test('native Pi launch runs only when affected', () => {
   const pi = 'tests/integration/providers/pi/runtime/PiSubprocess.windows.test.ts';
   assert.equal(select(['src/providers/pi/runtime/PiSubprocess.ts'], [pi]).piWindows, true);
