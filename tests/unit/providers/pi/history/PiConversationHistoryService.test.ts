@@ -18,6 +18,8 @@ function createConversation(sessionFile: string): Conversation {
   };
 }
 
+const describePosix = process.platform === 'win32' ? describe.skip : describe;
+
 describe('PiConversationHistoryService', () => {
   it('hydrates from providerState sessionFile', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-history-'));
@@ -550,6 +552,44 @@ describe('PiConversationHistoryService', () => {
     ));
 
     expect(conversation.messages.map(message => message.content)).toEqual(['Configured']);
+  });
+
+  describePosix('literal POSIX filenames', () => {
+    it.each(['sessions', 'sessions\\literal'])('hydrates a literal backslash filename under configured %s', async rootName => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-history-posix-'));
+      try {
+        const configuredDir = path.join(tempDir, rootName);
+        const safeHome = path.join(tempDir, 'home');
+        await fs.mkdir(configuredDir);
+        await fs.mkdir(safeHome);
+        const sessionFile = path.join(configuredDir, 'turn\\notes.jsonl');
+        const nativeContent = JSON.stringify({
+          id: 'literal-backslash-user',
+          message: { content: 'History from a literal backslash filename', role: 'user' },
+          type: 'message',
+        });
+        await fs.writeFile(sessionFile, nativeContent);
+        const conversation = createConversation(sessionFile);
+        conversation.providerState = { sessionFile };
+        conversation.sessionId = null;
+
+        expect((await fs.stat(sessionFile)).isFile()).toBe(true);
+        const result = await new PiConversationHistoryService().hydrateConversationHistory(
+          conversation,
+          null,
+          { environment: { HOME: safeHome, PI_CODING_AGENT_SESSION_DIR: configuredDir } },
+        );
+
+        expect(result.messages).toHaveLength(1);
+        expect(result.messages?.[0]).toMatchObject({
+          content: 'History from a literal backslash filename', role: 'user',
+        });
+        expect(result.providerState).toEqual({ sessionFile });
+        expect(await fs.readFile(sessionFile)).toEqual(Buffer.from(nativeContent));
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 
   it('does not trust a vault-local session root that is a symlink outside the vault', async () => {
