@@ -36,6 +36,22 @@ afterEach(() => {
 it.each([
   { language: '', expectedClass: '', expectedLabel: null, hasLanguage: false, accessibleName: 'Copy' },
   {
+    language: '', decoyClass: 'not-language-decoy', expectedClass: 'not-language-decoy',
+    expectedLabel: null, hasLanguage: false, accessibleName: 'Copy',
+  },
+  {
+    language: '', decoyClass: 'decoy\u00a0language-c++', expectedClass: 'decoy\u00a0language-c++',
+    expectedLabel: null, hasLanguage: false, accessibleName: 'Copy',
+  },
+  {
+    language: 'c++', decoyClass: 'not-language-decoy', expectedClass: 'not-language-decoy language-c++',
+    expectedLabel: 'c++', hasLanguage: true, accessibleName: 'Copy c++ code',
+  },
+  {
+    language: 'c#', expectedClass: 'language-c#', expectedLabel: 'c#',
+    hasLanguage: true, accessibleName: 'Copy c# code',
+  },
+  {
     language: 'typescript', expectedClass: 'language-typescript', expectedLabel: 'typescript',
     hasLanguage: true, accessibleName: 'Copy typescript code',
   },
@@ -48,7 +64,7 @@ it.each([
     hasLanguage: true, accessibleName: 'Copy css-extras code',
   },
 ])('adopts a fresh $language fence with an accessible copy control', async ({
-  language, expectedClass, expectedLabel, hasLanguage, accessibleName,
+  language, decoyClass, expectedClass, expectedLabel, hasLanguage, accessibleName,
 }) => {
   let pre!: HTMLPreElement;
   let code!: HTMLElement;
@@ -57,9 +73,9 @@ it.each([
     const renderedLanguage = markdown.match(/^```([^\n]*)/)?.[1] ?? '';
     pre = (target as HTMLElement).createEl('pre');
     code = pre.createEl('code', {
-      cls: renderedLanguage ? `language-${renderedLanguage}` : undefined,
       text: 'const x = 1;',
     });
+    code.className = [decoyClass, renderedLanguage ? `language-${renderedLanguage}` : ''].filter(Boolean).join(' ');
     copyButton = pre.createEl('button', {
       cls: 'copy-code-button',
       text: 'Copy',
@@ -93,6 +109,8 @@ it.each([
 it.each([
   { language: 'typescript', code: 'const x = 1;' },
   { language: 'objective-c', code: '@implementation Thing\n@end' },
+  { language: 'c++', code: 'int main() { return 0; }' },
+  { language: 'c#', code: 'Console.WriteLine("Hello");' },
 ])('copies $language code through its language label and exposes the copied feedback accessibly', async ({
   language, code,
 }) => {
