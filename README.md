@@ -129,8 +129,8 @@ Claudian discovers models from each configured provider rather than keeping its 
 
 1. Update the provider CLI or application, when applicable, and confirm the model appears there.
 2. In Settings → Claudian → Providers, open the provider and confirm its CLI path, environment, and other connection settings use the same installation and account.
-3. Under **Models**, click **Discover** to request the current catalog.
-4. Open **Browse models**, enable the new model, and start a new chat if you want to use it. Existing chats keep their selected model.
+3. Under **Models**, open **Browse models**, then click **Refresh** if models are already listed, or **Discover** otherwise, to request the current catalog.
+4. Enable the new model and start a new chat if you want to use it. Existing chats keep their selected model.
 
 If the model is still absent, the active provider runtime or account has not reported it to Claudian. Public or API availability alone does not guarantee catalog availability for every provider integration or account. Avoid editing Claudian's installed bundle to add the model manually; those changes are unsupported and will be overwritten by updates.
 
