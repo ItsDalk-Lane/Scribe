@@ -18,7 +18,10 @@ export interface ConversationTitleGenerationDeps {
 /** The first sentence of the first message, kept when generation is off or fails. */
 export function fallbackConversationTitle(firstMessage: string): string {
   const firstSentence = firstMessage.split(/[.!?\n]/)[0].trim();
-  const autoTitle = firstSentence.substring(0, 50);
+  let autoTitle = firstSentence.substring(0, 50);
+  if (/[\uD800-\uDBFF]$/.test(autoTitle) && /^[\uDC00-\uDFFF]/.test(firstSentence.slice(50))) {
+    autoTitle = autoTitle.slice(0, -1);
+  }
   const suffix = firstSentence.length > 50 ? '...' : '';
   return `${autoTitle}${suffix}`;
 }

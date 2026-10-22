@@ -1,6 +1,7 @@
 import '@/providers';
 
 import { claudeCatalogFixture } from '@test/helpers/claudeModels';
+import { testDate } from '@test/helpers/testClock';
 import { Notice } from 'obsidian';
 
 import type { TitleGenerationService } from '@/core/providers/types';
@@ -14,11 +15,16 @@ describe('fallbackConversationTitle', () => {
     expect(fallbackConversationTitle('How do I set up React? I need help.')).toBe('How do I set up React');
   });
 
-  it('truncates long titles to 50 chars', () => {
-    const title = fallbackConversationTitle('A'.repeat(100));
-
-    expect(title.length).toBeLessThanOrEqual(53); // 50 + '...'
-    expect(title).toContain('...');
+  it.each([
+    ['A'.repeat(100), 'A'.repeat(50) + '...'],
+    ['A'.repeat(50), 'A'.repeat(50)],
+    ['A'.repeat(49) + '\uD83D\uDE00tail', 'A'.repeat(49) + '...'],
+    ['A'.repeat(48) + '\uD83D\uDE00tail', 'A'.repeat(48) + '\uD83D\uDE00...'],
+    ['A'.repeat(48) + '\uD83D\uDE00', 'A'.repeat(48) + '\uD83D\uDE00'],
+    ['  ' + 'A'.repeat(49) + '\uD83D\uDE00tail? Later sentence', 'A'.repeat(49) + '...'],
+    ['A'.repeat(49) + '\u4E2Dtail', 'A'.repeat(49) + '\u4E2D...'],
+  ])('preserves the 50-unit prefix and suffix without splitting pairs (%#)', (input, expected) => {
+    expect(fallbackConversationTitle(input)).toBe(expected);
   });
 
   it('keeps messages without sentence breaks', () => {
@@ -26,7 +32,7 @@ describe('fallbackConversationTitle', () => {
   });
 });
 
-describe('ConversationTitleGeneration.regenerate', () => {
+describe('ConversationTitleGeneration', () => {
   let host: {
     settings: Record<string, unknown>;
     getConversationById: jest.Mock;
@@ -56,6 +62,21 @@ describe('ConversationTitleGeneration.regenerate', () => {
     };
     service = { generateTitle: jest.fn().mockResolvedValue(undefined), cancel: jest.fn() };
     titles = createTitles(() => service as unknown as TitleGenerationService);
+  });
+
+  it('uses a pair-safe first-turn fallback when automatic title generation is disabled', async () => {
+    host.settings.enableAutoTitleGeneration = false;
+
+    await titles.titleFirstTurn('conv-1', {
+      id: 'user-1', role: 'user', content: 'A'.repeat(49) + '\uD83D\uDE00tail',
+      timestamp: testDate().getTime(),
+    });
+
+    expect(host.renameConversation).toHaveBeenCalledTimes(1);
+    expect(host.renameConversation).toHaveBeenCalledWith('conv-1', 'A'.repeat(49) + '...');
+    expect(service.generateTitle).not.toHaveBeenCalled();
+    expect(host.updateConversation).not.toHaveBeenCalled();
+    expect(host.completeConversationTitleGeneration).not.toHaveBeenCalled();
   });
 
   it.each(['', 'removed-model'])('gives settings guidance without pending status for title model %s', async model => {
