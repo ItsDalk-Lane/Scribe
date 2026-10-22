@@ -82,6 +82,9 @@ it.each(aliasCases)('applies snippet aliases through provider settings while pre
   const container = document.body.createEl('main');
   const onChanged = jest.fn();
   new EnvSnippetManager(container, host, 'provider:claude', onChanged);
+  expect(['Insert', 'Edit', 'Delete'].map(name =>
+    within(container).getByRole<HTMLButtonElement>('button', { name }).type,
+  )).toEqual(['button', 'button', 'button']);
   fireEvent.click(within(container).getByRole('button', { name: 'Insert' }));
   const expected = modelAliases === undefined
     ? { custom: 'Old name', other: 'Keep name' }
@@ -115,6 +118,9 @@ it('offers saving the current environment from the empty snippet state', async (
   const dialog = within(document.body).getByRole('dialog', { name: 'Save snippet' });
   expect(within(dialog).getByDisplayValue('ANTHROPIC_MODEL=custom')).toBeTruthy();
   await joinFocusTimers();
+  expect(['Cancel', 'Save'].map(name =>
+    within(dialog).getByRole<HTMLButtonElement>('button', { name }).type,
+  )).toEqual(['button', 'button']);
 });
 
 it.each([
@@ -219,6 +225,9 @@ it.each(['Update', 'name Enter', 'Save'] as const)(
     const dialogName = action === 'Save' ? 'Save snippet' : 'Edit snippet';
     const dialog = within(document.body).getByRole('dialog', { name: dialogName });
     const fields = within(dialog);
+    expect(fields.getByRole<HTMLButtonElement>('button', {
+      name: action === 'Save' ? 'Save' : 'Update',
+    }).type).toBe('button');
     const nameField = within(fields.getByText('Name').parentElement!).getByRole<HTMLInputElement>('textbox');
     const descriptionField = within(fields.getByText('Description').parentElement!).getByRole<HTMLInputElement>('textbox');
     fireEvent.input(nameField, { target: { value: 'Renamed snippet name' } });
