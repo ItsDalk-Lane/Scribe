@@ -1,4 +1,5 @@
 import { createFixture, deferred, waitForCall } from '@test/helpers/ChatInputHarness';
+import { testDate } from '@test/helpers/testClock';
 import { Notice } from 'obsidian';
 
 import type { ProviderExecutionErrorEvent, ProviderExecutionEvent } from '@/core/execution';
@@ -348,8 +349,8 @@ describe('MainTurnExecution', () => {
   });
 
   it('timestamps the final response at execution completion instead of streaming start', async () => {
-    const startedAt = new Date('2026-09-07T10:00:00Z').getTime();
-    const finishedAt = new Date('2026-09-07T10:01:05Z').getTime();
+    const startedAt = testDate().getTime();
+    const finishedAt = testDate({ seconds: 65 }).getTime();
     let now = startedAt;
     const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
     try {

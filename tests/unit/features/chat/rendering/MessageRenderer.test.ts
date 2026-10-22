@@ -1,6 +1,7 @@
 import '@/providers';
 
 import { createMockEl } from '@test/helpers/MockElement';
+import { testDate } from '@test/helpers/testClock';
 import { Component, Menu } from 'obsidian';
 
 import {
@@ -159,7 +160,7 @@ describe('MessageRenderer', () => {
   it('renders timestamps when the setting is enabled', () => {
     const messagesEl = createMockEl();
     const { renderer } = createRenderer(messagesEl, 'claude', { showMessageTimestamps: true });
-    const timestamp = new Date('2026-08-12T10:30:00Z').getTime();
+    const timestamp = testDate().getTime();
 
     renderer.renderStoredMessage({
       id: 'timed-user',

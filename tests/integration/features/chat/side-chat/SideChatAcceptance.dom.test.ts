@@ -166,11 +166,11 @@ it('refreshes side completion timestamps when the view timestamp setting changes
     () => { throw new Error('Timestamp refresh must not read the runtime'); },
   );
   const view = createClaudianView({ tabManager: { getAllTabs: () => [tab] } });
-  const clock = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-09-20T10:00:00Z').getTime());
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(testDate().getTime());
   try {
     const { started } = await startSideChat(harness);
     harness.backend.latest.emitText('A side answer.');
-    const completedAt = new Date('2026-09-20T10:00:03Z');
+    const completedAt = testDate({ seconds: 3 });
     clock.mockReturnValue(completedAt.getTime());
     harness.backend.latest.complete();
     await started;
