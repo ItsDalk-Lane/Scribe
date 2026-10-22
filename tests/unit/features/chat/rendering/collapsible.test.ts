@@ -123,6 +123,34 @@ describe('collapsible', () => {
       expect(within(wrapper).getByRole('button', { name: 'Tool - click to collapse' })).toBeDefined();
     });
 
+    it.each([false, true])('refreshes a current label without toggling or materializing content: %s', initiallyExpanded => {
+      const wrapper = document.body.createDiv();
+      const header = wrapper.createDiv({ text: 'Summary' });
+      const content = wrapper.createDiv();
+      const state = { isExpanded: false };
+      const onToggle = jest.fn();
+      const onFirstExpand = jest.fn();
+      let label = 'Original';
+      const refresh = setupCollapsible(wrapper, header, content, state, {
+        initiallyExpanded, baseAriaLabel: () => label, onToggle, onFirstExpand,
+      });
+      const suffix = initiallyExpanded ? 'collapse' : 'expand';
+      expect(within(wrapper).getByRole('button', { name: `Original - click to ${suffix}` })).toBe(header);
+
+      label = 'Refined';
+      refresh();
+      expect(within(wrapper).getByRole('button', { name: `Refined - click to ${suffix}` })).toBe(header);
+      expect(state.isExpanded).toBe(initiallyExpanded);
+      expect(header.getAttribute('aria-expanded')).toBe(String(initiallyExpanded));
+      expect(content.classList.contains('claudian-hidden')).toBe(!initiallyExpanded);
+      expect(onToggle).not.toHaveBeenCalled();
+      expect(onFirstExpand).toHaveBeenCalledTimes(Number(initiallyExpanded));
+      fireEvent.click(header);
+      expect(within(wrapper).getByRole('button', { name: `Refined - click to ${initiallyExpanded ? 'expand' : 'collapse'}` })).toBe(header);
+      expect(onToggle).toHaveBeenCalledWith(!initiallyExpanded);
+      expect(onFirstExpand).toHaveBeenCalledTimes(1);
+    });
+
     it('leaves the header text as its accessible name without a base label', () => {
       const { wrapper } = buildCollapsible();
 

@@ -581,36 +581,69 @@ it.each([false, true].flatMap(lateNative => ['text', 'thinking'].map(boundary =>
   const joinVaultNotifications = async () => {
     for (const notification of vaultNotifications) await notification;
   };
+  const retainedHeaders: HTMLElement[] = [];
+  const expectPatchCard = (header: HTMLElement, index: number, patch: string, result: string) => {
+    const card = state.toolCallElements.get(`patch-${index}`)!;
+    expect(header.parentElement).toBe(card);
+    expect(card.dataset.toolId).toBe(`patch-${index}`);
+    expect(response.toolCalls?.find(tool => tool.id === `patch-${index}`)).toMatchObject({
+      id: `patch-${index}`, name: 'apply_patch', input: { patch }, status: 'completed', result,
+    });
+    expect(within(card).getByLabelText('Changes: +1 -0')).toBeDefined();
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(header);
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+    const content = card.querySelector<HTMLElement>('.claudian-tool-content')!;
+    expect(within(content).getAllByText(`hello-${index}`)).toHaveLength(1);
+    fireEvent.click(header);
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+  };
   try {
     state.addMessage(response);
     state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
     router.beginTurn();
     await notify('item/agentMessage/delta', { itemId: 'intro', delta: 'Creating the note.' });
     for (const [index, wrapped] of [false, true].entries()) {
-      const patch = `*** Begin Patch\n*** Add File: note-${index}.md\n+hello\n*** End Patch`;
+      const patch = `*** Begin Patch\n*** Add File: note-${index}.md\n+hello-${index}\n*** End Patch`;
       await notify('rawResponseItem/completed', { item: { type: 'custom_tool_call', name: wrapped ? 'exec' : 'apply_patch', call_id: `patch-${index}`,
         input: wrapped ? `text(await tools.apply_patch(${JSON.stringify(patch)}));` : patch } });
       await notify('rawResponseItem/completed', { item: { type: 'custom_tool_call_output', call_id: `patch-${index}`, output: 'Success.' } });
       await notify(boundary === 'text' ? 'item/agentMessage/delta' : 'item/reasoning/summaryTextDelta', { itemId: `check-${index}`, delta: `Checking note ${index}.` });
       await stream.finalizeCurrentThinkingBlock(response);
       await stream.finalizeCurrentTextBlock(response);
-      expect(within(messagesEl).getAllByRole('button', { name: /^apply_patch: note-/ })).toHaveLength(index + 1);
+      const currentHeaders = within(messagesEl).getAllByRole('button', { name: /^apply_patch:/ });
+      expect(currentHeaders).toHaveLength(index + 1);
+      const header = currentHeaders[index];
+      retainedHeaders.push(header);
+      expectPatchCard(header, index, patch, 'Success.');
       if (lateNative) {
         await notify('item/completed', { item: { type: 'fileChange', id: `native-${index}`, status: 'completed',
-          changes: [{ path: `/workspace/note-${index}.md`, kind: { type: 'add' }, diff: 'hello\n' }] } });
+          changes: [{ path: `/workspace/note-${index}.md`, kind: { type: 'add' }, diff: `hello-${index}\n` }] } });
       }
+      const updatedHeaders = within(messagesEl).getAllByRole('button', { name: /^apply_patch:/ });
+      expect(updatedHeaders).toHaveLength(index + 1);
+      for (const [position, retained] of retainedHeaders.entries()) {
+        expect(updatedHeaders[position]).toBe(retained);
+      }
+      expectPatchCard(updatedHeaders[index], index, patch, lateNative ? `add: /workspace/note-${index}.md` : 'Success.');
       if (boundary === 'text') {
         await notify('rawResponseItem/completed', { item: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: `Checking note ${index}.` }] } });
         await stream.finalizeCurrentTextBlock(response);
       }
       expect(within(messagesEl).getAllByText(`Checking note ${index}.`)).toHaveLength(1);
+      const boundaryText = within(messagesEl).getByText(`Checking note ${index}.`);
+      expect(header.compareDocumentPosition(boundaryText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
     await notify('item/agentMessage/delta', { itemId: 'final', delta: 'Notes are ready.' });
     await notify('rawResponseItem/completed', { item: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Notes are ready.' }] } });
     await notify('turn/completed', { turn: { id: 'turn', status: 'completed' } });
     await stream.finalizeCurrentTextBlock(response);
-    const cards = within(messagesEl).getAllByRole('button', { name: /^apply_patch: note-/ });
+    const cards = within(messagesEl).getAllByRole('button', { name: /^apply_patch:/ });
     expect(cards).toHaveLength(2);
+    for (const [index, header] of cards.entries()) {
+      expect(header).toBe(retainedHeaders[index]);
+      expectPatchCard(header, index, `*** Begin Patch\n*** Add File: note-${index}.md\n+hello-${index}\n*** End Patch`, lateNative ? `add: /workspace/note-${index}.md` : 'Success.');
+    }
     const intro = within(messagesEl).getByText('Creating the note.');
     const answer = within(messagesEl).getByText('Notes are ready.');
     expect(intro.compareDocumentPosition(cards[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

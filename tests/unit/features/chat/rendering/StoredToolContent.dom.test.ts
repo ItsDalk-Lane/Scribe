@@ -1,9 +1,10 @@
 /** @jest-environment jsdom */
 
+import { testClock } from '@test/helpers/testClock';
 import { fireEvent, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 
-import type { ToolCallInfo } from '@/core/types';
+import type { ChatMessage, ToolCallInfo } from '@/core/types';
 import {
   renderStoredToolCall,
   renderToolCall,
@@ -11,7 +12,7 @@ import {
 } from '@/features/chat/rendering/tools/ToolCallRenderer';
 import { createWriteEditBlock, finalizeWriteEditBlock, renderStoredWriteEdit,updateWriteEditWithDiff } from '@/features/chat/rendering/tools/WriteEditRenderer';
 import { ChatState } from '@/features/chat/state/ChatState';
-import { ToolCallStream } from '@/features/chat/turns/ToolCallStream';
+import { ToolCallStream, type ToolCallStreamDeps } from '@/features/chat/turns/ToolCallStream';
 import { setLocale } from '@/i18n/i18n';
 
 HTMLElement.prototype.empty = function () { this.replaceChildren(); };
@@ -25,6 +26,190 @@ HTMLElement.prototype.toggleClass = function (classes, enabled) {
 
 beforeEach(() => { document.body.replaceChildren(); });
 afterEach(() => setLocale('en'));
+
+function createToolStream(expandFileEditsByDefault = false) {
+  const parent = document.body.createDiv();
+  const state = new ChatState();
+  state.currentContentEl = parent;
+  const stream = new ToolCallStream({
+    state,
+    plugin: { app: {}, settings: { expandFileEditsByDefault } } as ToolCallStreamDeps['plugin'],
+    indicator: { show: () => undefined },
+    getMessagesEl: () => parent,
+    scrollToBottom: () => undefined,
+  });
+  const message: ChatMessage = {
+    id: 'refined-response', role: 'assistant', content: '', timestamp: testClock()().getTime(), toolCalls: [],
+  };
+  return { parent, state, stream, message };
+}
+
+it('refreshes a flushed Bash header without settling, rebuilding or expanding its card', async () => {
+  const { parent, state, stream, message } = createToolStream();
+  try {
+    stream.use({ type: 'tool_use', id: 'refined-bash', name: 'Bash', input: {} }, message);
+    stream.flush();
+    const card = state.toolCallElements.get('refined-bash')!;
+    const header = within(card).getByRole('button', { name: 'Bash: command - click to expand' });
+    const content = card.querySelector('.claudian-tool-content')!;
+    const tool = message.toolCalls![0];
+    expect(content.childElementCount).toBe(0);
+
+    stream.use({ type: 'tool_use', id: 'refined-bash', name: 'Bash', input: { command: 'printf refined' } }, message);
+    expect(card.querySelector('.claudian-tool-summary')?.textContent).toBe('printf refined');
+    expect(within(card).getByRole('button', { name: 'Bash: printf refined - click to expand' })).toBe(header);
+    expect(state.toolCallElements.get('refined-bash')).toBe(card);
+    expect(message.toolCalls).toHaveLength(1);
+    expect(message.toolCalls?.[0]).toBe(tool);
+    expect(tool.status).toBe('running');
+    expect(card.querySelector('.claudian-tool-status')?.getAttribute('aria-label')).toBe('Status: running');
+    expect(content.childElementCount).toBe(0);
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+
+    stream.use({ type: 'tool_use', id: 'refined-bash', name: 'Bash', input: {} }, message);
+    expect(tool.input).toEqual({ command: 'printf refined' });
+    fireEvent.keyDown(header, { key: 'Enter' });
+    expect(within(card).getByRole('button', { name: 'Bash: printf refined - click to collapse' })).toBe(header);
+    expect(content.textContent).toContain('Running...');
+    expect(tool.status).toBe('running');
+    stream.complete({ type: 'tool_result', id: 'refined-bash', content: 'Refined output' }, message);
+    expect(content.textContent).toContain('Refined output');
+    expect(tool.status).toBe('completed');
+    fireEvent.keyDown(header, { key: ' ' });
+    expect(within(card).getByRole('button', { name: 'Bash: printf refined - click to expand' })).toBe(header);
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    const renderedBody = content.firstElementChild;
+    fireEvent.click(header);
+    expect(within(card).getByRole('button', { name: 'Bash: printf refined - click to collapse' })).toBe(header);
+    expect(content.firstElementChild).toBe(renderedBody);
+    expect(await axe(parent)).toHaveNoViolations();
+  } finally {
+    stream.cancelAll();
+  }
+});
+
+it.each([false, true])('refines a rendered Read input through real header owners, expanded: %s', async initiallyExpanded => {
+  const { parent, state, stream, message } = createToolStream();
+  try {
+    stream.use({ type: 'tool_use', id: 'read-refinement', name: 'Read', input: { file_path: 'notes/original.md', offset: 4 } }, message);
+    stream.flush();
+    const card = state.toolCallElements.get('read-refinement')!;
+    const header = within(card).getByRole('button', { name: 'Read: notes/original.md - click to expand' });
+    if (initiallyExpanded) fireEvent.click(header);
+    const content = card.querySelector('.claudian-tool-content')!;
+    const body = content.firstElementChild;
+    const tool = message.toolCalls![0];
+
+    stream.use({ type: 'tool_use', id: 'read-refinement', name: 'Read', input: { file_path: 'notes/updated.md' } }, message);
+    const suffix = initiallyExpanded ? 'collapse' : 'expand';
+    expect(within(card).getByRole('button', { name: `Read: notes/updated.md - click to ${suffix}` })).toBe(header);
+    expect(card.querySelector('.claudian-tool-summary')?.textContent).toBe('updated.md');
+    expect(state.toolCallElements.get('read-refinement')).toBe(card);
+    expect(message.toolCalls).toHaveLength(1);
+    expect(message.toolCalls![0]).toBe(tool);
+    expect(tool.input).toEqual({ file_path: 'notes/updated.md', offset: 4 });
+    expect(tool.status).toBe('running');
+    expect(tool.isExpanded).toBe(initiallyExpanded);
+    expect(header.getAttribute('aria-expanded')).toBe(String(initiallyExpanded));
+    expect(content.childElementCount > 0).toBe(initiallyExpanded);
+    expect(content.firstElementChild).toBe(body);
+    stream.use({ type: 'tool_use', id: 'read-refinement', name: 'Read', input: {} }, message);
+    expect(tool.input).toEqual({ file_path: 'notes/updated.md', offset: 4 });
+    fireEvent.keyDown(header, { key: 'Enter' });
+    expect(within(card).getByRole('button', { name: `Read: notes/updated.md - click to ${initiallyExpanded ? 'expand' : 'collapse'}` })).toBe(header);
+    expect(await axe(parent)).toHaveNoViolations();
+  } finally {
+    stream.cancelAll();
+  }
+});
+
+it('presents a title-only generic-to-Read refinement with retained logical identity and order', async () => {
+  const { parent, state, stream, message } = createToolStream();
+  try {
+    stream.use({ type: 'tool_use', id: 'title-only', name: 'tool', input: { file_path: 'notes/retained.md', offset: 2 } }, message);
+    stream.use({ type: 'tool_use', id: 'following', name: 'Bash', input: { command: 'printf following' } }, message);
+    stream.flush();
+    const original = state.toolCallElements.get('title-only')!;
+    fireEvent.click(within(original).getByRole('button', { name: 'tool - click to expand' }));
+    const tool = message.toolCalls![0];
+    stream.use({ type: 'tool_use', id: 'title-only', name: 'Read', input: {} }, message);
+    const current = state.toolCallElements.get('title-only')!;
+    const header = within(current).getByRole('button', { name: 'Read: notes/retained.md - click to collapse' });
+    expect(current.querySelector('.claudian-tool-name')?.textContent).toBe('Read');
+    expect(current.querySelector('.claudian-tool-summary')?.textContent).toBe('retained.md');
+    expect(message.toolCalls).toHaveLength(2);
+    expect(message.toolCalls![0]).toBe(tool);
+    expect(tool).toMatchObject({ id: 'title-only', name: 'Read', input: { file_path: 'notes/retained.md', offset: 2 }, status: 'running', isExpanded: true });
+    expect(Array.from(parent.children, card => card.getAttribute('data-tool-id'))).toEqual(['title-only', 'following']);
+    expect(message.contentBlocks).toEqual([{ type: 'tool_use', toolId: 'title-only' }, { type: 'tool_use', toolId: 'following' }]);
+    stream.use({ type: 'tool_use', id: 'title-only', name: 'Read', input: {} }, message);
+    expect(tool.input).toEqual({ file_path: 'notes/retained.md', offset: 2 });
+    fireEvent.keyDown(header, { key: ' ' });
+    expect(within(current).getByRole('button', { name: 'Read: notes/retained.md - click to expand' })).toBe(header);
+    expect(await axe(parent)).toHaveNoViolations();
+  } finally {
+    stream.cancelAll();
+  }
+});
+
+it('refreshes an expanded specialized Edit filename while preserving its state and diff', async () => {
+  const { parent, state, stream, message } = createToolStream(true);
+  try {
+    stream.use({ type: 'tool_use', id: 'refined-edit', name: 'Edit', input: {} }, message);
+    stream.flush();
+    const edit = state.writeEditStates.get('refined-edit')!;
+    const header = within(edit.wrapperEl).getByRole('button', { name: 'Edit: file - click to collapse' });
+    const loadingBody = edit.contentEl.firstElementChild;
+
+    stream.use({ type: 'tool_use', id: 'refined-edit', name: 'Edit', input: { file_path: 'project/refined.md' } }, message);
+    expect(edit.summaryEl.textContent).toBe('refined.md');
+    expect(within(edit.wrapperEl).getByRole('button', { name: 'Edit: project/refined.md - click to collapse' })).toBe(header);
+    expect(state.writeEditStates.get('refined-edit')).toBe(edit);
+    expect(state.toolCallElements.get('refined-edit')).toBe(edit.wrapperEl);
+    expect(edit.isExpanded).toBe(true);
+    expect(edit.toolCall.status).toBe('running');
+    expect(edit.contentEl.firstElementChild).toBe(loadingBody);
+    stream.use({ type: 'tool_use', id: 'refined-edit', name: 'Edit', input: {} }, message);
+    expect(edit.toolCall.input).toEqual({ file_path: 'project/refined.md' });
+    updateWriteEditWithDiff(edit, {
+      filePath: 'project/refined.md',
+      diffLines: [{ type: 'insert', text: 'Refined line', newLineNum: 1 }],
+      stats: { added: 1, removed: 0 },
+    });
+    expect(edit.contentEl.textContent).toContain('Refined line');
+    fireEvent.keyDown(header, { key: ' ' });
+    expect(within(edit.wrapperEl).getByRole('button', { name: 'Edit: project/refined.md - click to expand' })).toBe(header);
+    const diffBody = edit.contentEl.firstElementChild;
+    fireEvent.click(header);
+    expect(within(edit.wrapperEl).getByRole('button', { name: 'Edit: project/refined.md - click to collapse' })).toBe(header);
+    expect(edit.contentEl.firstElementChild).toBe(diffBody);
+    expect(await axe(parent)).toHaveNoViolations();
+  } finally {
+    stream.cancelAll();
+  }
+});
+
+it.each([false, true])('refreshes replacement result snapshots without changing expansion %s', async initiallyExpanded => {
+  const tool: ToolCallInfo = { id: 'replaced-read', name: 'Read', input: {}, status: 'running' };
+  const card = renderToolCall(document.body.createDiv(), tool, { initiallyExpanded });
+  const header = within(card).getByRole('button');
+  const content = card.querySelector('.claudian-tool-content')!;
+  const previousBody = content.firstElementChild;
+  updateToolCallResult(card, {
+    ...tool, input: { file_path: 'project/latest.md' }, status: 'completed', result: 'Latest file contents',
+  });
+  expect(card.querySelector('.claudian-tool-summary')?.textContent).toBe('latest.md');
+  const suffix = initiallyExpanded ? 'collapse' : 'expand';
+  expect(within(card).getByRole('button', { name: `Read: project/latest.md - click to ${suffix}` })).toBe(header);
+  expect(header.getAttribute('aria-expanded')).toBe(String(initiallyExpanded));
+  expect(card.querySelector('.claudian-tool-status')?.getAttribute('aria-label')).toBe('Status: completed');
+  expect(content.firstElementChild === previousBody).toBe(!initiallyExpanded);
+  fireEvent.click(header);
+  fireEvent.click(header);
+  expect(content.textContent).toContain('Latest file contents');
+  expect(within(card).getByRole('button', { name: `Read: project/latest.md - click to ${suffix}` })).toBe(header);
+  expect(await axe(card)).toHaveNoViolations();
+});
 
 it('restores a completed Bash result without mounting its collapsed body until expansion', () => {
   const tool: ToolCallInfo = {

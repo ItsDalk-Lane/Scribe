@@ -57,6 +57,7 @@ jest.mock('@/features/chat/rendering/tools/toolPresentation', () => ({
 jest.mock('@/features/chat/rendering/tools/ToolCallRenderer', () => ({
   renderToolCall: jest.fn(),
   updateToolCallResult: jest.fn(),
+  refreshToolCallHeader: jest.fn(),
 }));
 
 jest.mock('@/features/chat/rendering/tools/WriteEditRenderer', () => ({
@@ -2630,78 +2631,58 @@ describe('StreamController - Text Content', () => {
       });
     });
 
-    it('second tool_use with same id updates existing tool input and header', async () => {
-      const { getToolName, getToolSummary } = jest.requireMock('@/features/chat/rendering/tools/toolPresentation');
+    it('dispatches a merged same-id input refinement to the rendered header owner', async () => {
+      const { renderToolCall, refreshToolCallHeader } = jest.requireMock('@/features/chat/rendering/tools/ToolCallRenderer');
       const msg = createTestMessage();
       deps.state.currentContentEl = createMockEl();
+      const toolEl = createMockEl();
+      renderToolCall.mockReturnValueOnce(toolEl);
 
-      // First tool_use - creates the tool call
       await controller.handleStreamChunk(
-        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'test.md' } },
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'test.md', offset: 4 } },
         msg
       );
 
-      // Flush the tool so it transitions from pending to rendered
       await controller.handleStreamChunk({ type: 'done' }, msg);
+      const tool = msg.toolCalls![0];
 
-      // Manually set up a rendered tool element with name + summary children
-      // (the mock renderToolCall doesn't actually populate toolCallElements)
-      const toolEl = createMockEl();
-      const nameChild = toolEl.createDiv({ cls: 'claudian-tool-name' });
-      nameChild.setText('Read');
-      const summaryChild = toolEl.createDiv({ cls: 'claudian-tool-summary' });
-      summaryChild.setText('test.md');
-      deps.state.toolCallElements.set('read-1', toolEl);
-
-      getToolName.mockReturnValueOnce('Read');
-      getToolSummary.mockReturnValueOnce('updated.md');
-
-      // Second tool_use with same id - should update input and header
       await controller.handleStreamChunk(
         { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'updated.md' } },
         msg
       );
 
-      // Input should be merged
-      expect(msg.toolCalls![0].input).toEqual(
-        expect.objectContaining({ file_path: 'updated.md' })
-      );
-      // getToolName/getToolSummary should have been called with updated input
-      expect(getToolName).toHaveBeenCalledWith('Read', expect.objectContaining({ file_path: 'updated.md' }));
-      expect(getToolSummary).toHaveBeenCalledWith('Read', expect.objectContaining({ file_path: 'updated.md' }));
-      // Header texts should be updated
-      expect(nameChild.textContent).toBe('Read');
-      expect(summaryChild.textContent).toBe('updated.md');
+      expect(msg.toolCalls).toHaveLength(1);
+      expect(msg.toolCalls![0]).toBe(tool);
+      expect(tool.input).toEqual({ file_path: 'updated.md', offset: 4 });
+      expect(tool.status).toBe('running');
+      expect(refreshToolCallHeader).toHaveBeenCalledWith(toolEl);
+      expect(renderToolCall).toHaveBeenCalledTimes(1);
     });
 
-    it('refreshes a rendered header for a title-only name refinement', async () => {
-      const { getToolName, getToolSummary } = jest.requireMock('@/features/chat/rendering/tools/toolPresentation');
+    it('dispatches a title-only name refinement without losing the logical tool input', async () => {
+      const { renderToolCall, refreshToolCallHeader } = jest.requireMock('@/features/chat/rendering/tools/ToolCallRenderer');
       const msg = createTestMessage();
       deps.state.currentContentEl = createMockEl();
+      const toolEl = createMockEl();
+      renderToolCall.mockReturnValueOnce(toolEl);
 
       await controller.handleStreamChunk(
-        { type: 'tool_use', id: 'title-only', name: 'tool', input: {} },
+        { type: 'tool_use', id: 'title-only', name: 'tool', input: { file_path: 'retained.md' } },
         msg,
       );
       await controller.handleStreamChunk({ type: 'done' }, msg);
 
-      const toolEl = createMockEl();
-      const nameChild = toolEl.createDiv({ cls: 'claudian-tool-name' });
-      const summaryChild = toolEl.createDiv({ cls: 'claudian-tool-summary' });
-      deps.state.toolCallElements.set('title-only', toolEl);
-      getToolName.mockReturnValueOnce('Read');
-      getToolSummary.mockReturnValueOnce('');
+      const tool = msg.toolCalls![0];
 
       await controller.handleStreamChunk(
         { type: 'tool_use', id: 'title-only', name: 'Read', input: {} },
         msg,
       );
 
-      expect(msg.toolCalls![0].name).toBe('Read');
-      expect(getToolName).toHaveBeenCalledWith('Read', {});
-      expect(getToolSummary).toHaveBeenCalledWith('Read', {});
-      expect(nameChild.textContent).toBe('Read');
-      expect(summaryChild.textContent).toBe('');
+      expect(msg.toolCalls).toHaveLength(1);
+      expect(msg.toolCalls![0]).toBe(tool);
+      expect(tool).toMatchObject({ id: 'title-only', name: 'Read', input: { file_path: 'retained.md' }, status: 'running' });
+      expect(refreshToolCallHeader).toHaveBeenCalledWith(toolEl);
     });
   });
 
