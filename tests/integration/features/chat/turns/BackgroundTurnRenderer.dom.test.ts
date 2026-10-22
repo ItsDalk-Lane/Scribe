@@ -741,6 +741,44 @@ it('folds a stopped automatic turn across a later notification once, live and on
   } finally { session.dispose(); }
 });
 
+it('keeps a completed Pi reply outside a later hidden-trigger interrupted disclosure on stored replay', async () => {
+  const messages = parsePiSessionContent([
+    { type: 'message', id: 'u1', parentId: null, timestamp: at(0), message: { role: 'user', content: 'Say hello' } },
+    { type: 'message', id: 'a1', parentId: 'u1', timestamp: at(5), message: {
+      role: 'assistant', timestamp: testDate({ seconds: 2 }).getTime(), stopReason: 'stop',
+      usage: { output: 12 }, content: [{ type: 'text', text: 'Hello' }],
+    } },
+    { type: 'custom_message', id: 'n1', parentId: 'a1', timestamp: at(6), customType: 'background-result',
+      display: false, content: 'Hidden background result' },
+    { type: 'message', id: 'a2', parentId: 'n1', timestamp: at(8), message: {
+      role: 'assistant', stopReason: 'aborted', content: [{ type: 'text', text: 'Partial automatic reply' }],
+    } },
+  ].map(entry => JSON.stringify(entry)).join('\n'));
+  const messagesEl = document.body.createDiv();
+  const renderer = new MessageRenderer({ app: {}, settings: { mediaFolder: '', showMessageTimestamps: false } } as any,
+    new Component(), messagesEl);
+  try {
+    renderer.renderMessages(messages, () => 'Welcome');
+    const header = await waitFor(() => within(messagesEl).getByRole('button', {
+      name: 'Interrupted \u00b7 What should Claudian do instead?',
+    }));
+    const history = document.getElementById(header.getAttribute('aria-controls')!)!;
+    expect(history).not.toBeNull();
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    expect(visibleTranscript(messagesEl)).toContain('Hello');
+    expect(visibleTranscript(messagesEl)).not.toContain('Partial automatic reply');
+    const completed = within(messagesEl).getByText('Hello', { exact: true });
+    expect(history.contains(completed)).toBe(false);
+    expect(messagesEl.textContent).not.toContain('Hidden background result');
+    fireEvent.click(header);
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+    expect(within(history).getByText('Partial automatic reply', { exact: true })).toBeTruthy();
+    expect(history.textContent).not.toContain('Hello');
+    expect(messagesEl.textContent).not.toContain('Hidden background result');
+    expect((await axe(messagesEl)).violations).toEqual([]);
+  } finally { renderer.dispose(); messagesEl.remove(); }
+});
+
 const claudeNotification = (summary: string) =>
   `<task-notification>\n<task-id>${summary}</task-id>\n<status>completed</status>\n<summary>${summary}</summary>\n</task-notification>`;
 const at = (seconds: number) => new Date(testDate().getTime() + seconds * 1_000).toISOString();

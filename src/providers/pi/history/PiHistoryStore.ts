@@ -550,14 +550,22 @@ function mapPiSessionEntries(
   const stats = new PiTurnStats();
 
   for (const entry of entries) {
+    // Native triggers start turns even when their notification is hidden.
+    if (entry.type === 'custom_message' && !turnRunning) {
+      turnStart = messages.length;
+      turnRunning = true;
+    }
     const mapped = mapPiSessionEntry(entry, messages, syntheticIdNamespace);
     if (mapped) {
-      if (entry.type === 'custom_message' && !promptedTurnOpen) mapped.isAutomaticResponse = true;
+      if (!promptedTurnOpen && (entry.type === 'custom_message'
+        || (isAssistantMessageEntry(entry) && turnRunning && messages.length === turnStart))) {
+        mapped.isAutomaticResponse = true;
+      }
       const previous = messages[messages.length - 1];
       // Results steered into a prompted turn stay in its response, as live output renders them.
       const continuesResponse = isAssistantMessageEntry(entry)
         || (entry.type === 'custom_message' && promptedTurnOpen);
-      if (continuesResponse && canMergeAssistantContinuation(previous, mapped)) {
+      if (continuesResponse && messages.length > turnStart && canMergeAssistantContinuation(previous, mapped)) {
         mergeAssistantContinuation(previous, mapped);
       } else {
         if (mapped.role === 'user' || (mapped.isAutomaticResponse && !turnRunning)) {

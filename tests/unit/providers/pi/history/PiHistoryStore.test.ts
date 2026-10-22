@@ -120,6 +120,84 @@ describe('PiHistoryStore', () => {
     expect(messages[1].assistantMessageId).toBe('a2');
   });
 
+  it.each([
+    [false, 'aborted'], [true, 'aborted'], [false, 'stop'], [true, 'stop'],
+  ] as const)('preserves a completed turn before a custom trigger (display: %s, later stop: %s)', (display, stopReason) => {
+    const content = [
+      { type: 'message', id: 'u1', parentId: null, timestamp: testTime(), message: { role: 'user', content: 'Say hello' } },
+      { type: 'message', id: 'a1', parentId: 'u1', timestamp: testTime({ seconds: 5 }), message: {
+        role: 'assistant', timestamp: testDate({ seconds: 2 }).getTime(), content: [{ type: 'text', text: 'Hello' }],
+        stopReason: 'stop', usage: { output: 12 },
+      } },
+      { type: 'custom_message', id: 'n1', parentId: 'a1', timestamp: testTime({ seconds: 6 }),
+        customType: 'background-result', display, content: 'Background result' },
+      { type: 'message', id: 'a2', parentId: 'n1', timestamp: testTime({ seconds: 8 }), message: {
+        role: 'assistant', timestamp: testDate({ seconds: 7 }).getTime(),
+        content: [{ type: 'text', text: 'Partial automatic reply' }], stopReason, usage: { output: 3 },
+      } },
+    ].map(entry => JSON.stringify(entry)).join('\n');
+
+    const messages = parsePiSessionContent(content);
+    const completed = messages[1];
+    expect(completed).toMatchObject({
+      id: 'a1', assistantMessageId: 'a1', content: 'Hello', role: 'assistant',
+      contentBlocks: [{ type: 'text', content: 'Hello' }], durationSeconds: 5,
+      completedAt: testDate({ seconds: 5 }).getTime(), turnStats: { outputTokens: 12, durationMs: 5000 },
+    });
+    expect(completed.contentBlocks).toEqual([{ type: 'text', content: 'Hello' }]);
+    expect(completed.isInterrupt).toBeUndefined();
+    expect(completed.isAutomaticResponse).toBeUndefined();
+    expect(messages).toHaveLength(3);
+    const automatic = messages[2];
+    expect(automatic).toMatchObject({
+      id: display ? 'n1' : 'a2', assistantMessageId: 'a2', role: 'assistant',
+      content: 'Partial automatic reply', isAutomaticResponse: true,
+    });
+    expect(automatic.contentBlocks).toEqual([
+      ...(display ? [{ type: 'task_notification', content: 'Background result' }] : []),
+      { type: 'text', content: 'Partial automatic reply' },
+    ]);
+    expect(automatic.isInterrupt).toBe(stopReason === 'aborted' ? true : undefined);
+    expect(automatic.completedAt).toBeUndefined();
+    expect(automatic.durationSeconds).toBeUndefined();
+    expect(automatic.turnStats).toBeUndefined();
+    expect(completed.turnId).toEqual(expect.stringMatching(/.+/));
+    expect(automatic.turnId).toEqual(expect.stringMatching(/.+/));
+    expect(automatic.turnId).not.toBe(completed.turnId);
+  });
+
+  it.each([false, true])('keeps a custom message inside an active prompted tool turn (display: %s)', display => {
+    const content = [
+      { type: 'message', id: 'u1', parentId: null, timestamp: testTime(), message: { role: 'user', content: 'Inspect' } },
+      { type: 'message', id: 'a1', parentId: 'u1', timestamp: testTime({ seconds: 2 }), message: {
+        role: 'assistant', stopReason: 'toolUse', usage: { output: 4 }, content: [
+          { type: 'text', text: 'Working' }, { type: 'toolCall', id: 'read', name: 'read', arguments: { path: 'note.md' } },
+        ],
+      } },
+      { type: 'custom_message', id: 'n1', parentId: 'a1', timestamp: testTime({ seconds: 3 }),
+        customType: 'background-result', display, content: 'Background result' },
+      { type: 'message', id: 'r1', parentId: 'n1', timestamp: testTime({ seconds: 4 }),
+        message: { role: 'toolResult', toolCallId: 'read', content: 'Note contents' } },
+      { type: 'message', id: 'a2', parentId: 'r1', timestamp: testTime({ seconds: 5 }),
+        message: { role: 'assistant', stopReason: 'stop', usage: { output: 8 }, content: 'Done' } },
+    ].map(entry => JSON.stringify(entry)).join('\n');
+
+    const messages = parsePiSessionContent(content);
+    expect(messages).toHaveLength(2);
+    expect(messages[1]).toMatchObject({
+      id: 'a1', assistantMessageId: 'a2', content: 'WorkingDone', durationSeconds: 5,
+      completedAt: testDate({ seconds: 5 }).getTime(), turnStats: { outputTokens: 12, durationMs: 5000 },
+      toolCalls: [{ id: 'read', status: 'completed', result: 'Note contents' }],
+    });
+    expect(messages[1].contentBlocks).toEqual([
+      { type: 'text', content: 'Working' }, { type: 'tool_use', toolId: 'read' },
+      ...(display ? [{ type: 'task_notification', content: 'Background result' }] : []),
+      { type: 'text', content: 'Done' },
+    ]);
+    expect(messages[1].isAutomaticResponse).toBeUndefined();
+    expect(messages[1].isInterrupt).toBeUndefined();
+  });
+
   it('attaches Peeps answers and closures to the tool calls that started the work', () => {
     const launched = (id: string) => ({ id, status: 'starting' });
     const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({ type: 'toolCall', id, name, arguments: args });
