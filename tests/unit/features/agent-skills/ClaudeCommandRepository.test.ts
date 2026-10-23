@@ -231,6 +231,20 @@ describe('ClaudeCommandRepository', () => {
     expect(updated.description).toBe('Now described');
   });
 
+  it.each(['aux/review', 'team/lpt9'])(
+    'rejects a device name in any renamed command segment: %s', async name => {
+      addCommand('review.md', REVIEW_COMMAND);
+      const repository = new ClaudeCommandRepository(files);
+      const [loaded] = (await repository.list()).commands;
+      const originalNodes = JSON.stringify([...dataAdapter.nodes]);
+
+      await expect(repository.update('review', loaded.revision, {
+        name, description: 'Updated', instructions: 'Updated body.',
+      })).rejects.toBeInstanceOf(AgentSkillValidationError);
+      expect(JSON.stringify([...dataAdapter.nodes])).toBe(originalNodes);
+    },
+  );
+
   it('rejects stale updates and trashes only a current revision', async () => {
     addCommand('review.md', REVIEW_COMMAND);
     const repository = new ClaudeCommandRepository(files);

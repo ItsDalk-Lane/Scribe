@@ -125,6 +125,14 @@ describe('AgentSkillRepository', () => {
     })).rejects.toBeInstanceOf(AgentSkillCollisionError);
   });
 
+  it.each(['con', 'com1'])('rejects reserved device package %s before changing the vault', async name => {
+    const originalNodes = JSON.stringify([...dataAdapter.nodes]);
+    await expect(repository.create({
+      name, description: 'Description', instructions: 'Instructions',
+    })).rejects.toBeInstanceOf(AgentSkillValidationError);
+    expect(JSON.stringify([...dataAdapter.nodes])).toBe(originalNodes);
+  });
+
   it('rejects a target created during the exclusive claim race', async () => {
     dataAdapter.beforeMkdir = path => {
       if (path.endsWith('/racing')) dataAdapter.addFolder(path);
