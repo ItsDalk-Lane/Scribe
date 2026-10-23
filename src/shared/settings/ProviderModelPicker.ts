@@ -273,7 +273,7 @@ export function renderProviderModelPicker(
         type: 'text',
       });
       aliasInput.placeholder = defaultLabel;
-      aliasInput.value = aliasInput.defaultValue = state.aliases[model.id] ?? '';
+      aliasInput.value = aliasInput.defaultValue = Object.hasOwn(state.aliases, model.id) ? state.aliases[model.id] : '';
       aliasInput.setAttribute('aria-label', t('settings.customModelAliases.ariaLabel', { model: defaultLabel }));
       aliasInput.setAttribute('aria-description', t('settings.customModelAliases.ariaDescription'));
       aliasInput.addEventListener('blur', () => {
@@ -285,7 +285,8 @@ export function renderProviderModelPicker(
           aliasInput.blur();
         } else if (event.key === 'Escape') {
           event.preventDefault();
-          aliasInput.value = options.getState().aliases[model.id] ?? '';
+          const aliases = options.getState().aliases;
+          aliasInput.value = Object.hasOwn(aliases, model.id) ? aliases[model.id] : '';
           aliasInput.blur();
         }
       });

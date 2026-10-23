@@ -167,3 +167,24 @@ it.each<{ change: ProviderModelSelectionChange; expected: string[] }>([
   expect(settings.visibleModels).toEqual(expected);
   await catalog.dispose();
 });
+
+it('creates an own __proto__ alias through the shared catalog writer', async () => {
+  const settings = { modelAliases: { other: 'Keep' } as Record<string, string> };
+  const catalog = new ProviderModelCatalogController({
+    providerId: 'example', providerName: 'Example',
+    read: (draft = settings) => ({ enabled: true, models: [], selectedIds: [], aliases: draft.modelAliases as Record<string, string> }),
+    discover: async () => ({ changed: false }),
+    update: (draft, patch) => { Object.assign(draft, patch); },
+    host: { mutateSettings: async mutate => { await mutate(settings as any); }, notifyProviderChatOptionsChanged: jest.fn() },
+  });
+  try {
+    await catalog.setAlias('__proto__', ' Friendly ');
+    expect(Object.hasOwn(settings.modelAliases, '__proto__')).toBe(true);
+    expect(JSON.parse(JSON.stringify(settings.modelAliases))).toEqual(JSON.parse('{"other":"Keep","__proto__":"Friendly"}'));
+    expect(Object.getPrototypeOf(settings.modelAliases)).toBe(Object.prototype);
+    await catalog.setAlias('__proto__', '');
+    expect(settings.modelAliases).toEqual({ other: 'Keep' });
+  } finally {
+    await catalog.dispose();
+  }
+});

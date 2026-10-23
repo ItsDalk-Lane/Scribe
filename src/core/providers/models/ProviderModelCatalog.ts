@@ -208,7 +208,9 @@ export class ProviderModelCatalogController implements ProviderModelCatalog {
   async setAlias(modelId: string, alias: string): Promise<void> {
     await this.options.host.mutateSettings(settings => {
       const aliases = { ...this.options.read(settings).aliases };
-      if (alias.trim()) aliases[modelId] = alias.trim();
+      if (alias.trim()) {
+        Object.defineProperty(aliases, modelId, { value: alias.trim(), enumerable: true, configurable: true, writable: true });
+      }
       else delete aliases[modelId];
       this.options.update(settings, { modelAliases: aliases });
     });
