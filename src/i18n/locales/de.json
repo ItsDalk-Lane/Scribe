@@ -353,6 +353,81 @@
       "nextMessage": "Nächste Nachricht",
       "scrollToBottom": "Nach unten scrollen",
       "emptyDirectory": "Keine Benutzer-Prompts in dieser Unterhaltung"
+    },
+    "projects": {
+      "header": "Projekte",
+      "options": "Projektoptionen",
+      "sortBy": "Projekte sortieren nach",
+      "sort": {
+        "lastActivity": "Letzte Aktivität",
+        "created": "Erstellt"
+      },
+      "noSessions": "Keine Sitzungen",
+      "newSessionIn": "Neue Sitzung in {name}",
+      "actionsFor": "Aktionen für {name}",
+      "newProjectAction": "Neues Projekt",
+      "chipLabel": "Projekt: {name}",
+      "noProject": "Kein Projekt",
+      "menu": {
+        "edit": "Projekt bearbeiten",
+        "openMemory": "Projektgedächtnis öffnen",
+        "archiveAll": "Alle Sitzungen archivieren",
+        "pin": "Projekt anheften",
+        "unpin": "Projekt lösen",
+        "delete": "Projekt löschen",
+        "moveTo": "In Projekt verschieben…",
+        "moveSelectionTo": "{count} Sitzungen in Projekt verschieben…",
+        "removeFrom": "Aus Projekt entfernen",
+        "removeSelectionFrom": "{count} Sitzungen aus Projekt entfernen",
+        "newProject": "Neues Projekt…"
+      },
+      "deleteConfirm": "Projekt „{name}“ löschen und seine Gedächtnisdatei in den Papierkorb verschieben? Die Sitzungen bleiben erhalten, ohne Projekt.",
+      "errors": {
+        "create": "Projekt konnte nicht erstellt werden",
+        "update": "Projekt konnte nicht aktualisiert werden",
+        "delete": "Projekt konnte nicht gelöscht werden",
+        "pin": "Anheften des Projekts konnte nicht geändert werden",
+        "move": "Sitzungen konnten nicht in das Projekt verschoben werden",
+        "remove": "Sitzungen konnten nicht aus dem Projekt entfernt werden",
+        "start": "Sitzung in diesem Projekt konnte nicht gestartet werden",
+        "sort": "Projektsortierung konnte nicht aktualisiert werden"
+      },
+      "editor": {
+        "titleNew": "Neues Projekt",
+        "titleEdit": "Projekt bearbeiten",
+        "name": "Name",
+        "nameDesc": "Wird in der Sitzungsverwaltung und in den Mitgliedssitzungen angezeigt.",
+        "namePlaceholder": "Projektname",
+        "instructions": "Anweisungen",
+        "instructionsDesc": "Wird ab dem nächsten Zug zum Systemprompt jeder Mitgliedssitzung hinzugefügt.",
+        "memoryPath": "Gedächtnisdatei",
+        "memoryPathDesc": "Vault-Pfad der Gedächtnisdatei des Projekts. Eine fehlende Endung .md wird ergänzt. Eine Änderung verschiebt die Datei.",
+        "memoryPathPlaceholder": "Ordner/MEMORY.md",
+        "memoryPathInvalid": "Gib einen Dateipfad innerhalb des Vaults ein, z. B. Projects/MEMORY.md.",
+        "memoryPathTaken": "{path} wird bereits von einer Datei oder einem anderen Projekt verwendet.",
+        "openMemory": "Öffnen",
+        "nameRequired": "Gib einen Projektnamen ein."
+      },
+      "memory": {
+        "title": "Projektgedächtnis: {name}",
+        "reload": "Neu laden",
+        "overwrite": "Überschreiben",
+        "recreate": "Aus Vorlage neu erstellen",
+        "edit": "Bearbeiten",
+        "preview": "Vorschau",
+        "missing": "Die Gedächtnisdatei des Projekts fehlt.",
+        "conflict": "Die Gedächtnisdatei wurde seit dem Laden geändert. Neu laden verwirft deine Änderungen, Überschreiben behält sie.",
+        "loadFailed": "Projektgedächtnis konnte nicht geladen werden",
+        "saveFailed": "Projektgedächtnis konnte nicht gespeichert werden",
+        "saved": "Projektgedächtnis gespeichert",
+        "loading": "Wird geladen…",
+        "updated": "Aktualisiert {time}",
+        "changedOutside": "Die Gedächtnisdatei wurde außerhalb dieses Fensters aktualisiert, vermutlich von einem Agenten.",
+        "keepMine": "Meine Änderungen behalten",
+        "discardConfirm": "Ungespeicherte Änderungen am Projektgedächtnis verwerfen?",
+        "discard": "Verwerfen",
+        "emptyHint": "Agenten füllen dies im Laufe des Projekts aus."
+      }
     }
   },
   "settings": {

@@ -20,7 +20,9 @@ import {
   type Conversation,
   type ConversationMeta,
   type ConversationMutablePatch,
+  type ConversationPlacement,
   type ConversationSummary,
+  type ProjectReader,
   type SessionMetadata,
 } from '../../core/types';
 import { rewriteVaultPathAfterRename } from '../../utils/path';
@@ -52,6 +54,8 @@ export interface ConversationRepositoryDeps {
   persistence: ConversationPersistence;
   providers: ConversationProviderCatalog;
   providerSettings: ConversationProviderSettings;
+  /** Live projects; membership writes accept only ids it resolves. Without it no project is live. */
+  projects?: Pick<ProjectReader, 'get'>;
 }
 
 interface ConversationDeletionState {
@@ -71,7 +75,11 @@ const IMMUTABLE_CONVERSATION_PATCH_FIELDS = [
   'providerId',
   'createdAt',
   'linkedContentPath',
+  'projectId',
 ] as const;
+
+/** Mutable fields plus repository-owned membership, which only dedicated methods write. */
+type ConversationMetadataPatch = ConversationMutablePatch & { projectId?: string };
 
 type MutableLinkedContentConversation = Omit<
   Conversation,
@@ -324,6 +332,7 @@ export class ConversationRepository {
     sessionId?: string;
     selectedModel?: string;
     linkedContentPath?: string;
+    projectId?: string;
   }): Promise<Conversation> {
     const settings = this.deps.getSettings();
     const providerId = options?.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
@@ -354,6 +363,9 @@ export class ConversationRepository {
       linkedContentPath: options?.linkedContentPath === undefined
         ? undefined
         : assertLinkedContentPath(options.linkedContentPath),
+      ...(options?.projectId !== undefined && this.#isLiveProject(options.projectId)
+        ? { projectId: options.projectId }
+        : {}),
     };
 
     this.metadataTargets.set(conversation.id, 'device');
@@ -633,14 +645,6 @@ export class ConversationRepository {
     });
   }
 
-  async setPinned(id: string, isPinned: boolean): Promise<void> {
-    await this.#mutateMetadata(id, conversation => (
-      (isPinned && conversation.isArchived) || conversation.isPinned === isPinned
-        ? null
-        : { isPinned }
-    ));
-  }
-
   /** Resolves true when the archive state changed. */
   async setArchived(id: string, isArchived: boolean): Promise<boolean> {
     let archiveChanged = false;
@@ -669,12 +673,40 @@ export class ConversationRepository {
   }
 
   /**
+   * Joins, moves, or leaves a project and pins or unpins in one write; omitted fields stay. The project is checked
+   * at the serialized write, and pinning an archived conversation is ignored.
+   */
+  async setPlacement(id: string, placement: ConversationPlacement): Promise<void> {
+    const { projectId, isPinned } = placement;
+    await this.#mutateMetadata(id, (conversation) => {
+      if (typeof projectId === 'string' && !this.#isLiveProject(projectId)) {
+        throw new Error(`Unknown project: ${projectId}`);
+      }
+      const patch: ConversationMetadataPatch = {};
+      const nextProjectId = projectId ?? undefined;
+      if (projectId !== undefined && conversation.projectId !== nextProjectId) patch.projectId = nextProjectId;
+      if (
+        isPinned !== undefined
+        && conversation.isPinned !== isPinned
+        && !(isPinned && conversation.isArchived)
+      ) {
+        patch.isPinned = isPinned;
+      }
+      return Object.keys(patch).length > 0 ? patch : null;
+    });
+  }
+
+  #isLiveProject(projectId: string): boolean {
+    return this.deps.projects?.get(projectId) != null;
+  }
+
+  /**
    * Serializes a metadata decision through persistence and committed publication.
    * `createPatch` must return a repository-owned patch; it is committed without another copy.
    */
   #mutateMetadata(
     id: string,
-    createPatch: (conversation: Conversation) => ConversationMutablePatch | null,
+    createPatch: (conversation: Conversation) => ConversationMetadataPatch | null,
   ): Promise<void> {
     const conversation = this.#getRecord(id);
     if (!conversation) return Promise.resolve();
@@ -969,6 +1001,7 @@ export class ConversationRepository {
     return record ? {
       id: record.id, providerId: record.providerId, title: record.title,
       selectedModel: record.selectedModel, isPinned: record.isPinned,
+      ...(record.projectId ? { projectId: record.projectId } : {}),
       capabilities: { ...this.deps.providers.getCapabilities(record.providerId, record.providerState) },
       ...(record.usage ? { usage: { model: record.usage.model } } : {}),
     } : null;
@@ -1015,6 +1048,7 @@ export class ConversationRepository {
       messageCount: conversation.messages.length,
       preview: this.#getPreview(conversation),
       linkedContentPath: conversation.linkedContentPath,
+      projectId: conversation.projectId,
       isPinned: conversation.isPinned,
       isArchived: conversation.isArchived,
       titleGenerationStatus: conversation.titleGenerationStatus,
@@ -1319,6 +1353,7 @@ export class ConversationRepository {
           : undefined,
       ...(modelRecoverySource ? { modelRecoverySource } : {}),
       linkedContentPath,
+      projectId: conversation.projectId,
       isPinned: conversation.isPinned,
       isArchived: conversation.isArchived,
       usage: conversation.usage,

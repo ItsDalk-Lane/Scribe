@@ -1,16 +1,20 @@
 import { Menu, Notice, setIcon, TFile } from 'obsidian';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
-import type { ConversationMeta } from '@/core/types';
+import type { ConversationMeta, SessionManagerOrganization, SessionManagerSort } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { getObsidianLanguage } from '@/features/chat/session-manager/ProvisionalNoteNames';
+import { SessionGroupCollapse } from '@/features/chat/session-manager/SessionGroupCollapse';
 import { renderSessionGroupToggleIcon } from '@/features/chat/session-manager/SessionManagerIcons';
 import {
   archiveScopeOptions,
   beginInlineRenameNextFrame,
+  createSessionHeaderAction,
+  createSessionHeaderMenuAction,
   type SessionSurfaceNavigation,
   type SessionSurfaceShared,
   setControlAvailability,
+  showMenuAt,
 } from '@/features/chat/session-manager/SessionSurfaceShared';
 
 type SessionSearchScrollState = {
@@ -32,8 +36,9 @@ export interface SessionSidebarDeps {
 
 /**
  * The wide layout's persistent session column: New/Search/Archive navigation,
- * IME-aware search with outside dismissal, organization, sorting and group
- * collapse, pinned Linked content, inline pins, and the metadata popover.
+ * IME-aware search with outside dismissal, the projects section with its sorting
+ * and expansion, session organization, sorting, section and group collapse, pinned
+ * Linked content, inline pins, session drag and drop, and the metadata popover.
  */
 export class SessionSidebar {
   private sidebarEl: HTMLElement | null = null;
@@ -51,8 +56,9 @@ export class SessionSidebar {
   private searchQuery = '';
   private searchRestoreState: SessionSearchScrollState | null = null;
   private searchDismissCleanup: (() => void) | null = null;
-  private searchCollapsedGroupKeys = new Set<string>();
-  private readonly collapsedGroupKeys = new Set<string>();
+  /** Search starts every group and section expanded, matching projects included. */
+  private searchCollapse = new SessionGroupCollapse({ projectsStartExpanded: true });
+  private readonly collapse = new SessionGroupCollapse();
   private groupKeys = new Set<string>();
 
   constructor(private readonly deps: SessionSidebarDeps) {}
@@ -122,7 +128,7 @@ export class SessionSidebar {
     this.searchFieldEl = null;
     this.searchInputEl = null;
     this.searchRestoreState = null;
-    this.searchCollapsedGroupKeys = new Set<string>();
+    this.searchCollapse = new SessionGroupCollapse({ projectsStartExpanded: true });
   }
 
   refreshNewAvailability(): void {
@@ -147,6 +153,8 @@ export class SessionSidebar {
       showOpenStateLabels: false,
       showOpenStateActions: false,
       preserveListState: true,
+      // The sidebar stylesheet scrolls Pinned, Projects, and Sessions separately.
+      scrollLayout: 'sections',
       showInlinePinAction: true,
       onRequestInlineRename: (request) => {
         if (this.isSearchActive) {
@@ -170,14 +178,9 @@ export class SessionSidebar {
       showPinnedSection: !isArchiveView,
       pinnedLinkedContentPaths: new Set(plugin.settings.pinnedLinkedContentPaths ?? []),
       showArchivedSection: isArchiveView,
-      collapsedGroupKeys: this.getDisplayedCollapsedGroupKeys(),
+      isGroupCollapsed: (groupKey: string) => this.getDisplayedCollapse().isCollapsed(groupKey),
       onGroupCollapseChange: (groupKey: string, collapsed: boolean) => {
-        const collapsedGroupKeys = this.getDisplayedCollapsedGroupKeys();
-        if (collapsed) {
-          collapsedGroupKeys.add(groupKey);
-        } else {
-          collapsedGroupKeys.delete(groupKey);
-        }
+        this.getDisplayedCollapse().setCollapsed(groupKey, collapsed);
         this.updateGroupToggleButton();
       },
       onGroupKeysChange: (groupKeys: readonly string[]) => {
@@ -189,6 +192,10 @@ export class SessionSidebar {
       onStartLinkedContentConversation: (contentPath: string) => {
         shared.setArchiveView(false);
         return navigation.startLinkedContentConversation(contentPath);
+      },
+      onStartProjectConversation: (projectId: string) => {
+        shared.setArchiveView(false);
+        return navigation.startProjectConversation(projectId);
       },
       getProviderIcon: (conversation: ConversationMeta) => {
         try {
@@ -269,21 +276,21 @@ export class SessionSidebar {
 
     this.groupToggleButtonEl = null;
     const actions = header.createDiv({ cls: 'claudian-session-header-actions' });
+    createSessionHeaderMenuAction(
+      actions,
+      'ellipsis',
+      'Session options',
+      (anchor, event) => this.showOptionsMenu(anchor, event),
+    );
     if (this.getOrganization() === 'linked-content' && this.groupKeys.size > 0) {
       const allCollapsed = this.areAllGroupsCollapsed();
-      this.groupToggleButtonEl = this.createHeaderAction(
+      this.groupToggleButtonEl = createSessionHeaderAction(
         actions,
         icon => renderSessionGroupToggleIcon(icon, allCollapsed ? 'expand' : 'collapse'),
         allCollapsed ? 'Expand all groups' : 'Collapse all groups',
         () => this.toggleAllGroups(),
       );
     }
-    const optionsButton = this.createHeaderAction(
-      actions,
-      'ellipsis',
-      'Session options',
-      (event) => this.showOptionsMenu(optionsButton, event),
-    );
 
     this.refreshNewAvailability();
   }
@@ -352,7 +359,7 @@ export class SessionSidebar {
     this.isSearchActive = true;
     this.isSearchComposing = false;
     this.searchQuery = '';
-    this.searchCollapsedGroupKeys = new Set<string>();
+    this.searchCollapse = new SessionGroupCollapse({ projectsStartExpanded: true });
     this.dirty = true;
     this.render();
     this.focusSearchInput();
@@ -379,7 +386,7 @@ export class SessionSidebar {
     this.searchQuery = '';
     this.searchFieldEl = null;
     this.searchInputEl = null;
-    this.searchCollapsedGroupKeys = new Set<string>();
+    this.searchCollapse = new SessionGroupCollapse({ projectsStartExpanded: true });
     this.dirty = true;
     this.render();
     this.restoreSearchScrollState();
@@ -504,52 +511,25 @@ export class SessionSidebar {
     return target instanceof TFile && target.extension.toLocaleLowerCase() === 'md';
   }
 
-  private createHeaderAction(
-    parent: HTMLElement,
-    icon: string | ((container: HTMLElement) => void),
-    label: string,
-    action: (event?: MouseEvent) => void,
-  ): HTMLElement {
-    const control = parent.createDiv({ cls: 'claudian-session-header-btn' });
-    control.setAttribute('role', 'button');
-    control.setAttribute('tabindex', '0');
-    control.setAttribute('aria-label', label);
-
-    const iconEl = control.createDiv({ cls: 'claudian-session-header-icon' });
-    if (typeof icon === 'string') {
-      setIcon(iconEl, icon);
-    } else {
-      icon(iconEl);
-    }
-
-    control.addEventListener('click', (event) => action(event));
-    control.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      action();
-    });
-    return control;
-  }
-
-  private getOrganization(): 'list' | 'linked-content' {
+  private getOrganization(): SessionManagerOrganization {
     return this.deps.plugin.settings.sessionManagerOrganization === 'linked-content'
       ? 'linked-content'
       : 'list';
   }
 
-  private getSort(): 'last-updated' | 'created' {
+  private getSort(): SessionManagerSort {
     const sort = this.deps.plugin.settings.sessionManagerSort;
     return sort === 'created' ? sort : 'last-updated';
   }
 
-  private getDisplayedCollapsedGroupKeys(): Set<string> {
-    return this.isSearchFiltering() ? this.searchCollapsedGroupKeys : this.collapsedGroupKeys;
+  private getDisplayedCollapse(): SessionGroupCollapse {
+    return this.isSearchFiltering() ? this.searchCollapse : this.collapse;
   }
 
   private areAllGroupsCollapsed(): boolean {
-    const collapsedGroupKeys = this.getDisplayedCollapsedGroupKeys();
+    const collapse = this.getDisplayedCollapse();
     return this.groupKeys.size > 0
-      && [...this.groupKeys].every(groupKey => collapsedGroupKeys.has(groupKey));
+      && [...this.groupKeys].every(groupKey => collapse.isCollapsed(groupKey));
   }
 
   private updateGroupToggleButton(): void {
@@ -567,19 +547,15 @@ export class SessionSidebar {
   private toggleAllGroups(): void {
     if (this.groupKeys.size === 0) return;
 
-    const collapsedGroupKeys = this.getDisplayedCollapsedGroupKeys();
+    const collapse = this.getDisplayedCollapse();
     const shouldExpand = this.areAllGroupsCollapsed();
     for (const groupKey of this.groupKeys) {
-      if (shouldExpand) {
-        collapsedGroupKeys.delete(groupKey);
-      } else {
-        collapsedGroupKeys.add(groupKey);
-      }
+      collapse.setCollapsed(groupKey, !shouldExpand);
     }
     this.refreshPresentation();
   }
 
-  private showOptionsMenu(anchor: HTMLElement, event?: MouseEvent): void {
+  private showOptionsMenu(anchor: HTMLElement, event?: MouseEvent): Menu {
     const menu = new Menu().setUseNativeMenu(false);
     const organization = this.getOrganization();
     const sort = this.getSort();
@@ -608,22 +584,18 @@ export class SessionSidebar {
       .setChecked(sort === 'created')
       .onClick(() => this.setSort('created')));
 
-    if (event) {
-      menu.showAtMouseEvent(event);
-      return;
-    }
-    const rect = anchor.getBoundingClientRect();
-    menu.showAtPosition({ x: rect.left, y: rect.bottom }, anchor.ownerDocument);
+    showMenuAt(menu, anchor, event);
+    return menu;
   }
 
-  private setOrganization(organization: 'list' | 'linked-content'): void {
+  private setOrganization(organization: SessionManagerOrganization): void {
     void this.deps.plugin.mutateSettings((settings) => {
       settings.sessionManagerOrganization = organization;
     })
       .catch(() => new Notice('Failed to update session organization'));
   }
 
-  private setSort(sort: 'last-updated' | 'created'): void {
+  private setSort(sort: SessionManagerSort): void {
     void this.deps.plugin.mutateSettings((settings) => {
       settings.sessionManagerSort = sort;
     })

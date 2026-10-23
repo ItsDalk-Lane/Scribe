@@ -353,6 +353,81 @@
       "nextMessage": "下一則訊息",
       "scrollToBottom": "捲動至底端",
       "emptyDirectory": "此對話中尚無使用者提示詞"
+    },
+    "projects": {
+      "header": "專案",
+      "options": "專案選項",
+      "sortBy": "專案排序方式",
+      "sort": {
+        "lastActivity": "最近活動",
+        "created": "建立時間"
+      },
+      "noSessions": "沒有工作階段",
+      "newSessionIn": "在 {name} 中新增工作階段",
+      "actionsFor": "{name} 的操作",
+      "newProjectAction": "新增專案",
+      "chipLabel": "專案：{name}",
+      "noProject": "無專案",
+      "menu": {
+        "edit": "編輯專案",
+        "openMemory": "開啟專案記憶",
+        "archiveAll": "封存所有工作階段",
+        "pin": "釘選專案",
+        "unpin": "取消釘選專案",
+        "delete": "刪除專案",
+        "moveTo": "移動到專案…",
+        "moveSelectionTo": "將 {count} 個工作階段移動到專案…",
+        "removeFrom": "從專案中移除",
+        "removeSelectionFrom": "從專案中移除 {count} 個工作階段",
+        "newProject": "新增專案…"
+      },
+      "deleteConfirm": "刪除專案「{name}」並將其記憶檔案移到垃圾桶？工作階段會保留，但不再屬於任何專案。",
+      "errors": {
+        "create": "建立專案失敗",
+        "update": "更新專案失敗",
+        "delete": "刪除專案失敗",
+        "pin": "更新專案釘選狀態失敗",
+        "move": "將工作階段移動到專案失敗",
+        "remove": "從專案中移除工作階段失敗",
+        "start": "在此專案中新增工作階段失敗",
+        "sort": "無法更新專案排序"
+      },
+      "editor": {
+        "titleNew": "新增專案",
+        "titleEdit": "編輯專案",
+        "name": "名稱",
+        "nameDesc": "顯示在工作階段管理器和成員工作階段中。",
+        "namePlaceholder": "專案名稱",
+        "instructions": "指示",
+        "instructionsDesc": "從下一輪起加入每個成員工作階段的系統提示詞。",
+        "memoryPath": "記憶檔案",
+        "memoryPathDesc": "專案記憶檔案在儲存庫中的路徑。缺少 .md 副檔名時會自動加上。變更後會移動該檔案。",
+        "memoryPathPlaceholder": "資料夾/MEMORY.md",
+        "memoryPathInvalid": "請輸入儲存庫內的檔案路徑，例如 Projects/MEMORY.md。",
+        "memoryPathTaken": "{path} 已被某個檔案或其他專案使用。",
+        "openMemory": "開啟",
+        "nameRequired": "請輸入專案名稱。"
+      },
+      "memory": {
+        "title": "專案記憶：{name}",
+        "reload": "重新載入",
+        "overwrite": "覆寫",
+        "recreate": "從範本重新建立",
+        "edit": "編輯",
+        "preview": "預覽",
+        "missing": "專案記憶檔案不存在。",
+        "conflict": "記憶檔案在載入後已被修改。重新載入會捨棄你的編輯，覆寫則保留你的編輯。",
+        "loadFailed": "載入專案記憶失敗",
+        "saveFailed": "儲存專案記憶失敗",
+        "saved": "專案記憶已儲存",
+        "loading": "載入中…",
+        "updated": "{time}更新",
+        "changedOutside": "記憶檔案已在此視窗之外被更新，可能是代理所為。",
+        "keepMine": "保留我的編輯",
+        "discardConfirm": "放棄對專案記憶的未儲存變更？",
+        "discard": "放棄",
+        "emptyHint": "代理會隨著專案推進填寫這裡。"
+      }
     }
   },
   "settings": {

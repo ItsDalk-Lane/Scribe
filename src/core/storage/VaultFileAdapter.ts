@@ -416,8 +416,9 @@ export class VaultFileAdapter {
 
   async writeManagedFile(filePath: string, content: string): Promise<void> {
     const normalized = normalizeManagedPath(filePath);
-    const parent = normalized.slice(0, normalized.lastIndexOf('/'));
-    await this.verifyManagedPath(parent, { expectedType: 'folder' });
+    const separator = normalized.lastIndexOf('/');
+    // The vault root itself needs no verification.
+    if (separator !== -1) await this.verifyManagedPath(normalized.slice(0, separator), { expectedType: 'folder' });
     await this.verifyManagedPath(normalized, { expectedType: 'file', allowMissing: true });
     try {
       const desktopAdapter = this.#getDesktopAdapter();
@@ -521,6 +522,35 @@ export class VaultFileAdapter {
       throw new ManagedResourcePathError(`Could not remove managed folder: ${folderPath}`, {
         cause: error,
       });
+    }
+  }
+
+  /**
+   * Moves a file into an existing folder, never replacing a resource at the target. Throws
+   * `ManagedResourceCollisionError` with both paths untouched when the target is taken.
+   */
+  async moveManagedFileNoReplace(sourcePath: string, targetPath: string): Promise<void> {
+    const source = normalizeManagedPath(sourcePath);
+    const target = normalizeManagedPath(targetPath);
+    await this.verifyManagedPath(source, { expectedType: 'file' });
+    const separator = target.lastIndexOf('/');
+    // The vault root itself needs no verification.
+    if (separator !== -1) await this.verifyManagedPath(target.slice(0, separator), { expectedType: 'folder' });
+    if (await this.#verifyManagedCollisionTarget(target)) {
+      throw new ManagedResourceCollisionError(target);
+    }
+    if (this.#getDesktopAdapter()) {
+      // A hard link claims the target exclusively, so a racing writer is never replaced.
+      await this.moveManagedEntryNoReplace(source, target);
+      return;
+    }
+    try {
+      await this.adapter.rename(source, target);
+    } catch (error) {
+      if (await this.#verifyManagedCollisionTarget(target)) {
+        throw new ManagedResourceCollisionError(target, { cause: error });
+      }
+      throw new ManagedResourcePathError(`Could not move managed resource: ${source}`, { cause: error });
     }
   }
 

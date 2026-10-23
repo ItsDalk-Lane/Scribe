@@ -201,6 +201,8 @@ export interface Conversation {
   modelRecoverySource?: ConversationModelRecoverySource;
   messages: ChatMessage[];
   readonly linkedContentPath?: string;
+  /** Raw project membership; resolve it through `ProjectReader.get` before use. */
+  readonly projectId?: string;
   /** Whether the session is pinned in the dual-pane session manager. */
   isPinned?: boolean;
   /** Whether the session is archived and hidden from active session lists. */
@@ -214,15 +216,24 @@ export interface Conversation {
 }
 
 /** Detached metadata for controls that do not need transcript or native session state. */
-export type ConversationSummary = Readonly<Pick<Conversation, 'id' | 'providerId' | 'title' | 'selectedModel' | 'isPinned'> & {
+export type ConversationSummary = Readonly<Pick<Conversation, 'id' | 'providerId' | 'title' | 'selectedModel' | 'isPinned' | 'projectId'> & {
   capabilities?: Readonly<ProviderCapabilities>;
   usage?: Readonly<Pick<UsageInfo, 'model'>>;
 }>;
 
 export type ConversationMutablePatch = Partial<Omit<
   Conversation,
-  'id' | 'providerId' | 'createdAt' | 'linkedContentPath'
+  'id' | 'providerId' | 'createdAt' | 'linkedContentPath' | 'projectId'
 >>;
+
+/**
+ * Where a conversation sits in the session list. `projectId: null` leaves any project; a string joins that live
+ * project (an unknown id throws at the write). Omitted fields stay unchanged.
+ */
+export interface ConversationPlacement {
+  readonly projectId?: string | null;
+  readonly isPinned?: boolean;
+}
 
 /** Native session locator that must never make an invalidated session resumable. */
 export interface ConversationModelRecoverySource {
@@ -245,6 +256,8 @@ export interface ConversationMeta {
   preview: string;
   /** Vault-relative path of the file or directory linked to this session. */
   linkedContentPath?: string;
+  /** Raw project membership; resolve it through `ProjectReader.get` before use. */
+  projectId?: string;
   /** Whether the session is pinned in the dual-pane session manager. */
   isPinned?: boolean;
   /** Whether the session is archived and hidden from active session lists. */
@@ -277,6 +290,7 @@ export interface SessionMetadata {
   /** Read-only native locator retained solely for historical model recovery. */
   modelRecoverySource?: ConversationModelRecoverySource;
   linkedContentPath?: string;
+  projectId?: string;
   isPinned?: boolean;
   isArchived?: boolean;
   usage?: UsageInfo;

@@ -22,6 +22,7 @@ import type { SessionInteractions } from '@/features/chat/interactions/SessionIn
 import type { LinkedContentController } from '@/features/chat/linked-content';
 import type { NavigationController } from '@/features/chat/navigation/NavigationController';
 import type { NavigationSidebar } from '@/features/chat/navigation/NavigationSidebar';
+import type { ProjectChip } from '@/features/chat/projects/ProjectChip';
 import type { MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
 import type { SideChatController } from '@/features/chat/side-chat/SideChatController';
 import type { ChatState } from '@/features/chat/state/ChatState';
@@ -112,6 +113,8 @@ export interface TabUIComponents {
   /** Toolbar menus; Escape closes an open one before it can cancel a turn. */
   readonly toolbarMenus: ToolbarMenus;
   readonly navigationSidebar: NavigationSidebar;
+  /** The conversation's project in the composer info row. */
+  readonly projectChip: ProjectChip;
 }
 
 /**
@@ -188,8 +191,8 @@ export interface TabLayoutPolicy {
   forkTarget(): 'ask' | 'viewer';
   /** Opens a session picked from `sourceTab`'s command; false leaves the pick to the source tab. */
   openPicked(conversationId: string, sourceTab: AssembledTabRuntime): Promise<boolean>;
-  /** Starts a new conversation requested from `sourceTab`; false clears the source tab in place. */
-  startNew(sourceTab: AssembledTabRuntime): Promise<boolean>;
+  /** Starts a new conversation requested from `sourceTab` with `seed`; false clears the source tab in place. */
+  startNew(sourceTab: AssembledTabRuntime, seed: DraftSeed): Promise<boolean>;
   /** Whether a viewer slot shows previews; a restored draft preview stays provisional only then. */
   showsPreviews(): boolean;
 }
@@ -236,4 +239,13 @@ export interface TabManagerCallbacks {
 
   /** Called when the active provider changes within a tab (blank tab model selection). */
   onTabProviderChanged?: (tabId: TabId, providerId: ProviderId | null) => void;
+}
+
+/**
+ * What a new blank draft starts with; its session's model owns both until first input freezes them. Tab assembly
+ * applies it before publishing the draft, so no first input can be admitted without it.
+ */
+export interface DraftSeed {
+  linkedContentPath?: string;
+  projectId?: string;
 }

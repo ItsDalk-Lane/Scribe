@@ -13,6 +13,7 @@
  * This module must not import any mocked module (or TabManager) at load time, because
  * those mock factories load it while the suite's imports are still being evaluated.
  */
+import { createProjectsFake, projectRecord } from '@test/helpers/features/chat/ProjectsFake';
 import { createMockEl } from '@test/helpers/MockElement';
 
 import { ComposerDraftController } from '@/features/chat/composer/ComposerDraftController';
@@ -72,6 +73,7 @@ function createMockLinkedContent() {
 
 const mockDraftSessions = new Map<string, ChatSessionRuntime>();
 const mockLinkedContent = new WeakMap<ChatSessionRuntime, ReturnType<typeof createMockLinkedContent>>();
+const mockDraftProjects = new WeakMap<ChatSessionRuntime, string | null>();
 
 export function createMockTab(options: Record<string, any>): any {
   const review = new ChatState();
@@ -118,6 +120,9 @@ export function createMockTab(options: Record<string, any>): any {
         initializeWelcome: jest.fn(),
         save: jest.fn().mockResolvedValue(undefined),
         cancelBranchDraft: jest.fn(),
+        // The project seed belongs to the session's model, so a reattached session keeps it.
+        seedDraftProject: jest.fn((projectId: string | null) => { mockDraftProjects.set(tab.session.runtime, projectId); }),
+        get project() { return { projectId: mockDraftProjects.get(tab.session.runtime) ?? undefined, changeable: true }; },
       },
       inputController: {
       },
@@ -143,6 +148,10 @@ export function createMockTab(options: Record<string, any>): any {
       acknowledgeReviewIfVisible: () => tab.state.acknowledgeReview(),
       publish: () => tab.session.runtime.notifyChanged(),
       dismissInteractions: () => undefined,
+      // The same seed the tab's controller reports; a held draft reattached elsewhere keeps it.
+      conversationController: {
+        get project() { return { projectId: mockDraftProjects.get(tab.session.runtime) ?? undefined, changeable: true }; },
+      },
     }) as never);
   mockDraftSessions.set(session.sessionKey, session);
   tab.session = new TabSession(tab, session);
@@ -221,6 +230,8 @@ export function providerRegistryModuleMock() {
 
 export function createPlugin(overrides: Record<string, unknown> = {}) {
   return {
+    // Live projects New may inherit; any other seeded id resolves to no project.
+    projects: createProjectsFake([projectRecord({ id: 'project-1' }), projectRecord({ id: 'project-2' })]),
     sessionRuntimes: {
       getAttachment: () => null,
       get: () => null,

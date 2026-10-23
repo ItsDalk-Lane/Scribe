@@ -1,3 +1,4 @@
+import { createProjectsFake } from '@test/helpers/features/chat/ProjectsFake';
 import { createMockEl } from '@test/helpers/MockElement';
 import { testDate } from '@test/helpers/testClock';
 import { Menu, setIcon } from 'obsidian';
@@ -10,6 +11,9 @@ import { SessionBrowser } from '@/features/chat/session-manager/SessionBrowser';
 import { SessionManagerSurface } from '@/features/chat/session-manager/SessionManagerSurface';
 import type { SessionSurfaceNavigation } from '@/features/chat/session-manager/SessionSurfaceShared';
 import { ChatViewPublisher } from '@/features/chat/workspace/ChatViewPublisher';
+
+/** A document click whose dispatch path never entered the history control. */
+const outsideClick = () => ({ composedPath: () => [] }) as unknown as Event;
 
 type MockMenuItem = { title: string; checked: boolean | null; clickHandler: (() => void) | null };
 type MockMenu = { items: MockMenuItem[] };
@@ -49,6 +53,7 @@ function createHarness(options: HarnessOptions = {}) {
     app: { vault: { getAbstractFileByPath: jest.fn(() => null) } },
     settings,
     getConversationList: () => conversations,
+    projects: createProjectsFake(),
     conversationLifecycle: options.conversationLifecycle ?? {
       archive: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn().mockResolvedValue(undefined),
@@ -71,6 +76,7 @@ function createHarness(options: HarnessOptions = {}) {
     openConversation: jest.fn().mockResolvedValue(undefined),
     openSessionConversation: jest.fn().mockResolvedValue(undefined),
     startLinkedContentConversation: jest.fn().mockResolvedValue(undefined),
+    startProjectConversation: jest.fn().mockResolvedValue(undefined),
   } satisfies SessionSurfaceNavigation;
   const state = {
     wide: options.wide ?? true,
@@ -146,7 +152,8 @@ function typeSearch(container: any, value: string): void {
 }
 
 function headerActions(container: any): any {
-  return container.querySelector('.claudian-session-header-actions');
+  return container.querySelector('.claudian-session-list-header')
+    ?.querySelector('.claudian-session-header-actions');
 }
 
 afterEach(() => {
@@ -370,7 +377,7 @@ describe('SessionManagerSurface session header', () => {
     });
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
-    const toggleButton = () => headerActions(container).children[0];
+    const toggleButton = () => headerActions(container).children[1];
     const groupHeader = (kind: string) => container.querySelectorAll('.claudian-session-group-header')
       .find((header: any) => header.getAttribute('data-group-kind') === kind);
     const collapsedBodies = () => container.querySelectorAll('.claudian-session-group-body')
@@ -417,13 +424,13 @@ describe('SessionManagerSurface session header', () => {
     const container = h.sessionSurfaceEl;
     container.querySelector('.claudian-session-search-control').click();
     searchInput(container).dispatchEvent('compositionstart');
-    const toggleButton = headerActions(container).children[0];
+    const toggleButton = headerActions(container).children[1];
 
     for (const header of container.querySelectorAll('.claudian-session-group-header')) {
       header.click();
     }
 
-    expect(headerActions(container).children[0]).toBe(toggleButton);
+    expect(headerActions(container).children[1]).toBe(toggleButton);
     expect(toggleButton.getAttribute('aria-label')).toBe('Expand all groups');
     expect(toggleButton.querySelector('.claudian-session-header-icon').dataset.iconState)
       .toBe('expand');
@@ -573,7 +580,7 @@ describe('SessionManagerSurface session column rendering', () => {
       container,
       expect.objectContaining({
         getConversationStatus: expect.any(Function),
-        collapsedGroupKeys: expect.any(Set),
+        isGroupCollapsed: expect.any(Function),
         onGroupCollapseChange: expect.any(Function),
 
         onSetLinkedContentPinned: expect.any(Function),
@@ -617,7 +624,7 @@ describe('SessionManagerSurface session column rendering', () => {
     expect(sessionOptions.getModelLabel(historicalProviderConversation))
       .toBe('removed-provider/opaque-model');
     sessionOptions.onGroupCollapseChange('content:Projects/Plan.md', true);
-    expect(sessionOptions.collapsedGroupKeys.has('content:Projects/Plan.md')).toBe(true);
+    expect(sessionOptions.isGroupCollapsed('content:Projects/Plan.md')).toBe(true);
 
     sessionOptions.onRerender();
     expect(render).toHaveBeenCalledTimes(2);
@@ -652,7 +659,7 @@ describe('SessionManagerSurface session column rendering', () => {
         sessionScope: 'archived',
         sessionActionMode: 'archived',
         allowConversationSelection: false,
-        collapsedGroupKeys: expect.any(Set),
+        isGroupCollapsed: expect.any(Function),
       }),
     );
     expect(renderedIds(container)).toEqual(['old-roadmap']);
@@ -770,7 +777,7 @@ describe('SessionManagerSurface history dropdown', () => {
     expect(item.querySelector('.claudian-pin-btn')).toBeNull();
 
     // An outside click hides the menu without abandoning the rendered list.
-    h.surface.dismissDropdown();
+    h.surface.dismissDropdownFor(outsideClick());
     expect(h.historyMenu.hasClass('visible')).toBe(false);
     const beginRename = jest.fn();
     options.onRequestInlineRename({ beginRename, conversationId: 'conversation-1' });
@@ -868,7 +875,7 @@ describe('SessionManagerSurface history dropdown', () => {
     expect(signalOf(2).aborted).toBe(false);
 
     // Dismissing keeps the current render, so reopening does not rebuild the list.
-    h.surface.dismissDropdown();
+    h.surface.dismissDropdownFor(outsideClick());
     h.historyButton.click();
     expect(h.historyMenu.hasClass('visible')).toBe(true);
     expect(render).toHaveBeenCalledTimes(3);

@@ -353,6 +353,81 @@
       "nextMessage": "Próxima mensagem",
       "scrollToBottom": "Rolar até o fim",
       "emptyDirectory": "Não há prompts do usuário nesta conversa"
+    },
+    "projects": {
+      "header": "Projetos",
+      "options": "Opções de projetos",
+      "sortBy": "Ordenar projetos por",
+      "sort": {
+        "lastActivity": "Última atividade",
+        "created": "Criação"
+      },
+      "noSessions": "Nenhuma sessão",
+      "newSessionIn": "Nova sessão em {name}",
+      "actionsFor": "Ações de {name}",
+      "newProjectAction": "Novo projeto",
+      "chipLabel": "Projeto: {name}",
+      "noProject": "Sem projeto",
+      "menu": {
+        "edit": "Editar projeto",
+        "openMemory": "Abrir memória do projeto",
+        "archiveAll": "Arquivar todas as sessões",
+        "pin": "Fixar projeto",
+        "unpin": "Desafixar projeto",
+        "delete": "Excluir projeto",
+        "moveTo": "Mover para um projeto…",
+        "moveSelectionTo": "Mover {count} sessões para um projeto…",
+        "removeFrom": "Remover do projeto",
+        "removeSelectionFrom": "Remover {count} sessões do projeto",
+        "newProject": "Novo projeto…"
+      },
+      "deleteConfirm": "Excluir o projeto “{name}” e mover o arquivo de memória para a lixeira? As sessões permanecem, fora de qualquer projeto.",
+      "errors": {
+        "create": "Falha ao criar o projeto",
+        "update": "Falha ao atualizar o projeto",
+        "delete": "Falha ao excluir o projeto",
+        "pin": "Falha ao alterar a fixação do projeto",
+        "move": "Falha ao mover as sessões para o projeto",
+        "remove": "Falha ao remover as sessões do projeto",
+        "start": "Falha ao iniciar uma sessão neste projeto",
+        "sort": "Falha ao atualizar a ordenação dos projetos"
+      },
+      "editor": {
+        "titleNew": "Novo projeto",
+        "titleEdit": "Editar projeto",
+        "name": "Nome",
+        "nameDesc": "Exibido no gerenciador de sessões e nas sessões membros.",
+        "namePlaceholder": "Nome do projeto",
+        "instructions": "Instruções",
+        "instructionsDesc": "Adicionadas ao prompt do sistema de cada sessão membro a partir do próximo turno.",
+        "memoryPath": "Arquivo de memória",
+        "memoryPathDesc": "Caminho no cofre do arquivo de memória do projeto. A extensão .md é adicionada se faltar. Alterá-lo move o arquivo.",
+        "memoryPathPlaceholder": "Pasta/MEMORY.md",
+        "memoryPathInvalid": "Digite um caminho de arquivo dentro do cofre, como Projects/MEMORY.md.",
+        "memoryPathTaken": "{path} já está em uso por um arquivo ou outro projeto.",
+        "openMemory": "Abrir",
+        "nameRequired": "Digite um nome para o projeto."
+      },
+      "memory": {
+        "title": "Memória do projeto: {name}",
+        "reload": "Recarregar",
+        "overwrite": "Sobrescrever",
+        "recreate": "Recriar a partir do modelo",
+        "edit": "Editar",
+        "preview": "Pré-visualizar",
+        "missing": "O arquivo de memória do projeto não existe.",
+        "conflict": "O arquivo de memória mudou desde que foi carregado. Recarregue para descartar suas edições ou sobrescreva para mantê-las.",
+        "loadFailed": "Falha ao carregar a memória do projeto",
+        "saveFailed": "Falha ao salvar a memória do projeto",
+        "saved": "Memória do projeto salva",
+        "loading": "Carregando…",
+        "updated": "Atualizado {time}",
+        "changedOutside": "O arquivo de memória foi atualizado fora desta janela, provavelmente por um agente.",
+        "keepMine": "Manter minhas edições",
+        "discardConfirm": "Descartar as alterações não salvas na memória do projeto?",
+        "discard": "Descartar",
+        "emptyHint": "Os agentes preenchem isto conforme o projeto avança."
+      }
     }
   },
   "settings": {

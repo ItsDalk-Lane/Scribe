@@ -353,6 +353,81 @@
       "nextMessage": "次のメッセージ",
       "scrollToBottom": "最下部へスクロール",
       "emptyDirectory": "この会話にはユーザープロンプトがありません"
+    },
+    "projects": {
+      "header": "プロジェクト",
+      "options": "プロジェクトのオプション",
+      "sortBy": "プロジェクトの並べ替え",
+      "sort": {
+        "lastActivity": "最終アクティビティ",
+        "created": "作成日"
+      },
+      "noSessions": "セッションはありません",
+      "newSessionIn": "{name} で新しいセッション",
+      "actionsFor": "{name} の操作",
+      "newProjectAction": "新規プロジェクト",
+      "chipLabel": "プロジェクト: {name}",
+      "noProject": "プロジェクトなし",
+      "menu": {
+        "edit": "プロジェクトを編集",
+        "openMemory": "プロジェクトメモリを開く",
+        "archiveAll": "すべてのセッションをアーカイブ",
+        "pin": "プロジェクトをピン留め",
+        "unpin": "プロジェクトのピン留めを解除",
+        "delete": "プロジェクトを削除",
+        "moveTo": "プロジェクトへ移動…",
+        "moveSelectionTo": "{count} 件のセッションをプロジェクトへ移動…",
+        "removeFrom": "プロジェクトから外す",
+        "removeSelectionFrom": "{count} 件のセッションをプロジェクトから外す",
+        "newProject": "新規プロジェクト…"
+      },
+      "deleteConfirm": "プロジェクト「{name}」を削除し、メモリファイルをゴミ箱に移動しますか？セッションはプロジェクトなしで残ります。",
+      "errors": {
+        "create": "プロジェクトの作成に失敗しました",
+        "update": "プロジェクトの更新に失敗しました",
+        "delete": "プロジェクトの削除に失敗しました",
+        "pin": "プロジェクトのピン留めの更新に失敗しました",
+        "move": "セッションをプロジェクトへ移動できませんでした",
+        "remove": "セッションをプロジェクトから外せませんでした",
+        "start": "このプロジェクトでセッションを開始できませんでした",
+        "sort": "プロジェクトの並べ替えを更新できませんでした"
+      },
+      "editor": {
+        "titleNew": "新規プロジェクト",
+        "titleEdit": "プロジェクトを編集",
+        "name": "名前",
+        "nameDesc": "セッションマネージャーとメンバーのセッションに表示されます。",
+        "namePlaceholder": "プロジェクト名",
+        "instructions": "指示",
+        "instructionsDesc": "次のターンから、各メンバーセッションのシステムプロンプトに追加されます。",
+        "memoryPath": "メモリファイル",
+        "memoryPathDesc": "プロジェクトメモリファイルの保管庫内のパス。拡張子 .md がなければ追加されます。変更するとファイルを移動します。",
+        "memoryPathPlaceholder": "フォルダー/MEMORY.md",
+        "memoryPathInvalid": "保管庫内のファイルパスを入力してください（例: Projects/MEMORY.md）。",
+        "memoryPathTaken": "{path} は既にファイルまたは別のプロジェクトで使われています。",
+        "openMemory": "開く",
+        "nameRequired": "プロジェクト名を入力してください。"
+      },
+      "memory": {
+        "title": "プロジェクトメモリ: {name}",
+        "reload": "再読み込み",
+        "overwrite": "上書き",
+        "recreate": "テンプレートから再作成",
+        "edit": "編集",
+        "preview": "プレビュー",
+        "missing": "プロジェクトメモリのファイルが見つかりません。",
+        "conflict": "読み込み後にメモリファイルが変更されました。再読み込みすると編集内容は破棄され、上書きすると編集内容が保存されます。",
+        "loadFailed": "プロジェクトメモリの読み込みに失敗しました",
+        "saveFailed": "プロジェクトメモリの保存に失敗しました",
+        "saved": "プロジェクトメモリを保存しました",
+        "loading": "読み込み中…",
+        "updated": "{time}に更新",
+        "changedOutside": "メモリファイルがこのウィンドウの外で更新されました（おそらくエージェントによるものです）。",
+        "keepMine": "自分の編集を保持",
+        "discardConfirm": "プロジェクトメモリへの未保存の変更を破棄しますか？",
+        "discard": "破棄",
+        "emptyHint": "プロジェクトの進行に合わせてエージェントが記入します。"
+      }
     }
   },
   "settings": {

@@ -175,6 +175,8 @@ export interface ClaudianSettings {
   skillsSynced: boolean;
   sessionManagerOrganization?: SessionManagerOrganization;
   sessionManagerSort?: SessionManagerSort;
+  /** Order of the session manager's projects section; pinned projects always come first. */
+  projectSort?: SessionManagerSort;
   pinnedLinkedContentPaths?: string[];
   sessionAutoArchiveAfter?: SessionAutoArchiveAfter;
 

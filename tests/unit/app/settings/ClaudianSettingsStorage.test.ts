@@ -1077,3 +1077,21 @@ describe('ClaudianSettingsStorage Linked content migration', () => {
     expect(persisted).not.toHaveProperty('pinnedLinkedNotePaths');
   });
 });
+
+describe('ClaudianSettingsStorage project settings', () => {
+  it('replaces the retired projects organization with the default', async () => {
+    const adapter = createAdapter({ sessionManagerOrganization: 'projects' });
+
+    const settings = await new ClaudianSettingsStorage(adapter, DEFAULT_SETTINGS).load();
+
+    expect(settings.sessionManagerOrganization).toBe('list');
+    const written = JSON.parse(adapter.write.mock.calls.at(-1)![1]);
+    expect(written.sessionManagerOrganization).toBe('list');
+  });
+
+  it('defaults the project sort to last activity', async () => {
+    const settings = await new ClaudianSettingsStorage(createAdapter({}), DEFAULT_SETTINGS).load();
+
+    expect(settings.projectSort).toBe('last-updated');
+  });
+});

@@ -540,3 +540,15 @@ it('batches a burst of text edits into one settings mutation and flushes on tear
     expect(plugin.mutateSettings).toHaveBeenCalledTimes(2);
   } finally { cleanup(); jest.useRealTimers(); }
 });
+
+it('offers no Projects tab; the doc folder is chosen per project', () => {
+  const { tab } = createTab(false);
+  const container = createContainer();
+  const cleanup = (tab as any).renderSettings(container);
+  try {
+    expect(findByClass(container, 'claudian-settings-skills')).not.toBeNull();
+    expect(findContainer(container, t('settings.tabs.skills'))).not.toBeNull();
+    expect(findByClass(container, 'claudian-settings-projects')).toBeNull();
+    expect(findContainer(container, 'Projects')).toBeNull();
+  } finally { cleanup(); }
+});

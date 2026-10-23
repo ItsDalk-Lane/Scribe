@@ -8,6 +8,7 @@ export {
   type ConversationMeta,
   type ConversationModelRecoverySource,
   type ConversationMutablePatch,
+  type ConversationPlacement,
   type ConversationSummary,
   type ExecutionInputBrowserSnapshot,
   type ExecutionInputCanvasSnapshot,
@@ -28,6 +29,19 @@ export {
   type UsageInfo,
   VIEW_TYPE_CLAUDIAN,
 } from './chat';
+export {
+  type ProjectCreateInput,
+  ProjectMemoryConflictError,
+  type ProjectMemoryContent,
+  type ProjectMemoryOperations,
+  ProjectMemoryPathTakenError,
+  type ProjectMemoryReadResult,
+  type ProjectMemorySaveOptions,
+  type ProjectMutations,
+  type ProjectReader,
+  type ProjectRecord,
+  type ProjectUpdatePatch,
+} from './project';
 export { type ProviderId } from './provider';
 
 // Settings and command types

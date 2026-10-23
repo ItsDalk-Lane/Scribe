@@ -110,6 +110,26 @@ describe('ForkTarget', () => {
     );
   });
 
+  // Creation keeps the id only while the project is live (ConversationRepository project membership tests).
+  it('hands the source project to fork creation', async () => {
+    const sourceConversation = { id: 'source-conversation', providerId: 'claude', projectId: 'project-1' };
+    const { manager, plugin } = createManager(createPlugin({
+      getCachedConversation: jest.fn().mockReturnValue(sourceConversation),
+      getConversationSync: jest.fn().mockReturnValue(sourceConversation),
+    }), {}, {}, NEW_TAB_FORKS);
+    const source = await manager.createTab('source-conversation');
+    source!.state.messages = [{ id: 'latest', role: 'assistant', content: 'Done', timestamp: 1 }];
+
+    await forkRequestFrom(0)(forkContext({
+      messages: [...source!.state.messages],
+      projectId: 'project-1',
+      sourceConversationId: 'source-conversation',
+    }));
+
+    expect(plugin.createConversation).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(plugin.createConversation).mock.calls[0][0]?.projectId).toBe('project-1');
+  });
+
   it.each(['rebind', 'shutdown'] as const)('aborts a fork when its source is invalidated during provider-state creation (%s)', async invalidation => {
     const forkState = deferred<Record<string, unknown>>();
     const buildForkProviderState = jest.fn(() => forkState.promise);

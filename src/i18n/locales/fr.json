@@ -353,6 +353,81 @@
       "nextMessage": "Message suivant",
       "scrollToBottom": "Défiler vers le bas",
       "emptyDirectory": "Aucun prompt utilisateur dans cette conversation"
+    },
+    "projects": {
+      "header": "Projets",
+      "options": "Options des projets",
+      "sortBy": "Trier les projets par",
+      "sort": {
+        "lastActivity": "Dernière activité",
+        "created": "Création"
+      },
+      "noSessions": "Aucune session",
+      "newSessionIn": "Nouvelle session dans {name}",
+      "actionsFor": "Actions pour {name}",
+      "newProjectAction": "Nouveau projet",
+      "chipLabel": "Projet : {name}",
+      "noProject": "Aucun projet",
+      "menu": {
+        "edit": "Modifier le projet",
+        "openMemory": "Ouvrir la mémoire du projet",
+        "archiveAll": "Archiver toutes les sessions",
+        "pin": "Épingler le projet",
+        "unpin": "Désépingler le projet",
+        "delete": "Supprimer le projet",
+        "moveTo": "Déplacer vers un projet…",
+        "moveSelectionTo": "Déplacer {count} sessions vers un projet…",
+        "removeFrom": "Retirer du projet",
+        "removeSelectionFrom": "Retirer {count} sessions du projet",
+        "newProject": "Nouveau projet…"
+      },
+      "deleteConfirm": "Supprimer le projet « {name} » et placer son fichier de mémoire dans la corbeille ? Les sessions sont conservées, hors de tout projet.",
+      "errors": {
+        "create": "Impossible de créer le projet",
+        "update": "Impossible de mettre à jour le projet",
+        "delete": "Impossible de supprimer le projet",
+        "pin": "Impossible de modifier l’épinglage du projet",
+        "move": "Impossible de déplacer les sessions vers le projet",
+        "remove": "Impossible de retirer les sessions du projet",
+        "start": "Impossible de démarrer une session dans ce projet",
+        "sort": "Impossible de mettre à jour le tri des projets"
+      },
+      "editor": {
+        "titleNew": "Nouveau projet",
+        "titleEdit": "Modifier le projet",
+        "name": "Nom",
+        "nameDesc": "Affiché dans le gestionnaire de sessions et dans les sessions membres.",
+        "namePlaceholder": "Nom du projet",
+        "instructions": "Instructions",
+        "instructionsDesc": "Ajoutées au prompt système de chaque session membre à partir de son prochain tour.",
+        "memoryPath": "Fichier de mémoire",
+        "memoryPathDesc": "Chemin dans le coffre du fichier de mémoire du projet. L’extension .md est ajoutée si elle manque. Le modifier déplace le fichier.",
+        "memoryPathPlaceholder": "Dossier/MEMORY.md",
+        "memoryPathInvalid": "Saisissez un chemin de fichier situé dans le coffre, par exemple Projects/MEMORY.md.",
+        "memoryPathTaken": "{path} est déjà utilisé par un fichier ou un autre projet.",
+        "openMemory": "Ouvrir",
+        "nameRequired": "Saisissez un nom de projet."
+      },
+      "memory": {
+        "title": "Mémoire du projet : {name}",
+        "reload": "Recharger",
+        "overwrite": "Écraser",
+        "recreate": "Recréer à partir du modèle",
+        "edit": "Modifier",
+        "preview": "Aperçu",
+        "missing": "Le fichier de mémoire du projet est introuvable.",
+        "conflict": "Le fichier de mémoire a changé depuis son chargement. Rechargez pour abandonner vos modifications, ou écrasez pour les conserver.",
+        "loadFailed": "Impossible de charger la mémoire du projet",
+        "saveFailed": "Impossible d’enregistrer la mémoire du projet",
+        "saved": "Mémoire du projet enregistrée",
+        "loading": "Chargement…",
+        "updated": "Mis à jour {time}",
+        "changedOutside": "Le fichier de mémoire a été modifié hors de cette fenêtre, probablement par un agent.",
+        "keepMine": "Garder mes modifications",
+        "discardConfirm": "Abandonner les modifications non enregistrées de la mémoire du projet ?",
+        "discard": "Abandonner",
+        "emptyHint": "Les agents le complètent au fil du projet."
+      }
     }
   },
   "settings": {

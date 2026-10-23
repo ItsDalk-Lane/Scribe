@@ -3,6 +3,7 @@ import type {
   Conversation,
   ConversationMeta,
   ConversationMutablePatch,
+  ConversationPlacement,
   ConversationSummary,
 } from '@/core/types';
 
@@ -37,6 +38,8 @@ export class ConversationService {
     sessionId?: string;
     selectedModel?: string;
     linkedContentPath?: string;
+    /** Kept only when it names a live project at creation. */
+    projectId?: string;
   }): Promise<Conversation> {
     const conversation = await this.deps.repository.create(options);
     this.notifyConversationListChanged();
@@ -90,8 +93,9 @@ export class ConversationService {
     return committed;
   }
 
-  async setConversationsPinned(ids: readonly string[], isPinned: boolean): Promise<void> {
-    await this.#mutateConversations(ids, id => this.deps.repository.setPinned(id, isPinned));
+  /** One write per conversation and one list refresh; see `ConversationRepository.setPlacement`. */
+  async setConversationsPlacement(ids: readonly string[], placement: ConversationPlacement): Promise<void> {
+    await this.#mutateConversations(ids, id => this.deps.repository.setPlacement(id, placement));
   }
 
   async setLinkedContentPinned(contentPath: string, isPinned: boolean): Promise<void> {

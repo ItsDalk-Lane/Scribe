@@ -201,6 +201,8 @@ async function createForkConversation(
     providerId: context.providerId,
     ...(context.sourceSelectedModel ? { selectedModel: context.sourceSelectedModel } : {}),
     ...(context.linkedContentPath ? { linkedContentPath: context.linkedContentPath } : {}),
+    // Creation keeps it only while the project is live.
+    ...(context.projectId ? { projectId: context.projectId } : {}),
   });
 
   if (!isForkRequestCurrent(host, sourceLease)) {
