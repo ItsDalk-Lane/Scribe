@@ -5,6 +5,7 @@ const MEMORY_EXTENSION = '.md';
 const SLUG_MAX_LENGTH = 48;
 // Characters that are invalid in file names on at least one supported platform.
 const INVALID_SEGMENT_CHARACTERS = /[*"<>:|?]/;
+const WINDOWS_DEVICE_NAME = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
 
 /**
  * A vault-relative path to a project memory file. A leading `/` is read from the vault root, `\` separates like `/`,
@@ -43,5 +44,6 @@ function slugifyProjectName(name: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, '-')
     .slice(0, SLUG_MAX_LENGTH)
     .replace(/^-+|-+$/g, '');
-  return slug || 'project';
+  if (!slug) return 'project';
+  return WINDOWS_DEVICE_NAME.test(slug) ? `project-${slug}` : slug;
 }

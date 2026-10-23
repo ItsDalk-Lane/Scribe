@@ -56,6 +56,9 @@ describe('defaultProjectMemoryPath', () => {
     ['  Équipe Été  ', '.claudian/projects/équipe-été/MEMORY.md'],
     ['', '.claudian/projects/project/MEMORY.md'],
     ['!!!', '.claudian/projects/project/MEMORY.md'],
+    ['CON', '.claudian/projects/project-con/MEMORY.md'],
+    ['LPT1', '.claudian/projects/project-lpt1/MEMORY.md'],
+    ['Console', '.claudian/projects/console/MEMORY.md'],
     ['a'.repeat(80), `.claudian/projects/${'a'.repeat(48)}/MEMORY.md`],
   ])('derives the default for %p as %p', (name, expected) => {
     expect(defaultProjectMemoryPath(name)).toBe(expected);

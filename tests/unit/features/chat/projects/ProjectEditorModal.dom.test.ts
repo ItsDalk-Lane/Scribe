@@ -25,7 +25,7 @@ function host() {
       { ...record, id: 'created', name, instructions }
     )),
     update: jest.fn().mockResolvedValue(undefined),
-    readMemory: jest.fn(async () => ({ content: '# Launch\n', revision: 'r0' })),
+    readMemory: jest.fn(async () => ({ content: '# Launch\n', revision: 'r0', modifiedAt: null })),
   };
   return { app: {} as App, projects, ui: { app: {} as App, projects } as unknown as ProjectUIHost };
 }
@@ -148,6 +148,22 @@ it('follows the name with the default memory path until the path is edited', asy
 
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(projectHost.projects.create).toHaveBeenCalledWith({ name: 'Gamma', instructions: '', memoryPath: 'Work/Alpha.md' });
+});
+
+it('offers and saves a portable default memory directory for a reserved project name', async () => {
+  const projectHost = host();
+  createProject(projectHost.ui);
+  const dialog = screen.getByRole('dialog', { name: t('chat.projects.editor.titleNew') });
+
+  fireEvent.input(field(dialog, t('chat.projects.editor.name')), { target: { value: 'CON' } });
+  expect(field(dialog, t('chat.projects.editor.memoryPath')).value)
+    .toBe('.claudian/projects/project-con/MEMORY.md');
+  fireEvent.click(within(dialog).getByRole('button', { name: t('common.save') }));
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(projectHost.projects.create).toHaveBeenCalledWith({
+    name: 'CON', instructions: '', memoryPath: '.claudian/projects/project-con/MEMORY.md',
+  });
 });
 
 it('saves a custom memory path normalized, appending a missing .md extension', async () => {
