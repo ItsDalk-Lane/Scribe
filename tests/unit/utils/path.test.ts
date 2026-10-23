@@ -562,7 +562,7 @@ describe('MSYS translation across simulated platforms', () => {
     });
 
     it('should handle root drive paths', () => {
-      expect(translateMsysPath('/c')).toBe('C:');
+      expect(translateMsysPath('/c')).toBe('C:\\');
       expect(translateMsysPath('/c/')).toBe('C:\\');
     });
 

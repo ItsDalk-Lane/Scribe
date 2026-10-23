@@ -90,5 +90,5 @@ function translateMsysPathForPlatform(value: string, platform: NodeJS.Platform):
   const restOfPath = msysMatch[2] ?? '';
   return restOfPath
     ? `${driveLetter}:\\${restOfPath.replace(/\//g, '\\')}`
-    : `${driveLetter}:`;
+    : `${driveLetter}:\\`;
 }

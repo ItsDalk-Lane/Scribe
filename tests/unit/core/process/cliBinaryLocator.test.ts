@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { findCLIBinaryPath, resolveConfiguredCLIPath } from '@/core/process/cliBinaryLocator';
+import { findCLIBinaryPath, parseCLIPathEntries, resolveConfiguredCLIPath } from '@/core/process/cliBinaryLocator';
 
 describe('cliBinaryLocator', () => {
   let tempDir: string;
@@ -38,5 +38,15 @@ describe('cliBinaryLocator', () => {
     fs.writeFileSync(shimPath, '');
 
     expect(findCLIBinaryPath('pi', binDir, 'win32')).toBe(shimPath);
+  });
+});
+
+
+describe('MSYS drive roots in CLI PATH', () => {
+  it.each(['/c', '/c/'])('preserves the absolute root represented by %s', entry => {
+    const [translated] = parseCLIPathEntries(entry, 'win32');
+    expect(translated).toBe('C:\\');
+    expect(path.win32.isAbsolute(translated)).toBe(true);
+    expect(path.win32.join(translated, 'claude.exe')).toBe('C:\\claude.exe');
   });
 });

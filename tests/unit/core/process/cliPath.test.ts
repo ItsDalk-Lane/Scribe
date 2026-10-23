@@ -26,25 +26,25 @@ describe('parsePathEntries', () => {
   it('filters out empty segments', () => {
     const sep = isWindows ? ';' : ':';
     const result = parsePathEntries(`${sep}/a${sep}${sep}/b${sep}`);
-    expect(result).toEqual(isWindows ? ['A:', 'B:'] : ['/a', '/b']);
+    expect(result).toEqual(isWindows ? ['A:\\', 'B:\\'] : ['/a', '/b']);
   });
 
   it('filters out $PATH placeholder', () => {
     const sep = isWindows ? ';' : ':';
     const result = parsePathEntries(`/a${sep}$PATH${sep}/b`);
-    expect(result).toEqual(isWindows ? ['A:', 'B:'] : ['/a', '/b']);
+    expect(result).toEqual(isWindows ? ['A:\\', 'B:\\'] : ['/a', '/b']);
   });
 
   it('filters out ${PATH} placeholder', () => {
     const sep = isWindows ? ';' : ':';
     const result = parsePathEntries(`/a${sep}\${PATH}${sep}/b`);
-    expect(result).toEqual(isWindows ? ['A:', 'B:'] : ['/a', '/b']);
+    expect(result).toEqual(isWindows ? ['A:\\', 'B:\\'] : ['/a', '/b']);
   });
 
   it('filters out %PATH% placeholder', () => {
     const sep = isWindows ? ';' : ':';
     const result = parsePathEntries(`/a${sep}%PATH%${sep}/b`);
-    expect(result).toEqual(isWindows ? ['A:', 'B:'] : ['/a', '/b']);
+    expect(result).toEqual(isWindows ? ['A:\\', 'B:\\'] : ['/a', '/b']);
   });
 
   it('strips surrounding double quotes', () => {
