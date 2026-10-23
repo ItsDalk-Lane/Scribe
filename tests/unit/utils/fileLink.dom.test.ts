@@ -1,10 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-import { within } from '@testing-library/dom';
+import { fireEvent, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 
-import { processFileLinks } from '@/utils/fileLink';
+import { processFileLinks, registerFileLinkHandler } from '@/utils/fileLink';
 
 function createMockApp(existingFiles: string[]) {
   const fileSet = new Set(existingFiles.map(f => f.toLowerCase()));
@@ -152,6 +152,40 @@ describe('processFileLinks', () => {
       const link = code.querySelector('a.claudian-file-link');
       expect(link).not.toBeNull();
       expect(link!.textContent).toBe('note.md');
+    });
+
+    it('keeps inline-code labels inside existing links owned by their original anchor', async () => {
+      const app = createMockApp(['note.md']);
+      app.workspace = {
+        iterateAllLeaves: jest.fn(),
+        openLinkText: jest.fn().mockResolvedValue(undefined),
+      };
+      const container = document.createElement('div');
+      container.innerHTML = '<a href="https://example.com/guide"><code>[[note.md]]</code></a> and <code>[[note.md]]</code>';
+      document.body.appendChild(container);
+      const originalLink = within(container).getByRole('link', { name: '[[note.md]]' });
+      const cleanup = registerFileLinkHandler(app, container);
+      // Prevent browser navigation while keeping application delegation active.
+      originalLink.addEventListener('click', event => event.preventDefault());
+      try {
+        processFileLinks(app, container);
+
+        expect(within(container).getAllByRole('link')).toHaveLength(2);
+        expect(within(originalLink).queryByRole('link')).toBeNull();
+        expect(originalLink.getAttribute('href')).toBe('https://example.com/guide');
+        expect(originalLink.textContent).toBe('[[note.md]]');
+        fireEvent.click(originalLink.querySelector('code')!);
+        expect(app.workspace.openLinkText).not.toHaveBeenCalled();
+        const fileLink = within(container).getByRole('link', { name: 'note.md' });
+        fireEvent.click(fileLink);
+        expect(app.workspace.openLinkText).toHaveBeenCalledWith('note.md', '', 'tab');
+        expect((await axe(container, {
+          runOnly: { type: 'rule', values: ['link-name'] },
+        })).violations).toEqual([]);
+      } finally {
+        cleanup();
+        container.remove();
+      }
     });
 
     it('skips code inside pre elements', () => {
