@@ -48,10 +48,13 @@ describe('ClaudeTaskResultInterpreter', () => {
   it('recovers a truncated native output file through the provider', () => {
     const directory = mkdtempSync(join(tmpdir(), 'claudian-provider-output-'));
     const outputPath = join(directory, 'task.output');
-    writeFileSync(outputPath, JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: 'Recovered answer' }] } }));
+    writeFileSync(outputPath, JSON.stringify({ message: { role: 'assistant', content: [
+      { type: 'text', text: 'Report heading' },
+      { type: 'text', text: 'Recovered answer' },
+    ] } }));
     try {
       expect(new ClaudeTaskResultInterpreter().interpretResult(`<output>[Truncated. Full output: ${outputPath}]</output>`, false, { mode: 'async' }))
-        .toMatchObject({ status: 'completed', result: 'Recovered answer' });
+        .toMatchObject({ status: 'completed', result: 'Report heading\nRecovered answer' });
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

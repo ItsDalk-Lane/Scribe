@@ -596,7 +596,11 @@ describe('sdkSession', () => {
       mockExistsSync.mockReturnValue(true);
       mockFsPromises.readFile.mockResolvedValue([
         '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"First"}]}}',
-        '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Final answer"}]}}',
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [
+          { type: 'text', text: 'Report heading' },
+          { type: 'thinking', thinking: 'Private reasoning' },
+          { type: 'text', text: 'Final answer' },
+        ] } }),
       ].join('\n'));
 
       const result = await loadSubagentFinalResult(
@@ -605,7 +609,7 @@ describe('sdkSession', () => {
         'a123'
       );
 
-      expect(result).toBe('Final answer');
+      expect(result).toBe('Report heading\nFinal answer');
       expect(mockCreateReadStream).toHaveBeenCalledWith(
         fixturePath(`/Users/test/.claude/projects/${encodedDrive}-Users-test-vault/session-abc/subagents/agent-a123.jsonl`),
         expect.anything()
