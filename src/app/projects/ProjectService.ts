@@ -238,8 +238,7 @@ export class ProjectService implements ProjectReader, ProjectMutations, ProjectM
   async #createMemory(memoryPath: string, content: string): Promise<boolean> {
     if (await this.#memoryExists(memoryPath)) return false;
     const folder = await this.#ensureFolderOf(memoryPath);
-    const fileName = memoryPath.slice(folder ? folder.length + 1 : 0);
-    const temp = `${folder ? `${folder}/` : ''}.${fileName}.${randomUUID()}.tmp`;
+    const temp = `${folder ? `${folder}/` : ''}.claudian-${randomUUID()}.tmp`;
     await this.deps.memory.writeManagedFile(temp, content);
     try {
       await this.deps.memory.moveManagedFileNoReplace(temp, memoryPath);

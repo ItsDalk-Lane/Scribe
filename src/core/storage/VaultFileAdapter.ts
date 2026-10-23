@@ -444,7 +444,7 @@ export class VaultFileAdapter {
     content: string,
   ): Promise<void> {
     const target = this.#resolveManagedDesktopPath(path.resolve(adapter.getBasePath()), normalized);
-    const temp = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`);
+    const temp = path.join(path.dirname(target), `.claudian-${randomUUID()}.tmp`);
     try {
       await fs.writeFile(temp, content, { encoding: 'utf8', flag: 'wx' });
       await fs.rename(temp, target);
