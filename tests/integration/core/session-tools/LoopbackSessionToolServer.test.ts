@@ -167,6 +167,39 @@ describe('LoopbackSessionToolServer', () => {
     expect((await routeRequest(route, { body: listCall })).status).toBe(404);
   });
 
+  it('does not dispatch a request revoked while its body is still arriving', async () => {
+    const handler = jest.fn(async () => ({ isError: false, text: '[]' }));
+    const route = await server.registerCallRoute(handler);
+    const url = new URL(route.url);
+    let continued = false;
+
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request({
+        host: url.hostname, port: url.port, method: 'POST', path: url.pathname, agent: false,
+        headers: {
+          'content-type': 'application/json', 'content-length': String(listCall.length),
+          expect: '100-continue', ...route.headers,
+        },
+      }, res => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode!));
+      });
+      req.on('error', reject);
+      req.on('continue', () => {
+        // The server admitted these headers and is waiting for the body.
+        continued = true;
+        route.dispose();
+        req.end(listCall);
+      });
+      req.flushHeaders();
+    });
+
+    expect(continued).toBe(true);
+    expect(status).toBe(410);
+    expect(handler).not.toHaveBeenCalled();
+    expect((await routeRequest(route, { body: listCall })).status).toBe(404);
+  });
+
   it('aborts the call when the client disconnects', async () => {
     const started = deferred<AbortSignal>();
     const route = await server.registerCallRoute(async request => {

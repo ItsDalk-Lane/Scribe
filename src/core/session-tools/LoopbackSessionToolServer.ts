@@ -197,6 +197,7 @@ export class LoopbackSessionToolServer implements SessionToolEndpoint {
     let outcome: RouteOutcome;
     try {
       const body = await readBody(req, this.#maxBodyBytes);
+      if (controller.signal.aborted) return sendJSON(res, 410, { error: 'Route revoked.' });
       outcome = await route.serve(body, controller.signal);
     } catch (error) {
       if (error instanceof BodyTooLargeError) return sendTooLarge(res);
