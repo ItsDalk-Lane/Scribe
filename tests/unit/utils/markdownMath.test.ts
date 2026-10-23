@@ -124,6 +124,18 @@ describe('markdownMath', () => {
       );
     });
 
+    it.each([
+      "[guide](https://example.com/it's/$id)",
+      '[guide](https://example.com/say"hi/$id)',
+      '[guide](<https://example.com/a(b/$id>)',
+      '[guide](<https://example.com/a)b/$id> "title")',
+      "[guide](https://example.com/it's/$id 'title with ) inside')",
+      '[guide](<https://example.com/a(b/$id> "title with ) inside")',
+    ])('preserves valid link destinations with quotes or angle brackets: %s', destination => {
+      const markdown = `${destination} and $visible$`;
+      expect(escapeMathDelimitersForStreaming(markdown)).toBe(`${destination} and \\$visible\\$`);
+    });
+
     it('does not alter dollars inside HTML attributes', () => {
       expect(escapeMathDelimitersForStreaming('<span title="$x$">value $y$</span>')).toBe(
         '<span title="$x$">value \\$y\\$</span>'
