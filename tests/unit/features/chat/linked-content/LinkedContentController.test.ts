@@ -129,6 +129,31 @@ describe('LinkedContentController', () => {
     expect(excludedController.getSnapshot().path).toBeNull();
   });
 
+  it.each([
+    ['inline', { tags: [{ tag: '#PrIvAtE' }] }, 'private'],
+    ['frontmatter list', { frontmatter: { tags: ['Private'] } }, '#PRIVATE'],
+    ['frontmatter string', { frontmatter: { tags: 'PRIVATE' } }, 'private'],
+  ])('excludes case variants of %s tags before freezing submission', (_kind, cache, excludedTag) => {
+    const markdown = createFile('Notes/Private.md');
+    const harness = createHarness([markdown]);
+    (harness.app.metadataCache.getFileCache as jest.Mock).mockReturnValue({ tags: [] });
+    const controller = new LinkedContentController({
+      app: harness.app as never,
+      getExcludedTags: () => [excludedTag],
+      getCachedVaultFiles: () => [],
+      getCachedVaultFolders: () => [],
+    });
+    harness.setActiveFile(markdown);
+    controller.resetAutoDraft();
+    expect(controller.getSnapshot().path).toBe(markdown.path);
+
+    (harness.app.metadataCache.getFileCache as jest.Mock).mockReturnValue(cache);
+    controller.handleActiveFileMetadataChanged(markdown);
+
+    expect(controller.getSnapshot()).toEqual({ mode: 'auto-draft', path: null });
+    expect(controller.beginSubmission()).toEqual({});
+  });
+
   it('waits for metadata before auto-linking when excluded tags are configured', () => {
     const markdown = createFile('Notes/Startup.md');
     const harness = createHarness([markdown]);

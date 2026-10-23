@@ -354,8 +354,9 @@ export class LinkedContentController {
       fileTags.push(frontmatterTags);
     }
     if (cache.tags) fileTags.push(...cache.tags.map(tag => tag.tag));
-    const normalizedExcluded = new Set(excludedTags.map(tag => tag.replace(/^#/, '')));
-    return fileTags.some(tag => normalizedExcluded.has(tag.replace(/^#/, '')))
+    const normalizeTag = (tag: string): string => tag.replace(/^#/, '').toLowerCase();
+    const normalizedExcluded = new Set(excludedTags.map(normalizeTag));
+    return fileTags.some(tag => normalizedExcluded.has(normalizeTag(tag)))
       ? 'excluded'
       : 'not-excluded';
   }
