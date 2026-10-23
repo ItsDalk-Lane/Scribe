@@ -110,6 +110,60 @@ describe('SessionInlineRename', () => {
     expect(input.value).toBe('Original title');
   });
 
+  it('can cancel the unfocused editor after a failed rename without retrying the failed title', async () => {
+    const { input, inlineRename, rename, onFinished } = setup(
+      'Original title', jest.fn().mockRejectedValue(new Error('disk full')),
+    );
+    input.value = 'Failed title';
+    input.blur();
+    await waitFor(() => expect(Notice).toHaveBeenCalledWith('Failed to rename conversation'));
+    expect(onFinished).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(input);
+
+    expect(inlineRename.cancel()).toBe(true);
+
+    await waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1));
+    expect(input.value).toBe('Original title');
+    expect(rename).toHaveBeenCalledTimes(1);
+    expect(inlineRename.cancel()).toBe(false);
+  });
+
+  it('does not cancel or resubmit a rename that is already being saved', async () => {
+    let resolveRename!: () => void;
+    const rename = jest.fn(() => new Promise<void>(resolve => { resolveRename = resolve; }));
+    const { input, inlineRename, onFinished } = setup('Original title', rename);
+    input.value = 'Saving title';
+    input.blur();
+    expect(rename).toHaveBeenCalledTimes(1);
+
+    expect(inlineRename.cancel()).toBe(false);
+    expect(input.value).toBe('Saving title');
+    expect(onFinished).not.toHaveBeenCalled();
+
+    resolveRename();
+    await waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1));
+    expect(rename).toHaveBeenCalledTimes(1);
+    expect(inlineRename.cancel()).toBe(false);
+  });
+
+  it('allows retrying the edited title after a failed rename', async () => {
+    const rename = jest.fn()
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockResolvedValueOnce(undefined);
+    const { input, onFinished } = setup('Original title', rename);
+    input.value = 'Failed title';
+    input.blur();
+    await waitFor(() => expect(Notice).toHaveBeenCalledTimes(1));
+
+    input.focus();
+    input.value = 'Retry title';
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1));
+    expect(rename.mock.calls).toEqual([['Failed title'], ['Retry title']]);
+    expect(Notice).toHaveBeenCalledTimes(1);
+  });
+
   it('reports a failed rename once', async () => {
     const { input, onFinished } = setup('Original title', jest.fn().mockRejectedValue(new Error('disk full')));
 

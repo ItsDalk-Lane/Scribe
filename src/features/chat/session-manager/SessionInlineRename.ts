@@ -13,7 +13,7 @@ export interface InlineRenameRequest {
  * or {@link cancel} restores the original title without persisting.
  */
 export class SessionInlineRename {
-  #active: { cancel: () => void; input: HTMLInputElement } | null = null;
+  #active: { cancel: () => boolean; input: HTMLInputElement } | null = null;
 
   begin(item: HTMLElement, request: InlineRenameRequest): void {
     const titleEl = item.querySelector<HTMLElement>('.claudian-history-item-title');
@@ -30,9 +30,12 @@ export class SessionInlineRename {
     input.select();
 
     let isFinishing = false;
-    const cancel = (): void => {
+    const cancel = (): boolean => {
+      if (isFinishing) return false;
       input.value = currentTitle;
-      input.blur();
+      if (input.ownerDocument.activeElement === input) input.blur();
+      else requestFinish();
+      return true;
     };
     this.#active = { cancel, input };
     const finish = async (): Promise<void> => {
@@ -43,20 +46,19 @@ export class SessionInlineRename {
         if (newTitle && newTitle !== currentTitle) {
           await request.rename(newTitle);
         }
+        if (this.#active?.input === input) this.#active = null;
         request.onFinished();
       } finally {
         isFinishing = false;
       }
     };
 
-    input.addEventListener('blur', () => {
-      if (this.#active?.input === input) {
-        this.#active = null;
-      }
+    const requestFinish = (): void => {
       void finish().catch(() => {
         new Notice('Failed to rename conversation');
       });
-    });
+    };
+    input.addEventListener('blur', requestFinish);
     input.addEventListener('keydown', (e) => {
       // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
       if (e.key === 'Enter' && !e.isComposing) {
@@ -73,11 +75,12 @@ export class SessionInlineRename {
   cancel(): boolean {
     const active = this.#active;
     if (!active) return false;
-    this.#active = null;
-    if (active.input.isConnected === false) return false;
+    if (active.input.isConnected === false) {
+      this.#active = null;
+      return false;
+    }
 
-    active.cancel();
-    return true;
+    return active.cancel();
   }
 
   /** Forgets an editor inside `container` that a rerender is about to discard without blur. */
