@@ -82,8 +82,34 @@ describe('isPathWithinRoot', () => {
         expect(fs.statSync(`${rootRelative}/inside.jsonl`).isFile()).toBe(true);
         expect(isPathWithinRoot(`${rootRelative}/inside.jsonl`, rootRelative)).toBe(true);
         expect(isPathWithinRoot(`${rootRelative}/escape/session.jsonl`, rootRelative)).toBe(false);
+        expect(isPathWithinRoot(`${rootRelative}/escape/missing/session.jsonl`, rootRelative)).toBe(false);
+        expect(isPathWithinRoot(`${rootRelative}/missing/session.jsonl`, rootRelative)).toBe(true);
       } finally {
         process.chdir(originalCwd);
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describePosix('missing descendants of symlinked directories', () => {
+    it.each(['escape', 'alias candidate', 'alias root'])(
+      'resolves the existing ancestor before admitting a missing history path: %s', scenario => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-missing-history-'));
+      try {
+        const root = path.join(tempDir, 'root');
+        const outside = path.join(tempDir, 'outside');
+        const alias = path.join(tempDir, 'alias');
+        fs.mkdirSync(root);
+        fs.mkdirSync(outside);
+        fs.symlinkSync(outside, path.join(root, 'escape'));
+        fs.symlinkSync(root, alias);
+
+        const candidate = scenario === 'escape'
+          ? path.join(root, 'escape', 'missing', 'session.jsonl')
+          : path.join(scenario === 'alias candidate' ? alias : root, 'missing', 'session.jsonl');
+        expect(isPathWithinRoot(candidate, scenario === 'alias root' ? alias : root))
+          .toBe(scenario !== 'escape');
+      } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
     });
