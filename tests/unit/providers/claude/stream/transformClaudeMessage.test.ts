@@ -384,8 +384,11 @@ describe('transformSDKMessage', () => {
       ]);
     });
 
-    it('omits base64 image payloads from tool_result content', () => {
+    it.each(['anthropic', 'mcp'])('omits %s image payloads from tool_result content', format => {
       const data = 'a'.repeat(4096);
+      const image = (data: string) => format === 'mcp'
+        ? { type: 'image', mimeType: 'image/png', data }
+        : { type: 'image', source: { type: 'base64', media_type: 'image/png', data } };
       const message = msg({
         type: 'user',
         message: {
@@ -393,7 +396,7 @@ describe('transformSDKMessage', () => {
             {
               type: 'tool_result',
               tool_use_id: 'tool-image',
-              content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data } }],
+              content: [image(data)],
               is_error: false,
             },
           ],
@@ -407,7 +410,7 @@ describe('transformSDKMessage', () => {
       const content = 'content' in result ? result.content : undefined;
       expect(content).not.toContain(data);
       expect(JSON.parse(content as string)).toEqual([
-        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+        image(''),
       ]);
     });
 

@@ -504,7 +504,7 @@ function applySubagentData(
 }
 
 function stripResultImageData(result: string | undefined): string | undefined {
-  if (!result?.includes('"base64"')) return result;
+  if (!result?.includes('"image"')) return result;
 
   try {
     let changed = false;

@@ -111,12 +111,20 @@ test('execution snapshots avoid history payload serialization while persistence 
   }
 });
 
-test.each(['unloaded', 'model-recovery'] as const)('strips image payloads when saving %s metadata without loading native history', async kind => {
+test.each([
+  { kind: 'unloaded', format: 'anthropic' },
+  { kind: 'model-recovery', format: 'anthropic' },
+  { kind: 'unloaded', format: 'mcp' },
+  { kind: 'model-recovery', format: 'mcp' },
+])('strips $format image payloads when saving $kind metadata without loading native history', async ({ kind, format }) => {
   const now = testDate().getTime();
   const data = 'a'.repeat(512 * 1024);
+  const image = (data: string) => format === 'mcp'
+    ? { type: 'image', mimeType: 'image/png', data }
+    : { type: 'image', source: { type: 'base64', media_type: 'image/png', data } };
   const result = JSON.stringify([
     { type: 'text', text: 'Archive scan' },
-    { type: 'image', source: { type: 'base64', media_type: 'image/png', data } },
+    image(data),
   ]);
   const subagent: SubagentInfo = {
     id: 'task-images', description: 'Read scans', isExpanded: true, mode: 'async',
@@ -155,7 +163,7 @@ test.each(['unloaded', 'model-recovery'] as const)('strips image payloads when s
       ...subagent.toolCalls[0],
       result: JSON.stringify([
         { type: 'text', text: 'Archive scan' },
-        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+        image(''),
       ]),
     }] } },
   });
