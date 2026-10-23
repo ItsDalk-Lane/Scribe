@@ -288,6 +288,75 @@ describe('ProjectService', () => {
     expect(readFile(memory, first.memoryPath)).toBe(`# First\n\n${TEMPLATE_SECTIONS}`);
   });
 
+  it('preserves another project’s shared memory when moving one project to a separate file', async () => {
+    const { memory, projects, store } = await fixture();
+    const first = await projects.create({ name: 'First', instructions: '', memoryPath: 'Shared/MEMORY.md' });
+    const second = await projects.create({ name: 'Second', instructions: '', memoryPath: 'Second.md' });
+    await store.save({ ...second, memoryPath: first.memoryPath });
+    const reloaded = await fixture({ memory });
+
+    await reloaded.projects.update(second.id, { memoryPath: 'Split/MEMORY.md' });
+
+    const sharedContent = `# First\n\n${TEMPLATE_SECTIONS}`;
+    await expect(reloaded.projects.readMemory(first.id)).resolves.toMatchObject({ content: sharedContent });
+    const split = await reloaded.projects.readMemory(second.id);
+    if ('missing' in split) throw new Error('Expected the separate memory file');
+    expect(split.content).toBe(sharedContent);
+    await reloaded.projects.saveMemory(second.id, '# Separate edits\n', split.revision);
+    await expect(reloaded.projects.readMemory(first.id)).resolves.toMatchObject({ content: sharedContent });
+    await expect(reloaded.projects.readMemory(second.id)).resolves.toMatchObject({ content: '# Separate edits\n' });
+    const persisted = await fixture({ memory });
+    expect(persisted.projects.get(first.id)?.memoryPath).toBe(first.memoryPath);
+    expect(persisted.projects.get(second.id)?.memoryPath).toBe('Split/MEMORY.md');
+  });
+
+  it('keeps shared memory and both records when saving a separated project fails', async () => {
+    const { memory, projects, store } = await fixture();
+    const first = await projects.create({ name: 'First', instructions: '', memoryPath: 'Shared/MEMORY.md' });
+    const second = await projects.create({ name: 'Second', instructions: '', memoryPath: 'Second.md' });
+    await store.save({ ...second, memoryPath: first.memoryPath });
+    const reloaded = await fixture({ memory });
+    memory.beforeWrite = path => {
+      if (path === `${PROJECTS_PATH}/${second.id}.json`) throw new Error('disk full');
+    };
+
+    await expect(reloaded.projects.update(second.id, { memoryPath: 'Split/MEMORY.md' })).rejects.toThrow('Could not write managed resource');
+
+    expect(readFile(memory, 'Split/MEMORY.md')).toBeUndefined();
+    for (const id of [first.id, second.id]) {
+      expect(reloaded.projects.get(id)?.memoryPath).toBe(first.memoryPath);
+      await expect(reloaded.projects.readMemory(id)).resolves.toMatchObject({ content: `# First\n\n${TEMPLATE_SECTIONS}` });
+    }
+    const persisted = await fixture({ memory });
+    expect(persisted.projects.list().map(record => record.memoryPath)).toEqual([first.memoryPath, first.memoryPath]);
+  });
+
+  it.each([false, true])('never replaces the destination while separating shared memory (racing writer: %s)', async racing => {
+    const { memory, projects, store } = await fixture();
+    const first = await projects.create({ name: 'First', instructions: '', memoryPath: 'Shared/MEMORY.md' });
+    const second = await projects.create({ name: 'Second', instructions: '', memoryPath: 'Second.md' });
+    await store.save({ ...second, memoryPath: first.memoryPath });
+    const reloaded = await fixture({ memory });
+    memory.addFolder('Split');
+    if (racing) {
+      memory.beforeWrite = path => {
+        if (path.startsWith('Split/')) memory.addFile('Split/MEMORY.md', '# Other writer\n');
+      };
+    } else {
+      memory.addFile('Split/MEMORY.md', '# Other writer\n');
+    }
+
+    await expect(reloaded.projects.update(second.id, { memoryPath: 'Split/MEMORY.md' }))
+      .rejects.toBeInstanceOf(ProjectMemoryPathTakenError);
+
+    expect(readFile(memory, 'Split/MEMORY.md')).toBe('# Other writer\n');
+    expect([...memory.nodes.keys()].filter(path => path.startsWith('Split/'))).toEqual(['Split/MEMORY.md']);
+    for (const id of [first.id, second.id]) {
+      expect(reloaded.projects.get(id)?.memoryPath).toBe(first.memoryPath);
+      await expect(reloaded.projects.readMemory(id)).resolves.toMatchObject({ content: `# First\n\n${TEMPLATE_SECTIONS}` });
+    }
+  });
+
   it('rejects an invalid memory path on update without changing anything', async () => {
     const { memory, projects } = await fixture();
     const record = await projects.create({ name: 'Keep', instructions: '', memoryPath: 'Keep.md' });

@@ -113,14 +113,19 @@ export class ProjectService implements ProjectReader, ProjectMutations, ProjectM
       if (updated.memoryPath !== record.memoryPath && this.#isClaimed(updated.memoryPath, id)) {
         throw new ProjectMemoryPathTakenError(updated.memoryPath);
       }
-      const moved = updated.memoryPath !== record.memoryPath
-        && await this.#moveMemory(record.memoryPath, updated.memoryPath);
+      const preserveSource = this.#isClaimed(record.memoryPath, id);
+      const relocated = updated.memoryPath !== record.memoryPath
+        && await this.#relocateMemory(record.memoryPath, updated.memoryPath, preserveSource);
       try {
         await this.deps.store.save(updated);
       } catch (error) {
-        // Best effort: put the memory file back so the recorded path still finds it.
-        if (moved) {
-          await this.deps.memory.moveManagedFileNoReplace(updated.memoryPath, record.memoryPath).catch(() => undefined);
+        // Best effort: restore a moved file, or remove only our copy when the source is still shared.
+        if (relocated) {
+          if (preserveSource) {
+            await this.deps.memory.removeManagedFile(updated.memoryPath).catch(() => undefined);
+          } else {
+            await this.deps.memory.moveManagedFileNoReplace(updated.memoryPath, record.memoryPath).catch(() => undefined);
+          }
         }
         throw error;
       }
@@ -252,10 +257,16 @@ export class ProjectService implements ProjectReader, ProjectMutations, ProjectM
     }
   }
 
-  /** Moves the memory file when it exists and reports whether it did; a missing file is only repointed. */
-  async #moveMemory(source: string, target: string): Promise<boolean> {
+  /** Relocates existing memory, keeping a copy for other owners; a missing file is only repointed. */
+  async #relocateMemory(source: string, target: string, preserveSource: boolean): Promise<boolean> {
     if (await this.#memoryExists(target)) throw new ProjectMemoryPathTakenError(target);
     if (!await this.#memoryExists(source)) return false;
+    if (preserveSource) {
+      if (!await this.#createMemory(target, await this.deps.memory.readManagedFile(source))) {
+        throw new ProjectMemoryPathTakenError(target);
+      }
+      return true;
+    }
     await this.#ensureFolderOf(target);
     try {
       await this.deps.memory.moveManagedFileNoReplace(source, target);
