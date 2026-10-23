@@ -4621,7 +4621,7 @@ describe('CodexNotificationRouter', () => {
       });
     });
 
-    it('maps failed mcpToolCall to error tool_result', () => {
+    it.each(['Connection refused', { message: 'Connection refused' }])('maps failed mcpToolCall with error %j to error tool_result', error => {
       router.handleNotification('item/completed', {
         item: {
           type: 'mcpToolCall',
@@ -4631,7 +4631,7 @@ describe('CodexNotificationRouter', () => {
           status: 'failed',
           arguments: {},
           result: null,
-          error: 'Connection refused',
+          error,
           durationMs: 100,
         },
         threadId: 't1',

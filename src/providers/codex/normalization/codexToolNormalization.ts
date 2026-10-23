@@ -791,7 +791,11 @@ export function normalizeCodexMCPToolState(
   rawError?: unknown,
 ): NormalizedCodexMCPToolState {
   const status = typeof rawStatus === 'string' ? rawStatus : '';
-  const error = typeof rawError === 'string' ? rawError : '';
+  const error = typeof rawError === 'string' ? rawError
+    : rawError !== null && typeof rawError === 'object' && !Array.isArray(rawError)
+      && typeof (rawError as Record<string, unknown>).message === 'string'
+      ? (rawError as { message: string }).message
+      : '';
   const resultText = extractCodexMCPResultText(resultPayload);
   const isTerminalStatus = status === 'completed' || isCodexFailedToolStatus(status);
   const isTerminal = isTerminalStatus || Boolean(error) || Boolean(resultText);

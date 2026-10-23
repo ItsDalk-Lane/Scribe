@@ -2895,7 +2895,7 @@ describe('CodexHistoryStore', () => {
       });
     });
 
-    it('preserves MCP error output', () => {
+    it.each(['Permission denied', { message: 'Permission denied' }])('preserves MCP error output %j', error => {
       const content = [
         JSON.stringify({
           timestamp: '2026-03-27T00:00:00.000Z',
@@ -2907,7 +2907,7 @@ describe('CodexHistoryStore', () => {
             call_id: 'call_mcp_3',
             status: 'failed',
             arguments: '{"path":"README.md"}',
-            error: 'Permission denied',
+            error,
           },
         }),
       ].join('\n');
