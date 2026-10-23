@@ -498,3 +498,52 @@ it('refreshes clean authoritative fields and uses the latest committed alias on 
     picker.dispose(); await h.catalog.dispose(); container.remove();
   }
 });
+
+it('keeps the catalog checkbox focused after selecting and deselecting a model', async () => {
+  const h = continuityHarness(async () => {});
+  await h.catalog.refresh();
+  const container = document.body.createDiv();
+  const picker = renderProviderModelsSection(container, 'claude', 'Claude Code', h.catalog);
+  container.querySelector('details')!.open = true;
+  const checkbox = () => within(container).getByRole('checkbox', { name: /Gateway model/ }) as HTMLInputElement;
+  try {
+    checkbox().focus();
+    for (const selected of [false, true, false]) {
+      fireEvent.click(checkbox());
+      await waitFor(() => expect(getClaudeProviderSettings(h.settings).visibleModels?.includes('gateway-model')).toBe(selected));
+      await settleCallbacks();
+      expect(checkbox().checked).toBe(selected);
+      expect(document.activeElement).toBe(checkbox());
+    }
+    expect((await axe(container)).violations).toEqual([]);
+  } finally {
+    picker.dispose(); await h.catalog.dispose(); container.remove();
+  }
+});
+
+it('does not take focus back to a catalog checkbox when its pending selection finishes', async () => {
+  let finish!: () => void;
+  let started!: () => void;
+  const saving = new Promise<void>(resolve => { started = resolve; });
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  const h = continuityHarness(async () => { started(); await gate; });
+  await h.catalog.refresh();
+  const container = document.body.createDiv();
+  const outside = document.body.createEl('button', { text: 'Outside catalog' });
+  const picker = renderProviderModelsSection(container, 'claude', 'Claude Code', h.catalog);
+  container.querySelector('details')!.open = true;
+  try {
+    const checkbox = within(container).getByRole('checkbox', { name: /Gateway model/ });
+    checkbox.focus();
+    fireEvent.click(checkbox);
+    await saving;
+    outside.focus();
+    finish();
+    await waitFor(() => expect(h.notify).toHaveBeenCalledTimes(1));
+    await settleCallbacks();
+    expect(document.activeElement).toBe(outside);
+    expect((within(container).getByRole('checkbox', { name: /Gateway model/ }) as HTMLInputElement).checked).toBe(false);
+  } finally {
+    finish(); picker.dispose(); await h.catalog.dispose(); container.remove(); outside.remove();
+  }
+});
