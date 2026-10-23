@@ -430,6 +430,27 @@ describe('image batch admission through the composer', () => {
     } finally { fixture.destroy(); }
   });
 
+  it.each(['', 'image/png'])('attaches a dropped PNG with MIME %j by its supported filename', async type => {
+    const fixture = createFixture();
+    const image = imageFile('screenshot.PNG', type, [1, 2, 3]);
+    const unsupported = imageFile('notes.txt', '', [4, 5]);
+    const conflicting = imageFile('renamed.png', 'text/plain', [6, 7]);
+    try {
+      dispatchBatch(fixture, 'drop', [unsupported.file, conflicting.file, image.file]);
+      await waitFor(() => expect(fixture.images.getAttachedImages()).toHaveLength(1));
+      expect(fixture.images.getAttachedImages()).toEqual([
+        { id: expect.any(String), name: 'screenshot.PNG', mediaType: 'image/png', data: 'AQID', size: 3, source: 'drop' },
+      ]);
+      expect(within(fixture.parent).getByRole('button', { name: 'Image attachment: screenshot.PNG · 3 B' })).toBeTruthy();
+      expect(fixture.changed).toHaveBeenCalledTimes(1);
+      expect(image.read).toHaveBeenCalledTimes(1);
+      expect(unsupported.read).not.toHaveBeenCalled();
+      expect(conflicting.read).not.toHaveBeenCalled();
+      expect(fixture.editor.element.value).toBe('Keep this draft');
+      expect(Notice).not.toHaveBeenCalled();
+    } finally { fixture.destroy(); }
+  });
+
   it.each(['paste', 'drop'] as const)('attaches an enabled %s batch once in byte and selection order', async operation => {
     const fixture = createFixture();
     const first = imageFile(operation === 'paste' ? 'screenshot' : 'first.png', 'image/png', [1, 2, 3]);
