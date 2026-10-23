@@ -185,9 +185,11 @@ it.each(['de-DE', 'fr-FR', 'ar-EG', 'en-US'])(
   },
 );
 
-it.each(['Update', 'name Enter', 'Save'] as const)(
-  'rejects invalid context through %s and saves corrected drafts from the same modal',
-  async action => {
+it.each((['Update', 'name Enter', 'Save'] as const).flatMap(action =>
+  ['abc', '1,5k'].map(invalidContext => ({ action, invalidContext })),
+))(
+  'rejects $invalidContext through $action and saves corrected drafts from the same modal',
+  async ({ action, invalidContext }) => {
     const notice = Notice as unknown as jest.Mock;
     notice.mockClear();
     const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
@@ -232,7 +234,7 @@ it.each(['Update', 'name Enter', 'Save'] as const)(
     const descriptionField = within(fields.getByText('Description').parentElement!).getByRole<HTMLInputElement>('textbox');
     fireEvent.input(nameField, { target: { value: 'Renamed snippet name' } });
     fireEvent.input(descriptionField, { target: { value: 'Draft description' } });
-    fireEvent.input(fields.getByRole('textbox', { name: 'Context window for custom' }), { target: { value: 'abc' } });
+    fireEvent.input(fields.getByRole('textbox', { name: 'Context window for custom' }), { target: { value: invalidContext } });
     fireEvent.input(fields.getByRole('textbox', { name: 'Context window for sibling' }), { target: { value: '128k' } });
     fireEvent.input(fields.getByRole('textbox', { name: 'Alias for custom' }), { target: { value: ' Custom draft ' } });
     fireEvent.input(fields.getByRole('textbox', { name: 'Alias for sibling' }), { target: { value: ' Sibling draft ' } });
@@ -245,7 +247,7 @@ it.each(['Update', 'name Enter', 'Save'] as const)(
     // Environment blur rebuilds the model rows; interact with the current controls.
     const customContext = fields.getByRole<HTMLInputElement>('textbox', { name: 'Context window for custom' });
     expect(customContext.isConnected).toBe(true);
-    expect(customContext.value).toBe('abc');
+    expect(customContext.value).toBe(invalidContext);
     expect(fields.getByRole<HTMLInputElement>('textbox', { name: 'Context window for sibling' }).value).toBe('128k');
     const submit = (): boolean => {
       if (action === 'name Enter') {
@@ -262,7 +264,7 @@ it.each(['Update', 'name Enter', 'Save'] as const)(
     expect(nameField.value).toBe('Renamed snippet name');
     expect(descriptionField.value).toBe('Draft description');
     expect(environment.value).toBe(draftEnvironment);
-    expect(customContext.value).toBe('abc');
+    expect(customContext.value).toBe(invalidContext);
     expect(fields.getByRole<HTMLInputElement>('textbox', { name: 'Context window for sibling' }).value).toBe('128k');
     expect(fields.getByRole<HTMLInputElement>('textbox', { name: 'Alias for custom' }).value).toBe(' Custom draft ');
     expect(fields.getByRole<HTMLInputElement>('textbox', { name: 'Alias for sibling' }).value).toBe(' Sibling draft ');
