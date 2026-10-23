@@ -17,6 +17,9 @@ function structuredPatchToDiffLines(hunks: readonly StructuredPatchHunk[]): Diff
       const prefix = line[0];
       const text = line.slice(1);
 
+      // Unified-diff EOF metadata is not a source line on either side.
+      if (prefix === '\\') continue;
+
       if (prefix === '+') {
         result.push({ type: 'insert', text, newLineNum: newLineNum++ });
       } else if (prefix === '-') {

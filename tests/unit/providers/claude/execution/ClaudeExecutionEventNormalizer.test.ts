@@ -157,12 +157,16 @@ describe('ClaudeExecutionEventNormalizer tool results', () => {
     return completed.event;
   }
 
-  it('decodes a native structured patch into the neutral result diff', () => {
+  it.each([false, true])('decodes a native structured patch without displaying EOF markers (markers: %s)', markers => {
     const completed = completeTool('Edit', { file_path: 'notes/a.md', old_string: 'old', new_string: 'new' }, {
       filePath: '/vault/notes/a.md',
       oldString: 'old',
       newString: 'new',
-      structuredPatch: [{ oldStart: 3, oldLines: 2, newStart: 3, newLines: 2, lines: [' keep', '-old', '+new'] }],
+      structuredPatch: [{
+        oldStart: 3, oldLines: 2, newStart: 3, newLines: 2,
+        lines: [' keep', '-old', ...(markers ? ['\\ No newline at end of file'] : []),
+          '+new', ...(markers ? ['\\ No newline at end of file'] : [])],
+      }],
     });
 
     expect(completed.resultDetails).toEqual({
