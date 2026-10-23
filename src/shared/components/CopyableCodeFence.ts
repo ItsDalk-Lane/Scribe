@@ -11,8 +11,9 @@ export function bindCopyFeedback(
 ): void {
   let feedbackTimeout: number | null = null;
   target.addEventListener('click', () => {
-    if (!navigator.clipboard?.writeText) return;
-    void navigator.clipboard.writeText(text()).then(() => {
+    const clipboard = (target.ownerDocument?.defaultView ?? window).navigator.clipboard;
+    if (!clipboard?.writeText) return;
+    void clipboard.writeText(text()).then(() => {
       if (feedbackTimeout !== null) {
         window.clearTimeout(feedbackTimeout);
       }
