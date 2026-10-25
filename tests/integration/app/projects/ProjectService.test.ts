@@ -4,19 +4,26 @@ import { existsSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { createFixture as createDraftFixture, deferred } from '@test/helpers/ChatInputHarness';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
 import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate } from '@test/helpers/testClock';
 
 import { ConversationRepository } from '@/app/conversations/ConversationRepository';
 import { ConversationService } from '@/app/conversations/ConversationService';
+import { SessionMetadataLoader } from '@/app/conversations/SessionMetadataLoader';
 import { ProjectService } from '@/app/projects/ProjectService';
 import { ProjectStore } from '@/app/projects/ProjectStore';
+import { RuntimeSettingsCoordinator } from '@/app/settings/RuntimeSettingsCoordinator';
+import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
+import { SessionStorage } from '@/app/storage/SessionStorage';
 import { PROJECTS_PATH } from '@/core/bootstrap/storagePaths';
+import { ProviderExecutionLifecycleRegistry } from '@/core/execution/ProviderExecutionLifecycleRegistry';
 import { defaultProjectMemoryPath, projectMemoryFolderOf } from '@/core/path/ProjectMemoryPath';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import { type Conversation, ProjectMemoryConflictError, ProjectMemoryPathTakenError } from '@/core/types';
+import { ConversationLifecycle } from '@/features/chat/conversation/ConversationLifecycle';
 
 jest.mock('node:fs/promises', () => {
   const actual = jest.requireActual<typeof fs>('node:fs/promises');
@@ -25,7 +32,9 @@ jest.mock('node:fs/promises', () => {
 const actualFs = jest.requireActual<typeof fs>('node:fs/promises');
 
 const vaults: DesktopVault[] = [];
+const metadataLoaders: SessionMetadataLoader[] = [];
 afterEach(async () => {
+  await Promise.all(metadataLoaders.splice(0).map(loader => loader.dispose()));
   allowWrites();
   jest.mocked(fs.rename).mockClear();
   await Promise.all(vaults.splice(0).map(vault => vault.dispose()));
@@ -83,14 +92,29 @@ async function fixture(options: { vault?: DesktopVault; conversations?: Conversa
     projects,
   });
   repository.replaceAll(options.conversations ?? []);
+  const settingsCoordinator = new SettingsCoordinator(settings, async () => undefined);
+  const sessions = new SessionStorage(files, `device-${'a'.repeat(64)}`);
+  const metadataLoaded = deferred<void>();
+  const sessionMetadata: SessionMetadataLoader = new SessionMetadataLoader({
+    sessions, conversations: repository, providerSettings: ProviderSettingsCoordinator,
+    runtimeSettings: new RuntimeSettingsCoordinator({
+      settings: settingsCoordinator, conversations: repository, getSettings: () => settings,
+      canCompleteInvalidations: () => sessionMetadata.hasLoadedAll,
+      executionLifecycle: new ProviderExecutionLifecycleRegistry(),
+    }),
+    isUnloading: () => false, whenLayoutReady: callback => callback(),
+    onConversationListChanged, onAllMetadataLoaded: () => metadataLoaded.resolve(),
+  });
+  metadataLoaders.push(sessionMetadata);
   const conversations = new ConversationService({
     repository,
-    sessionMetadata: { ensureLoaded: async () => undefined },
+    projects,
+    sessionMetadata,
     pinnedLinkedContentPaths: {} as never,
     nativeSessionArchives: { sync: async () => undefined },
     onConversationListChanged,
   });
-  return { vault, settings, store, loaded, projects, repository, conversations, persistence, onConversationListChanged };
+  return { vault, settings, store, loaded, projects, repository, conversations, persistence, onConversationListChanged, sessions, sessionMetadata, metadataLoaded };
 }
 
 function readFile(vault: DesktopVault, relativePath: string): Promise<string | undefined> {
@@ -116,6 +140,7 @@ describe('ProjectService', () => {
       instructions: 'Ship it.',
       memoryPath: record.memoryPath,
       isPinned: false,
+      isArchived: false,
       createdAt: record.createdAt,
     });
     expect(projects.get(record.id)).toEqual(record);
@@ -412,6 +437,32 @@ describe('ProjectService', () => {
     expect(changed).toHaveBeenCalledTimes(1);
   });
 
+  it('archives a project, unpinning it, persists the state, and restores it', async () => {
+    const vault = await createVault();
+    await vault.write(`${PROJECTS_PATH}/kept.json`, JSON.stringify({
+      id: 'kept', name: 'Kept', instructions: '', memoryPath: 'kept.md', isPinned: true, createdAt: testDate().getTime(),
+    }));
+    const { projects, store } = await fixture({ vault });
+    const changed = jest.fn();
+    projects.onChanged(changed);
+    expect(projects.get('kept')?.isArchived).toBe(false);
+
+    await projects.setArchived('kept', true);
+    await projects.setArchived('kept', true);
+
+    expect(projects.get('kept')).toMatchObject({ isArchived: true, isPinned: false });
+    expect(JSON.parse((await readFile(vault, `${PROJECTS_PATH}/kept.json`))!)).toMatchObject({ isArchived: true, isPinned: false });
+    expect((await store.load()).records[0]).toMatchObject({ id: 'kept', isArchived: true, isPinned: false });
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    await projects.setArchived('kept', false);
+    expect(projects.get('kept')).toMatchObject({ isArchived: false, isPinned: false });
+    // An archived project cannot be pinned.
+    await projects.setArchived('kept', true);
+    await projects.setPinned('kept', true);
+    expect(projects.get('kept')?.isPinned).toBe(false);
+  });
+
   it('skips an unparsable project file on load and never rewrites or deletes it', async () => {
     const vault = await createVault();
     await vault.write(`${PROJECTS_PATH}/broken.json`, '{"id": "broken", "name": ');
@@ -508,6 +559,201 @@ describe('ProjectService', () => {
     await expect(conversations.setConversationsPlacement(['outsider'], { projectId: deleted.id }))
       .rejects.toThrow(`Unknown project: ${deleted.id}`);
     expect(repository.getSync('outsider')?.projectId).toBe(other.id);
+  });
+
+  it.each([
+    ['archive', 'scheduled'], ['restore', 'scheduled'],
+    ['archive', 'not scheduled'], ['restore', 'not scheduled'],
+  ] as const)('%s includes startup members when the scan is %s', async (operation, scanState) => {
+    const { vault, projects, repository, conversations, persistence, sessions, sessionMetadata, metadataLoaded } = await fixture();
+    const project = await projects.create({ name: 'Startup', instructions: '', memoryPath: 'Startup.md' });
+    const initiallyArchived = operation === 'restore';
+    await projects.setArchived(project.id, initiallyArchived);
+    const member = { ...conversation('late-member', project.id), selectedModel: 'sonnet', isArchived: initiallyArchived };
+    await vault.write(sessions.getMetadataPath(member.id), JSON.stringify(member));
+    const scanEntered = deferred<void>();
+    const releaseScan = deferred<void>();
+    const scan = sessions.scan.bind(sessions);
+    jest.spyOn(sessions, 'scan').mockImplementationOnce(async options => {
+      scanEntered.resolve();
+      await releaseScan.promise;
+      return scan(options);
+    });
+    if (scanState === 'scheduled') {
+      sessionMetadata.scheduleRemainingLoad();
+      await scanEntered.promise;
+    }
+    expect(repository.list()).toEqual([]);
+    const lifecycle = new ConversationLifecycle({
+      conversations, projects,
+      sessions: { get: () => null, isRunning: () => false, retire: async () => undefined, whenSettled: async () => true },
+      views: { getAllViews: () => [] },
+    });
+
+    const changing = operation === 'archive' ? lifecycle.archiveProject(project.id) : lifecycle.restoreProject(project.id);
+    await scanEntered.promise;
+    // Drain already-admitted project writes without changing this unpinned project.
+    await projects.setPinned(project.id, false);
+    releaseScan.resolve();
+    await Promise.all([changing, metadataLoaded.promise]);
+
+    expect(projects.get(project.id)?.isArchived).toBe(!initiallyArchived);
+    expect(repository.getSync(member.id)?.isArchived).toBe(!initiallyArchived);
+    expect(persistence.saveMetadata).toHaveBeenCalledWith(expect.objectContaining({
+      id: member.id, isArchived: !initiallyArchived,
+    }));
+  });
+
+  it.each(['incomplete', 'failed'] as const)('keeps project state intact after an %s metadata scan and allows retry', async failure => {
+    const { projects, conversations, sessions } = await fixture();
+    const project = await projects.create({ name: 'Retry scan', instructions: '', memoryPath: 'Retry scan.md' });
+    const scan = jest.spyOn(sessions, 'scan');
+    if (failure === 'incomplete') scan.mockResolvedValueOnce({ records: [], complete: false, invalidMetadataCount: 0 });
+    else scan.mockRejectedValueOnce(new Error('scan unavailable'));
+    const lifecycle = new ConversationLifecycle({
+      conversations, projects,
+      sessions: { get: () => null, isRunning: () => false, retire: async () => undefined, whenSettled: async () => true },
+      views: { getAllViews: () => [] },
+    });
+
+    await expect(lifecycle.archiveProject(project.id)).rejects.toThrow(
+      failure === 'incomplete' ? 'Session metadata could not be fully loaded' : 'scan unavailable',
+    );
+    expect(projects.get(project.id)?.isArchived).toBe(false);
+    await lifecycle.archiveProject(project.id);
+    expect(projects.get(project.id)?.isArchived).toBe(true);
+  });
+
+  it('drops a retained draft seed when its project is archived before first submission', async () => {
+    const { projects, repository, conversations, persistence } = await fixture();
+    const project = await projects.create({ name: 'Draft', instructions: '', memoryPath: 'Draft.md' });
+    const draft = createDraftFixture();
+    draft.state.currentConversationId = null;
+    draft.deps.conversationController.seedDraftProject(project.id);
+    draft.plugin.createConversation.mockImplementation(options => conversations.createConversation(options));
+    draft.plugin.getConversationSync.mockImplementation(id => repository.getSync(id));
+    await projects.setArchived(project.id, true);
+
+    await draft.controller.sendMessage({ content: 'Submit the retained draft' });
+
+    expect(draft.plugin.createConversation).toHaveBeenCalledWith(expect.objectContaining({ projectId: project.id }));
+    expect(draft.state.currentConversationId).not.toBeNull();
+    expect(repository.getSync(draft.state.currentConversationId!)?.projectId).toBeUndefined();
+    expect(persistence.saveMetadata.mock.calls.at(-1)?.[0].projectId).toBeUndefined();
+    expect(projects.get(project.id)?.isArchived).toBe(true);
+  });
+
+  it('rejects placement into an archived project without changing membership or pinning', async () => {
+    const { projects, repository, conversations } = await fixture({
+      conversations: [{ ...conversation('outside'), isPinned: true }],
+    });
+    const project = await projects.create({ name: 'Archived', instructions: '', memoryPath: 'Archived.md' });
+    await projects.setArchived(project.id, true);
+
+    await expect(conversations.setConversationsPlacement(['outside'], { projectId: project.id, isPinned: false }))
+      .rejects.toThrow(`Unknown project: ${project.id}`);
+
+    expect(repository.getSync('outside')).toMatchObject({ isPinned: true });
+    expect(repository.getSync('outside')?.projectId).toBeUndefined();
+  });
+
+  it.each(['move', 'restore', 'restore one', 'create'] as const)(
+    'keeps a project active when a member arrives via %s during archive persistence',
+    async (mutation) => {
+      const { projects, repository, conversations, persistence } = await fixture();
+      const project = await projects.create({ name: 'Race', instructions: '', memoryPath: 'Race.md' });
+      repository.replaceAll([
+        conversation('member', project.id),
+        { ...conversation('arriving', mutation === 'move' ? undefined : project.id), isArchived: mutation !== 'move' },
+      ]);
+      const lifecycle = new ConversationLifecycle({
+        conversations, projects,
+        sessions: { get: () => null, isRunning: () => false, retire: async () => undefined, whenSettled: async () => true },
+        views: { getAllViews: () => [] },
+      });
+      const entered = deferred<void>();
+      const release = deferred<void>();
+      persistence.saveMetadata.mockImplementationOnce(async () => { entered.resolve(); await release.promise; });
+      const archiving = lifecycle.archiveProject(project.id);
+      await entered.promise;
+      if (mutation === 'move') await lifecycle.setPlacement(['arriving'], { projectId: project.id });
+      else if (mutation === 'restore') await lifecycle.restore(['arriving']);
+      else if (mutation === 'restore one') await lifecycle.setArchived('arriving', false);
+      else await conversations.createConversation({ projectId: project.id });
+      release.resolve();
+      await archiving;
+
+      expect(projects.get(project.id)?.isArchived).toBe(false);
+      expect(conversations.getConversationList().some(record => record.projectId === project.id && !record.isArchived)).toBe(true);
+    },
+  );
+
+  it.each(['move', 'restore', 'restore one', 'restore project', 'create'] as const)(
+    'orders %s against the final project archive write',
+    async (mutation) => {
+      const { projects, repository, conversations, store, persistence } = await fixture();
+      const project = await projects.create({ name: 'Final', instructions: '', memoryPath: 'Final.md' });
+      repository.replaceAll([
+        { ...conversation('arriving', mutation === 'move' ? undefined : project.id), isArchived: mutation !== 'move' },
+      ]);
+      const lifecycle = new ConversationLifecycle({
+        conversations, projects,
+        sessions: { get: () => null, isRunning: () => false, retire: async () => undefined, whenSettled: async () => true },
+        views: { getAllViews: () => [] },
+      });
+      // Session restoration must not be persisted while its project is still archived.
+      persistence.saveMetadata.mockImplementation(async metadata => {
+        expect(metadata.projectId === project.id && !metadata.isArchived && projects.get(project.id)?.isArchived)
+          .toBe(false);
+      });
+      const entered = deferred<void>();
+      const release = deferred<void>();
+      const save = store.save.bind(store);
+      jest.spyOn(store, 'save').mockImplementationOnce(async record => {
+        entered.resolve();
+        await release.promise;
+        await save(record);
+      });
+      const archiving = lifecycle.archiveProject(project.id);
+      await entered.promise;
+      const arriving = mutation === 'move' ? lifecycle.setPlacement(['arriving'], { projectId: project.id })
+        : mutation === 'restore' ? lifecycle.restore(['arriving'])
+        : mutation === 'restore one' ? lifecycle.setArchived('arriving', false)
+        : mutation === 'restore project' ? lifecycle.restoreProject(project.id)
+        : conversations.createConversation({ projectId: project.id });
+      const settled = Promise.allSettled([archiving, arriving]);
+      release.resolve();
+      const results = await settled;
+
+      expect(results[0].status).toBe('fulfilled');
+      expect(results[1].status).toBe(mutation === 'move' ? 'rejected' : 'fulfilled');
+      expect(projects.get(project.id)?.isArchived).toBe(!mutation.startsWith('restore'));
+      expect(conversations.getConversationList().filter(record => record.projectId === project.id && !record.isArchived))
+        .toHaveLength(mutation.startsWith('restore') ? 1 : 0);
+      expect(conversations.getConversationList()).toHaveLength(mutation === 'create' ? 2 : 1);
+      expect(projects.get(project.id)?.isArchived && conversations.getConversationList()
+        .some(record => record.projectId === project.id && !record.isArchived)).toBe(false);
+    },
+  );
+
+  it('releases membership writes after final project archive persistence fails', async () => {
+    const { projects, repository, conversations, store } = await fixture();
+    const project = await projects.create({ name: 'Retry', instructions: '', memoryPath: 'Retry.md' });
+    const lifecycle = new ConversationLifecycle({
+      conversations, projects,
+      sessions: { get: () => null, isRunning: () => false, retire: async () => undefined, whenSettled: async () => true },
+      views: { getAllViews: () => [] },
+    });
+    jest.spyOn(store, 'save').mockRejectedValueOnce(new Error('disk unavailable'));
+
+    await expect(lifecycle.archiveProject(project.id)).rejects.toThrow('disk unavailable');
+    const created = await conversations.createConversation({ projectId: project.id });
+
+    expect(projects.get(project.id)?.isArchived).toBe(false);
+    expect(repository.getSync(created.id)?.projectId).toBe(project.id);
+    await lifecycle.archiveProject(project.id);
+    expect(projects.get(project.id)?.isArchived).toBe(true);
+    expect(repository.getSync(created.id)?.isArchived).toBe(true);
   });
 
   it('joins, moves, and leaves through the conversation owner and publishes the list change', async () => {
