@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 import { TEST_CODEX_CATALOG, TEST_CODEX_MODEL } from '@test/helpers/codexModels';
 import { createMockEl } from '@test/helpers/MockElement';
+import { withRuntimeHosts } from '@test/helpers/providerRuntimeHost';
 import { applyTextInput } from '@test/helpers/settingsControls';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import * as fs from 'fs';
@@ -9,7 +10,7 @@ import { setImmediate } from 'timers';
 
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
-import { DEFAULT_CODEX_PROVIDER_SETTINGS } from '@/providers/codex/settings';
+import { DEFAULT_CODEX_PROVIDER_SETTINGS } from '@/providers/codex/config';
 import { createCodexSettingsTabRenderer } from '@/providers/codex/ui/CodexSettingsTab';
 
 Object.assign(globalThis, { setImmediate });
@@ -351,7 +352,7 @@ function createPlugin(overrides: Record<string, unknown> = {}): any {
     await plugin.mutateSettings(mutation);
     await onApplied?.();
   }));
-  return plugin;
+  return withRuntimeHosts(plugin);
 }
 
 function createContext(plugin: any) {

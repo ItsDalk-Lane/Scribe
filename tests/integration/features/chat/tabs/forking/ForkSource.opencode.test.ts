@@ -83,7 +83,7 @@ async function createNativeOpencode(env: ForkTestEnvironment) {
     environmentVariables: `OPENCODE_DB=${path.join(env.root, 'opencode.db')}`,
   };
   return {
-    backend: new OpencodeExecutionBackend(env.host, { serverService: new OpencodeServerService() }), sessions, prompts, processes,
+    backend: new OpencodeExecutionBackend(env.host.getRuntimeHost('opencode'), { serverService: new OpencodeServerService() }), sessions, prompts, processes,
     rejectFork: () => { rejectFork = true; },
     disableFork: () => { supportsFork = false; },
   };
@@ -155,10 +155,10 @@ describe('OpenCode fork integration', () => {
     const nodePath = path.join(env.root, process.platform === 'win32' ? 'node.exe' : 'node');
     await fs.writeFile(nodePath, '');
     if (process.platform !== 'win32') await fs.chmod(nodePath, 0o755);
-    const settings = { providerConfigs: { opencode: { cliPath } } };
+
     const service = new OpencodeConversationHistoryService();
     await service.buildForkProviderState('ses-source', selected.assistantMessageId!, source.conversation.providerState, env.root, {
-      settings, environment: { ...process.env, OPENCODE_DB: path.join(env.root, 'opencode.db'), PATH: '/restricted' },
+      config: { cliPath }, environment: { ...process.env, OPENCODE_DB: path.join(env.root, 'opencode.db'), PATH: '/restricted' }, environmentText: '',
     });
     const launch = jest.mocked(spawn).mock.calls.at(-1)!;
     expect(launch[0]).toBe(cliPath);

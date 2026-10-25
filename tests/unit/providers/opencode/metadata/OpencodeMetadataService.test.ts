@@ -1,3 +1,5 @@
+import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
+
 import {
   type OpencodeMetadataProbe,
   OpencodeMetadataService,
@@ -6,23 +8,19 @@ import {
 import { getOpencodeProviderSettings } from '@/providers/opencode/settings';
 
 function createPlugin(): any {
-  const plugin: any = {
-    executionLifecycleRegistry: {
-      registerTransitionHook: jest.fn(() => jest.fn()),
-    },
-    mutateSettings: jest.fn(async (mutation) => mutation(plugin.settings)),
-    mutateSettingsConditionally: jest.fn(async (mutation) => mutation(plugin.settings)),
-    notifyProviderChatOptionsChanged: jest.fn(),
-    settings: {
-      providerConfigs: {
-        opencode: {
-          discoveredModels: [],
-          visibleModels: [],
-        },
+  const settings = {
+    providerConfigs: {
+      opencode: {
+        discoveredModels: [],
+        visibleModels: [],
       },
     },
   };
-  return plugin;
+  const notifyProviderChatOptionsChanged = jest.fn();
+  const host = runtimeHostFor({ settings, notifyProviderChatOptionsChanged }, 'opencode');
+  host.updateConfig = jest.fn(host.updateConfig);
+  const executionLifecycleRegistry = { registerTransitionHook: jest.fn(() => jest.fn()) };
+  return Object.assign(host, { settings, notifyProviderChatOptionsChanged, executionLifecycleRegistry });
 }
 
 function createProbe(overrides: Partial<OpencodeMetadataProbe> = {}): OpencodeMetadataProbe {
@@ -72,7 +70,7 @@ describe('OpencodeMetadataService', () => {
       }),
     });
     const create = jest.fn(() => probe);
-    const service = new OpencodeMetadataService(plugin, { createProbe: create });
+    const service = new OpencodeMetadataService(plugin, plugin.executionLifecycleRegistry, { createProbe: create });
     try {
       await expect(service.discoverModels()).resolves.toEqual({ changed: true });
       expect(create).toHaveBeenCalledTimes(1);
@@ -85,7 +83,7 @@ describe('OpencodeMetadataService', () => {
   it('uses an isolated probe, loads commands, and persists discovered models', async () => {
     const plugin = createPlugin();
     const probe = createProbe();
-    const service = new OpencodeMetadataService(plugin, {
+    const service = new OpencodeMetadataService(plugin, plugin.executionLifecycleRegistry, {
       createProbe: jest.fn(() => probe),
     });
 
@@ -103,7 +101,7 @@ describe('OpencodeMetadataService', () => {
   it('warms detached thought-level metadata without constructing a chat runtime', async () => {
     const plugin = createPlugin();
     const probe = createProbe();
-    const service = new OpencodeMetadataService(plugin, {
+    const service = new OpencodeMetadataService(plugin, plugin.executionLifecycleRegistry, {
       createProbe: () => probe,
     });
 
@@ -138,7 +136,7 @@ describe('OpencodeMetadataService', () => {
         rejectLoad = reject;
       })),
     });
-    const service = new OpencodeMetadataService(transitionPlugin, {
+    const service = new OpencodeMetadataService(transitionPlugin, transitionPlugin.executionLifecycleRegistry, {
       createProbe: () => probe,
     });
     const load = service.loadCatalog();
@@ -181,12 +179,12 @@ describe('OpencodeMetadataService', () => {
       probeEnvironments.push(environment);
       return createProbe();
     });
-    const service = new OpencodeMetadataService(transitionPlugin, {
+    const service = new OpencodeMetadataService(transitionPlugin, transitionPlugin.executionLifecycleRegistry, {
       createProbe: createProbeFactory,
     });
 
     await beforeTransition();
-    transitionPlugin.mutateSettingsConditionally.mockClear();
+    transitionPlugin.updateConfig.mockClear();
     const catalog = service.loadCatalog();
     const commands = service.discoverCommands();
     const warm = service.warmModelMetadata('opencode:anthropic/claude');
@@ -195,7 +193,7 @@ describe('OpencodeMetadataService', () => {
     await Promise.resolve();
 
     expect(createProbeFactory).not.toHaveBeenCalled();
-    expect(transitionPlugin.mutateSettingsConditionally).not.toHaveBeenCalled();
+    expect(transitionPlugin.updateConfig).not.toHaveBeenCalled();
 
     environment = 'environment-b';
     await afterTransition();
@@ -227,7 +225,7 @@ describe('OpencodeMetadataService', () => {
         return jest.fn();
       });
     const createProbeFactory = jest.fn(() => createProbe());
-    const service = new OpencodeMetadataService(transitionPlugin, {
+    const service = new OpencodeMetadataService(transitionPlugin, transitionPlugin.executionLifecycleRegistry, {
       createProbe: createProbeFactory,
     });
 
@@ -248,10 +246,10 @@ describe('OpencodeMetadataService', () => {
 it('does not replace catalog rows during command warmup', async () => {
   const host = createPlugin();
   host.settings.providerConfigs.opencode.discoveredModels = [{ rawId: 'old/model', label: 'Old model' }];
-  const service = new OpencodeMetadataService(host, { createProbe });
+  const service = new OpencodeMetadataService(host, host.executionLifecycleRegistry, { createProbe });
   await expect(service.loadCommands()).resolves.toHaveLength(1);
   expect(getOpencodeProviderSettings(host.settings).discoveredModels).toEqual([{ rawId: 'old/model', label: 'Old model' }]);
-  expect(host.mutateSettingsConditionally).not.toHaveBeenCalled();
+  expect(host.updateConfig).not.toHaveBeenCalled();
   await service.dispose();
 });
 
@@ -261,14 +259,13 @@ it.each(['catalog', 'warm', 'discovery', 'batch'] as const)('does not publish ca
   let queued!: () => void;
   const waiting = new Promise<void>(resolve => { queued = resolve; });
   const gate = new Promise<void>(resolve => { release = resolve; });
-  const write = jest.fn(async (mutate: (settings: any) => unknown) => {
+  const updateConfig = host.updateConfig;
+  host.updateConfig = jest.fn(async (mutation: Parameters<typeof updateConfig>[0]) => {
     queued();
     await gate;
-    return mutate(host.settings);
+    return await updateConfig(mutation);
   });
-  host.mutateSettings = write;
-  host.mutateSettingsConditionally = write;
-  const service = new OpencodeMetadataService(host, { createProbe: () => createProbe() });
+  const service = new OpencodeMetadataService(host, host.executionLifecycleRegistry, { createProbe: () => createProbe() });
   const controller = new AbortController();
   const pending = kind === 'catalog'
     ? service.loadCatalog(controller.signal)

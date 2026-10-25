@@ -21,7 +21,7 @@ describe('OpenCode provider state', () => {
     Object.assign(conversation, await service.hydrateConversationHistory(
       conversation,
       null,
-      { environment: { HOME: '/missing-home', XDG_DATA_HOME: '/missing-data' } },
+      { config: {}, environment: { HOME: '/missing-home', XDG_DATA_HOME: '/missing-data' }, environmentText: '' },
     ));
     expect(service.buildPersistedProviderState(conversation)).toEqual({
       futureResumeCursor: { token: 'cursor-1' },

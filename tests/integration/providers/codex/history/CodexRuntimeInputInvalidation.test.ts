@@ -2,6 +2,7 @@ import '@/providers';
 
 import { TEST_CODEX_CATALOG, TEST_CODEX_MODEL } from '@test/helpers/codexModels';
 import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { withRuntimeHosts } from '@test/helpers/providerRuntimeHost';
 import { testDate } from '@test/helpers/testClock';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -13,7 +14,6 @@ import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import type { ProviderSessionEvent } from '@/core/execution';
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution/ProviderExecutionLifecycleRegistry';
 import { SessionSnapshotState } from '@/core/execution/SessionSnapshotState';
-import type { ProviderHost } from '@/core/providers/ProviderHost';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { ClaudianSettings, Conversation } from '@/core/types';
@@ -165,9 +165,9 @@ describe('Codex runtime-input changes', () => {
     ['a CLI path change', (codex: Record<string, unknown>) => { codex.cliPath = '/opt/codex/bin/codex'; }, true, 'thread-a'],
   ])('lets a running session outlive %s only when its binding stays valid', async (_change, change, preserved, binding) => {
     const { lifecycle, repository, runtimeSettings, settings } = fixture();
-    const workspace = await createCodexWorkspaceServices({
+    const workspace = await createCodexWorkspaceServices(withRuntimeHosts({
       settings, executionLifecycleRegistry: lifecycle,
-    } as unknown as ProviderHost);
+    }));
     const live = new SessionSnapshotState({
       providerId: 'codex',
       sessionInstanceId: 'live-session',
@@ -228,9 +228,9 @@ describe('Codex runtime-input changes', () => {
       ? { ...conversation, sessionId: null, providerState: undefined, messages: [] }
       : conversation));
     let adoptedThreadId: string | null = null;
-    const workspace = await createCodexWorkspaceServices({
+    const workspace = await createCodexWorkspaceServices(withRuntimeHosts({
       settings, executionLifecycleRegistry: lifecycle,
-    } as unknown as ProviderHost);
+    }));
     const live = new SessionSnapshotState({
       providerId: 'codex',
       sessionInstanceId: 'live-session',
@@ -296,9 +296,9 @@ describe('Codex runtime-input changes', () => {
         }, messages: [] }
       : conversation));
     let adoptedThreadId: string | null = null;
-    const workspace = await createCodexWorkspaceServices({
+    const workspace = await createCodexWorkspaceServices(withRuntimeHosts({
       settings, executionLifecycleRegistry: lifecycle,
-    } as unknown as ProviderHost);
+    }));
     const live = new SessionSnapshotState({
       providerId: 'codex',
       sessionInstanceId: 'live-session',

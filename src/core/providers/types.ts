@@ -526,13 +526,20 @@ export interface ProviderSubagentHistoryService {
   loadFinalResult(request: ProviderSubagentHistoryRequest): Promise<string | null>;
 }
 
-export interface ProviderHistoryPathContext {
-  /** Initialize provider-owned resources lazily when native history needs them. */
-  ensureWorkspace?: () => Promise<void>;
+/** The process environment a provider resolves native history paths from. */
+export interface ProviderHistoryEnvironment {
   environment: NodeJS.ProcessEnv;
   hostPlatform?: NodeJS.Platform;
-  settings?: Record<string, unknown>;
   vaultPath?: string | null;
+}
+
+export interface ProviderHistoryPathContext extends ProviderHistoryEnvironment {
+  /** Initialize provider-owned resources lazily when native history needs them. */
+  ensureWorkspace?: () => Promise<void>;
+  /** The provider's own stored configuration. */
+  config: Readonly<Record<string, unknown>>;
+  /** Shared plus provider-scoped environment variable text, as `environment` applies it. */
+  environmentText: string;
 }
 
 export type ProviderConversationSessionAvailability =

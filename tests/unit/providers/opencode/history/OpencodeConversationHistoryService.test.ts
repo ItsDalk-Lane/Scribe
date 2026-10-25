@@ -46,12 +46,14 @@ describe('OpencodeConversationHistoryService', () => {
           '@/providers/opencode/history/OpencodeConversationHistoryService'
         );
         Object.assign(conversation, await new HistoryService().hydrateConversationHistory(conversation, null, {
+          config: {},
           environment: {
             ...process.env,
             OPENCODE_DB: dbPath,
             CLAUDIAN_HISTORY_TEST: 'configured',
             PATH: path.dirname(process.execPath),
           },
+          environmentText: '',
         }));
       });
       expect(conversation.messages.map(message => message.content)).toEqual(['Configured history']);
@@ -185,7 +187,7 @@ describe('OpencodeConversationHistoryService', () => {
     Object.assign(conversation, await new OpencodeConversationHistoryService().hydrateConversationHistory(
       conversation,
       null,
-      { environment: { HOME: tmpRoot, XDG_DATA_HOME: xdgDataHome } },
+      { config: {}, environment: { HOME: tmpRoot, XDG_DATA_HOME: xdgDataHome }, environmentText: '' },
     ));
 
     expect(conversation.messages.map(message => message.content)).toEqual(['Trusted prompt']);
@@ -211,11 +213,13 @@ describe('OpencodeConversationHistoryService', () => {
       conversation,
       null,
       {
+        config: {},
         environment: {
           APPDATA: appData,
           HOME: home,
           LOCALAPPDATA: path.join(home, 'AppData', 'Local'),
         },
+        environmentText: '',
       },
     ));
 
@@ -314,7 +318,7 @@ describe('OpencodeConversationHistoryService', () => {
     Object.assign(conversation, await new OpencodeConversationHistoryService().hydrateConversationHistory(
       conversation,
       null,
-      { environment: { HOME: tmpRoot, OPENCODE_DB: configuredPath } },
+      { config: {}, environment: { HOME: tmpRoot, OPENCODE_DB: configuredPath }, environmentText: '' },
     ));
 
     expect(conversation.messages.map(message => message.content)).toEqual(['Configured prompt']);
@@ -332,7 +336,7 @@ describe('OpencodeConversationHistoryService', () => {
     Object.assign(conversation, await new OpencodeConversationHistoryService().hydrateConversationHistory(
       conversation,
       null,
-      { environment: { HOME: tmpRoot, XDG_DATA_HOME: xdgDataHome } },
+      { config: {}, environment: { HOME: tmpRoot, XDG_DATA_HOME: xdgDataHome }, environmentText: '' },
     ));
 
     expect(conversation.providerState).toEqual({ databasePath: trustedPath });

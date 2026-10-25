@@ -2,6 +2,8 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
+import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
+
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import type { Conversation } from '@/core/types';
@@ -69,11 +71,13 @@ process.stdin.resume(); process.stdin.on('end', () => server.close());
 `, { mode: 0o700 });
   const history = kind === 'standalone' ? new OpencodeConversationHistoryService() : opencodeProviderRegistration.historyService!;
   const conversation = { id: 'local', sessionId: 'ses_parent', messages: [], providerState: { nativeVersion: 2, databasePath } } as unknown as Conversation;
-  const context = { settings: { providerConfigs: { opencode: { cliPath } } }, vaultPath: root, environment: { ...process.env, XDG_DATA_HOME: path.join(root, 'data'), OPENCODE_DB: path.join(root, 'untrusted.db') } };
+  const settings = { providerConfigs: { opencode: { cliPath } } };
+  const context = { config: settings.providerConfigs.opencode, environmentText: '', vaultPath: root, environment: { ...process.env, XDG_DATA_HOME: path.join(root, 'data'), OPENCODE_DB: path.join(root, 'untrusted.db') } };
   const registry = new ProviderExecutionLifecycleRegistry();
-  const host: any = { settings: context.settings, app: { vault: { adapter: { basePath: root } } }, storage: { getAdapter: () => ({}) },
+  const host: any = { settings, workingDirectory: root, storage: { getAdapter: () => ({}) },
     executionLifecycleRegistry: registry, runProviderExecutionTransition: (ids: string[], mutation: any) => registry.runTransition(ids, mutation),
     getResolvedProviderCliPath: async () => cliPath };
+  host.getRuntimeHost = (id: string) => runtimeHostFor(host, id);
   ProviderWorkspaceRegistry.register('opencode', opencodeProviderRegistration.workspace!);
   const historyContext = { ...context, ensureWorkspace: () => ProviderWorkspaceRegistry.ensureInitialized(host, 'opencode', 'history') };
   try {

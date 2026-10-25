@@ -5,12 +5,13 @@ import type { ProviderModule } from '@/core/providers/types';
 
 import { deepseekWorkspaceRegistration, getDeepSeekWorkspaceServices } from './app/DeepSeekWorkspaceServices';
 import { DEEPSEEK_PROVIDER_CAPABILITIES } from './capabilities';
+import { findDeepSeekModel } from './config';
 import { deepseekModelPolicy } from './DeepSeekModelPolicy';
 import { deepseekSettingsReconciler } from './env/DeepSeekSettingsReconciler';
 import { DeepSeekExecutionBackend } from './execution/DeepSeekExecutionBackend';
 import { DeepSeekConversationHistoryService } from './history/DeepSeekConversationHistoryService';
 import { deepseekSubagentAdapter } from './normalization/DeepSeekSubagents';
-import { findDeepSeekModel, getDeepSeekProviderSettings, projectDeepSeekModelSettings, updateDeepSeekProviderSettings } from './settings';
+import { getDeepSeekProviderSettings, projectDeepSeekModelSettings, updateDeepSeekProviderSettings } from './settings';
 import { deepseekChatUIConfig } from './ui/DeepSeekChatUIConfig';
 
 export const deepseekProviderRegistration: ProviderModule = {
@@ -21,7 +22,7 @@ export const deepseekProviderRegistration: ProviderModule = {
   chatUIConfig: deepseekChatUIConfig,
   capabilities: DEEPSEEK_PROVIDER_CAPABILITIES,
   environmentKeyPatterns: [/^DSH_/i, /^DEEPSEEK_/i],
-  createExecutionBackend: host => new DeepSeekExecutionBackend(host, () => getDeepSeekWorkspaceServices().deepseek),
+  createExecutionBackend: host => new DeepSeekExecutionBackend(host.getRuntimeHost('deepseek'), () => getDeepSeekWorkspaceServices().deepseek),
   historyService: new DeepSeekConversationHistoryService(async context => {
     await context?.ensureWorkspace?.();
     return getDeepSeekWorkspaceServices().deepseek;

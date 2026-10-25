@@ -1,5 +1,9 @@
+import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
+
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
+import { createCodexModelCatalogCommit } from '@/providers/codex/app/CodexWorkspaceServices';
+import { DEFAULT_CODEX_PROVIDER_SETTINGS } from '@/providers/codex/config';
 import type { CodexDiscoveredModel } from '@/providers/codex/models';
 import { CodexModelCatalogCoordinator } from '@/providers/codex/runtime/CodexModelCatalogCoordinator';
 import { buildCodexCatalogFingerprint } from '@/providers/codex/runtime/CodexModelCatalogFingerprint';
@@ -7,10 +11,7 @@ import type {
   CodexModelDiscoveryResult,
   CodexModelDiscoveryServiceLike,
 } from '@/providers/codex/runtime/CodexModelDiscoveryService';
-import {
-  DEFAULT_CODEX_PROVIDER_SETTINGS,
-  getCodexProviderSettings,
-} from '@/providers/codex/settings';
+import { getCodexProviderSettings } from '@/providers/codex/settings';
 
 jest.mock('@/core/providers/ProviderSettingsCoordinator', () => ({
   ProviderSettingsCoordinator: {
@@ -104,6 +105,14 @@ function createFakeHost(overrides: {
   } as unknown as ProviderHost;
 }
 
+function createCoordinator(host: ProviderHost, discovery: CodexModelDiscoveryServiceLike): CodexModelCatalogCoordinator {
+  return new CodexModelCatalogCoordinator(
+    runtimeHostFor(host, 'codex'),
+    discovery,
+    createCodexModelCatalogCommit(host),
+  );
+}
+
 function createDiscovery(result: CodexModelDiscoveryResult): CodexModelDiscoveryServiceLike {
   return {
     discoverModels: jest.fn(async () => result),
@@ -167,7 +176,7 @@ describe('CodexModelCatalogCoordinator', () => {
   it('skips refresh when provider is disabled', async () => {
     const host = createFakeHost({ enabled: false });
     const discovery = createDiscovery({ kind: 'completed', models: [] });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     const result = await coordinator.refresh();
 
@@ -185,7 +194,7 @@ describe('CodexModelCatalogCoordinator', () => {
       diagnostics: 'app-server unreachable',
       models: [],
     });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     const result = await coordinator.refresh();
 
@@ -202,7 +211,7 @@ describe('CodexModelCatalogCoordinator', () => {
         return { kind: 'completed', models: [makeModel('gpt-4o')] } as CodexModelDiscoveryResult;
       }),
     };
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     const [first, second] = await Promise.all([
       coordinator.refresh(),
@@ -232,7 +241,7 @@ describe('CodexModelCatalogCoordinator', () => {
     (host.mutateSettingsConditionally as jest.Mock).mockImplementation(async (mutation) => {
       await mutation(host.settings);
     });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     const refresh = coordinator.refresh();
     await discoveryStarted;
@@ -255,7 +264,7 @@ describe('CodexModelCatalogCoordinator', () => {
         .mockImplementationOnce(() => secondDiscovery.promise),
     };
     const mutations = deferConditionalMutations(host, 2);
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     const oldRefresh = coordinator.refresh();
     while ((discovery.discoverModels as jest.Mock).mock.calls.length < 1) {
@@ -284,7 +293,7 @@ describe('CodexModelCatalogCoordinator', () => {
   it('rejects a queued catalog write after disposal', async () => {
     const host = createFakeHost();
     const mutations = deferConditionalMutations(host, 1);
-    const coordinator = new CodexModelCatalogCoordinator(host, createDiscovery({
+    const coordinator = createCoordinator(host, createDiscovery({
       kind: 'completed',
       models: [makeModel('disposed-model')],
     }));
@@ -302,7 +311,7 @@ describe('CodexModelCatalogCoordinator', () => {
   it('rejects a queued catalog write when its fingerprint context changes', async () => {
     const host = createFakeHost();
     const mutations = deferConditionalMutations(host, 1);
-    const coordinator = new CodexModelCatalogCoordinator(host, createDiscovery({
+    const coordinator = createCoordinator(host, createDiscovery({
       kind: 'completed',
       models: [makeModel('stale-context-model')],
     }));
@@ -322,7 +331,7 @@ describe('CodexModelCatalogCoordinator', () => {
   it('skips discovery when canceled before launch context resolves', async () => {
     const host = createFakeHost();
     const discovery = createDiscovery({ kind: 'completed', models: [] });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     const refreshPromise = coordinator.refresh();
     coordinator.cancel();
@@ -343,7 +352,7 @@ describe('CodexModelCatalogCoordinator', () => {
       }),
     };
     const host = createFakeHost({ discoveredModels: [cachedModel] });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
     const refresh = coordinator.refresh();
     await waitForCondition(() => discoverySignal !== undefined);
 
@@ -379,7 +388,7 @@ describe('CodexModelCatalogCoordinator', () => {
         };
       }),
     };
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
     coordinator.beginEnvironmentTransition();
     await coordinator.quiesceForEnvironmentChange();
 
@@ -406,7 +415,7 @@ describe('CodexModelCatalogCoordinator', () => {
       kind: 'completed',
       models: [makeModel('should-not-start')],
     });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
     coordinator.beginEnvironmentTransition();
 
     const refresh = coordinator.refresh();
@@ -422,7 +431,7 @@ describe('CodexModelCatalogCoordinator', () => {
       kind: 'completed',
       models: [makeModel('gpt-4o')],
     });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     coordinator.dispose();
     const result = await coordinator.refresh();
@@ -438,7 +447,7 @@ describe('CodexModelCatalogCoordinator', () => {
       kind: 'completed',
       models: [makeModel('gpt-4o')],
     });
-    const coordinator = new CodexModelCatalogCoordinator(host, discovery);
+    const coordinator = createCoordinator(host, discovery);
 
     await coordinator.refresh();
 
@@ -456,7 +465,7 @@ it('does not join canceled discovery from a new native caller or publish its del
   const discoverModels = jest.fn()
     .mockImplementationOnce(() => oldResult.promise)
     .mockResolvedValueOnce({ kind: 'completed', models: [makeModel('fresh-model')] });
-  const catalog = new CodexModelCatalogCoordinator(host, { discoverModels });
+  const catalog = createCoordinator(host, { discoverModels });
   const old = catalog.refresh();
   await waitForCondition(() => discoverModels.mock.calls.length === 1);
   catalog.cancel();

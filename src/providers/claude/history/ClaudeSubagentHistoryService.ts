@@ -1,8 +1,8 @@
 import { parseEnvironmentVariables } from '@/core/process/env';
 
-import type { ProviderHost } from '../../../core/providers/ProviderHost';
+import type { ProviderRuntimeHost } from '../../../core/providers/ProviderRuntimeHost';
 import type {
-  ProviderHistoryPathContext,
+  ProviderHistoryEnvironment,
   ProviderSubagentHistoryRequest,
   ProviderSubagentHistoryService,
 } from '../../../core/providers/types';
@@ -12,7 +12,7 @@ import {
 } from './ClaudeHistoryStore';
 
 export class ClaudeSubagentHistoryService implements ProviderSubagentHistoryService {
-  constructor(private readonly host: ProviderHost) {}
+  constructor(private readonly host: Pick<ProviderRuntimeHost, 'environmentText'>) {}
 
   loadToolCalls(request: ProviderSubagentHistoryRequest) {
     return loadSubagentToolCalls(
@@ -34,10 +34,8 @@ export class ClaudeSubagentHistoryService implements ProviderSubagentHistoryServ
     );
   }
 
-  #buildPathContext(vaultPath: string): ProviderHistoryPathContext {
-    const customEnvironment = parseEnvironmentVariables(
-      this.host.getActiveEnvironmentVariables('claude'),
-    );
+  #buildPathContext(vaultPath: string): ProviderHistoryEnvironment {
+    const customEnvironment = parseEnvironmentVariables(this.host.environmentText);
     return {
       environment: { ...process.env, ...customEnvironment },
       hostPlatform: process.platform,

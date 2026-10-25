@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { createForkTestEnvironment, type ForkTestEnvironment } from '@test/helpers/features/chat/ProviderForkTestHarness';
 import { testDate } from '@test/helpers/testClock';
 
+import { createProviderHistoryPathContext } from '@/core/providers/historyPathContext';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import { OpencodeExecutionBackend } from '@/providers/opencode/execution/OpencodeExecutionBackend';
 import { OpencodeConversationHistoryService } from '@/providers/opencode/history/OpencodeConversationHistoryService';
@@ -55,14 +56,17 @@ describe('OpenCode v2 checkpoint forks', () => {
     { id: 'a-assistant', type: 'assistant', content: [{ type: 'text', text: 'Pears remembered' }] },
   ].map((message, index) => ({ ...message, time: { created: testDate({ seconds: index }).getTime() } }));
   const state = () => JSON.parse(readFileSync(databasePath, 'utf8'));
-  const context = () => ({ settings: env.host.settings, vaultPath: env.root, environment: { ...process.env, OPENCODE_DB: databasePath } });
+  const context = () => ({
+    ...createProviderHistoryPathContext(env.host.settings, 'opencode', env.root),
+    environment: { ...process.env, OPENCODE_DB: databasePath },
+  });
 
   beforeEach(async () => {
     env = await createForkTestEnvironment();
     server = new OpencodeServerService();
     ProviderWorkspaceRegistry.setServices('opencode', { serverService: server } as any);
-    history = new OpencodeConversationHistoryService(async () => server);
-    backend = new OpencodeExecutionBackend(env.host, { serverService: server });
+    history = new OpencodeConversationHistoryService({ getServerService: async () => server });
+    backend = new OpencodeExecutionBackend(env.host.getRuntimeHost('opencode'), { serverService: server });
     databasePath = path.join(env.root, 'native.db');
     const cliPath = path.join(env.root, 'opencode.cjs');
     writeFileSync(cliPath, fixture, { mode: 0o700 });

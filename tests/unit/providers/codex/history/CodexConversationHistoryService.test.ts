@@ -8,6 +8,7 @@ const path = jest.requireActual<typeof pathType>('path');
 
 import { testDate } from '@test/helpers/testClock';
 
+import { getInstallationKey } from '@/core/device/InstallationKey';
 import { encodeRecoveryPrompt } from '@/core/prompt/recoveryPrompt';
 import type { ChatMessage, Conversation } from '@/core/types';
 import { codexSettingsReconciler } from '@/providers/codex/env/CodexSettingsReconciler';
@@ -252,6 +253,33 @@ describe('CodexConversationHistoryService', () => {
       expect(streams[0].bytesRead).toBeLessThan(256 * 1024);
       expect(streams[0].destroyed).toBe(true);
     } finally { spy.mockRestore(); }
+  });
+
+  it('trusts a WSL transcript only when the caller configuration selects a WSL installation', async () => {
+    const sessionPath = '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions\\2026\\07\\12\\rollout-thread.jsonl';
+    const readModel = jest.spyOn(CodexHistoryStore, 'readCodexSessionModel').mockResolvedValue('gpt-5.5');
+    const find = jest.spyOn(CodexHistoryStore, 'findCodexSessionFileAsync').mockResolvedValue(null);
+    const service = new CodexConversationHistoryService();
+    const conversation = { sessionId: 'thread', providerState: { sessionFilePath: sessionPath, threadId: 'thread' }, messages: [] };
+    const context = (installationMethod: 'wsl' | 'native-windows') => ({
+      environment: { HOME: 'C:\\Users\\me' },
+      hostPlatform: 'win32' as const,
+      config: { installationMethodsByHost: { [getInstallationKey()]: installationMethod } },
+      environmentText: '',
+      vaultPath: 'C:\\vault',
+    });
+    try {
+      await expect(service.recoverConversationModelSelection(conversation, null, context('wsl')))
+        .resolves.toBe('openai-codex/gpt-5.5');
+      expect(readModel).toHaveBeenCalledWith(sessionPath, undefined);
+      readModel.mockClear();
+      await expect(service.recoverConversationModelSelection(conversation, null, context('native-windows')))
+        .resolves.toBeNull();
+      expect(readModel).not.toHaveBeenCalled();
+    } finally {
+      readModel.mockRestore();
+      find.mockRestore();
+    }
   });
 
   it('does not recover a Codex model past a missing rewind checkpoint', async () => {
@@ -659,7 +687,7 @@ describe('CodexConversationHistoryService', () => {
     Object.assign(conversation, await new CodexConversationHistoryService().hydrateConversationHistory(
       conversation,
       null,
-      { environment: { HOME: tempHome } },
+      { config: {}, environment: { HOME: tempHome }, environmentText: '' },
     ));
 
     expect(conversation.messages.map(message => message.content)).toEqual(['Trusted transcript.']);
@@ -693,7 +721,7 @@ describe('CodexConversationHistoryService', () => {
     Object.assign(conversation, await new CodexConversationHistoryService().hydrateConversationHistory(
       conversation,
       null,
-      { environment: { CODEX_HOME: configuredHome, HOME: tempHome } },
+      { config: {}, environment: { CODEX_HOME: configuredHome, HOME: tempHome }, environmentText: '' },
     ));
 
     expect(conversation.messages.map(message => message.content)).toEqual(['Configured transcript.']);

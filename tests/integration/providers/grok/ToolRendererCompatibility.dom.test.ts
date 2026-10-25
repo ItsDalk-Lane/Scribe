@@ -1,7 +1,9 @@
 /** @jest-environment jsdom */
 import '@/providers';
 
+import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
 import { parseGrokHistoryContent } from '@test/helpers/providers/grokHistory';
+import { writeGrokCatalog } from '@test/helpers/providers/grokSettings';
 import { testDate } from '@test/helpers/testClock';
 import { fireEvent, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
@@ -19,7 +21,6 @@ import { SubagentManager } from '@/features/chat/subagents/SubagentManager';
 import { StreamController } from '@/features/chat/turns/StreamController';
 import type { ACPSessionNotification } from '@/providers/acp';
 import { GrokExecutionBackend, type GrokExecutionNativeConnection } from '@/providers/grok/execution/GrokExecutionBackend';
-import { updateCurrentGrokCatalog } from '@/providers/grok/settings';
 
 HTMLElement.prototype.empty = function () { this.replaceChildren(); };
 HTMLElement.prototype.addClass = function (...classes) { this.classList.add(...classes); };
@@ -45,7 +46,7 @@ function createGrokHost(): ProviderHost {
     getResolvedProviderCliPath: async () => 'grok',
     settings: { model: 'grok/grok-4', providerConfigs: { grok: { enabled: true, visibleModels: ['grok-4'] } } },
   } as unknown as ProviderHost;
-  updateCurrentGrokCatalog(host.settings, {
+  writeGrokCatalog(host.settings, {
     defaultModelId: 'grok-4', fingerprint: 'fixture', refreshedAt: 1,
     models: [{ rawId: 'grok-4', displayName: 'Grok 4', supportsReasoning: false, reasoningEfforts: [] }],
   });
@@ -76,9 +77,9 @@ async function restoreLive(updates: NativeToolUpdates): Promise<ToolCallInfo> {
     interactionPort: { askUserQuestion: jest.fn(), dismissInteraction: jest.fn(), requestApproval: jest.fn() },
     lifecycle: 'persistent',
     nativePersistence: 'enabled',
-    vaultWorkingDirectory: '/workspace',
+    workingDirectory: '/workspace',
   };
-  const session = new GrokExecutionBackend(createGrokHost(), { nativeFactory: { create: () => native } })
+  const session = new GrokExecutionBackend(runtimeHostFor(createGrokHost(), 'grok'), { nativeFactory: { create: () => native } })
     .createSession(config);
   const output: ProviderExecutionEvent[] = [];
   try {
