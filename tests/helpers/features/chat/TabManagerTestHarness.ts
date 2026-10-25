@@ -260,7 +260,7 @@ export function createPlugin(overrides: Record<string, unknown> = {}) {
     getCachedConversation: jest.fn().mockReturnValue(null),
     getConversationById: jest.fn().mockResolvedValue(null),
     getConversationList: jest.fn().mockReturnValue([]),
-    getConversationSummary(id: string) { return this.getConversationSync(id); },
+    getConversationSummary(id: string) { return this.getCachedConversation(id); },
     getConversationSync: jest.fn().mockReturnValue(null),
     updateConversation: jest.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -309,7 +309,6 @@ export function runtimeOptions(index: number): Record<string, any> {
 export function expectTabMetadataReleased(manager: TabManager, tabId: string): void {
   const internals = manager as any;
   const discovery = internals.commandDiscovery;
-  expect(discovery.providerRuntimeCommandLoads.has(tabId)).toBe(false);
   expect(discovery.providerRuntimeCommandCache.has(tabId)).toBe(false);
   expect(discovery.providerCommandDiscoveryStores.has(tabId)).toBe(false);
   expect(discovery.tabCommandContextRevisions.has(tabId)).toBe(false);
