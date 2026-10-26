@@ -89,6 +89,11 @@ export class SessionSidebar {
     const previousSearchInput = this.searchInputEl;
     const shouldRestoreSearchFocus = previousSearchInput?.ownerDocument.activeElement
       === previousSearchInput;
+    const searchSelection = previousSearchInput && shouldRestoreSearchFocus ? {
+      selectionStart: previousSearchInput.selectionStart,
+      selectionEnd: previousSearchInput.selectionEnd,
+      selectionDirection: previousSearchInput.selectionDirection,
+    } : undefined;
 
     this.cancelRendering();
     const abortController = new AbortController();
@@ -102,7 +107,7 @@ export class SessionSidebar {
       this.renderList(surfaceEl, abortController.signal);
       this.buildHeaderActions(surfaceEl);
       if (shouldRestoreSearchFocus) {
-        this.focusSearchInput();
+        this.focusSearchInput(searchSelection);
       }
       this.dirty = false;
     });
@@ -376,7 +381,6 @@ export class SessionSidebar {
     if (wasFiltering && !this.isSearchFiltering()) {
       this.restoreSearchScrollState();
     }
-    this.focusSearchInput();
   }
 
   private closeSearch(): void {
@@ -395,11 +399,15 @@ export class SessionSidebar {
     this.searchRestoreState = null;
   }
 
-  private focusSearchInput(): void {
+  private focusSearchInput(selection?: Pick<HTMLInputElement, 'selectionStart' | 'selectionEnd' | 'selectionDirection'>): void {
     const input = this.searchInputEl;
     if (!input) return;
     input.focus();
-    input.setSelectionRange?.(input.value.length, input.value.length);
+    input.setSelectionRange?.(
+      selection?.selectionStart ?? input.value.length,
+      selection?.selectionEnd ?? input.value.length,
+      selection?.selectionDirection ?? undefined,
+    );
   }
 
   private scheduleSearchDismissHandlers(): void {

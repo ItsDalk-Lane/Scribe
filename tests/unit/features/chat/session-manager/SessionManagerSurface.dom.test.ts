@@ -86,6 +86,33 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+it.each(['editing query', 'list invalidation'])('preserves the search caret and selection while %s', async action => {
+  const { host, surface } = createSurface();
+  const ui = within(host);
+  try {
+    fireEvent.click(ui.getByRole('button', { name: 'Search' }));
+    fireEvent.input(ui.getByRole('searchbox', { name: 'Search sessions' }), { target: { value: 'abcdef' } });
+    const input = ui.getByRole('searchbox', { name: 'Search sessions' }) as HTMLInputElement;
+    if (action === 'editing query') {
+      input.value = 'abXcdef';
+      input.setSelectionRange(3, 3);
+      fireEvent.input(input);
+    } else {
+      input.setSelectionRange(1, 4, 'backward');
+      surface.invalidate();
+    }
+    const current = ui.getByRole('searchbox', { name: 'Search sessions' }) as HTMLInputElement;
+    expect(document.activeElement).toBe(current);
+    expect([current.selectionStart, current.selectionEnd, current.selectionDirection]).toEqual(
+      action === 'editing query' ? [3, 3, 'none'] : [1, 4, 'backward'],
+    );
+    expect(current.value).toBe(action === 'editing query' ? 'abXcdef' : 'abcdef');
+    expect(await axe(host)).toHaveNoViolations();
+  } finally {
+    surface.dispose();
+  }
+});
+
 it.each([false, true])('opens selectable history rows by keyboard (metadata popovers: %s)', async showMetadataPopover => {
   const onSelectConversation = jest.fn().mockResolvedValue(undefined);
   const browser = new SessionBrowser({
