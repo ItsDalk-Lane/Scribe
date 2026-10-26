@@ -251,9 +251,15 @@ export class ClaudianSettingTab extends PluginSettingTab {
               dropdown.setValue(this.host.settings.locale);
               return;
             }
-            await this.host.mutateSettings((settings) => {
-              settings.locale = locale;
-            });
+            try {
+              await this.host.mutateSettings((settings) => {
+                settings.locale = locale;
+              });
+            } finally {
+              const committedLocale = this.host.settings.locale;
+              setLocale(committedLocale as Locale);
+              dropdown.setValue(committedLocale);
+            }
             this.update();
           });
       });
