@@ -400,7 +400,7 @@ function findAutolinkEnd(line: string, start: number): number | null {
   }
 
   const destination = line.slice(start + 1, end);
-  if (!destination || /[\s<>\\()[\]]/.test(destination)) {
+  if (!destination || /[\s<>]/.test(destination)) {
     return null;
   }
 

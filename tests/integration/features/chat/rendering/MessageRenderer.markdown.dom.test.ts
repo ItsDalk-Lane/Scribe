@@ -124,3 +124,17 @@ it('renders again after a failed render', async () => {
 
   expect(host.textContent).toBe('recovered');
 });
+
+
+it.each([
+  [false, '<https://en.wikipedia.org/wiki/Foo_(bar)>'],
+  [true, '<https://en.wikipedia.org/wiki/Foo_(bar)>'],
+  [false, '<https://[2001:db8::1]/guide>'],
+  [true, '<https://[2001:db8::1]/guide>'],
+] as const)('retains valid angle autolinks through the Markdown pipeline (deferMath=%s, %s)', async (deferMath, link) => {
+  await renderer.renderContent(host, `${link} and $visible$ <meta-name>`, { deferMath });
+
+  const visible = deferMath ? '\\$visible\\$' : '$visible$';
+  expect(MarkdownRenderer.render).toHaveBeenLastCalledWith(app,
+    `${link} and ${visible} &lt;meta-name&gt;`, host, '', expect.any(Component));
+});
