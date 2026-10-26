@@ -537,7 +537,12 @@ describe('CodexNotificationRouter', () => {
       });
     });
 
-    it('maps commandExecution item/completed to tool_result chunk', () => {
+    it.each([
+      'test\n',
+      'Report heading\nOutput:\n42\n',
+      '{"output":"Literal JSON value","count":2}',
+      'Exit code: 1\nOutput:\nLiteral log example\n',
+    ])('preserves literal native command output %j', output => {
       router.handleNotification('item/completed', {
         item: {
           type: 'commandExecution',
@@ -548,7 +553,7 @@ describe('CodexNotificationRouter', () => {
           source: 'unifiedExecStartup',
           status: 'completed',
           commandActions: [{ type: 'unknown', command: 'echo test' }],
-          aggregatedOutput: 'test\n',
+          aggregatedOutput: output,
           exitCode: 0,
           durationMs: 100,
         },
@@ -560,7 +565,7 @@ describe('CodexNotificationRouter', () => {
       expect(chunks[1]).toMatchObject({
         type: 'tool_result',
         id: 'call_abc',
-        content: 'test\n',
+        content: output,
         isError: false,
       });
     });
