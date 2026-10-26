@@ -42,6 +42,19 @@ it('attributes expanded native patch changes to their paths and rename destinati
   expect(await axe(card)).toHaveNoViolations();
 });
 
+it.each(['\n', '\r\n'])('retains legacy WebSearch source links before a %j boundary', async newline => {
+  const card = renderStoredToolCall(document.body.createDiv(), {
+    id: 'legacy-search', name: 'WebSearch', status: 'completed',
+    input: { query: 'Obsidian docs' },
+    result: `Links: [{"title":"Obsidian API","url":"https://docs.obsidian.md/"}]${newline}${newline}Answer`,
+  });
+  fireEvent.click(within(card).getByRole('button', { name: /WebSearch:/ }));
+  expect(within(card).getByRole('link', { name: 'Obsidian API' }).getAttribute('href'))
+    .toBe('https://docs.obsidian.md/');
+  expect(within(card).queryByText('Answer')).toBeNull();
+  expect(await axe(card)).toHaveNoViolations();
+});
+
 function createToolStream(expandFileEditsByDefault = false) {
   const parent = document.body.createDiv();
   const state = new ChatState();

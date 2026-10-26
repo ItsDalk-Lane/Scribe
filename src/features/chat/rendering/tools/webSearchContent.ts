@@ -83,7 +83,7 @@ export function getWebSearchLabel(input: Record<string, unknown>, maxLength: num
 }
 
 function parseWebSearchLinks(result: string): WebSearchLink[] {
-  const linksMatch = result.match(/Links:\s*(\[[\s\S]*?\])(?:\n|$)/);
+  const linksMatch = result.match(/Links:\s*(\[[\s\S]*?\])(?:\r?\n|$)/);
   if (!linksMatch) return [];
 
   try {
