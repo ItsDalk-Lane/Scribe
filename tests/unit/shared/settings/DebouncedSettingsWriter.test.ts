@@ -33,3 +33,55 @@ it('keeps rollback and post-commit publication semantics owned by the coordinato
   expect(settings.text).toBe('committed');
   expect(error.mock.calls[1][0]).toBeInstanceOf(SettingsPostCommitError);
 });
+
+it('retries a failed draft without requiring another text edit', async () => {
+  const settings = { text: 'old' };
+  const persist = jest.fn().mockRejectedValueOnce(new Error('disk')).mockResolvedValue(undefined);
+  const coordinator = new SettingsCoordinator(settings, persist);
+  const writer = new DebouncedSettingsWriter(coordinator.mutate.bind(coordinator), jest.fn());
+  writer.schedule('text', draft => { draft.text = 'retained'; });
+  expect(await writer.flush()).toBe(false);
+  expect(settings.text).toBe('old');
+  expect(await writer.flush()).toBe(true);
+  expect(settings.text).toBe('retained');
+  expect(persist).toHaveBeenCalledTimes(2);
+});
+
+it('saves a newer draft after an in-flight failure without later retrying stale text', async () => {
+  const settings = { text: 'old', other: '' };
+  let rejectWrite!: (error: Error) => void;
+  let started!: () => void;
+  const start = new Promise<void>(resolve => { started = resolve; });
+  const writes: string[] = [];
+  const coordinator = new SettingsCoordinator(settings, draft => {
+    writes.push(draft.text);
+    if (writes.length > 1) return Promise.resolve();
+    started();
+    return new Promise<void>((_resolve, reject) => { rejectWrite = reject; });
+  });
+  const writer = new DebouncedSettingsWriter(coordinator.mutate.bind(coordinator), jest.fn());
+  writer.schedule('text', draft => { draft.text = 'stale'; });
+  writer.schedule('other', draft => { draft.other = 'retained'; });
+  const first = writer.flush();
+  await start;
+  writer.schedule('text', draft => { draft.text = 'latest'; });
+  const next = writer.flush();
+  rejectWrite(new Error('disk'));
+  expect(await first).toBe(false);
+  expect(await next).toBe(true);
+  expect(await writer.flush()).toBe(true);
+  expect(settings).toEqual({ text: 'latest', other: 'retained' });
+  expect(writes).toEqual(['stale', 'latest']);
+});
+
+it('does not retry a durable mutation when only publication failed', async () => {
+  const settings = { text: 'old' };
+  const persist = jest.fn().mockResolvedValue(undefined);
+  const coordinator = new SettingsCoordinator(settings, persist, () => { throw new Error('view'); });
+  const writer = new DebouncedSettingsWriter(coordinator.mutate.bind(coordinator), jest.fn());
+  writer.schedule('text', draft => { draft.text = 'durable'; });
+  expect(await writer.flush()).toBe(false);
+  expect(settings.text).toBe('durable');
+  await writer.flush();
+  expect(persist).toHaveBeenCalledTimes(1);
+});

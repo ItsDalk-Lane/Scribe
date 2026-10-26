@@ -19,13 +19,27 @@ export class DebouncedSettingsWriter<T> {
     window.clearTimeout(this.timer);
     this.timer = undefined;
     if (this.pending.size === 0) return this.saving;
-    const mutations = [...this.pending.values()];
-    this.pending.clear();
-    this.saving = this.save(settings => {
-      for (const mutation of mutations) mutation(settings);
-    }).then(() => true, error => {
-      this.onError(error);
-      return false;
+    this.saving = this.saving.then(async () => {
+      if (this.pending.size === 0) return true;
+      const mutations = new Map(this.pending);
+      this.pending.clear();
+      try {
+        await this.save(settings => {
+          for (const mutation of mutations.values()) mutation(settings);
+        });
+        return true;
+      } catch (error) {
+        // A committed save only failed to publish; retrying it would repeat a durable mutation.
+        const committed = error !== null && typeof error === 'object'
+          && 'committed' in error && error.committed === true;
+        if (!committed) {
+          for (const [key, mutation] of mutations) {
+            if (!this.pending.has(key)) this.pending.set(key, mutation);
+          }
+        }
+        this.onError(error);
+        return false;
+      }
     });
     return this.saving;
   }
