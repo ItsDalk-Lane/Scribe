@@ -9,6 +9,7 @@ import {
   typeInstruction,
 } from '@test/helpers/features/inline-edit/InlineEditDOMHarness';
 import { fireEvent, screen, waitFor, within } from '@testing-library/dom';
+import { axe } from 'jest-axe';
 import { Component, MarkdownRenderer, Notice, TFolder } from 'obsidian';
 
 afterEach(async () => {
@@ -200,4 +201,20 @@ it('releases both Markdown diff documents when review is rejected', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Reject inline edit' }));
   expect(released).toEqual(['hello', 'Hi']);
   expect(screen.queryByRole('toolbar', { name: 'Inline edit actions' })).toBeNull();
+});
+
+it.each([
+  'Use `</replacement>` literally in XML.',
+  'Document <replacement>old</replacement> and <insertion>new</insertion>.',
+])('applies the complete raw replacement containing wrapper text: %s', async replacement => {
+  const h = createHarness();
+  h.createSession().show();
+  const accept = await showReplacementPreview(h, replacement);
+  expect(h.backend.sessions[0].requests[0].configuration.systemInstructions).toMatchObject({
+    instructions: expect.stringContaining('with no explanation outside the tag'),
+  });
+  expect((await axe(screen.getByRole('toolbar', { name: 'Inline edit actions' }))).violations).toEqual([]);
+  fireEvent.click(accept);
+  expect(h.editorView.state.doc.toString()).toBe(`${replacement} world`);
+  expect(h.settled).toHaveBeenCalledWith({ decision: 'accept', editedText: replacement });
 });
