@@ -41,6 +41,41 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+it.each(['\n', '\r\n', '\r'])('sends a picker reference whose saved title contains %j', async newline => {
+  const fixture = setup();
+  const manager = new FileContextManager(new VaultMentionDataProvider({
+    vault: { getFiles: () => [], getAllLoadedFiles: () => [] },
+  } as never), {
+    getConversationList: () => [{
+      id, title: `First${newline}Second`, providerId: 'codex',
+      hasSessionReference: true, isLegacySession: false,
+      createdAt: time, lastActivityAt: time, messageCount: 2, preview: '',
+    }],
+    getCurrentConversationId: () => 'conversation-1',
+  });
+  try {
+    await fixture.native.coordinator.bindConversation({ conversationId: 'conversation-1', providerId: 'claude' });
+    const source = manager.getMentionSource();
+    const match = source.match('@First', 6)!;
+    const items = await source.load(match, new AbortController().signal);
+    const item = items.find(item => item.label === `First${newline}Second`);
+    if (!item || item.kind !== 'value') throw new Error('Expected session picker item');
+    const selected = source.select(item, match);
+    if (selected.kind !== 'replace') throw new Error('Expected session reference');
+    fixture.input.value = `Use ${selected.text}`;
+    await fixture.controller.sendMessage();
+    const request = fixture.native.backends.get('claude')!.sessions.flatMap(session => session.requests)[0];
+    expect(request.input).toEqual([{ type: 'text', text: 'Use @"Current title"' }]);
+    expect(request.context?.sessionReferences).toEqual([{
+      id, title: 'Current title', providerId: 'codex', updatedAt: new Date(time).toISOString(),
+    }]);
+  } finally {
+    manager.destroy();
+    await fixture.native.coordinator.dispose();
+    await fixture.native.registry.dispose();
+  }
+});
+
 it.each(['f690c4f6-a773-4cb0-a67b-4b08a6ec21b3', 'ses_native-ID.1'])(
   'sends a native-ID picker selection as a reference the agent reads by id (%s)', async sourceId => {
     const fixture = setup(sourceId);
