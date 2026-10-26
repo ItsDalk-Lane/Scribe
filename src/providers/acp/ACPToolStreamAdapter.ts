@@ -114,8 +114,11 @@ export class ACPToolStreamAdapter {
       provenance: current.rawNameProvenance,
       rawName: current.rawName,
     } : undefined, update);
-    const rawInput = update.rawInput !== undefined ? update.rawInput : current?.rawInput;
-    const rawOutput = update.rawOutput !== undefined ? update.rawOutput : current?.rawOutput;
+    // ACP v1 treats null raw fields like omitted updates; an initial null remains native payload.
+    const rawInput = update.rawInput !== undefined && (update.rawInput !== null || !current)
+      ? update.rawInput : current?.rawInput;
+    const rawOutput = update.rawOutput !== undefined && (update.rawOutput !== null || !current)
+      ? update.rawOutput : current?.rawOutput;
     if (
       current && rawInput === current.rawInput && rawOutput === current.rawOutput
       && nextRawName.rawName === current.rawName
