@@ -96,7 +96,6 @@ interface ToolIdentity {
 
 interface NormalizationState {
   readonly streamState: ReturnType<typeof createTransformStreamState>;
-  readonly taskToolNormalizer: ClaudeTaskToolNormalizer;
   readonly usageState: ReturnType<typeof createTransformUsageState>;
   readonly toolScopes: Map<string, ToolIdentity>;
   /** Shared tool name of each started tool call. */
@@ -109,6 +108,7 @@ interface NormalizationState {
 }
 
 export class ClaudeExecutionEventNormalizer {
+  private readonly taskToolNormalizer = new ClaudeTaskToolNormalizer();
   private readonly states: Record<
     ClaudeExecutionEventChannel,
     NormalizationState
@@ -134,6 +134,7 @@ export class ClaudeExecutionEventNormalizer {
     })) {
       switch (event.type) {
         case 'session_init':
+          this.taskToolNormalizer.bindSession(event.sessionId);
           normalized.push({ type: 'session_init', event });
           break;
         case 'async_subagent_completion':
@@ -149,7 +150,7 @@ export class ClaudeExecutionEventNormalizer {
           normalized.push({ type: 'native_error', message: event.content });
           break;
         default:
-          for (const chunk of normalizeTaskToolChunk(event, state.taskToolNormalizer)) {
+          for (const chunk of normalizeTaskToolChunk(event, this.taskToolNormalizer)) {
             this.#normalizeOutputChunk(message, chunk, state, normalized);
           }
       }
@@ -204,7 +205,7 @@ export class ClaudeExecutionEventNormalizer {
   reset(channel: ClaudeExecutionEventChannel): void {
     const state = this.states[channel];
     state.streamState.clearAll();
-    state.taskToolNormalizer.reset();
+    this.taskToolNormalizer.finishCalls(state.toolNames.keys());
     state.usageState.clear();
     state.toolScopes.clear();
     state.toolNames.clear();
@@ -280,7 +281,6 @@ export class ClaudeExecutionEventNormalizer {
 function createNormalizationState(): NormalizationState {
   return {
     streamState: createTransformStreamState(),
-    taskToolNormalizer: new ClaudeTaskToolNormalizer(),
     usageState: createTransformUsageState(),
     toolScopes: new Map(),
     toolNames: new Map(),

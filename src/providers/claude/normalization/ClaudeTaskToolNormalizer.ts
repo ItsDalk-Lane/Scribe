@@ -19,9 +19,11 @@ interface StoredTask extends TodoItem {
 interface TaskCallState {
   rawName: ClaudeTaskToolName;
   rawInput: Record<string, unknown>;
+  settled?: boolean;
   taskKey?: string;
   updateTaskId?: string;
   updateTaskBefore?: StoredTask;
+  updateTaskAfter?: StoredTask;
 }
 
 export interface NormalizedClaudeTaskToolCall {
@@ -42,8 +44,16 @@ export interface ClaudeTaskToolResultOptions {
  * snapshots consumed by the provider-neutral chat UI.
  */
 export class ClaudeTaskToolNormalizer {
+  private sessionId: string | null = null;
   private readonly calls = new Map<string, TaskCallState>();
   private readonly tasks = new Map<string, StoredTask>();
+
+  /** Task mutations span turns, but a different native session owns a different task list. */
+  bindSession(sessionId: string): void {
+    if (this.sessionId === sessionId) return;
+    this.reset();
+    this.sessionId = sessionId;
+  }
 
   normalizeToolUse(
     toolCallId: string,
@@ -105,10 +115,25 @@ export class ClaudeTaskToolNormalizer {
         break;
     }
 
+    call.settled = true;
     return this.#buildNormalizedCall(call, effectiveOutput);
   }
 
+  /** Retire one output channel's calls, discarding only its unconfirmed previews. */
+  finishCalls(toolCallIds: Iterable<string>): void {
+    for (const id of [...toolCallIds].reverse()) {
+      const call = this.calls.get(id);
+      if (!call) continue;
+      if (!call.settled) {
+        if (call.rawName === 'TaskCreate' && call.taskKey) this.tasks.delete(call.taskKey);
+        if (call.rawName === 'TaskUpdate') this.#restoreUpdate(call);
+      }
+      this.calls.delete(id);
+    }
+  }
+
   reset(): void {
+    this.sessionId = null;
     this.calls.clear();
     this.tasks.clear();
   }
@@ -158,18 +183,21 @@ export class ClaudeTaskToolNormalizer {
 
     const status = readTaskUpdateStatus(input.status);
     if (status === 'deleted') {
+      call.updateTaskAfter = undefined;
       this.tasks.delete(taskId);
       return;
     }
 
     const subject = readNonEmptyString(input.subject);
     const activeForm = readNonEmptyString(input.activeForm);
-    this.tasks.set(taskId, {
+    const updated = {
       ...before,
       ...(subject ? { content: subject } : {}),
       ...(activeForm ? { activeForm } : {}),
       ...(status ? { status } : {}),
-    });
+    };
+    call.updateTaskAfter = updated;
+    this.tasks.set(taskId, updated);
   }
 
   #bindCreatedTask(
@@ -199,7 +227,7 @@ export class ClaudeTaskToolNormalizer {
   }
 
   #restoreUpdate(call: TaskCallState): void {
-    if (!call.updateTaskId) return;
+    if (!call.updateTaskId || this.tasks.get(call.updateTaskId) !== call.updateTaskAfter) return;
     if (call.updateTaskBefore) {
       this.tasks.set(call.updateTaskId, call.updateTaskBefore);
     } else {
@@ -216,8 +244,9 @@ export class ClaudeTaskToolNormalizer {
 
     const statusChange = toRecord(output?.statusChange);
     const status = readTaskUpdateStatus(statusChange?.to);
-    if (status === 'deleted') {
+    if (status === 'deleted' || (status === null && output?.success === true && call.rawInput.status === 'deleted')) {
       this.tasks.delete(taskId);
+      this.#rebasePendingUpdates(taskId);
     } else if (status) {
       const task = this.tasks.get(taskId);
       if (task) this.tasks.set(taskId, { ...task, status });
@@ -246,6 +275,7 @@ export class ClaudeTaskToolNormalizer {
 
     this.tasks.clear();
     for (const [taskId, task] of nextTasks) this.tasks.set(taskId, task);
+    this.#rebasePendingUpdates();
   }
 
   #applyTaskGet(
@@ -256,7 +286,10 @@ export class ClaudeTaskToolNormalizer {
 
     const requestedTaskId = readNonEmptyString(call.rawInput.taskId);
     if (output.task === null) {
-      if (requestedTaskId) this.tasks.delete(requestedTaskId);
+      if (requestedTaskId) {
+        this.tasks.delete(requestedTaskId);
+        this.#rebasePendingUpdates(requestedTaskId);
+      }
       return;
     }
 
@@ -273,6 +306,16 @@ export class ClaudeTaskToolNormalizer {
       activeForm: current?.activeForm ?? subject,
       status,
     });
+    this.#rebasePendingUpdates(taskId);
+  }
+
+  /** A native read supersedes rollback snapshots, including a confirmed missing task. */
+  #rebasePendingUpdates(taskId?: string): void {
+    for (const call of this.calls.values()) {
+      if (!call.settled && call.updateTaskId && (taskId === undefined || call.updateTaskId === taskId)) {
+        call.updateTaskBefore = this.tasks.get(call.updateTaskId);
+      }
+    }
   }
 
   #replaceTaskKey(oldKey: string, newKey: string, task: StoredTask): void {

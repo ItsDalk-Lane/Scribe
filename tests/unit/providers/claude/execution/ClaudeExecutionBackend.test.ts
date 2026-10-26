@@ -187,6 +187,81 @@ describe('ClaudeExecutionBackend', () => {
     jest.restoreAllMocks();
   });
 
+  it('retains native task progress across requested turns in the same session', async () => {
+    const session = new ClaudeExecutionBackend(createHost().getRuntimeHost('claude')).createSession(createConfig());
+    sdkMock.setMockMessages([
+      { type: 'system', subtype: 'init', session_id: 'task-session' },
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'create-task', name: 'TaskCreate',
+        input: { subject: 'Ship the fix', activeForm: 'Shipping the fix' } }] } },
+      { type: 'user', tool_use_result: { task: { id: '1', subject: 'Ship the fix' } },
+        message: { content: [{ type: 'tool_result', tool_use_id: 'create-task', content: 'Task #1 created successfully' }] } },
+    ]);
+    try {
+      const created = await collectEvents(session.execute(createRequest()).events);
+      expect(created.at(-1)?.type).toBe('turn_completed');
+      sdkMock.setMockMessages([
+        { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'update-task', name: 'TaskUpdate',
+          input: { taskId: '1', status: 'completed' } }] } },
+        { type: 'user', tool_use_result: { success: true, taskId: '1', updatedFields: ['status'],
+          statusChange: { from: 'pending', to: 'completed' } },
+          message: { content: [{ type: 'tool_result', tool_use_id: 'update-task', content: 'Task #1 completed' }] } },
+      ]);
+      const updated = await collectEvents(session.execute(createRequest()).events);
+      expect(updated).toContainEqual(expect.objectContaining({
+        type: 'tool_started', name: 'TodoWrite', toolCallId: 'update-task',
+        input: { todos: [{ id: '1', content: 'Ship the fix', activeForm: 'Shipping the fix', status: 'completed' }] },
+      }));
+      expect(updated.at(-1)?.type).toBe('turn_completed');
+      expect(sdkMock.getQueryCallCount()).toBe(1);
+    } finally { await session.dispose(); }
+  });
+
+  it.each(['cancel', 'tool-error'])('discards unconfirmed task previews after a later turn ends with %s', async ending => {
+    const session = new ClaudeExecutionBackend(createHost().getRuntimeHost('claude')).createSession(createConfig());
+    sdkMock.setMockMessages([
+      { type: 'system', subtype: 'init', session_id: 'task-session' },
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'create-kept', name: 'TaskCreate', input: { subject: 'Kept task' } }] } },
+      { type: 'user', tool_use_result: { task: { id: '1', subject: 'Kept task' } },
+        message: { content: [{ type: 'tool_result', tool_use_id: 'create-kept', content: 'Created' }] } },
+    ]);
+    try {
+      await collectEvents(session.execute(createRequest()).events);
+      sdkMock.setMockMessages([
+        { type: 'assistant', message: { content: [
+          { type: 'tool_use', id: 'update-unconfirmed', name: 'TaskUpdate', input: { taskId: '1', status: 'in_progress' } },
+          { type: 'tool_use', id: 'create-unconfirmed', name: 'TaskCreate', input: { subject: 'Unconfirmed task' } },
+        ] } },
+        ...(ending === 'tool-error' ? [
+          { type: 'user', tool_use_result: { success: false }, message: { content: [
+            { type: 'tool_result', tool_use_id: 'update-unconfirmed', content: 'Update failed', is_error: true },
+            { type: 'tool_result', tool_use_id: 'create-unconfirmed', content: 'Create failed', is_error: true },
+          ] } },
+        ] : []),
+      ]);
+      const controller = new AbortController();
+      const stopped: ProviderExecutionEvent[] = [];
+      for await (const event of session.execute(createRequest({ signal: controller.signal })).events) {
+        stopped.push(event);
+        if (ending === 'cancel' && event.type === 'tool_started' && event.toolCallId === 'create-unconfirmed') controller.abort();
+      }
+      expect(stopped.at(-1)?.type).toBe(ending === 'cancel' ? 'cancelled' : 'turn_completed');
+      sdkMock.setMockMessages([
+        { type: 'system', subtype: 'init', session_id: 'task-session' },
+        { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'create-next', name: 'TaskCreate', input: { subject: 'Next task' } }] } },
+        { type: 'user', tool_use_result: { task: { id: '2', subject: 'Next task' } },
+          message: { content: [{ type: 'tool_result', tool_use_id: 'create-next', content: 'Created' }] } },
+      ]);
+      const next = await collectEvents(session.execute(createRequest()).events);
+      expect(next).toContainEqual(expect.objectContaining({
+        type: 'tool_started', toolCallId: 'create-next',
+        input: { todos: [
+          { id: '1', content: 'Kept task', activeForm: 'Kept task', status: 'pending' },
+          { id: '2', content: 'Next task', activeForm: 'Next task', status: 'pending' },
+        ] },
+      }));
+    } finally { await session.dispose(); }
+  });
+
   it('restarts the query when session-tool attachment presence changes', async () => {
     let sessionTools: ProviderSessionConfig['sessionTools'];
     const config = createConfig();
