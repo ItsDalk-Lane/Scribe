@@ -122,6 +122,29 @@ describe('BrowserSelectionController', () => {
     expect(contextTray.setItems.mock.calls[0][1][0]).not.toHaveProperty('title');
   });
 
+  it.each(['view replacement', 'page navigation', 'unchanged page'])('fences a pending native selection across %s', async action => {
+    selectionText = '';
+    const view = app.workspace.getMostRecentLeaf().view;
+    const webview = document.createElement('webview') as HTMLElement & { executeJavaScript: jest.Mock };
+    let finish!: (value: string) => void;
+    webview.executeJavaScript = jest.fn(() => new Promise<string>(resolve => { finish = resolve; }));
+    containerEl.appendChild(webview);
+    const pending = controller.poll();
+    expect(webview.executeJavaScript).toHaveBeenCalledTimes(1);
+    if (action === 'view replacement') {
+      app.workspace.getMostRecentLeaf.mockReturnValue({ view: {
+        ...view, containerEl: document.createElement('div'), currentUrl: 'https://different.example/',
+      } });
+    }
+    if (action === 'page navigation') view.currentUrl = 'https://different.example/';
+    finish('native selected text');
+    await pending;
+    expect(controller.getContext()).toEqual(action === 'unchanged page' ? {
+      source: 'browser:https://example.com', selectedText: 'native selected text', title: 'Surfing', url: 'https://example.com',
+    } : null);
+    expect(contextTray.setItems).toHaveBeenCalledTimes(action === 'unchanged page' ? 1 : 0);
+  });
+
   it('shows line-based indicator text for multi-line browser selection', async () => {
     selectionText = 'line 1\nline 2';
     startPolling(controller);
