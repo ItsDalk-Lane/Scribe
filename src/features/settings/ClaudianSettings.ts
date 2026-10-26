@@ -619,7 +619,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
             saveTimeout = null;
           }
 
-          const result = parseNavMappings(pendingValue);
+          const submittedValue = pendingValue;
+          const result = parseNavMappings(submittedValue);
           if (!result.settings) {
             if (showError) {
               new Notice(`${t('common.error')}: ${result.error}`);
@@ -634,6 +635,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
             settings.keyboardNavigation.scrollDownKey = result.settings!.scrollDown;
             settings.keyboardNavigation.focusInputKey = result.settings!.focusInput;
           });
+          if (pendingValue !== submittedValue) return;
           pendingValue = buildNavMappingText(this.host.settings.keyboardNavigation);
           text.setValue(pendingValue);
         };
