@@ -195,6 +195,24 @@ describe('AgentSkillSettings repair of flagged packages', () => {
     expect(screen.queryByText(t('settings.agentSkills.diagnosticsTitle'))).toBeNull();
   });
 
+  it('keeps an externally repaired package when an older diagnostic is confirmed for deletion', async () => {
+    const { vault, repository, settings } = await setup();
+    await vault.write('.agents/skills/broken/SKILL.md', '---\nname: broken\n---\nBody\n');
+    await settings.refresh();
+
+    const row = screen.getByText('.agents/skills/broken').closest('.claudian-agent-skills-diagnostic') as HTMLElement;
+    fireEvent.click(within(row).getByRole('button', { name: t('common.delete') }));
+    const dialog = screen.getByRole('dialog');
+    await vault.write('.agents/skills/broken/SKILL.md', '---\nname: broken\ndescription: Repaired externally\n---\nNew instructions\n');
+    fireEvent.click(within(dialog).getByRole('button', { name: t('settings.agentSkills.delete.confirm') }));
+
+    await waitFor(() => expect(Notice).toHaveBeenCalledWith('This skill changed elsewhere; refresh before saving.'));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(vault.trashed).toEqual([]);
+    expect((await repository.list()).skills[0]).toMatchObject({ name: 'broken', instructions: 'New instructions' });
+    expect((await axe(dialog)).violations).toEqual([]);
+  });
+
   it('moves a flagged package to trash after confirmation', async () => {
     const { vault, settings } = await setup();
     await vault.write('.agents/skills/broken/SKILL.md', '---\nname: broken\n---\nBody\n');

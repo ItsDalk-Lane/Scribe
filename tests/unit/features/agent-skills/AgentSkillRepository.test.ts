@@ -567,7 +567,9 @@ describe('AgentSkillRepository', () => {
     it('moves a broken package folder to trash', async () => {
       await vault.write(`${AGENT_SKILLS_ROOT}/broken/SKILL.md`, '---\nname: broken\n---\nBody\n');
 
-      await repository.trashBroken('broken');
+      const [diagnostic] = (await repository.list()).diagnostics;
+      expect(diagnostic.repairRevision).toBe((await repository.readForRepair('broken')).revision);
+      await repository.trashBroken('broken', diagnostic.repairRevision!);
 
       expect(vault.trashed).toEqual([`${AGENT_SKILLS_ROOT}/broken`]);
     });
