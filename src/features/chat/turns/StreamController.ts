@@ -264,7 +264,7 @@ export class StreamController {
 
       case 'notice':
         this.#tools.flush();
-        await this.appendText(`\n\n⚠️ **${chunk.level === 'warning' ? 'Blocked' : 'Notice'}:** ${chunk.content}`);
+        await this.appendText(`\n\n⚠️ **${chunk.level === 'warning' ? 'Warning' : 'Notice'}:** ${chunk.content}`);
         break;
 
       case 'error':

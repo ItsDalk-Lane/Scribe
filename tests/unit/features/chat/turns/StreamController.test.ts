@@ -1150,7 +1150,7 @@ describe('StreamController - Text Content', () => {
       expect(createWriteEditBlock).toHaveBeenCalled();
     });
 
-    it('should flush pending tools before rendering blocked message', async () => {
+    it('should flush pending tools before rendering a warning', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering/tools/ToolCallRenderer');
       const msg = createTestMessage();
       deps.state.currentContentEl = createMockEl();
@@ -1163,7 +1163,7 @@ describe('StreamController - Text Content', () => {
 
       await controller.handleStreamChunk({ type: 'notice', content: 'Command blocked', level: 'warning' }, msg);
 
-      expect(deps.state.currentTextContent).toContain('Blocked');
+      expect(deps.state.currentTextContent).toContain('Warning');
 
       expect(deps.state.pendingTools.size).toBe(0);
       expect(renderToolCall).toHaveBeenCalled();

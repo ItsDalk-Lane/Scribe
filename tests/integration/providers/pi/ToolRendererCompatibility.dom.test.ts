@@ -9,7 +9,7 @@ import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
 import { testDate } from '@test/helpers/testClock';
 import { fireEvent, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
-import { Component } from 'obsidian';
+import { Component, MarkdownRenderer } from 'obsidian';
 
 import { getToolIcon } from '@/core/tools/toolIcons';
 import type { ChatMessage, ToolCallInfo } from '@/core/types';
@@ -479,4 +479,20 @@ it('streams a running script\'s nested calls through the Pi session and refreshe
     await session.dispose();
     await fs.rm(root, { recursive: true, force: true });
   }
+});
+
+it('presents a native Pi retry as a warning rather than a blocked action', async () => {
+  const { stream, response, messages, close } = createChatStream();
+  const render = jest.spyOn(MarkdownRenderer, 'render').mockImplementation(async (_app, markdown, element) => { element.textContent = markdown; });
+  try {
+    const state = createPiEventNormalizationState();
+    for (const chunk of normalizePiRPCEvent({ type: 'auto_retry_start' }, state)) {
+      await stream.handleStreamChunk(chunk, response);
+    }
+    await stream.finalizeCurrentTextBlock(response);
+    expect(response.contentBlocks).toContainEqual({ type: 'text', content: '\n\n⚠️ **Warning:** Pi is retrying the turn.' });
+    expect(messages.textContent).toContain('Pi is retrying the turn.');
+    expect(messages.textContent).not.toContain('Blocked:');
+    expect((await axe(messages)).violations).toEqual([]);
+  } finally { render.mockRestore(); close(); }
 });

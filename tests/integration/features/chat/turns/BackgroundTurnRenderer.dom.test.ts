@@ -81,7 +81,7 @@ it.each(['attached', 'detached', 'absent', 'late-text', 'late-thinking'] as cons
         { type: 'thinking', content: 'Consider the result.', durationSeconds: 3 },
         { type: 'text', content: 'After thinking.' },
         { type: 'tool_use', toolId: 'read' },
-        { type: 'text', content: '\n\n⚠️ **Blocked:** Unavailable file\n\n❌ **Error:** Unable to continue' },
+        { type: 'text', content: '\n\n⚠️ **Warning:** Unavailable file\n\n❌ **Error:** Unable to continue' },
       ]);
       expect(message.toolCalls).toEqual([expect.objectContaining({ id: 'read', status: 'completed', result: 'Note contents' })]);
     } finally {
