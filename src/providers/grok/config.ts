@@ -268,7 +268,7 @@ function normalizeGrokModelAliases(
     ) {
       continue;
     }
-    normalized[rawModelId] = alias;
+    Object.defineProperty(normalized, rawModelId, { value: alias, enumerable: true, writable: true, configurable: true });
   }
   return normalized;
 }
@@ -301,7 +301,7 @@ function normalizeGrokPreferredReasoningByModel(
       && !getGrokAvailableReasoningEfforts(catalogModel).some(option => option.value === effort)) {
       continue;
     }
-    normalized[rawModelId] = effort;
+    Object.defineProperty(normalized, rawModelId, { value: effort, enumerable: true, writable: true, configurable: true });
   }
   return normalized;
 }

@@ -25,7 +25,7 @@ export function getClaudeModelCatalog(source: ClaudeModelSource): ClaudeModelOpt
   return discoveredModels.filter(model => isSelectableClaudeModel(model.value)).map(model => ({
     ...model,
     value: isClaudeModelTier(model.value) ? model.value : encodeClaudeModelSelectionId(model.value),
-    label: modelAliases[model.value] || model.label,
+    label: Object.hasOwn(modelAliases, model.value) ? modelAliases[model.value] : model.label,
   }));
 }
 

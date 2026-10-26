@@ -1,3 +1,4 @@
+import { opencodeModelPolicy } from '@/providers/opencode/OpencodeModelPolicy';
 import { projectOpencodeModelSettings } from '@/providers/opencode/settings';
 const mockGetHostnameKey = jest.fn(() => 'host-a');
 
@@ -443,4 +444,52 @@ describe('OpenCode settings normalization', () => {
       cliPathsByHost: {},
     });
   });
+});
+
+it('round-trips an own prototype-named alias and reasoning entry through configuration writers', () => {
+  const settings: Record<string, unknown> = {};
+  const aliases = JSON.parse('{"__proto__":"Gateway alias"}') as Record<string, string>;
+  const thinking = JSON.parse('{"__proto__":"high"}') as Record<string, string>;
+  updateOpencodeProviderSettings(settings, { visibleModels: ['__proto__'], modelAliases: aliases, preferredThinkingByModel: thinking });
+  const reloaded = getOpencodeProviderSettings(JSON.parse(JSON.stringify(settings)));
+  expect(Object.entries(reloaded.modelAliases)).toEqual([['__proto__', 'Gateway alias']]);
+  expect(Object.entries(reloaded.preferredThinkingByModel)).toEqual([['__proto__', 'high']]);
+});
+
+it.each(['constructor', 'toString', '__proto__'])('keeps the native OpenCode label and default reasoning for %s without own metadata', id => {
+  const settings: Record<string, unknown> = {};
+  updateOpencodeProviderSettings(settings, { visibleModels: [id], discoveredModels: [{ rawId: id, label: 'Gateway model' }] });
+  expect(opencodeModelPolicy.getModelOptions(settings)).toEqual([expect.objectContaining({ label: 'Gateway model' })]);
+  expect(typeof opencodeModelPolicy.getDefaultReasoningValue?.('opencode:' + id, settings)).toBe('string');
+  expect(opencodeModelPolicy.getReasoningOptions?.('opencode:' + id, settings)).toEqual([]);
+});
+
+it('projects a selected prototype-named OpenCode model with its own reasoning variants', () => {
+  const settings: Record<string, unknown> = {};
+  updateOpencodeProviderSettings(settings, { visibleModels: ['__proto__'], discoveredModels: [{ rawId: '__proto__', label: 'Gateway model' }],
+    thinkingOptionsByModel: JSON.parse('{"__proto__":[{"value":"high","label":"High"}]}'),
+  });
+  const reopened = getOpencodeProviderSettings({ providerConfigs: { opencode: JSON.parse(JSON.stringify(projectOpencodeModelSettings(settings))) } });
+  expect(Object.entries(reopened.thinkingOptionsByModel)).toEqual([['__proto__', [{ value: 'high', label: 'High' }]]]);
+});
+
+it.each([
+  { alias: undefined, label: 'Gateway model' },
+  { alias: 'Saved alias', label: 'Saved alias' },
+])('retains native upstream grouping when a prototype-named model uses $alias', ({ alias, label }) => {
+  const settings: Record<string, unknown> = {};
+  updateOpencodeProviderSettings(settings, { visibleModels: ['constructor'], discoveredModels: [{ rawId: 'constructor', label: 'Upstream/Gateway model' }],
+    modelAliases: alias ? { constructor: alias } : {},
+  });
+  expect(opencodeModelPolicy.getModelOptions(settings)).toEqual([expect.objectContaining({ value: 'opencode:constructor', group: 'Upstream', label })]);
+});
+
+it.each(['__proto__', 'ordinary-model'])('persists the first explicit reasoning choice for %s', id => {
+  const settings: Record<string, unknown> = {};
+  updateOpencodeProviderSettings(settings, { visibleModels: [id], discoveredModels: [{ rawId: id, label: 'Gateway model' }],
+    thinkingOptionsByModel: Object.fromEntries([[id, [{ value: 'high', label: 'High' }]]]),
+  });
+  opencodeModelPolicy.applyReasoningSelection?.('opencode:' + id, 'high', settings);
+  expect(Object.entries(getOpencodeProviderSettings(JSON.parse(JSON.stringify(settings))).preferredThinkingByModel))
+    .toEqual([[id, 'high']]);
 });

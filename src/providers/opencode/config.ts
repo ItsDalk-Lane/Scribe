@@ -89,7 +89,7 @@ export function normalizeOpencodeModelAliases(
       continue;
     }
 
-    normalized[normalizedRawId] = normalizedAlias;
+    Object.defineProperty(normalized, normalizedRawId, { value: normalizedAlias, enumerable: true, writable: true, configurable: true });
   }
 
   return normalized;
@@ -114,7 +114,7 @@ export function normalizeOpencodePreferredThinkingByModel(
       continue;
     }
 
-    normalized[normalizedRawId] = normalizedThinkingLevel;
+    Object.defineProperty(normalized, normalizedRawId, { value: normalizedThinkingLevel, enumerable: true, writable: true, configurable: true });
   }
 
   return normalized;
@@ -247,7 +247,7 @@ function pruneModelAliasesToVisible(
   const pruned: Record<string, string> = {};
   for (const [rawId, alias] of Object.entries(aliases)) {
     if (visibleSet.has(rawId)) {
-      pruned[rawId] = alias;
+      Object.defineProperty(pruned, rawId, { value: alias, enumerable: true, writable: true, configurable: true });
     }
   }
   return pruned;

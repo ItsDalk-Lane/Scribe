@@ -1,8 +1,10 @@
 const mockGetHostnameKey = jest.fn(() => 'device:current');
 
 import { readGrokCatalog, writeGrokCatalog } from '@test/helpers/providers/grokSettings';
+import { testDate } from '@test/helpers/testClock';
 
 import { normalizeGrokCatalogSnapshot } from '@/providers/grok/config';
+import { grokModelPolicy } from '@/providers/grok/GrokModelPolicy';
 import {
   getGrokProviderSettings,
   updateGrokProviderSettings,
@@ -335,4 +337,46 @@ describe('Grok provider state', () => {
       forkSourceSessionDirectory: '../outside',
     })).toEqual({});
   });
+});
+
+it('round-trips own prototype-named model metadata through the provider configuration', () => {
+  const settings: Record<string, unknown> = {};
+  const modelAliases = JSON.parse('{"__proto__":"Gateway alias"}') as Record<string, string>;
+  const preferredReasoningByModel = JSON.parse('{"__proto__":"high"}') as Record<string, string>;
+  updateGrokProviderSettings(settings, { visibleModels: ['__proto__'], modelAliases, preferredReasoningByModel });
+  const reloaded = getGrokProviderSettings(JSON.parse(JSON.stringify(settings)));
+  expect(Object.entries(reloaded.modelAliases)).toEqual([['__proto__', 'Gateway alias']]);
+  expect(Object.entries(reloaded.preferredReasoningByModel)).toEqual([['__proto__', 'high']]);
+});
+
+it.each(['constructor', 'toString', '__proto__'])('keeps the native Grok label when %s has no own alias', id => {
+  const settings: Record<string, unknown> = {};
+  updateGrokProviderSettings(settings, { visibleModels: [id] });
+  writeGrokCatalog(settings, { fingerprint: 'prototype-id', refreshedAt: testDate().getTime(), defaultModelId: id,
+    models: [{ rawId: id, displayName: 'Gateway model', supportsReasoning: false, reasoningEfforts: [] }] });
+  expect(grokModelPolicy.getModelOptions(settings)).toEqual([expect.objectContaining({ label: 'Gateway model' })]);
+  expect(typeof grokModelPolicy.getDefaultReasoningValue?.('grok/' + id, settings)).toBe('string');
+});
+
+it('persists the first explicit reasoning choice for a prototype-named Grok model', () => {
+  const settings: Record<string, unknown> = {};
+  updateGrokProviderSettings(settings, { visibleModels: ['__proto__'] });
+  writeGrokCatalog(settings, { fingerprint: 'prototype-id', refreshedAt: testDate().getTime(), defaultModelId: '__proto__', models: [
+    { rawId: '__proto__', displayName: 'Gateway model', supportsReasoning: true, reasoningEfforts: [{ label: 'High', value: 'high' }], reasoningMetadataResolved: true },
+  ] });
+  grokModelPolicy.applyReasoningSelection?.('grok/__proto__', 'high', settings);
+  expect(Object.entries(getGrokProviderSettings(JSON.parse(JSON.stringify(settings))).preferredReasoningByModel)).toEqual([['__proto__', 'high']]);
+});
+
+it('preserves the native model description without creating a synthetic fallback', () => {
+  const settings: Record<string, unknown> = {};
+  updateGrokProviderSettings(settings, { visibleModels: ['constructor', 'toString'] });
+  writeGrokCatalog(settings, { fingerprint: 'description-preservation', refreshedAt: testDate().getTime(), defaultModelId: 'constructor', models: [
+    { rawId: 'constructor', displayName: 'Without description', supportsReasoning: false, reasoningEfforts: [] },
+    { rawId: 'toString', displayName: 'With description', description: 'Native description', supportsReasoning: false, reasoningEfforts: [] },
+  ] });
+  const options = grokModelPolicy.getModelOptions(settings);
+  expect(options[0]).toMatchObject({ label: 'Without description' });
+  expect(Object.hasOwn(options[0], 'description')).toBe(false);
+  expect(options[1]).toMatchObject({ label: 'With description', description: 'Native description' });
 });

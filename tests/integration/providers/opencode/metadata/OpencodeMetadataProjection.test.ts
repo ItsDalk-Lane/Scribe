@@ -74,3 +74,10 @@ it('clears explicitly empty reasoning options while retaining metadata absent fr
   });
   expect(decodeOpencodeConfig(host.config).thinkingOptionsByModel['provider/alpha']).toEqual([]);
 });
+
+it('publishes reasoning metadata for an accepted prototype-named model', async () => {
+  const host = runtimeHostFor({ settings: { providerConfigs: { opencode: { enabled: true, visibleModels: ['__proto__'] } } } }, 'opencode');
+  await projectOpencodeMetadata(host, { selectedRawModelId: '__proto__', configOptions: effort(['high']) });
+  expect(Object.entries(decodeOpencodeConfig(JSON.parse(JSON.stringify(host.config))).thinkingOptionsByModel))
+    .toEqual([['__proto__', [{ label: 'high', value: 'high' }]]]);
+});

@@ -84,3 +84,9 @@ describe('Claude SDK model catalog', () => {
     }))).toEqual([]);
   });
 });
+
+it.each(['constructor', 'toString', '__proto__'])('keeps the native label when %s has no own alias', id => {
+  expect(getClaudeModelOptions(settings({
+    discoveredModels: [{ value: id, label: 'Gateway model', description: '' }], visibleModels: [id],
+  }))).toEqual([expect.objectContaining({ label: 'Gateway model' })]);
+});

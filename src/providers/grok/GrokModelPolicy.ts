@@ -75,7 +75,7 @@ export const grokModelPolicy: ProviderModelPolicy = {
     }
     return resolveGrokDefaultReasoningEffort(
       selectedModel ? { ...selectedModel, reasoningEfforts: [...efforts] } : null,
-      grokSettings.preferredReasoningByModel[rawId],
+      Object.hasOwn(grokSettings.preferredReasoningByModel, rawId) ? grokSettings.preferredReasoningByModel[rawId] : undefined,
     );
   },
 
@@ -125,7 +125,7 @@ export const grokModelPolicy: ProviderModelPolicy = {
     ).map(option => option.value));
     const preferredReasoningByModel = { ...grokSettings.preferredReasoningByModel };
     if (supportedValues.has(value)) {
-      preferredReasoningByModel[rawId] = value;
+      Object.defineProperty(preferredReasoningByModel, rawId, { value, enumerable: true, writable: true, configurable: true });
     } else {
       delete preferredReasoningByModel[rawId];
     }
@@ -157,7 +157,7 @@ function pushModelOption(
   if (!model) return;
   options.push({
     value,
-    label: aliases[rawId] ?? getGrokModelLabel(model),
+    label: Object.hasOwn(aliases, rawId) ? aliases[rawId] : getGrokModelLabel(model),
     ...(model.description ? { description: model.description } : {}),
   });
 }

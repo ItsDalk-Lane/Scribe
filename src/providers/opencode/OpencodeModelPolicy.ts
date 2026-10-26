@@ -30,7 +30,7 @@ export const opencodeModelPolicy: ProviderModelPolicy = {
       const option: ProviderUIOption = {
         ...(model.description ? { description: model.description } : {}),
         ...(hasUpstream ? { group: providerLabel } : {}),
-        label: opencodeSettings.modelAliases[model.rawId] ?? modelLabel,
+        label: Object.hasOwn(opencodeSettings.modelAliases, model.rawId) ? opencodeSettings.modelAliases[model.rawId] : modelLabel,
         value: encodeOpencodeModelId(model.rawId),
       };
       return [option.value, option];
@@ -103,7 +103,7 @@ export const opencodeModelPolicy: ProviderModelPolicy = {
     const opencodeSettings = getOpencodeProviderSettings(settingsBag);
     const baseRawId = resolveOpencodeBaseModelRawId(rawModelId, opencodeSettings.discoveredModels);
     const supportedValues = new Set(
-      (opencodeSettings.thinkingOptionsByModel[baseRawId] ?? []).map((variant) => variant.value),
+      (Object.hasOwn(opencodeSettings.thinkingOptionsByModel, baseRawId) ? opencodeSettings.thinkingOptionsByModel[baseRawId] : []).map((variant) => variant.value),
     );
     const nextPreferredThinkingByModel = {
       ...opencodeSettings.preferredThinkingByModel,
@@ -112,7 +112,7 @@ export const opencodeModelPolicy: ProviderModelPolicy = {
     if (!value || !supportedValues.has(value)) {
       delete nextPreferredThinkingByModel[baseRawId];
     } else {
-      nextPreferredThinkingByModel[baseRawId] = value;
+      Object.defineProperty(nextPreferredThinkingByModel, baseRawId, { value, enumerable: true, writable: true, configurable: true });
     }
 
     updateOpencodeProviderSettings(settingsBag, {
@@ -166,8 +166,8 @@ function getDefaultThinkingLevelForModel(
 ): string {
   const opencodeSettings = getOpencodeProviderSettings(settings);
   return resolveOpencodeDefaultThinkingLevel(
-    opencodeSettings.thinkingOptionsByModel[baseRawId] ?? [],
-    opencodeSettings.preferredThinkingByModel[baseRawId],
+    Object.hasOwn(opencodeSettings.thinkingOptionsByModel, baseRawId) ? opencodeSettings.thinkingOptionsByModel[baseRawId] : [],
+    Object.hasOwn(opencodeSettings.preferredThinkingByModel, baseRawId) ? opencodeSettings.preferredThinkingByModel[baseRawId] : undefined,
   );
 }
 
@@ -182,7 +182,7 @@ function getOpencodeThinkingOptions(
 
   const opencodeSettings = getOpencodeProviderSettings(settings);
   const baseRawId = resolveOpencodeBaseModelRawId(rawModelId, opencodeSettings.discoveredModels);
-  return opencodeSettings.thinkingOptionsByModel[baseRawId] ?? [];
+  return Object.hasOwn(opencodeSettings.thinkingOptionsByModel, baseRawId) ? opencodeSettings.thinkingOptionsByModel[baseRawId] : [];
 }
 
 function pushOption(
@@ -214,7 +214,7 @@ export function createOpencodeModelMetadataPreparer(
 
     const opencodeSettings = getOpencodeProviderSettings(context.plugin.settings);
     const baseRawId = resolveOpencodeBaseModelRawId(rawModelId, opencodeSettings.discoveredModels);
-    if (baseRawId && opencodeSettings.thinkingOptionsByModel[baseRawId]) {
+    if (baseRawId && Object.hasOwn(opencodeSettings.thinkingOptionsByModel, baseRawId)) {
       return;
     }
 

@@ -34,9 +34,9 @@ function pruneThinkingOptionsToPersistedSelections(
   const persistableRawIds = new Set(next.visibleModels);
   const pruned: OpencodeThinkingOptionsByModel = {};
   for (const rawId of persistableRawIds) {
-    const options = next.thinkingOptionsByModel[rawId];
+    const options = Object.hasOwn(next.thinkingOptionsByModel, rawId) ? next.thinkingOptionsByModel[rawId] : undefined;
     if (options) {
-      pruned[rawId] = options.map((option) => ({ ...option }));
+      Object.defineProperty(pruned, rawId, { value: options.map((option) => ({ ...option })), enumerable: true, writable: true, configurable: true });
     }
   }
   return pruned;

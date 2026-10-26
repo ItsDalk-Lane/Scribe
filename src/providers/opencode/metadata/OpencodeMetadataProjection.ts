@@ -70,7 +70,7 @@ export async function projectOpencodeMetadata(
       : null;
     const nextThinking = { ...current.thinkingOptionsByModel };
     if (baseRawModelId && hasThinking) {
-      nextThinking[baseRawModelId] = thinkingOptions;
+      Object.defineProperty(nextThinking, baseRawModelId, { value: thinkingOptions, enumerable: true, writable: true, configurable: true });
     }
     updateOpencodeConfig(config, {
       ...(hasModels ? { discoveredModels } : {}),

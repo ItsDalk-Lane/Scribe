@@ -158,7 +158,7 @@ export function normalizeOpencodeThinkingOptionsByModel(
       continue;
     }
 
-    normalized[normalizedRawId] = normalizedVariants;
+    Object.defineProperty(normalized, normalizedRawId, { value: normalizedVariants, enumerable: true, writable: true, configurable: true });
   }
 
   return normalized;
