@@ -44,16 +44,17 @@ describe('inline-edit.css', () => {
       .toBe('var(--claudian-brand-deepseek)');
   });
 
-  it('floats the model menu fixed above its chip, outside the clipped editor, in the provider colours', () => {
+  it('uses the floating menu viewport placement outside the clipped editor in provider colours', () => {
     document.body.innerHTML = '<div class="claudian-inline-menu-layer" data-provider="deepseek">'
       + '<div class="claudian-toolbar-popover claudian-toolbar-popover--floating"></div></div>';
     const menu = window.getComputedStyle(document.querySelector('.claudian-toolbar-popover')!);
     // jsdom does not inherit custom properties, so the layer the menu inherits from is read directly.
     const layer = window.getComputedStyle(document.querySelector('.claudian-inline-menu-layer')!);
 
-    // ToolbarMenu sets the variable from the chip's position, so the menu opens upward from it.
+    // ToolbarMenu supplies the chosen edge and available height; CSS must consume all three.
     expect(menu.position).toBe('fixed');
-    expect(menu.top).toBe('auto');
+    expect(menu.top).toBe('var(--claudian-toolbar-popover-top, auto)');
+    expect(menu.maxHeight).toBe('min(var(--claudian-toolbar-popover-max-height, 420px), 60vh)');
     expect(menu.bottom).toBe('var(--claudian-toolbar-popover-bottom)');
     expect(layer.getPropertyValue('--claudian-provider-logo').trim()).toBe('var(--claudian-brand-deepseek)');
   });

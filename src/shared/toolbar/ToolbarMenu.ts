@@ -67,7 +67,7 @@ interface ToolbarMenuOptions {
   group?: ToolbarMenuGroup;
   /**
    * For hosts that clip their content, such as CodeMirror widgets: while open, the menu moves into this
-   * layer, fixed above its button's end edge, and returns to its button when it closes.
+   * layer, fixed beside its button's end edge, and returns to its button when it closes.
    */
   floatingLayer?: HTMLElement;
   /** Rereads settings into the button and menu before the menu shows. */
@@ -76,6 +76,7 @@ interface ToolbarMenuOptions {
 
 /** Gap between a floating menu and its button, matching the anchored menu's. */
 const FLOATING_MENU_GAP = 8;
+const FLOATING_MENU_VIEWPORT_MARGIN = 8;
 /** A floating menu keeps the anchored model menu's minimum width. */
 const FLOATING_MENU_MIN_WIDTH = 160;
 
@@ -191,8 +192,8 @@ export class ToolbarMenu {
         this.#options.group?.release(this);
         return;
       }
-      this.#float();
       this.menuEl.hidden = false;
+      this.#float();
       this.buttonEl.setAttribute('aria-expanded', 'true');
       this.anchorEl.ownerDocument.addEventListener('pointerdown', this.#onDocumentPointerDown, true);
       // Window capture runs ahead of Obsidian's keymap, whose view scope cancels a running turn on Escape.
@@ -250,13 +251,27 @@ export class ToolbarMenu {
     this.anchorEl.appendChild(this.menuEl);
   }
 
-  readonly #placeFloating = (): void => {
+  readonly #placeFloating = (event?: Event): void => {
+    // Scrolling a menu column does not move its anchor or change available space.
+    if (event?.type === 'scroll' && event.target && 'nodeType' in event.target
+      && this.menuEl.contains(event.target as Node)) return;
     const view = this.#floatingWindow;
     if (!view) return;
     const button = this.buttonEl.getBoundingClientRect();
+    // Measure its preferred CSS height again after a previously constrained placement.
+    this.menuEl.style.removeProperty('--claudian-toolbar-popover-max-height');
+    const height = this.menuEl.getBoundingClientRect().height;
+    const margin = FLOATING_MENU_VIEWPORT_MARGIN;
+    const aboveEdge = Math.max(margin, Math.min(view.innerHeight - margin, button.top - FLOATING_MENU_GAP));
+    const belowEdge = Math.max(margin, Math.min(view.innerHeight - margin, button.bottom + FLOATING_MENU_GAP));
+    const above = aboveEdge - margin;
+    const below = view.innerHeight - margin - belowEdge;
+    const opensBelow = height > above && below > above;
     this.menuEl.setCssProps({
+      '--claudian-toolbar-popover-top': opensBelow ? `${belowEdge}px` : 'auto',
+      '--claudian-toolbar-popover-max-height': `${Math.max(0, opensBelow ? below : above)}px`,
       '--claudian-toolbar-popover-right': `${view.innerWidth - button.right}px`,
-      '--claudian-toolbar-popover-bottom': `${view.innerHeight - button.top + FLOATING_MENU_GAP}px`,
+      '--claudian-toolbar-popover-bottom': opensBelow ? 'auto' : `${view.innerHeight - aboveEdge}px`,
       '--claudian-toolbar-popover-min-width': `${Math.max(button.width, FLOATING_MENU_MIN_WIDTH)}px`,
     });
   };

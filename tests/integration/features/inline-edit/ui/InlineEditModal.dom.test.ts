@@ -205,6 +205,59 @@ it('releases both Markdown diff documents when review is rejected', async () => 
   expect(screen.queryByRole('toolbar', { name: 'Inline edit actions' })).toBeNull();
 });
 
+it('keeps the floating model menu inside the viewport near the top and after scrolling', async () => {
+  const h = createHarness();
+  h.createSession().show();
+  const chip = screen.getByRole('button', { name: 'Model: Sonnet, effort High' });
+  const menu = document.querySelector<HTMLElement>('.claudian-model-popover')!;
+  let chipTop = 24;
+  const bounds = () => {
+    const cap = Number.parseFloat(menu.style.getPropertyValue('--claudian-toolbar-popover-max-height')) || 196;
+    const height = Math.min(196, cap);
+    const topValue = menu.style.getPropertyValue('--claudian-toolbar-popover-top');
+    const top = topValue && topValue !== 'auto' ? Number.parseFloat(topValue)
+      : window.innerHeight - Number.parseFloat(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')) - height;
+    return { top, bottom: top + height };
+  };
+  const rect = (top: number, height: number) => ({ top, bottom: top + height, left: 100, right: 200, width: 100, height } as DOMRect);
+  jest.spyOn(chip, 'getBoundingClientRect').mockImplementation(() => rect(chipTop, 28));
+  const measureMenu = jest.spyOn(menu, 'getBoundingClientRect').mockImplementation(() => rect(0, menu.hidden ? 0 : 196));
+  fireEvent.click(chip);
+  expect(screen.getByRole('dialog', { name: 'Model options' })).toBe(menu);
+  expect(bounds().top).toBeGreaterThanOrEqual(8);
+  expect(bounds().bottom).toBeLessThanOrEqual(window.innerHeight - 8);
+  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-top')).toBe('60px');
+  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')).toBe('auto');
+  const limitBelow = window.innerHeight - 52 - 8 - 8;
+  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-max-height')).toBe(`${limitBelow}px`);
+  expect((await axe(menu)).violations).toEqual([]);
+  fireEvent.click(within(menu).getByRole('option', { name: 'Opus' }));
+  await waitFor(() => expect(h.plugin.settings.inlineEditModel?.model).toBe('opus'));
+  measureMenu.mockClear();
+  const placement = menu.style.cssText;
+  fireEvent.scroll(within(menu).getByRole('listbox', { name: 'Model' }));
+  expect(measureMenu).not.toHaveBeenCalled();
+  expect(menu.style.cssText).toBe(placement);
+  chipTop = window.innerHeight - 60;
+  fireEvent.scroll(window);
+  expect(measureMenu).toHaveBeenCalledTimes(1);
+  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-top')).toBe('auto');
+  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')).toBe('68px');
+  const viewport = jest.replaceProperty(window, 'innerHeight', 120);
+  try {
+    chipTop = 24;
+    fireEvent.resize(window);
+    expect(menu.style.getPropertyValue('--claudian-toolbar-popover-max-height')).toBe('52px');
+    expect(bounds().top).toBeGreaterThanOrEqual(8);
+    expect(bounds().bottom).toBeLessThanOrEqual(window.innerHeight - 8);
+  } finally {
+    viewport.restore();
+  }
+  fireEvent.keyDown(menu, { key: 'Escape' });
+  expect(menu.hidden).toBe(true);
+  expect(document.activeElement).toBe(chip);
+});
+
 it.each([
   'Use `</replacement>` literally in XML.',
   'Document <replacement>old</replacement> and <insertion>new</insertion>.',

@@ -136,11 +136,12 @@
 }
 
 
-/* A floating menu (ToolbarMenu's floatingLayer) is fixed above its button's end edge. */
+/* Floating menus choose the side with room and stay within the viewport's vertical edges. */
 .claudian-toolbar-popover.claudian-toolbar-popover--floating {
   position: fixed;
-  top: auto;
+  top: var(--claudian-toolbar-popover-top, auto);
   bottom: var(--claudian-toolbar-popover-bottom);
+  max-height: min(var(--claudian-toolbar-popover-max-height, 420px), 60vh);
   inset-inline-start: auto;
   right: var(--claudian-toolbar-popover-right);
   min-width: var(--claudian-toolbar-popover-min-width);
