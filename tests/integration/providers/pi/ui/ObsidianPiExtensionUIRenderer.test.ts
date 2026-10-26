@@ -122,3 +122,21 @@ it.each([false, true])('keeps native editor prefill through submission (edited: 
     document.body.replaceChildren();
   }
 });
+
+it.each(['  Keep indentation', 'Keep trailing space  ', '\tKeep both  '])('returns the original native select option %j', async value => {
+  const send = jest.fn();
+  const bridge = new PiExtensionUIBridge({ send } as unknown as PiRPCTransport, new ObsidianPiExtensionUIRenderer({} as App));
+  try {
+    bridge.handleRequest({ type: 'extension_ui_request', id: 'select-value', method: 'select', title: 'Choose text', options: [value, 'Other'] });
+    const region = within(document.body).getByRole('region', { name: 'Pi extension' });
+    const violations = await axe(region);
+    fireEvent.click(within(region).getByRole('button', { name: value.trim() }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith({ type: 'extension_ui_response', id: 'select-value', value }));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(within(document.body).queryByRole('region', { name: 'Pi extension' })).toBeNull();
+    expect(violations).toHaveNoViolations();
+  } finally {
+    bridge.cleanup();
+    document.body.replaceChildren();
+  }
+});
