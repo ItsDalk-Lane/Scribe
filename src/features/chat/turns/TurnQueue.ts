@@ -77,7 +77,7 @@ export class TurnQueue {
     this.deps.drafts.restore('main', {
       content: message.turnRequest.draftContent ?? message.content,
       images: message.turnRequest.images,
-    }, { merge: options.merge, focus: true });
+    }, { merge: options.merge, focus: true, notify: true });
   }
 
   /** Unsent steering rejoins the queue while its turn still runs, otherwise the composer. */

@@ -810,3 +810,41 @@ it('holds mailbox delivery behind a branch preview and wakes when the full trans
   await runtime.turns.drain();
   await destroyTab(tab);
 });
+
+it('rematches an open mention after editing queued input back into the composer', async () => {
+  const h = setup();
+  const at = testDate().getTime();
+  const note = Object.assign(new TFile(), {
+    path: 'Notes/Plan.md', name: 'Plan.md', basename: 'Plan', extension: 'md',
+    stat: { ctime: at, mtime: at, size: 1 },
+  });
+  Object.assign(h.plugin.app.vault, { getFiles: () => [note], getAllLoadedFiles: () => [note] });
+  const tab = await h.attach();
+  tab.controllers.drafts.restore('main', { content: 'First request' });
+  const sending = tab.controllers.inputController.sendMessage();
+  try {
+    await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
+    tab.controllers.drafts.restore('main', { content: 'Queued request' });
+    await tab.controllers.inputController.sendMessage();
+    tab.dom.inputEl.value = '@Plan';
+    fireEvent.input(tab.dom.inputEl);
+    await waitFor(() => expect(tab.ui.composerDropdown.isVisible()).toBe(true));
+    expect(within(tab.dom.inputContainerEl).getByRole('option', { name: /Plan/ })).toBeDefined();
+
+    fireEvent.click(within(tab.dom.inputComposerEl).getByRole('button', { name: 'Edit queued message' }));
+    expect(tab.dom.inputEl.value).toBe('Queued request\n\n@Plan');
+    expect(tab.controllers.inputController.queue.message).toBeNull();
+    fireEvent.click(within(tab.dom.inputContainerEl).getByRole('option', { name: /Plan/ }));
+
+    await waitFor(() => expect(tab.dom.inputEl.value).toBe('Queued request\n\n[[Notes/Plan.md|Plan]] '));
+    expect(h.backend.latest.requests).toHaveLength(1);
+    const textbox = within(tab.dom.inputEl).getByRole('textbox', { name: 'Message' });
+    expect(tab.dom.inputEl.contains(document.activeElement)).toBe(true);
+    expect(await axe(textbox, { runOnly: ['label', 'aria-valid-attr-value'] })).toHaveNoViolations();
+  } finally {
+    h.backend.latest.complete();
+    await sending;
+    await destroyTab(tab);
+    await h.pool.dispose();
+  }
+});
