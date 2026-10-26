@@ -40,11 +40,13 @@ function createFixture(result: TitleGenerationResult = { success: true, title: '
   repository.replaceAll([conversation]);
   const started = deferred<void>();
   const finishGeneration = deferred<void>();
+  const completed = deferred<void>();
   const service: TitleGenerationService = {
     async generateTitle(id, _content, callback) {
       started.resolve();
       await finishGeneration.promise;
       await callback(id, result);
+      completed.resolve();
     },
     cancel() {},
   };
@@ -58,7 +60,7 @@ function createFixture(result: TitleGenerationResult = { success: true, title: '
     },
     getService: () => service,
   });
-  return { conversation, finishGeneration, persistence, repository, started, titles };
+  return { completed, conversation, finishGeneration, persistence, repository, started, titles };
 }
 
 it.each(['pending', 'committed'])('preserves a manual rename whose metadata write is %s when generation finishes', async timing => {
@@ -124,4 +126,17 @@ it('does not recreate a conversation deleted before title completion', async () 
 
   expect(repository.getSync(conversation.id)).toBeNull();
   expect(persistence.saveMetadata).not.toHaveBeenCalled();
+});
+
+it.each(['.NET dependency injection', '...explain this error', '? Why does this happen', '.NET dependency injection  \nMore details'])('commits the first-turn generated title after a punctuation-leading prompt: %s', async prompt => {
+  const { completed, conversation, finishGeneration, persistence, repository, started, titles } = createFixture();
+  conversation.messages[0].content = prompt;
+
+  await titles.titleFirstTurn(conversation.id, conversation.messages[0]);
+  await started.promise;
+  finishGeneration.resolve();
+  await completed.promise;
+
+  expect(repository.getSync(conversation.id)).toMatchObject({ title: 'Generated title', titleGenerationStatus: 'success' });
+  expect(persistence.saveMetadata).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Generated title', titleGenerationStatus: 'success' }));
 });
