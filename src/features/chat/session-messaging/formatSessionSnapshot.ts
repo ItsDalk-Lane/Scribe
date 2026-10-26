@@ -1,7 +1,7 @@
 import { getUserDisplayText } from '@/core/prompt/promptContext';
 import { type ChatMessage, type Conversation, isCanonicalUserMessage } from '@/core/types';
 import { getResponseSegments } from '@/features/chat/rendering/NotificationBoundaries';
-import { getFinalResponseText } from '@/features/chat/rendering/ResponseLayout';
+import { getFinalResponseText, isStandaloneTaskNotification } from '@/features/chat/rendering/ResponseLayout';
 
 /** Keeps one read within what native tool results accept. */
 const DEFAULT_MAX_CHARS = 40_000;
@@ -36,26 +36,31 @@ function splitFinishedTurns(messages: readonly ChatMessage[], running: boolean):
 function formatReply(responses: readonly ChatMessage[]): string {
   const final = responses.filter(message => message.role === 'assistant')
     .map(getFinalResponseText).filter(text => text.trim()).join('\n\n');
-  return final || (responses.some(message => message.isInterrupt) ? '(interrupted)'
-    : responses.some(message => message.toolCalls?.some(tool => tool.status === 'error')) ? '(error)' : '(no reply)');
+  return final || formatEmptyReply(responses);
+}
+
+function formatEmptyReply(responses: readonly ChatMessage[]): string {
+  return responses.some(message => message.isInterrupt) ? '(interrupted)'
+    : responses.some(message => message.toolCalls?.some(tool => tool.status === 'error')) ? '(error)' : '(no reply)';
 }
 
 /**
- * The last finished turn's final answer as Markdown: the trailing text of its last response with text,
+ * The last finished turn's final answer as Markdown: the trailing text of its last response,
  * across that response's continuation segments. Empty when no turn has finished.
  */
 export function formatLastReply(messages: readonly ChatMessage[], running: boolean): string {
   const turn = splitFinishedTurns(messages, running).at(-1);
   if (!turn) return '';
-  let last: ChatMessage | undefined;
-  for (const message of turn.responses) {
-    if (message.role === 'assistant' && getFinalResponseText(message).trim()) last = message;
-  }
-  if (!last) return formatReply(turn.responses);
+  const last = turn.responses.filter(message => {
+    const notification: boolean = isStandaloneTaskNotification(message);
+    return message.role === 'assistant' && !notification;
+  }).at(-1);
+  if (!last) return formatEmptyReply(turn.responses);
   const segments = getResponseSegments(last, turn.responses);
   const blocks = segments.flatMap(segment => segment.contentBlocks?.length
     ? segment.contentBlocks : [{ type: 'text' as const, content: segment.content }]);
-  return getFinalResponseText({ ...last, contentBlocks: blocks });
+  const final = getFinalResponseText({ ...last, contentBlocks: blocks });
+  return final.trim() ? final : formatEmptyReply(turn.responses);
 }
 
 /** Each turn's prompt and final reply, latest turns first to fit `maxChars`. */

@@ -551,6 +551,38 @@ it('applies no switch when the call is cancelled before admission', async () => 
 });
 
 describe('outside-client API', () => {
+  it.each([
+    { label: 'tool only', finalText: undefined, isError: false, interrupted: false, trailingNotification: false, expected: '(no reply)' },
+    { label: 'blank text after work', finalText: ' \n', isError: false, interrupted: false, trailingNotification: false, expected: '(no reply)' },
+    { label: 'failed tool', finalText: undefined, isError: true, interrupted: false, trailingNotification: false, expected: '(error)' },
+    { label: 'stopped after work', finalText: undefined, isError: false, interrupted: true, trailingNotification: false, expected: '(interrupted)' },
+    { label: 'final text after work', finalText: 'The note is up to date.', isError: false, interrupted: false, trailingNotification: false, expected: 'The note is up to date.' },
+    { label: 'notification after final text', finalText: 'The note is up to date.', isError: false, interrupted: false, trailingNotification: true, expected: 'The note is up to date.' },
+  ])('reads the final answer after notification-split work: $label', async ({ finalText, isError, interrupted, trailingNotification, expected }) => {
+    const h = setup();
+    const api = createClaudianAPI(h.service);
+    await api.send('recipient', { text: 'Inspect the note' });
+    await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
+    const native = h.backend.latest;
+    const model = h.pool.get('recipient')!.peekModel!;
+    native.emitText('I will inspect the note.');
+    await waitFor(() => expect(model.state.currentTextContent).toContain('I will inspect the note.'));
+    native.emitSessionEvent({ type: 'task_notification', content: 'An earlier task finished.' });
+    native.emitOutput({ type: 'tool_started', toolCallId: 'inspect', toolScope: { kind: 'main' }, name: 'Read', input: { file_path: 'note.md' } });
+    native.emitOutput({ type: 'tool_completed', toolCallId: 'inspect', toolScope: { kind: 'main' }, content: 'Current note content.', isError });
+    if (finalText) native.emitText(finalText);
+    await waitFor(() => expect(model.state.currentTextContent).toBe(finalText ?? ''));
+    if (trailingNotification) {
+      native.emitSessionEvent({ type: 'task_notification', content: 'Another earlier task finished.' });
+    }
+    if (interrupted) native.cancel();
+    else native.complete();
+    await h.pool.get('recipient')!.turns.drain();
+
+    expect(model.state.messages.some(message => message.responseContinuationOf !== undefined)).toBe(true);
+    expect(await api.read('recipient')).toBe(expected);
+  });
+
   it('delivers client text as the user\'s own prompt, reports the active session, and reads the finished reply', async () => {
     const h = setup();
     const api = createClaudianAPI(h.service);
