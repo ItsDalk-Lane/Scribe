@@ -165,6 +165,11 @@ export class ProviderRegistry {
     return this.getProviderRegistration(providerId).chatUIConfig;
   }
 
+  static prepareAssistantMarkdown(providerId: ProviderId, markdown: string): string {
+    const ui = Object.hasOwn(this.registrations, providerId) ? this.registrations[providerId]?.chatUIConfig : undefined;
+    return ui?.prepareAssistantMarkdown?.(markdown) ?? markdown;
+  }
+
   static getTitleGenerationModelOptions(
     settings: Record<string, unknown>,
   ): ProviderUIOption[] {

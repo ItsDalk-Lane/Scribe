@@ -12,10 +12,14 @@ interface ProtectedBlock {
 }
 
 /** The block parser owns code and reference-definition boundaries, including container endings. */
-function getProtectedBlocks(markdown: string): Map<number, ProtectedBlock> {
+function getProtectedBlocks(markdown: string, literalLinks?: Array<{ from: number; to: number }>): Map<number, ProtectedBlock> {
   const blocks = new Map<number, ProtectedBlock>();
   parser.parse(markdown).iterate({
     enter(node) {
+      if (literalLinks && (node.name === 'Link' || node.name === 'Image')) {
+        literalLinks.push({ from: node.from, to: node.to });
+        return false;
+      }
       if (node.name !== 'FencedCode' && node.name !== 'CodeBlock' && node.name !== 'LinkReference') return;
       const marker = node.name === 'FencedCode' ? node.node.getChild('CodeMark') : null;
       const lineStart = markdown.lastIndexOf('\n', node.from) + 1;
@@ -465,6 +469,7 @@ function splitInlineMarkdown(
   context: ParagraphContext,
   segments: MarkdownSegment[],
   codeBlocks: ReadonlyMap<number, ProtectedBlock>,
+  preserveLiterals: boolean,
 ): InlineContinuation {
   let segmentStart = 0;
   let bracketDepth = 0;
@@ -504,7 +509,7 @@ function splitInlineMarkdown(
         const end = findMatchingDollarRun(line, index, runLength);
         if (end !== null) {
           appendSegment(segments, line.slice(segmentStart, index), true);
-          appendSegment(segments, line.slice(index, end + 1), true);
+          appendSegment(segments, line.slice(index, end + 1), !preserveLiterals);
           segmentStart = end + 1;
           index = end;
         } else {
@@ -519,7 +524,7 @@ function splitInlineMarkdown(
           );
           if (sourceEnd !== null && sourceEnd >= lineStart + line.length) {
             appendSegment(segments, line.slice(segmentStart, index), true);
-            appendSegment(segments, line.slice(index), true);
+            appendSegment(segments, line.slice(index), !preserveLiterals);
             return { mathRunLength: runLength };
           }
           index += runLength - 1;
@@ -592,9 +597,10 @@ function splitInlineMarkdown(
   return {};
 }
 
-function splitMarkdown(markdown: string): MarkdownSegment[] {
+function splitMarkdown(markdown: string, literalLinks?: Array<{ from: number; to: number }>): MarkdownSegment[] {
+  const preserveLiterals = literalLinks !== undefined;
   const segments: MarkdownSegment[] = [];
-  const codeBlocks = getProtectedBlocks(markdown);
+  const codeBlocks = getProtectedBlocks(markdown, literalLinks);
   let rawHtmlTag: string | null = null;
   let inlineCodeRunLength: number | null = null;
   let inlineHtmlEnd: number | null = null;
@@ -629,6 +635,7 @@ function splitMarkdown(markdown: string): MarkdownSegment[] {
           paragraphContext ?? { blockquoteDepth: 0, listIndents: [], containers: [] },
           segments,
           codeBlocks,
+          preserveLiterals,
         );
         inlineCodeRunLength = continuation.codeRunLength ?? null;
         inlineHtmlEnd = continuation.htmlEnd ?? null;
@@ -641,9 +648,9 @@ function splitMarkdown(markdown: string): MarkdownSegment[] {
     if (inlineMathRunLength !== null) {
       const mathEnd = findMatchingDollarRun(line, -inlineMathRunLength, inlineMathRunLength);
       if (mathEnd === null) {
-        appendSegment(segments, line, true);
+        appendSegment(segments, line, !preserveLiterals);
       } else {
-        appendSegment(segments, line.slice(0, mathEnd + 1), true);
+        appendSegment(segments, line.slice(0, mathEnd + 1), !preserveLiterals);
         const remainder = line.slice(mathEnd + 1);
         const continuation = splitInlineMarkdown(
           markdown,
@@ -652,6 +659,7 @@ function splitMarkdown(markdown: string): MarkdownSegment[] {
           paragraphContext ?? { blockquoteDepth: 0, listIndents: [], containers: [] },
           segments,
           codeBlocks,
+          preserveLiterals,
         );
         inlineCodeRunLength = continuation.codeRunLength ?? null;
         inlineHtmlEnd = continuation.htmlEnd ?? null;
@@ -675,6 +683,7 @@ function splitMarkdown(markdown: string): MarkdownSegment[] {
           paragraphContext ?? { blockquoteDepth: 0, listIndents: [], containers: [] },
           segments,
           codeBlocks,
+          preserveLiterals,
         );
         inlineCodeRunLength = continuation.codeRunLength ?? null;
         inlineHtmlEnd = continuation.htmlEnd ?? null;
@@ -777,6 +786,7 @@ function splitMarkdown(markdown: string): MarkdownSegment[] {
       currentContext,
       segments,
       codeBlocks,
+      preserveLiterals,
     );
     inlineCodeRunLength = continuation.codeRunLength ?? null;
     inlineHtmlEnd = continuation.htmlEnd ?? null;
@@ -792,6 +802,8 @@ function splitMarkdown(markdown: string): MarkdownSegment[] {
 }
 
 interface MarkdownTransforms {
+  /** Keep recognized math and complete links literal while transforming surrounding prose. */
+  preserveLiterals?: boolean;
   fence?: (opener: string, fence: MarkdownFenceOpening) => string;
   text?: (text: string) => string;
   rawHtml?: (text: string) => string;
@@ -803,8 +815,13 @@ export function transformMarkdownSegments(
   markdown: string,
   transforms: MarkdownTransforms,
 ): string {
-  return splitMarkdown(markdown)
+  const literalLinks = transforms.preserveLiterals ? [] as Array<{ from: number; to: number }> : undefined;
+  let offset = 0;
+  let nextLink = 0;
+  return splitMarkdown(markdown, literalLinks)
     .map(segment => {
+      const start = offset;
+      offset += segment.text.length;
       if (segment.fence) {
         return transforms.fence?.(segment.text, segment.fence) ?? segment.text;
       }
@@ -815,7 +832,23 @@ export function transformMarkdownSegments(
         return transforms.rawHtml?.(segment.text) ?? segment.text;
       }
       if (segment.transformable) {
-        return transforms.text?.(segment.text) ?? segment.text;
+        if (!literalLinks?.length) return transforms.text?.(segment.text) ?? segment.text;
+        while (nextLink < literalLinks.length && literalLinks[nextLink].to <= start) nextLink++;
+        let cursor = start;
+        const parts: string[] = [];
+        while (nextLink < literalLinks.length && literalLinks[nextLink].from < offset) {
+          const link = literalLinks[nextLink];
+          const before = markdown.slice(cursor, Math.max(cursor, link.from));
+          parts.push(transforms.text?.(before) ?? before);
+          const end = Math.min(offset, link.to);
+          parts.push(markdown.slice(Math.max(cursor, link.from), end));
+          cursor = end;
+          if (link.to > offset) break;
+          nextLink++;
+        }
+        const tail = markdown.slice(cursor, offset);
+        parts.push(transforms.text?.(tail) ?? tail);
+        return parts.join('');
       }
       return segment.text;
     })

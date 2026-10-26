@@ -106,6 +106,7 @@ jest.mock('@/core/providers/ProviderRegistry', () => ({
       supportsImageAttachments: true,
     }),
     getModelPolicy: (providerId: string) => ProviderRegistry.getChatUIConfig(providerId),
+    prepareAssistantMarkdown: (_providerId: string, markdown: string) => markdown,
     getChatUIConfig: jest.fn().mockReturnValue({
       applyPermissionMode: (_mode: string, settings: Record<string, unknown>) => {
         settings.permissionMode = _mode;

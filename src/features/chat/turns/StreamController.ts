@@ -1,3 +1,4 @@
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '@/core/providers/types';
 import type {
   ChatMessage,
@@ -100,7 +101,8 @@ export class StreamController {
       scrollToBottom,
     });
     this.textRenderCoordinator = this.#createRenderCoordinator(
-      () => this.#getStreamingRenderWindow()
+      () => this.#getStreamingRenderWindow(),
+      content => ProviderRegistry.prepareAssistantMarkdown(this.deps.getProviderId?.() ?? DEFAULT_CHAT_PROVIDER_ID, content),
     );
     this.thinkingRenderCoordinator = this.#createRenderCoordinator(
       () => this.#getThinkingRenderWindow()
@@ -167,13 +169,15 @@ export class StreamController {
   }
 
   #createRenderCoordinator(
-    getOwnerWindow: () => Window | null
+    getOwnerWindow: () => Window | null,
+    prepareContent: (content: string) => string = content => content,
   ): StreamingRenderCoordinator<StreamingContentSnapshot> {
     return new StreamingRenderCoordinator({
       getOwnerWindow,
       minIntervalMs: STREAMING_RENDER_MIN_INTERVAL_MS,
       maxIntervalMs: 500,
       render: async ({ el, content, final }) => {
+        content = prepareContent(content);
         // Derive options only when a render runs so hidden or throttled deltas skip the scans.
         const options = final ? undefined : this.#getStreamingRenderOptions(content);
         if (options) {

@@ -1,6 +1,7 @@
 import { type Component, Notice } from 'obsidian';
 
 import { getUserDisplayText } from '@/core/prompt/promptContext';
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities, type ProviderSubagentLifecycleAdapter } from '@/core/providers/types';
 import type { ChatMessage, ImageAttachment, SubagentInfo, ToolCallInfo } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
@@ -562,7 +563,7 @@ export class MessageRenderer {
             continue;
           }
           const textEl = createResponseTextBlock(contentEl);
-          void this.renderContent(textEl, block.content);
+          void this.renderContent(textEl, ProviderRegistry.prepareAssistantMarkdown(this.getCapabilities().providerId, block.content));
           this.addTextCopyButton(textEl, block.content);
         } else if (block.type === 'citations') {
           renderCitationGroup(contentEl, block.citations);
@@ -603,7 +604,7 @@ export class MessageRenderer {
       // Fallback for old conversations without contentBlocks
       if (msg.content.trim() && !live?.options.isResponseOpen(msg.id)) {
         const textEl = createResponseTextBlock(contentEl);
-        void this.renderContent(textEl, msg.content);
+        void this.renderContent(textEl, ProviderRegistry.prepareAssistantMarkdown(this.getCapabilities().providerId, msg.content));
         this.addTextCopyButton(textEl, msg.content);
       }
       if (msg.toolCalls) {

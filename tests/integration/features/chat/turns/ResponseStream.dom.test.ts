@@ -4,12 +4,15 @@ import '@/providers';
 import { useClaudeSessionFiles } from '@test/helpers/providers/claudeHistory';
 import { parseGrokHistoryContent } from '@test/helpers/providers/grokHistory';
 import { testDate, testTime } from '@test/helpers/testClock';
-import { fireEvent, within } from '@testing-library/dom';
+import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 import { Component, MarkdownRenderer } from 'obsidian';
 
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
+import type { ProviderId } from '@/core/providers/types';
 import type { ChatMessage } from '@/core/types';
 import { MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
+import { getSessionCapabilities } from '@/features/chat/sessions/sessionSettings';
 import { ChatState } from '@/features/chat/state/ChatState';
 import { SubagentManager } from '@/features/chat/subagents/SubagentManager';
 import { renderSessionTaskNotification } from '@/features/chat/turns/BackgroundTurnRenderer';
@@ -18,6 +21,7 @@ import { ResponseStream } from '@/features/chat/turns/ResponseStream';
 import { StreamController } from '@/features/chat/turns/StreamController';
 import { TurnCoordinator } from '@/features/chat/turns/TurnCoordinator';
 import { loadSDKSessionMessages } from '@/providers/claude/history/ClaudeHistoryStore';
+import { parseCodexSessionTurns } from '@/providers/codex/history/CodexHistoryStore';
 import { mapOpencodeV2NativeMessages } from '@/providers/opencode/history/OpencodeHistoryStore';
 import { parsePiSessionContent } from '@/providers/pi/history/PiHistoryStore';
 
@@ -39,19 +43,20 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function createSession() {
+function createSession(providerId?: ProviderId, promptText = 'Read the note') {
   const messagesEl = document.body.createDiv();
   const plugin = { app: {}, settings: { mediaFolder: '', showMessageTimestamps: false } } as any;
-  const renderer = new MessageRenderer(plugin, new Component(), messagesEl);
+  const renderer = new MessageRenderer(plugin, new Component(), messagesEl, undefined, undefined,
+    providerId ? () => ProviderRegistry.getCapabilities(providerId) : undefined);
   const turns = new TurnCoordinator();
   const state = new ChatState({}, undefined, turns);
   const subagents = new SubagentManager(() => undefined);
   const stream = new StreamController({ plugin, state, renderer, subagentManager: subagents,
-    getMessagesEl: () => messagesEl, updateQueueIndicator: () => undefined });
+    getMessagesEl: () => messagesEl, updateQueueIndicator: () => undefined, getProviderId: () => providerId ?? 'claude' });
   let nextId = 0;
   const host = { state, renderer, stream, turns, createMessageId: () => `message-${++nextId}` };
   const response = new ResponseStream(host);
-  const prompt: ChatMessage = { id: 'prompt', role: 'user', content: 'Read the note', timestamp: testDate().getTime() };
+  const prompt: ChatMessage = { id: 'prompt', role: 'user', content: promptText, timestamp: testDate().getTime() };
   state.addMessage(prompt);
   renderer.addMessage(prompt);
   cleanups.push(() => { stream.dispose(); subagents.clear(); renderer.dispose(); });
@@ -272,4 +277,60 @@ it('keeps a failed turn expanded', async () => {
   expect(within(messagesEl).queryByRole('button', { name: /^(Interrupted|Worked)/ })).toBeNull();
   const reply = messagesEl.querySelector<HTMLElement>(`[data-message-id="${live.id}"]`)!;
   expect(within(reply).getByRole('button', { name: 'Copy message' })).toBeDefined();
+});
+
+it.each([
+  ':codex-file-citation{path="/vault/note.md" purpose="source"}',
+  ':codex-file-citation[codex-file-citation]{line_range_start=3 path="/vault/note.md"}',
+])('hides native file annotations live and after reload, while user text stays literal: %s', async directive => {
+  const { response, stream, renderer, state, messagesEl } = createSession('codex', `Explain ${directive}`);
+  const live = response.start();
+  await stream.handleStreamChunk({ type: 'text', content: `The answer.${directive}` }, live);
+  await response.finish(live, { interrupted: false, failed: false });
+  await waitFor(() => expect(within(messagesEl).queryByText('The answer.')).not.toBeNull());
+  expect(within(messagesEl).queryByText(`Explain ${directive}`)).not.toBeNull();
+  const assistant = state.messages.find(message => message.role === 'assistant')!;
+  expect(assistant.content).toBe(`The answer.${directive}`);
+  expect(assistant.contentBlocks?.find(block => block.type === 'text')).toMatchObject({ content: `The answer.${directive}` });
+  const native = [
+    { type: 'event_msg', payload: { type: 'user_message', message: `Explain ${directive}` } },
+    { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: `The answer.${directive}` }] } },
+    { type: 'event_msg', payload: { type: 'task_complete' } },
+  ].map((record, seconds) => JSON.stringify({ timestamp: testTime({ seconds }), ...record })).join('\n');
+  const replay = parseCodexSessionTurns(native).flatMap(turn => turn.messages);
+  expect(replay.find(message => message.role === 'assistant')?.content).toBe(`The answer.${directive}`);
+  renderer.renderMessages(replay, () => 'Welcome');
+  await waitFor(() => expect(within(messagesEl).queryByText('The answer.')).not.toBeNull());
+  expect(within(messagesEl).queryByText(`Explain ${directive}`)).not.toBeNull();
+  renderer.renderMessages(replay.map(message => ({ ...message, contentBlocks: undefined })), () => 'Welcome');
+  await waitFor(() => expect(within(messagesEl).queryByText('The answer.')).not.toBeNull());
+});
+
+it('leaves file-annotation-like assistant text from other providers unchanged', async () => {
+  const literal = 'Example :codex-file-citation{path="note.md"}';
+  const { response, stream, renderer, state, messagesEl } = createSession('claude');
+  const live = response.start();
+  await stream.handleStreamChunk({ type: 'text', content: literal }, live);
+  await response.finish(live, { interrupted: false, failed: false });
+  await waitFor(() => expect(within(messagesEl).queryByText(literal)).not.toBeNull());
+  renderer.renderMessages(state.messages, () => 'Welcome');
+  await waitFor(() => expect(within(messagesEl).queryByText(literal)).not.toBeNull());
+});
+
+it.each(['retired-provider', '', 'constructor'])('keeps cached historical presentation readable without a registered formatter (%s)', async providerId => {
+  const messagesEl = document.body.createDiv();
+  const capabilities = { ...ProviderRegistry.getCapabilities('claude'), providerId };
+  const plugin = {
+    app: {}, settings: { mediaFolder: '', showMessageTimestamps: false },
+    getConversationSummary: () => ({ providerId, capabilities }),
+  } as unknown as Parameters<typeof getSessionCapabilities>[1];
+  const identity = { conversationId: 'cached-session', providerId, draftModel: null };
+  const renderer = new MessageRenderer(plugin, new Component(), messagesEl, undefined, undefined,
+    () => getSessionCapabilities(identity, plugin));
+  cleanups.push(() => renderer.dispose());
+  const literal = 'Historical :codex-file-citation{path="note.md"}';
+  renderer.renderMessages([{ id: 'cached-prompt', role: 'user', content: 'Earlier prompt', timestamp: testDate().getTime() },
+    { id: 'cached-answer', role: 'assistant', content: literal,
+    timestamp: testDate().getTime() }], () => 'Welcome');
+  await waitFor(() => expect(within(messagesEl).queryByText(literal)).not.toBeNull());
 });
