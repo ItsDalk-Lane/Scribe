@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { Stats } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
@@ -96,9 +97,24 @@ export class VaultFileAdapter {
     return this.app.vault.adapter.read(path);
   }
 
-  async write(path: string, content: string): Promise<void> {
-    await this.#ensureParentFolder(path);
-    await this.app.vault.adapter.write(path, content);
+  async write(filePath: string, content: string): Promise<void> {
+    await this.#ensureParentFolder(filePath);
+    const desktop = this.adapter as Partial<DesktopDataAdapter>;
+    if (typeof desktop.getBasePath === 'function') {
+      const target = this.#resolveManagedDesktopPath(this.#basePath(), filePath);
+      let stat: Stats | undefined;
+      try {
+        stat = await fs.lstat(target);
+      } catch (error) {
+        if (!isNotFound(error)) throw error;
+      }
+      // Replacing a link would change the established write-through behavior.
+      if (!stat || (stat.isFile() && stat.nlink === 1)) {
+        await this.#writeFileAtomically(filePath, content, stat?.mode);
+        return;
+      }
+    }
+    await this.adapter.write(filePath, content);
   }
 
   async delete(path: string): Promise<void> {
@@ -304,11 +320,12 @@ export class VaultFileAdapter {
    * Writes a sibling temp file and renames it over the target, so a failed or
    * torn write never leaves the previous content partially overwritten.
    */
-  async #writeFileAtomically(normalized: string, content: string): Promise<void> {
+  async #writeFileAtomically(normalized: string, content: string, mode?: number): Promise<void> {
     const target = this.#resolveManagedDesktopPath(this.#basePath(), normalized);
     const temp = path.join(path.dirname(target), `.claudian-${randomUUID()}.tmp`);
     try {
-      await fs.writeFile(temp, content, { encoding: 'utf8', flag: 'wx' });
+      await fs.writeFile(temp, content, { encoding: 'utf8', flag: 'wx', mode });
+      if (mode !== undefined) await fs.chmod(temp, mode);
       await fs.rename(temp, target);
     } catch (error) {
       await fs.rm(temp, { force: true }).catch(() => undefined);
