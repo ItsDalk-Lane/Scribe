@@ -2,7 +2,7 @@
 import '@test/helpers/ObsidianSettingsDOM';
 
 import { testDate } from '@test/helpers/testClock';
-import { within } from '@testing-library/dom';
+import { fireEvent, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 import type { TFile } from 'obsidian';
 import { setIcon } from 'obsidian';
@@ -12,6 +12,9 @@ import { MentionSource } from '@/shared/composer-dropdown/MentionSource';
 
 // jsdom has no layout or scrolling.
 Element.prototype.scrollIntoView = jest.fn();
+HTMLElement.prototype.setCssProps = function (props) {
+  for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
+};
 
 function file(path: string, minutesAgo: number): TFile {
   const mtime = testDate({ minutes: -minutesAgo }).getTime();
@@ -65,4 +68,76 @@ it('shows vault mentions on the keystroke that requests them and updates the ren
     mention.destroy();
     container.remove();
   }
+});
+
+describe.each([false, true])('local suggestion scrolling (fixed: %s)', fixed => {
+  const nativeScroll = Element.prototype.scrollIntoView;
+  afterEach(() => { Element.prototype.scrollIntoView = nativeScroll; });
+
+  function render() {
+    const workspace = document.body.createDiv();
+    workspace.scrollTop = 120;
+    const container = workspace.createDiv();
+    const input = container.createEl('textarea', { attr: { 'aria-label': 'Message' } });
+    input.getBoundingClientRect = () => new DOMRect(0, 154, 300, 40);
+    const mention = new MentionSource({
+      getCachedVaultFiles: () => [file('Alpha.md', 1), file('Beta.md', 2), file('Gamma.md', 3)],
+      getCachedVaultFolders: () => [],
+    });
+    const controller = new ComposerDropdownController(container, input, [mention], { fixed });
+    input.value = '@';
+    input.selectionStart = input.selectionEnd = 1;
+    controller.handleInputChange();
+    const list = within(container).getByRole('listbox', { name: 'Input suggestions' });
+    const options = within(list).getAllByRole('option');
+    // Layout/scrolling are external browser ports: a two-row popup overlaps the workspace's top edge.
+    const popupTop = () => 50 + (fixed ? 0 : 120 - workspace.scrollTop);
+    list.getBoundingClientRect = () => new DOMRect(0, popupTop(), 300, 100);
+    workspace.getBoundingClientRect = () => new DOMRect(0, 100, 300, 150);
+    options.forEach((option, index) => {
+      option.getBoundingClientRect = () => new DOMRect(0, popupTop() + index * 50 - list.scrollTop, 300, 50);
+    });
+    const reveal = (item: Element, scrollingBox: HTMLElement) => {
+      const target = item.getBoundingClientRect();
+      const box = scrollingBox.getBoundingClientRect();
+      if (target.top < box.top) scrollingBox.scrollTop += target.top - box.top;
+      else if (target.bottom > box.bottom) scrollingBox.scrollTop += target.bottom - box.bottom;
+    };
+    // Native scrollIntoView walks every ancestor, unlike the popup's local reveal policy.
+    Element.prototype.scrollIntoView = function () { reveal(this, list); reveal(this, workspace); };
+    const dispose = () => { controller.destroy(); mention.destroy(); workspace.remove(); };
+    return { workspace, container, input, controller, list, options, dispose };
+  }
+
+  it('keeps keyboard selections visible without moving the workspace', async () => {
+    const h = render();
+    try {
+      const key = (key: string) => h.controller.handleKeydown(new KeyboardEvent('keydown', { key }));
+      key('ArrowDown');
+      expect(h.list.scrollTop).toBe(0);
+      key('ArrowDown');
+      expect(h.list.scrollTop).toBe(50);
+      expect(h.input.getAttribute('aria-activedescendant')).toBe(h.options[2].id);
+      key('ArrowUp');
+      key('ArrowUp');
+      expect(h.list.scrollTop).toBe(0);
+      expect(h.workspace.scrollTop).toBe(120);
+      expect((await axe(h.container)).violations).toEqual([]);
+      key('Enter');
+      expect(h.input.value).toBe('@Alpha.md ');
+    } finally { h.dispose(); }
+  });
+
+  it('selects a hovered edge row without moving either scroller', () => {
+    const h = render();
+    try {
+      fireEvent.mouseEnter(h.options[2]);
+      expect(h.options[2].getAttribute('aria-selected')).toBe('true');
+      expect(h.input.getAttribute('aria-activedescendant')).toBe(h.options[2].id);
+      expect(h.list.scrollTop).toBe(0);
+      expect(h.workspace.scrollTop).toBe(120);
+      fireEvent.click(h.options[2]);
+      expect(h.input.value).toBe('@Gamma.md ');
+    } finally { h.dispose(); }
+  });
 });

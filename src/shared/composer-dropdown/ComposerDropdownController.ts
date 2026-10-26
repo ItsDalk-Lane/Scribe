@@ -34,7 +34,7 @@ export class ComposerDropdownController {
       fixed: options.fixed,
       inputEl,
       onVisibilityChange: options.onVisibilityChange,
-      onHover: index => this.#setSelectedIndex(index),
+      onHover: index => this.#setSelectedIndex(index, false),
       onSelect: index => this.#selectIndex(index),
     });
     for (const source of sources) {
@@ -236,10 +236,10 @@ export class ComposerDropdownController {
     this.inputEl.selectionEnd = cursor;
   }
 
-  #setSelectedIndex(index: number): void {
+  #setSelectedIndex(index: number, reveal = true): void {
     const item = this.items[index];
     if (!item || item.kind === 'status' || item.disabled) return;
     this.selectedIndex = index;
-    this.view.updateSelection(index);
+    this.view.updateSelection(index, reveal);
   }
 }

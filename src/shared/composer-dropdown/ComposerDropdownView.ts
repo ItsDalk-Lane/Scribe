@@ -132,7 +132,7 @@ export class ComposerDropdownView {
     if (row.detailEl) row.detailEl.textContent = item.detail ?? '';
   }
 
-  updateSelection(selectedIndex: number): void {
+  updateSelection(selectedIndex: number, reveal = true): void {
     this.#releaseInputAttribute('aria-activedescendant');
     for (let index = 0; index < this.rows.length; index++) {
       const itemEl = this.rows[index].el;
@@ -141,9 +141,19 @@ export class ComposerDropdownView {
       itemEl.setAttribute('aria-selected', String(selected));
       if (selected) {
         this.#setInputAttribute('aria-activedescendant', itemEl.id);
-        itemEl.scrollIntoView({ block: 'nearest' });
+        if (reveal) this.#revealInList(itemEl);
       }
     }
+  }
+
+  /** As in the resume picker, reveal only inside the popup, not its workspace ancestors. */
+  #revealInList(item: HTMLElement): void {
+    const list = this.dropdownEl;
+    if (!list) return;
+    const listRect = list.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    if (itemRect.top < listRect.top) list.scrollTop -= listRect.top - itemRect.top;
+    else if (itemRect.bottom > listRect.bottom) list.scrollTop += itemRect.bottom - listRect.bottom;
   }
 
   #ensureDropdown(): HTMLElement {
