@@ -1,5 +1,5 @@
 import { parser } from '@lezer/markdown';
-import { type App, Component, getFrontMatterInfo, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidian';
+import { type App, getFrontMatterInfo, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidian';
 
 import {
   ProjectMemoryConflictError,
@@ -9,6 +9,7 @@ import {
   type ProjectRecord,
 } from '@/core/types';
 import { t } from '@/i18n/i18n';
+import { MarkdownRenderScope } from '@/shared/components/MarkdownRenderScope';
 import { confirm } from '@/shared/modals/ConfirmModal';
 
 export interface ProjectMemoryModalOptions {
@@ -38,7 +39,7 @@ export class ProjectMemoryModal extends Modal {
   private updatedEl!: HTMLElement;
   private cancelButton!: HTMLButtonElement;
   private saveButton!: HTMLButtonElement;
-  private previewComponent: Component | null = null;
+  private previewComponent: MarkdownRenderScope | null = null;
   private refreshTimer: number | null = null;
 
   private editing = false;
@@ -211,7 +212,7 @@ export class ProjectMemoryModal extends Modal {
   private renderPreview(): void {
     this.unloadPreview();
     if (this.baseline === null || this.missing) return;
-    const component = new Component();
+    const component = new MarkdownRenderScope();
     component.load();
     this.previewComponent = component;
     // Each render owns a fresh target, so a superseded render cannot write into the current view.

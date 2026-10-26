@@ -474,3 +474,54 @@ it('preserves source offsets after host frontmatter and skips ambiguous extra re
   fireEvent.click(controls.getByRole('heading', { name: 'Injected heading' }));
   expect(textarea.hidden).toBe(true);
 });
+
+it.each(['edit', 'close'])('releases Markdown embed resources registered after the memory preview is retired by %s', async action => {
+  let finish!: () => void;
+  let finished!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  const completed = new Promise<void>(resolve => { finished = resolve; });
+  const cleanup = jest.fn();
+  const childCleanup = jest.fn();
+  const embedEvent = jest.fn();
+  const childEvent = jest.fn();
+  const eventName = 'memory-preview-embed-event';
+  render.mockImplementationOnce(async (_app, _markdown, element, _sourcePath, component) => {
+    element.createEl('p', { text: 'Loading embed' });
+    await gate;
+    window.addEventListener(eventName, embedEvent);
+    component.register(() => {
+      window.removeEventListener(eventName, embedEvent);
+      cleanup();
+    });
+    const child = new Component();
+    window.addEventListener(eventName, childEvent);
+    child.register(() => {
+      window.removeEventListener(eventName, childEvent);
+      childCleanup();
+    });
+    component.addChild(child);
+    finished();
+  });
+  const { modal, controls, textarea } = await open(new InMemoryProjectMemory(FILLED));
+  await controls.findByText('Loading embed');
+  if (action === 'edit') {
+    fireEvent.click(controls.getByRole('button', { name: edit }));
+  } else {
+    modal.close();
+  }
+  expect(textarea.hidden).toBe(action === 'close');
+  expect(textarea.value).toBe(FILLED);
+  expect(screen.queryByRole('dialog', { name: title }) !== null).toBe(action === 'edit');
+  try {
+    finish();
+    await completed;
+    window.dispatchEvent(new Event(eventName));
+    expect(embedEvent).not.toHaveBeenCalled();
+    expect(childEvent).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(childCleanup).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener(eventName, embedEvent);
+    window.removeEventListener(eventName, childEvent);
+  }
+});
