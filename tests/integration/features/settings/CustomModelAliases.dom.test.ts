@@ -14,6 +14,40 @@ import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
 import { getClaudeProviderSettings, updateClaudeProviderSettings } from '@/providers/claude/settings';
 
+it.each(['Enter', 'Escape'])('leaves composing %s to the custom model alias editor', async key => {
+  globalThis.structuredClone ??= value => deserialize(serialize(value));
+  const settings = { providerConfigs: { claude: { modelAliases: {} } } };
+  let saved = '';
+  const coordinator = new SettingsCoordinator(settings, async draft => { saved = JSON.stringify(draft); });
+  const plugin = {
+    settings,
+    getActiveEnvironmentVariables: () => 'ANTHROPIC_MODEL=custom-model',
+    mutateSettings: coordinator.mutate.bind(coordinator),
+    notifyProviderChatOptionsChanged: jest.fn(),
+    storage: { getAdapter: () => ({}) },
+  };
+  const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+  const container = document.body.appendChild(document.createElement('div'));
+  try {
+    tab['renderCustomContextLimits'](container, 'claude');
+    const field = within(container).getByRole('textbox', { name: 'Alias for custom-model' }) as HTMLInputElement;
+    expect((await axe(container)).violations).toEqual([]);
+    field.focus();
+    fireEvent.compositionStart(field);
+    fireEvent.input(field, { target: { value: 'unfinished' }, isComposing: true });
+    expect(fireEvent.keyDown(field, { key, isComposing: true })).toBe(true);
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe('unfinished');
+    await coordinator.persistCurrent();
+    expect(getClaudeProviderSettings(JSON.parse(saved)).modelAliases).toEqual({});
+    fireEvent.compositionEnd(field);
+    fireEvent.input(field, { target: { value: '完成' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() => expect(getClaudeProviderSettings(settings).modelAliases['custom-model']).toBe('完成'));
+    expect(getClaudeProviderSettings(JSON.parse(saved)).modelAliases['custom-model']).toBe('完成');
+  } finally { container.remove(); }
+});
+
 it('keeps the latest alias edit when it restores the committed value during a pending save', async () => {
   globalThis.structuredClone ??= value => deserialize(serialize(value));
   const settings = { providerConfigs: { claude: { modelAliases: {} } } };

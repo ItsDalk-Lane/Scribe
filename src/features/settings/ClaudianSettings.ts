@@ -805,6 +805,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         void saveAlias();
       });
       aliasInputEl.addEventListener('keydown', (event) => {
+        if (event.isComposing) return;
         if (event.key === 'Enter') {
           event.preventDefault();
           aliasInputEl.blur();

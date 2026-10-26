@@ -280,6 +280,7 @@ export function renderProviderModelPicker(
         if (!renderingSelected) void persistAlias(model.id, aliasInput.value);
       });
       aliasInput.addEventListener('keydown', (event) => {
+        if (event.isComposing) return;
         if (event.key === 'Enter') {
           event.preventDefault();
           aliasInput.blur();

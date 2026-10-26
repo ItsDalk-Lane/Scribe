@@ -28,6 +28,43 @@ HTMLElement.prototype.createEl = function (tag, info, callback) {
 afterEach(() => { document.body.replaceChildren(); });
 afterAll(() => { HTMLElement.prototype.createEl = originalCreateEl; });
 
+it.each(['Enter', 'Escape'])('leaves composing %s to the provider alias editor', async key => {
+  globalThis.structuredClone ??= value => deserialize(serialize(value));
+  const settings = { providerConfigs: { codex: {
+    enabled: true, visibleModels: ['gateway-model'], modelAliases: {},
+    discoveredModels: [{
+      model: 'gateway-model', displayName: 'Gateway model', description: '',
+      supportedReasoningEfforts: [{ value: 'high', description: 'High' }], defaultReasoningEffort: 'high',
+    }],
+  } } };
+  let saved = '';
+  const coordinator = new SettingsCoordinator(settings, async draft => { saved = JSON.stringify(draft); });
+  const host = { settings, mutateSettings: coordinator.mutate.bind(coordinator), notifyProviderChatOptionsChanged: jest.fn() } as unknown as ProviderHost;
+  const catalog = createCodexModels(createProviderRuntimeHost(host, coordinator, 'codex'), { refresh: async () => ({ kind: 'skipped', models: [], refreshed: false }) });
+  await catalog.refresh();
+  const container = document.body.createDiv();
+  const picker = renderProviderModelsSection(container, 'codex', 'Codex', catalog);
+  const field = within(container).getByRole('textbox', { name: 'Alias for Gateway model' }) as HTMLInputElement;
+  try {
+    expect((await axe(container)).violations).toEqual([]);
+    field.focus();
+    fireEvent.compositionStart(field);
+    fireEvent.input(field, { target: { value: 'unfinished' }, isComposing: true });
+    expect(fireEvent.keyDown(field, { key, isComposing: true })).toBe(true);
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe('unfinished');
+    await coordinator.persistCurrent();
+    expect(getCodexProviderSettings(JSON.parse(saved)).modelAliases).toEqual({});
+    fireEvent.compositionEnd(field);
+    fireEvent.input(field, { target: { value: '完成' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() => expect(getCodexProviderSettings(settings).modelAliases['gateway-model']).toBe('完成'));
+    expect(getCodexProviderSettings(JSON.parse(saved)).modelAliases['gateway-model']).toBe('完成');
+  } finally {
+    picker.dispose(); await catalog.dispose(); container.remove();
+  }
+});
+
 it.each(['constructor', 'toString', '__proto__'])('edits and clears an alias for a prototype-named model %s', async modelId => {
   globalThis.structuredClone ??= value => deserialize(serialize(value));
   const settings = { providerConfigs: { codex: {
