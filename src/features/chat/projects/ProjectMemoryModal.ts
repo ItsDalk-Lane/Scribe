@@ -440,10 +440,7 @@ export class ProjectMemoryModal extends Modal {
   private showConflict(): void {
     const actions = this.showNotice(t('chat.projects.memory.conflict'), 'alert');
     const reloadButton = actions.createEl('button', { text: t('chat.projects.memory.reload'), attr: { type: 'button' } });
-    reloadButton.addEventListener('click', () => {
-      this.contentArea.value = this.baseline ?? '';
-      void this.load();
-    });
+    reloadButton.addEventListener('click', () => { void this.load(); });
     const overwriteButton = actions.createEl('button', {
       cls: 'mod-warning',
       text: t('chat.projects.memory.overwrite'),

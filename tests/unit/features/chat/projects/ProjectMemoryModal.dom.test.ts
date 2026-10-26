@@ -321,6 +321,34 @@ it('keeps the user text on a conflicting save and overwrites or reloads only whe
   expect(memory.content).toBe('Second edits');
 });
 
+it('keeps unsaved edits when conflict Reload fails, then replaces them after Retry succeeds', async () => {
+  const memory = new InMemoryProjectMemory(FILLED);
+  const { dialog, controls, textarea } = await open(memory);
+  await waitFor(() => expect(textarea.value).toBe(FILLED));
+  type(dialog, textarea, 'My unsaved edits');
+  memory.writeExternally('Agent edits');
+  fireEvent.click(controls.getByRole('button', { name: t('common.save') }));
+  expect((await controls.findByRole('alert')).textContent).toBe(t('chat.projects.memory.conflict'));
+  memory.readMemory.mockRejectedValueOnce(new Error('Temporary read failure'));
+
+  fireEvent.click(controls.getByRole('button', { name: t('chat.projects.memory.reload') }));
+
+  await waitFor(() => expect(controls.getByRole('alert').textContent).toBe(t('chat.projects.memory.loadFailed')));
+  expect(textarea.value).toBe('My unsaved edits');
+  expect(textarea.disabled).toBe(false);
+  expect(hasDirtyMark(dialog)).toBe(true);
+  expect(memory.content).toBe('Agent edits');
+  expect(memory.saveMemory).toHaveBeenCalledTimes(1);
+  expect((await axe(dialog)).violations).toEqual([]);
+
+  fireEvent.click(controls.getByRole('button', { name: t('common.retry') }));
+
+  await waitFor(() => expect(textarea.value).toBe('Agent edits'));
+  expect(controls.queryByRole('alert')).toBeNull();
+  expect(hasDirtyMark(dialog)).toBe(false);
+  expect(memory.saveMemory).toHaveBeenCalledTimes(1);
+});
+
 it('locks the editor while Reload after a conflict reads the file, so no new typing is overwritten', async () => {
   const memory = new InMemoryProjectMemory(FILLED);
   const { dialog, controls, textarea } = await open(memory);
