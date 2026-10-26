@@ -586,6 +586,29 @@ test('migration retains assigned metadata and respects the scope of old deletion
   });
 });
 
+test('assignment recovery retains its valid source until the existing device target is readable', async () => {
+  const source = `${SESSIONS_PATH}/${metadata.id}.meta.json`;
+  const target = `${DEVICE_PATH}/${metadata.id}.meta.json`;
+  const marker = `${SESSIONS_PATH}/${metadata.id}.assigned.json`;
+  await store.saveMetadata(metadata, 'unscoped');
+  await adapter.write(target, '{');
+  await adapter.write(marker, JSON.stringify({ schemaVersion: 1, conversationId: metadata.id, deviceKey: DEVICE_KEY }));
+  await adapter.write(CLAUDIAN_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
+
+  await new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS).initialize();
+
+  expect(await adapter.read(source)).toBe(JSON.stringify(metadata));
+  expect(await adapter.read(target)).toBe('{');
+  expect(await adapter.exists(marker)).toBe(true);
+
+  const repaired = { ...metadata, title: 'Repaired device record' };
+  await adapter.write(target, JSON.stringify(repaired));
+  await new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS).initialize();
+  expect(await adapter.exists(source)).toBe(false);
+  expect(await adapter.exists(marker)).toBe(false);
+  expect(await store.metadataReader.load(metadata.id)).toMatchObject({ source: 'device', metadata: repaired });
+});
+
 test.each(['{', JSON.stringify({ schemaVersion: 1, conversationId: metadata.id, deviceKey: '../invalid' })])(
   'migration retains unassigned metadata when its obsolete assignment is invalid: %s', async (content) => {
     await store.saveMetadata(metadata, 'unscoped');
