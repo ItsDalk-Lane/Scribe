@@ -461,6 +461,8 @@ export class EnvSnippetManager {
     const envTextarea = (this.containerEl.ownerDocument ?? window.document).querySelector<HTMLTextAreaElement>(selector);
     if (envTextarea) {
       envTextarea.value = value;
+      const EventConstructor = envTextarea.ownerDocument.defaultView?.Event ?? Event;
+      envTextarea.dispatchEvent(new EventConstructor('input', { bubbles: true }));
     }
   }
 }

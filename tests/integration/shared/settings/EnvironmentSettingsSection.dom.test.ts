@@ -1,10 +1,15 @@
 /** @jest-environment jsdom */
+import '@/providers';
+
+import { deserialize, serialize } from 'node:v8';
 
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 import { Notice } from 'obsidian';
 
+import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import type { CLIInstallation } from '@/core/providers/cli/CLIInstallationProbe';
+import { getEnvironmentVariablesForScope, setEnvironmentVariablesForScope } from '@/core/providers/providerEnvironment';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import { renderCLIInstallationSetting } from '@/shared/settings/CLIInstallationSetting';
 import { renderEnvironmentSettingsSection } from '@/shared/settings/EnvironmentSettingsSection';
@@ -14,6 +19,57 @@ jest.mock('obsidian', () => jest.requireActual('@test/helpers/ObsidianSettingsDO
 afterEach(() => {
   (Notice as unknown as jest.Mock).mockClear();
   document.body.replaceChildren();
+});
+
+it.each([
+  { name: 'adding a review key', initial: 'PATH=/before', inserted: 'MY_TOOL_SETTING=custom', shared: 'MY_TOOL_SETTING=custom', provider: 'ANTHROPIC_MODEL=before', warning: 'Review environment ownership for: MY_TOOL_SETTING' },
+  { name: 'removing a review key', initial: 'MY_TOOL_SETTING=old', inserted: 'PATH=/after', shared: 'PATH=/after', provider: 'ANTHROPIC_MODEL=before', warning: null },
+  { name: 'a legacy snippet changing two rendered scopes', initial: 'PATH=/before', providerInitial: 'PATH=/provider-wrong', legacy: true, inserted: 'PATH=/after\nMY_TOOL_SETTING=custom\nANTHROPIC_MODEL=after', shared: 'PATH=/after\nMY_TOOL_SETTING=custom', provider: 'ANTHROPIC_MODEL=after', warning: 'Review environment ownership for: MY_TOOL_SETTING' },
+])('refreshes the review message after $name', async ({ initial, inserted, shared, provider, warning, providerInitial, legacy }) => {
+  globalThis.structuredClone ??= value => deserialize(serialize(value));
+  const settings = {
+    sharedEnvironmentVariables: initial,
+    providerConfigs: { claude: { environmentVariables: providerInitial ?? 'ANTHROPIC_MODEL=before' } },
+    envSnippets: [{ id: 'snippet', name: 'Saved configuration', scope: legacy ? undefined : 'shared', envVars: inserted }],
+  };
+  let saved = '';
+  const coordinator = new SettingsCoordinator(settings, async draft => { saved = JSON.stringify(draft); });
+  const applyEnvironmentVariables = jest.fn((scope: Parameters<typeof setEnvironmentVariablesForScope>[1], text: string) => coordinator.mutate(draft => { setEnvironmentVariablesForScope(draft, scope, text); }));
+  const applyEnvironmentVariablesBatch = jest.fn((updates: Array<{ scope: Parameters<typeof setEnvironmentVariablesForScope>[1]; envText: string }>) => coordinator.mutate(draft => { for (const update of updates) setEnvironmentVariablesForScope(draft, update.scope, update.envText); }));
+  const mutateSettings = jest.fn(coordinator.mutate.bind(coordinator));
+  const host = {
+    settings,
+    app: { workspace: { getLeavesOfType: () => [] } },
+    getEnvironmentVariablesForScope: (scope: Parameters<typeof getEnvironmentVariablesForScope>[1]) => getEnvironmentVariablesForScope(settings, scope),
+    applyEnvironmentVariables,
+    applyEnvironmentVariablesBatch,
+    mutateSettings,
+  } as unknown as ProviderHost;
+  const root = document.body.createDiv({ cls: 'claudian-settings' });
+  const general = root.createDiv();
+  const specific = root.createDiv();
+  const sharedRefresh = jest.fn();
+  const providerRefresh = jest.fn();
+  renderEnvironmentSettingsSection({ container: general, plugin: host, scope: 'shared', name: 'Shared environment', desc: '', placeholder: '', renderCustomContextLimits: sharedRefresh });
+  renderEnvironmentSettingsSection({ container: specific, plugin: host, scope: 'provider:claude', name: 'Claude environment', desc: '', placeholder: '', renderCustomContextLimits: providerRefresh });
+  const originalWarning = within(general).queryByText(/^Review environment ownership/);
+  expect(originalWarning?.textContent ?? null).toBe(initial.startsWith('MY_TOOL_SETTING') ? 'Review environment ownership for: MY_TOOL_SETTING' : null);
+  const originalProviderWarning = within(specific).queryByText(/^Review environment ownership/);
+  expect(originalProviderWarning?.textContent ?? null).toBe(legacy ? 'Review environment ownership for: PATH' : null);
+  fireEvent.click(within(general).getByRole('button', { name: 'Insert' }));
+  await waitFor(() => expect(sharedRefresh).toHaveBeenCalledTimes(2));
+  expect({ single: applyEnvironmentVariables.mock.calls.length, batch: applyEnvironmentVariablesBatch.mock.calls.length })
+    .toEqual(legacy ? { single: 0, batch: 1 } : { single: 1, batch: 0 });
+  expect(mutateSettings).toHaveBeenCalledTimes(1);
+  expect(getEnvironmentVariablesForScope(settings, 'shared')).toBe(shared);
+  expect(getEnvironmentVariablesForScope(settings, 'provider:claude')).toBe(provider);
+  expect(getEnvironmentVariablesForScope(JSON.parse(saved), 'shared')).toBe(shared);
+  expect((within(general).getByRole('textbox', { name: 'Shared environment' }) as HTMLTextAreaElement).value).toBe(shared);
+  const message = within(general).queryByText(/^Review environment ownership/);
+  expect(message?.textContent ?? null).toBe(warning);
+  expect(message?.classList.contains('claudian-hidden') ?? false).toBe(false);
+  expect(within(specific).queryByText(/^Review environment ownership/)).toBeNull();
+  expect(await axe(root)).toHaveNoViolations();
 });
 
 it('shows the generic environment update notice when the detached update fails', async () => {
