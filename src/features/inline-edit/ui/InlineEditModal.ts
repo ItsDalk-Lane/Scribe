@@ -38,6 +38,7 @@ import { EffortSelector } from '@/shared/toolbar/EffortSelector';
 import { ModelSelector } from '@/shared/toolbar/ModelSelector';
 import { ToolbarMenuGroup } from '@/shared/toolbar/ToolbarMenu';
 import type { ModelPickerCallbacks, ModelPickerSettings } from '@/shared/toolbar/types';
+import { registerFileLinkHandler } from '@/utils/fileLink';
 import { getEditorView } from '@/utils/obsidianCompat';
 
 export type InlineEditContext =
@@ -726,6 +727,7 @@ export class InlineEditSession {
     });
     this.component.addChild(scope);
     scope.load();
+    scope.register(registerFileLinkHandler(this.app, owner, this.notePath));
     await renderInlineEditMarkdownPreview({
       app: this.app,
       component: scope,

@@ -12,6 +12,8 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 import { Component, MarkdownRenderer, Notice, TFolder } from 'obsidian';
 
+import { InlineEditSession } from '@/features/inline-edit/ui/InlineEditModal';
+
 afterEach(async () => {
   await disposeInlineEditHarnesses();
   jest.mocked(MarkdownRenderer.render).mockReset();
@@ -217,4 +219,46 @@ it.each([
   fireEvent.click(accept);
   expect(h.editorView.state.doc.toString()).toBe(`${replacement} world`);
   expect(h.settled).toHaveBeenCalledWith({ decision: 'accept', editedText: replacement });
+});
+
+
+it.each([false, true])('opens inline-code file links from a clarification in the edited note context (already open: %s)', async alreadyOpen => {
+  const h = createHarness();
+  const sourcePath = 'Section/note.md';
+  const file = { path: 'Section/target.md' };
+  const leaf = { getViewState: () => ({ state: { file: file.path } }), setEphemeralState: jest.fn() };
+  const unrelated = { getViewState: () => ({ state: { file: 'Elsewhere/target.md' } }), setEphemeralState: jest.fn() };
+  h.app.metadataCache = { getFirstLinkpathDest: jest.fn((_path: string, source: string) => source === sourcePath ? file : { path: 'Elsewhere/target.md' }) };
+  h.app.workspace = {
+    iterateAllLeaves: (visit: (entry: typeof leaf) => void) => [unrelated, ...(alreadyOpen ? [leaf] : [])].forEach(visit),
+    revealLeaf: jest.fn().mockResolvedValue(undefined),
+    openLinkText: jest.fn().mockResolvedValue(undefined),
+  };
+  jest.mocked(MarkdownRenderer.render).mockImplementation(async (_app, markdown, element) => {
+    expect(markdown).toBe('Check `[[target#Overview|Target]]`.');
+    const code = element.createEl('code');
+    code.textContent = '[[target#Overview|Target]]';
+  });
+  const session = new InlineEditSession(h.app, h.plugin, h.plugin, h.editorView, h.editor,
+    { mode: 'selection', selectedText: 'hello' }, sourcePath, h.settled, { providerId: 'claude' });
+  try {
+    session.show();
+    submitInstruction();
+    await waitFor(() => expect(h.backend.sessions[0]?.getStatus()).toBe('executing'));
+    h.backend.sessions[0].emitText('Check `[[target#Overview|Target]]`.');
+    h.backend.sessions[0].complete();
+    const link = await screen.findByRole('link', { name: 'Target' });
+    // Keep jsdom navigation out of the host-boundary assertion.
+    link.addEventListener('click', event => event.preventDefault());
+    fireEvent.click(link);
+    await waitFor(() => expect(alreadyOpen ? h.app.workspace.revealLeaf : h.app.workspace.openLinkText).toHaveBeenCalledTimes(1));
+    expect(h.app.workspace.revealLeaf.mock.calls).toEqual(alreadyOpen ? [[leaf]] : []);
+    expect(leaf.setEphemeralState.mock.calls).toEqual(alreadyOpen ? [[{ focus: true, subpath: '#Overview' }]] : []);
+    expect(h.app.workspace.openLinkText.mock.calls).toEqual(alreadyOpen ? [] : [['target#Overview', sourcePath, 'tab']]);
+    expect(h.app.metadataCache.getFirstLinkpathDest).toHaveBeenLastCalledWith('target', sourcePath);
+    expect(await axe(link)).toHaveNoViolations();
+    session.close();
+    fireEvent.click(link);
+    expect(alreadyOpen ? h.app.workspace.revealLeaf : h.app.workspace.openLinkText).toHaveBeenCalledTimes(1);
+  } finally { session.close(); }
 });

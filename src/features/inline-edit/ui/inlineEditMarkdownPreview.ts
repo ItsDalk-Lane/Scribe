@@ -37,7 +37,7 @@ export async function renderInlineEditMarkdownPreview({
     await MarkdownRenderer.render(app, processedMarkdown, container, sourcePath, component);
 
     if (processedMarkdown.includes('[[') && app.metadataCache) {
-      processFileLinks(app, container);
+      processFileLinks(app, container, sourcePath);
     }
   } catch {
     container.replaceChildren();
