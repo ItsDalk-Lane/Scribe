@@ -5,6 +5,7 @@ import '@test/helpers/ObsidianSettingsDOM';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 
+import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import { getDeepSeekProviderSettings } from '@/providers/deepseek/settings';
 import { createDeepSeekSettingsTabRenderer } from '@/providers/deepseek/ui/DeepSeekSettingsTab';
 
@@ -110,6 +111,46 @@ function render(deepseekEnabled = true, resolvedPath: string | null = null, conf
 
 describe('DeepSeekSettingsTab', () => {
   afterEach(() => { document.body.replaceChildren(); });
+
+  it('persists a return to the committed baseline after an earlier preset save finishes', async () => {
+    const { host, ui, container } = render();
+    let finish!: () => void;
+    const saved: string[] = [];
+    const first = new Promise<void>(resolve => { finish = resolve; });
+    const coordinator = new SettingsCoordinator(host.settings, async settings => {
+      saved.push(getDeepSeekProviderSettings(settings).presetPlugins);
+      if (saved.length === 1) await first;
+    });
+    host.mutateSettings.mockImplementation((mutation: Parameters<typeof coordinator.mutate>[0]) => coordinator.mutate(mutation));
+    const field = ui.getByRole('textbox', { name: 'Additional preset plugins' });
+    const rows = '- id: tool-todo\n  name: "@deepseek-ai/dsh-tool-todo"\n';
+    fireEvent.change(field, { target: { value: rows } });
+    await waitFor(() => expect(saved).toEqual([rows]));
+    fireEvent.change(field, { target: { value: '' } });
+    finish();
+    await waitFor(() => expect(saved).toEqual([rows, '']));
+    await waitFor(() => expect(getDeepSeekProviderSettings(host.settings).presetPlugins).toBe(''));
+    expect(ui.queryByRole('alert')).toBeNull();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('keeps the latest validation error when an older preset persistence attempt rejects', async () => {
+    const { host, ui, container } = render();
+    let fail!: (cause: Error) => void;
+    const persist = jest.fn(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+    const coordinator = new SettingsCoordinator(host.settings, persist);
+    host.mutateSettings.mockImplementation((mutation: Parameters<typeof coordinator.mutate>[0]) => coordinator.mutate(mutation));
+    const field = ui.getByRole('textbox', { name: 'Additional preset plugins' });
+    fireEvent.change(field, { target: { value: '- id: tool-todo\n  name: "@deepseek-ai/dsh-tool-todo"\n' } });
+    await waitFor(() => expect(persist).toHaveBeenCalledTimes(1));
+    fireEvent.change(field, { target: { value: '- id: tool-fs\n  name: "@deepseek-ai/dsh-tool-fs"\n' } });
+    expect(ui.getByRole('alert').textContent).toContain('tool-fs');
+    fail(new Error('Older persistence failed'));
+    await settle();
+    expect(ui.getByRole('alert').textContent).toContain('tool-fs');
+    expect(getDeepSeekProviderSettings(host.settings).presetPlugins).toBe('');
+    expect(await axe(container)).toHaveNoViolations();
+  });
 
   it('identifies an explicitly selected Desktop app and explains installation selection', async () => {
     const app = process.platform === 'win32' ? 'C:\\test\\DeepSeek Harness.exe' : '/test/DeepSeek Harness.app';
