@@ -87,16 +87,22 @@ export function createCodexSettingsTabRenderer(
               .addOption('wsl', t('settings.codex.installationMethod.wsl'))
               .setValue(installationMethod)
               .onChange(async (value) => {
-                installationMethod = value === 'wsl' ? 'wsl' : 'native-windows';
-                await context.plugin.applyProviderRuntimeSettings(
-                  ['codex'],
-                  (settings) => {
-                    updateCodexProviderSettings(settings, { installationMethod });
-                  },
-                  () => codexWorkspace.cliResolver.reset(),
-                );
-                refreshInstallationMethodUI();
-                void cliPathControl.refresh();
+                const requestedMethod = value === 'wsl' ? 'wsl' : 'native-windows';
+                installationMethod = requestedMethod;
+                try {
+                  await context.plugin.applyProviderRuntimeSettings(
+                    ['codex'],
+                    (settings) => {
+                      updateCodexProviderSettings(settings, { installationMethod: requestedMethod });
+                    },
+                    () => codexWorkspace.cliResolver.reset(),
+                  );
+                } finally {
+                  installationMethod = getCodexProviderSettings(settingsBag).installationMethod;
+                  dropdown.setValue(installationMethod);
+                  refreshInstallationMethodUI();
+                  void cliPathControl.refresh();
+                }
               });
           });
       }
