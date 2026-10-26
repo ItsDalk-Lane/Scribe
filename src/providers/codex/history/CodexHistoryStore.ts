@@ -1447,7 +1447,8 @@ function flushBubbleTurnMessages(
 const SAFE_SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function getPathModuleForSessionPath(sessionPath: string): typeof path.posix {
-  return sessionPath.includes('\\') || /^[A-Za-z]:/.test(sessionPath)
+  return (!path.posix.isAbsolute(sessionPath) || sessionPath.startsWith('//'))
+    && (sessionPath.includes('\\') || /^[A-Za-z]:/.test(sessionPath))
     ? path.win32
     : path.posix;
 }

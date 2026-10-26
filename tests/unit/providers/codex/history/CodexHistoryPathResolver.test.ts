@@ -1,6 +1,7 @@
 import { getInstallationKey as getHostnameKey } from '@/core/device/InstallationKey';
 import { decodeCodexConfig } from '@/providers/codex/config';
 import {
+  getCodexArchivedTranscriptRoots,
   resolveCodexSessionFileHint,
   resolveCodexTranscriptRootHint,
 } from '@/providers/codex/history/CodexHistoryPathResolver';
@@ -24,6 +25,22 @@ describe('CodexHistoryPathResolver', () => {
     await expect(resolveCodexSessionFileHint(sessionPath, 'thread', {
       environment: { CODEX_HOME: '/tmp/custom-codex', HOME: '/tmp/home' },
     })).resolves.toBe(sessionPath);
+  });
+
+  it.each([
+    ['\\\\wsl$\\Ubuntu\\home\\user\\.codex', '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions', '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\archived_sessions'],
+    ['//wsl$\\Ubuntu\\home\\user\\.codex', '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions', '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\archived_sessions'],
+    ['C:\\Users\\me\\.codex', 'C:\\Users\\me\\.codex\\sessions', 'C:\\Users\\me\\.codex\\archived_sessions'],
+  ])('retains Windows configured-home and archive roots: %s', async (home, sessions, archive) => {
+    const context = {
+      environment: { CODEX_HOME: home, HOME: 'C:\\Users\\me' },
+      hostPlatform: 'win32' as const,
+    };
+    const sessionPath = `${sessions}\\rollout-thread.jsonl`;
+
+    expect(resolveCodexTranscriptRootHint(sessions, context)).toBe(sessions);
+    await expect(resolveCodexSessionFileHint(sessionPath, null, context)).resolves.toBe(sessionPath);
+    expect(getCodexArchivedTranscriptRoots(context)).toContain(archive);
   });
 
   it.each(['wsl$', 'wsl.localhost'])('accepts a standard host-readable %s transcript root for WSL installs', (server) => {

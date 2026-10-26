@@ -22,7 +22,7 @@ function normalizePosixPath(value: string): string {
     return '';
   }
 
-  const normalized = path.posix.normalize(value.replace(/\\/g, '/'));
+  const normalized = path.posix.normalize(value.startsWith('/') ? value : value.replace(/\\/g, '/'));
   return normalized === '/' ? normalized : normalized.replace(/\/+$/, '');
 }
 

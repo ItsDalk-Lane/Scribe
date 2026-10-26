@@ -100,12 +100,12 @@ describe('CodexHistoryStore', () => {
       expect(deriveCodexSessionsRootFromSessionPath(sessionFilePath)).toBe('/home/user/.codex/sessions');
     });
 
-    it('derives transcript roots from WSL UNC session paths', () => {
-      const sessionFilePath = '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions\\2026\\04\\14\\rollout-thread.jsonl';
-
-      expect(deriveCodexSessionsRootFromSessionPath(sessionFilePath)).toBe(
-        '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions',
-      );
+    it.each([
+      ['\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions\\2026\\04\\14\\rollout-thread.jsonl', '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions'],
+      ['//wsl$\\Ubuntu\\home\\user\\.codex\\sessions\\2026\\04\\14\\rollout-thread.jsonl', '\\\\wsl$\\Ubuntu\\home\\user\\.codex\\sessions'],
+      ['C:\\Users\\user\\.codex\\sessions\\2026\\04\\14\\rollout-thread.jsonl', 'C:\\Users\\user\\.codex\\sessions'],
+    ])('derives transcript roots from Windows session paths: %s', (sessionFilePath, sessionsRoot) => {
+      expect(deriveCodexSessionsRootFromSessionPath(sessionFilePath)).toBe(sessionsRoot);
     });
   });
 
