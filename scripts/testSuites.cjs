@@ -1,4 +1,5 @@
 const crossPlatformTests = [
+  'tests/integration/providers/pi/execution/PiRecoveryContext.test.ts',
   // Filesystem, path, URI, and platform-policy regressions need native hosts even without a subprocess.
   'tests/unit/core/process/env.test.ts',
   'tests/unit/core/storage/VaultFileAdapter.test.ts',

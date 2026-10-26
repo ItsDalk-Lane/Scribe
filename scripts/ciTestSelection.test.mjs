@@ -87,6 +87,7 @@ test('real dependency discovery retains native launch checks for shared process 
     'tests/integration/providers/opencode/execution/OpencodeV2Execution.test.ts',
     'tests/integration/providers/opencode/http/OpencodeSharedServer.test.ts',
     'tests/integration/providers/pi/execution/PiExecutionKernel.test.ts',
+    'tests/integration/providers/pi/execution/PiRecoveryContext.test.ts',
     'tests/unit/providers/claude/execution/ClaudeExecutionBackend.test.ts',
     'tests/unit/providers/codex/execution/CodexExecutionBackend.test.ts',
     'tests/unit/providers/deepseek/runtime/DeepSeekCLIResolver.test.ts',

@@ -27,6 +27,12 @@ export function formatLinkedContent(contentPath: string): string {
   return `<${LINKED_CONTENT_TAG} path="${escapePromptXMLAttribute(contentPath)}" />`;
 }
 
+/** Captured context suffix of a native prompt, using the same boundary as its user text. */
+export function extractUserPromptContext(text: string): string {
+  const boundary = text.search(XML_CONTEXT_PATTERN);
+  return boundary < 0 ? '' : text.slice(boundary).trim();
+}
+
 /**
  * Extracts user content that appears before XML context tags.
  * User content comes first, with context XML appended after.

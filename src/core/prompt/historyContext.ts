@@ -6,7 +6,7 @@
 
 import type { ChatMessage, ImageAttachment, ToolCallInfo } from '@/core/types';
 
-import { appendExecutionContext, extractUserQuery, formatLinkedContent } from './promptContext';
+import { appendExecutionContext, extractUserPromptContext, extractUserQuery, formatLinkedContent } from './promptContext';
 
 // ============================================
 // History Reconstruction
@@ -243,7 +243,9 @@ export function buildPromptWithHistoryContext(
     ? buildContextFromHistory(conversationHistory.slice(conversationHistory.lastIndexOf(lastUserMessage) + 1))
     : '';
   const shouldAppendPrompt = !lastUserMessage || laterContext.length > 0 ||
-    lastUserQuery.trim() !== currentUserQuery.trim();
+    lastUserQuery.trim() !== currentUserQuery.trim()
+    || extractUserPromptContext(lastUserMessage ? formatCapturedUserContent(lastUserMessage) : '')
+      !== extractUserPromptContext(actualPrompt);
 
   return shouldAppendPrompt
     ? `${historyContext}\n\nUser: ${prompt}`

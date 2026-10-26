@@ -733,3 +733,25 @@ it('replays a captured session reference through the shared context renderer', (
   expect(buildContextFromHistory(messages, { preserveCapturedContext: true })).toContain(capturedSelectionPrompt);
   expect(buildContextFromHistory(messages, { preserveCapturedContext: true })).toContain('<context_session title="Review" id="conv-1-ref" provider="codex" updated="updated" />');
 });
+
+describe.each(['native', 'wrapped'] as const)('captured request context in %s prompt form', form => {
+  it.each([
+    { name: 'same', selection: 'previous selection' },
+    { name: 'changed', selection: 'current selection' },
+    { name: 'removed', selection: undefined },
+  ])('deduplicates only an unchanged $name captured snapshot', ({ name, selection }) => {
+    const context = { selections: [{ kind: 'editor' as const, selection: {
+      mode: 'selection' as const, notePath: 'note.md', selectedText: 'previous selection',
+    } }] };
+    const history: ChatMessage[] = [{ id: 'captured', role: 'user', content: 'Refactor this', timestamp: testDate().getTime(),
+      executionInput: { schemaVersion: 1, canonicalText: 'Refactor this', context } }];
+    const historyContext = buildContextFromHistory(history, { preserveCapturedContext: true });
+    expect(historyContext).toContain('<![CDATA[previous selection]]>');
+    const actualPrompt = selection === undefined ? 'Refactor this'
+      : `Refactor this\n\n<editor_selection path="note.md">\n<![CDATA[${selection}]]>\n</editor_selection>`;
+    const prompt = form === 'native' ? actualPrompt : `<query>\n${actualPrompt}\n</query>`;
+    expect(buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, history)).toBe(
+      name === 'same' ? historyContext : `${historyContext}\n\nUser: ${prompt}`,
+    );
+  });
+});
