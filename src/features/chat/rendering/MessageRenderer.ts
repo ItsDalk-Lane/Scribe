@@ -27,6 +27,7 @@ import { resolveStoredTaskSubagent } from '@/features/chat/subagents/storedTaskS
 import { resolveSubagentAdapter } from '@/features/chat/subagents/subagentAdapterResolution';
 import { renderSubagentHistory } from '@/features/chat/subagents/SubagentHistoryRenderer';
 import { renderStoredAsyncSubagent, renderStoredSubagent } from '@/features/chat/subagents/SubagentRenderer';
+import { cancelScheduledAnimationFrame, scheduleAnimationFrame, type ScheduledAnimationFrame } from '@/features/chat/utils/animationFrame';
 import { t } from '@/i18n/i18n';
 import { ImagePreviewModal } from '@/shared/modals/ImagePreviewModal';
 import { registerFileLinkHandler } from '@/utils/fileLink';
@@ -94,6 +95,7 @@ export class MessageRenderer {
   private readonly imagePreviewModal = new ImagePreviewModal();
   private readonly contentRemovalObserver?: MutationObserver;
   #pendingLayoutScroll: ResizeObserver | null = null;
+  #pendingTailScroll: { frame?: ScheduledAnimationFrame; scrollTop: number } | null = null;
   readonly #markdown: MarkdownContentRenderer;
   readonly #actions: MessageActions;
   readonly #finalizer: ResponseFinalizer;
@@ -183,6 +185,7 @@ export class MessageRenderer {
 
   dispose(): void {
     if (this.#markdown.isDisposed) return;
+    this.#cancelTailScroll();
     this.contentRemovalObserver?.disconnect();
     this.#cancelLayoutScroll();
     this.#markdown.dispose();
@@ -803,7 +806,14 @@ export class MessageRenderer {
 
   /** Scrolls messages container to bottom. */
   scrollToBottom(): void {
+    this.#cancelTailScroll();
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+  }
+
+  #cancelTailScroll(): void {
+    const pending = this.#pendingTailScroll;
+    this.#pendingTailScroll = null;
+    if (pending?.frame) cancelScheduledAnimationFrame(pending.frame);
   }
 
   /** A transcript rendered into a hidden presentation ignores scroll writes until it gets a box. */
@@ -829,12 +839,20 @@ export class MessageRenderer {
 
   /** Scrolls to bottom if already near bottom (within threshold). */
   scrollToBottomIfNeeded(threshold = 100): void {
+    this.#cancelTailScroll();
+    if (this.#markdown.isDisposed) return;
     const { scrollTop, scrollHeight, clientHeight } = this.messagesEl;
     const isNearBottom = scrollHeight - scrollTop - clientHeight < threshold;
     if (isNearBottom) {
-      window.requestAnimationFrame(() => {
-        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
-      });
+      const pending = { scrollTop } as { frame?: ScheduledAnimationFrame; scrollTop: number };
+      this.#pendingTailScroll = pending;
+      pending.frame = scheduleAnimationFrame(() => {
+        if (this.#pendingTailScroll !== pending) return;
+        this.#pendingTailScroll = null;
+        if (this.messagesEl.scrollTop === pending.scrollTop) {
+          this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+        }
+      }, this.messagesEl.ownerDocument.defaultView);
     }
   }
 }
