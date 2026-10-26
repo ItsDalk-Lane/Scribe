@@ -64,7 +64,6 @@ export function renderHostnameCLIPathSetting(
 
         const normalizedValue = value.trim();
         if (normalizedValue === currentValue) {
-          component.setValue(currentValue);
           return;
         }
 
