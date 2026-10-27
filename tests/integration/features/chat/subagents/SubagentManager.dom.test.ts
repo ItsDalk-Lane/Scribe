@@ -211,6 +211,47 @@ it.each(['live', 'history'] as const)('keeps raw Codex identity and completion d
   expect(within(parent).getByText('Storage is correct.')).toBeDefined();
 });
 
+it.each((['live', 'history'] as const).flatMap(mode => [
+  { mode, label: 'native error', native: { errored: 'Native agent failed.' }, status: 'error', result: 'Native agent failed.' },
+  { mode, label: 'empty native error', native: { errored: '' }, status: 'error', result: 'Agent stopped' },
+  { mode, label: 'completion without text', native: { completed: null }, status: 'completed', result: 'DONE' },
+  { mode, label: 'missing agent', native: 'not_found', status: 'error', result: 'Agent not found' },
+]))('settles $label in $mode Codex cards using raw native statuses', async ({ mode, native, status, result }) => {
+  const { parent, manager, tools, router, flush } = createCodexLifecycleView();
+  const payloads = [
+    { type: 'function_call', call_id: 'spawn-native', name: 'spawn_agent', arguments: '{"message":"Review.","agent_type":"explorer"}' },
+    { type: 'function_call_output', call_id: 'spawn-native', output: '{"agent_id":"child"}' },
+    { type: 'function_call', call_id: 'wait-native', name: 'wait', arguments: '{"ids":["child"]}' },
+    { type: 'function_call_output', call_id: 'wait-native', output: JSON.stringify({ status: { child: native }, timed_out: false }) },
+  ];
+  if (mode === 'live') {
+    for (const item of payloads) {
+      router.handleNotification('rawResponseItem/completed', { threadId: 'main', turnId: 'turn', item });
+      if (item.type === 'function_call_output') {
+        router.handleNotification('item/completed', { threadId: 'main', turnId: 'turn', item: {
+          type: 'collabAgentToolCall', id: item.call_id, tool: item.call_id === 'spawn-native' ? 'spawnAgent' : 'wait',
+          status: 'completed', receiverThreadIds: ['child'],
+          agentsStates: { child: { status: item.call_id === 'spawn-native' ? 'running' : status === 'completed' ? 'completed' : 'errored', message: null } },
+        } });
+      }
+    }
+    await flush();
+  } else {
+    const messages = parseCodexSessionContent(payloads.map((payload, index) => JSON.stringify({
+      type: 'response_item', timestamp: testTime({ seconds: index }), payload,
+    })).join('\n'));
+    tools.push(...messages.flatMap(message => message.toolCalls ?? []));
+    manager.updateLifecycleSpawn(tools[0], tools, codexSubagentLifecycleAdapter, parent);
+  }
+  expect(tools[0].subagent).toMatchObject({ status, result });
+  const header = within(parent).getByRole('button', { name: new RegExp(`Subagent task:.*Status: ${status}`) });
+  fireEvent.click(header);
+  fireEvent.click(within(parent).getByRole('button', { name: /^Result/ }));
+  expect(within(parent).getByText(result)).toBeDefined();
+  expect(within(parent).queryByRole('button', { name: /^wait - click to expand$/i, hidden: true })).toBeNull();
+  expect(await axe(parent)).toHaveNoViolations();
+});
+
 it.each(['raw-output', 'item-result', 'text-output'])(
   'combines %s acknowledgements with native follow-up state', async source => {
     const { parent, tools, router, flush } = createCodexLifecycleView();
