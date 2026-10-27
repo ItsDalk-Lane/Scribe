@@ -12,6 +12,7 @@ import {
   hasDeferredDiagramFence,
 } from '@/features/chat/rendering/markdown/DisplayOnlyCodeFences';
 import type { RenderContentOptions } from '@/features/chat/rendering/markdown/MarkdownContentRenderer';
+import { escapeRawHTMLTags } from '@/features/chat/rendering/markdown/markdownHTML';
 import type { LiveTranscriptOptions, MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
 import { createResponseTextBlock } from '@/features/chat/rendering/ResponseLayout';
 import {
@@ -330,7 +331,7 @@ export class StreamController {
   }
 
   #getStreamingRenderOptions(content: string): RenderContentOptions | undefined {
-    const deferMath = this.#shouldDeferMathRendering() && hasStreamingMathDelimiters(content);
+    const deferMath = this.#shouldDeferMathRendering() && hasStreamingMathDelimiters(escapeRawHTMLTags(content));
     const deferDiagrams = hasDeferredDiagramFence(
       content,
       getPluginFenceLanguageSet(this.deps.plugin.settings.pluginRenderedFenceLanguages),

@@ -71,9 +71,12 @@ export class MarkdownContentRenderer {
       // as plain text. Trusted plugin markup (image embeds) is injected only
       // after this step, otherwise it would be escaped too.
       const safeMarkdown = escapeRawHTMLTags(renderMarkdown);
+      // Escaping HTML can expose math that was previously hidden in tag attributes or bodies.
+      const visibleMarkdown = options?.deferMath && safeMarkdown !== renderMarkdown
+        ? escapeMathDelimitersForStreaming(safeMarkdown) : safeMarkdown;
       // Plugin-rendered fences stay inert until the message is final, like Mermaid.
       const displayOnlyCodeFences = prepareDisplayOnlyCodeFences(
-        safeMarkdown,
+        visibleMarkdown,
         options?.deferDiagrams ? undefined : getPluginFenceLanguageSet(this.getPluginFenceLanguages()),
       );
       const processedMarkdown = replaceImageEmbedsWithHTML(

@@ -60,7 +60,7 @@ function createSession(providerId?: ProviderId, promptText = 'Read the note') {
   state.addMessage(prompt);
   renderer.addMessage(prompt);
   cleanups.push(() => { stream.dispose(); subagents.clear(); renderer.dispose(); });
-  return { messagesEl, renderer, state, stream, host, response };
+  return { messagesEl, renderer, state, stream, host, response, plugin };
 }
 
 /** Text a reader sees in an element, skipping collapsed disclosure content. */
@@ -333,4 +333,42 @@ it.each(['retired-provider', '', 'constructor'])('keeps cached historical presen
     { id: 'cached-answer', role: 'assistant', content: literal,
     timestamp: testDate().getTime() }], () => 'Welcome');
   await waitFor(() => expect(within(messagesEl).queryByText(literal)).not.toBeNull());
+});
+
+
+it.each([true, false].flatMap(defer => [
+  {
+    defer, markdown: 'Attribute <span title="$x$">value</span>.',
+    live: 'Attribute &lt;span title=&quot;\\$x\\$&quot;&gt;value&lt;/span&gt;.',
+    final: 'Attribute &lt;span title=&quot;$x$&quot;&gt;value&lt;/span&gt;.',
+  },
+  {
+    defer, markdown: '<script>\n$x$\n</script>',
+    live: '&lt;script&gt;\n\\$x\\$\n&lt;/script&gt;',
+    final: '&lt;script&gt;\n$x$\n&lt;/script&gt;',
+  },
+  {
+    defer, markdown: 'Code `<span title="$code$">` and <span title="$x$">value</span> [Price](https://host/$price). Math $visible$.',
+    live: 'Code `<span title="$code$">` and &lt;span title=&quot;\\$x\\$&quot;&gt;value&lt;/span&gt; [Price](https://host/$price). Math \\$visible\\$.',
+    final: 'Code `<span title="$code$">` and &lt;span title=&quot;$x$&quot;&gt;value&lt;/span&gt; [Price](https://host/$price). Math $visible$.',
+  },
+  {
+    defer, markdown: 'Math $x <span>y$ and \\(z\\).',
+    live: 'Math \\$x &lt;span&gt;y\\$ and \\$z\\$.',
+    final: 'Math $x <span>y$ and $z$.',
+  },
+  {
+    defer, markdown: 'Literal <span title="\\(raw\\)">value</span>.',
+    live: 'Literal &lt;span title=&quot;\\(raw\\)&quot;&gt;value&lt;/span&gt;.',
+    final: 'Literal &lt;span title=&quot;\\(raw\\)&quot;&gt;value&lt;/span&gt;.',
+  },
+]))('defers math exposed by literal HTML through the real stream (enabled: $defer, $markdown)', async ({ defer, markdown, live: streaming, final }) => {
+  const { response, stream, plugin } = createSession();
+  plugin.settings.deferMathRenderingDuringStreaming = defer;
+  const message = response.start();
+  jest.mocked(MarkdownRenderer.render).mockClear();
+  await stream.handleStreamChunk({ type: 'text', content: markdown }, message);
+  await waitFor(() => expect(jest.mocked(MarkdownRenderer.render).mock.calls.at(-1)?.[1]).toBe(defer ? streaming : final));
+  await response.finish(message, { interrupted: false, failed: false });
+  expect(jest.mocked(MarkdownRenderer.render).mock.calls.at(-1)?.[1]).toBe(final);
 });
