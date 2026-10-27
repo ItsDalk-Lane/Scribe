@@ -334,7 +334,10 @@ it.each((['Update', 'name Enter', 'Save'] as const).flatMap(action =>
     expect(submit()).toBe(action !== 'name Enter');
     await waitFor(() => expect(persist).toHaveBeenCalledTimes(1));
     expect(coordinator.getCommittedSettings()).toEqual(originalSettings);
-    expect(within(document.body).queryByRole('dialog', { name: dialogName })).toBeNull();
+    expect(within(document.body).getByRole('dialog', { name: dialogName })).toBe(dialog);
+    expect(fields.getAllByRole<HTMLInputElement>('textbox').every(input => input.disabled)).toBe(true);
+    fireEvent.keyDown(nameField, { key: 'Enter' });
+    fireEvent.click(fields.getByRole('button', { name: action === 'Save' ? 'Save' : 'Update' }));
     const savedSnippet = {
       id: expect.stringMatching(action === 'Save' ? /^snippet-/ : /^snippet$/),
       name: 'Renamed snippet name', description: 'Draft description', scope: 'provider:claude',
@@ -347,6 +350,7 @@ it.each((['Update', 'name Enter', 'Save'] as const).flatMap(action =>
     completePersistence();
     const success = `Environment snippet "Renamed snippet name" ${action === 'Save' ? 'saved' : 'updated'}`;
     await waitFor(() => expect(notifyCalls(notice)).toContain(success));
+    expect(within(document.body).queryByRole('dialog', { name: dialogName })).toBeNull();
     expect(notifyCalls(notice)).toEqual([
       'Invalid format. Use: 256k, 1m, or exact count (1000-10000000).', success,
     ]);
@@ -357,51 +361,17 @@ it.each((['Update', 'name Enter', 'Save'] as const).flatMap(action =>
   },
 );
 
-it('reports a save failure notice and keeps settings unchanged when snippet persistence fails', async () => {
+it.each(['Save', 'Update'] as const)('retains every %s draft after persistence fails and retries from that same modal', async action => {
   const notice = Notice as unknown as jest.Mock;
   notice.mockClear();
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
-  settings.envSnippets = [];
-  const persist = jest.fn<Promise<void>, [typeof settings]>().mockRejectedValue(new Error('storage unavailable'));
-  const coordinator = new SettingsCoordinator(settings, persist);
-  const host = {
-    notifyProviderChatOptionsChanged: jest.fn(),
-    settings,
-    app: { workspace: { getLeavesOfType: () => [] } },
-    getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
-    mutateSettings: coordinator.mutate.bind(coordinator),
-  } as unknown as ProviderHost;
-  const container = document.body.createEl('main');
-  new EnvSnippetManager(container, host, 'provider:claude');
-
-  const joinFocusTimers = captureModalFocusTimers(() => {
-    fireEvent.click(within(container).getByRole('button', { name: 'Save current environment as a snippet' }));
-  });
-  const dialog = within(document.body).getByRole('dialog', { name: 'Save snippet' });
-  const nameField = within(within(dialog).getByText('Name').parentElement!).getByRole('textbox');
-  fireEvent.input(nameField, { target: { value: 'New snippet name' } });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
-
-  await waitFor(() => expect(notifyCalls(notice)).toContain('Could not complete environment snippet save'));
-  await joinFocusTimers();
-  expect(persist).toHaveBeenCalled();
-  expect(coordinator.getCommittedSettings().envSnippets).toEqual([]);
-  expect(within(container).getByRole('button', { name: 'Save current environment as a snippet' })).toBeTruthy();
-  expect(within(container).queryByText('New snippet name')).toBeNull();
-  expect(notifyCalls(notice).filter((message) => message === 'Could not complete environment snippet save')).toHaveLength(1);
-  expect(notifyCalls(notice)).not.toContain('Environment snippet "New snippet name" saved');
-});
-
-it('reports an update failure notice and keeps the original snippet when persistence fails', async () => {
-  const notice = Notice as unknown as jest.Mock;
-  notice.mockClear();
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
-  settings.envSnippets = [{
+  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  settings.envSnippets = action === 'Save' ? [] : [{
     id: 'snippet', name: 'Existing snippet name', description: '', scope: 'provider:claude',
     envVars: 'ANTHROPIC_MODEL=custom',
   }];
-  const originalSnippets = JSON.parse(JSON.stringify(settings.envSnippets));
-  const persist = jest.fn<Promise<void>, [typeof settings]>().mockRejectedValue(new Error('storage unavailable'));
+  const originalSnippets = structuredClone(settings.envSnippets);
+  const persist = jest.fn<Promise<void>, [typeof settings]>()
+    .mockRejectedValueOnce(new Error('storage unavailable')).mockResolvedValue(undefined);
   const coordinator = new SettingsCoordinator(settings, persist);
   const host = {
     notifyProviderChatOptionsChanged: jest.fn(),
@@ -412,23 +382,88 @@ it('reports an update failure notice and keeps the original snippet when persist
   } as unknown as ProviderHost;
   const container = document.body.createEl('main');
   new EnvSnippetManager(container, host, 'provider:claude');
-
   const joinFocusTimers = captureModalFocusTimers(() => {
-    fireEvent.click(within(container).getByRole('button', { name: 'Edit' }));
+    fireEvent.click(within(container).getByRole('button', {
+      name: action === 'Save' ? 'Save current environment as a snippet' : 'Edit',
+    }));
   });
-  const dialog = within(document.body).getByRole('dialog', { name: 'Edit snippet' });
-  const nameField = within(within(dialog).getByText('Name').parentElement!).getByRole('textbox');
-  fireEvent.input(nameField, { target: { value: 'Renamed snippet name' } });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Update' }));
-
-  await waitFor(() => expect(notifyCalls(notice)).toContain('Could not complete environment snippet update'));
   await joinFocusTimers();
-  expect(persist).toHaveBeenCalled();
+  const title = action === 'Save' ? 'Save snippet' : 'Edit snippet';
+  const dialog = within(document.body).getByRole('dialog', { name: title });
+  const fields = within(dialog);
+  const field = (name: string) => within(fields.getByText(name).parentElement!).getByRole<HTMLInputElement>('textbox');
+  const name = 'Work endpoint';
+  const description = 'Keep these settings';
+  const envVars = 'ANTHROPIC_MODEL=custom\nANTHROPIC_BASE_URL=https://example.invalid';
+  fireEvent.input(field('Name'), { target: { value: name } });
+  fireEvent.input(field('Description'), { target: { value: description } });
+  fireEvent.input(field('Environment variables'), { target: { value: envVars } });
+  fireEvent.blur(field('Environment variables'));
+  fireEvent.input(fields.getByRole('textbox', { name: 'Alias for custom' }), { target: { value: 'Work model' } });
+  fireEvent.input(fields.getByRole('textbox', { name: 'Context window for custom' }), { target: { value: '64k' } });
+  const save = fields.getByRole<HTMLButtonElement>('button', { name: action });
+  fireEvent.click(save);
+  const error = `Could not complete environment snippet ${action === 'Save' ? 'save' : 'update'}`;
+  await waitFor(() => expect(notifyCalls(notice)).toContain(error));
+  expect(persist).toHaveBeenCalledTimes(1);
   expect(coordinator.getCommittedSettings().envSnippets).toEqual(originalSnippets);
-  expect(within(container).getByText('Existing snippet name')).toBeTruthy();
-  expect(within(container).queryByText('Renamed snippet name')).toBeNull();
-  expect(notifyCalls(notice).filter((message) => message === 'Could not complete environment snippet update')).toHaveLength(1);
-  expect(notifyCalls(notice)).not.toContain('Environment snippet "Renamed snippet name" updated');
+  expect(within(document.body).getByRole('dialog', { name: title })).toBe(dialog);
+  expect(field('Name').value).toBe(name);
+  expect(field('Description').value).toBe(description);
+  expect(field('Environment variables').value).toBe(envVars);
+  expect(fields.getByRole<HTMLInputElement>('textbox', { name: 'Alias for custom' }).value).toBe('Work model');
+  expect(fields.getByRole<HTMLInputElement>('textbox', { name: 'Context window for custom' }).value).toBe('64k');
+  expect(save.disabled).toBe(false);
+  expect(within(container).queryByText(name)).toBeNull();
+  expect(notifyCalls(notice)).toEqual([error]);
+  expect(await axe(save.parentElement!)).toHaveNoViolations();
+  fireEvent.click(save);
+  const success = `Environment snippet "${name}" ${action === 'Save' ? 'saved' : 'updated'}`;
+  await waitFor(() => expect(notifyCalls(notice)).toContain(success));
+  expect(within(document.body).queryByRole('dialog', { name: title })).toBeNull();
+  expect(persist).toHaveBeenCalledTimes(2);
+  expect(coordinator.getCommittedSettings().envSnippets).toEqual([expect.objectContaining({
+    name, description, envVars, modelAliases: { custom: 'Work model' }, contextLimits: { custom: 64000 },
+  })]);
+  expect(within(container).getByText(name)).toBeTruthy();
+  expect(notifyCalls(notice)).toEqual([error, success]);
+});
+
+it.each(['Save', 'Update'] as const)('does not offer another %s after persistence committed but publication failed', async action => {
+  const notice = Notice as unknown as jest.Mock;
+  notice.mockClear();
+  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  settings.envSnippets = action === 'Save' ? [] : [{
+    id: 'snippet', name: 'Existing snippet name', description: '', scope: 'provider:claude',
+    envVars: 'ANTHROPIC_MODEL=custom',
+  }];
+  const persist = jest.fn<Promise<void>, [typeof settings]>().mockResolvedValue(undefined);
+  const publish = jest.fn(() => { throw new Error('view refresh failed'); });
+  const coordinator = new SettingsCoordinator(settings, persist, publish);
+  const host = {
+    settings,
+    app: { workspace: { getLeavesOfType: () => [] } },
+    getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
+    mutateSettings: coordinator.mutate.bind(coordinator),
+  } as unknown as ProviderHost;
+  const container = document.body.createEl('main');
+  new EnvSnippetManager(container, host, 'provider:claude');
+  await captureModalFocusTimers(() => {
+    fireEvent.click(within(container).getByRole('button', {
+      name: action === 'Save' ? 'Save current environment as a snippet' : 'Edit',
+    }));
+  })();
+  const title = action === 'Save' ? 'Save snippet' : 'Edit snippet';
+  const dialog = within(document.body).getByRole('dialog', { name: title });
+  const name = within(within(dialog).getByText('Name').parentElement!).getByRole('textbox');
+  fireEvent.input(name, { target: { value: 'Committed snippet' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: action }));
+  await waitFor(() => expect(notifyCalls(notice)).toEqual(['Environment snippet was saved, but settings refresh failed.']));
+  expect(within(document.body).queryByRole('dialog', { name: title })).toBeNull();
+  expect(persist).toHaveBeenCalledTimes(1);
+  expect(publish).toHaveBeenCalledTimes(1);
+  expect(settings.envSnippets).toEqual([expect.objectContaining({ name: 'Committed snippet' })]);
+  expect(within(container).getByText('Committed snippet')).toBeTruthy();
 });
 
 it('saves a snippet through the coordinator and renders it when persistence succeeds', async () => {
