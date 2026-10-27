@@ -301,7 +301,8 @@ export class SessionMetadataLoader {
       isPinned: meta.isPinned,
       isArchived: meta.isArchived,
       usage: meta.usage,
-      titleGenerationStatus: meta.titleGenerationStatus,
+      // No title task survives a plugin reload; expose retry for interrupted work.
+      titleGenerationStatus: meta.titleGenerationStatus === 'pending' ? 'failed' : meta.titleGenerationStatus,
       resumeAtMessageId: meta.resumeAtMessageId,
     };
   }
