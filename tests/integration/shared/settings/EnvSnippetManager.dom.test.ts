@@ -157,11 +157,25 @@ it('offers saving the current environment from the empty snippet state', async (
   });
 
   const dialog = within(document.body).getByRole('dialog', { name: 'Save snippet' });
-  expect(within(dialog).getByDisplayValue('ANTHROPIC_MODEL=custom')).toBeTruthy();
   await joinFocusTimers();
+  expect(await axe(dialog)).toHaveNoViolations();
+  const name = within(dialog).getByRole('textbox', { name: 'Name' });
+  const description = within(dialog).getByRole('textbox', { name: 'Description' });
+  const environment = within(dialog).getByRole('textbox', { name: 'Environment variables' });
+  expect((environment as HTMLTextAreaElement).value).toBe('ANTHROPIC_MODEL=custom');
+  fireEvent.input(name, { target: { value: 'Work endpoint' } });
+  fireEvent.input(description, { target: { value: 'Used for work' } });
+  fireEvent.input(environment, { target: { value: 'ANTHROPIC_MODEL=custom\nANTHROPIC_BASE_URL=https://example.invalid' } });
+  fireEvent.blur(environment);
   expect(['Cancel', 'Save'].map(name =>
     within(dialog).getByRole<HTMLButtonElement>('button', { name }).type,
   )).toEqual(['button', 'button']);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(within(document.body).queryByRole('dialog', { name: 'Save snippet' })).toBeNull());
+  expect(settings.envSnippets).toEqual([expect.objectContaining({
+    name: 'Work endpoint', description: 'Used for work', envVars: 'ANTHROPIC_MODEL=custom\nANTHROPIC_BASE_URL=https://example.invalid',
+  })]);
+  await waitFor(() => expect(within(container).getByRole('button', { name: 'Insert' })).toBeTruthy());
 });
 
 it.each([

@@ -166,6 +166,7 @@ export class EnvSnippetModal extends Modal {
       .setDesc(t('settings.envSnippets.modal.namePlaceholder'))
       .addText((text) => {
         nameEl = text.inputEl;
+        nameEl.setAttribute('aria-label', t('settings.envSnippets.modal.name'));
         text.setValue(this.snippet?.name || '');
                 text.inputEl.addEventListener('keydown', handleKeyDown);
       });
@@ -175,6 +176,7 @@ export class EnvSnippetModal extends Modal {
       .setDesc(t('settings.envSnippets.modal.descPlaceholder'))
       .addText((text) => {
         descEl = text.inputEl;
+        descEl.setAttribute('aria-label', t('settings.envSnippets.modal.description'));
         text.setValue(this.snippet?.description || '');
                 text.inputEl.addEventListener('keydown', handleKeyDown);
       });
@@ -184,6 +186,7 @@ export class EnvSnippetModal extends Modal {
       .setDesc(t('settings.envSnippets.modal.envVarsPlaceholder'))
       .addTextArea((text) => {
         envVarsEl = text.inputEl;
+        envVarsEl.setAttribute('aria-label', t('settings.envSnippets.modal.envVars'));
         const envVarsToShow = this.snippet?.envVars ?? this.plugin.getEnvironmentVariablesForScope(this.snippetScope);
         text.setValue(envVarsToShow);
         text.inputEl.rows = 8;
