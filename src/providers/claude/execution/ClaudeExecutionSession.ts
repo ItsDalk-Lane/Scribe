@@ -619,6 +619,18 @@ ClaudeExecutionStrategySink {
         continue;
       }
       if (normalized.type === 'result') {
+        // Native API failures can use the success variant with is_error set. Report
+        // only an owned turn: its synthetic assistant error may already have ended it.
+        if (message.type === 'result' && message.subtype === 'success' && message.is_error) {
+          const diagnostic = message.result.trim() || 'Claude Code reported an error result.';
+          if (this.activeRun?.nativeHandedOff && inputMatch !== false) {
+            this.#finishError(this.activeRun, new Error(diagnostic));
+          } else if (this.backgroundTurn) {
+            this.#emitSession({ type: 'session_error', category: 'provider', message: diagnostic, recoverable: true });
+            this.#finishBackgroundTurn('provider-ended');
+          }
+          return;
+        }
         this.#finishBackgroundTurn('completed');
         const active = this.activeRun;
         if (active?.nativeHandedOff && inputMatch !== false && message.type === 'result') {

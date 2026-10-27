@@ -187,6 +187,80 @@ describe('ClaudeExecutionBackend', () => {
     jest.restoreAllMocks();
   });
 
+  it.each([
+    ['native diagnostic', true, 'Authentication failed: refresh your credentials.', 'Authentication failed: refresh your credentials.'],
+    ['empty native error', true, '', 'Claude Code reported an error result.'],
+    ['ordinary successful result', false, 'Error: this is an example in the answer.', undefined],
+  ] as const)('honors the terminal result error flag (%s)', async (_label, isError, result, expectedError) => {
+    sdkMock.setMockMessages([
+      { type: 'system', subtype: 'init', session_id: 'session-result' },
+      { type: 'result', subtype: 'success', is_error: isError, result },
+    ], { appendResult: false });
+    const session = new ClaudeExecutionBackend(createHost().getRuntimeHost('claude')).createSession(createConfig());
+    try {
+      const events = await collectEvents(session.execute(createRequest()).events);
+      expect(events.at(-1)).toMatchObject(expectedError
+        ? { type: 'execution_error', message: expectedError, recoverable: true }
+        : { type: 'turn_completed' });
+      expect(events.filter(event => event.type === 'execution_error')).toHaveLength(expectedError ? 1 : 0);
+      expect(events.filter(event => event.type === 'turn_completed')).toHaveLength(expectedError ? 0 : 1);
+      expect(session.getStatus()).not.toBe('executing');
+    } finally {
+      await session.dispose();
+    }
+  });
+
+  it('does not publish a second error for a result after its synthetic assistant failure', async () => {
+    const query = createScriptedPersistentQuery([[
+      { type: 'system', subtype: 'init', session_id: 'session-result' },
+      { type: 'assistant', error: 'model_not_found', message: { model: '<synthetic>', content: [
+        { type: 'text', text: 'The selected model is unavailable.' },
+      ] } },
+      { type: 'result', subtype: 'success', is_error: true, result: 'The selected model is unavailable.' },
+    ]]);
+    jest.spyOn(await import('@/providers/claude/loadClaudeAgentSDK'), 'loadClaudeAgentQuery')
+      .mockResolvedValueOnce((() => query) as never);
+    const session = new ClaudeExecutionBackend(createHost().getRuntimeHost('claude')).createSession(createConfig());
+    const sessionEvents: ProviderSessionEvent[] = [];
+    session.onEvent(event => sessionEvents.push(event));
+    try {
+      const events = await collectEvents(session.execute(createRequest()).events);
+      expect(events.filter(event => event.type === 'execution_error')).toHaveLength(1);
+      await query.finished;
+      expect(sessionEvents.filter(event => event.type === 'session_error'
+        && event.message === 'The selected model is unavailable.')).toEqual([]);
+    } finally {
+      await session.dispose();
+    }
+  });
+
+  it('ends an automatic background response as failed when its native result has is_error set', async () => {
+    const query = createScriptedPersistentQuery([[
+      { type: 'system', subtype: 'init', session_id: 'session-result' },
+      { type: 'result', subtype: 'success', is_error: false, result: '' },
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'Automatic response.' }] } },
+      { type: 'result', subtype: 'success', is_error: true, result: 'API error: model unavailable.' },
+    ]]);
+    jest.spyOn(await import('@/providers/claude/loadClaudeAgentSDK'), 'loadClaudeAgentQuery')
+      .mockResolvedValueOnce((() => query) as never);
+    const session = new ClaudeExecutionBackend(createHost().getRuntimeHost('claude')).createSession(createConfig());
+    const sessionEvents: ProviderSessionEvent[] = [];
+    session.onEvent(event => sessionEvents.push(event));
+    try {
+      const events = await collectEvents(session.execute(createRequest()).events);
+      expect(events.at(-1)?.type).toBe('turn_completed');
+      await query.finished;
+      expect(sessionEvents).toContainEqual(expect.objectContaining({ type: 'text_delta', text: 'Automatic response.' }));
+      expect(sessionEvents.filter(event => event.type === 'session_error' && event.message === 'API error: model unavailable.'))
+        .toHaveLength(1);
+      expect(sessionEvents.filter(event => event.type === 'background_turn_completed')).toEqual([
+        expect.objectContaining({ reason: 'provider-ended' }),
+      ]);
+    } finally {
+      await session.dispose();
+    }
+  });
+
   it('retains native task progress across requested turns in the same session', async () => {
     const session = new ClaudeExecutionBackend(createHost().getRuntimeHost('claude')).createSession(createConfig());
     sdkMock.setMockMessages([
