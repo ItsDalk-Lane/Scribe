@@ -23,6 +23,12 @@ export interface ACPToolStreamPresentationAdapter {
   normalizeToolInput(rawName: string | undefined, input: Record<string, unknown>, rawOutput?: unknown): Record<string, unknown>;
   /** Raw input/output let dispatcher tools present the tool they dispatch to. */
   normalizeToolName(rawName: string | undefined, rawInput?: unknown, rawOutput?: unknown): string;
+  /** Provider-owned result presentation, including outcomes carried in native metadata. */
+  normalizeToolResult?(
+    rawName: string | undefined,
+    content: string,
+    rawOutput: unknown,
+  ): { content: string; isError: boolean };
   /** Provider-specific result fields; they override the shared ACP diff field by field. */
   normalizeToolResultDetails(
     rawName: string | undefined,
@@ -147,6 +153,7 @@ export class ACPToolStreamAdapter {
           ...this.#buildProviderPayloadFields(state),
         };
       case 'tool_result': {
+        const result = this.adapter.normalizeToolResult?.(state.rawName, chunk.content, state.rawOutput);
         const resultDetails = mergeToolResultDetails(chunk.resultDetails, this.adapter.normalizeToolResultDetails(
           state.rawName,
           state.input,
@@ -155,6 +162,7 @@ export class ACPToolStreamAdapter {
         ));
         return {
           ...chunk,
+          ...(result ? { content: result.content, isError: chunk.isError || result.isError } : {}),
           ...(resultDetails ? { resultDetails } : {}),
           ...this.#buildProviderPayloadFields(state),
         };

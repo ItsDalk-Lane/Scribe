@@ -489,6 +489,7 @@ function isOpencodeToolOutcomeFailure(
   switch (knownName) {
     case 'execute':
       return metadata?.error === true;
+    case 'bash':
     case 'shell':
       return (typeof metadata?.exit === 'number' && metadata.exit !== 0)
         || Boolean(firstTrimmedString(metadata?.signal))
@@ -524,6 +525,7 @@ export function createOpencodeToolStreamAdapter(): ACPToolStreamAdapter {
   return new ACPToolStreamAdapter({
     normalizeToolInput: normalizeOpencodeToolInput,
     normalizeToolName: normalizeOpencodeToolName,
+    normalizeToolResult: normalizeOpencodeToolResult,
     normalizeToolResultDetails: normalizeOpencodeToolResultDetails,
     resolveRawToolName: resolveOpencodeRawToolName,
   });
