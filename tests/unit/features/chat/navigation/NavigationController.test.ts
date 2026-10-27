@@ -164,8 +164,11 @@ describe('NavigationController', () => {
 
     // Mock document for event listeners
     const documentListeners: Map<string, Listener[]> = new Map();
+    const windowEvents = new EventTarget();
     (global as any).document = {
       defaultView: {
+        addEventListener: windowEvents.addEventListener.bind(windowEvents),
+        removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
         requestAnimationFrame: mockRaf,
         cancelAnimationFrame: mockCancelRaf,
       },

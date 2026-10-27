@@ -30,6 +30,7 @@ export class NavigationController {
   private boundMessagesKeydown: (e: KeyboardEvent) => void;
   private boundKeyup: (e: KeyboardEvent) => void;
   private boundInputKeydown: (e: KeyboardEvent) => void;
+  private readonly boundWindowBlur = () => this.stopScrolling();
 
   constructor(deps: NavigationControllerDeps) {
     this.deps = deps;
@@ -55,6 +56,7 @@ export class NavigationController {
     messagesEl.addEventListener('keydown', this.boundMessagesKeydown);
     this.keyboardDocument = messagesEl.ownerDocument;
     this.keyboardDocument.addEventListener('keyup', this.boundKeyup);
+    this.keyboardDocument.defaultView?.addEventListener('blur', this.boundWindowBlur);
 
     // Use capture phase to run before other handlers
     inputEl.addEventListener('keydown', this.boundInputKeydown, { capture: true });
@@ -71,6 +73,7 @@ export class NavigationController {
 
     // Always clean up document listener first (most important for preventing leaks)
     this.keyboardDocument?.removeEventListener('keyup', this.boundKeyup);
+    this.keyboardDocument?.defaultView?.removeEventListener('blur', this.boundWindowBlur);
     this.keyboardDocument = null;
 
     // Element cleanup - may already be destroyed during view teardown
