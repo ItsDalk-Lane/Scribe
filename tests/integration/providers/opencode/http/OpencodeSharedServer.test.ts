@@ -46,7 +46,7 @@ if (process.argv.includes('--version')) {
  return;
 }
 fs.appendFileSync(process.env.PROCESS_LOG, JSON.stringify({ pid: process.pid, db: process.env.OPENCODE_DB, generation: process.env.GENERATION }) + '\\n');
-const feeds = new Set(), forms = new Map(); let sequence = 0, commandReads = 0;
+const feeds = new Set(), forms = new Map(); let sequence = 0, commandReads = 0, heldCommands = null;
 const emit = (type, data) => { if(type==='form.created') forms.set(data.form.id,data.form); if(type==='form.cancelled'||type==='form.replied') forms.delete(data.id); for (const feed of feeds) feed.write('data: ' + JSON.stringify({ type, data }) + '\\n\\n'); };
 const store = process.env.OPENCODE_DB + '.sessions.json';
 const saved = process.env.OPENCODE_DB !== ':memory:' && fs.existsSync(store) ? JSON.parse(fs.readFileSync(store, 'utf8')) : {sessions:[],deleted:[],sequence:0};
@@ -81,7 +81,9 @@ const server = http.createServer(async (req, res) => {
  if (route.startsWith('/api/experimental/session/') && route.endsWith('/wait')) return setTimeout(() => { res.writeHead(204).end(); }, 50);
  if (route === '/api/info') return reply({pid:process.pid});
  if (route === '/fixture/command-reads') return reply(commandReads);
- if (route === '/api/command') { commandReads++; return setTimeout(() => reply(fs.existsSync(process.env.PROCESS_LOG + '.commands') ? JSON.parse(fs.readFileSync(process.env.PROCESS_LOG + '.commands','utf8')) : [{ name: 'init' }]), 30); }
+ if (route === '/fixture/hold-commands') { heldCommands = []; res.writeHead(204).end(); return; }
+ if (route === '/fixture/release-commands') { const pending = heldCommands ?? []; heldCommands = null; for (const send of pending) send(); res.writeHead(204).end(); return; }
+ if (route === '/api/command') { commandReads++; const send = () => reply(fs.existsSync(process.env.PROCESS_LOG + '.commands') ? JSON.parse(fs.readFileSync(process.env.PROCESS_LOG + '.commands','utf8')) : [{ name: 'init' }]); if (heldCommands) heldCommands.push(send); else send(); return; }
  if (route === '/api/agent') return reply(agents());
  if (route === '/fixture/sessions') return reply({ ids:[...sessions.keys()], held:held?.length ?? 0, deleted });
  if (route === '/fixture/system') return reply({ sessions:Object.fromEntries([...sessions].map(([id,s]) => [id, agents().find(a => a.id === s.agent)?.system ?? null])), agents:agents().map(a => a.id) });
@@ -950,18 +952,27 @@ it.each(['v1', 'disabled'])('does not prewarm a server for %s OpenCode', async m
 it('cancelling one coalesced command query leaves its peer and the retained server working', async () => {
   const f = await createFixture();
   const cancel = new AbortController();
+  const control = await f.workspace.serverService.acquire(f.cli, f.root, f.environment);
+  await control.request('/fixture/hold-commands', { method: 'POST' });
   const abandoned = f.workspace.metadataService.discoverCommands(cancel.signal);
   const peer = f.workspace.metadataService.discoverCommands(new AbortController().signal);
-  const control = await f.workspace.serverService.acquire(f.cli, f.root, f.environment);
   try {
     const deadline = Date.now() + 3000;
     while ((await control.request<{ data: number }>('/fixture/command-reads')).data === 0 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 1));
+    expect(await control.request('/fixture/command-reads')).toEqual({ data: 1 });
     cancel.abort(new Error('Picker closed'));
-    await expect(abandoned).rejects.toThrow('Picker closed');
+    await Promise.all([
+      expect(abandoned).rejects.toThrow('Picker closed'),
+      control.request('/fixture/release-commands', { method: 'POST' }),
+    ]);
     await expect(peer).resolves.toMatchObject({ loaded: true });
     expect(await control.request('/fixture/command-reads')).toEqual({ data: 1 });
     expect(f.processes()).toHaveLength(1);
-  } finally { await control.dispose(); await f.dispose(); }
+  } finally {
+    await control.request('/fixture/release-commands', { method: 'POST' }).catch(() => undefined);
+    await control.dispose();
+    await f.dispose();
+  }
 });
 
 it('disables without deadlocking cleanup for an ephemeral session whose original generation already drained', async () => {
