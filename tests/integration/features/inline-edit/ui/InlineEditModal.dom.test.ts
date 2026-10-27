@@ -258,6 +258,50 @@ it('suggests Vault folders for @ mentions', async () => {
   expect(await screen.findByRole('option', { name: /src\// })).toBeDefined();
 });
 
+it('keeps open inline suggestions anchored after note scroll and viewport resize', async () => {
+  const h = createHarness();
+  h.app.vault.getAllLoadedFiles = () => [Object.assign(new TFolder(), { name: 'src', path: 'src' })];
+  const session = h.createSession();
+  session.show();
+  let top = 320;
+  let left = 80;
+  const measure = jest.spyOn(input(), 'getBoundingClientRect').mockImplementation(() => ({
+    top, bottom: top + 28, left, right: left + 300, width: 300, height: 28,
+  } as DOMRect));
+  typeInstruction('@s');
+  const option = await screen.findByRole('option', { name: /src\// });
+  const list = screen.getByRole('listbox', { name: 'Input suggestions' });
+  expect(list.style.getPropertyValue('--claudian-fixed-dropdown-bottom')).toBe(`${window.innerHeight - top + 4}px`);
+  const active = input().getAttribute('aria-activedescendant');
+  measure.mockClear();
+  list.scrollTop = 25;
+  fireEvent.scroll(list);
+  expect(measure).not.toHaveBeenCalled();
+  expect(list.scrollTop).toBe(25);
+  top = 210;
+  fireEvent.scroll(h.editorView.scrollDOM);
+  expect(list.style.getPropertyValue('--claudian-fixed-dropdown-bottom')).toBe(`${window.innerHeight - top + 4}px`);
+  left = 160;
+  fireEvent.resize(window);
+  expect(list.style.getPropertyValue('--claudian-fixed-dropdown-left')).toBe('160px');
+  expect(input().getAttribute('aria-activedescendant')).toBe(active);
+  expect(within(list).getByRole('option', { name: /src\// })).toBe(option);
+  expect(await axe(list)).toHaveNoViolations();
+  // Hiding and session teardown both release viewport listeners.
+  typeInstruction('No trigger');
+  measure.mockClear();
+  fireEvent.scroll(h.editorView.scrollDOM);
+  fireEvent.resize(window);
+  expect(measure).not.toHaveBeenCalled();
+  typeInstruction('@s');
+  await screen.findByRole('option', { name: /src\// });
+  session.close();
+  measure.mockClear();
+  fireEvent.scroll(h.editorView.scrollDOM);
+  fireEvent.resize(window);
+  expect(measure).not.toHaveBeenCalled();
+});
+
 it('shows only the newest clarification when an older render finishes last', async () => {
   const h = createHarness();
   const renders: Array<() => void> = [];
