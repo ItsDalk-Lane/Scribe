@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 import type { AgentSkillDiagnostic, AgentSkillInput } from '@/features/agent-skills/AgentSkill';
-import { serializeMarkdownWithFrontmatter } from '@/features/agent-skills/AgentSkillCodec';
+import { normalizeInstructionMarkdown, serializeMarkdownWithFrontmatter } from '@/features/agent-skills/AgentSkillCodec';
 import {
   AgentSkillRepositoryError,
   CLAUDE_COMMANDS_ROOT,
@@ -75,7 +75,7 @@ function parseClaudeCommandMarkdown(raw: string): {
   const body = parsed?.body ?? raw;
   return {
     description: typeof frontmatter.description === 'string' ? frontmatter.description.trim() : '',
-    instructions: body.replace(/\r\n/g, '\n').trim(),
+    instructions: normalizeInstructionMarkdown(body),
     frontmatter,
   };
 }
@@ -175,7 +175,7 @@ export class ClaudeCommandRepository {
     } else {
       delete frontmatter.description;
     }
-    return serializeMarkdownWithFrontmatter(frontmatter, input.instructions.trim());
+    return serializeMarkdownWithFrontmatter(frontmatter, normalizeInstructionMarkdown(input.instructions));
   }
 
   #assertValidName(name: string): void {

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { parser } from '@lezer/markdown';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
 import * as obsidian from 'obsidian';
 
@@ -74,6 +75,21 @@ describe('AgentSkillRepository', () => {
     expect(reloaded.skills[0]).toMatchObject({
       description: 'Edited', instructions: 'Updated instructions', frontmatter: { license: 'MIT' },
     });
+  });
+
+  it.each(['strict', 'lenient'] as const)('keeps a leading Markdown code block through description edits under %s reading', async readPolicy => {
+    const instructions = '    echo first\n    echo second';
+    await addSkill('code-example', markdown('code-example', 'Original', `\n \n${instructions}\n\n`));
+    const owner = new AgentSkillRepository(vaultFiles, { readPolicy });
+    const [loaded] = (await owner.list()).skills;
+
+    expect(parser.parse(loaded.instructions).topNode.firstChild?.name).toBe('CodeBlock');
+    await owner.update(loaded.name, loaded.revision, { name: loaded.name, description: 'Changed description', instructions: loaded.instructions });
+    const persisted = await vault.read(`${AGENT_SKILLS_ROOT}/code-example/SKILL.md`);
+    expect(persisted).toContain(`---\n${instructions}\n`);
+    const [reloaded] = (await owner.list()).skills;
+    expect(reloaded.description).toBe('Changed description');
+    expect(reloaded.instructions).toBe(instructions);
   });
 
   it('validates each skill file once through the safe reader', async () => {

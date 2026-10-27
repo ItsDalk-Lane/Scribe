@@ -12,6 +12,14 @@ export interface ParsedAgentSkill {
   frontmatter: Record<string, unknown>;
 }
 
+/** Removes surrounding blank lines while keeping Markdown indentation and line spaces. */
+export function normalizeInstructionMarkdown(content: string): string {
+  const normalized = content.replace(/\r\n/g, '\n');
+  return normalized.trim()
+    ? normalized.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, '')
+    : '';
+}
+
 export class AgentSkillCodecError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -56,7 +64,7 @@ export function parseAgentSkillMarkdown(content: string, directoryName: string):
   const parsed: ParsedAgentSkill = {
     name: frontmatter.name,
     description: frontmatter.description.trim(),
-    instructions: match[2].replace(/\r\n/g, '\n').trim(),
+    instructions: normalizeInstructionMarkdown(match[2]),
     frontmatter,
   };
   try {
@@ -85,7 +93,7 @@ export function parseLenientAgentSkillMarkdown(content: string, directoryName: s
   return {
     name: directoryName,
     description: typeof frontmatter.description === 'string' ? frontmatter.description.trim() : '',
-    instructions: body.replace(/\r\n/g, '\n').trim(),
+    instructions: normalizeInstructionMarkdown(body),
     frontmatter,
   };
 }
@@ -135,7 +143,7 @@ export function serializeAgentSkillMarkdown(
   const normalized: AgentSkillInput = {
     name: input.name,
     description: input.description.trim(),
-    instructions: input.instructions.trim(),
+    instructions: normalizeInstructionMarkdown(input.instructions),
   };
   const frontmatter: Record<string, unknown> = {
     ...currentFrontmatter,

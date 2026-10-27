@@ -1,3 +1,4 @@
+import { parser } from '@lezer/markdown';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
 
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
@@ -36,6 +37,20 @@ describe('ClaudeCommandRepository', () => {
   function addCommand(relativePath: string, content: string): Promise<void> {
     return vault.write(`${CLAUDE_COMMANDS_ROOT}/${relativePath}`, content);
   }
+
+  it('keeps a command beginning with indented Markdown code when only its description changes', async () => {
+    const instructions = '    echo first\n    echo second';
+    await addCommand('example.md', `---\ndescription: Original\n---\n${instructions}\n`);
+    const owner = new ClaudeCommandRepository(files);
+    const [loaded] = (await owner.list()).commands;
+
+    expect(parser.parse(loaded.instructions).topNode.firstChild?.name).toBe('CodeBlock');
+    await owner.update(loaded.name, loaded.revision, { name: loaded.name, description: 'Changed description', instructions: loaded.instructions });
+    expect(await vault.read(`${CLAUDE_COMMANDS_ROOT}/example.md`)).toContain(`---\n${instructions}\n`);
+    const [reloaded] = (await owner.list()).commands;
+    expect(reloaded.description).toBe('Changed description');
+    expect(reloaded.instructions).toBe(instructions);
+  });
 
   it('returns an empty list when the commands folder is missing', async () => {
     await vault.remove(CLAUDE_COMMANDS_ROOT);
