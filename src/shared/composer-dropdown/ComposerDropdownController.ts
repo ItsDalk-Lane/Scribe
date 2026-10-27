@@ -223,7 +223,7 @@ export class ComposerDropdownController {
   }
 
   private replaceRange(match: ComposerTriggerMatch, replacement: string): void {
-    const duplicateSpace = /\s$/.test(replacement) && /^\s/.test(this.inputEl.value.slice(match.end));
+    const duplicateSpace = /[^\S\r\n]$/.test(replacement) && /^[^\S\r\n]/.test(this.inputEl.value.slice(match.end));
     const end = match.end + (duplicateSpace ? 1 : 0);
     if (this.inputEl.replaceText) {
       this.inputEl.replaceText(match.start, end, replacement);
