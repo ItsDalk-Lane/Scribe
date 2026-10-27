@@ -4,6 +4,8 @@ import '@/providers';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { Prec, StateEffect } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { claudeCatalogFixture } from '@test/helpers/claudeModels';
 import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
 import { createProjectsFake } from '@test/helpers/features/chat/ProjectsFake';
@@ -15,6 +17,9 @@ import { axe } from 'jest-axe';
 import { App, Component } from 'obsidian';
 
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
+import type { ProviderCommandDiscoveryResult } from '@/core/providers/commands/ProviderCommandDiscoveryResult';
+import { ProviderCommandDiscoveryStore } from '@/core/providers/commands/ProviderCommandDiscoveryStore';
+import type { ProviderCommandEntry } from '@/core/providers/commands/ProviderCommandEntry';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { type ChatMessage, type ClaudianSettings, type Conversation, isCanonicalUserMessage } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
@@ -302,6 +307,59 @@ it.each([
     expect(view.tab.dom.inputEl.value).toBe(text);
   } finally { await view.dispose(); }
 });
+
+it.each(['loading', 'empty', 'ready', 'error'] as const)(
+  'routes Up/Down according to selectable provider suggestions (%s)', async status => {
+    const view = await createView();
+    let finish!: (result: ProviderCommandDiscoveryResult<ProviderCommandEntry>) => void;
+    const discovery = new ProviderCommandDiscoveryStore<ProviderCommandEntry>(
+      () => new Promise(resolve => { finish = resolve; }),
+    );
+    const editorKeys: string[] = [];
+    try {
+      const cm = EditorView.findFromDOM(textbox(view))!;
+      cm.dispatch({ effects: StateEffect.appendConfig.of(Prec.highest(EditorView.domEventHandlers({
+        keydown: event => { editorKeys.push(event.key); return false; },
+      }))) });
+      view.tab.ui.composerDropdown.setProviderCatalog({
+        providerId: 'claude', triggerChars: ['/'], builtInPrefix: '/', commandPrefix: '/', skillPrefix: '/',
+      }, discovery);
+      type(view, 'First paragraph\n/zxy');
+      await waitFor(() => expect(discovery.getSnapshot().status).toBe('loading'));
+      const command = (name: string): ProviderCommandEntry => ({
+        id: name, name, providerId: 'claude', kind: 'command', content: '', scope: 'runtime', source: 'sdk',
+        isEditable: false, isDeletable: false, displayPrefix: '/', insertPrefix: '/',
+      });
+      const result: ProviderCommandDiscoveryResult<ProviderCommandEntry> = status === 'ready'
+        ? { status: 'ready', items: [command('zxy-one'), command('zxy-two')] }
+        : status === 'error' ? { status: 'error', message: 'Native catalog unavailable', retryable: true }
+        : { status: 'empty' };
+      if (status !== 'loading') {
+        finish(result);
+      }
+      await waitFor(() => expect(discovery.getSnapshot().status).toBe(status));
+      const list = within(view.tab.dom.inputContainerEl).getByRole('listbox', { name: 'Input suggestions' });
+      const options = within(list).getAllByRole('option');
+      const selectable = status === 'ready' || status === 'error';
+      expect(options.map(option => option.getAttribute('aria-disabled')))
+        .toEqual(status === 'ready' ? [null, null] : status === 'error' ? ['true', null] : ['true']);
+      expect(within(list).queryByRole('option', { name: /Retry/ })).toBe(status === 'error' ? options[1] : null);
+      expect(key(view, 'ArrowDown').inputPrevented).toBe(selectable);
+      expect(textbox(view).getAttribute('aria-activedescendant')).toBe(selectable ? options[1].id : null);
+      expect(key(view, 'ArrowUp').inputPrevented).toBe(selectable);
+      expect(textbox(view).getAttribute('aria-activedescendant'))
+        .toBe(status === 'ready' ? options[0].id : status === 'error' ? options[1].id : null);
+      // This is CodeMirror's real bubble-stage handler, after the runtime's capture-stage menus.
+      expect(editorKeys).toEqual(selectable ? [] : ['ArrowDown', 'ArrowUp']);
+      expect(view.tab.dom.inputEl.value).toBe('First paragraph\n/zxy');
+      expect(await axe(list)).toHaveNoViolations();
+    } finally {
+      finish?.({ status: 'empty' });
+      await view.dispose();
+      discovery.invalidate();
+    }
+  },
+);
 
 it('leaves selection, empty history, initial Down, and inactive Escape to native behavior', async () => {
   const view = await createView();

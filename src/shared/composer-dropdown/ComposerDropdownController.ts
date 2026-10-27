@@ -91,10 +91,12 @@ export class ComposerDropdownController {
     if (!this.view.isVisible() || event.isComposing) return false;
     switch (event.key) {
       case 'ArrowDown':
+        if (this.selectedIndex < 0) return false;
         event.preventDefault();
         this.#moveSelection(1);
         return true;
       case 'ArrowUp':
+        if (this.selectedIndex < 0) return false;
         event.preventDefault();
         this.#moveSelection(-1);
         return true;
