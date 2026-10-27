@@ -26,7 +26,8 @@ export class ChatViewPublisher {
     const layoutChanged = settings.enableDualPane !== previous.enableDualPane || settings.dualPaneSide !== previous.dualPaneSide;
     const commandsChanged = JSON.stringify(settings.hiddenCommands) !== JSON.stringify(previous.hiddenCommands);
     const contextChanged = JSON.stringify(settings.customContextLimits) !== JSON.stringify(previous.customContextLimits);
-    const sessionsChanged = settings.sessionManagerOrganization !== previous.sessionManagerOrganization
+    const sessionsChanged = settings.enableAutoTitleGeneration !== previous.enableAutoTitleGeneration
+      || settings.sessionManagerOrganization !== previous.sessionManagerOrganization
       || settings.sessionManagerSort !== previous.sessionManagerSort
       || JSON.stringify(settings.projectOrder) !== JSON.stringify(previous.projectOrder)
       || JSON.stringify(settings.expandedProjectIds) !== JSON.stringify(previous.expandedProjectIds);

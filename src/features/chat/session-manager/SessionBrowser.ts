@@ -935,8 +935,8 @@ export class SessionBrowser {
       return;
     }
     if (
-      conversation.titleGenerationStatus !== 'failed'
-      && (conversation.titleGenerationStatus || !this.deps.plugin.settings.enableAutoTitleGeneration)
+      !this.deps.plugin.settings.enableAutoTitleGeneration
+      || (conversation.titleGenerationStatus && conversation.titleGenerationStatus !== 'failed')
     ) {
       return;
     }
