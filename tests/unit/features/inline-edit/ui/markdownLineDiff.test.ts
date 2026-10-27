@@ -3,6 +3,64 @@ import { buildMarkdownDiffDocuments, computeMarkdownDiff } from '@/features/inli
 describe('markdown line diff', () => {
   it.each([
     {
+      name: 'small middle replacement between equal boundaries',
+      oldMarkdown: 'Intro\nold\nEnd\n',
+      newMarkdown: 'Intro\nnew\nEnd\n',
+      expectedDiffOps: [
+        { type: 'equal', text: 'Intro\n' },
+        { type: 'delete', text: 'old\n' },
+        { type: 'insert', text: 'new\n' },
+        { type: 'equal', text: 'End\n' },
+      ],
+      expectedDocuments: ['delete', 'insert'],
+    },
+    {
+      name: 'repeated equal line tie retains the matching suffix',
+      oldMarkdown: 'Item\nItem\n',
+      newMarkdown: 'Item\n',
+      expectedDiffOps: [{ type: 'delete', text: 'Item\n' }, { type: 'equal', text: 'Item\n' }],
+      expectedDocuments: ['delete'],
+    },
+    {
+      name: 'insertion between equal boundaries',
+      oldMarkdown: 'head\nfoot',
+      newMarkdown: 'head\nmiddle\nfoot',
+      expectedDiffOps: [
+        { type: 'equal', text: 'head\n' }, { type: 'insert', text: 'middle\n' }, { type: 'equal', text: 'foot' },
+      ],
+      expectedDocuments: ['insert'],
+    },
+    {
+      name: 'deletion between equal boundaries',
+      oldMarkdown: 'head\nmiddle\nfoot',
+      newMarkdown: 'head\nfoot',
+      expectedDiffOps: [
+        { type: 'equal', text: 'head\n' }, { type: 'delete', text: 'middle\n' }, { type: 'equal', text: 'foot' },
+      ],
+      expectedDocuments: ['delete'],
+    },
+    {
+      name: 'matching interior regions still use the line diff',
+      oldMarkdown: 'A\nold\ncommon\nremove\nZ',
+      newMarkdown: 'A\nnew\ncommon\nadd\nZ',
+      expectedDiffOps: [
+        { type: 'equal', text: 'A\n' }, { type: 'delete', text: 'old\n' }, { type: 'insert', text: 'new\n' },
+        { type: 'equal', text: 'common\n' }, { type: 'delete', text: 'remove\n' }, { type: 'insert', text: 'add\n' },
+        { type: 'equal', text: 'Z' },
+      ],
+      expectedDocuments: ['delete', 'insert'],
+    },
+    {
+      name: 'CRLF line endings stay exact around a middle replacement',
+      oldMarkdown: 'head\r\nold\r\nfoot\r\n',
+      newMarkdown: 'head\r\nnew\r\nfoot\r\n',
+      expectedDiffOps: [
+        { type: 'equal', text: 'head\r\n' }, { type: 'delete', text: 'old\r\n' },
+        { type: 'insert', text: 'new\r\n' }, { type: 'equal', text: 'foot\r\n' },
+      ],
+      expectedDocuments: ['delete', 'insert'],
+    },
+    {
       name: 'fenced code with block context',
       oldMarkdown: '```ts\nconst value = 1;\n```',
       newMarkdown: '```ts\nconst value = 2;\n```',
