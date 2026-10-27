@@ -14,7 +14,7 @@ import { renderLastEnabledProviderWarning, renderProviderModelEnablementWarning 
 import { renderProviderModelsSection } from '@/shared/settings/ProviderModelsSection';
 
 import type { DeepSeekCLIResolver } from '../runtime/DeepSeekCLIResolver';
-import { getDeepSeekDesktopInstallation } from '../runtime/DeepSeekInstallation';
+import { getDeepSeekDesktopInstallation, prepareDeepSeekVersionProbe } from '../runtime/DeepSeekInstallation';
 import { type DeepSeekPresetPlugin, parseDeepSeekPresetPlugins, renderDeepSeekPresetPreview } from '../runtime/DeepSeekPresetPlugins';
 import { getDeepSeekProviderSettings, updateDeepSeekProviderSettings } from '../settings';
 
@@ -42,6 +42,7 @@ export function createDeepSeekSettingsTabRenderer(workspace: { cliResolver: Deep
           profile.setText(path ? t(getDeepSeekDesktopInstallation(path) ? 'settings.deepseek.installation.desktop' : 'settings.deepseek.installation.web') : '');
           const result = await probeCLIInstallation({ path, configuredPath,
             args: ['--version'], env: { ...process.env, ...getRuntimeEnvironmentVariables(host.settings, 'deepseek') },
+            prepareLaunch: prepareDeepSeekVersionProbe,
           });
           return { ...result, source: configuredPath.trim() ? 'custom' as const : 'auto' as const };
         },
