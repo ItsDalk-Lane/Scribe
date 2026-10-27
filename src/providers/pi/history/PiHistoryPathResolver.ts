@@ -31,9 +31,10 @@ function getTrustedRoots(
       roots.push(vaultSessionRoot);
     }
   }
-  const home = context.environment.HOME?.trim()
-    || context.environment.USERPROFILE?.trim()
-    || os.homedir();
+  const windows = (context.hostPlatform ?? process.platform) === 'win32';
+  const home = (windows
+    ? context.environment.USERPROFILE?.trim() || context.environment.HOME?.trim()
+    : context.environment.HOME?.trim() || context.environment.USERPROFILE?.trim()) || os.homedir();
   roots.push(path.join(home, '.pi', 'agent', 'sessions'));
   return [...new Set(roots)];
 }

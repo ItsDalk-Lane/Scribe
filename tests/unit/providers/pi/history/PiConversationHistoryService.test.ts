@@ -41,6 +41,36 @@ describe('PiConversationHistoryService', () => {
     });
   });
 
+  it.each([
+    ['win32', 'windows', 'Native Windows home'],
+    ['linux', 'posix', 'POSIX home'],
+  ] as const)('reads the native %s home when HOME and USERPROFILE differ', async (hostPlatform, selected, expectedText) => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-platform-home-'));
+    const homes = { windows: path.join(root, 'windows'), posix: path.join(root, 'posix') };
+    const files = { windows: path.join(homes.windows, '.pi', 'agent', 'sessions', 's1.jsonl'),
+      posix: path.join(homes.posix, '.pi', 'agent', 'sessions', 's1.jsonl') };
+    try {
+      for (const [kind, file] of Object.entries(files)) {
+        await fs.mkdir(path.dirname(file), { recursive: true });
+        await fs.writeFile(file, [
+          { type: 'model_change', id: 'model', provider: 'anthropic', modelId: kind === 'windows' ? 'native-model' : 'posix-model' },
+          { type: 'message', id: 'u1', parentId: 'model', message: { role: 'user', content: kind === 'windows' ? 'Native Windows home' : 'POSIX home' } },
+        ].map(entry => JSON.stringify(entry)).join('\n'));
+      }
+      const service = new PiConversationHistoryService();
+      const context = { environment: { HOME: homes.posix, USERPROFILE: homes.windows }, hostPlatform };
+      const conversation = createConversation(files.windows);
+      const hydrated = await service.hydrateConversationHistory(conversation, null, context);
+      if (!hydrated.messages) throw new Error('Expected native history messages');
+      expect(hydrated.messages.map(message => message.content)).toEqual([expectedText]);
+      expect(hydrated.providerState?.sessionFile).toBe(files[selected]);
+      expect(await service.recoverConversationModelSelection(conversation, null, context))
+        .toBe(selected === 'windows' ? 'pi:anthropic/native-model' : 'pi:anthropic/posix-model');
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('recovers the last Pi model on the persisted active branch', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-model-history-'));
     const sessionFile = path.join(dir, 'session.jsonl');
