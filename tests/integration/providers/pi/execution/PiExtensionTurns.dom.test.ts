@@ -14,7 +14,9 @@ import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { activateTab, destroyTab } from '@/features/chat/tabs/TabLifecycle';
 import { createTabRuntime } from '@/features/chat/tabs/TabRuntimeFactory';
 import { PiExecutionBackend, type PiExecutionKernel, type PiExecutionKernelCallbacks } from '@/providers/pi/execution';
+import { PiExtensionUIBridge } from '@/providers/pi/runtime/PiExtensionUIBridge';
 import type { PiLaunchSpec } from '@/providers/pi/runtime/PiLaunchSpecBuilder';
+import type { PiRPCTransport } from '@/providers/pi/runtime/PiRPCTransport';
 import { VaultMentionDataProvider } from '@/shared/mention/VaultMentionDataProvider';
 
 const MODEL = 'pi:anthropic/claude-sonnet-4';
@@ -44,6 +46,13 @@ class ScriptedPiKernel implements PiExecutionKernel {
     }
     if (type === 'get_commands') return { commands: [] } as T;
     return {} as T;
+  }
+
+  /** Extension notifications pass through the real native-UI bridge into this session. */
+  notify(notifyType: string | undefined): void {
+    const transport = { send: () => { throw new Error('A notification must not request a native response'); } };
+    new PiExtensionUIBridge(transport as unknown as PiRPCTransport, null, this.callbacks.onExtensionChunk)
+      .handleRequest({ type: 'extension_ui_request', method: 'notify', message: 'Extension policy message', notifyType });
   }
 
   /** One assistant message that thinks, then answers without calling tools. */
@@ -208,6 +217,27 @@ async function sendPrompt(view: PiView, text: string, script: (kernel: ScriptedP
 function later(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 20));
 }
+
+it.each([
+  ['warning', 'Warning'], ['error', 'Warning'], ['info', 'Notice'], [undefined, 'Notice'],
+])('renders extension notification severity %s as %s without terminating the turn', async (notifyType, label) => {
+  const view = await createPiView();
+  try {
+    await sendPrompt(view, 'Check policy', async kernel => {
+      kernel.emit({ type: 'agent_start' });
+      kernel.notify(notifyType);
+      await waitFor(() => expect(view.tab.dom.messagesEl.textContent).toContain(`**${label}:** Extension policy message`));
+      expect(view.tab.state.isStreaming).toBe(true);
+      kernel.answer('The turn continued.');
+      kernel.emit({ messages: [], type: 'agent_end' });
+      kernel.emit({ type: 'agent_settled' });
+    });
+    expect(view.tab.state.isStreaming).toBe(false);
+    expectVisibleAnswer(responseElements(view)[0], 'The turn continued.');
+  } finally {
+    await view.dispose();
+  }
+});
 
 describe('Pi extension-initiated turns in the chat view', () => {
   it('ends the prompt at its answer and renders each later result as a notification with its reply', async () => {
