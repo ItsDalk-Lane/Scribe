@@ -81,11 +81,11 @@ function setup() {
   } as unknown as ChatFeatureHost;
   const statusChanges = jest.fn();
   const pool = installSessionRuntimePool(plugin, { onChanged: statusChanges });
-  const attach = async (options: { blank?: boolean } = {}) => {
+  const attach = async (options: { blank?: boolean; openConversation?: (id: string) => Promise<void> } = {}) => {
     const tab = await createTabRuntime({
       plugin, conversation: options.blank ? undefined : conversation, component: new Component(), containerEl: document.body.createDiv(),
       mentionDataProvider: new VaultMentionDataProvider(app), getProviderCatalogConfig: () => null,
-      isRuntimeLive: () => true, openConversation: async () => undefined, startNewConversation: async () => undefined,
+      isRuntimeLive: () => true, openConversation: options.openConversation ?? (async () => undefined), startNewConversation: async () => undefined,
     });
     await tab.session.runtime.model.hydrate();
     activateTab(tab);
@@ -951,5 +951,39 @@ it('copies the parent session selections into a new side chat after another sess
   expect(getSessionSettingsSnapshot(other, h.plugin)).toMatchObject({
     permissionMode: 'yolo', reasoning: 'high', serviceTier: 'default',
   });
+  await destroyTab(tab);
+});
+
+it('keeps archived sessions out of the composer resume picker', async () => {
+  const h = setup();
+  const current = h.plugin.getConversationSummary('conversation') as Conversation;
+  const active = { ...current, id: 'active-session', title: 'Active task' };
+  const archived = { ...current, id: 'archived-session', title: 'Archived task', isArchived: true,
+    lastActivityAt: testDate({ minutes: 1 }).getTime() };
+  Object.assign(h.plugin, { getConversationList: () => [archived, active] });
+  const openConversation = jest.fn(async () => undefined);
+  const tab = await h.attach({ openConversation });
+  tab.dom.inputEl.value = '/sessions';
+  await tab.controllers.inputController.sendMessage();
+  const list = within(tab.dom.inputContainerEl).getByRole('listbox', { name: 'Resume conversation' });
+  expect(within(list).getByRole('option', { name: /Active task/ })).toBeDefined();
+  expect(within(list).queryByRole('option', { name: /Archived task/ })).toBeNull();
+  fireEvent.keyDown(tab.dom.inputEl, { key: 'Enter' });
+  expect(openConversation).toHaveBeenCalledWith('active-session');
+  expect(h.backend.sessions).toHaveLength(0);
+  expect(within(tab.dom.inputContainerEl).queryByRole('listbox', { name: 'Resume conversation' })).toBeNull();
+  await destroyTab(tab);
+});
+
+it('does not open an empty resume picker when only archived sessions exist', async () => {
+  const h = setup();
+  Object.assign(h.plugin.app.workspace, { getActiveFile: () => null });
+  const archived = { ...h.plugin.getConversationSummary('conversation')!, isArchived: true };
+  Object.assign(h.plugin, { getConversationList: () => [archived] });
+  const tab = await h.attach({ blank: true });
+  tab.dom.inputEl.value = '/sessions';
+  await tab.controllers.inputController.sendMessage();
+  expect(within(tab.dom.inputContainerEl).queryByRole('listbox', { name: 'Resume conversation' })).toBeNull();
+  expect(h.backend.sessions).toHaveLength(0);
   await destroyTab(tab);
 });
