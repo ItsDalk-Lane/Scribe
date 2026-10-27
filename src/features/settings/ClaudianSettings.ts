@@ -38,8 +38,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
   constructor(app: App, plugin: Plugin, host: FeatureHost) {
     super(app, plugin);
     this.host = host;
-    this.textEdits = new DebouncedSettingsWriter(mutation => host.mutateSettings(mutation),
-      () => { new Notice('Failed to save settings'); });
+    this.textEdits = new DebouncedSettingsWriter(async (mutation) => {
+      let promptChanged = false;
+      // Compare inside the serialized transaction, then restart only after a changed prompt commits.
+      await host.mutateSettings((settings) => {
+        const { userName, systemPrompt, mediaFolder } = settings;
+        mutation(settings);
+        promptChanged = settings.userName !== userName
+          || settings.systemPrompt !== systemPrompt
+          || settings.mediaFolder !== mediaFolder;
+      });
+      if (promptChanged) await this.restartServiceForPromptChange();
+    }, () => { new Notice('Failed to save settings'); });
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
@@ -532,7 +542,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
             });
           });
         text.inputEl.addEventListener('blur', () => {
-          void this.textEdits.flush().then(saved => { if (saved) return this.restartServiceForPromptChange(); });
+          void this.textEdits.flush();
         });
       });
 
@@ -552,7 +562,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         text.inputEl.rows = 6;
         text.inputEl.cols = 50;
         text.inputEl.addEventListener('blur', () => {
-          void this.textEdits.flush().then(saved => { if (saved) return this.restartServiceForPromptChange(); });
+          void this.textEdits.flush();
         });
       });
 
@@ -591,7 +601,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
         text.inputEl.addClass('claudian-settings-media-input');
         text.inputEl.addEventListener('blur', () => {
-          void this.textEdits.flush().then(saved => { if (saved) return this.restartServiceForPromptChange(); });
+          void this.textEdits.flush();
         });
       });
 
