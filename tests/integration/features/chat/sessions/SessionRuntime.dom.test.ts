@@ -357,6 +357,37 @@ it('retains failed queued reference preparation as session recovery after its ta
   await destroyTab(second);
 });
 
+it('preserves raw drafts when multiple reference preparations recover after detachment', async () => {
+  const h = setup();
+  const first = await h.attach();
+  first.controllers.drafts.restore('main', { content: 'First request' });
+  const sending = first.controllers.inputController.sendMessage();
+  await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
+  const reference = deferred<Conversation | null>();
+  jest.mocked(h.plugin.getConversationById)
+    .mockImplementationOnce(() => reference.promise)
+    .mockResolvedValueOnce(null);
+  const firstDraft = '    keepIndented()\n\n@[First](claudian-session:conv-1-source)  \n';
+  first.controllers.drafts.restore('main', { content: firstDraft });
+  const preparingFirst = first.controllers.inputController.sendMessage();
+  await waitFor(() => expect(h.plugin.getConversationById).toHaveBeenCalledWith('conv-1-source'));
+  const secondDraft = '@[Second](claudian-session:conv-2-source)';
+  first.controllers.drafts.restore('main', { content: secondDraft });
+  const preparingSecond = first.controllers.inputController.sendMessage();
+  await destroyTab(first);
+  h.backend.latest.complete();
+  await sending;
+  reference.resolve(null);
+  await Promise.all([preparingFirst, preparingSecond]);
+
+  expect(first.session.runtime.model.composer.hasRecovery).toBe(true);
+  const second = await h.attach();
+  expect(second.controllers.drafts.capture('main').content).toBe(`${secondDraft}\n\n${firstDraft}`);
+  expect(h.backend.latest.requests).toHaveLength(1);
+  expect(second.session.runtime.model.composer.hasRecovery).toBe(false);
+  await destroyTab(second);
+});
+
 it('fences a detached side queue synchronously before the plugin shutdown drain', async () => {
   const h = setup();
   const first = await h.attach();
