@@ -12,12 +12,19 @@ interface ProtectedBlock {
 }
 
 /** The block parser owns code and reference-definition boundaries, including container endings. */
-function getProtectedBlocks(markdown: string, literalLinks?: Array<{ from: number; to: number }>): Map<number, ProtectedBlock> {
+function getProtectedBlocks(markdown: string, literalLinks: Array<{ from: number; to: number }>, preserveLiterals: boolean): Map<number, ProtectedBlock> {
   const blocks = new Map<number, ProtectedBlock>();
   parser.parse(markdown).iterate({
     enter(node) {
-      if (literalLinks && (node.name === 'Link' || node.name === 'Image')) {
-        literalLinks.push({ from: node.from, to: node.to });
+      if (node.name === 'Link' || node.name === 'Image') {
+        if (preserveLiterals) {
+          literalLinks.push({ from: node.from, to: node.to });
+        } else {
+          for (const name of ['URL', 'LinkTitle']) {
+            const part = node.node.getChild(name);
+            if (part) literalLinks.push({ from: part.from, to: part.to });
+          }
+        }
         return false;
       }
       if (node.name !== 'FencedCode' && node.name !== 'CodeBlock' && node.name !== 'LinkReference') return;
@@ -597,10 +604,9 @@ function splitInlineMarkdown(
   return {};
 }
 
-function splitMarkdown(markdown: string, literalLinks?: Array<{ from: number; to: number }>): MarkdownSegment[] {
-  const preserveLiterals = literalLinks !== undefined;
+function splitMarkdown(markdown: string, literalLinks: Array<{ from: number; to: number }>, preserveLiterals: boolean): MarkdownSegment[] {
   const segments: MarkdownSegment[] = [];
-  const codeBlocks = getProtectedBlocks(markdown, literalLinks);
+  const codeBlocks = getProtectedBlocks(markdown, literalLinks, preserveLiterals);
   let rawHtmlTag: string | null = null;
   let inlineCodeRunLength: number | null = null;
   let inlineHtmlEnd: number | null = null;
@@ -815,31 +821,28 @@ export function transformMarkdownSegments(
   markdown: string,
   transforms: MarkdownTransforms,
 ): string {
-  const literalLinks = transforms.preserveLiterals ? [] as Array<{ from: number; to: number }> : undefined;
+  const literalLinks: Array<{ from: number; to: number }> = [];
   let offset = 0;
   let nextLink = 0;
-  return splitMarkdown(markdown, literalLinks)
+  return splitMarkdown(markdown, literalLinks, transforms.preserveLiterals === true)
     .map(segment => {
       const start = offset;
       offset += segment.text.length;
-      if (segment.fence) {
-        return transforms.fence?.(segment.text, segment.fence) ?? segment.text;
-      }
-      if (segment.wikilink) {
-        return transforms.wikilink?.(segment.text, segment.wikilink) ?? segment.text;
-      }
-      if (segment.rawHtml) {
-        return transforms.rawHtml?.(segment.text) ?? segment.text;
-      }
-      if (segment.transformable) {
-        if (!literalLinks?.length) return transforms.text?.(segment.text) ?? segment.text;
+      const { fence, wikilink, rawHtml, transformable } = segment;
+      const transform = fence
+        ? (text: string) => transforms.fence?.(text, fence) ?? text
+        : wikilink
+          ? (text: string) => transforms.wikilink?.(text, wikilink) ?? text
+          : rawHtml ? transforms.rawHtml : transformable ? transforms.text : undefined;
+      if (transform) {
+        if (literalLinks.length === 0) return transform(segment.text);
         while (nextLink < literalLinks.length && literalLinks[nextLink].to <= start) nextLink++;
         let cursor = start;
         const parts: string[] = [];
         while (nextLink < literalLinks.length && literalLinks[nextLink].from < offset) {
           const link = literalLinks[nextLink];
           const before = markdown.slice(cursor, Math.max(cursor, link.from));
-          parts.push(transforms.text?.(before) ?? before);
+          parts.push(transform(before));
           const end = Math.min(offset, link.to);
           parts.push(markdown.slice(Math.max(cursor, link.from), end));
           cursor = end;
@@ -847,7 +850,7 @@ export function transformMarkdownSegments(
           nextLink++;
         }
         const tail = markdown.slice(cursor, offset);
-        parts.push(transforms.text?.(tail) ?? tail);
+        parts.push(transform(tail));
         return parts.join('');
       }
       return segment.text;

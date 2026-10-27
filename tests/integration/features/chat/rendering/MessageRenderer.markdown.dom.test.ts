@@ -138,3 +138,18 @@ it.each([
   expect(MarkdownRenderer.render).toHaveBeenLastCalledWith(app,
     `${link} and ${visible} &lt;meta-name&gt;`, host, '', expect.any(Component));
 });
+
+
+describe.each([false, true])('complete multiline link boundaries with deferMath=%s', deferMath => {
+  it.each([
+    '[Price](\nhttps://host/$price\n)',
+    '[Price](https://host/$price\n  "Price $10")',
+    '[Price](<https://host/$price>\n  "Price $10 with <meta-name>")',
+  ])('preserves the destination and title while transforming visible prose: %s', async link => {
+    await renderer.renderContent(host, `${link} and $visible$ <placeholder>`, { deferMath });
+
+    const visible = deferMath ? '\\$visible\\$' : '$visible$';
+    expect(MarkdownRenderer.render).toHaveBeenLastCalledWith(app,
+      `${link} and ${visible} &lt;placeholder&gt;`, host, '', expect.any(Component));
+  });
+});
