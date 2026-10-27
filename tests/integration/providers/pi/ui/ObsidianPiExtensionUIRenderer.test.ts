@@ -6,16 +6,26 @@ import type { App } from 'obsidian';
 
 jest.mock('obsidian', () => {
   const actual = jest.requireActual('obsidian');
+  let nextModalId = 0;
   class Modal {
-    contentEl = document.createElement('section');
-    open() {
+    modalEl = document.createElement('div');
+    titleEl = this.modalEl.appendChild(document.createElement('div'));
+    contentEl = this.modalEl.appendChild(document.createElement('section'));
+    constructor() {
+      this.titleEl.id = `pi-extension-title-${++nextModalId}`;
+      this.modalEl.setAttribute('role', 'dialog');
+      this.modalEl.setAttribute('aria-modal', 'true');
+      this.modalEl.setAttribute('aria-labelledby', this.titleEl.id);
       this.contentEl.setAttribute('aria-label', 'Pi extension');
-      document.body.appendChild(this.contentEl);
+    }
+    setTitle(title: string) { this.titleEl.textContent = title; return this; }
+    open() {
+      document.body.appendChild(this.modalEl);
       (this as unknown as { onOpen(): void }).onOpen();
     }
     close() {
       (this as unknown as { onClose(): void }).onClose();
-      this.contentEl.remove();
+      this.modalEl.remove();
     }
   }
   return { ...actual, Modal };
@@ -26,6 +36,22 @@ import type { PiRPCTransport } from '@/providers/pi/runtime/PiRPCTransport';
 import { ObsidianPiExtensionUIRenderer } from '@/providers/pi/ui/ObsidianPiExtensionUIRenderer';
 HTMLElement.prototype.empty = function () { this.replaceChildren(); };
 HTMLElement.prototype.addClass = function (...names) { this.classList.add(...names); };
+
+it.each(['select', 'confirm', 'input', 'editor'] as const)('names the native %s modal for assistive technology', async method => {
+  const controller = new AbortController();
+  const renderer = new ObsidianPiExtensionUIRenderer({} as App);
+  const result = renderer[method]({ id: 'named', title: ' Review deployment ', options: ['Proceed'] }, controller.signal);
+  try {
+    const dialog = within(document.body).getByRole('dialog', { name: 'Review deployment' });
+    expect(await axe(dialog)).toHaveNoViolations();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await expect(result).resolves.toEqual(method === 'confirm' ? { confirmed: false } : { cancelled: true });
+  } finally {
+    controller.abort();
+    await result;
+    document.body.replaceChildren();
+  }
+});
 
 it.each(['input', 'editor'] as const)('submits an accessible %s field', async method => {
   const controller = new AbortController();
@@ -88,7 +114,7 @@ it.each(['input', 'editor'] as const)('localizes fallback %s titles and controls
   const result = renderer[method]({ id: 'localized', defaultValue: 'Provider text' }, controller.signal);
   try {
     const region = within(document.body).getByRole('region', { name: 'Pi extension' });
-    expect(within(region).getByRole('heading', { name: 'Pi 扩展' })).toBeDefined();
+    expect(within(document.body).getByRole('dialog', { name: 'Pi 扩展' })).toBeDefined();
     expect(within(region).getByRole('textbox', { name: 'Pi 扩展' })).toHaveProperty('value', 'Provider text');
     expect(within(region).getByRole('button', { name: '取消' })).toBeDefined();
     fireEvent.click(within(region).getByRole('button', { name: '提交' }));

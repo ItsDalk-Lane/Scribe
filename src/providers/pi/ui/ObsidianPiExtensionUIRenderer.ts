@@ -151,7 +151,7 @@ abstract class PiExtensionModal<TResult extends Record<string, unknown>> extends
   }
 
   protected renderHeader(fallbackTitle: string): void {
-    this.contentEl.createEl('h2', { text: getTitle(this.request, fallbackTitle) });
+    this.setTitle(getTitle(this.request, fallbackTitle));
     const message = getMessage(this.request);
     if (message) {
       this.contentEl.createEl('p', { text: message });
