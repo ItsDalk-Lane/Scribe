@@ -4,6 +4,7 @@ import * as path from 'node:path';
 
 import { testTime } from '@test/helpers/testClock';
 
+import { locateSDKSession } from '@/providers/claude/history/ClaudeHistoryPathResolver';
 import { loadSDKSessionMessages } from '@/providers/claude/history/ClaudeHistoryStore';
 import { loadClaudeTurnStats } from '@/providers/claude/history/ClaudeTurnStats';
 import type { SDKNativeMessage } from '@/providers/claude/history/sdkHistoryTypes';
@@ -114,6 +115,39 @@ it.each([
     expect(replay.messages.at(-1)?.turnStats).toEqual(stats);
     expect(replay.messages.map(message => message.content || message.contentBlocks?.[0]?.type))
       .toEqual(['Work', 'tool_use', ...Array.from({ length: count }, (_, index) => `Steer ${index}`), 'Done']);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
+// Project directory names captured from the installed Claude Agent SDK 0.3.293 encoder.
+it.each(['archive', 'archive-other'])('reads native history for a long vault path ending in %s', async ending => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-long-vault-'));
+  const posixVault = '/vaults/' + 'research'.repeat(12) + '/' + 'notes'.repeat(25) + '/' + ending;
+  const vaultPath = process.platform === 'win32' ? 'C:' + posixVault.replaceAll('/', '\\') : posixVault;
+  const nativeProject = process.platform === 'win32'
+    ? (ending === 'archive' ? 'C--vaults-researchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearch-notesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnot-xp5q4b' : 'C--vaults-researchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearch-notesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnot-jhs1tk')
+    : (ending === 'archive' ? '-vaults-researchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearch-notesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotes-qufhm0' : '-vaults-researchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearchresearch-notesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotesnotes-utxqt');
+  const directory = path.join(home, 'projects', nativeProject);
+  await fs.mkdir(directory, { recursive: true });
+  const filePath = path.join(directory, 'session.jsonl');
+  await fs.writeFile(filePath, [
+    { type: 'user', uuid: 'u', timestamp: testTime(), message: { content: 'Question' } },
+    { type: 'assistant', uuid: 'a', parentUuid: 'u', timestamp: testTime({ seconds: 2 }),
+      message: { id: 'response', stop_reason: 'end_turn', usage: { output_tokens: 12 }, content: [{ type: 'text', text: ending }] } },
+  ].map(record => JSON.stringify(record)).join('\n'));
+  const context = { environment: { CLAUDE_CONFIG_DIR: home } };
+  try {
+    const [location, replay, stats] = await Promise.all([
+      locateSDKSession(vaultPath, 'session', context),
+      loadSDKSessionMessages(vaultPath, 'session', undefined, undefined, context),
+      loadClaudeTurnStats(vaultPath, 'session', 'a', context).catch((error: NodeJS.ErrnoException) => error.code),
+    ]);
+    expect({ location, contents: replay.messages.map(message => message.content), error: replay.error, stats }).toEqual({
+      location: { availability: 'available', sessionPath: filePath },
+      contents: ['Question', ending], error: undefined,
+      stats: { outputTokens: 12, durationMs: 2000 },
+    });
   } finally {
     await fs.rm(home, { recursive: true, force: true });
   }

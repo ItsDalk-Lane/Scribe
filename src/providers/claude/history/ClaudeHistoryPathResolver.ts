@@ -16,12 +16,18 @@ export interface SDKSessionLocation {
 
 /**
  * Encodes a vault path for the SDK project directory name.
- * The SDK replaces ALL non-alphanumeric characters with `-`.
- * This handles Unicode characters and special chars.
+ * The SDK replaces non-alphanumeric characters with `-`; long names use its
+ * 200-character prefix and a base-36 hash of the original absolute path.
  */
 export function encodeVaultPathForSDK(vaultPath: string): string {
   const absolutePath = path.resolve(vaultPath);
-  return absolutePath.replace(/[^a-zA-Z0-9]/g, '-');
+  const encoded = absolutePath.replace(/[^a-zA-Z0-9]/g, '-');
+  if (encoded.length <= 200) return encoded;
+  let hash = 0;
+  for (let index = 0; index < absolutePath.length; index++) {
+    hash = ((hash << 5) - hash + absolutePath.charCodeAt(index)) | 0;
+  }
+  return `${encoded.slice(0, 200)}-${Math.abs(hash).toString(36)}`;
 }
 
 export function getSDKProjectsPath(context?: ClaudeConfigDirContext): string {
