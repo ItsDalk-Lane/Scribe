@@ -24,12 +24,15 @@ import type { ProviderCapabilities } from '@/core/providers/types';
 import { getToolIcon } from '@/core/tools/toolIcons';
 import type { ClaudianSettings, Conversation, StreamChunk } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
+import { ChatState } from '@/features/chat/state/ChatState';
 import { destroyTab } from '@/features/chat/tabs/TabLifecycle';
 import { createTabRuntime } from '@/features/chat/tabs/TabRuntimeFactory';
 import type { AssembledTabRuntime } from '@/features/chat/tabs/types';
 import { FLAVOR_TEXTS } from '@/features/chat/turns/flavorTexts';
 import { createChatFocusCommand } from '@/features/chat/workspace/ChatFocusCommand';
+import type { ZenPresentationPort } from '@/features/chat/zen/types';
 import { ZenModeController } from '@/features/chat/zen/ZenModeController';
+import { ZenModePanel } from '@/features/chat/zen/ZenModePanel';
 import { adaptCodexStreamChunk } from '@/providers/codex/execution/CodexExecutionEventNormalizer';
 import { CodexNotificationRouter } from '@/providers/codex/runtime/CodexNotificationRouter';
 import { VaultMentionDataProvider } from '@/shared/mention/VaultMentionDataProvider';
@@ -1680,4 +1683,40 @@ it('releases every moved node and subscription on close and disposal', async () 
   expect(zenPanel()).toBeNull();
   expect(workspace.listenerCount()).toBe(0);
   expect(screen.queryByRole('region', { name: 'Claudian chat' })).toBeNull();
+});
+
+it('announces the current error when the same zen panel binds another failed session', async () => {
+  const host = document.body.createDiv();
+  const panel = new ZenModePanel(host, { keymap: null, parentScope: new Scope(),
+    historyExpanded: false, position: null, onPositionChange() {}, onHistoryExpandedChange() {} });
+  cleanups.push(() => panel.destroy());
+  const source = (message: string): ZenPresentationPort => {
+    const state = new ChatState();
+    state.addMessage({ id: 'prompt', role: 'user', content: 'Please help', timestamp: testDate().getTime() });
+    state.addMessage({ id: 'reply', role: 'assistant', content: message, timestamp: testDate().getTime() });
+    state.recordActivity({ kind: 'error', message });
+    return { state, window, subscribeActivity: listener => state.subscribeActivity(listener),
+      captureScroll: () => ({ top: 0, follow: false }), restoreScroll() {} };
+  };
+  const first = source('Provider overloaded');
+  const second = source('Authentication expired');
+  panel.bind(first, 'claude');
+  const status = within(host).getByRole('status');
+  expect(status.textContent).toBe('Error: Provider overloaded');
+  panel.bind(second, 'claude');
+  expect(status.textContent).toBe('Error: Authentication expired');
+  expect(within(host).getByRole('button', { name: 'Show conversation', description: 'Error: Authentication expired' })).toBeDefined();
+  expect(await axe(host)).toHaveNoViolations();
+
+  const mutations = new MutationObserver(() => undefined);
+  mutations.observe(status, { childList: true, characterData: true, subtree: true });
+  jest.useFakeTimers();
+  try {
+    panel.bind(second, 'claude');
+    jest.advanceTimersByTime(50);
+    expect(status.textContent).toBe('Error: Authentication expired');
+    expect(mutations.takeRecords()).toHaveLength(0);
+  } finally {
+    mutations.disconnect(); jest.useRealTimers();
+  }
 });
