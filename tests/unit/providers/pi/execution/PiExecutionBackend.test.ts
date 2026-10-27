@@ -980,6 +980,33 @@ describe('PiExecutionBackend', () => {
     });
   });
 
+  it.each([
+    { label: 'successful', outcome: { aborted: false, result: { summary: 'Summary', firstKeptEntryId: 'entry', tokensBefore: 1000 } }, boundaries: 1, notices: [] },
+    { label: 'legacy successful', outcome: {}, boundaries: 1, notices: [] },
+    { label: 'cancelled', outcome: { aborted: true, result: undefined }, boundaries: 0, notices: [] },
+    { label: 'failed', outcome: { aborted: false, result: undefined, errorMessage: 'Auto-compaction failed: provider unavailable.' }, boundaries: 0,
+      notices: [{ type: 'notice', message: 'Auto-compaction failed: provider unavailable.', level: 'warning' }] },
+  ])('reports $label native compaction without inventing a successful boundary', async ({ outcome, boundaries, notices }) => {
+    const harness = createHarness();
+    const eventsPromise = collect(harness.session.execute(createRequest()).events);
+    await waitFor(() => harness.kernels[0]?.requests.some(request => request.type === 'prompt') ?? false);
+    const kernel = harness.kernels[0];
+    kernel.emit({ type: 'agent_start' });
+    kernel.emit({ type: 'compaction_start', reason: 'threshold' });
+    kernel.emit({ type: 'compaction_end', reason: 'threshold', willRetry: false, ...outcome });
+    kernel.emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'The ordinary reply continues.' } });
+    kernel.emit({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } });
+    kernel.emit({ type: 'agent_end', messages: [], willRetry: false });
+    kernel.emit({ type: 'agent_settled' });
+    const events = await eventsPromise;
+    expect(events.filter(event => event.type === 'context_compacted')).toHaveLength(boundaries);
+    expect(events.filter(event => event.type === 'notice').map(({ type, message, level }) => ({ type, message, level }))).toEqual(notices);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'text_delta', text: 'The ordinary reply continues.' }));
+    expect(events.at(-1)?.type).toBe('turn_completed');
+    expect(harness.session.getStatus()).toBe('idle');
+    await harness.session.dispose();
+  });
+
   it('completes a recovered context overflow after compaction starts another run', async () => {
     const harness = createHarness();
     const eventsPromise = collect(harness.session.execute(createRequest()).events);

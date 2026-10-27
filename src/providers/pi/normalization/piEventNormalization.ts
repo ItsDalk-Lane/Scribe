@@ -54,8 +54,13 @@ export function normalizePiRPCEvent(
     case 'message_end':
     case 'turn_end':
       return normalizeTerminalError(event);
-    case 'compaction_end':
-      return [{ type: 'context_compacted' }];
+    case 'compaction_end': {
+      if (event.aborted === true) return [];
+      const errorMessage = getString(event.errorMessage);
+      return errorMessage
+        ? [{ type: 'notice', content: errorMessage, level: 'warning' }]
+        : [{ type: 'context_compacted' }];
+    }
     case 'auto_retry_start':
       return [{ type: 'notice', content: 'Pi is retrying the turn.', level: 'warning' }];
     case 'auto_retry_end':
