@@ -542,6 +542,31 @@ it('publishes session status only when its list projection changes', async () =>
   await destroyTab(tab);
 });
 
+it('keeps a newer composer draft when first conversation creation fails', async () => {
+  const h = setup();
+  const creating = deferred<Conversation>();
+  Object.assign(h.plugin, { createConversation: jest.fn(() => creating.promise) });
+  Object.assign(h.plugin.app.workspace, { getActiveFile: () => null });
+  const tab = await h.attach({ blank: true });
+  tab.controllers.drafts.restore('main', { content: 'First request' });
+  const sending = tab.controllers.inputController.sendMessage();
+  await waitFor(() => expect(h.plugin.createConversation).toHaveBeenCalled());
+  const newerDraft = '    followUp()\n';
+  const newerImage = { id: 'new-image', name: 'next.png', mediaType: 'image/png' as const,
+    data: 'bmV4dA==', size: 4, source: 'paste' as const };
+  tab.controllers.drafts.restore('main', { content: newerDraft, images: [newerImage] });
+  creating.reject(new Error('Disk full'));
+  await Promise.allSettled([sending]);
+
+  expect(tab.controllers.drafts.capture('main')).toEqual({
+    content: `First request\n\n${newerDraft}`, images: [newerImage],
+  });
+  expect(tab.state.messages).toEqual([]);
+  expect(tab.state.currentConversationId).toBeNull();
+  expect(h.backend.sessions.flatMap(session => session.requests)).toEqual([]);
+  await destroyTab(tab);
+});
+
 it('releases a closed blank tab whose conversation creation failed with no presentation to recover into', async () => {
   const h = setup();
   const creating = deferred<Conversation>();

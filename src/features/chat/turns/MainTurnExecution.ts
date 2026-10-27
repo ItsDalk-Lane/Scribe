@@ -233,7 +233,7 @@ export class MainTurnExecution {
       if ((turn.origin === 'user' && this.#retainUnsentTurnOnClose(signal)) || restoreCancelledInput()) return;
     } catch (error) {
       admission.rollbackIfUncreated();
-      restoreUnsentInput(turnRequest, false);
+      restoreUnsentInput(turnRequest);
       rollbackFailedTurn();
       throw error;
     }
