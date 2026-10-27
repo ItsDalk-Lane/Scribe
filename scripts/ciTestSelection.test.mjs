@@ -81,6 +81,7 @@ test('real dependency discovery retains native launch checks for shared process 
   assert.deepEqual(result.crossPlatformTests.sort(), [
     'tests/integration/core/process/ManagedStdioProcess.test.ts',
     'tests/integration/core/process/ProcessProbe.test.ts',
+    'tests/integration/core/process/cliBinaryLocator.test.ts',
     'tests/integration/core/process/loginShellPath.test.ts',
     'tests/integration/providers/deepseek/app/DeepSeekWorkspaceServices.test.ts',
     'tests/integration/providers/deepseek/runtime/DeepSeekHostProcess.test.ts',

@@ -17,6 +17,8 @@ describe('findClaudeBinaryPath', () => {
 
   beforeEach(() => {
     originalEnv = { ...process.env };
+    // These cases supply virtual files; permission filtering is exercised with real files in CLI discovery integration.
+    jest.spyOn(fs, 'accessSync').mockImplementation(() => undefined);
     process.env.PATH = '';
   });
 
@@ -235,6 +237,8 @@ describe('native platform CLI discovery', () => {
 
   beforeEach(() => {
     originalEnv = { ...process.env };
+    // These cases supply virtual files; permission filtering is exercised with real files in CLI discovery integration.
+    jest.spyOn(fs, 'accessSync').mockImplementation(() => undefined);
   });
 
   afterEach(() => {

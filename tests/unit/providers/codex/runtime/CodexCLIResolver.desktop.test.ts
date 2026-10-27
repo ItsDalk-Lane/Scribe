@@ -14,13 +14,14 @@ it.each(['user', 'system'])('discovers the nested ChatGPT macOS runtime in the %
   const expectedPath = location === 'user' ? fixturePath : path.join('/Applications', runtimeSuffix);
   const actualFs = jest.requireActual<typeof fs>('fs');
   const statSync = actualFs.statSync;
+  const accessSync = actualFs.accessSync;
 
   try {
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
     process.env.HOME = temp;
     process.env.PATH = '';
     fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
-    fs.writeFileSync(fixturePath, '');
+    fs.writeFileSync(fixturePath, '', { mode: 0o755 });
     // Isolate system app installations without writing into /Applications.
     jest.spyOn(actualFs, 'statSync').mockImplementation((candidate, options) => {
       const filePath = path.normalize(String(candidate));
@@ -32,6 +33,10 @@ it.each(['user', 'system'])('discovers the nested ChatGPT macOS runtime in the %
         throw Object.assign(new Error('No user app fixture'), { code: 'ENOENT' });
       }
       return statSync(candidate, options);
+    });
+    jest.spyOn(actualFs, 'accessSync').mockImplementation((candidate, mode) => {
+      // The system installation is the same executable fixture, addressed through the virtual /Applications path.
+      accessSync(location === 'system' && path.normalize(String(candidate)) === expectedPath ? fixturePath : candidate, mode);
     });
 
     const resolver = new CodexCLIResolver();

@@ -27,6 +27,7 @@ export function findCodexBinaryPath(
   const explicitPathBinary = findBinaryInDirectories(
     parseCLIPathEntries(additionalPath, platform),
     binaryNames,
+    platform,
   );
   if (explicitPathBinary) {
     return explicitPathBinary;
@@ -46,6 +47,7 @@ export function findCodexBinaryPath(
   const inheritedPathBinary = findBinaryInDirectories(
     parseCLIPathEntries(process.env.PATH, platform),
     binaryNames,
+    platform,
   );
   if (inheritedPathBinary) {
     return inheritedPathBinary;
@@ -54,6 +56,7 @@ export function findCodexBinaryPath(
   const preferredBinary = findBinaryInDirectories(
     getPreferredCodexBinaryDirs(platform),
     binaryNames,
+    platform,
   );
   if (preferredBinary) {
     return preferredBinary;

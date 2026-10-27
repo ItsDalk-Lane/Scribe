@@ -33,8 +33,8 @@ describe('CodexBinaryLocator', () => {
   function createCompleteWindowsCodexRuntime(dir: string): string {
     fs.mkdirSync(dir, { recursive: true });
     const cliPath = path.join(dir, 'codex.exe');
-    fs.writeFileSync(cliPath, '');
-    fs.writeFileSync(path.join(dir, 'codex-code-mode-host.exe'), '');
+    fs.writeFileSync(cliPath, '', { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, 'codex-code-mode-host.exe'), '', { mode: 0o755 });
     return cliPath;
   }
 
@@ -58,7 +58,7 @@ describe('CodexBinaryLocator', () => {
     const pathDir = path.join(tempDir, 'bin');
     const pathBinary = path.join(pathDir, process.platform === 'win32' ? 'codex.exe' : 'codex');
     fs.mkdirSync(pathDir, { recursive: true });
-    fs.writeFileSync(pathBinary, '');
+    fs.writeFileSync(pathBinary, '', { mode: 0o755 });
 
     expect(findCodexBinaryPath(pathDir, process.platform)).toBe(pathBinary);
   });
@@ -67,7 +67,7 @@ describe('CodexBinaryLocator', () => {
     const pathDir = path.join(tempDir, 'bin');
     const pathBinary = path.join(pathDir, 'codex.cmd');
     fs.mkdirSync(pathDir, { recursive: true });
-    fs.writeFileSync(pathBinary, '');
+    fs.writeFileSync(pathBinary, '', { mode: 0o755 });
 
     expect(findCodexBinaryPath(pathDir, 'win32')).toBe(pathBinary);
   });
@@ -101,7 +101,7 @@ describe('CodexBinaryLocator', () => {
     const incompleteDir = path.join(runtimeRoot, 'newer-incomplete-runtime');
     fs.mkdirSync(incompleteDir, { recursive: true });
     const incompleteCliPath = path.join(incompleteDir, 'codex.exe');
-    fs.writeFileSync(incompleteCliPath, '');
+    fs.writeFileSync(incompleteCliPath, '', { mode: 0o755 });
     fs.utimesSync(
       olderCompleteCliPath,
       new Date('2026-01-01T00:00:00Z'),
@@ -151,15 +151,15 @@ describe('CodexBinaryLocator', () => {
     fs.mkdirSync(secondPathDir);
     const firstPathBinary = path.join(firstPathDir, 'codex.cmd');
     const secondPathBinary = path.join(secondPathDir, 'codex.exe');
-    fs.writeFileSync(firstPathBinary, '');
-    fs.writeFileSync(secondPathBinary, '');
+    fs.writeFileSync(firstPathBinary, '', { mode: 0o755 });
+    fs.writeFileSync(secondPathBinary, '', { mode: 0o755 });
     process.env.PATH = `"${path.join(tempDir, 'missing')}";"${firstPathDir}";"${secondPathDir}"`;
     const explicitDir = path.join(tempDir, 'my tools');
     fs.mkdirSync(explicitDir);
     const shim = path.join(explicitDir, 'codex.cmd');
-    fs.writeFileSync(shim, '');
+    fs.writeFileSync(shim, '', { mode: 0o755 });
     const configured = path.join(tempDir, 'configured.exe');
-    fs.writeFileSync(configured, '');
+    fs.writeFileSync(configured, '', { mode: 0o755 });
     const runtimePath = `"${path.join(tempDir, 'missing')}";"${explicitDir}"`;
 
     expect(resolveCodexCLIPath(configured, '', `PATH='${runtimePath}'`, { method: 'native-windows' })).toBe(configured);
@@ -188,12 +188,14 @@ describe('CodexBinaryLocator', () => {
     const pathDir = '/mock/chosen-cli';
     const pathBinary = path.join(pathDir, 'codex');
     const nativeFile = path.join(tempDir, 'codex');
-    fs.writeFileSync(nativeFile, '');
+    fs.writeFileSync(nativeFile, '', { mode: 0o755 });
     const fileStat = fs.statSync(nativeFile);
     jest.spyOn(jest.requireActual<typeof fs>('fs'), 'statSync').mockImplementation(candidate => {
       if ([pathBinary, path.join(automaticDir, 'codex')].includes(path.normalize(String(candidate)))) return fileStat;
       throw Object.assign(new Error('No fixture'), { code: 'ENOENT' });
     });
+    // This case supplies virtual files; real execute-permission behavior has filesystem integration coverage.
+    jest.spyOn(jest.requireActual<typeof fs>('fs'), 'accessSync').mockImplementation(() => undefined);
     process.env.PATH = pathDir;
 
     expect(findCodexBinaryPath('', platform)).toBe(pathBinary);
@@ -205,7 +207,7 @@ describe('CodexBinaryLocator', () => {
     process.env.LOCALAPPDATA = tempDir;
     const override = path.join(tempDir, 'incomplete');
     fs.mkdirSync(override);
-    fs.writeFileSync(path.join(override, 'codex.exe'), '');
+    fs.writeFileSync(path.join(override, 'codex.exe'), '', { mode: 0o755 });
     process.env.CODEX_INSTALL_DIR = override;
     const desktop = createCompleteWindowsCodexRuntime(
       path.join(tempDir, 'OpenAI', 'Codex', 'bin', 'hash'),
@@ -227,8 +229,8 @@ describe('CodexBinaryLocator', () => {
     );
     fs.mkdirSync(appDir, { recursive: true });
     fs.mkdirSync(chatGptAppDir, { recursive: true });
-    fs.writeFileSync(appBinary, '');
-    fs.writeFileSync(path.join(chatGptAppDir, 'codex'), '');
+    fs.writeFileSync(appBinary, '', { mode: 0o755 });
+    fs.writeFileSync(path.join(chatGptAppDir, 'codex'), '', { mode: 0o755 });
 
     expect(findCodexBinaryPath('', 'darwin')).toBe(appBinary);
   });
@@ -238,7 +240,7 @@ describe('CodexBinaryLocator', () => {
     const appDir = path.join(tempDir, 'Applications', 'ChatGPT.app', 'Contents', 'Resources');
     const appBinary = path.join(appDir, 'codex');
     fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(appBinary, '');
+    fs.writeFileSync(appBinary, '', { mode: 0o755 });
 
     expect(findCodexBinaryPath('', 'darwin')).toBe(appBinary);
   });
@@ -250,8 +252,8 @@ describe('CodexBinaryLocator', () => {
     const appDir = path.join(tempDir, 'Applications', 'ChatGPT.app', 'Contents', 'Resources');
     fs.mkdirSync(localDir, { recursive: true });
     fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(localBinary, '');
-    fs.writeFileSync(path.join(appDir, 'codex'), '');
+    fs.writeFileSync(localBinary, '', { mode: 0o755 });
+    fs.writeFileSync(path.join(appDir, 'codex'), '', { mode: 0o755 });
 
     expect(findCodexBinaryPath('', 'darwin')).toBe(localBinary);
   });
@@ -263,8 +265,8 @@ describe('CodexBinaryLocator', () => {
     const appDir = path.join(tempDir, 'Applications', 'Codex.app', 'Contents', 'Resources');
     fs.mkdirSync(explicitDir, { recursive: true });
     fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(explicitBinary, '');
-    fs.writeFileSync(path.join(appDir, 'codex'), '');
+    fs.writeFileSync(explicitBinary, '', { mode: 0o755 });
+    fs.writeFileSync(path.join(appDir, 'codex'), '', { mode: 0o755 });
 
     expect(findCodexBinaryPath(explicitDir, process.platform)).toBe(explicitBinary);
   });
@@ -274,7 +276,7 @@ describe('CodexBinaryLocator', () => {
     const localDir = path.join(tempDir, '.local', 'bin');
     const localBinary = path.join(localDir, 'codex');
     fs.mkdirSync(localDir, { recursive: true });
-    fs.writeFileSync(localBinary, '');
+    fs.writeFileSync(localBinary, '', { mode: 0o755 });
 
     expect(findCodexBinaryPath('', 'linux')).toBe(localBinary);
   });
@@ -282,15 +284,15 @@ describe('CodexBinaryLocator', () => {
   it('prefers a hostname-specific configured path', () => {
     const hostnamePath = path.join(tempDir, 'hostname-codex');
     const legacyPath = path.join(tempDir, 'legacy-codex');
-    fs.writeFileSync(hostnamePath, '');
-    fs.writeFileSync(legacyPath, '');
+    fs.writeFileSync(hostnamePath, '', { mode: 0o755 });
+    fs.writeFileSync(legacyPath, '', { mode: 0o755 });
 
     expect(resolveCodexCLIPath(hostnamePath, legacyPath, '')).toBe(hostnamePath);
   });
 
   it('falls back to a legacy configured path', () => {
     const legacyPath = path.join(tempDir, 'legacy-codex');
-    fs.writeFileSync(legacyPath, '');
+    fs.writeFileSync(legacyPath, '', { mode: 0o755 });
 
     expect(resolveCodexCLIPath('', legacyPath, '')).toBe(legacyPath);
   });
@@ -299,7 +301,7 @@ describe('CodexBinaryLocator', () => {
     const pathDir = path.join(tempDir, 'bin');
     const pathBinary = path.join(pathDir, process.platform === 'win32' ? 'codex.exe' : 'codex');
     fs.mkdirSync(pathDir, { recursive: true });
-    fs.writeFileSync(pathBinary, '');
+    fs.writeFileSync(pathBinary, '', { mode: 0o755 });
 
     expect(resolveCodexCLIPath('', '', `PATH=${pathDir}`)).toBe(pathBinary);
   });

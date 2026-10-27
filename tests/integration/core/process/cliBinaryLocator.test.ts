@@ -1,10 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
 import { findCLIBinaryPath } from '@/core/process/cliBinaryLocator';
 import { getEnhancedPath } from '@/core/process/env';
+import { CachedProviderCLIResolver } from '@/core/providers/cli/CachedProviderCLIResolver';
+import { probeCLIInstallation } from '@/core/providers/cli/CLIInstallationProbe';
+
+const describeUnix = process.platform === 'win32' ? describe.skip : describe;
 
 describe('enhanced CLI discovery and subprocess PATH', () => {
   const originalEnv = process.env;
@@ -87,4 +91,30 @@ describe('enhanced CLI discovery and subprocess PATH', () => {
       }).trim()).toBe('mise probe ok');
     },
   );
+
+  describeUnix('Unix executable admission', () => {
+    it('skips a non-executable PATH file and probes the later runnable installation', async () => {
+      const first = path.join(directory, 'first bin');
+      const second = path.join(directory, 'second bin');
+      mkdirSync(first); mkdirSync(second);
+      const name = 'claudian-executable-probe';
+      writeFileSync(path.join(first, name), 'not executable');
+      chmodSync(path.join(first, name), 0o644);
+      const executable = path.join(second, name);
+      symlinkSync(process.execPath, executable);
+      const envPath = [first, second].join(path.delimiter);
+      // The OS PATH search already skips this non-executable file.
+      expect(execFileSync(name, ['--version'], { env: { ...process.env, PATH: envPath }, encoding: 'utf8' }).trim())
+        .toBe(`v${process.versions.node}`);
+      const resolver = new CachedProviderCLIResolver({
+        binaryName: name, providerId: 'test-provider', hostnameKey: 'test-host',
+        getSettingsProjection: () => ({ environmentText: `PATH=${envPath}` }),
+      });
+      const installation = await probeCLIInstallation({
+        path: resolver.resolveFromSettings({}), configuredPath: '', args: ['--version'],
+        env: { ...process.env, PATH: envPath },
+      });
+      expect(installation).toEqual({ path: executable, version: process.versions.node, source: 'auto' });
+    });
+  });
 });

@@ -39,7 +39,7 @@ describe('ClaudeCLIResolver', () => {
   const createExecutable = (...segments: string[]): string => {
     const filePath = path.join(tempDir, ...segments);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, '');
+    fs.writeFileSync(filePath, '', { mode: 0o755 });
     return filePath;
   };
 
@@ -70,12 +70,14 @@ describe('ClaudeCLIResolver', () => {
 
   it('resolves a configured CLI path that was pasted with surrounding quotes', () => {
     const cliPath = createExecutable('my tools', 'claude');
+    fs.chmodSync(cliPath, 0o644); // Explicit configured paths retain their existing file-admission policy.
 
     expect(resolveClaudeCLIPath(`"${cliPath}"`, '', '')).toBe(cliPath);
   });
 
   it('does not fall back to PATH discovery when the configured path is quoted', () => {
     const configured = createExecutable('configured dir', 'claude');
+    fs.chmodSync(configured, 0o644); // Explicit configured paths retain their existing file-admission policy.
     const discoverable = createExecutable('path dir', 'claude');
     const envText = `PATH=${path.dirname(discoverable)}`;
 
@@ -84,12 +86,14 @@ describe('ClaudeCLIResolver', () => {
 
   it('resolves a quoted legacy CLI path when no host-scoped path is set', () => {
     const cliPath = createExecutable('legacy dir', 'claude');
+    fs.chmodSync(cliPath, 0o644); // Explicit configured paths retain their existing file-admission policy.
 
     expect(resolveClaudeCLIPath('', `"${cliPath}"`, '')).toBe(cliPath);
   });
 
   it('still resolves an unquoted configured path', () => {
     const cliPath = createExecutable('plain', 'claude');
+    fs.chmodSync(cliPath, 0o644); // Explicit configured paths retain their existing file-admission policy.
 
     expect(resolveClaudeCLIPath(cliPath, '', '')).toBe(cliPath);
   });
