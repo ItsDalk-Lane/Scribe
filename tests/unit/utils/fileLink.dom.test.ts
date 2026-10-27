@@ -28,6 +28,20 @@ function createMockApp(existingFiles: string[]) {
 }
 
 describe('processFileLinks', () => {
+  it.each(['', 'note.md'])('uses only the explicit source for same-note targets (%s)', async sourcePath => {
+    const app = createMockApp(['note.md']);
+    app.workspace = { getActiveFile: jest.fn(() => ({ path: 'note.md', basename: 'note' })) };
+    const container = document.createElement('main');
+    const code = container.appendChild(document.createElement('code'));
+    code.textContent = '[[#Overview]] and [[#^quote-of-the-day]]';
+    processFileLinks(app, container, sourcePath);
+    expect(app.workspace.getActiveFile).not.toHaveBeenCalled();
+    expect(within(container).queryAllByRole('link').map(link => [link.textContent, link.getAttribute('data-href')]))
+      .toEqual(sourcePath ? [['#Overview', '#Overview'], ['#^quote-of-the-day', '#^quote-of-the-day']] : []);
+    expect(code.textContent).toBe(sourcePath ? '#Overview and #^quote-of-the-day' : '[[#Overview]] and [[#^quote-of-the-day]]');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
   describe('null/empty inputs', () => {
     it('handles null app gracefully', () => {
       const container = document.createElement('div');

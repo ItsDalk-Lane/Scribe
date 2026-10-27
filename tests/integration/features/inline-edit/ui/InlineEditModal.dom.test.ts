@@ -492,10 +492,15 @@ it.each([
 });
 
 
-it.each([false, true])('opens inline-code file links from a clarification in the edited note context (already open: %s)', async alreadyOpen => {
+it.each([false, true].flatMap(alreadyOpen => [
+  { alreadyOpen, target: 'target#Overview', label: 'Target', path: 'target', samePage: false },
+  { alreadyOpen, target: '#Overview', label: 'Overview', path: '', samePage: true },
+  { alreadyOpen, target: '#^quote-of-the-day', label: 'Quote', path: '', samePage: true },
+]))('opens inline-code $target from the edited note context (already open: $alreadyOpen)', async ({ alreadyOpen, target, label, path, samePage }) => {
   const h = createHarness();
   const sourcePath = 'Section/note.md';
-  const file = { path: 'Section/target.md' };
+  const file = { path: samePage ? sourcePath : 'Section/target.md', basename: samePage ? 'note' : 'target' };
+  h.app.vault.getAbstractFileByPath = jest.fn((path: string) => path === sourcePath ? file : null);
   const leaf = { getViewState: () => ({ state: { file: file.path } }), setEphemeralState: jest.fn() };
   const unrelated = { getViewState: () => ({ state: { file: 'Elsewhere/target.md' } }), setEphemeralState: jest.fn() };
   h.app.metadataCache = { getFirstLinkpathDest: jest.fn((_path: string, source: string) => source === sourcePath ? file : { path: 'Elsewhere/target.md' }) };
@@ -505,9 +510,9 @@ it.each([false, true])('opens inline-code file links from a clarification in the
     openLinkText: jest.fn().mockResolvedValue(undefined),
   };
   jest.mocked(MarkdownRenderer.render).mockImplementation(async (_app, markdown, element) => {
-    expect(markdown).toBe('Check `[[target#Overview|Target]]`.');
+    expect(markdown).toBe(`Check \`[[${target}|${label}]]\`.`);
     const code = element.createEl('code');
-    code.textContent = '[[target#Overview|Target]]';
+    code.textContent = `[[${target}|${label}]]`;
   });
   const session = new InlineEditSession(h.app, h.plugin, h.plugin, h.editorView, h.editor,
     { mode: 'selection', selectedText: 'hello' }, sourcePath, h.settled, { providerId: 'claude' });
@@ -515,17 +520,19 @@ it.each([false, true])('opens inline-code file links from a clarification in the
     session.show();
     submitInstruction();
     await waitFor(() => expect(h.backend.sessions[0]?.getStatus()).toBe('executing'));
-    h.backend.sessions[0].emitText('Check `[[target#Overview|Target]]`.');
+    h.backend.sessions[0].emitText(`Check \`[[${target}|${label}]]\`.`);
     h.backend.sessions[0].complete();
-    const link = await screen.findByRole('link', { name: 'Target' });
+    const link = await screen.findByRole('link', { name: label });
     // Keep jsdom navigation out of the host-boundary assertion.
     link.addEventListener('click', event => event.preventDefault());
     fireEvent.click(link);
     await waitFor(() => expect(alreadyOpen ? h.app.workspace.revealLeaf : h.app.workspace.openLinkText).toHaveBeenCalledTimes(1));
     expect(h.app.workspace.revealLeaf.mock.calls).toEqual(alreadyOpen ? [[leaf]] : []);
-    expect(leaf.setEphemeralState.mock.calls).toEqual(alreadyOpen ? [[{ focus: true, subpath: '#Overview' }]] : []);
-    expect(h.app.workspace.openLinkText.mock.calls).toEqual(alreadyOpen ? [] : [['target#Overview', sourcePath, 'tab']]);
-    expect(h.app.metadataCache.getFirstLinkpathDest).toHaveBeenLastCalledWith('target', sourcePath);
+    expect(leaf.setEphemeralState.mock.calls).toEqual(alreadyOpen ? [[{ focus: true, subpath: target.slice(path.length) }]] : []);
+    expect(h.app.workspace.openLinkText.mock.calls).toEqual(alreadyOpen ? [] : [[target, sourcePath, 'tab']]);
+    const destinationReads = samePage ? h.app.vault.getAbstractFileByPath.mock.calls
+      : h.app.metadataCache.getFirstLinkpathDest.mock.calls;
+    expect(destinationReads).toContainEqual(samePage ? [sourcePath] : [path, sourcePath]);
     expect(await axe(link)).toHaveNoViolations();
     session.close();
     fireEvent.click(link);
