@@ -19,7 +19,12 @@ export function openProjectMemory(host: ProjectUIHost, project: ProjectRecord): 
 export function editProject(host: ProjectUIHost, project: ProjectRecord): void {
   new ProjectEditorModal(host.app, {
     project,
-    save: input => host.projects.update(project.id, input),
+    // Another window may have committed unrelated changes since this editor opened.
+    save: input => host.projects.update(project.id, {
+      ...(input.name !== project.name ? { name: input.name } : {}),
+      ...(input.instructions !== project.instructions ? { instructions: input.instructions } : {}),
+      ...(input.memoryPath !== project.memoryPath ? { memoryPath: input.memoryPath } : {}),
+    }),
     openMemory: () => openProjectMemory(host, project),
   }).open();
 }

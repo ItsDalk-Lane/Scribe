@@ -71,12 +71,13 @@ it('keeps the editor open when saving fails', async () => {
 
   expect(field(dialog, t('chat.projects.editor.name')).value).toBe('Launch');
   expect(field(dialog, t('chat.projects.editor.instructions')).value).toBe('Keep the memory current.');
+  fireEvent.input(field(dialog, t('chat.projects.editor.instructions')), { target: { value: 'Revised instructions' } });
   fireEvent.keyDown(field(dialog, t('chat.projects.editor.name')), { key: 'Enter' });
 
   await waitFor(() => expect(Notice).toHaveBeenCalledWith(t('chat.projects.errors.update')));
   expect(screen.getByRole('dialog')).toBe(dialog);
   expect(projectHost.projects.update).toHaveBeenCalledWith('project-1', {
-    name: 'Launch', instructions: 'Keep the memory current.', memoryPath: '.claudian/projects/launch/MEMORY.md',
+    instructions: 'Revised instructions',
   });
 });
 
@@ -251,7 +252,7 @@ it('prefills the memory path on edit, keeps it when the name changes, and saves 
 
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(projectHost.projects.update).toHaveBeenCalledWith('project-1', {
-    name: 'Launch v2', instructions: 'Keep the memory current.', memoryPath: 'Work/Launch.md',
+    name: 'Launch v2', memoryPath: 'Work/Launch.md',
   });
 });
 
@@ -268,4 +269,15 @@ it('explains on the field a move that would replace another file and keeps the e
     .toBe(t('chat.projects.editor.memoryPathTaken', { path: 'Work/Launch.md' }));
   expect(Notice).not.toHaveBeenCalled();
   expect(screen.getByRole('dialog')).toBe(dialog);
+});
+
+
+it('keeps a case-only memory path edit in the update patch', async () => {
+  const projectHost = host();
+  editProject(projectHost.ui, { ...record, memoryPath: 'Work/Launch.md' });
+  const dialog = screen.getByRole('dialog', { name: t('chat.projects.editor.titleEdit') });
+  fireEvent.input(field(dialog, t('chat.projects.editor.memoryPath')), { target: { value: 'Work/launch.md' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: t('common.save') }));
+  await waitFor(() => expect(dialog.isConnected).toBe(false));
+  expect(projectHost.projects.update).toHaveBeenCalledWith(record.id, { memoryPath: 'Work/launch.md' });
 });
