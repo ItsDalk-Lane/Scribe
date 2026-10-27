@@ -30,7 +30,7 @@ export class BackgroundResponses {
   }
 
   /** Capture each user boundary synchronously; queued output is assigned by provider sequence, not processing time. */
-  userMessage(owner: string, event: ProviderUserMessageStartedEvent, expected?: PendingProviderUserMessage | null): void {
+  userMessage(owner: string, event: ProviderUserMessageStartedEvent, expected?: PendingProviderUserMessage | null): ChatMessage | undefined {
     const response = this.#owners.get(owner)?.get(event.scope.turnId);
     const previous = response?.spans.at(-1)?.target;
     if (!response || !previous) return;
@@ -52,6 +52,7 @@ export class BackgroundResponses {
     const target = reserveBackgroundTurn(this.host, { index: index + 2, after: message.id, automatic: false });
     response.spans.push({ afterSequence: event.scope.sequence, user: message, target, events: [] });
     this.host.state.hasPendingConversationSave = true;
+    return message;
   }
 
   /** Undefined means no response completed; false means completion without visible output. */
