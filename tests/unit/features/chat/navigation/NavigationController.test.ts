@@ -458,6 +458,7 @@ describe('NavigationController', () => {
     it('does not steal focus when the focus key comes from the Linked content editor', () => {
       const focusSpy = jest.spyOn(inputEl, 'focus');
       const linkedContentInput = {
+        tagName: 'INPUT',
         classList: {
           contains: (className: string) => (
             className === 'claudian-linked-content-picker-search'

@@ -5,6 +5,7 @@ import { axe } from 'jest-axe';
 
 import { InlineAskUserQuestion } from '@/features/chat/interactions/InlineAskUserQuestion';
 import { SessionInteractions } from '@/features/chat/interactions/SessionInteractions';
+import { NavigationController } from '@/features/chat/navigation/NavigationController';
 import { setLocale } from '@/i18n/i18n';
 
 HTMLElement.prototype.empty = function () { this.replaceChildren(); };
@@ -184,4 +185,64 @@ it('localizes plugin-owned approval prompts and returns stable decisions', async
     parent.remove();
     setLocale('en');
   }
+});
+
+
+it.each(['w', 's', 'i'])('leaves %s in a custom question answer to the native input', async key => {
+  const messages = document.body.createDiv();
+  const composer = document.body.createEl('textarea', { attr: { 'aria-label': 'Message' } });
+  const navigation = new NavigationController({ getMessagesEl: () => messages, getInputEl: () => composer,
+    getSettings: () => ({ scrollUpKey: 'w', scrollDownKey: 's', focusInputKey: 'i' }), isStreaming: () => true });
+  const resolve = jest.fn();
+  const panel = new InlineAskUserQuestion(messages, {
+    questions: [{ question: 'Which task?', isOther: true, options: [{ label: 'Default' }] }],
+  }, resolve);
+  navigation.initialize();
+  panel.render();
+  try {
+    const region = within(messages).getByRole('region', { name: 'Question' });
+    await waitFor(() => expect(document.activeElement).toBe(region));
+    const input = within(region).getByRole('textbox', { name: 'Which task?' });
+    input.focus();
+    messages.scrollTop = 100;
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    input.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(input);
+    expect(messages.scrollTop).toBe(100);
+    // Input is the browser's editing event boundary; the actual question owner collects the answer.
+    fireEvent.input(input, { target: { value: 'wise' } });
+    expect(await axe(region)).toHaveNoViolations();
+    fireEvent.click(within(region).getByRole('button', { name: 'Submit' }));
+    fireEvent.click(within(region).getByRole('button', { name: 'Submit answers' }));
+    expect(resolve).toHaveBeenCalledWith({ 'Which task?': 'wise' });
+    messages.focus();
+    fireEvent.keyDown(messages, { key: 'i' });
+    expect(document.activeElement).toBe(composer);
+  } finally { navigation.dispose(); panel.disposePresentation(); messages.remove(); composer.remove(); }
+});
+
+
+it.each(['textarea', 'select', 'contenteditable'] as const)('leaves navigation shortcuts inside an embedded %s control alone', kind => {
+  const messages = document.body.createDiv();
+  const composer = document.body.createEl('textarea', { attr: { 'aria-label': 'Message' } });
+  const navigation = new NavigationController({ getMessagesEl: () => messages, getInputEl: () => composer,
+    getSettings: () => ({ scrollUpKey: 'w', scrollDownKey: 's', focusInputKey: 'i' }), isStreaming: () => false });
+  const editor = messages.createEl(kind === 'contenteditable' ? 'div' : kind, {
+    attr: { 'aria-label': 'Embedded editor', tabindex: '0' },
+  });
+  if (kind === 'contenteditable') editor.setAttribute('contenteditable', 'true');
+  const target = kind === 'contenteditable' ? editor.createSpan({ text: 'Editable child' }) : editor;
+  navigation.initialize();
+  try {
+    editor.focus();
+    messages.scrollTop = 100;
+    for (const key of ['w', 's', 'i']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(document.activeElement).toBe(editor);
+      expect(messages.scrollTop).toBe(100);
+    }
+  } finally { navigation.dispose(); messages.remove(); composer.remove(); }
 });

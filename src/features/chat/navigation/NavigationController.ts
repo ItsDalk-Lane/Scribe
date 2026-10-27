@@ -91,7 +91,9 @@ export class NavigationController {
 
   private handleMessagesKeydown(e: KeyboardEvent): void {
     const eventTarget = e.target as HTMLElement | null;
-    if (eventTarget?.classList?.contains('claudian-linked-content-picker-search')) return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(eventTarget?.tagName ?? '')
+      || eventTarget?.isContentEditable
+      || eventTarget?.closest?.('[contenteditable]:not([contenteditable="false"])')) return;
 
     // Ignore if any modifier is held - allow system shortcuts (Ctrl+W, Cmd+W, etc.)
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
