@@ -438,7 +438,7 @@ export class CodexNotificationRouter {
     }
 
     this.#deferred.publishPending();
-    this.#assistantText.completeTurnMessage(
+    this.#assistantText.completeLegacyMessage(
       firstString(payload.text, payload.message),
       payload.memory_citation ?? payload.memoryCitation,
     );

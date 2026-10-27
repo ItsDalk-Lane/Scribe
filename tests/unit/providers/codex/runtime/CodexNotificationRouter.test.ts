@@ -39,6 +39,36 @@ describe('CodexNotificationRouter', () => {
       expect(chunks.filter(chunk => chunk.type === 'tool_result')).toHaveLength(1);
     });
 
+    it.each([
+      ['different prose', 'I will inspect the file.', 'The answer is 42.'],
+      ['repeated prose', 'Done.', 'Done.'],
+    ])('deduplicates per-message fallback after a tool boundary (%s)', (_label, commentary, answer) => {
+      router.handleNotification('item/completed', { item: {
+        type: 'agentMessage', id: 'commentary', text: commentary, phase: 'commentary',
+      } });
+      router.handleNotification('event_msg', { type: 'agent_message', message: commentary, phase: 'commentary' });
+      router.handleNotification('item/started', { item: {
+        type: 'commandExecution', id: 'cmd', command: 'echo 42', status: 'inProgress',
+      } });
+      router.handleNotification('item/completed', { item: {
+        type: 'commandExecution', id: 'cmd', command: 'echo 42', status: 'completed',
+        aggregatedOutput: '42\n', exitCode: 0,
+      } });
+      router.handleNotification('item/agentMessage/delta', { itemId: 'answer', delta: answer.slice(0, 3) });
+      router.handleNotification('rawResponseItem/completed', { item: {
+        type: 'message', role: 'assistant', content: [{ type: 'output_text', text: answer }],
+      } });
+      router.handleNotification('item/completed', { item: {
+        type: 'agentMessage', id: 'answer', text: answer, phase: 'final_answer',
+      } });
+      router.handleNotification('event_msg', { type: 'agent_message', message: answer, phase: 'final_answer' });
+
+      expect(chunks.filter(chunk => chunk.type === 'text').map(chunk => chunk.content).join(''))
+        .toBe(commentary + answer);
+      expect(chunks.filter(chunk => chunk.type === 'tool_use')).toHaveLength(1);
+      expect(chunks.filter(chunk => chunk.type === 'tool_result')).toHaveLength(1);
+    });
+
     it('accumulates multiple deltas', () => {
       router.handleNotification('item/agentMessage/delta', {
         threadId: 't1', turnId: 'turn1', itemId: 'msg1', delta: 'Hello',
