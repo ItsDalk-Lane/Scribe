@@ -44,6 +44,8 @@ export interface SideChatParent {
   readonly providerId: ProviderId | null;
   readonly isLive: boolean;
   readonly isStreaming: boolean;
+  /** Current selections from the parent's settings owner, copied once when its child starts. */
+  getSettings(): Readonly<SideChatSettingsProjection>;
   /** Reads the parent's hydrated transcript; an evicted parent is reloaded, never read empty. */
   readLatestForkCheckpoint(): Promise<ForkCheckpoint | null>;
   captureForkSource(): Promise<ForkSourceCapture>;

@@ -380,6 +380,7 @@ export function createSessionSideChat(session: ChatSessionRuntime, plugin: ChatF
       get providerId() { return session.providerId; },
       get isLive() { return !session.isDisposed; },
       get isStreaming() { return session.turns.isInFlight; },
+      getSettings: () => getSessionSettingsSnapshot(session, plugin),
       // Transcript reads hold a hydrated model; an evicted parent must not answer from an empty one.
       readLatestForkCheckpoint: () => session.withModel(async model => findLatestForkCheckpoint(model.state.messages)),
       captureForkSource: async () => {

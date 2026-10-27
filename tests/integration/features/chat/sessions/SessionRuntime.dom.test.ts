@@ -16,6 +16,8 @@ import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import type { ClaudianSettings, Conversation, ConversationMutablePatch } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
+import { getChatSettingsSnapshot } from '@/features/chat/ChatSettings';
+import { getSessionSettingsSnapshot, updateSessionProviderSettings, updateSessionReasoning } from '@/features/chat/sessions/sessionSettings';
 import { activateTab, destroyTab } from '@/features/chat/tabs/TabLifecycle';
 import { createTabRuntime } from '@/features/chat/tabs/TabRuntimeFactory';
 import { t } from '@/i18n/i18n';
@@ -903,4 +905,51 @@ it('rematches an open mention after editing queued input back into the composer'
     await destroyTab(tab);
     await h.pool.dispose();
   }
+});
+
+it('copies the parent session selections into a new side chat after another session changes preferences', async () => {
+  const h = setup();
+  const tab = await h.attach();
+  const runtime = tab.session.runtime;
+  tab.state.messages = [
+    { id: 'parent-user', role: 'user', content: 'Parent task', timestamp: testDate().getTime() },
+    { id: 'parent-answer', role: 'assistant', content: 'Parent answer', assistantMessageId: 'checkpoint', timestamp: testDate().getTime() },
+  ];
+  await updateSessionProviderSettings(runtime, h.plugin, settings => {
+    settings.permissionMode = 'manual'; settings.serviceTier = 'fast';
+  });
+  await updateSessionReasoning(runtime, h.plugin, 'low');
+  const other = h.pool.ensure({ conversationId: 'other-conversation', providerId: 'claude', draftModel: null });
+  await updateSessionProviderSettings(other, h.plugin, settings => {
+    settings.permissionMode = 'yolo'; settings.serviceTier = 'default';
+  });
+  await updateSessionReasoning(other, h.plugin, 'high');
+  expect(getSessionSettingsSnapshot(runtime, h.plugin)).toMatchObject({
+    permissionMode: 'manual', reasoning: 'low', serviceTier: 'fast',
+  });
+  jest.spyOn(ProviderRegistry.getConversationHistoryService('claude'), 'buildForkProviderState').mockResolvedValue({});
+  const sending = tab.controllers.sideChatController.handleCommandSubmission('Explore independently', []);
+  await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
+  const configuration = h.backend.latest.requests[0].configuration;
+  h.backend.latest.complete();
+  await sending;
+  expect(configuration).toMatchObject({ permissionMode: 'manual', reasoning: 'low', serviceTier: 'fast' });
+  expect(getChatSettingsSnapshot(h.plugin.settings, 'claude', 'claude-sonnet-4-5')).toMatchObject({
+    permissionMode: 'yolo', reasoning: 'high', serviceTier: 'default',
+  });
+  await updateSessionProviderSettings(runtime, h.plugin, settings => {
+    settings.permissionMode = 'normal'; settings.serviceTier = 'default';
+  });
+  await updateSessionReasoning(runtime, h.plugin, 'high');
+  const followUp = tab.controllers.sideChatController.submitToSide('Continue the child', []);
+  await waitFor(() => expect(h.backend.latest.requests).toHaveLength(2));
+  h.backend.latest.complete();
+  await followUp;
+  expect(h.backend.latest.requests[1].configuration).toMatchObject({
+    permissionMode: 'manual', reasoning: 'low', serviceTier: 'fast',
+  });
+  expect(getSessionSettingsSnapshot(other, h.plugin)).toMatchObject({
+    permissionMode: 'yolo', reasoning: 'high', serviceTier: 'default',
+  });
+  await destroyTab(tab);
 });

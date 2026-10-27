@@ -6,12 +6,14 @@ import { Component } from 'obsidian';
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderConversationHistoryService, ProviderRegistration } from '@/core/providers/types';
+import { getChatSettingsSnapshot } from '@/features/chat/ChatSettings';
 import { ComposerDraftController } from '@/features/chat/composer/ComposerDraftController';
 import {
   captureLatestCompletedForkSource,
   findLatestForkCheckpoint,
   type LiveForkSourceOwner,
 } from '@/features/chat/sessions/SessionForkSource';
+import { getSessionSelectedModel } from '@/features/chat/sessions/sessionSettings';
 import { SideChatController } from '@/features/chat/side-chat/SideChatController';
 import type { AssembledTabRuntime } from '@/features/chat/tabs/types';
 
@@ -145,6 +147,7 @@ export function createHarness(options: {
       get providerId() { return tab.providerId; },
       get isLive() { return true; },
       get isStreaming() { return tab.state.isStreaming; },
+      getSettings: () => getChatSettingsSnapshot(settings, tab.providerId!, getSessionSelectedModel(tab, plugin)),
       readLatestForkCheckpoint: async () => findLatestForkCheckpoint(tab.state.messages),
       captureForkSource: () => captureLatestCompletedForkSource(tab, plugin, () => true),
     },
