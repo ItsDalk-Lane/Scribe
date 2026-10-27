@@ -235,6 +235,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
   }
 
   private renderGeneralTab(container: HTMLElement): void {
+    const textDraft = this.textEdits.projectDraft(this.host.settings);
     new Setting(container)
       .setName(t('settings.language.name'))
       .setDesc(t('settings.language.desc'))
@@ -400,7 +401,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setClass('claudian-settings-textarea')
       .addTextArea((text) => {
         text
-          .setValue(this.host.settings.pluginRenderedFenceLanguages.join('\n'))
+          .setValue(textDraft.pluginRenderedFenceLanguages.join('\n'))
           .onChange((value) => {
             this.textEdits.schedule('pluginRenderedFenceLanguages', (settings) => {
               settings.pluginRenderedFenceLanguages = value
@@ -524,7 +525,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .addText((text) => {
         text
           .setPlaceholder(t('settings.userName.name'))
-          .setValue(this.host.settings.userName)
+          .setValue(textDraft.userName)
           .onChange((value) => {
             this.textEdits.schedule('userName', (settings) => {
               settings.userName = value;
@@ -542,7 +543,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .addTextArea((text) => {
         text
           .setPlaceholder(t('settings.systemPrompt.name'))
-          .setValue(this.host.settings.systemPrompt)
+          .setValue(textDraft.systemPrompt)
           .onChange((value) => {
             this.textEdits.schedule('systemPrompt', (settings) => {
               settings.systemPrompt = value;
@@ -562,7 +563,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .addTextArea((text) => {
         text
           .setPlaceholder('System\nprivate\ndraft')
-          .setValue(this.host.settings.excludedTags.join('\n'))
+          .setValue(textDraft.excludedTags.join('\n'))
           .onChange((value) => {
             this.textEdits.schedule('excludedTags', (settings) => {
               settings.excludedTags = value
@@ -582,7 +583,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .addText((text) => {
         text
           .setPlaceholder('Attachments')
-          .setValue(this.host.settings.mediaFolder)
+          .setValue(textDraft.mediaFolder)
           .onChange((value) => {
             this.textEdits.schedule('mediaFolder', (settings) => {
               settings.mediaFolder = value.trim();
