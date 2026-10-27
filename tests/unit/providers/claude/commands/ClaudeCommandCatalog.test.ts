@@ -47,14 +47,14 @@ describe('ClaudeCommandCatalog', () => {
       expect(entries).toHaveLength(0);
     });
 
-    it('filters out built-in hidden SDK commands', async () => {
+    it.each(['legacy', 'marked'] as const)('filters out built-in hidden SDK commands in a %s snapshot', async provenance => {
       const catalog = new ClaudeCommandCatalog();
 
       const entries = await catalog.listDropdownEntries({ includeBuiltIns: false, commandSnapshot: [
         { id: 'sdk:commit', name: 'commit', description: 'Commit', content: '', source: 'sdk' },
-        { id: 'sdk:init', name: 'init', description: 'Init', content: '', source: 'sdk' },
-        { id: 'sdk:debug', name: 'debug', description: 'Debug', content: '', source: 'sdk' },
-        { id: 'sdk:cost', name: 'cost', description: 'Cost', content: '', source: 'sdk' },
+        { id: 'sdk:init', name: 'init', description: 'Init', content: '', source: provenance === 'marked' ? 'builtin' : 'sdk' },
+        { id: 'sdk:debug', name: 'debug', description: 'Debug', content: '', source: provenance === 'marked' ? 'builtin' : 'sdk' },
+        { id: 'sdk:cost', name: 'cost', description: 'Cost', content: '', source: provenance === 'marked' ? 'builtin' : 'sdk' },
         { id: 'sdk:review', name: 'review', description: 'Review', content: '', source: 'sdk' },
       ] });
 

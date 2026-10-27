@@ -69,8 +69,15 @@ export class ClaudeCommandCatalog implements ProviderCommandCatalog {
     // SDK commands already include vault commands/skills (the SDK scans
     // .claude/commands/ and .claude/skills/ internally). No file scan needed.
     const commands = context.commandSnapshot ?? await this.#ensureProbed(context.signal);
+    // A marked row proves this native snapshot reports provenance; older CLIs omit it entirely.
+    const reportsNativeProvenance = commands.some(cmd => cmd.source === 'builtin');
+    // A marked native row owns its name even when an unmarked custom row shares it.
+    const hiddenNativeNames = new Set(commands
+      .filter(cmd => (!reportsNativeProvenance || cmd.source === 'builtin')
+        && BUILTIN_HIDDEN_COMMANDS.has(cmd.name.toLowerCase()))
+      .map(cmd => cmd.name.toLowerCase()));
     return commands
-      .filter(cmd => !BUILTIN_HIDDEN_COMMANDS.has(cmd.name.toLowerCase()))
+      .filter(cmd => !hiddenNativeNames.has(cmd.name.toLowerCase()))
       .map(slashCommandToEntry);
   }
 
