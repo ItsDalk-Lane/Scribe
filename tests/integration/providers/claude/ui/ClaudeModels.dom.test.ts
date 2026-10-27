@@ -7,6 +7,7 @@ import { deserialize, serialize } from 'node:v8';
 import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
+import { Notice } from 'obsidian';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
@@ -30,6 +31,7 @@ jest.mock('obsidian', () => ({
     setDesc(value: string) { this.settingEl.createDiv({ text: value }); return this; }
   },
   setIcon: jest.fn(),
+  Notice: jest.fn(),
 }));
 
 HTMLElement.prototype.createEl = function <K extends keyof HTMLElementTagNameMap>(
@@ -307,6 +309,37 @@ it.each(['selections', 'aliases'] as const)(
     container.remove();
   },
 );
+
+it('restores committed model checkboxes after a failed selection save and allows retry', async () => {
+  let rejectSave = true;
+  let saved = '';
+  const h = continuityHarness(async draft => {
+    if (rejectSave) throw new Error('Disk is read-only');
+    saved = JSON.stringify(draft);
+  });
+  await h.catalog.refresh();
+  const container = document.body.createDiv();
+  const picker = renderProviderModelsSection(container, 'claude', 'Claude Code', h.catalog);
+  container.querySelector('details')!.open = true;
+  const checkbox = () => within(container).getByRole('checkbox', { name: /Gateway model/ }) as HTMLInputElement;
+  jest.mocked(Notice).mockClear();
+  try {
+    checkbox().focus();
+    fireEvent.click(checkbox());
+    await waitFor(() => expect(checkbox().checked).toBe(true));
+    expect(getClaudeProviderSettings(h.settings).visibleModels).toEqual(['sonnet', 'opus', 'gateway-model']);
+    expect(Notice).toHaveBeenCalledWith('Could not save model selection. Try again.');
+    expect(h.notify).not.toHaveBeenCalled();
+    rejectSave = false;
+    fireEvent.click(checkbox());
+    await waitFor(() => expect(h.notify).toHaveBeenCalledTimes(1));
+    expect(checkbox().checked).toBe(false);
+    expect(getClaudeProviderSettings(JSON.parse(saved)).visibleModels).toEqual(['sonnet', 'opus']);
+    expect((await axe(container)).violations).toEqual([]);
+  } finally {
+    picker.dispose(); await h.catalog.dispose(); container.remove();
+  }
+});
 
 function continuityHarness(persist: (draft: ClaudianSettings) => Promise<void>) {
   const settings = { model: 'opus', providerConfigs: { claude: {

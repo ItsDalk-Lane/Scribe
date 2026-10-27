@@ -1,4 +1,4 @@
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 
 import type { ProviderCatalogModel, ProviderModelCatalogSnapshot, ProviderModelSelectionChange } from '../../core/providers/models/ProviderModelCatalog';
 import { t } from '../../i18n/i18n';
@@ -358,7 +358,11 @@ export function renderProviderModelPicker(
   };
 
   const persistSelection = async (change: ProviderModelSelectionChange): Promise<void> => {
-    await options.onSelectionChange(change);
+    try {
+      await options.onSelectionChange(change);
+    } catch {
+      new Notice('Could not save model selection. Try again.');
+    }
     renderAll();
   };
 
