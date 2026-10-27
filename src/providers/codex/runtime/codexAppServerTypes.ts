@@ -102,7 +102,7 @@ export interface AgentMessageItem {
   type: 'agentMessage';
   id: string;
   text: string;
-  phase: string;
+  phase: string | null;
   memoryCitation: CodexMemoryCitation | null;
 }
 
