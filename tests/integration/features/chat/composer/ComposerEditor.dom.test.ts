@@ -4,7 +4,7 @@ import { EditorView } from '@codemirror/view';
 import { testDate } from '@test/helpers/testClock';
 import { createEvent, fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
-import { type App, type Component, MarkdownRenderer, Notice, Platform, TFile } from 'obsidian';
+import { type App, Component, MarkdownRenderer, Notice, Platform, TFile } from 'obsidian';
 
 import { createCatalogCommandDiscoveryStore } from '@/core/providers/commands/catalogCommandDiscovery';
 import type { ProviderCommandDiscoveryResult } from '@/core/providers/commands/ProviderCommandDiscoveryResult';
@@ -54,7 +54,7 @@ function createApp(): App {
 }
 
 function createEditor(parent: HTMLElement): ComposerEditor {
-  return new ComposerEditor(parent, createApp(), {} as Component);
+  return new ComposerEditor(parent, createApp(), new Component());
 }
 
 beforeEach(() => {
@@ -78,7 +78,7 @@ it('renders a wikilink through Obsidian and opens it without changing the source
   const openLinkText = jest.fn().mockResolvedValue(undefined);
   const app = createApp();
   app.workspace.openLinkText = openLinkText;
-  const component = {} as Component;
+  const component = new Component();
   jest.mocked(MarkdownRenderer.render).mockImplementationOnce(async (_app, markdown, container) => {
     expect(markdown).toBe('[[Notes/A note.md]]');
     (container as HTMLElement).createEl('a', {
@@ -100,6 +100,61 @@ it('renders a wikilink through Obsidian and opens it without changing the source
   }
 });
 
+it.each(['delete', 'destroy', 'parent unload'] as const)(
+  'releases wikilink render resources on %s, including late embeds', async release => {
+    const parent = document.body.createDiv();
+    const owner = new Component();
+    owner.load();
+    const editor = new ComposerEditor(parent, createApp(), owner);
+    let finishRender!: () => void;
+    const pendingRender = new Promise<void>(resolve => { finishRender = resolve; });
+    let liveResources = 0;
+    const registerResource = (component: Component) => {
+      liveResources++;
+      component.register(() => { liveResources--; });
+    };
+    jest.mocked(MarkdownRenderer.render).mockImplementationOnce(async (_app, _markdown, container, _path, scope) => {
+      (container as HTMLElement).createEl('a', {
+        cls: 'internal-link', text: 'A note', attr: { href: 'Notes/A note.md' },
+      });
+      const registerEmbed = () => {
+        const embed = new Component();
+        registerResource(embed);
+        scope.addChild(embed);
+      };
+      registerResource(scope);
+      registerEmbed();
+      await pendingRender;
+      registerResource(scope);
+      registerEmbed();
+    });
+    try {
+      editor.element.value = 'Read [[Notes/A note.md]] today';
+      editor.element.focus();
+      await waitFor(() => within(parent).getByRole('link', { name: 'A note' }));
+      expect(liveResources).toBe(2);
+      // Rebuilding equivalent decorations must retain the displayed chip's owner.
+      editor.element.replaceText!(editor.element.value.length, editor.element.value.length, '!');
+      expect(jest.mocked(MarkdownRenderer.render)).toHaveBeenCalledTimes(1);
+      expect(liveResources).toBe(2);
+      expect(await axe(parent)).toHaveNoViolations();
+      if (release === 'delete') editor.element.value = 'A replacement draft';
+      else if (release === 'destroy') editor.destroy();
+      else owner.unload();
+      expect(liveResources).toBe(0);
+      finishRender();
+      await pendingRender;
+      await Promise.resolve();
+      expect(liveResources).toBe(0);
+    } finally {
+      finishRender();
+      editor.destroy();
+      owner.unload();
+      parent.remove();
+    }
+  },
+);
+
 it.each<[string, Locale, string]>([
   ['click', 'en', 'Input suggestions'],
   ['Enter', 'en', 'Input suggestions'],
@@ -109,7 +164,7 @@ it.each<[string, Locale, string]>([
   setLocale(locale);
   const parent = document.body.createDiv();
   const app = createApp();
-  const editor = new ComposerEditor(parent, app, {} as Component);
+  const editor = new ComposerEditor(parent, app, new Component());
   const files = new FileContextManager(new VaultMentionDataProvider(app));
   const dropdown = new ComposerDropdownController(parent, editor.element, [files.getMentionSource()]);
   try {
@@ -153,7 +208,7 @@ it.each<[string, Locale, string]>([
 it('renders identical labels while keeping each aliased link target distinct', async () => {
   const parent = document.body.createDiv();
   const app = createApp();
-  const editor = new ComposerEditor(parent, app, {} as Component);
+  const editor = new ComposerEditor(parent, app, new Component());
   try {
     const source = 'Compare [[DEMO.md|DEMO]] and [[- Bases/DEMO.md|DEMO]]';
     editor.element.value = source;
@@ -514,7 +569,7 @@ it('focuses an already open note when its composer link is clicked', async () =>
   };
   jest.mocked(app.workspace.iterateAllLeaves).mockImplementation(visit => visit(leaf as never));
   app.workspace.revealLeaf = jest.fn().mockResolvedValue(undefined);
-  const editor = new ComposerEditor(parent, app, {} as Component);
+  const editor = new ComposerEditor(parent, app, new Component());
   try {
     editor.element.value = 'Read [[Notes/A note.md|A note]] today';
     editor.element.focus();

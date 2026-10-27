@@ -7,6 +7,7 @@ import type { ProviderCommandKind } from '@/core/providers/commands/ProviderComm
 import { type ComposerSessionMention, findComposerSessionMentions } from '@/features/chat/composer/composerSessionMentions';
 import { findComposerWikilinks } from '@/features/chat/composer/composerWikilinks';
 import { t } from '@/i18n/i18n';
+import { MarkdownRenderScope } from '@/shared/components/MarkdownRenderScope';
 import type { ComposerCommandResolver, ComposerInputElement } from '@/shared/composer-dropdown/types';
 import { registerFileLinkHandler } from '@/utils/fileLink';
 import { filterMarkdownTextTokens } from '@/utils/markdownTextTokens';
@@ -16,6 +17,9 @@ const programmatic = Annotation.define<boolean>();
 const INPUT_RELATIONSHIP_ATTRIBUTES = ['aria-autocomplete', 'aria-activedescendant', 'aria-controls', 'aria-haspopup'];
 
 class WikilinkWidget extends WidgetType {
+  // CodeMirror can keep a DOM node while replacing its equivalent WidgetType.
+  private static readonly renders = new WeakMap<HTMLElement, MarkdownRenderScope>();
+
   constructor(
     private readonly markdown: string,
     private readonly app: App,
@@ -34,10 +38,21 @@ class WikilinkWidget extends WidgetType {
     const el = ownerWindow.createSpan();
     el.className = 'claudian-composer-wikilink markdown-rendered';
     el.contentEditable = 'false';
-    void MarkdownRenderer.render(this.app, this.markdown, el, '', this.component).then(() => {
+    const scope = this.component.addChild(new MarkdownRenderScope());
+    scope.load();
+    WikilinkWidget.renders.set(el, scope);
+    void MarkdownRenderer.render(this.app, this.markdown, el, '', scope).then(() => {
       if (el.isConnected) view.requestMeasure();
     }).catch(() => { el.textContent = this.markdown; });
     return el;
+  }
+
+  override destroy(dom: HTMLElement): void {
+    const scope = WikilinkWidget.renders.get(dom);
+    if (!scope) return;
+    WikilinkWidget.renders.delete(dom);
+    this.component.removeChild(scope);
+    scope.unload();
   }
 }
 
