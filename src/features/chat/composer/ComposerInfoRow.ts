@@ -48,6 +48,11 @@ export class ComposerInfoRow {
   }
 
   #renderSlot(slotEl: HTMLElement, item: ComposerInfoItem | null): void {
+    const active = slotEl.ownerDocument.activeElement;
+    const focusClass = active && slotEl.contains(active)
+      ? active.classList.contains('claudian-input-info-linked-remove')
+        ? 'claudian-input-info-linked-remove' : 'claudian-input-info-linked-main'
+      : null;
     slotEl.empty();
     slotEl.toggleClass('claudian-input-info-linked--missing', item?.missing === true);
     if (!item) return;
@@ -75,5 +80,6 @@ export class ComposerInfoRow {
       });
       removeEl.addEventListener('click', item.onRemove);
     }
+    if (focusClass) slotEl.querySelector<HTMLElement>(`.${focusClass}`)?.focus({ preventScroll: true });
   }
 }

@@ -1,10 +1,13 @@
 /** @jest-environment jsdom */
 
+import { testDate } from '@test/helpers/testClock';
 import { fireEvent, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
 import { TFolder } from 'obsidian';
 
+import { ComposerInfoRow } from '@/features/chat/composer/ComposerInfoRow';
 import { LinkedContentController } from '@/features/chat/linked-content/LinkedContentController';
+import { ProjectChip } from '@/features/chat/projects/ProjectChip';
 import { createWelcomeElement } from '@/features/chat/rendering/WelcomeRenderer';
 import { setLocale } from '@/i18n/i18n';
 
@@ -131,4 +134,50 @@ it.each(['Enter', 'Escape', 'ArrowDown', 'ArrowUp'])('leaves %s to an active IME
     fireEvent.keyDown(search, { key: 'Enter' });
     expect(controller.getSnapshot()).toEqual({ mode: 'explicit-draft', path: 'Projects' });
   } finally { controller.destroy(); container.remove(); }
+});
+
+
+it.each(['main', 'remove'] as const)('keeps the linked-content %s button focused after the linked folder is renamed', async control => {
+  const folder = Object.assign(new TFolder(), { name: 'Plans', path: 'Plans' });
+  const controller = new LinkedContentController({
+    app: { vault: { getAbstractFileByPath: (path: string) => path === folder.path ? folder : null },
+      workspace: { getActiveFile: () => null } } as never,
+    getExcludedTags: () => [], getCachedVaultFiles: () => [], getCachedVaultFolders: () => [folder],
+  });
+  const container = document.body.createDiv();
+  const row = new ComposerInfoRow(container);
+  const outside = document.body.createEl('button', { text: 'Outside', attr: { type: 'button' } });
+  try {
+    controller.selectExplicit('Plans');
+    controller.mountInfoRow(row);
+    const buttonName = (name: string) => control === 'main' ? `Linked content: ${name}` : `Remove Linked content: ${name}`;
+    within(container).getByRole('button', { name: buttonName('Plans') }).focus();
+    Object.assign(folder, { name: 'Roadmap', path: 'Roadmap' });
+    controller.handleRenamed('Plans', 'Roadmap');
+    expect(document.activeElement).toBe(within(container).getByRole('button', { name: buttonName('Roadmap') }));
+    expect(controller.getSnapshot().path).toBe('Roadmap');
+    expect(await axe(container)).toHaveNoViolations();
+    outside.focus();
+    controller.handleCreated('Roadmap');
+    expect(document.activeElement).toBe(outside);
+  } finally { controller.destroy(); row.destroy(); container.remove(); outside.remove(); }
+});
+
+it('keeps a draft project chip focused after its project record is refreshed', async () => {
+  const container = document.body.createDiv();
+  const row = new ComposerInfoRow(container);
+  let name = 'Launch';
+  const project = () => ({ id: 'project', name, instructions: '', memoryPath: 'Memory.md', createdAt: testDate().getTime(), isPinned: false, isArchived: false });
+  const chip = new ProjectChip(row, {
+    projects: { get: project, list: () => [project()] },
+    conversation: { project: { projectId: 'project', isDraft: true, changeable: true }, selectProject: async () => {} },
+  });
+  try {
+    chip.refresh();
+    within(container).getByRole('button', { name: 'Project: Launch' }).focus();
+    name = 'Launch revised';
+    chip.refresh();
+    expect(document.activeElement).toBe(within(container).getByRole('button', { name: 'Project: Launch revised' }));
+    expect(await axe(container)).toHaveNoViolations();
+  } finally { chip.destroy(); row.destroy(); container.remove(); }
 });
