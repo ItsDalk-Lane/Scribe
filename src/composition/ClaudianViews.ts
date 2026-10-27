@@ -31,11 +31,12 @@ export class ClaudianViews {
   /** The focused chat view, else the first mounted one. */
   getView(): ClaudianView | null {
     const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    return this.#getActiveView(leaves) ?? leaves.map(leaf => leaf.view).find(isClaudianView) ?? null;
+  }
+
+  #getActiveView(leaves: readonly WorkspaceLeaf[]): ClaudianView | null {
     const activeView = this.workspace.getActiveViewOfType(ItemView);
-    if (isClaudianView(activeView) && leaves.some(leaf => leaf.view === activeView)) {
-      return activeView;
-    }
-    return leaves.map(leaf => leaf.view).find(isClaudianView) ?? null;
+    return isClaudianView(activeView) && leaves.some(leaf => leaf.view === activeView) ? activeView : null;
   }
 
   getAllViews(): ClaudianView[] {
@@ -120,10 +121,11 @@ export class ClaudianViews {
     zen.hide(leaf);
   }
 
-  /** Reveals and focuses the preferred chat leaf, else the first one, else opens one. */
+  /** Reveals and focuses the preferred or active chat leaf, else the first one, else opens one. */
   async activateView(preferred?: WorkspaceLeaf): Promise<void> {
     const { workspace } = this;
-    const existingLeaf = preferred ?? workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
+    const leaves = workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    const existingLeaf = preferred ?? this.#getActiveView(leaves)?.leaf ?? leaves[0];
     const leaf = existingLeaf
       ?? this.#getLeafForPlacement(this.getPlacement());
     if (!leaf) return;
