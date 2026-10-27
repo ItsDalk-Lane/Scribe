@@ -127,7 +127,17 @@ class AgentSkillModal extends Modal {
     });
     this.instructionsArea.value = initial?.instructions ?? '';
 
+    let saving = false;
+    const setSaving = (value: boolean): void => {
+      saving = value;
+      this.nameInput.disabled = value;
+      this.descriptionInput.disabled = value;
+      this.instructionsArea.disabled = value;
+      saveButton.disabled = value;
+    };
     const save = async (): Promise<void> => {
+      if (saving) return;
+      setSaving(true);
       const input: AgentSkillInput = {
         name: this.nameInput.value.trim(),
         description: this.descriptionInput.value.trim(),
@@ -141,6 +151,8 @@ class AgentSkillModal extends Modal {
         this.close();
       } catch (error) {
         showSaveError(error, input.name);
+      } finally {
+        setSaving(false);
       }
     };
 

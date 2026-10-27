@@ -83,6 +83,48 @@ describe('AgentSkillSettings', () => {
     expect(screen.getByText('Provider setup remains visible')).toBe(sibling);
   });
 
+  it('admits one save while the skill write is pending and locks the captured editor fields', async () => {
+    const { coordinator, repository } = await setup();
+    const create = jest.spyOn(coordinator, 'create');
+    let finish!: () => void;
+    const gate = new Promise<void>(resolve => { finish = resolve; });
+    const actualWrite = jest.requireActual<typeof fs>('node:fs/promises').writeFile;
+    jest.mocked(fs.writeFile).mockImplementationOnce(async (...args) => { await gate; await actualWrite(...args); });
+    const dialog = await openAdd();
+    fill(dialog);
+    const button = within(dialog).getByRole('button', { name: t('common.save') }) as HTMLButtonElement;
+    try {
+      button.click();
+      await waitFor(() => expect(fs.writeFile).toHaveBeenCalled());
+      button.click();
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(button.disabled).toBe(true);
+      expect(within(dialog).getAllByRole('textbox').every(field => (field as HTMLInputElement).disabled)).toBe(true);
+    } finally {
+      finish();
+    }
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await repository.list()).skills.map(skill => skill.name)).toEqual(['shared-skill']);
+    expect(Notice).not.toHaveBeenCalledWith(expect.stringContaining('already exists'));
+  });
+
+  it('unlocks the skill editor and retains its draft after a failed write so it can be retried', async () => {
+    const { repository } = await setup();
+    jest.mocked(fs.writeFile).mockRejectedValueOnce(new Error('Disk unavailable'));
+    const dialog = await openAdd();
+    fill(dialog);
+    save(dialog);
+    await waitFor(() => expect(Notice).toHaveBeenCalledWith(expect.stringContaining('Failed to save shared skill:')));
+    const button = within(dialog).getByRole('button', { name: t('common.save') }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(within(dialog).getAllByRole('textbox').every(field => !(field as HTMLInputElement).disabled)).toBe(true);
+    expect(within(dialog).getByRole('textbox', { name: t('settings.agentSkills.modal.instructions') })).toHaveProperty('value', 'Shared instructions');
+    expect((await axe(dialog)).violations).toEqual([]);
+    button.click();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await repository.list()).skills.map(skill => skill.name)).toEqual(['shared-skill']);
+  });
+
   it('keeps invalid input open with a validation notice', async () => {
     const { repository } = await setup();
     const dialog = await openAdd();
