@@ -1,3 +1,6 @@
+// Pane selection is an Obsidian boundary; callers can provide its native decision.
+export const Keymap = { isModEvent: jest.fn((_event?: unknown): boolean | 'tab' | 'split' | 'window' => false) };
+
 // Mock for Obsidian API
 
 // Match Obsidian's explicit load/unload lifecycle; DOM removal alone does not unload children.

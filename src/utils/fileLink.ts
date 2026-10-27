@@ -5,8 +5,8 @@
  * them clickable to open the file in Obsidian.
  */
 
-import type { App, WorkspaceLeaf } from 'obsidian';
-import { Notice } from 'obsidian';
+import type { App, PaneType, WorkspaceLeaf } from 'obsidian';
+import { Keymap, Notice } from 'obsidian';
 
 import { getVaultFileByPath } from './obsidianCompat';
 
@@ -144,7 +144,11 @@ function repairEmptyInternalLink(app: App, link: HTMLAnchorElement, sourcePath: 
   link.textContent = linkTarget;
 }
 
-async function openFileLink(app: App, linkTarget: string, sourcePath: string): Promise<void> {
+async function openFileLink(app: App, linkTarget: string, sourcePath: string, newPane: PaneType | boolean): Promise<void> {
+  if (newPane) {
+    await app.workspace.openLinkText(linkTarget, sourcePath, newPane);
+    return;
+  }
   const linkPath = extractLinkPathFromTarget(linkTarget);
   const file = app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
   let existingLeaf: WorkspaceLeaf | undefined;
@@ -175,6 +179,7 @@ export function registerFileLinkHandler(
   sourcePath = '',
 ): () => void {
   const handler = (event: MouseEvent) => {
+    if (event.type === 'auxclick' && event.button !== 1) return;
     const target = event.target as HTMLElement;
     // Handle both our links and Obsidian's internal links
     const link = target.closest('.claudian-file-link, .internal-link') as HTMLAnchorElement;
@@ -183,14 +188,18 @@ export function registerFileLinkHandler(
       event.preventDefault();
       const linkTarget = link.dataset.href || link.getAttribute('href');
       if (linkTarget) {
-        void openFileLink(app, linkTarget, sourcePath).catch(() => {
+        void openFileLink(app, linkTarget, sourcePath, Keymap.isModEvent(event)).catch(() => {
           new Notice('Failed to open file.');
         });
       }
     }
   };
   container.addEventListener('click', handler);
-  return () => container.removeEventListener('click', handler);
+  container.addEventListener('auxclick', handler);
+  return () => {
+    container.removeEventListener('click', handler);
+    container.removeEventListener('auxclick', handler);
+  };
 }
 
 function buildFragmentWithLinks(parent: HTMLElement, text: string, matches: WikilinkMatch[]): DocumentFragment {

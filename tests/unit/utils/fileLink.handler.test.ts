@@ -2,7 +2,7 @@
 
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { axe } from 'jest-axe';
-import { Notice } from 'obsidian';
+import { Keymap, Notice } from 'obsidian';
 
 import { registerFileLinkHandler } from '@/utils/fileLink';
 
@@ -187,4 +187,58 @@ it.each([
     cleanup();
     container.remove();
   }
+});
+
+
+it.each([
+  ['click', { ctrlKey: true }, 'tab'],
+  ['click', { ctrlKey: true, altKey: true }, 'split'],
+  ['click', { ctrlKey: true, altKey: true, shiftKey: true }, 'window'],
+  ['auxclick', { button: 1 }, 'tab'],
+] as const)('honors Obsidian pane intent for %s %j instead of revealing an existing note', async (eventType, init, pane) => {
+  const leaf = { getViewState: () => ({ state: { file: 'Notes/Target.md' } }), setEphemeralState: jest.fn() };
+  const app = {
+    metadataCache: { getFirstLinkpathDest: jest.fn(() => ({ path: 'Notes/Target.md' })) },
+    workspace: {
+      iterateAllLeaves: (visit: (value: typeof leaf) => void) => visit(leaf),
+      revealLeaf: jest.fn().mockResolvedValue(undefined), openLinkText: jest.fn().mockResolvedValue(undefined),
+    },
+  };
+  const container = document.body.appendChild(document.createElement('div'));
+  container.innerHTML = '<a class="claudian-file-link" href="Target#Heading">Target</a>';
+  const link = within(container).getByRole('link', { name: 'Target' });
+  const release = registerFileLinkHandler(app as any, container, 'Notes/Source.md');
+  jest.mocked(Keymap.isModEvent).mockReturnValueOnce(pane);
+  try {
+    const event = new MouseEvent(eventType, { bubbles: true, cancelable: true, ...init });
+    fireEvent(link, event);
+    await nextTurn();
+    expect(app.workspace.openLinkText).toHaveBeenCalledWith('Target#Heading', 'Notes/Source.md', pane);
+    expect(app.workspace.openLinkText).toHaveBeenCalledTimes(1);
+    expect(app.workspace.revealLeaf).not.toHaveBeenCalled();
+    expect(leaf.setEphemeralState).not.toHaveBeenCalled();
+    expect(Keymap.isModEvent).toHaveBeenCalledWith(event);
+    expect(event.defaultPrevented).toBe(true);
+    release();
+    link.addEventListener(eventType, event => event.preventDefault());
+    fireEvent(link, new MouseEvent(eventType, { bubbles: true, cancelable: true, ...init }));
+    await nextTurn();
+    expect(app.workspace.openLinkText).toHaveBeenCalledTimes(1);
+  } finally {
+    jest.mocked(Keymap.isModEvent).mockReset().mockReturnValue(false);
+    release(); container.remove();
+  }
+});
+
+
+it('leaves right-button auxiliary clicks to the native context menu', () => {
+  const app = { metadataCache: { getFirstLinkpathDest: jest.fn(() => null) }, workspace: { openLinkText: jest.fn() } };
+  const container = document.body.appendChild(document.createElement('div'));
+  container.innerHTML = '<a class="internal-link" href="Target">Target</a>';
+  const release = registerFileLinkHandler(app as any, container);
+  try {
+    expect(fireEvent(within(container).getByRole('link', { name: 'Target' }), new MouseEvent('auxclick', { button: 2, bubbles: true, cancelable: true }))).toBe(true);
+    expect(app.workspace.openLinkText).not.toHaveBeenCalled();
+    expect(app.metadataCache.getFirstLinkpathDest).not.toHaveBeenCalled();
+  } finally { release(); container.remove(); }
 });
