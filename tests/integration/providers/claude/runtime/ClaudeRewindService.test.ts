@@ -63,9 +63,27 @@ describe('Claude rewind filesystem recovery', () => {
       },
     });
 
-    await expect(rewind).rejects.toThrow('Rewind failed and files could not be fully restored');
+    const error = await rewind.catch((failure: Error) => failure);
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toContain('Rewind failed and files could not be fully restored');
     expect(await fs.readFile(path.join(root, 'other.txt'), 'utf8')).toBe('Original other file');
     expect(await fs.readFile(path.join(root, 'blocked'), 'utf8')).toBe('Parent became a file');
     expect(closed).toBe(true);
+    const recoveryDirectory = message.match(/Backup retained at: (.+)$/)?.[1];
+    expect(recoveryDirectory).toBeDefined();
+    if (!recoveryDirectory) throw new Error('Expected the recoverable backup directory in the error');
+    try {
+      const recovery = message.match(/Recovery copy: (.+) -> (.+)\n/);
+      expect(recovery?.[2]).toBe(path.join(root, 'blocked/note.txt'));
+      if (!recovery) throw new Error('Expected the original path and its recovery copy in the error');
+      expect(await fs.readFile(recovery[1], 'utf8')).toBe('Original blocked file');
+      await fs.rm(path.join(root, 'blocked'));
+      await fs.mkdir(path.join(root, 'blocked'));
+      await fs.copyFile(recovery[1], recovery[2]);
+      expect(await fs.readFile(path.join(root, 'blocked/note.txt'), 'utf8')).toBe('Original blocked file');
+    } finally {
+      await fs.rm(recoveryDirectory, { recursive: true, force: true });
+    }
   });
 });
