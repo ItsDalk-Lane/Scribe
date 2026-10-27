@@ -407,7 +407,11 @@ export class MainTurnExecution {
           this.#syncScrollToBottomAfterRenderUpdates();
 
           const saveExtras = didEnqueueToSdk ? { resumeAtMessageId: undefined } : undefined;
-          await conversationController.save(true, saveExtras);
+          await conversationController.save(true, saveExtras).catch(error => {
+            // No continuation was admitted: leave its unsent input available for an explicit retry.
+            this.deps.queue.restoreToComposer();
+            throw error;
+          });
           const userMsgIndex = state.messages.indexOf(userMsg);
           this.deps.renderer?.refreshActionButtons(userMsg, state.messages, userMsgIndex >= 0 ? userMsgIndex : undefined);
           scheduledContinuation = this.deps.queue.scheduleContinuation();

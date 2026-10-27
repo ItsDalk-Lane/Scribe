@@ -1024,3 +1024,28 @@ it.each(['main', 'side'] as const)('keeps native requested permission changes fo
   expect(await axe(parentMode)).toHaveNoViolations();
   await destroyTab(tab);
 });
+
+it('returns unsent queued input when a completed response cannot be saved', async () => {
+  const h = setup();
+  const tab = await h.attach();
+  tab.controllers.drafts.restore('main', { content: 'First request' });
+  const sending = tab.controllers.inputController.sendMessage();
+  await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
+  tab.controllers.drafts.restore('main', { content: 'Queued follow-up' });
+  await tab.controllers.inputController.sendMessage();
+  const newerDraft = '    keepThisDraft()\n';
+  tab.controllers.drafts.restore('main', { content: newerDraft });
+  const saveError = new Error('Disk full');
+  jest.spyOn(h.plugin, 'updateConversation').mockRejectedValueOnce(saveError);
+  h.backend.latest.emitText('Completed response');
+  h.backend.latest.complete();
+  await expect(sending).rejects.toBe(saveError);
+
+  expect(tab.controllers.drafts.capture('main').content).toBe(`Queued follow-up\n\n${newerDraft}`);
+  expect(tab.state.queuedMessage).toBeNull();
+  expect(h.backend.latest.requests).toHaveLength(1);
+  expect(tab.state.hasPendingConversationSave).toBe(true);
+  expect(h.pool.isRunning('conversation')).toBe(false);
+  expect(tab.state.messages.some(message => message.contentBlocks?.some(block => block.type === 'text' && block.content === 'Completed response'))).toBe(true);
+  await destroyTab(tab);
+});
