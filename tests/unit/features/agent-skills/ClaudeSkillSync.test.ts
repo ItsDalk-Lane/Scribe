@@ -326,6 +326,50 @@ describe('ClaudeSkillSync', () => {
       expect(await vault.read(`${CLAUDE_SKILLS_ROOT}/review/scripts/run.sh`)).toBe('echo run');
     });
 
+    it('removes a converted skill after command trash fails so Sync can be retried', async () => {
+      const commandPath = `${CLAUDE_COMMANDS_ROOT}/deploy.md`;
+      const targetPath = `${AGENT_SKILLS_ROOT}/deploy`;
+      const source = '---\ndescription: Deploy\n---\nDeploy it\n';
+      await vault.write(commandPath, source);
+      const adapter = vault.app.vault.adapter as typeof vault.app.vault.adapter & {
+        trashSystem(path: string): Promise<boolean>;
+      };
+      const trash = jest.spyOn(adapter, 'trashSystem').mockRejectedValueOnce(new Error('Trash unavailable'));
+      const first = await sync.execute(await sync.plan(), resolutions());
+
+      expect(first.linked).toBe(false);
+      expect(first.failed.map(failure => failure.id)).toEqual([commandPath]);
+      expect(first.converted).toEqual([]);
+      expect(await vault.read(commandPath)).toBe(source);
+      expect(await vault.exists(targetPath)).toBe(false);
+      trash.mockRestore();
+
+      const nextPlan = await sync.plan();
+      expect(sync.getBlockingReasons(nextPlan, resolutions()).size).toBe(0);
+      const next = await sync.execute(nextPlan, resolutions());
+      expect(next).toMatchObject({ linked: true, converted: [commandPath], failed: [] });
+      expect(await vault.read(`${targetPath}/SKILL.md`)).toContain('Deploy it');
+      expect(await vault.exists(commandPath)).toBe(false);
+    });
+
+    it('reports an incomplete command-conversion rollback without hiding either copy', async () => {
+      const commandPath = `${CLAUDE_COMMANDS_ROOT}/deploy.md`;
+      await vault.write(commandPath, '---\ndescription: Deploy\n---\nDeploy it\n');
+      const adapter = vault.app.vault.adapter as typeof vault.app.vault.adapter & {
+        trashSystem(path: string): Promise<boolean>;
+      };
+      jest.spyOn(adapter, 'trashSystem').mockRejectedValueOnce(new Error('Command trash failed'))
+        .mockRejectedValueOnce(new Error('Skill trash failed'));
+
+      const result = await sync.execute(await sync.plan(), resolutions());
+
+      expect(result.linked).toBe(false);
+      expect(result.failed).toEqual([{ id: commandPath, message: expect.stringContaining('the new skill "deploy" could not be removed') }]);
+      expect(result.converted).toEqual([]);
+      expect(await vault.read(commandPath)).toContain('Deploy it');
+      expect(await vault.read(`${AGENT_SKILLS_ROOT}/deploy/SKILL.md`)).toContain('Deploy it');
+    });
+
     it('never follows a foreign per-skill link when removing it', async () => {
       await vault.write('outside/keep/SKILL.md', skill('keep'));
       await vault.symlink(`${CLAUDE_SKILLS_ROOT}/keep`, vault.resolve('outside/keep'));

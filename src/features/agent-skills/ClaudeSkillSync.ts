@@ -298,8 +298,20 @@ export class ClaudeSkillSync {
     const commandName = commandNameFromPath(item.id);
     await this.commands.assertRevision(commandName, item.fingerprint);
     if (resolution?.action === 'apply' && resolution.replaceExisting) await this.#trashShared(input.name);
-    await this.sharedSkills.create(input);
-    await this.commands.trash(commandName, item.fingerprint);
+    const created = await this.sharedSkills.create(input);
+    try {
+      await this.commands.trash(commandName, item.fingerprint);
+    } catch (error) {
+      try {
+        await this.sharedSkills.trash(created.name, created.revision);
+      } catch (rollbackError) {
+        throw new Error(
+          `${errorMessage(error)}; the new skill "${created.name}" could not be removed: ${errorMessage(rollbackError)}`,
+          { cause: rollbackError },
+        );
+      }
+      throw error;
+    }
     result.converted.push(item.id);
   }
 
