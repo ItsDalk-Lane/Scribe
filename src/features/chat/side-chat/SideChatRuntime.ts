@@ -45,6 +45,7 @@ export interface SideChatRuntimeDeps {
   readonly buildChildResumeState: () => Promise<Readonly<Record<string, unknown>>>;
   readonly workingDirectory: string;
   readonly onStatusChanged: () => void;
+  readonly onSettingsChanged?: () => void;
   readonly onError?: (error: unknown) => void;
 }
 
@@ -581,8 +582,7 @@ export class SideChatRuntime {
     await this.#requestedSettlement;
     if (this.#disposed || !isCurrent()) return;
     if (event.type === 'permission_mode_changed') {
-      this.#settings.permissionMode = event.permissionMode;
-      this.#refreshStatus();
+      this.#applyPermissionMode(event.permissionMode);
       return;
     }
     if (event.type === 'async_subagent_completed') {
@@ -607,6 +607,7 @@ export class SideChatRuntime {
   async #handleExecutionEvent(event: Parameters<
     NonNullable<ConstructorParameters<typeof SideChatSession>[0]['onRequestedEvent']>
   >[0]): Promise<void> {
+    if (event.type === 'permission_mode_changed') this.#applyPermissionMode(event.permissionMode);
     if (event.type === 'turn_started' && event.accepted) this.#activeDelivery?.(true);
     if (event.type === 'user_message_started') {
       this.#responseStream.observe(event);
@@ -662,6 +663,13 @@ export class SideChatRuntime {
       this.#responseStream.start(scope);
       this.#awaitingProviderAssistantStart = true;
     }
+  }
+
+  #applyPermissionMode(mode: string): void {
+    if (this.#settings.permissionMode === mode) return;
+    this.#settings.permissionMode = mode;
+    this.deps.onSettingsChanged?.();
+    this.#refreshStatus();
   }
 
   #refreshStatus(): void {

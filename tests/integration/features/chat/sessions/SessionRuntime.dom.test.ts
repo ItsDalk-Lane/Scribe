@@ -987,3 +987,40 @@ it('does not open an empty resume picker when only archived sessions exist', asy
   expect(h.backend.sessions).toHaveLength(0);
   await destroyTab(tab);
 });
+
+it.each(['main', 'side'] as const)('keeps native requested permission changes for the %s destination', async destination => {
+  const h = setup();
+  await h.plugin.mutateSettings(settings => { settings.permissionMode = 'manual'; });
+  const tab = await h.attach();
+  let sending: Promise<unknown>;
+  if (destination === 'side') {
+    tab.state.messages = [
+      { id: 'parent-user', role: 'user', content: 'Parent task', timestamp: testDate().getTime() },
+      { id: 'parent-answer', role: 'assistant', content: 'Parent answer', assistantMessageId: 'checkpoint', timestamp: testDate().getTime() },
+    ];
+    jest.spyOn(ProviderRegistry.getConversationHistoryService('claude'), 'buildForkProviderState').mockResolvedValue({});
+    sending = tab.controllers.sideChatController.handleCommandSubmission('Explore independently', []);
+  } else {
+    tab.controllers.drafts.restore('main', { content: 'First request' });
+    sending = tab.controllers.inputController.sendMessage();
+  }
+  await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
+  h.backend.latest.emitOutput({ type: 'permission_mode_changed', permissionMode: 'yolo',
+    snapshot: { providerId: 'claude', revision: 1, status: 'executing' } });
+  await waitFor(() => expect(within(tab.dom.inputComposerEl).getByRole('button', { name: 'Permission mode: YOLO' })).toBeDefined());
+  h.backend.latest.complete();
+  await sending;
+  tab.dom.inputEl.value = 'Continue with the native permission';
+  const followUp = tab.controllers.inputController.sendMessage();
+  await waitFor(() => expect(h.backend.latest.requests).toHaveLength(2));
+  expect(h.backend.latest.requests[1].configuration.permissionMode).toBe('yolo');
+  h.backend.latest.complete();
+  await followUp;
+  tab.controllers.sideChatController.collapse();
+  const parentMode = within(tab.dom.inputComposerEl).getByRole('button', {
+    name: destination === 'side' ? 'Permission mode: Manual' : 'Permission mode: YOLO',
+  });
+  expect(parentMode).toBeDefined();
+  expect(await axe(parentMode)).toHaveNoViolations();
+  await destroyTab(tab);
+});

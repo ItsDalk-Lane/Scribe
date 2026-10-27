@@ -22,6 +22,7 @@ export function createChatSessionRuntime(plugin: ChatFeatureHost, identity: Sess
     createId: createSessionMessageId,
     onRequestedEvent: (event, context) => {
       const model = runtime.model;
+      if (event.type === 'permission_mode_changed') return model.updatePermissionMode(event.permissionMode);
       if (event.type === 'turn_started') model.bindSuggestion(event.scope.turnId, () => coordinator.isEventContextCurrent(context));
       return model.inputController.handleExecutionEvent(event);
     },

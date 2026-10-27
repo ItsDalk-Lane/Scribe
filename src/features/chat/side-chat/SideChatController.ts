@@ -30,6 +30,7 @@ export interface SideChatControllerDeps {
   readonly parent: SideChatParent;
   readonly onDestinationChanged: () => void;
   readonly onStatusChanged?: () => void;
+  readonly onSettingsChanged?: () => void;
 }
 
 export interface SideChatControllerPresentation {
@@ -356,6 +357,7 @@ export class SideChatController {
         new Notice(error instanceof Error ? error.message : 'Side chat execution failed.');
       },
       onStatusChanged: () => this.#refreshPanel(),
+      onSettingsChanged: () => this.deps.onSettingsChanged?.(),
       plugin: this.deps.plugin,
       resolveBackend: providerId => ProviderRegistry.createExecutionBackend(
         this.deps.plugin.providerHost,
