@@ -400,10 +400,7 @@ export class EnvSnippetManager {
     });
 
     this.onContextLimitsChange?.();
-    const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as {
-      refreshModelSelector?(): void;
-    } | undefined;
-    view?.refreshModelSelector?.();
+    if (snippet.modelAliases) this.plugin.notifyProviderChatOptionsChanged('claude');
   }
 
   #editSnippet(snippet: EnvSnippet) {

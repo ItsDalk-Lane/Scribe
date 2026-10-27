@@ -8,11 +8,18 @@ import { Notice } from 'obsidian';
 
 import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
 import { DEFAULT_CLAUDIAN_SETTINGS } from '@/app/settings/defaultSettings';
+import { ProviderChatOptionsReconciler } from '@/app/settings/ProviderChatOptionsReconciler';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
+import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
+import { getChatSettingsSnapshot } from '@/features/chat/ChatSettings';
+import { ChatViewPublisher } from '@/features/chat/workspace/ChatViewPublisher';
 import { getClaudeProviderSettings, updateClaudeProviderSettings } from '@/providers/claude/settings';
+import { claudeChatUIConfig } from '@/providers/claude/ui/ClaudeChatUIConfig';
 import { EnvSnippetManager, EnvSnippetModal } from '@/shared/settings/EnvSnippetManager';
+import { ModelSelector } from '@/shared/toolbar/ModelSelector';
 
 jest.mock('obsidian', () => jest.requireActual('../../../helpers/ObsidianSettingsDOM'));
 
@@ -78,6 +85,7 @@ it('preserves own context-limit keys when inserting a snippet with production ob
   }];
   const coordinator = new SettingsCoordinator(settings, async () => undefined);
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings,
     app: { workspace: { getLeavesOfType: () => [] } },
     applyEnvironmentVariables: async () => undefined,
@@ -106,6 +114,7 @@ it.each(aliasCases)('applies snippet aliases through provider settings while pre
   }];
   const applyEnvironmentVariables = jest.fn().mockResolvedValue(undefined);
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings, applyEnvironmentVariables,
     app: { workspace: { getLeavesOfType: () => [] } },
     mutateSettings: async (mutate: Parameters<ProviderHost['mutateSettings']>[0]) => { await mutate(settings); },
@@ -132,6 +141,7 @@ it('offers saving the current environment from the empty snippet state', async (
   const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
   settings.envSnippets = [];
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings,
     app: { workspace: { getLeavesOfType: () => [] } },
     getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
@@ -341,6 +351,7 @@ it('reports a save failure notice and keeps settings unchanged when snippet pers
   const persist = jest.fn<Promise<void>, [typeof settings]>().mockRejectedValue(new Error('storage unavailable'));
   const coordinator = new SettingsCoordinator(settings, persist);
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings,
     app: { workspace: { getLeavesOfType: () => [] } },
     getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
@@ -379,6 +390,7 @@ it('reports an update failure notice and keeps the original snippet when persist
   const persist = jest.fn<Promise<void>, [typeof settings]>().mockRejectedValue(new Error('storage unavailable'));
   const coordinator = new SettingsCoordinator(settings, persist);
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings,
     app: { workspace: { getLeavesOfType: () => [] } },
     getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
@@ -413,6 +425,7 @@ it('saves a snippet through the coordinator and renders it when persistence succ
   const persist = jest.fn<Promise<void>, [typeof settings]>().mockResolvedValue(undefined);
   const coordinator = new SettingsCoordinator(settings, persist);
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings,
     app: { workspace: { getLeavesOfType: () => [] } },
     getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
@@ -460,6 +473,7 @@ it.each(['', '   '])('clears a context override (%p) through the coordinator whi
   const persist = jest.fn<Promise<void>, [typeof settings]>().mockResolvedValue(undefined);
   const coordinator = new SettingsCoordinator(settings, persist);
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings,
     app: { workspace: { getLeavesOfType: () => [] } },
     getEnvironmentVariablesForScope: () => 'ANTHROPIC_MODEL=custom',
@@ -520,6 +534,7 @@ it('saves, reloads and inserts snippet overrides for prototype-named custom mode
   const coordinator = new SettingsCoordinator(settings, value => storage.save(value));
   const onChanged = jest.fn();
   const host = {
+    notifyProviderChatOptionsChanged: jest.fn(),
     settings, mutateSettings: coordinator.mutate.bind(coordinator),
     app: { workspace: { getLeavesOfType: () => [] } },
     getEnvironmentVariablesForScope: () => envVars,
@@ -579,4 +594,57 @@ it('saves, reloads and inserts snippet overrides for prototype-named custom mode
   fireEvent.click(within(container).getByRole('button', { name: 'Insert' }));
   await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
   expect(getClaudeProviderSettings(settings).modelAliases).toEqual({});
+});
+
+
+it('publishes inserted aliases to every mounted model selector', async () => {
+  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  settings.model = 'claude-code/custom';
+  updateClaudeProviderSettings(settings, {
+    discoveredModels: [{ value: 'custom', label: 'Native custom', description: '' }],
+    visibleModels: ['custom'], modelAliases: { custom: 'Old alias' },
+    environmentVariables: 'ANTHROPIC_MODEL=custom',
+  });
+  settings.envSnippets = [{ id: 'snippet', name: 'Alias only', description: '', scope: 'provider:claude',
+    envVars: 'ANTHROPIC_MODEL=custom', modelAliases: { custom: 'New alias' } }];
+  const containers = [document.body.createDiv(), document.body.createDiv()];
+  const selectors = containers.map(container => new ModelSelector(container, {
+    getSettings: () => getChatSettingsSnapshot(settings, 'claude', settings.model),
+    getUIConfig: () => claudeChatUIConfig,
+    onModelChange: async () => undefined,
+    onEffortLevelChange: async () => undefined,
+    getCapabilities: () => ProviderRegistry.getCapabilities('claude'),
+  }));
+  const views = selectors.map(selector => ({ refreshModelSelector() { selector.updateDisplay(); selector.renderOptions(); } }));
+  const publisher = new ChatViewPublisher({
+    views: { getAllViews: () => views as never }, zenMode: { reconcile() {} }, inactiveSessions: { request() {} },
+    hasLoadedAllSessionMetadata: () => true,
+  });
+  let saved = '';
+  const coordinator = new SettingsCoordinator(settings, async draft => { saved = JSON.stringify(draft); },
+    (current, previous) => publisher.publishSettings(current, previous));
+  const reconciler = new ProviderChatOptionsReconciler({
+    settings: coordinator,
+    providers: { getProviderDisplayName: () => 'Claude' }, providerSettings: ProviderSettingsCoordinator,
+    reconcileConversationModels: async () => [], onSettingsReconciled() {}, onConversationsChanged() {},
+    onReconciled: providerId => publisher.refreshModelSelector(providerId),
+  });
+  const host = {
+    settings, app: { workspace: { getLeavesOfType: () => views.map(view => ({ view })) } },
+    // The snippet uses the already-applied environment; this boundary has no runtime changes to publish.
+    applyEnvironmentVariables: async () => undefined,
+    mutateSettings: coordinator.mutate.bind(coordinator),
+    notifyProviderChatOptionsChanged: (providerId: string) => { void reconciler.notifyChanged(providerId); },
+  } as unknown as ProviderHost;
+  for (const container of containers) expect(within(container).getByRole('button', { name: 'Model: Old alias' })).toBeTruthy();
+  const manager = document.body.createDiv();
+  new EnvSnippetManager(manager, host, 'provider:claude');
+
+  fireEvent.click(within(manager).getByRole('button', { name: 'Insert' }));
+
+  for (const container of containers) {
+    await waitFor(() => expect(within(container).getByRole('button', { name: 'Model: New alias' })).toBeTruthy());
+  }
+  expect(getClaudeProviderSettings(JSON.parse(saved)).modelAliases).toMatchObject({ custom: 'New alias' });
+  expect(await axe(manager)).toHaveNoViolations();
 });
