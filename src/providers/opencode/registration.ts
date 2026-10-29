@@ -6,11 +6,10 @@ import {
   maybeGetOpencodeWorkspaceServices,
   opencodeWorkspaceRegistration,
 } from './app/OpencodeWorkspaceServices';
-import { getOpencodeConversationCapabilities, OPENCODE_PROVIDER_CAPABILITIES } from './capabilities';
+import { OPENCODE_PROVIDER_CAPABILITIES } from './capabilities';
 import { opencodeSettingsReconciler } from './env/OpencodeSettingsReconciler';
 import { OpencodeExecutionBackend } from './execution/OpencodeExecutionBackend';
 import { OpencodeConversationHistoryService } from './history/OpencodeConversationHistoryService';
-import { buildOpencodeBaseModels } from './models';
 import { opencodeModelPolicy } from './OpencodeModelPolicy';
 import { opencodeTaskResultInterpreter } from './runtime/OpencodeTaskResultInterpreter';
 import { getOpencodeProviderSettings, projectOpencodeModelSettings, updateOpencodeProviderSettings } from './settings';
@@ -21,7 +20,6 @@ export const opencodeProviderRegistration: ProviderModule = {
   id: 'opencode',
   blankTabOrder: 10,
   capabilities: OPENCODE_PROVIDER_CAPABILITIES,
-  getConversationCapabilities: getOpencodeConversationCapabilities,
   modelPolicy: opencodeModelPolicy,
   chatUIConfig: opencodeChatUIConfig,
   createExecutionBackend: (plugin) => {
@@ -47,9 +45,8 @@ export const opencodeProviderRegistration: ProviderModule = {
     projectPersistedConfig: projectOpencodeModelSettings,
     needsReasoningMetadata(settings) {
       const current = getOpencodeProviderSettings(settings);
-      const models = buildOpencodeBaseModels(current.discoveredModels);
       return current.visibleModels.some(id => !Object.hasOwn(current.thinkingOptionsByModel, id)
-        || !models.some(model => model.rawId === id));
+        || !current.discoveredModels.some(model => model.rawId === id));
     },
     hostScopedFields: ['cliPathsByHost'],
     normalizeStored(target, stored) {

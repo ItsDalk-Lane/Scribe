@@ -22,7 +22,7 @@ import { StreamController } from '@/features/chat/turns/StreamController';
 import { TurnCoordinator } from '@/features/chat/turns/TurnCoordinator';
 import { loadSDKSessionMessages } from '@/providers/claude/history/ClaudeHistoryStore';
 import { parseCodexSessionTurns } from '@/providers/codex/history/CodexHistoryStore';
-import { mapOpencodeV2NativeMessages } from '@/providers/opencode/history/OpencodeHistoryStore';
+import { mapOpencodeNativeMessages } from '@/providers/opencode/history/OpencodeHistoryStore';
 import { parsePiSessionContent } from '@/providers/pi/history/PiHistoryStore';
 
 jest.mock('node:fs/promises');
@@ -159,7 +159,7 @@ it('collapses a stopped turn under Interrupted and renders it identically on rer
   ].map(entry => JSON.stringify(entry)).join('\n'));
   // OpenCode v2 records it as the turn's `idle` outcome.
   const created = testDate().getTime();
-  const opencode = mapOpencodeV2NativeMessages([
+  const opencode = mapOpencodeNativeMessages([
     { id: 'u', type: 'user', time: { created }, text: 'Read the note' },
     { id: 'partial', type: 'assistant', time: { created: created + 1_000, completed: created + 3_000 }, finish: 'error',
       error: { type: 'aborted', message: 'Step interrupted' }, content: [
@@ -191,7 +191,7 @@ it.each([true, false])('folds a turn stopped across compaction live and on Claud
   expect(liveResult).toEqual(expectedTurn);
 
   const created = testDate().getTime();
-  renderer.renderMessages(mapOpencodeV2NativeMessages([
+  renderer.renderMessages(mapOpencodeNativeMessages([
     { id: 'u', type: 'user', time: { created }, text: 'Read the note' },
     { id: 'a1', type: 'assistant', time: { created: created + 1_000, completed: created + 2_000 }, content: [{ type: 'text', text: 'Before compaction.' }] },
     { id: 'compact', type: 'compaction', time: { created: created + 3_000 }, status: 'completed', summary: 'Internal summary' },
@@ -319,10 +319,9 @@ it('leaves file-annotation-like assistant text from other providers unchanged', 
 
 it.each(['retired-provider', '', 'constructor'])('keeps cached historical presentation readable without a registered formatter (%s)', async providerId => {
   const messagesEl = document.body.createDiv();
-  const capabilities = { ...ProviderRegistry.getCapabilities('claude'), providerId };
   const plugin = {
     app: {}, settings: { mediaFolder: '', showMessageTimestamps: false },
-    getConversationSummary: () => ({ providerId, capabilities }),
+    getConversationSummary: () => ({ providerId }),
   } as unknown as Parameters<typeof getSessionCapabilities>[1];
   const identity = { conversationId: 'cached-session', providerId, draftModel: null };
   const renderer = new MessageRenderer(plugin, new Component(), messagesEl, undefined, undefined,

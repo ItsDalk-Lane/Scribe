@@ -15,7 +15,7 @@ const crossPlatformTests = [
   'tests/unit/providers/deepseek/ui/DeepSeekSettingsTab.test.ts',
   'tests/integration/providers/claude/history/ClaudeTurnStats.test.ts',
   'tests/integration/providers/deepseek/app/DeepSeekWorkspaceServices.test.ts',
-  'tests/integration/providers/opencode/execution/OpencodeV2Execution.test.ts',
+  'tests/integration/providers/opencode/execution/OpencodeHTTPExecution.test.ts',
   'tests/integration/providers/deepseek/runtime/DeepSeekHostProcess.test.ts',
   'tests/integration/providers/deepseek/runtime/DeepSeekLaunchArtifacts.test.ts',
   'tests/integration/core/process/ProcessProbe.test.ts',
@@ -23,6 +23,7 @@ const crossPlatformTests = [
   'tests/integration/core/process/cliBinaryLocator.test.ts',
   'tests/integration/core/process/loginShellPath.test.ts',
   'tests/integration/core/session-tools/LoopbackSessionToolServer.test.ts',
+  'tests/integration/features/chat/tabs/forking/ForkSource.opencode.test.ts',
   'tests/integration/providers/opencode/http/OpencodeSharedServer.test.ts',
   'tests/integration/providers/pi/execution/PiExecutionKernel.test.ts',
 ];
