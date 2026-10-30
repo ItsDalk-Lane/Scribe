@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-10-30T15:17:40Z",
+  "updated_at": "2026-10-30T15:28:23Z",
   "files": {
     ".env.local.example": {
       "role": "index",
@@ -143,9 +143,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "65b6261c5534ba7ddee574ef0adbf3f1abcc4c1a098e7433c472c96ba4616255",
-      "size": 248054,
-      "normalized_sha256": "65b6261c5534ba7ddee574ef0adbf3f1abcc4c1a098e7433c472c96ba4616255"
+      "sha256": "d9d8db2439ccf2779661f4064a5996ba15eb58b5447b5fa12158c4a5ccfe8bc7",
+      "size": 251387,
+      "normalized_sha256": "d9d8db2439ccf2779661f4064a5996ba15eb58b5447b5fa12158c4a5ccfe8bc7"
     },
     "aoci.meta.txt": {
       "role": "index",

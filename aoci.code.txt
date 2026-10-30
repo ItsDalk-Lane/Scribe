@@ -159,7 +159,7 @@ RequestedRunChannel.ts[CR8S]: F:Implements one requested provider run: event que
 RewindableExecutionSession.ts[CD8T]: F:Capability contracts for steering and rewinding execution sessions, including rewind previews and conflicts | R:code:src/core/execution/ProviderExecutionSession.ts | A:isSteerableExecutionSession,isRewindableExecutionSession | S:Rewind previews report conflicts before any file or conversation change
 SessionSnapshotState.ts[CD8S]: F:Builds immutable provider session snapshots from live session state, copying opaque provider state | R:code:src/core/execution/ProviderSessionSnapshot.ts,code:src/core/execution/ProviderExecutionEvent.ts | A:snapshot,snapshotEvent | S:Opaque provider state is copied, never retained; snapshot status follows lifecycle transitions
 imageAttachment.ts[CD7T]: F:Normalizes image media types and parses data URIs into image attachments | R:code:src/core/types/index.ts | A:normalizeImageMediaType,parseImageDataUri,buildImageAttachmentFromBase64 | S:Only gif, jpeg, png, and webp are accepted; base64 payloads never persist in metadata
-index.ts[CG7S]: F:Public barrel for the core execution contracts and helpers | R:code:src/core/execution/ProviderExecutionSession.ts,code:src/core/execution/ProviderExecutionEvent.ts | A:- | S:-
+index.ts[CG7S]: F:Public barrel for the core execution contracts and helpers | R:code:src/core/execution/ProviderExecutionSession.ts,code:src/core/execution/ProviderExecutionEvent.ts | A:- | S:This barrel is the public execution surface; add new cross-layer contracts here rather than importing deep paths
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/core/path/===
 LinkedContentPath.ts[CD8T]: F:Normalizes, validates, and decodes vault-relative linked-content paths, rejecting absolute and control-character paths | R:code:src/core/types/index.ts | A:normalizeLinkedContentPath,assertLinkedContentPath,decodeLinkedContentPathFields | S:New references are path-only from the Vault root; legacy Note forms decode only; directories never change CWD or ingest recursively
@@ -272,7 +272,7 @@ toolResultDetails.ts[CD8S]: F:Normalizes and merges web search, image, script ca
 ===/Users/study_superior/Desktop/Code/Scribe/src/core/types/===
 chat.ts[CD8M]: F:Chat domain types: conversations, messages, images, snapshots, citations, and view identity | R:code:src/core/execution/ProviderExecutionRequest.ts,code:src/core/types/tools.ts | A:- | S:VIEW_TYPE_SCRIBE is the Obsidian view id; image media types are limited to four formats
 diff.ts[CD5T]: F:Diff line, stats, and structured hunk types | R:- | A:- | S:-
-index.ts[CG7T]: F:Public barrel re-exporting the core type groups | R:code:src/core/types/chat.ts,code:src/core/types/tools.ts,code:src/core/types/settings.ts | A:- | S:-
+index.ts[CG7T]: F:Public barrel re-exporting the core type groups | R:code:src/core/types/chat.ts,code:src/core/types/tools.ts,code:src/core/types/settings.ts | A:- | S:Preserve this barrel and the types.ts buckets; new domain types must be re-exported here
 project.ts[CD7S]: F:Project record, create and update inputs, reader, mutation, and memory operation contracts | R:- | A:- | S:Record ids pass the session-metadata safe-segment check; deleting a record leaves member project ids unresolved
 provider.ts[CD4T]: F:Provider id type alias | R:- | A:- | S:-
 settings.ts[CC8S]: F:Scribe settings types: approval decisions, env snippets, slash commands, keyboard navigation, and placements | R:code:src/core/types/chat.ts | A:- | S:Saved selections and placements are serialized keys and must stay stable
@@ -321,11 +321,11 @@ toggleServiceTier.ts[DD5T]: F:Toggles the provider service tier through an injec
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/composer/toolbar/===
 ContextUsageMeter.ts[AU7S]: F:Circular context-usage meter with accessible progressbar attributes | R:code:src/core/types/index.ts | A:- | S:The meter exposes aria-valuemin, aria-valuemax, and aria-valuenow
-InputToolbar.ts[AU7T]: F:Creates the composer toolbar with model, mode, permission, service tier, effort, and context usage | R:code:src/features/chat/composer/toolbar/ContextUsageMeter.ts,code:src/shared/toolbar/ModelSelector.ts | A:createInputToolbar | S:-
+InputToolbar.ts[AU7T]: F:Creates the composer toolbar with model, mode, permission, service tier, effort, and context usage | R:code:src/features/chat/composer/toolbar/ContextUsageMeter.ts,code:src/shared/toolbar/ModelSelector.ts | A:createInputToolbar | S:Control order is fixed: model, context meter, menu extras, then permission, which CSS pins to the far end
 ModeSelector.ts[AU7T]: F:Provider mode selector shown only when the provider supplies exactly two options | R:code:src/core/providers/types.ts,code:src/features/chat/composer/toolbar/types.ts | A:- | S:Zero or more than two options hides the selector
 PermissionToggle.ts[AU7T]: F:Toolbar menu for the provider's permission modes | R:code:src/core/providers/types.ts,code:src/shared/toolbar/ToolbarMenu.ts | A:- | S:A single available mode hides the toggle
 ServiceTierToggle.ts[AU6T]: F:Fast-mode switch inside the model menu with an indicator on the model button | R:code:src/features/chat/composer/toggleServiceTier.ts,code:src/shared/toolbar/ModelSelector.ts | A:- | S:-
-types.ts[CU7T]: F:Toolbar settings and callback contract for mode, tier, permission, and model changes | R:code:src/features/chat/ChatSettings.ts,code:src/shared/toolbar/types.ts | A:- | S:-
+types.ts[CU7T]: F:Toolbar settings and callback contract for mode, tier, permission, and model changes | R:code:src/features/chat/ChatSettings.ts,code:src/shared/toolbar/types.ts | A:- | S:Mode, tier, and permission callbacks persist through the tab host; they never keep local settings
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/conversation/===
 ConversationBranching.ts[AD7M]: F:Navigates conversation branches and restores the composer for branch or edit requests | R:code:src/features/chat/execution/ChatExecutionCoordinator.ts,code:src/features/chat/composer/ComposerDraftController.ts,code:src/features/chat/rendering/MessageRenderer.ts | A:- | S:A recovery-required result restores the previous branch instead of showing partial content
@@ -377,7 +377,7 @@ index.ts[CG5T]: F:Barrel for the Linked content controller, picker source, and p
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/navigation/===
 NavigationController.ts[AU7M]: F:Keyboard and scroll navigation over the rendered transcript | R:code:src/core/types/index.ts,code:src/features/chat/utils/animationFrame.ts | A:- | S:Scroll speed is eight pixels per frame
-NavigationSidebar.ts[AU7M]: F:Floating history navigation sidebar with directory entries and scroll intent | R:code:src/features/chat/utils/conversationDirectoryTitle.ts | A:- | S:-
+NavigationSidebar.ts[AU7M]: F:Floating history navigation sidebar with directory entries and scroll intent | R:code:src/features/chat/utils/conversationDirectoryTitle.ts | A:- | S:The directory includes unrendered prompts; choosing an entry reveals only the needed transcript window
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/projects/===
 ProjectChip.ts[AU6T]: F:Composer chip showing and changing the conversation's project | R:code:src/features/chat/projects/projectOrder.ts,code:src/features/chat/conversation/ConversationController.ts | A:- | S:After the first message the chip is a fixed label
@@ -408,7 +408,7 @@ markdownHTML.ts[CU7T]: F:Escapes message-authored raw HTML before Markdown rende
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/rendering/tools/===
 DiffRenderer.ts[AU7S]: F:Renders diff stats, hunks with context, and diff content | R:code:src/core/types/diff.ts | A:renderDiffStats,splitIntoHunks,renderDiffContent | S:Splitting uses three context lines by default
 ToolCallRenderer.ts[AU7S]: F:Renders a collapsible tool card from tool presentation, status, and content | R:code:src/features/chat/rendering/tools/toolPresentation.ts,code:src/features/chat/rendering/tools/toolStatus.ts | A:renderToolCall,updateToolCallResult,refreshToolCallHeader | S:Header refresh keeps the same card instance across updates
-WriteEditRenderer.ts[AU7M]: F:Renders Write and Edit tool blocks with file path, diff stats, and diff content | R:code:src/features/chat/rendering/tools/DiffRenderer.ts,code:src/core/tools/toolIcons.ts | A:createWriteEditBlock,updateWriteEditWithDiff | S:-
+WriteEditRenderer.ts[AU7M]: F:Renders Write and Edit tool blocks with file path, diff stats, and diff content | R:code:src/features/chat/rendering/tools/DiffRenderer.ts,code:src/core/tools/toolIcons.ts | A:createWriteEditBlock,updateWriteEditWithDiff | S:Diff content renders lazily only while expanded; diffDirty defers updates until the card is expanded
 applyPatchContent.ts[AU6S]: F:Renders apply-patch tool summaries, status, and expanded per-file diffs | R:code:src/core/tools/toolDiff.ts,code:src/features/chat/rendering/tools/DiffRenderer.ts | A:getApplyPatchSummary,setApplyPatchStatus,renderApplyPatchExpanded | S:Status reflects patch parse failures as errors, not empty content
 askUserQuestionContent.ts[AU6S]: F:Renders ask-user question cards and resolved answers in tool results | R:code:src/core/tools/toolInput.ts,code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:renderAskUserQuestionContent | S:A pending card shows the question; resolved answers replace it
 scriptContent.ts[AU6S]: F:Renders script tool cards with language, summary, output, and nested tool calls | R:code:src/core/types/tools.ts,code:src/utils/stringify.ts | A:getScriptLanguage,getScriptSummary | S:-
@@ -416,7 +416,7 @@ sessionToolContent.ts[AU6S]: F:Renders list, send, and read session tool cards f
 todoContent.ts[AU5T]: F:Extracts todo items and renders the todo tool's label and status | R:code:src/core/tools/todo.ts | A:getTodoName,getTodoLabel,getCurrentTaskText,setTodoWriteStatus | S:-
 toolCardDispatch.ts[AU6T]: F:Dispatches tool cards to write/edit, apply-patch, or generic renderers | R:code:src/features/chat/rendering/tools/ToolCallRenderer.ts,code:src/features/chat/rendering/tools/WriteEditRenderer.ts | A:renderToolCard,isSilentWriteStdinTool | S:Silent write-stdin calls with empty chars are not rendered
 toolContentPrimitives.ts[CU7S]: F:Shared tool card primitives: icons, value formatting, truncation, and empty results | R:code:src/core/tools/toolIcons.ts,code:src/shared/icons.ts | A:setToolIcon,stringifyToolValue,getInputText,truncateText | S:MCP tools render the shared MCP icon instead of a name icon
-toolExpandedContent.ts[AU7S]: F:Renders expanded bash, read, file search, tool search, and image content | R:code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:renderBashContent,renderReadExpanded,renderFileSearchExpanded | S:-
+toolExpandedContent.ts[AU7S]: F:Renders expanded bash, read, file search, tool search, and image content | R:code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:renderBashContent,renderReadExpanded,renderFileSearchExpanded | S:Legacy line-number gutters are stripped only when every non-terminal line carries the next consecutive number
 toolPresentation.ts[CU8M]: F:Tool presentation table mapping names to labels, summaries, icons, and expanded content | R:code:src/core/tools/toolNames.ts,code:src/core/tools/toolIcons.ts | A:getToolPresentation,getToolName,getToolSummary | S:Unknown tools fall back to a generic presentation
 toolStatus.ts[CU6T]: F:Sets the status icon and label on a tool card | R:code:src/core/types/tools.ts | A:setToolStatus | S:Completed, error, and blocked have distinct icons
 webSearchContent.ts[AU6S]: F:Renders web search summaries, labels, and expandable result lists | R:code:src/core/types/tools.ts,code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:getWebSearchSummary,getWebSearchLabel,renderWebSearchExpanded | S:Results without a URL are dropped
@@ -436,7 +436,7 @@ SessionManagerIcons.ts[CU5T]: F:Inline SVG paths for session group collapse and 
 SessionManagerSurface.ts[AU7S]: F:Chooses the session manager surface: sidebar in dual pane, dropdown in single pane | R:code:src/features/chat/session-manager/HistoryDropdown.ts,code:src/features/chat/session-manager/SessionBrowser.ts | A:- | S:Startup profiling spans surface construction
 SessionMetadataPopover.ts[AU6M]: F:Shows session provider, model, timestamps, and linked-content metadata | R:code:src/features/chat/session-manager/SessionListOrganizer.ts,code:src/shared/icons.ts | A:formatSessionCreatedDate,formatSessionLastActive | S:-
 SessionMultiSelection.ts[AU6S]: F:Multi-selects session rows within one list and never outlives it | R:- | A:- | S:Selection resets with the container or search query
-SessionNavigation.ts[AU7T]: F:Opens conversations into tabs with cross-view awareness and status lookup | R:code:src/features/chat/tabs/TabManager.ts,code:src/features/chat/session-manager/SessionStatusPresentation.ts | A:- | S:-
+SessionNavigation.ts[AU7T]: F:Opens conversations into tabs with cross-view awareness and status lookup | R:code:src/features/chat/tabs/TabManager.ts,code:src/features/chat/session-manager/SessionStatusPresentation.ts | A:- | S:Status projects this view's tabs; another view's open tab reports other-view and is never opened from here
 SessionSidebar.ts[AU8L]: F:Persistent dual-pane session sidebar with sorting, grouping, search, and drag targets | R:code:src/features/chat/session-manager/SessionBrowser.ts,code:src/features/chat/session-manager/SessionDrag.ts | A:- | S:Rows keep their position across rerenders through captured anchors
 SessionStatusPresentation.ts[CU7S]: F:Maps open state, running, attention, and unread flags to status indicators | R:code:src/features/chat/state/types.ts,code:src/i18n/i18n.ts | A:- | S:Action-required outranks error, running, and unread
 SessionSurfaceShared.ts[CU7S]: F:Shared session surface helpers: navigation contract, header actions, and error reporting | R:code:src/features/chat/session-manager/SessionBrowser.ts,code:src/features/chat/session-manager/SessionStatusPresentation.ts | A:runSessionAction,createSessionHeaderAction | S:Action failures surface a notice instead of throwing
@@ -455,7 +455,7 @@ SessionForkSource.ts[AD7M]: F:Captures a source conversation's messages and nati
 SessionModel.ts[AD9L]: F:Session presentation model exposing conversation, settings, usage, attention, and change events | R:code:src/features/chat/conversation/ConversationController.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:createSessionMessageId | S:Change categories drive selective rerenders; identity changes are explicit
 SessionRuntimePool.ts[AR9M]: F:Owns session runtimes across tab rebinds and view closes, with exclusive attachment handles | R:code:src/features/chat/sessions/ChatSessionRuntime.ts | A:acquire,ensure,release,get,getAttachment,holdDraft | S:Attachment is exclusive and reserved before awaiting hydration; only the pool issues a current handle
 SessionTranscript.ts[AU6T]: F:Optional transcript view over a session model; attachment never changes execution | R:code:src/features/chat/rendering/MessageRenderer.ts | A:- | S:-
-createChatSessionRuntime.ts[AD7T]: F:Assembles a chat session runtime from the host, execution coordinator, mailbox, and side chat | R:code:src/features/chat/execution/ChatExecutionCoordinator.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:createChatSessionRuntime | S:-
+createChatSessionRuntime.ts[AD7T]: F:Assembles a chat session runtime from the host, execution coordinator, mailbox, and side chat | R:code:src/features/chat/execution/ChatExecutionCoordinator.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:createChatSessionRuntime | S:The runtime is assembled without a tab, document, or window; events for an unready model apply after hydration
 sessionExecution.ts[CD6T]: F:Builds the resumable execution binding snapshot from a conversation | R:code:src/core/types/index.ts | A:createConversationExecutionBinding | S:Resume seeds carry native session id, provider state, and resume checkpoint only
 sessionProvider.ts[CD6T]: F:Resolves the provider a session or tab runs on, failing clearly when none is configured | R:code:src/core/providers/types.ts,code:src/features/chat/ChatFeatureHost.ts | A:getSessionProviderId,requireSessionProviderId | S:An unset provider raises a user-facing notice rather than a default
 sessionSettings.ts[CD7S]: F:Resolves session capabilities, chat UI config, and settings snapshots for a conversation | R:code:src/core/providers/conversationModel.ts,code:src/core/providers/ProviderSettingsCoordinator.ts | A:getSessionCapabilities,getSessionChatUIConfig,getSessionSettingsSnapshot | S:The snapshot follows the provider's saved selection when the conversation names no model
@@ -483,14 +483,14 @@ AsyncSubagentHistoryRecovery.ts[AR7M]: F:Recovers async subagent history from th
 SubagentCardView.ts[AU6T]: F:Disposable subagent card presentation; task identity stays with the manager | R:code:src/features/chat/subagents/SubagentRenderer.ts | A:- | S:-
 SubagentHistoryRenderer.ts[AU6T]: F:Renders stored subagent runs with linked cards and disclosure state | R:code:src/features/chat/subagents/SubagentRenderer.ts,code:src/features/chat/rendering/collapsible.ts | A:renderSubagentHistory | S:Runs of one agent id are linked across separate cards
 SubagentManager.ts[AD8L]: F:Owns subagent task identity, lifecycle, progress, and result interpretation | R:code:src/features/chat/subagents/SubagentCardView.ts,code:src/core/providers/types.ts | A:- | S:Task identity and lifecycle never live in the card view; native payloads are interpreted by the provider
-SubagentRenderer.ts[AU7L]: F:Renders and updates subagent blocks, progress, and stored runs | R:code:src/features/chat/rendering/collapsible.ts,code:src/features/chat/rendering/tools/toolPresentation.ts | A:createSubagentBlock,updateSubagentBlock,updateSubagentProgress,renderStoredSubagent | S:-
+SubagentRenderer.ts[AU7L]: F:Renders and updates subagent blocks, progress, and stored runs | R:code:src/features/chat/rendering/collapsible.ts,code:src/features/chat/rendering/tools/toolPresentation.ts | A:createSubagentBlock,updateSubagentBlock,updateSubagentProgress,renderStoredSubagent | S:Sections and tool cards reuse their elements; renderedToolCall and renderedContent skip rebuilding unchanged content
 SubagentStreamRouter.ts[AD8L]: F:Routes provider subagent stream chunks into subagent cards and stored history | R:code:src/features/chat/subagents/SubagentManager.ts,code:src/core/providers/types.ts | A:- | S:Tool diffs and results are normalized before routing
 storedTaskSubagent.ts[CD6T]: F:Builds a subagent view for a stored managed-agent spawn tool, preferring linked data | R:code:src/core/tools/toolResultContent.ts,code:src/core/types/index.ts | A:resolveStoredTaskSubagent | S:An inferred subagent respects the requested sync or async mode
 subagentAdapterResolution.ts[CD6T]: F:Resolves the active provider's subagent adapter for a tool | R:code:src/core/providers/ProviderRegistry.ts,code:src/core/providers/types.ts | A:resolveSubagentAdapter | S:An adapter owns only the tools it declares
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/tabs/===
 AGENTS.md[SG8T]: F:Tab lifetime constraints: shared runtime presence, optimistic presentation, close and rebind, and forking | R:code:src/features/chat/tabs/TabManager.ts | A:- | S:Optimistic presentation cannot persist before admission; close claims membership reversibly; forks revalidate the source binding across awaits
-ChatTab.ts[CU8S]: F:Tab interfaces: identity, lifecycle state, view host, bar items, and ports | R:code:src/features/chat/tabs/TabIdentity.ts,code:src/features/chat/zen/types.ts | A:- | S:-
+ChatTab.ts[CU8S]: F:Tab interfaces: identity, lifecycle state, view host, bar items, and ports | R:code:src/features/chat/tabs/TabIdentity.ts,code:src/features/chat/zen/types.ts | A:- | S:Tab lifecycle is independent of conversation binding; provisional tabs are replaceable previews and execution belongs to the coordinator
 ParkedDrafts.ts[CD6T]: F:Holds unsent composer text while no presentation shows its session | R:code:src/features/chat/composer/ComposerDraftController.ts | A:- | S:In memory only; selections and linked content stay with the session
 TabActivation.ts[AD8M]: F:Activates tabs, revalidating membership after every await | R:code:src/features/chat/tabs/TabHydration.ts,code:src/features/chat/tabs/TabMembership.ts,code:src/features/chat/tabs/TabSwitchScheduler.ts | A:- | S:A tab that stops being live aborts activation
 TabBar.ts[AU7L]: F:Renders the tab bar with labels, truncation, middle-click close, and menus | R:code:src/core/bootstrap/tabManagerState.ts,code:src/features/chat/tabs/ChatTab.ts | A:- | S:Titles are bounded to 32 characters with an ellipsis
@@ -512,8 +512,8 @@ TabSwitchScheduler.ts[CR7M]: F:Serializes tab switch requests and keeps only the
 ViewerSlot.ts[AU7M]: F:Wide-layout viewer slot holding one provisional preview and its parked drafts | R:code:src/features/chat/tabs/ParkedDrafts.ts,code:src/features/chat/tabs/TabConversationNavigation.ts | A:linkedContentExists | S:The preview is the only wide presentation and never becomes a narrow tab implicitly
 draftSeed.ts[CD6T]: F:Derives the draft seed a new tab inherits from its session or project | R:code:src/core/types/project.ts,code:src/features/chat/tabs/types.ts | A:sessionProjectId,inheritedDraftSeed | S:Only the session's raw project id seeds a blank draft
 tabProviderLifecycle.ts[CD7T]: F:Syncs provider services and reacts to provider availability for a tab | R:code:src/features/chat/tabs/TabIdentity.ts,code:src/features/chat/tabs/tabProviderUI.ts | A:syncTabProviderServices,onProviderAvailabilityChanged | S:A disabled provider reselects the blank tab's provider rather than executing
-tabProviderUI.ts[AU7S]: F:Refreshes provider UI, commands, usage display, and service-tier gating for a tab | R:code:src/features/chat/sessions/sessionSettings.ts,code:src/features/chat/state/usageInfo.ts | A:syncComposerDropdownForProvider,invalidateTabProviderCommands,refreshTabProviderUI,applyProviderUIGating | S:-
-types.ts[CE7M]: F:Assembled tab runtime, controllers, DOM, membership view, and draft seed types | R:code:src/features/chat/tabs/ChatTab.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:- | S:-
+tabProviderUI.ts[AU7S]: F:Refreshes provider UI, commands, usage display, and service-tier gating for a tab | R:code:src/features/chat/sessions/sessionSettings.ts,code:src/features/chat/state/usageInfo.ts | A:syncComposerDropdownForProvider,invalidateTabProviderCommands,refreshTabProviderUI,applyProviderUIGating | S:Refreshes derive from the session's provider snapshot; a missing catalog clears commands instead of keeping the previous provider's
+types.ts[CE7M]: F:Assembled tab runtime, controllers, DOM, membership view, and draft seed types | R:code:src/features/chat/tabs/ChatTab.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:- | S:TabMembershipView is read-only; only TabManager and its activation and close owners mutate membership, and awaiters revalidate through it
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/tabs/forking/===
 ForkTarget.ts[AD6M]: F:Chooses and opens a fork target while revalidating the source binding | R:code:src/features/chat/conversation/forkSourceTypes.ts,code:src/features/chat/tabs/forking/ForkTargetModal.ts | A:- | S:The source binding is revalidated across every await
@@ -525,9 +525,9 @@ TabWorkspaceLifecycle.ts[AD8M]: F:Restores and persists tab workspace state thro
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/tabs/runtime/===
 TabRuntimeConstruction.ts[CE7T]: F:Tab runtime construction contracts: core, controllers, options, and cleanup | R:code:src/features/chat/tabs/runtime/TabRuntimeCore.ts | A:- | S:A published runtime carries its cleanup
-TabRuntimeControllers.ts[CD7M]: F:Builds the tab's composer, selection, quote, and navigation controllers | R:code:src/features/chat/input/ComposerSelections.ts,code:src/features/chat/composer/markdownSnippet.ts | A:buildTabRuntimeControllers | S:-
+TabRuntimeControllers.ts[CD7M]: F:Builds the tab's composer, selection, quote, and navigation controllers | R:code:src/features/chat/input/ComposerSelections.ts,code:src/features/chat/composer/markdownSnippet.ts | A:buildTabRuntimeControllers | S:Controllers read liveness through runtimeRef after awaits and never own tab membership
 TabRuntimeCore.ts[AD8T]: F:Builds the tab core: identity, session, editor, welcome, and DOM elements | R:code:src/features/chat/tabs/TabSession.ts,code:src/features/chat/tabs/TabIdentity.ts,code:src/features/chat/sessions/SessionRuntimePool.ts | A:buildTabRuntimeCore | S:An already-attached session rejects a second tab
-TabRuntimeInputBindings.ts[CD7M]: F:Binds composer key and menu events to tab input actions | R:code:src/features/chat/tabs/TabInputEvents.ts | A:buildTabRuntimeInputBindings | S:-
+TabRuntimeInputBindings.ts[CD7M]: F:Binds composer key and menu events to tab input actions | R:code:src/features/chat/tabs/TabInputEvents.ts | A:buildTabRuntimeInputBindings | S:Button and anchor targets and default-prevented events are skipped, and liveness is revalidated before every action
 TabRuntimePorts.ts[CD7S]: F:Creates tab ports for composer, linked content, placement, and transcript | R:code:src/features/chat/tabs/ChatTab.ts,code:src/features/chat/tabs/runtime/TabRuntimeConstruction.ts | A:buildTabRuntimePorts,createTabComposerPort,createTabPlacementPort | S:Composer and placement changes publish through the host
 TabRuntimeUI.ts[AU8L]: F:Builds tab UI: composer, toolbar, context tray, transcript, and provider gating | R:code:src/features/chat/tabs/tabProviderUI.ts,code:src/features/chat/composer/toolbar/InputToolbar.ts,code:src/features/chat/rendering/MessageRenderer.ts | A:buildTabRuntimeUI | S:Provider-gated controls hide rather than offering unsupported actions
 
@@ -612,7 +612,7 @@ main.ts[EG9M]: F:Plugin entry point and sole composition root | R:code:src/app/s
 ACPClientConnection.ts[CN8S]: F:ACP client connection over JSON-RPC: initialize, sessions, prompts, cancellation, and server requests | R:code:src/providers/acp/ACPJSONRPCTransport.ts,code:src/providers/acp/methodNames.ts | A:- | S:Server notifications and server requests are dispatched separately; unknown methods are rejected
 ACPExecutionEventNormalizer.ts[CN7M]: F:Normalizes ACP session updates into scoped execution events | R:code:src/core/execution/ProviderExecutionEvent.ts | A:- | S:Requested and background channels are distinguished
 ACPInteractionController.ts[CN8S]: F:Routes ACP permission requests through the interaction port and pending ledger | R:code:src/core/execution/PendingInteractionLedger.ts,code:src/providers/acp/ACPPermissionAdapter.ts | A:- | S:Each interaction is dismissed at most once
-ACPJSONRPCTransport.ts[CN7T]: F:Re-exports the core JSON-RPC transport for ACP | R:code:src/core/rpc/JSONRPCTransport.ts | A:- | S:-
+ACPJSONRPCTransport.ts[CN7T]: F:Re-exports the core JSON-RPC transport for ACP | R:code:src/core/rpc/JSONRPCTransport.ts | A:- | S:This is a re-export of the core transport; ACP must not fork JSON-RPC behavior locally
 ACPPermissionAdapter.ts[CN7T]: F:Maps ACP permission options to approval decisions and options | R:code:src/core/execution/ProviderInteractionPort.ts | A:mapACPApprovalDecision,buildACPApprovalDecisionOptions | S:Cancellation maps to a cancelled response
 ACPRequestedTurn.ts[CN8S]: F:Tracks one requested ACP turn: updates, tool stream, usage, and terminal state | R:code:src/core/execution/RequestedRunChannel.ts,code:src/providers/acp/ACPSessionUpdateNormalizer.ts | A:- | S:Session metadata updates never carry turn output
 ACPSessionConfig.ts[CN6S]: F:Extracts ACP session model and config state | R:code:src/providers/acp/types.ts | A:extractACPSessionModelState | S:Missing config options stay unknown rather than defaulting
@@ -622,7 +622,7 @@ ACPToolResultNormalization.ts[CN6T]: F:Decodes ACP diff results; a missing oldTe
 ACPToolStreamAdapter.ts[CN7S]: F:Adapts ACP tool call updates into stream chunks and provider payloads | R:code:src/core/tools/toolProviderPayload.ts,code:src/core/tools/toolResultDetails.ts | A:- | S:Raw tool names keep their provenance: fallback, kind, or title
 buildACPUsageInfo.ts[CN6T]: F:Builds usage info from ACP prompt and context-window usage | R:code:src/core/types/index.ts,code:src/providers/acp/types.ts | A:buildACPUsageInfo | S:Missing usage evidence yields null, never an estimate
 index.ts[CG5T]: F:Barrel for shared ACP protocol mechanics | R:code:src/providers/acp/ACPClientConnection.ts | A:- | S:-
-methodNames.ts[CN7T]: F:ACP logical method names for client and server methods | R:- | A:ACP_METHOD_NAMES,ACP_SERVER_NOTIFICATION_METHODS,ACP_SERVER_REQUEST_METHODS | S:-
+methodNames.ts[CN7T]: F:ACP logical method names for client and server methods | R:- | A:ACP_METHOD_NAMES,ACP_SERVER_NOTIFICATION_METHODS,ACP_SERVER_REQUEST_METHODS | S:Wire method strings are protocol constants shared by client and server dispatch
 types.ts[CN8L]: F:ACP protocol types pinned to protocol version 1 | R:- | A:ACP_PROTOCOL_VERSION | S:Protocol version is 1
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/claude/===
@@ -1119,7 +1119,7 @@ HostnameCLIPathSetting.ts[CU6S]: F:Hostname-scoped CLI path setting control | R:
 ProviderEnablementSetting.ts[CU5T]: F:Provider enable toggle setting control | R:- | A:renderProviderEnablementSetting | S:-
 ProviderModelEnablementWarning.ts[CU7S]: F:Warnings for provider and model enablement edge cases | R:code:src/core/providers/types.ts,code:src/i18n/i18n.ts | A:renderLastEnabledProviderWarning | S:The last enabled provider cannot be disabled without a warning
 ProviderModelPicker.ts[CU8L]: F:Provider model picker with ordering, enablement, and discovery actions | R:code:src/core/providers/models/ProviderModelCatalog.ts,code:src/shared/components/LiveListSorter.ts | A:renderProviderModelPicker | S:Selection changes follow the catalog's current snapshot
-ProviderModelsSection.ts[CU7T]: F:Provider models section wrapping the model picker | R:code:src/core/providers/models/ProviderModelCatalog.ts,code:src/shared/settings/ProviderModelPicker.ts | A:renderProviderModelsSection | S:-
+ProviderModelsSection.ts[CU7T]: F:Provider models section wrapping the model picker | R:code:src/core/providers/models/ProviderModelCatalog.ts,code:src/shared/settings/ProviderModelPicker.ts | A:renderProviderModelsSection | S:The section observes the catalog and disposes its subscription; stale and empty states render in a polite status region
 SettingsGroups.ts[CU5T]: F:Frames settings headings and their siblings as groups | R:- | A:frameSettingsGroups | S:Groups keep the existing controls intact
 contextLimit.ts[CU5T]: F:Parses custom context limits with bounds | R:- | A:parseContextLimit,MIN_CONTEXT_LIMIT,MAX_CONTEXT_LIMIT | S:Limits stay between 1,000 and 10,000,000
 
@@ -1148,15 +1148,15 @@ composer-dropdown.css[FU6S]: F:Composer dropdown positioning and list styling | 
 composer-editor.css[FU6S]: F:CodeMirror composer chrome and padding | R:- | A:- | S:The wrapper owns chrome; CodeMirror owns layout and scrolling
 composer-info-row.css[FU6S]: F:Composer info row styling under the input box | R:- | A:- | S:The toolbar holds only user-changeable controls
 context-footer.css[FU4T]: F:Context usage meter placement and styling | R:- | A:- | S:-
-context-tray.css[FU7S]: F:Composer context tray for selections and images | R:- | A:- | S:-
+context-tray.css[FU7S]: F:Composer context tray for selections and images | R:- | A:- | S:The tray is display:none by default and the component toggles it; chips override Obsidian's native button surface in every interaction state
 history.css[FU8L]: F:Session history, groups, and dropup styling | R:- | A:- | S:Session lists scroll independently with min-height zero through flex ancestors
 input.css[FU7M]: F:Composer input container and surface styling | R:- | A:- | S:Textarea resizing needs an explicit bounded modifier
 messages.css[FU8L]: F:Transcript wrapper, messages, and scroll-to-bottom styling | R:- | A:- | S:The messages wrapper keeps min-height zero for bounded scrolling
 nav-sidebar.css[FU6S]: F:Floating navigation sidebar styling | R:- | A:- | S:-
 response-blocks.css[FU4T]: F:Shared collapsible response block layout | R:- | A:- | S:Content borders align with the 16px header icon
 session-projects.css[FU4T]: F:Projects section styling in the session sidebar | R:- | A:- | S:The section takes its own capped height and scrolls its rows
-side-chat.css[FU7M]: F:Side chat panel and composer border styling | R:- | A:- | S:-
-subagent.css[FU7M]: F:Subagent card and icon styling | R:- | A:- | S:-
+side-chat.css[FU7M]: F:Side chat panel and composer border styling | R:- | A:- | S:Collapsed and expanded states share one composer border; the panel keeps min-height zero so its transcript scrolls
+subagent.css[FU7M]: F:Subagent card and icon styling | R:- | A:- | S:History toggles reset Obsidian's button chrome on hover, focus, active, and disabled while keeping focus-visible
 tabs.css[FU6S]: F:Tab bar container and tab styling | R:- | A:- | S:-
 thinking.css[FU4T]: F:Thinking indicator styling and pulse animation | R:- | A:- | S:-
 todo-list.css[FU4T]: F:Todo list item styling | R:- | A:- | S:-
@@ -1165,31 +1165,31 @@ live-sort.css[FU3T]: F:Live list sorting transform states | R:- | A:- | S:Moveme
 zen-mode.css[FU7L]: F:Zen mode floating panel, composer, and dock styling | R:- | A:- | S:Moved nodes are only relocated and restored, never duplicated
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/features/===
-ask-user-question.css[FU7L]: F:Ask-user question card and option styling | R:- | A:- | S:-
-diff.css[FU7S]: F:Diff stats, hunks, and line styling | R:- | A:- | S:-
+ask-user-question.css[FU7L]: F:Ask-user question card and option styling | R:- | A:- | S:The widget's flex display would defeat the hidden attribute, so hidden forces display:none; controls reset native chrome in every state
+diff.css[FU7S]: F:Diff stats, hunks, and line styling | R:- | A:- | S:Successful completion hides the empty status so stats align right; Write and Edit diffs never use strikethrough
 file-link.css[FU3T]: F:Wikilink and file link styling | R:- | A:- | S:-
 image-context.css[FU4T]: F:Composer image context chip styling | R:- | A:- | S:-
 image-embed.css[FU4T]: F:Embedded image styling inside rendered Markdown | R:- | A:- | S:-
 image-modal.css[FU4T]: F:Image preview modal styling | R:- | A:- | S:-
-inline-edit.css[FU7M]: F:Inline edit modal, diff preview, and insertion styling | R:- | A:- | S:-
+inline-edit.css[FU7M]: F:Inline edit modal, diff preview, and insertion styling | R:- | A:- | S:The card owns surface and focus treatment; the input stays bare in every state and the preview highlight is gated by SelectionController
 resume-session.css[FU5S]: F:Resume session dropdown styling | R:- | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/modals/===
 fork-target.css[FU4T]: F:Fork target modal styling | R:- | A:- | S:-
-projects.css[FU7M]: F:Project editor and memory modal styling | R:- | A:- | S:-
+projects.css[FU7M]: F:Project editor and memory modal styling | R:- | A:- | S:Obsidian's modal rules show hidden tools; the memory modal fills the space between header and footer with min-height zero
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/settings/===
-agent-skills.css[FU7M]: F:Agent skill settings and editor styling | R:- | A:- | S:-
+agent-skills.css[FU7M]: F:Agent skill settings and editor styling | R:- | A:- | S:Skill list boxes keep a settled bottom border so the next setting's divider does not overlap them
 base.css[FU7M]: F:Base settings tab layout and control resets | R:- | A:- | S:Control resets cover hover, focus, active, and disabled states
-cli-installation.css[FU7M]: F:CLI installation setting styling | R:- | A:- | S:-
-env-snippets.css[FU7M]: F:Environment snippet manager styling | R:- | A:- | S:-
-groups.css[FU7M]: F:Settings group framing and headings | R:- | A:- | S:-
+cli-installation.css[FU7M]: F:CLI installation setting styling | R:- | A:- | S:The header is a button; disabled and focus states must not regain filled hover chrome
+env-snippets.css[FU7M]: F:Environment snippet manager styling | R:- | A:- | S:The empty state doubles as the save button; its border must survive hover, focus-visible, and active or the settings reset shifts layout
+groups.css[FU7M]: F:Settings group framing and headings | R:- | A:- | S:Obsidian restores filled button chrome; resets are scoped to settings items and the agent and env modals and keep a visible focus ring
 provider-model-picker.css[FU7L]: F:Provider model picker and sortable row styling | R:- | A:- | S:The picker scrolls its own rows without clipping
 slash-settings.css[FU3T]: F:Slash command settings styling | R:- | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/toolbar/===
 mode-selector.css[FU3T]: F:Mode selector toolbar styling | R:- | A:- | S:-
-model-selector.css[FU7L]: F:Model selector menu and button styling | R:- | A:- | S:-
+model-selector.css[FU7L]: F:Model selector menu and button styling | R:- | A:- | S:Narrow composers hide reasoning and fast-mode details; the model name truncates first and chips take no fill
 permission-toggle.css[FU3T]: F:Permission toggle toolbar styling | R:- | A:- | S:-
 service-tier-toggle.css[FU4T]: F:Service tier toggle styling | R:- | A:- | S:-
 thinking-selector.css[FU4T]: F:Thinking level selector styling | R:- | A:- | S:-
