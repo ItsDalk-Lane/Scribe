@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-10-30T14:56:51Z",
+  "updated_at": "2026-10-30T15:03:05Z",
   "files": {
     ".env.local.example": {
       "role": "index",
@@ -143,9 +143,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "80743782b1bacf8a3973f1143baf877d1de9796f6ccc58ba7c93ab0e0e75251e",
-      "size": 248662,
-      "normalized_sha256": "80743782b1bacf8a3973f1143baf877d1de9796f6ccc58ba7c93ab0e0e75251e"
+      "sha256": "c5ad18fd15ffbce0f163f402c778ec2141f5fffef392d156638b74dbe38fc0f8",
+      "size": 248631,
+      "normalized_sha256": "c5ad18fd15ffbce0f163f402c778ec2141f5fffef392d156638b74dbe38fc0f8"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -206,9 +206,9 @@
     },
     "esbuild.config.mjs": {
       "role": "index",
-      "sha256": "6cabd3dd450c9f2cdf5324897aff68536381236d84953ff125b2ecb9da38be53",
-      "size": 7154,
-      "normalized_sha256": "6cabd3dd450c9f2cdf5324897aff68536381236d84953ff125b2ecb9da38be53"
+      "sha256": "28bfe288fe6c8e1449464c80b6b53b45c743d5f9cdb10bf9a0e4d24ef2befdcb",
+      "size": 7172,
+      "normalized_sha256": "28bfe288fe6c8e1449464c80b6b53b45c743d5f9cdb10bf9a0e4d24ef2befdcb"
     },
     "eslint.config.mjs": {
       "role": "index",
