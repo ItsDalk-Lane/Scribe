@@ -1,6 +1,6 @@
 import type { ProviderExecutionConfiguration, ProviderSystemInstructions } from '@/core/execution';
 import { buildSystemPrompt } from '@/core/prompt/mainAgent';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import type { FeatureHost } from '@/features/FeatureHost';
 
 /** The directory chat sessions run in and the Main Agent prompt names: the local Vault root. */
@@ -13,7 +13,7 @@ export function getChatWorkingDirectory(host: Pick<FeatureHost, 'providerHost'>)
  * the Vault working directory, and the session's own instructions (for example, a project paragraph).
  */
 export function resolveChatSystemInstructions(
-  settings: Pick<ClaudianSettings, 'mediaFolder' | 'systemPrompt' | 'userName'>,
+  settings: Pick<ScribeSettings, 'mediaFolder' | 'systemPrompt' | 'userName'>,
   workingDirectory: string,
   sessionInstructions?: string,
 ): ProviderSystemInstructions {

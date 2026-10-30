@@ -28,11 +28,11 @@ export function bindCopyFeedback(
 
 /** Adopts an Obsidian-rendered `pre` and preserves its native copy button. */
 export function enhanceRenderedCodeFence(pre: HTMLPreElement): HTMLElement {
-  if (pre.parentElement?.classList.contains('claudian-code-wrapper')) {
+  if (pre.parentElement?.classList.contains('scribe-code-wrapper')) {
     return pre.parentElement;
   }
 
-  const wrapper = createDiv({ cls: 'claudian-code-wrapper' });
+  const wrapper = createDiv({ cls: 'scribe-code-wrapper' });
   pre.parentElement?.insertBefore(wrapper, pre);
   wrapper.appendChild(pre);
 
@@ -46,11 +46,11 @@ export function enhanceRenderedCodeFence(pre: HTMLPreElement): HTMLElement {
     const copied = t('chat.codeBlock.copied');
     // The accessible name keeps the visible language (label-in-name); the status announces feedback.
     const label = wrapper.createEl('button', {
-      cls: 'claudian-code-lang-label',
+      cls: 'scribe-code-lang-label',
       text: language,
       attr: { type: 'button', 'aria-label': copyLabel },
     });
-    const status = wrapper.createSpan({ cls: 'claudian-code-copy-status', attr: { role: 'status' } });
+    const status = wrapper.createSpan({ cls: 'scribe-code-copy-status', attr: { role: 'status' } });
     bindCopyFeedback(
       label,
       () => code.textContent ?? '',

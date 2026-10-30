@@ -1,5 +1,5 @@
 /**
- * Claudian - Resume session dropdown
+ * Scribe - Resume session dropdown
  *
  * Dropup UI for selecting a previous conversation to resume.
  * Shown when the /sessions built-in command is executed.
@@ -49,7 +49,7 @@ export class ResumeSessionDropdown {
     this.conversations = this.#sortConversations(conversations);
     this.currentConversationId = currentConversationId;
     this.callbacks = callbacks;
-    this.listboxId = `claudian-resume-listbox-${++nextListboxId}`;
+    this.listboxId = `scribe-resume-listbox-${++nextListboxId}`;
     this.previousInputAttributes = new Map(
       INPUT_ACCESSIBILITY_ATTRIBUTES.map(attribute => [
         attribute,
@@ -57,7 +57,7 @@ export class ResumeSessionDropdown {
       ])
     );
 
-    this.dropdownEl = this.containerEl.createDiv({ cls: 'claudian-resume-dropdown' });
+    this.dropdownEl = this.containerEl.createDiv({ cls: 'scribe-resume-dropdown' });
     this.#configureInputAccessibility();
     this.render();
     this.dropdownEl.addClass('visible');
@@ -132,7 +132,7 @@ export class ResumeSessionDropdown {
   }
 
   #updateSelection(scrollSelectedIntoView = true): void {
-    const items = this.dropdownEl.querySelectorAll('.claudian-resume-item');
+    const items = this.dropdownEl.querySelectorAll('.scribe-resume-item');
     let activeOptionId: string | null = null;
     items?.forEach((item, index) => {
       if (index === this.selectedIndex) {
@@ -175,16 +175,16 @@ export class ResumeSessionDropdown {
   private render(): void {
     this.dropdownEl.empty();
 
-    const header = this.dropdownEl.createDiv({ cls: 'claudian-resume-header' });
+    const header = this.dropdownEl.createDiv({ cls: 'scribe-resume-header' });
     header.createSpan({ text: t('chat.sessions.resume') });
 
-    const list = this.dropdownEl.createDiv({ cls: 'claudian-resume-list' });
+    const list = this.dropdownEl.createDiv({ cls: 'scribe-resume-list' });
     list.setAttribute('id', this.listboxId);
     list.setAttribute('role', 'listbox');
     list.setAttribute('aria-label', t('chat.sessions.resume'));
 
     if (this.conversations.length === 0) {
-      list.createDiv({ cls: 'claudian-resume-empty', text: t('chat.sessions.empty') });
+      list.createDiv({ cls: 'scribe-resume-empty', text: t('chat.sessions.empty') });
       this.#textbox.removeAttribute('aria-activedescendant');
       return;
     }
@@ -193,20 +193,20 @@ export class ResumeSessionDropdown {
       const conv = this.conversations[i];
       const isCurrent = conv.id === this.currentConversationId;
 
-      const item = list.createDiv({ cls: 'claudian-resume-item' });
+      const item = list.createDiv({ cls: 'scribe-resume-item' });
       item.setAttribute('id', `${this.listboxId}-option-${i}`);
       item.setAttribute('role', 'option');
       if (isCurrent) item.addClass('current');
       if (i === this.selectedIndex) item.addClass('selected');
 
-      const iconEl = item.createDiv({ cls: 'claudian-resume-item-icon' });
+      const iconEl = item.createDiv({ cls: 'scribe-resume-item-icon' });
       setIcon(iconEl, isCurrent ? 'message-square-dot' : 'message-square');
 
-      const content = item.createDiv({ cls: 'claudian-resume-item-content' });
-      const titleEl = content.createDiv({ cls: 'claudian-resume-item-title', text: conv.title });
+      const content = item.createDiv({ cls: 'scribe-resume-item-content' });
+      const titleEl = content.createDiv({ cls: 'scribe-resume-item-title', text: conv.title });
       titleEl.setAttribute('title', conv.title);
       content.createDiv({
-        cls: 'claudian-resume-item-date',
+        cls: 'scribe-resume-item-date',
         text: isCurrent ? t('chat.sessions.current') : this.formatDate(conv.lastActivityAt),
       });
 

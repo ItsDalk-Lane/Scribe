@@ -103,7 +103,7 @@ it('attaches a queued follow-up to the top of the input box, under the tab bar',
     expect(strip.parentElement).toBe(tab.dom.inputWrapper);
     expect(tab.dom.inputWrapper.firstElementChild).toBe(strip);
     expect(tab.dom.navRowEl.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(strip.classList.contains('claudian-hidden')).toBe(false);
+    expect(strip.classList.contains('scribe-hidden')).toBe(false);
     expect(within(strip).getByText('Queued')).toBeDefined();
     expect(within(strip).getByText('also add a created date')).toBeDefined();
     expect(box.getByRole('button', { name: 'Steer Now' })).toBeDefined();
@@ -112,7 +112,7 @@ it('attaches a queued follow-up to the top of the input box, under the tab bar',
 
     fireEvent.click(box.getByRole('button', { name: 'Edit queued message' }));
     expect(tab.state.queuedMessage).toBeNull();
-    expect(strip.classList.contains('claudian-hidden')).toBe(true);
+    expect(strip.classList.contains('scribe-hidden')).toBe(true);
     expect(box.queryByRole('button', { name: 'Edit queued message' })).toBeNull();
     expect(tab.dom.inputEl.value).toBe('also add a created date');
     await releaseTurn();
@@ -146,12 +146,12 @@ it('shows context usage in the toolbar next to the model picker', async () => {
   try {
     // Without a linked note the row still holds its place, so the composer does not shift.
     const row = infoRowOf(tab);
-    expect(row.classList.contains('claudian-hidden')).toBe(false);
+    expect(row.classList.contains('scribe-hidden')).toBe(false);
 
     tab.state.usage = usage(42);
-    const toolbar = tab.dom.inputWrapper.querySelector<HTMLElement>(':scope > .claudian-input-toolbar')!;
+    const toolbar = tab.dom.inputWrapper.querySelector<HTMLElement>(':scope > .scribe-input-toolbar')!;
     const meter = within(toolbar).getByRole('progressbar', { name: 'Context usage: 42% · 84k / 200k' });
-    const modelAnchor = toolbar.querySelector('.claudian-toolbar-chip-anchor--model');
+    const modelAnchor = toolbar.querySelector('.scribe-toolbar-chip-anchor--model');
     expect(modelAnchor?.nextElementSibling).toBe(meter);
     expect(within(row).queryByRole('progressbar')).toBeNull();
   } finally {

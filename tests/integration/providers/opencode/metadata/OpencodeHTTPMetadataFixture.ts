@@ -142,7 +142,7 @@ export interface OpencodeHTTPMetadataFixture {
 
 /** Creates an isolated native OpenCode CLI fixture with its catalog and endpoint files. */
 export function createOpencodeHTTPMetadataFixture(): OpencodeHTTPMetadataFixture {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-opencode-catalog-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-opencode-catalog-')));
   const cliPath = path.join(root, 'opencode.cjs');
   writeFileSync(cliPath, cliFixture, { mode: 0o700 });
   const environment: NodeJS.ProcessEnv = {

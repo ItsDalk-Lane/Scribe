@@ -15,7 +15,7 @@ describe('OpencodeConversationHistoryService', () => {
   let settings: Record<string, unknown>;
 
   beforeEach(() => {
-    tmpRoot = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'claudian-opencode-conversation-history-')));
+    tmpRoot = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'scribe-opencode-conversation-history-')));
     settings = { providerConfigs: { opencode: { cliPath: writeFakeOpencodeHistoryCLI(tmpRoot) } } };
   });
 

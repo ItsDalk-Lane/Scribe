@@ -1,4 +1,4 @@
-import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
+import { createScribeView } from '@test/helpers/features/chat/ScribeViewHarness';
 import { createMockEl } from '@test/helpers/MockElement';
 import { Platform, Scope } from 'obsidian';
 import type { Mock } from 'vitest';
@@ -117,7 +117,7 @@ async function openView(options: {
   const manager = options.manager ?? createFakeTabManager();
   installTabManager(manager);
   const contentEl = options.contentEl ?? createSizedContentEl(options.width ?? 400);
-  const view = createClaudianView({ plugin: createOpenablePlugin(options.plugin), contentEl });
+  const view = createScribeView({ plugin: createOpenablePlugin(options.plugin), contentEl });
   openedViews.push(view);
   await view.onOpen();
   await view.setState({}, { history: false });
@@ -140,7 +140,18 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe('ClaudianView model refresh routing', () => {
+describe('ScribeView model refresh routing', () => {
+  it('refreshes translations without reconciling provider availability', () => {
+    const tab = { refreshProviderControls: vi.fn(), refreshLocale: vi.fn() };
+    const tabManager = { getAllTabs: vi.fn().mockReturnValue([tab]), reconcileProviderAvailability: vi.fn() };
+    const view = createScribeView({ tabManager });
+
+    view.refreshLocale();
+
+    expect(tab.refreshProviderControls).toHaveBeenCalledOnce();
+    expect(tab.refreshLocale).toHaveBeenCalledOnce();
+    expect(tabManager.reconcileProviderAvailability).not.toHaveBeenCalled();
+  });
   it('refreshes provider controls only for tabs the changed provider can affect', () => {
     vi.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot')
       .mockImplementation((_settings, providerId) => ({
@@ -155,7 +166,7 @@ describe('ClaudianView model refresh routing', () => {
       getAllTabs: vi.fn().mockReturnValue([codexTab, grokTab, blankGrokTab]),
       reconcileProviderAvailability: vi.fn(),
     };
-    const view = createClaudianView({ tabManager });
+    const view = createScribeView({ tabManager });
 
     view.refreshModelSelector('codex');
 
@@ -172,13 +183,13 @@ describe('ClaudianView model refresh routing', () => {
   });
 });
 
-describe('ClaudianView tab controls', () => {
+describe('ScribeView tab controls', () => {
   it('builds chat navigation actions as native buttons that reach their owners', async () => {
     const { contentEl, manager } = await openView();
 
-    const newTabButton = contentEl.querySelector('.claudian-new-tab-btn')!;
-    const newConversationButton = contentEl.querySelector('.claudian-new-conversation-btn')!;
-    const historyContainer = contentEl.querySelector('.claudian-history-container')!;
+    const newTabButton = contentEl.querySelector('.scribe-new-tab-btn')!;
+    const newConversationButton = contentEl.querySelector('.scribe-new-conversation-btn')!;
+    const historyContainer = contentEl.querySelector('.scribe-history-container')!;
     const historyButton = historyContainer.children[0];
     const buttons = [newTabButton, newConversationButton, historyButton];
 
@@ -199,7 +210,7 @@ describe('ClaudianView tab controls', () => {
 
     expect(manager.createTab).toHaveBeenCalledTimes(1);
     expect(manager.createNewConversation).toHaveBeenCalledTimes(1);
-    expect(historyContainer.querySelector('.claudian-history-menu')?.hasClass('visible')).toBe(true);
+    expect(historyContainer.querySelector('.scribe-history-menu')?.hasClass('visible')).toBe(true);
   });
 
   it('keeps tab controls in the view-owned input row', async () => {
@@ -208,10 +219,10 @@ describe('ClaudianView tab controls', () => {
 
     const { contentEl, view } = await openView();
 
-    const navRowHost = contentEl.querySelector('.claudian-view-input-nav-row');
-    const navRowContent = contentEl.querySelector('.claudian-input-nav-content');
+    const navRowHost = contentEl.querySelector('.scribe-view-input-nav-row');
+    const navRowContent = contentEl.querySelector('.scribe-input-nav-content');
     expect(navRowHost?.children).toContain(navRowContent);
-    expect(navRowContent?.querySelector('.claudian-tab-bar-container')).toBeTruthy();
+    expect(navRowContent?.querySelector('.scribe-tab-bar-container')).toBeTruthy();
     expect(view.getSharedSelectionFocusScopeEls()).toEqual([navRowHost]);
     expect(captureScrollPosition).toHaveBeenCalledTimes(1);
     expect(restoreScrollPosition).toHaveBeenCalledTimes(1);
@@ -222,7 +233,7 @@ describe('ClaudianView tab controls', () => {
   it('focuses the composer after creating a new tab', async () => {
     const focus = vi.fn();
     const tab = { composer: { focus } };
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: { createTab: vi.fn().mockResolvedValue(tab), getActiveTab: () => null },
     });
 
@@ -233,7 +244,7 @@ describe('ClaudianView tab controls', () => {
 
   it('routes active-file changes only to the active tab Linked content owner', () => {
     const handleActiveFileChanged = vi.fn();
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: {
         getActiveTab: vi.fn().mockReturnValue({ linkedContent: { handleActiveFileChanged } }),
       },
@@ -253,19 +264,19 @@ describe('ClaudianView tab controls', () => {
 
   it('hides the new-tab button at capacity and shows it when another tab fits', async () => {
     const { contentEl, manager, view } = await openView();
-    const newTabButton = contentEl.querySelector('.claudian-new-tab-btn')!;
+    const newTabButton = contentEl.querySelector('.scribe-new-tab-btn')!;
 
     manager.canCreateTab.mockReturnValue(false);
     view.refreshTabControls();
 
-    expect(newTabButton.hasClass('claudian-hidden')).toBe(true);
+    expect(newTabButton.hasClass('scribe-hidden')).toBe(true);
     expect(newTabButton.getAttribute('aria-disabled')).toBe('true');
     expect(newTabButton.getAttribute('aria-hidden')).toBe('true');
 
     manager.canCreateTab.mockReturnValue(true);
     view.refreshTabControls();
 
-    expect(newTabButton.hasClass('claudian-hidden')).toBe(false);
+    expect(newTabButton.hasClass('scribe-hidden')).toBe(false);
     expect(newTabButton.getAttribute('aria-disabled')).toBeNull();
     expect(newTabButton.getAttribute('aria-hidden')).toBeNull();
   });
@@ -284,13 +295,13 @@ describe('ClaudianView tab controls', () => {
     }).find(command => command.id === 'rename-current-tab')!;
     view.refreshTabControls();
 
-    expect(contentEl.querySelector('.claudian-tab-bar-container')!.hasClass('claudian-hidden')).toBe(false);
+    expect(contentEl.querySelector('.scribe-tab-bar-container')!.hasClass('scribe-hidden')).toBe(false);
     expect(rename.checkCallback!(true)).toBe(true);
 
     manager.getTabCount.mockReturnValue(1);
     view.refreshTabControls();
 
-    expect(contentEl.querySelector('.claudian-tab-bar-container')!.hasClass('claudian-hidden')).toBe(true);
+    expect(contentEl.querySelector('.scribe-tab-bar-container')!.hasClass('scribe-hidden')).toBe(true);
     expect(rename.checkCallback!(true)).toBe(false);
   });
 
@@ -315,8 +326,8 @@ describe('ClaudianView tab controls', () => {
     const contentEl = createSizedContentEl(400);
     const resize = captureResizeObserver(contentEl);
     await openView({ contentEl, manager });
-    const chipSlot = contentEl.querySelector('.claudian-side-chat-chip-slot');
-    expect(contentEl.querySelector('.claudian-active-input-slot')?.children)
+    const chipSlot = contentEl.querySelector('.scribe-side-chat-chip-slot');
+    expect(contentEl.querySelector('.scribe-active-input-slot')?.children)
       .toContain(dom.inputComposerEl);
     expect(setSideChatChipHost).toHaveBeenLastCalledWith(chipSlot);
 
@@ -327,21 +338,21 @@ describe('ClaudianView tab controls', () => {
     resize(400);
     await Promise.resolve();
     await Promise.resolve();
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(false);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(false);
     expect(setSideChatChipHost).toHaveBeenLastCalledWith(chipSlot);
   });
 
   it('hides the dual-mode New control at capacity', async () => {
     const manager = createFakeTabManager();
     const { contentEl, view } = await openView({ manager, width: 640 });
-    const sessionNewButton = contentEl.querySelector('.claudian-session-new-control')!;
+    const sessionNewButton = contentEl.querySelector('.scribe-session-new-control')!;
     expect(sessionNewButton).toBeTruthy();
 
     manager.canCreateTab.mockReturnValue(false);
     view.refreshTabControls();
 
-    expect(contentEl.querySelector('.claudian-new-tab-btn')!.hasClass('claudian-hidden')).toBe(true);
-    expect(sessionNewButton.hasClass('claudian-hidden')).toBe(true);
+    expect(contentEl.querySelector('.scribe-new-tab-btn')!.hasClass('scribe-hidden')).toBe(true);
+    expect(sessionNewButton.hasClass('scribe-hidden')).toBe(true);
     expect(sessionNewButton.getAttribute('aria-disabled')).toBe('true');
     expect(sessionNewButton.getAttribute('aria-hidden')).toBe('true');
   });
@@ -381,7 +392,7 @@ describe('ClaudianView tab controls', () => {
     resize(400);
     await Promise.resolve();
     await Promise.resolve();
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(false);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(false);
     manager.viewerSlot.show.mockClear();
     manager.viewerSlot.startDraft.mockClear();
 
@@ -402,7 +413,7 @@ describe('ClaudianView tab controls', () => {
   });
 });
 
-describe('ClaudianView dual-pane wiring', () => {
+describe('ScribeView dual-pane wiring', () => {
   it('releases the viewer slot before compact controls return', async () => {
     const cleanup = deferred<void>();
     const manager = createFakeTabManager();
@@ -410,19 +421,19 @@ describe('ClaudianView dual-pane wiring', () => {
     const contentEl = createSizedContentEl(640);
     const resize = captureResizeObserver(contentEl);
     await openView({ contentEl, manager });
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
 
     resize(599);
 
     expect(manager.viewerSlot.release).toHaveBeenCalledTimes(1);
     // Compact controls return only after preview cleanup finishes.
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
 
     cleanup.resolve(undefined);
     await cleanup.promise;
     await Promise.resolve();
 
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(false);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(false);
   });
 
   it('unloads narrow tabs through the viewer slot only when entering wide after restore', async () => {
@@ -430,7 +441,7 @@ describe('ClaudianView dual-pane wiring', () => {
     const contentEl = createSizedContentEl(640);
     const resize = captureResizeObserver(contentEl);
     await openView({ contentEl, manager });
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
     expect(manager.viewerSlot.enter).not.toHaveBeenCalled();
 
     resize(400);
@@ -447,17 +458,17 @@ describe('ClaudianView dual-pane wiring', () => {
     // CSS positions the column by this order: chat panel, resizer, then the sidebar.
     expect(contentEl.children).toHaveLength(3);
     const [chatPanel, resizer, sidebar] = contentEl.children;
-    expect(chatPanel.hasClass('claudian-chat-panel')).toBe(true);
-    expect(resizer.hasClass('claudian-session-resizer')).toBe(true);
+    expect(chatPanel.hasClass('scribe-chat-panel')).toBe(true);
+    expect(resizer.hasClass('scribe-session-resizer')).toBe(true);
     expect(resizer.getAttribute('role')).toBe('separator');
-    expect(sidebar.hasClass('claudian-session-sidebar')).toBe(true);
+    expect(sidebar.hasClass('scribe-session-sidebar')).toBe(true);
     expect(sidebar.getAttribute('aria-label')).toBeNull();
     // The sidebar holds one track that holds the one session surface.
     expect(sidebar.children).toHaveLength(1);
     const track = sidebar.children[0];
-    expect(track.hasClass('claudian-sidebar-surface-track')).toBe(true);
+    expect(track.hasClass('scribe-sidebar-surface-track')).toBe(true);
     expect(track.children).toHaveLength(1);
-    expect(track.children[0].hasClass('claudian-session-surface')).toBe(true);
+    expect(track.children[0].hasClass('scribe-session-surface')).toBe(true);
     expect(chatPanel.children).toContain(view.tabContentEl);
     expect(chatPanel.children).toContain(view.presentation.inputFooterEl);
   });
@@ -469,24 +480,24 @@ describe('ClaudianView dual-pane wiring', () => {
     const contentEl = createSizedContentEl(400);
     const resize = captureResizeObserver(contentEl);
     await openView({ contentEl, manager });
-    const historyMenu = contentEl.querySelector('.claudian-history-menu')!;
-    contentEl.querySelector('.claudian-history-container')!.children[0].click();
+    const historyMenu = contentEl.querySelector('.scribe-history-menu')!;
+    contentEl.querySelector('.scribe-history-container')!.children[0].click();
     expect(historyMenu.hasClass('visible')).toBe(true);
 
     resize(640);
 
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
     expect(historyMenu.hasClass('visible')).toBe(false);
 
-    contentEl.querySelector('.claudian-session-search-control')!.click();
-    expect(contentEl.querySelector('.claudian-session-search-input')).not.toBeNull();
+    contentEl.querySelector('.scribe-session-search-control')!.click();
+    expect(contentEl.querySelector('.scribe-session-search-input')).not.toBeNull();
 
     resize(599);
 
     // The layout stays wide until preview cleanup finishes, but search ends immediately.
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
-    expect(contentEl.querySelector('.claudian-session-search-input')).toBeNull();
-    expect(contentEl.querySelector('.claudian-session-search-control')).not.toBeNull();
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
+    expect(contentEl.querySelector('.scribe-session-search-input')).toBeNull();
+    expect(contentEl.querySelector('.scribe-session-search-control')).not.toBeNull();
 
     cleanup.resolve(undefined);
     await cleanup.promise;
@@ -507,7 +518,7 @@ describe('ClaudianView dual-pane wiring', () => {
   });
 });
 
-describe('ClaudianView mention data provider', () => {
+describe('ScribeView mention data provider', () => {
   it('registers vault listeners for the view on open and releases them on close', async () => {
     const { view } = await openView();
     const { vault } = view.plugin.app;
@@ -540,7 +551,7 @@ describe('ClaudianView mention data provider', () => {
   });
 });
 
-describe('ClaudianView runtime tab initialization', () => {
+describe('ScribeView runtime tab initialization', () => {
   it('waits for Obsidian state delivery before creating a fresh runtime tab', async () => {
     const createTab = vi.fn().mockResolvedValue({});
     const manager = createFakeTabManager({
@@ -561,13 +572,13 @@ describe('ClaudianView runtime tab initialization', () => {
     });
     installTabManager(manager);
     const contentEl = createSizedContentEl(640);
-    const view = createClaudianView({ plugin: createOpenablePlugin(), contentEl });
+    const view = createScribeView({ plugin: createOpenablePlugin(), contentEl });
     openedViews.push(view);
     // Restoration plans and the nav row see the measured wide layout before the tab manager exists.
     const attachNavRow = vi.spyOn(ChatPresentationPlacement.prototype, 'attachNavRow')
       .mockImplementation(() => {
         expect(view.layout.isWide).toBe(true);
-        expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
+        expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
       });
     const updateTabBar = vi.spyOn(view, 'updateTabBar');
     const notifyNavigation = vi.spyOn(view, 'notifyConversationNavigationChanged');
@@ -577,7 +588,7 @@ describe('ClaudianView runtime tab initialization', () => {
 
     expect(createTab).not.toHaveBeenCalled();
     expect(attachNavRow).toHaveBeenCalledTimes(1);
-    expect(contentEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(contentEl.hasClass('scribe-wide-session-layout')).toBe(true);
 
     await view.setState({}, { history: false });
 
@@ -636,7 +647,7 @@ describe('ClaudianView runtime tab initialization', () => {
       observe = vi.fn();
       disconnect = vi.fn();
     };
-    const view = createClaudianView({ plugin, contentEl });
+    const view = createScribeView({ plugin, contentEl });
     const syncProviderBrandColor = vi.spyOn(view, 'syncProviderBrandColor');
     const restoreAll = vi.spyOn(ChatPresentationPlacement.prototype, 'restoreAll');
 
@@ -694,7 +705,7 @@ describe('ClaudianView runtime tab initialization', () => {
       }),
     });
     installTabManager(manager);
-    const view = createClaudianView({
+    const view = createScribeView({
       contentEl: createSizedContentEl(640),
       plugin: createOpenablePlugin(),
     });
@@ -754,7 +765,7 @@ describe('ClaudianView runtime tab initialization', () => {
       }),
     });
     installTabManager(manager);
-    const view = createClaudianView({
+    const view = createScribeView({
       plugin: createOpenablePlugin({ settings: { restoreTabsOnStartup: false } }),
     });
     Object.assign(view.tabWorkspace, {
@@ -790,7 +801,7 @@ describe('ClaudianView runtime tab initialization', () => {
   });
 });
 
-describe('ClaudianView composer input', () => {
+describe('ScribeView composer input', () => {
   function createComposerHarness(existingContent: string): {
     inputEl: HTMLTextAreaElement;
     inputHandler: Mock;
@@ -810,7 +821,7 @@ describe('ClaudianView composer input', () => {
         composer: createTabComposerPort(inputEl as never, {} as never),
       }),
     };
-    const view = createClaudianView({ tabManager });
+    const view = createScribeView({ tabManager });
 
     return { inputEl, inputHandler, view };
   }
@@ -845,7 +856,7 @@ describe('ClaudianView composer input', () => {
   });
 
   it('returns false when there is no active composer', () => {
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: { getActiveTab: vi.fn().mockReturnValue(null) },
     });
 
@@ -853,7 +864,7 @@ describe('ClaudianView composer input', () => {
   });
 });
 
-describe('ClaudianView shutdown', () => {
+describe('ScribeView shutdown', () => {
   function createClosingTabBar() {
     return {
       destroy: vi.fn(),
@@ -878,7 +889,7 @@ describe('ClaudianView shutdown', () => {
       flush,
       update: vi.fn(),
     };
-    const view = createClaudianView({ tabManager: manager });
+    const view = createScribeView({ tabManager: manager });
     Object.assign(view.tabWorkspace, { persistence });
 
     const first = view.prepareForPluginUnload();
@@ -914,7 +925,7 @@ describe('ClaudianView shutdown', () => {
       })),
       sealShutdownSnapshot,
     };
-    const view = createClaudianView({ tabManager: manager });
+    const view = createScribeView({ tabManager: manager });
     Object.assign(view, { scope: {}, tabBar: createClosingTabBar() });
     Object.assign(view.tabWorkspace, {
       persistence: { dispose: vi.fn(), flush, update },
@@ -962,7 +973,7 @@ describe('ClaudianView shutdown', () => {
         : finalState),
       sealShutdownSnapshot: vi.fn(),
     };
-    const view = createClaudianView({ tabManager: manager });
+    const view = createScribeView({ tabManager: manager });
     Object.assign(view, { scope: {}, tabBar: createClosingTabBar() });
     Object.assign(view.tabWorkspace, {
       pendingState: null,
@@ -1001,7 +1012,7 @@ describe('ClaudianView shutdown', () => {
     }));
     const updatePersistence = vi.fn();
     const tabBar = createClosingTabBar();
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: {
         beginShutdown,
         destroy,
@@ -1048,7 +1059,7 @@ describe('ClaudianView shutdown', () => {
   it('still disposes view resources when the current-tab flush fails', async () => {
     const destroy = vi.fn().mockResolvedValue(undefined);
     const disposePersistence = vi.fn();
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: {
         beginShutdown: vi.fn(),
         destroy,
@@ -1093,7 +1104,7 @@ describe('ClaudianView shutdown', () => {
     };
     const oldTabBar = createClosingTabBar();
     const oldReleaseMentionCacheEvents = vi.fn();
-    const view = createClaudianView({ tabManager: oldManager });
+    const view = createScribeView({ tabManager: oldManager });
     Object.assign(view, {
       releaseMentionCacheEvents: oldReleaseMentionCacheEvents,
       scope: {},
@@ -1146,7 +1157,7 @@ describe('ClaudianView shutdown', () => {
       }),
       sealShutdownSnapshot: vi.fn(),
     };
-    const view = createClaudianView({ tabManager: oldManager });
+    const view = createScribeView({ tabManager: oldManager });
     Object.assign(view, { scope: {}, tabBar: createClosingTabBar() });
     Object.assign(view.tabWorkspace, { persistence });
 
@@ -1167,7 +1178,7 @@ describe('ClaudianView shutdown', () => {
 
 type EscapeConsumer = 'resume dropdown' | 'prompt suggestion' | 'composer dropdown';
 
-describe('ClaudianView Escape handling', () => {
+describe('ScribeView Escape handling', () => {
   beforeEach(() => {
     MockScope.instances.length = 0;
   });
@@ -1190,7 +1201,7 @@ describe('ClaudianView Escape handling', () => {
       toolbarMenuOpen = false;
       return wasOpen;
     });
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: {
         getActiveTab: vi.fn().mockReturnValue({
           state: { isStreaming: options.isStreaming },
@@ -1232,7 +1243,7 @@ describe('ClaudianView Escape handling', () => {
       configurable: true,
       get: () => options.inputFocused ? inputEl : null,
     });
-    const view = createClaudianView({
+    const view = createScribeView({
       tabManager: {
         getActiveTab: vi.fn().mockReturnValue({
           state: { isStreaming: false },

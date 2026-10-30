@@ -6,7 +6,7 @@ import {
 import { getProviderForModel } from '@/core/providers/modelRouting';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import type { TabId, TabLifecycleState } from '@/features/chat/tabs/ChatTab';
 
@@ -38,7 +38,7 @@ export function generateTabId(): TabId {
 
 /** Selects an identity without constructing a tab's UI, controllers, or provider resources. */
 export function createTabIdentity(
-  settings: ClaudianSettings,
+  settings: ScribeSettings,
   conversation: Pick<Conversation, 'id' | 'providerId'> | null | undefined,
   options: {
     tabId: string;

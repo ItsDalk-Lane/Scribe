@@ -57,7 +57,7 @@ function createPendingQuestion() {
 describe('CodexExecutionServerRequestRouter', () => {
   afterEach(() => setLocale('en'));
 
-  it.each(['claudian_list_destinations', 'claudian_sessions.claudian_list_destinations'])(
+  it.each(['scribe_list_destinations', 'scribe_sessions.scribe_list_destinations'])(
     'denies session tools even when the allow-list names %s, while ordinary named tools still work', async name => {
       const port = { list: vi.fn(async () => ({ sessions: [] })), send: vi.fn(), read: vi.fn() };
       const router = createRouter(vi.fn(), { kind: 'allow-list', names: [name, 'ordinary'] });
@@ -66,7 +66,7 @@ describe('CodexExecutionServerRequestRouter', () => {
       registry.register({ includeInThreadStart: true, tool: { type: 'function', name: 'ordinary', description: '', inputSchema: {} }, handler: async () => ({ success: true, contentItems: [] }) });
       router.setDynamicToolRegistry(registry);
       const params = { threadId: 'thread-confirmation', turnId: 'turn-confirmation', callId: 'call', arguments: {} };
-      await expect(router.handleServerRequest('session', 'item/tool/call', { ...params, namespace: 'claudian_sessions', tool: 'claudian_list_destinations' })).resolves.toMatchObject({ success: false });
+      await expect(router.handleServerRequest('session', 'item/tool/call', { ...params, namespace: 'scribe_sessions', tool: 'scribe_list_destinations' })).resolves.toMatchObject({ success: false });
       expect(port.list).not.toHaveBeenCalled();
       await expect(router.handleServerRequest('ordinary', 'item/tool/call', { ...params, namespace: null, tool: 'ordinary' })).resolves.toMatchObject({ success: true });
     },

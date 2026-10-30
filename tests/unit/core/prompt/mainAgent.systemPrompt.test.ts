@@ -2,7 +2,7 @@ import { buildSystemPrompt } from '@/core/prompt/mainAgent';
 
 describe('systemPrompt', () => {
   describe('buildSystemPrompt', () => {
-    it('should retain the complete Claudian context with custom instructions', () => {
+    it('should retain the complete Scribe context with custom instructions', () => {
       const prompt = buildSystemPrompt(
         {
           customPrompt: 'Use curl if the user explicitly asks for it.',
@@ -14,14 +14,14 @@ describe('systemPrompt', () => {
       expect(prompt).not.toContain('## User Context');
       expect(prompt).not.toContain('You are collaborating with');
       expect(prompt).toContain(
-        "You are Claudian, operating inside **Alice**'s Obsidian Vault. The current working directory is the Vault root.",
+        "You are Scribe, operating inside **Alice**'s Obsidian Vault. The current working directory is the Vault root.",
       );
       expect(prompt).toContain('## Runtime Context');
       expect(prompt).toContain('Vault absolute path: /vault');
       expect(prompt).toContain('## Path Conventions');
       expect(prompt).toContain('## Reference Conventions');
       expect(prompt).toContain('## User Message Context');
-      expect(prompt).not.toContain('## Claudian Response Formatting');
+      expect(prompt).not.toContain('## Scribe Response Formatting');
       expect(prompt).not.toContain('## Obsidian Context');
       expect(prompt).not.toContain('## Selection Context');
       expect(prompt).not.toContain('## Current Date');
@@ -43,7 +43,7 @@ describe('systemPrompt', () => {
     });
 
     it('should append session instructions verbatim as the last section', () => {
-      const sessionInstructions = '## Project\n\nThis session is a member of the Claudian project **Alpha**.\n\n  Keep   spacing.';
+      const sessionInstructions = '## Project\n\nThis session is a member of the Scribe project **Alpha**.\n\n  Keep   spacing.';
       const prompt = buildSystemPrompt({ customPrompt: 'Prefer short answers.', sessionInstructions });
 
       expect(prompt.endsWith(`\n\n${sessionInstructions}`)).toBe(true);
@@ -71,7 +71,7 @@ describe('systemPrompt', () => {
       const prompt = buildSystemPrompt();
       expect(prompt).toContain('Use `bash: date` to get the current date and time. Never guess or assume.');
       expect(prompt).not.toContain('## Current Date');
-      expect(prompt).toContain('Claudian');
+      expect(prompt).toContain('Scribe');
       expect(prompt).toContain('## Path Conventions');
       expect(prompt).toContain('# User Message Context');
       expect(prompt).not.toContain('Knowledge Status');

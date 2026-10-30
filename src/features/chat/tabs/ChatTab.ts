@@ -7,9 +7,9 @@ import type { TabIdentity } from '@/features/chat/tabs/TabIdentity';
 import type { ZenPresentationPort } from '@/features/chat/zen/types';
 
 /**
- * Minimal interface for the ClaudianView methods used by TabManager and Tab.
+ * Minimal interface for the ScribeView methods used by TabManager and Tab.
  * Extends Component for Obsidian integration (event handling, cleanup).
- * Avoids circular dependency by not importing ClaudianView directly.
+ * Avoids circular dependency by not importing ScribeView directly.
  */
 export interface TabManagerViewHost extends Component {
   /** Reference to the workspace leaf for revealing the view. */
@@ -139,6 +139,7 @@ export interface ChatTab {
   readonly zenPresentation: ZenPresentationPort;
   /** Re-renders model, mode, effort, permission, service-tier, and context-usage controls. */
   refreshProviderControls(): void;
+  refreshLocale(): void;
   refreshMessageTimestamps(): void;
 }
 

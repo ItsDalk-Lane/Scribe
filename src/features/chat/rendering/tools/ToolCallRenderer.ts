@@ -34,7 +34,7 @@ const toolCardUpdates = new WeakMap<HTMLElement, ToolCardUpdate>();
 function setCardStatus(statusEl: HTMLElement, tool: ToolCallInfo, pending: boolean): void {
   const setStatus = getToolPresentation(tool.name).status;
   if (setStatus) setStatus(statusEl, tool, pending);
-  else setToolStatus(statusEl, tool.status, 'claudian-tool-status');
+  else setToolStatus(statusEl, tool.status, 'scribe-tool-status');
 }
 
 /** One collapsible tool card for live and stored tools; later results replace its tool snapshot. */
@@ -44,26 +44,26 @@ function createToolCard(parentEl: HTMLElement, tool: ToolCallInfo, options: Tool
   const initiallyExpanded = options.initiallyExpanded ?? false;
   const eager = presentation.cardBody !== undefined;
 
-  const toolEl = parentEl.createDiv({ cls: 'claudian-tool-call' });
+  const toolEl = parentEl.createDiv({ cls: 'scribe-tool-call' });
   toolEl.dataset.toolId = tool.id;
   if (tool.name === TOOL_BASH) {
-    toolEl.addClass('claudian-tool-call-bash');
+    toolEl.addClass('scribe-tool-call-bash');
   }
 
-  const header = toolEl.createDiv({ cls: 'claudian-tool-header' });
-  const iconEl = header.createSpan({ cls: 'claudian-tool-icon' });
+  const header = toolEl.createDiv({ cls: 'scribe-tool-header' });
+  const iconEl = header.createSpan({ cls: 'scribe-tool-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
   setToolIcon(iconEl, tool.name);
-  const nameEl = header.createSpan({ cls: 'claudian-tool-name' });
+  const nameEl = header.createSpan({ cls: 'scribe-tool-name' });
   nameEl.setText(getToolName(tool.name, tool.input));
-  const summaryEl = header.createSpan({ cls: 'claudian-tool-summary' });
+  const summaryEl = header.createSpan({ cls: 'scribe-tool-summary' });
   summaryEl.setText(getToolSummary(tool.name, tool.input));
   const { headerDetail } = presentation;
-  const detailEl = headerDetail ? header.createSpan({ cls: 'claudian-tool-current' }) : null;
+  const detailEl = headerDetail ? header.createSpan({ cls: 'scribe-tool-current' }) : null;
   const setDetail = (input: Record<string, unknown>) => { if (headerDetail) detailEl?.setText(headerDetail(input)); };
   setDetail(tool.input);
-  const statusEl = header.createSpan({ cls: 'claudian-tool-status' });
-  const content = toolEl.createDiv({ cls: 'claudian-tool-content' });
+  const statusEl = header.createSpan({ cls: 'scribe-tool-status' });
+  const content = toolEl.createDiv({ cls: 'scribe-tool-content' });
 
   setCardStatus(statusEl, tool, live);
 
@@ -103,8 +103,8 @@ function createToolCard(parentEl: HTMLElement, tool: ToolCallInfo, options: Tool
     initiallyExpanded,
     onToggle: expanded => {
       if (live) currentTool.isExpanded = expanded;
-      detailEl?.toggleClass('claudian-hidden', expanded);
-      if (detailEl) statusEl.toggleClass('claudian-hidden', expanded);
+      detailEl?.toggleClass('scribe-hidden', expanded);
+      if (detailEl) statusEl.toggleClass('scribe-hidden', expanded);
       if (expanded) renderContent();
     },
     baseAriaLabel: () => getToolLabel(currentTool.name, currentTool.input),

@@ -9,7 +9,7 @@ import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { Notice } from 'obsidian';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
+import { createProviderRuntimeHost } from '@/composition/ScribeProviderHost';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import { createCodexModels } from '@/providers/codex/runtime/CodexModels';
 import { getCodexProviderSettings } from '@/providers/codex/settings';

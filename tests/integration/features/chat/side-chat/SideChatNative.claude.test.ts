@@ -110,7 +110,7 @@ describe('Claude side-chat native child', () => {
   });
   afterEach(async () => { await env.dispose(); vi.restoreAllMocks(); });
 
-  it('answers from source context and its own turns while the parent keeps its own history and Claudian record', async () => {
+  it('answers from source context and its own turns while the parent keeps its own history and Scribe record', async () => {
     const native = createNativeClaude();
     const backend = new ClaudeExecutionBackend(env.host.getRuntimeHost('claude'));
     const source = await env.open(backend);

@@ -1,5 +1,5 @@
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import { type ApplicationDomains, startApplication } from '@/app/startup/ApplicationStartup';
@@ -29,7 +29,7 @@ describe('startApplication', () => {
   ): Promise<ApplicationDomains> {
     const domains = await startApplication({
       plugin: plugin as never,
-      defaultSettings: DEFAULT_CLAUDIAN_SETTINGS,
+      defaultSettings: DEFAULT_SCRIBE_SETTINGS,
       providers: overrides.providers ?? ProviderRegistry,
       providerSettings: ProviderSettingsCoordinator,
       executionLifecycle: new ProviderExecutionLifecycleRegistry(),
@@ -104,12 +104,12 @@ describe('startApplication', () => {
 
   describe('settings', () => {
     it('should merge saved data with defaults', async () => {
-      // Mock claudian-settings.json exists with custom values (Claudian-specific settings)
+      // Mock scribe-settings.json exists with custom values (Scribe-specific settings)
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
-        return path === '.claudian/claudian-settings.json';
+        return path === '.scribe/scribe-settings.json';
       });
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({
             userName: 'TestUser',
           });
@@ -120,7 +120,7 @@ describe('startApplication', () => {
       const domains = await loadApplication();
 
       expect(domains.settings.getCommittedSettings().userName).toBe('TestUser');
-      expect(domains.settings.getCommittedSettings().hiddenCommands).toEqual(DEFAULT_CLAUDIAN_SETTINGS.hiddenCommands);
+      expect(domains.settings.getCommittedSettings().hiddenCommands).toEqual(DEFAULT_SCRIBE_SETTINGS.hiddenCommands);
     });
 
     it('should use defaults when no saved data', async () => {
@@ -131,7 +131,7 @@ describe('startApplication', () => {
       const domains = await loadApplication();
 
       // Compare persisted values; provider discovery may attach transient symbol metadata.
-      expect(JSON.parse(JSON.stringify(domains.settings.getCommittedSettings()))).toEqual(DEFAULT_CLAUDIAN_SETTINGS);
+      expect(JSON.parse(JSON.stringify(domains.settings.getCommittedSettings()))).toEqual(DEFAULT_SCRIBE_SETTINGS);
     });
 
     it('should use defaults when loadData returns empty object', async () => {
@@ -142,16 +142,16 @@ describe('startApplication', () => {
       const domains = await loadApplication();
 
       // Compare persisted values; provider discovery may attach transient symbol metadata.
-      expect(JSON.parse(JSON.stringify(domains.settings.getCommittedSettings()))).toEqual(DEFAULT_CLAUDIAN_SETTINGS);
+      expect(JSON.parse(JSON.stringify(domains.settings.getCommittedSettings()))).toEqual(DEFAULT_SCRIBE_SETTINGS);
     });
 
     it('preserves the saved model while applying environment configuration', async () => {
-      // Mock claudian-settings.json with environment variables
+      // Mock scribe-settings.json with environment variables
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
-        return path === '.claudian/claudian-settings.json';
+        return path === '.scribe/scribe-settings.json';
       });
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({
             providerConfigs: { claude: { environmentVariables: 'ANTHROPIC_MODEL=custom-model' } },
             lastEnvHash: '',
@@ -163,7 +163,7 @@ describe('startApplication', () => {
       const saveSpy = vi.spyOn(SettingsCoordinator.prototype, 'persistCurrent');
       const domains = await loadApplication();
 
-      expect(domains.settings.getCommittedSettings().model).toBe(DEFAULT_CLAUDIAN_SETTINGS.model);
+      expect(domains.settings.getCommittedSettings().model).toBe(DEFAULT_SCRIBE_SETTINGS.model);
       expect(saveSpy).toHaveBeenCalled();
     });
   });
@@ -171,7 +171,7 @@ describe('startApplication', () => {
   describe('session metadata', () => {
     it('migrates a legacy Codex fingerprint before reconciling persisted sessions', async () => {
       const timestamp = Date.now();
-      const metadataPath = '.claudian/sessions/conv-codex-legacy.meta.json';
+      const metadataPath = '.scribe/sessions/conv-codex-legacy.meta.json';
       const sessionMetadata = {
         id: 'conv-codex-legacy',
         providerId: 'codex',
@@ -187,17 +187,17 @@ describe('startApplication', () => {
       };
 
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => (
-        path === '.claudian/claudian-settings.json'
-        || path === '.claudian/sessions'
+        path === '.scribe/scribe-settings.json'
+        || path === '.scribe/sessions'
         || path === metadataPath
       ));
       mockApp.vault.adapter.list.mockImplementation(async (path: string) => (
-        path === '.claudian/sessions'
+        path === '.scribe/sessions'
           ? { files: [metadataPath], folders: [] }
           : { files: [], folders: [] }
       ));
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({
             providerConfigs: {
               codex: {
@@ -242,21 +242,21 @@ describe('startApplication', () => {
       });
 
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
-        return path === '.claudian/claudian-settings.json'
-          || path === '.claudian/sessions'
-          || path === '.claudian/sessions/conv-stale-1.meta.json';
+        return path === '.scribe/scribe-settings.json'
+          || path === '.scribe/sessions'
+          || path === '.scribe/sessions/conv-stale-1.meta.json';
       });
       mockApp.vault.adapter.list.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions') {
-          return { files: ['.claudian/sessions/conv-stale-1.meta.json'], folders: [] };
+        if (path === '.scribe/sessions') {
+          return { files: ['.scribe/sessions/conv-stale-1.meta.json'], folders: [] };
         }
         return { files: [], folders: [] };
       });
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions/conv-stale-1.meta.json') {
+        if (path === '.scribe/sessions/conv-stale-1.meta.json') {
           return sessionMeta;
         }
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({});
         }
         return '';
@@ -266,7 +266,7 @@ describe('startApplication', () => {
 
       expect(domains.conversations.getConversationList()).toHaveLength(1);
       expect(mockApp.vault.adapter.remove).not.toHaveBeenCalledWith(
-        '.claudian/sessions/conv-stale-1.meta.json',
+        '.scribe/sessions/conv-stale-1.meta.json',
       );
     });
 
@@ -283,26 +283,26 @@ describe('startApplication', () => {
       // Mock files exist
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
         // Session files
-        if (path === '.claudian/sessions' || path === '.claudian/sessions/conv-saved-1.meta.json') {
+        if (path === '.scribe/sessions' || path === '.scribe/sessions/conv-saved-1.meta.json') {
           return true;
         }
-        // claudian-settings.json exists
-        if (path === '.claudian/claudian-settings.json') {
+        // scribe-settings.json exists
+        if (path === '.scribe/scribe-settings.json') {
           return true;
         }
         return false;
       });
       mockApp.vault.adapter.list.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions') {
-          return { files: ['.claudian/sessions/conv-saved-1.meta.json'], folders: [] };
+        if (path === '.scribe/sessions') {
+          return { files: ['.scribe/sessions/conv-saved-1.meta.json'], folders: [] };
         }
         return { files: [], folders: [] };
       });
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions/conv-saved-1.meta.json') {
+        if (path === '.scribe/sessions/conv-saved-1.meta.json') {
           return sessionMeta;
         }
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({});
         }
         return '';
@@ -329,24 +329,24 @@ describe('startApplication', () => {
       });
 
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
-        return path === '.claudian/claudian-settings.json' ||
-          path === '.claudian/sessions' ||
-          path === '.claudian/sessions/conv-saved-1.meta.json';
+        return path === '.scribe/scribe-settings.json' ||
+          path === '.scribe/sessions' ||
+          path === '.scribe/sessions/conv-saved-1.meta.json';
       });
       mockApp.vault.adapter.list.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions') {
-          return { files: ['.claudian/sessions/conv-saved-1.meta.json'], folders: [] };
+        if (path === '.scribe/sessions') {
+          return { files: ['.scribe/sessions/conv-saved-1.meta.json'], folders: [] };
         }
         return { files: [], folders: [] };
       });
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/claudian-settings.json') {
-          // All these fields are now in claudian-settings.json
+        if (path === '.scribe/scribe-settings.json') {
+          // All these fields are now in scribe-settings.json
           return JSON.stringify({
             providerConfigs: { claude: { environmentHash: 'old-hash', environmentVariables: 'ANTHROPIC_BASE_URL=https://api.example.com' } },
           });
         }
-        if (path === '.claudian/sessions/conv-saved-1.meta.json') {
+        if (path === '.scribe/sessions/conv-saved-1.meta.json') {
           return sessionMeta;
         }
         return '';
@@ -361,7 +361,7 @@ describe('startApplication', () => {
       expect(loaded?.sessionId).toBeNull();
 
       const sessionWrite = (mockApp.vault.adapter.write as Mock).mock.calls.find(
-        ([path]) => path === '.claudian/sessions/conv-saved-1.meta.json'
+        ([path]) => path === '.scribe/sessions/conv-saved-1.meta.json'
       );
       expect(sessionWrite).toBeDefined();
       const meta = JSON.parse(sessionWrite?.[1] as string);
@@ -400,21 +400,21 @@ describe('startApplication', () => {
       });
 
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
-        return path === '.claudian/claudian-settings.json' ||
-          path === '.claudian/sessions' ||
-          path === '.claudian/sessions/conv-multi-session.meta.json';
+        return path === '.scribe/scribe-settings.json' ||
+          path === '.scribe/sessions' ||
+          path === '.scribe/sessions/conv-multi-session.meta.json';
       });
       mockApp.vault.adapter.list.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions') {
-          return { files: ['.claudian/sessions/conv-multi-session.meta.json'], folders: [] };
+        if (path === '.scribe/sessions') {
+          return { files: ['.scribe/sessions/conv-multi-session.meta.json'], folders: [] };
         }
         return { files: [], folders: [] };
       });
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/sessions/conv-multi-session.meta.json') {
+        if (path === '.scribe/sessions/conv-multi-session.meta.json') {
           return sessionMeta;
         }
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({});
         }
         return '';
@@ -434,18 +434,18 @@ describe('startApplication', () => {
       const timestamp = Date.now();
       const vault = await DesktopVault.create();
       disposals.push(() => vault.dispose());
-      await vault.write('.claudian/projects/project-a.json', JSON.stringify({
-        id: 'project-a', name: 'Launch', instructions: 'Ship.', memoryPath: '.claudian/projects/launch-project.md',
+      await vault.write('.scribe/projects/project-a.json', JSON.stringify({
+        id: 'project-a', name: 'Launch', instructions: 'Ship.', memoryPath: '.scribe/projects/launch-project.md',
         isPinned: true, createdAt: timestamp,
       }));
-      await vault.write('.claudian/projects/broken.json', '{"id": "broken"');
-      await vault.write('.claudian/sessions/conv-member.meta.json', JSON.stringify({
+      await vault.write('.scribe/projects/broken.json', '{"id": "broken"');
+      await vault.write('.scribe/sessions/conv-member.meta.json', JSON.stringify({
         id: 'conv-member', title: 'Member', createdAt: timestamp, lastActivityAt: timestamp,
         sessionId: null, projectId: 'project-a',
       }));
       mockApp.vault = vault.app.vault;
       const projectFiles = async () => new Map([...await vault.snapshot()].filter(([path]) => (
-        path.startsWith('.claudian/projects/')
+        path.startsWith('.scribe/projects/')
       )));
       const projectsBefore = await projectFiles();
 

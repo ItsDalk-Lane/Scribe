@@ -145,7 +145,7 @@ export function createFixture(overrides: Record<string, unknown> = {}) {
     renderer: {
       addMessage: vi.fn().mockImplementation(() => {
         const el = createMockEl();
-        el.createDiv({ cls: 'claudian-message-content' });
+        el.createDiv({ cls: 'scribe-message-content' });
         return el;
       }),
       appendInterruptIndicator: vi.fn(),

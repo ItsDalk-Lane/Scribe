@@ -63,7 +63,7 @@ export class ComposerContextTray {
   constructor(containerEl: HTMLElement, options: ComposerContextTrayOptions = {}) {
     this.containerEl = containerEl;
     this.options = options;
-    this.containerEl.addClass('claudian-context-row');
+    this.containerEl.addClass('scribe-context-row');
     try {
       this.#observeSize();
       this.render();
@@ -91,15 +91,15 @@ export class ComposerContextTray {
 
   refreshLayout(): void {
     const allChips = Array.from(
-      this.containerEl.querySelectorAll<HTMLElement>('.claudian-context-chip')
+      this.containerEl.querySelectorAll<HTMLElement>('.scribe-context-chip')
     );
-    const moreButton = this.containerEl.querySelector<HTMLElement>('.claudian-context-more');
+    const moreButton = this.containerEl.querySelector<HTMLElement>('.scribe-context-more');
     if (!moreButton || allChips.length === 0) return;
 
     for (const chip of allChips) {
-      chip.removeClass('claudian-context-chip--overflow-hidden');
+      chip.removeClass('scribe-context-chip--overflow-hidden');
     }
-    if (moreButton !== this.containerEl.ownerDocument.activeElement) moreButton.addClass('claudian-hidden');
+    if (moreButton !== this.containerEl.ownerDocument.activeElement) moreButton.addClass('scribe-hidden');
     // Chips that are not rendered (hidden by a presentation, or the whole tray undisplayed) occupy no row.
     const chips = allChips.filter(chip => chip.offsetParent !== null);
     if (chips.length === 0) return;
@@ -108,18 +108,18 @@ export class ComposerContextTray {
     const hasOverflow = rows.length > MAX_COLLAPSED_ROWS;
     if (!hasOverflow) {
       if (moreButton === this.containerEl.ownerDocument.activeElement) {
-        this.containerEl.querySelector<HTMLElement>('.claudian-context-chip button')?.focus();
+        this.containerEl.querySelector<HTMLElement>('.scribe-context-chip button')?.focus();
       }
-      moreButton.addClass('claudian-hidden');
+      moreButton.addClass('scribe-hidden');
       this.expanded = false;
-      this.containerEl.removeClass('claudian-context-row--expanded');
+      this.containerEl.removeClass('scribe-context-row--expanded');
       moreButton.setAttribute('aria-expanded', 'false');
       return;
     }
 
-    moreButton.removeClass('claudian-hidden');
+    moreButton.removeClass('scribe-hidden');
     if (this.expanded) {
-      this.containerEl.addClass('claudian-context-row--expanded');
+      this.containerEl.addClass('scribe-context-row--expanded');
       const label = t('chat.composer.showLess');
       moreButton.textContent = label;
       moreButton.setAttribute('aria-label', label);
@@ -127,20 +127,20 @@ export class ComposerContextTray {
       return;
     }
 
-    this.containerEl.removeClass('claudian-context-row--expanded');
+    this.containerEl.removeClass('scribe-context-row--expanded');
     moreButton.setAttribute('aria-expanded', 'false');
 
     const lastVisibleRow = rows[MAX_COLLAPSED_ROWS - 1];
     let visibleCount = lastVisibleRow.lastIndex + 1;
 
     for (let index = visibleCount; index < chips.length; index++) {
-      chips[index].addClass('claudian-context-chip--overflow-hidden');
+      chips[index].addClass('scribe-context-chip--overflow-hidden');
     }
 
     const minimumVisibleCount = Math.max(1, lastVisibleRow.firstIndex);
     while (visibleCount > minimumVisibleCount && moreButton.offsetTop >= lastVisibleRow.bottom) {
       visibleCount -= 1;
-      chips[visibleCount].addClass('claudian-context-chip--overflow-hidden');
+      chips[visibleCount].addClass('scribe-context-chip--overflow-hidden');
     }
 
     const hiddenCount = chips.length - visibleCount;
@@ -159,19 +159,19 @@ export class ComposerContextTray {
     this.containerEl.empty();
     this.containerEl.removeClass('has-content');
     delete this.containerEl.dataset.contextSlots;
-    this.containerEl.removeClass('claudian-context-row');
-    this.containerEl.removeClass('claudian-context-row--expanded');
+    this.containerEl.removeClass('scribe-context-row');
+    this.containerEl.removeClass('scribe-context-row--expanded');
   }
 
   private render(): void {
     const active = this.containerEl.ownerDocument.activeElement as HTMLElement | null;
     const oldButtons = Array.from(this.containerEl.querySelectorAll<HTMLElement>('button'));
     const oldIndex = active ? oldButtons.indexOf(active) : -1;
-    const chip = oldIndex >= 0 ? active?.closest<HTMLElement>('.claudian-context-chip') : null;
-    const focusedMore = oldIndex >= 0 && active?.classList.contains('claudian-context-more');
-    const focusedRemove = active?.classList.contains('claudian-context-chip-remove');
+    const chip = oldIndex >= 0 ? active?.closest<HTMLElement>('.scribe-context-chip') : null;
+    const focusedMore = oldIndex >= 0 && active?.classList.contains('scribe-context-more');
+    const focusedRemove = active?.classList.contains('scribe-context-chip-remove');
     this.containerEl.empty();
-    this.containerEl.removeClass('claudian-context-row--expanded');
+    this.containerEl.removeClass('scribe-context-row--expanded');
 
     const entries = SLOT_ORDER.flatMap(slot =>
       (this.itemsBySlot.get(slot) ?? []).map(item => ({ item, slot }))
@@ -187,7 +187,7 @@ export class ComposerContextTray {
 
     if (entries.length > 0) {
       const moreButton = this.containerEl.createEl('button', {
-        cls: 'claudian-context-more claudian-hidden',
+        cls: 'scribe-context-more scribe-hidden',
         attr: {
           type: 'button',
           'aria-expanded': 'false',
@@ -203,20 +203,20 @@ export class ComposerContextTray {
     this.options.onDidChange?.();
     if (oldIndex >= 0) {
       const buttons = Array.from(this.containerEl.querySelectorAll<HTMLElement>('button'));
-      const more = this.containerEl.querySelector<HTMLElement>('.claudian-context-more');
+      const more = this.containerEl.querySelector<HTMLElement>('.scribe-context-more');
       const same = focusedMore ? more : buttons.find(button => {
-        const candidate = button.closest<HTMLElement>('.claudian-context-chip');
+        const candidate = button.closest<HTMLElement>('.scribe-context-chip');
         return candidate?.dataset.contextSlot === chip?.dataset.contextSlot
           && candidate?.dataset.contextId === chip?.dataset.contextId
-          && button.classList.contains('claudian-context-chip-remove') === focusedRemove;
+          && button.classList.contains('scribe-context-chip-remove') === focusedRemove;
       });
       const target = same ?? buttons[Math.min(oldIndex, buttons.length - 1)];
       this.refreshLayout();
-      if (target?.closest('.claudian-context-chip--overflow-hidden')) {
+      if (target?.closest('.scribe-context-chip--overflow-hidden')) {
         this.expanded = true;
         this.refreshLayout();
       }
-      const visibleTarget = target?.classList.contains('claudian-hidden') ? buttons.find(button => button !== more) : target;
+      const visibleTarget = target?.classList.contains('scribe-hidden') ? buttons.find(button => button !== more) : target;
       visibleTarget?.focus();
     }
     this.#scheduleLayout();
@@ -224,17 +224,17 @@ export class ComposerContextTray {
 
   #renderItem(slot: ComposerContextSlot, item: ComposerContextItem): void {
     const chipEl = this.containerEl.createDiv({
-      cls: `claudian-context-chip claudian-context-chip--${item.kind}`,
+      cls: `scribe-context-chip scribe-context-chip--${item.kind}`,
     });
     chipEl.dataset.contextSlot = slot;
     chipEl.dataset.contextId = item.id;
 
     const contentEl = item.onActivate
       ? chipEl.createEl('button', {
-        cls: 'claudian-context-chip-main',
+        cls: 'scribe-context-chip-main',
         attr: { type: 'button' },
       })
-      : chipEl.createSpan({ cls: 'claudian-context-chip-main' });
+      : chipEl.createSpan({ cls: 'scribe-context-chip-main' });
 
     contentEl.setAttribute('aria-label', item.ariaLabel ?? item.label);
     if (item.onActivate) {
@@ -242,15 +242,15 @@ export class ComposerContextTray {
     }
 
     if (item.icon) {
-      const iconEl = contentEl.createSpan({ cls: 'claudian-context-chip-icon' });
+      const iconEl = contentEl.createSpan({ cls: 'scribe-context-chip-icon' });
       setIcon(iconEl, item.icon);
     }
 
-    contentEl.createSpan({ cls: 'claudian-context-chip-label', text: item.label });
+    contentEl.createSpan({ cls: 'scribe-context-chip-label', text: item.label });
 
     if (item.onRemove) {
       const removeButton = chipEl.createEl('button', {
-        cls: 'claudian-context-chip-remove',
+        cls: 'scribe-context-chip-remove',
         text: '\u00D7',
         attr: {
           type: 'button',

@@ -91,7 +91,7 @@ describe('ThinkingBlockRenderer', () => {
       clickHandlers[0]();
       expect(state.isExpanded).toBe(true);
       expect((state.wrapperEl as any).hasClass('expanded')).toBe(true);
-      expect((state.contentEl as any).hasClass('claudian-hidden')).toBe(false);
+      expect((state.contentEl as any).hasClass('scribe-hidden')).toBe(false);
     });
   });
 
@@ -101,7 +101,7 @@ describe('ThinkingBlockRenderer', () => {
 
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
 
-      expect(wrapperEl.querySelector('.claudian-thinking-label')?.textContent).toBe('Thought for 10s');
+      expect(wrapperEl.querySelector('.scribe-thinking-label')?.textContent).toBe('Thought for 10s');
     });
   });
 });

@@ -159,7 +159,7 @@ export async function handleForkRequest<T extends ForkSourceOwner>(
   const sourceConversationId = tab.conversationId;
 
   if (!getSessionCapabilities(tab, plugin).supportsFork) {
-    new Notice('Fork is not supported by this provider.');
+    new Notice(t('chat.notices.forkUnsupported'));
     return;
   }
 

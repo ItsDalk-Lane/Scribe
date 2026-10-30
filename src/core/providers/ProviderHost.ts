@@ -6,7 +6,7 @@ import type {
   ProviderExecutionTransitionScope,
 } from '../execution';
 import type { SessionToolEndpoint } from '../session-tools/SessionToolEndpoint';
-import type { ClaudianSettings } from '../types';
+import type { ScribeSettings } from '../types';
 import type { EnvironmentScope } from '../types/settings';
 import type { ProviderRuntimeHost } from './ProviderRuntimeHost';
 import type { ProviderCLIResolutionContext, ProviderId } from './types';
@@ -21,7 +21,7 @@ import type { ProviderCLIResolutionContext, ProviderId } from './types';
 export interface ProviderHost {
   readonly app: App;
   readonly executionLifecycleRegistry: ProviderExecutionLifecycleRegistry;
-  readonly settings: Readonly<ClaudianSettings>;
+  readonly settings: Readonly<ScribeSettings>;
   readonly storage: ProviderHostStorage;
   readonly manifest?: { version?: string };
   /** Absolute local directory provider processes run in; null when the host has no local directory. */
@@ -30,11 +30,11 @@ export interface ProviderHost {
   readonly sessionToolEndpoint: SessionToolEndpoint;
 
   mutateSettings(
-    mutation: (settings: ClaudianSettings) => void | Promise<void>,
+    mutation: (settings: ScribeSettings) => void | Promise<void>,
   ): Promise<void>;
   /** Returning false discards the draft: nothing is committed, persisted, or published. */
   mutateSettingsConditionally(
-    mutation: (settings: ClaudianSettings) => boolean | Promise<boolean>,
+    mutation: (settings: ScribeSettings) => boolean | Promise<boolean>,
   ): Promise<void>;
 
   getActiveEnvironmentVariables(providerId: ProviderId): string;
@@ -49,7 +49,7 @@ export interface ProviderHost {
    */
   applyProviderRuntimeSettings(
     providerIds: ProviderId[],
-    mutation: (settings: ClaudianSettings) => void | Promise<void>,
+    mutation: (settings: ScribeSettings) => void | Promise<void>,
     onApplied?: () => void | Promise<void>,
   ): Promise<void>;
   getResolvedProviderCliPath(

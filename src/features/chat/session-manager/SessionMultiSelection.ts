@@ -1,3 +1,5 @@
+import { t } from '@/i18n/i18n';
+
 /**
  * Multi-selection of session rows within one rendered list. Option/Alt toggles rows; the
  * selection never outlives its container or search query.
@@ -75,7 +77,7 @@ export class SessionMultiSelection {
     const isInsideSession = (target: EventTarget | null): boolean => (
       target instanceof ElementConstructor
       && container.contains(target)
-      && target.closest('.claudian-history-item') !== null
+      && target.closest('.scribe-history-item') !== null
     );
     const onPointerDown = (event: PointerEvent): void => {
       if (!isInsideSession(event.target)) this.clear();
@@ -93,13 +95,13 @@ export class SessionMultiSelection {
   }
 
   #setItemSelected(item: HTMLElement, selected: boolean): void {
-    item.classList.toggle('claudian-history-item--selected', selected);
-    const label = item.querySelector('.claudian-history-item-selected-label');
+    item.classList.toggle('scribe-history-item--selected', selected);
+    const label = item.querySelector('.scribe-history-item-selected-label');
     if (!selected) {
       label?.remove();
     } else if (!label) {
-      item.querySelector<HTMLElement>('.claudian-history-item-content')
-        ?.createSpan({ cls: 'claudian-history-item-selected-label', text: 'Selected' });
+      item.querySelector<HTMLElement>('.scribe-history-item-content')
+        ?.createSpan({ cls: 'scribe-history-item-selected-label', text: t('chat.sessionManager.selected') });
     }
   }
 
@@ -109,7 +111,7 @@ export class SessionMultiSelection {
     if (this.#selectedIds.size === 0) return;
     this.#selectedIds.clear();
     this.#container
-      ?.querySelectorAll<HTMLElement>('.claudian-history-item--selected')
+      ?.querySelectorAll<HTMLElement>('.scribe-history-item--selected')
       .forEach(selectedItem => this.#setItemSelected(selectedItem, false));
   }
 }

@@ -64,7 +64,7 @@ describe('replaceImageEmbedsWithHTML', () => {
       );
 
       expect(result).toBe(
-        'Visible <span class="claudian-embedded-image"><img src="app://local/visible.png" alt="visible" loading="lazy"></span> and `literal ![[literal.png]]`'
+        'Visible <span class="scribe-embedded-image"><img src="app://local/visible.png" alt="visible" loading="lazy"></span> and `literal ![[literal.png]]`'
       );
     });
   });
@@ -80,8 +80,8 @@ describe('replaceImageEmbedsWithHTML', () => {
       const prefix = '\\'.repeat(count);
       const markdown = `${prefix}![[image.png]]`;
       const active = resolved
-        ? '<span class="claudian-embedded-image"><img src="app://local/image.png" alt="image" loading="lazy"></span>'
-        : '<span class="claudian-embedded-image-fallback">![[image.png]]</span>';
+        ? '<span class="scribe-embedded-image"><img src="app://local/image.png" alt="image" loading="lazy"></span>'
+        : '<span class="scribe-embedded-image-fallback">![[image.png]]</span>';
 
       expect(replaceImageEmbedsWithHTML(markdown, app)).toBe(escaped ? markdown : prefix + active);
     });
@@ -93,7 +93,7 @@ describe('replaceImageEmbedsWithHTML', () => {
     const markdown = `${escaped} beside ![[image.png]]`;
 
     expect(replaceImageEmbedsWithHTML(markdown, app)).toBe(
-      `${escaped} beside <span class="claudian-embedded-image"><img src="app://local/image.png" alt="image" loading="lazy"></span>`
+      `${escaped} beside <span class="scribe-embedded-image"><img src="app://local/image.png" alt="image" loading="lazy"></span>`
     );
   });
 
@@ -236,7 +236,7 @@ describe('replaceImageEmbedsWithHTML', () => {
       const app = createMockApp(); // Empty vault
       const result = replaceImageEmbedsWithHTML('![[missing.png]]', app);
 
-      expect(result).toContain('class="claudian-embedded-image-fallback"');
+      expect(result).toContain('class="scribe-embedded-image-fallback"');
       expect(result).toContain('![[missing.png]]');
     });
 
@@ -379,7 +379,7 @@ describe('replaceImageEmbedsWithHTML', () => {
       });
 
       expect(result).toContain('src="app://local/section/image.png"');
-      expect(result).not.toContain('claudian-embedded-image-fallback');
+      expect(result).not.toContain('scribe-embedded-image-fallback');
     });
   });
 
@@ -545,7 +545,7 @@ describe('replaceImageEmbedsWithHTML', () => {
 
       const result = replaceImageEmbedsWithHTML('![[test.png]]', app);
 
-      expect(result).toContain('class="claudian-embedded-image-fallback"');
+      expect(result).toContain('class="scribe-embedded-image-fallback"');
     });
   });
 

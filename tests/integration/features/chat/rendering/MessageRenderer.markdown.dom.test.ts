@@ -226,7 +226,7 @@ it('shows a render error instead of stale content when Obsidian rejects', async 
   await expect(renderer.renderContent(host, '**broken markdown**')).resolves.toBeUndefined();
 
   expect(host.children).toHaveLength(1);
-  expect(host.firstElementChild?.classList.contains('claudian-render-error')).toBe(true);
+  expect(host.firstElementChild?.classList.contains('scribe-render-error')).toBe(true);
   expect(host.textContent).toBe('Failed to render message content.');
 });
 

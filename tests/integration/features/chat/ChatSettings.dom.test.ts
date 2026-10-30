@@ -13,13 +13,13 @@ import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { App, Component, Notice } from 'obsidian';
 
 import { ChatModelSelectionCoordinator } from '@/app/settings/ChatModelSelectionCoordinator';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@/app/settings/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@/app/settings/defaultSettings';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import { formatReasoningValueLabel } from '@/core/providers/reasoning';
 import type { ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { getChatSettingsSnapshot } from '@/features/chat/ChatSettings';
 import { updateSessionProviderSettings, updateSessionReasoning } from '@/features/chat/sessions/sessionSettings';
@@ -45,8 +45,8 @@ afterEach(async () => {
   await releaseSideChatHarnesses();
 });
 
-function createSettings({ id, populate }: typeof modelCatalogCases[number], advertisesHigh = true): ClaudianSettings {
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+function createSettings({ id, populate }: typeof modelCatalogCases[number], advertisesHigh = true): ScribeSettings {
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   populate(settings);
   const config = settings.providerConfigs[id]!;
   const levels = advertisesHigh ? ['low', 'medium', 'high'] : ['low', 'medium'];
@@ -71,7 +71,7 @@ function createSettings({ id, populate }: typeof modelCatalogCases[number], adve
   return settings;
 }
 
-function createChatHarness(settings: ClaudianSettings, id: ProviderId, selected: string) {
+function createChatHarness(settings: ScribeSettings, id: ProviderId, selected: string) {
   const harness = createHarness({ settings });
   ProviderWorkspaceRegistry.setServices(id, {});
   const app = new App();
@@ -147,7 +147,7 @@ function reasoningLevels(tab: AssembledTabRuntime): HTMLElement[] {
 }
 
 function levelLabel(level: HTMLElement): string {
-  return level.querySelector('.claudian-toolbar-popover-option-label')?.textContent ?? '';
+  return level.querySelector('.scribe-toolbar-popover-option-label')?.textContent ?? '';
 }
 
 /** The levels as assistive technology hears them, from the fastest to the deepest. */
@@ -166,7 +166,7 @@ async function selectReasoning(tab: AssembledTabRuntime, reasoning: string) {
   const ui = within(tab.dom.inputComposerEl);
   const label = formatReasoningValueLabel(reasoning);
   chooseReasoning(tab, label);
-  await waitFor(() => expect(ui.getByText(label, { selector: '.claudian-thinking-current' })).toBeDefined());
+  await waitFor(() => expect(ui.getByText(label, { selector: '.scribe-thinking-current' })).toBeDefined());
   // Let the commit settle even when the level was already selected.
   await new Promise<void>(resolve => setTimeout(resolve, 0));
   expect(reasoningLevels(tab).filter(level => level.getAttribute('aria-selected') === 'true').map(levelLabel)).toEqual([label]);
@@ -177,10 +177,10 @@ async function expectSubmission(
   sessions: FakeSideSession[],
   model: string,
   reasoning: string,
+  label = formatReasoningValueLabel(reasoning),
 ) {
   const ui = within(tab.dom.inputComposerEl);
-  const label = formatReasoningValueLabel(reasoning);
-  expect(ui.getByText(label, { selector: '.claudian-thinking-current' })).toBeDefined();
+  expect(ui.getByText(label, { selector: '.scribe-thinking-current' })).toBeDefined();
   const text = `Send ${tab.state.messages.length} with ${reasoning}`;
   (ui.getByRole('textbox') as HTMLTextAreaElement).value = text;
   const previousRequests = new Set(sessions.flatMap(session => session.requests));
@@ -198,7 +198,7 @@ async function expectSubmission(
     session.complete();
     await pending;
   }
-  expect(ui.getByText(label, { selector: '.claudian-thinking-current' })).toBeDefined();
+  expect(ui.getByText(label, { selector: '.scribe-thinking-current' })).toBeDefined();
 }
 
 it.each(modelCatalogCases.flatMap(entry => [true, false].map(advertisesHigh => ({ ...entry, advertisesHigh }))))(
@@ -241,7 +241,7 @@ it.each(['en', 'zh-CN'] as const)('defaults Codex to automatic review and persis
       fireEvent.click(ui.getByRole('button', { name: new RegExp(`^${prefix}`) }));
       fireEvent.click(ui.getByRole('menuitemradio', { name: new RegExp(`^${label}`) }));
       await waitFor(() => expect(settings.savedProviderPermissionMode.codex).toBe(mode));
-      await expectSubmission(tab, sessions, getChatSettingsSnapshot(settings, entry.id, entry.selected).model, 'high');
+      await expectSubmission(tab, sessions, getChatSettingsSnapshot(settings, entry.id, entry.selected).model, 'high', locale === 'zh-CN' ? '高' : 'High');
       expect(sessions.at(-1)?.requests.at(-1)?.configuration.permissionMode).toBe(mode);
     }
     const reopened = await createTab();
@@ -349,7 +349,7 @@ it.each(modelCatalogCases)('$id keeps displayed and submitted reasoning independ
     const tabB = await createTab();
     await selectReasoning(tabA, 'high');
     await selectReasoning(tabB, otherReasoning);
-    expect(within(tabA.dom.inputComposerEl).getByText('High', { selector: '.claudian-thinking-current' })).toBeDefined();
+    expect(within(tabA.dom.inputComposerEl).getByText('High', { selector: '.scribe-thinking-current' })).toBeDefined();
     await expectSubmission(tabA, sessions, model, 'high');
     await expectSubmission(tabB, sessions, model, otherReasoning);
     const tabC = await createTab();
@@ -379,8 +379,8 @@ it('restores the tab effort when returning to a previously selected model', asyn
     const tab = await createTab();
     const ui = within(tab.dom.inputComposerEl);
     const selectModel = async (label: string) => {
-      fireEvent.click(ui.getByText(label, { selector: '.claudian-model-option span' }));
-      await waitFor(() => expect(ui.getByText(label, { selector: '.claudian-model-label' })).toBeDefined());
+      fireEvent.click(ui.getByText(label, { selector: '.scribe-model-option span' }));
+      await waitFor(() => expect(ui.getByText(label, { selector: '.scribe-model-label' })).toBeDefined());
     };
     await selectReasoning(tab, 'low');
     await selectModel('Alternate');
@@ -414,14 +414,14 @@ it('keeps the displayed SDK report across model selection until the new model re
     };
     const selectModel = async (label: string) => {
       // The existing model picker exposes text options rather than option roles.
-      fireEvent.click(ui.getByText(label, { selector: '.claudian-model-option span' }));
-      await waitFor(() => expect(ui.getByText(label, { selector: '.claudian-model-label' })).toBeDefined());
+      fireEvent.click(ui.getByText(label, { selector: '.scribe-model-option span' }));
+      await waitFor(() => expect(ui.getByText(label, { selector: '.scribe-model-label' })).toBeDefined());
     };
     await report('gpt-5.5', 100_000, 1_000_000);
     const meter = ui.getByRole('progressbar', { name: 'Context usage: 10% · 100k / 1000k' });
     await selectModel('Alternate');
     expect(ui.getByRole('progressbar', { name: 'Context usage: 10% · 100k / 1000k' })).toBe(meter);
-    expect(meter.classList.contains('claudian-hidden')).toBe(false);
+    expect(meter.classList.contains('scribe-hidden')).toBe(false);
     await report('gpt-alternate', 50_000, 0);
     expect(meter.getAttribute('aria-valuetext')).toBe('100k / 1000k');
     await report('gpt-alternate', 50_000, 200_000);
@@ -429,7 +429,7 @@ it('keeps the displayed SDK report across model selection until the new model re
     expect(meter.getAttribute('aria-valuenow')).toBe('25');
     await selectModel('GPT-5.5');
     expect(meter.getAttribute('aria-valuetext')).toBe('50k / 200k');
-    expect(meter.classList.contains('claudian-hidden')).toBe(false);
+    expect(meter.classList.contains('scribe-hidden')).toBe(false);
     expect((await axe(meter)).violations).toEqual([]);
   } finally {
     for (const tab of tabs) await destroyTab(tab);

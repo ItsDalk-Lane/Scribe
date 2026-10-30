@@ -3,7 +3,7 @@
  * section it takes only the height it needs, up to a cap, and scrolls its own rows,
  * so the session list below always keeps room.
  */
-.claudian-session-sidebar .claudian-history-section--projects {
+.scribe-session-sidebar .scribe-history-section--projects {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
@@ -11,16 +11,16 @@
   min-height: 0;
 }
 
-.claudian-session-sidebar .claudian-session-project-items {
+.scribe-session-sidebar .scribe-session-project-items {
   min-height: 0;
   overflow-y: auto;
   overflow-anchor: none;
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-project-empty {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-project-empty {
   /* The label lines up with project and session titles: inset, icon, gap. */
-  padding: 4px var(--claudian-session-inline-inset) 6px
-    calc(var(--claudian-session-inline-inset) + var(--claudian-session-icon-size) + var(--claudian-session-icon-gap));
+  padding: 4px var(--scribe-session-inline-inset) 6px
+    calc(var(--scribe-session-inline-inset) + var(--scribe-session-icon-size) + var(--scribe-session-icon-gap));
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
 }
@@ -31,17 +31,17 @@
  * owns hover like a session row. The toggle's padding is taken out of the row's inline
  * start so its icon still sits at the sidebar inset.
  */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header--project {
-  padding: 2px var(--claudian-session-inline-inset) 2px calc(var(--claudian-session-inline-inset) - 8px);
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header--project {
+  padding: 2px var(--scribe-session-inline-inset) 2px calc(var(--scribe-session-inline-inset) - 8px);
   cursor: default;
 }
 
 /* The native button reset is shared with the other session-manager buttons in history.css. */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-toggle {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-toggle {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--claudian-session-icon-gap);
+  gap: var(--scribe-session-icon-gap);
   min-width: 0;
   height: auto;
   margin: 0;
@@ -53,6 +53,6 @@
 }
 
 /* An inset ring, so the scrolling projects list cannot clip it. */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header .claudian-session-group-toggle:focus-visible {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header .scribe-session-group-toggle:focus-visible {
   outline-offset: -2px;
 }

@@ -9,8 +9,8 @@ import { SessionInlineRename } from '@/features/chat/session-manager/SessionInli
 function renderRow(title: string): { container: HTMLElement; item: HTMLElement } {
   const container = document.createElement('div');
   document.body.append(container);
-  const item = container.createDiv({ cls: 'claudian-history-item' });
-  item.createDiv({ cls: 'claudian-history-item-title', text: title });
+  const item = container.createDiv({ cls: 'scribe-history-item' });
+  item.createDiv({ cls: 'scribe-history-item-title', text: title });
   return { container, item };
 }
 
@@ -38,7 +38,7 @@ describe('SessionInlineRename', () => {
     expect((await axe(item, { runOnly: { type: 'rule', values: ['label'] } })).violations).toEqual([]);
     const input = within(item).getByRole('textbox', { name: 'Conversation title' }) as HTMLInputElement;
 
-    expect(item.querySelector('.claudian-history-item-title')).toBeNull();
+    expect(item.querySelector('.scribe-history-item-title')).toBeNull();
     expect(input.value).toBe('Test Title');
     expect(input.ownerDocument.activeElement).toBe(input);
   });

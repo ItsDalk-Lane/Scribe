@@ -646,10 +646,10 @@ describe('StreamController - Text Content', () => {
           },
         },
       ]);
-      const group = deps.state.currentContentEl!.querySelector('.claudian-citations');
+      const group = deps.state.currentContentEl!.querySelector('.scribe-citations');
       expect(group).not.toBeNull();
-      expect(group!.querySelector('.claudian-citation-location')?.textContent).toBe('MEMORY.md:10\u201312');
-      expect(group!.querySelector('.claudian-citation-note')?.textContent).toBe('Used project conventions');
+      expect(group!.querySelector('.scribe-citation-location')?.textContent).toBe('MEMORY.md:10\u201312');
+      expect(group!.querySelector('.scribe-citation-note')?.textContent).toBe('Used project conventions');
     });
   });
 
@@ -1446,7 +1446,7 @@ describe('StreamController - Text Content', () => {
   describe('Thinking indicator - edge cases', () => {
     it('drops explicit compaction status once the compaction boundary renders', async () => {
       const msg = createTestMessage();
-      controller.thinkingIndicator.show('Compacting...', 'claudian-thinking--compact');
+      controller.thinkingIndicator.show('Compacting...', 'scribe-thinking--compact');
       vi.advanceTimersByTime(500);
       expect(deps.state.waitingStatus).toBe('Compacting...');
 

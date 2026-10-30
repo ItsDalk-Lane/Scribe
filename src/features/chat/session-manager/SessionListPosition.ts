@@ -1,10 +1,10 @@
-const LIST_SELECTOR = '.claudian-history-list';
-const ITEM_SELECTOR = '.claudian-history-item';
+const LIST_SELECTOR = '.scribe-history-list';
+const ITEM_SELECTOR = '.scribe-history-item';
 /**
  * Rows a rerender keeps in place: sessions, and project headers, so expanding a project in a list that scrolls as
  * one keeps its header still instead of a session below it.
  */
-const ANCHOR_SELECTOR = '.claudian-history-item[data-conversation-id], .claudian-session-group-header[data-project-id]';
+const ANCHOR_SELECTOR = '.scribe-history-item[data-conversation-id], .scribe-session-group-header[data-project-id]';
 
 type ScrollAnchor = {
   key: string;
@@ -72,13 +72,13 @@ export function captureSessionListPosition(container: HTMLElement, sectionScroll
   if (!list) return INITIAL_SESSION_LIST_POSITION;
 
   const sessionList = sectionScrolling
-    ? list.querySelector<HTMLElement>('.claudian-session-list-items') ?? list
+    ? list.querySelector<HTMLElement>('.scribe-session-list-items') ?? list
     : list;
   const pinnedList = list
-    .querySelector<HTMLElement>('.claudian-history-section--pinned')
-    ?.querySelector<HTMLElement>('.claudian-history-section-items');
+    .querySelector<HTMLElement>('.scribe-history-section--pinned')
+    ?.querySelector<HTMLElement>('.scribe-history-section-items');
   const projectsList = sectionScrolling
-    ? list.querySelector<HTMLElement>('.claudian-session-project-items')
+    ? list.querySelector<HTMLElement>('.scribe-session-project-items')
     : null;
   const recordedVisibleCount = Number(list.dataset.visibleCount);
   return {

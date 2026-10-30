@@ -47,7 +47,7 @@ it.each(['live', 'history'])('shows the sender safely in %s and keeps the envelo
     // Only the session name is the link (and so the only underlined text); the label sits outside it.
     const badge = within(host).getByRole('button', { name: sender.from });
     expect(badge.textContent).toBe(sender.from);
-    const senderLine = badge.closest<HTMLElement>('.claudian-session-message-sender')!;
+    const senderLine = badge.closest<HTMLElement>('.scribe-session-message-sender')!;
     expect(within(senderLine).getByText('From session:').closest('button')).toBeNull();
     expect(badge.getAttribute('type')).toBe('button');
     expect(badge.getAttribute('title')).toBe('Open Claude Code session source-session');
@@ -55,7 +55,7 @@ it.each(['live', 'history'])('shows the sender safely in %s and keeps the envelo
     expect(within(host).getByText('Please check the results.')).toBeTruthy();
     expect(host.textContent).not.toContain('<session_message');
     expect(within(host).getByText('My own prompt.')).toBeTruthy();
-    expect(host.querySelector('[data-message-id="ordinary"] .claudian-session-message-sender')).toBeNull();
+    expect(host.querySelector('[data-message-id="ordinary"] .scribe-session-message-sender')).toBeNull();
     expect((await axe(host)).violations).toEqual([]);
     fireEvent.click(badge);
     await waitFor(() => expect(openConversation).toHaveBeenCalledWith('source-session'));

@@ -1,5 +1,5 @@
-/** `claudian-code` is the legacy code-mode id of the chat preset, kept with identical content for saved conversations. */
-export const DEEPSEEK_PRESETS = ['claudian', 'claudian-code', 'claudian-passive', 'claudian-read-only'] as const;
+/** `scribe-code` is the legacy code-mode id of the chat preset, kept with identical content for saved conversations. */
+export const DEEPSEEK_PRESETS = ['scribe', 'scribe-code', 'scribe-passive', 'scribe-read-only'] as const;
 export type DeepSeekPreset = typeof DEEPSEEK_PRESETS[number];
 export type DeepSeekProfile = 'web' | 'desktop';
 
@@ -7,9 +7,9 @@ export function isDeepSeekPreset(value: unknown): value is DeepSeekPreset {
   return DEEPSEEK_PRESETS.includes(value as DeepSeekPreset);
 }
 
-/** Passive and read-only presets run Claudian's auxiliary tasks on a fixed native tool policy. */
+/** Passive and read-only presets run Scribe's auxiliary tasks on a fixed native tool policy. */
 export function isDeepSeekAuxiliaryPreset(preset: DeepSeekPreset): boolean {
-  return preset === 'claudian-passive' || preset === 'claudian-read-only';
+  return preset === 'scribe-passive' || preset === 'scribe-read-only';
 }
 
 export interface DeepSeekProviderState {

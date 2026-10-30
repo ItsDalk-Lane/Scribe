@@ -122,7 +122,7 @@ it.each([false, true])('shows a session notification immediately with streaming=
     const response: ChatMessage = { id: 'response', role: 'assistant', timestamp: 1, content: '', contentBlocks: [] };
     if (streaming) {
       state.addMessage(response);
-      state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+      state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
       await stream.handleStreamChunk({ type: 'text', content: 'Still working. ' }, response);
     }
     const current = state.currentContentEl;
@@ -179,7 +179,7 @@ it.each(['text', 'image', 'image-only'])('keeps preceding output before a %s pro
   const response: ChatMessage = { id: 'response', role: 'assistant', timestamp: 3, content: '', contentBlocks: [] };
   state.addMessage(user); renderer.addMessage(user);
   state.addMessage(response);
-  state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
   await stream.handleStreamChunk({ type: 'text', content: 'Requested ' }, response);
   let rendering!: () => void;
   let release!: () => void;

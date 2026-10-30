@@ -1,4 +1,4 @@
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 
 import { SharedStorageService } from '@/app/storage/SharedStorageService';
 
@@ -14,7 +14,7 @@ describe('SharedStorageService', () => {
     const plugin = {
       app: { vault: { adapter } },
     } as any;
-    const storage = new SharedStorageService(plugin, DEFAULT_CLAUDIAN_SETTINGS);
+    const storage = new SharedStorageService(plugin, DEFAULT_SCRIBE_SETTINGS);
 
     await storage.initialize();
 

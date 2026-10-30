@@ -51,10 +51,10 @@ export function setupCollapsible(
     state.isExpanded = isExpanded;
     if (isExpanded) {
       wrapperEl.addClass('expanded');
-      contentEl.removeClass('claudian-hidden');
+      contentEl.removeClass('scribe-hidden');
     } else {
       wrapperEl.removeClass('expanded');
-      contentEl.addClass('claudian-hidden');
+      contentEl.addClass('scribe-hidden');
     }
     headerEl.setAttribute('aria-expanded', String(isExpanded));
     refreshLabel();
@@ -89,7 +89,7 @@ export function collapseElement(
 ): void {
   state.isExpanded = false;
   wrapperEl.removeClass('expanded');
-  contentEl.addClass('claudian-hidden');
+  contentEl.addClass('scribe-hidden');
   headerEl.setAttribute('aria-expanded', 'false');
 }
 

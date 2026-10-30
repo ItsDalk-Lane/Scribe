@@ -6,7 +6,7 @@ import { executeClaudeRewind } from '@/providers/claude/runtime/ClaudeRewindServ
 
 describe('Claude rewind filesystem recovery', () => {
   let root: string;
-  beforeEach(async () => { root = await fs.mkdtemp(path.join(tmpdir(), 'claudian-rewind-test-')); });
+  beforeEach(async () => { root = await fs.mkdtemp(path.join(tmpdir(), 'scribe-rewind-test-')); });
   afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
 
   it.each(['throws', 'declines'] as const)('restores tracked files, linked files, dangling links and missing paths when the provider %s after mutation', async failure => {

@@ -92,6 +92,12 @@ export class SessionManagerSurface {
     if (this.deps.isWide()) this.sidebar.render();
   }
 
+  refreshLocale(): void {
+    this.browser.refreshLocale();
+    this.dropdown.refreshLocale();
+    this.invalidate();
+  }
+
   /** Hides the dropdown when a document click lands outside it, keeping its rendered list. */
   dismissDropdownFor(event: Event): void {
     this.dropdown.dismissFor(event);

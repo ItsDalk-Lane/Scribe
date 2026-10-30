@@ -92,7 +92,7 @@ async function renderLiveEvents(output: readonly ProviderExecutionEvent[]): Prom
   });
   const response: ChatMessage = { id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [] };
   state.addMessage(response);
-  state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
   for (const chunk of output.map(providerOutputEventToStreamChunk)) {
     if (chunk?.type === 'tool_use' || chunk?.type === 'tool_result') await stream.handleStreamChunk(chunk as StreamChunk, response);
   }
@@ -123,7 +123,7 @@ const expand = (block: HTMLElement, name: RegExp) => {
   return header;
 };
 
-const lines = (block: HTMLElement) => [...block.querySelectorAll('.claudian-tool-line')].map(line => line.textContent);
+const lines = (block: HTMLElement) => [...block.querySelectorAll('.scribe-tool-line')].map(line => line.textContent);
 
 describe.each(['live', 'history'] as const)('%s OpenCode V2 tool presentation', mode => {
   it('renders code-mode execute as a JavaScript script with its output', async () => {
@@ -137,7 +137,7 @@ describe.each(['live', 'history'] as const)('%s OpenCode V2 tool presentation', 
     const block = renderStoredToolCall(document.body.createDiv(), tool);
     expand(block, /^Script: return await tools\.browser\.preview/);
     expect(block.querySelector('code')?.textContent).toBe(code);
-    expect(block.querySelector('.claudian-tool-script-output')?.textContent).toBe('Preview opened');
+    expect(block.querySelector('.scribe-tool-script-output')?.textContent).toBe('Preview opened');
     expect((await axe(block)).violations).toEqual([]);
   });
 
@@ -186,7 +186,7 @@ describe.each(['live', 'history'] as const)('%s OpenCode V2 tool presentation', 
     expect(getToolIcon(tool.name)).toBe(getToolIcon('apply_patch'));
     const block = renderStoredToolCall(document.body.createDiv(), tool);
     expand(block, /^apply_patch: 2 files/);
-    expect([...block.querySelectorAll('.claudian-diff-insert .claudian-diff-text')].map(line => line.textContent))
+    expect([...block.querySelectorAll('.scribe-diff-insert .scribe-diff-text')].map(line => line.textContent))
       .toEqual(expect.arrayContaining(['Final', 'Created']));
   });
 
@@ -231,6 +231,6 @@ it.each([
   });
   const block = renderStoredWriteEdit(document.body.createDiv(), tool, { initiallyExpanded: true });
   expect(within(block).getByRole('button', { name: /Edit: notes.md/ })).toBeDefined();
-  expect([...block.querySelectorAll('.claudian-diff-delete .claudian-diff-text')].map(line => line.textContent)).toEqual(removed);
-  expect([...block.querySelectorAll('.claudian-diff-insert .claudian-diff-text')].map(line => line.textContent)).toEqual(added);
+  expect([...block.querySelectorAll('.scribe-diff-delete .scribe-diff-text')].map(line => line.textContent)).toEqual(removed);
+  expect([...block.querySelectorAll('.scribe-diff-insert .scribe-diff-text')].map(line => line.textContent)).toEqual(added);
 });

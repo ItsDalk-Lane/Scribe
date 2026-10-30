@@ -22,8 +22,8 @@ describe('resume-session.css', () => {
   // to black, and themes can make the secondary background see-through.
   it('paints the dropdown opaque without a backdrop blur or shadow in translucent dark windows', () => {
     document.body.className = 'theme-dark is-translucent';
-    document.body.innerHTML = '<div class="claudian-resume-dropdown visible"></div>';
-    const dropdownEl = document.querySelector('.claudian-resume-dropdown')!;
+    document.body.innerHTML = '<div class="scribe-resume-dropdown visible"></div>';
+    const dropdownEl = document.querySelector('.scribe-resume-dropdown')!;
     const dropdown = window.getComputedStyle(dropdownEl);
     // jsdom omits backdrop-filter from computed styles, so the matching rules are read directly.
     const backdropFilters = [...style.sheet!.cssRules]

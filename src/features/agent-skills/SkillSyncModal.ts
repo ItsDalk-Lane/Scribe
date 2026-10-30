@@ -88,7 +88,7 @@ export class SkillSyncModal extends Modal {
   }
 
   onOpen(): void {
-    this.modalEl.addClass('claudian-skill-sync-modal');
+    this.modalEl.addClass('scribe-skill-sync-modal');
     this.setTitle(t('settings.skills.sync.title'));
     this.contentEl.createEl('p', { text: t('settings.skills.sync.loading') });
     void this.#load();
@@ -138,28 +138,28 @@ export class SkillSyncModal extends Modal {
     this.contentEl.empty();
 
     this.contentEl.createEl('p', { text: t('settings.skills.sync.intro') });
-    const points = this.contentEl.createEl('ul', { cls: 'claudian-skill-sync-points' });
-    points.createEl('li', { cls: 'claudian-skill-sync-pro', text: t('settings.skills.sync.pros.oneList') });
-    points.createEl('li', { cls: 'claudian-skill-sync-pro', text: t('settings.skills.sync.pros.newSkills') });
-    points.createEl('li', { cls: 'claudian-skill-sync-con', text: t('settings.skills.sync.cons.dropped') });
+    const points = this.contentEl.createEl('ul', { cls: 'scribe-skill-sync-points' });
+    points.createEl('li', { cls: 'scribe-skill-sync-pro', text: t('settings.skills.sync.pros.oneList') });
+    points.createEl('li', { cls: 'scribe-skill-sync-pro', text: t('settings.skills.sync.pros.newSkills') });
+    points.createEl('li', { cls: 'scribe-skill-sync-con', text: t('settings.skills.sync.cons.dropped') });
     const syntaxNames = plan.items
       .filter(item => item.issues.some(issue => issue.code === 'claude-syntax'))
       .map(item => item.proposedName);
     if (syntaxNames.length > 0) {
       points.createEl('li', {
-        cls: 'claudian-skill-sync-con',
+        cls: 'scribe-skill-sync-con',
         text: t('settings.skills.sync.cons.claudeSyntax', { names: syntaxNames.join(', ') }),
       });
     }
 
     this.contentEl.createEl('h3', { text: t('settings.skills.sync.attentionTitle') });
-    const attentionEl = this.contentEl.createDiv({ cls: 'claudian-skill-sync-cards' });
+    const attentionEl = this.contentEl.createDiv({ cls: 'scribe-skill-sync-cards' });
 
-    const actions = this.contentEl.createDiv({ cls: 'claudian-agent-skill-modal-actions' });
+    const actions = this.contentEl.createDiv({ cls: 'scribe-agent-skill-modal-actions' });
     const cancel = actions.createEl('button', {
       attr: { type: 'button' },
       text: t('common.cancel'),
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
     });
     cancel.addEventListener('click', () => this.close());
     const next = actions.createEl('button', {
@@ -232,13 +232,13 @@ export class SkillSyncModal extends Modal {
     onChange: () => void,
   ): (reasons: SkillSyncBlockingReason[]) => void {
     const draft = this.drafts.get(item.id)!;
-    const card = container.createEl('fieldset', { cls: 'claudian-skill-sync-card' });
+    const card = container.createEl('fieldset', { cls: 'scribe-skill-sync-card' });
     card.createEl('legend', { text: itemLabel(item) });
-    const status = card.createEl('p', { cls: 'claudian-skill-sync-status' });
+    const status = card.createEl('p', { cls: 'scribe-skill-sync-status' });
 
     const fieldInputs: HTMLInputElement[] = [];
     const addField = (labelKey: 'nameField' | 'descriptionField', value: string, apply: (next: string) => void): void => {
-      const label = card.createEl('label', { cls: 'claudian-skill-sync-field' });
+      const label = card.createEl('label', { cls: 'scribe-skill-sync-field' });
       label.createSpan({ text: t(`settings.skills.sync.${labelKey}`) });
       const input = label.createEl('input', {
         attr: { type: 'text', 'data-item': item.id, 'data-field': labelKey },
@@ -255,14 +255,14 @@ export class SkillSyncModal extends Modal {
       if (needs.description) addField('descriptionField', draft.description, value => { draft.description = value; });
     }
 
-    const choices = card.createDiv({ cls: 'claudian-skill-sync-choices' });
+    const choices = card.createDiv({ cls: 'scribe-skill-sync-choices' });
     const options: Array<[ItemChoice, Parameters<typeof t>[0]]> = [];
     if (!needs.unfixable) options.push(['apply', 'settings.skills.sync.options.fix']);
     if (needs.replace && !needs.unfixable) options.push(['replace', 'settings.skills.sync.options.replace']);
     options.push(['skip', item.kind === 'command' ? 'settings.skills.sync.options.keep' : 'settings.skills.sync.options.discard']);
     for (const [value, labelKey] of options) {
       const label = choices.createEl('label');
-      const radio = label.createEl('input', { attr: { type: 'radio', name: `claudian-skill-sync-${index}` } });
+      const radio = label.createEl('input', { attr: { type: 'radio', name: `scribe-skill-sync-${index}` } });
       radio.value = value;
       radio.checked = draft.choice === value;
       radio.addEventListener('change', () => {
@@ -277,7 +277,7 @@ export class SkillSyncModal extends Modal {
     return current => {
       const ready = current.length === 0;
       status.setText(ready ? t('settings.skills.sync.ready') : current.map(problemText).join(' '));
-      status.toggleClass('claudian-skill-sync-status--ready', ready);
+      status.toggleClass('scribe-skill-sync-status--ready', ready);
     };
   }
 
@@ -295,15 +295,15 @@ export class SkillSyncModal extends Modal {
       this.contentEl.createEl('p', { text: t('settings.skills.sync.confirmBody') });
     }
     this.contentEl.createEl('p', {
-      cls: 'claudian-agent-skill-warning',
+      cls: 'scribe-agent-skill-warning',
       text: t('settings.skills.sync.devicesWarning'),
     });
 
-    const actions = this.contentEl.createDiv({ cls: 'claudian-agent-skill-modal-actions' });
+    const actions = this.contentEl.createDiv({ cls: 'scribe-agent-skill-modal-actions' });
     const cancel = actions.createEl('button', {
       attr: { type: 'button' },
       text: t('common.cancel'),
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
     });
     cancel.addEventListener('click', () => this.close());
     const confirm = actions.createEl('button', {
@@ -344,7 +344,7 @@ export class SkillSyncModal extends Modal {
       }),
     });
     if (result.failed.length > 0) {
-      const list = this.contentEl.createEl('ul', { cls: 'claudian-skill-sync-failures' });
+      const list = this.contentEl.createEl('ul', { cls: 'scribe-skill-sync-failures' });
       for (const failure of result.failed) {
         const item = list.createEl('li');
         item.createEl('code', { text: failure.id });
@@ -365,7 +365,7 @@ export class SkillSyncModal extends Modal {
   }
 
   #renderCloseButton(): void {
-    const actions = this.contentEl.createDiv({ cls: 'claudian-agent-skill-modal-actions' });
+    const actions = this.contentEl.createDiv({ cls: 'scribe-agent-skill-modal-actions' });
     const close = actions.createEl('button', {
       attr: { type: 'button' },
       text: t('common.confirm'),

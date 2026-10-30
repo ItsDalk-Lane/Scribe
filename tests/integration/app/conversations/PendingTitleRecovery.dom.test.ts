@@ -4,7 +4,7 @@ import '@/providers';
 
 import { claudeCatalogFixture } from '@test/helpers/claudeModels';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate } from '@test/helpers/testClock';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 
@@ -29,7 +29,7 @@ afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 
 async function fixture() {
   const vault = await DesktopVault.create();
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.enableAutoTitleGeneration = true;
   settings.titleGenerationModel = 'haiku';
   settings.providerConfigs.claude = claudeCatalogFixture(['haiku']);
@@ -89,7 +89,7 @@ it('offers and completes title retry after loading an interrupted job from disk'
     fireEvent.click(within(f.container).getByRole('button', { name: 'Regenerate title' }));
     await waitFor(() => expect(f.repository.list()[0]).toMatchObject({ title: 'Recovered title', titleGenerationStatus: 'success' }));
     expect(await f.persistence.metadataReader.loadMetadata(f.metadata.id)).toMatchObject({ title: 'Recovered title', titleGenerationStatus: 'success' });
-    expect(f.container.querySelector('.claudian-action-loading')).toBeNull();
+    expect(f.container.querySelector('.scribe-action-loading')).toBeNull();
   } finally { await f.dispose(); }
 });
 
@@ -100,7 +100,7 @@ it('keeps live pending jobs and completed persisted titles unchanged', async () 
     await f.loader.ensureLoaded([f.metadata.id]);
     f.render();
     expect(f.repository.list()[0].titleGenerationStatus).toBe('pending');
-    expect(f.container.querySelector('.claudian-action-loading')).not.toBeNull();
+    expect(f.container.querySelector('.scribe-action-loading')).not.toBeNull();
     expect(within(f.container).queryByRole('button', { name: 'Regenerate title' })).toBeNull();
     for (const status of ['success', 'failed'] as const) {
       await f.persistence.saveMetadata({ ...f.metadata, id: status, titleGenerationStatus: status });

@@ -115,7 +115,7 @@ export class MarkdownContentRenderer {
       if (!isCurrent()) return;
       this.#releaseOne(el);
       el.createDiv({
-        cls: 'claudian-render-error',
+        cls: 'scribe-render-error',
         text: t('chat.renderFailed'),
       });
     }

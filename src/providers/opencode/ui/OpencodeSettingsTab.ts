@@ -125,7 +125,7 @@ export function createOpencodeSettingsTabRenderer(
         validate: validateCLIPath,
       });
 
-      new Setting(container).setName('Models').setHeading();
+      new Setting(container).setName(t('settings.models')).setHeading();
       const modelPicker = renderProviderModelsSection(
         container, 'opencode', 'OpenCode', opencodeWorkspace.modelCatalog, () => modelWarning.refresh(),
         t('settings.opencode.emptyModels'),

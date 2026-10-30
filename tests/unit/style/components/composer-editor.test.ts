@@ -22,7 +22,7 @@ describe('Composer editor styles', () => {
   }
 
   it('gives restored drafts the editor insets and scroll limit before first focus, without doubling them on mount', async () => {
-    const parent = document.body.createDiv({ cls: 'claudian-input-wrapper' });
+    const parent = document.body.createDiv({ cls: 'scribe-input-wrapper' });
     const editor = new ComposerEditor(parent, {} as App, {} as Component);
     const style = document.createElement('style');
     style.textContent = css;
@@ -34,8 +34,8 @@ describe('Composer editor styles', () => {
       expect(document.activeElement).not.toBe(textbox);
       const restored = getComputedStyle(textbox);
       // Geometry is checked in Chromium; this protects the shared spacing and overflow declarations.
-      expect(restored.padding).toBe('var(--claudian-composer-padding-top) var(--claudian-composer-padding-inline) var(--claudian-composer-padding-bottom)');
-      expect(restored.maxHeight).toBe('var(--claudian-textarea-max-height, none)');
+      expect(restored.padding).toBe('var(--scribe-composer-padding-top) var(--scribe-composer-padding-inline) var(--scribe-composer-padding-bottom)');
+      expect(restored.maxHeight).toBe('var(--scribe-textarea-max-height, none)');
       expect(restored.overflow).toBe('auto');
       expect(await axe(parent)).toHaveNoViolations();
 
@@ -53,14 +53,14 @@ describe('Composer editor styles', () => {
   // CodeMirror mounts on first focus; before that a CSS placeholder stands in for it.
   it('lays out the pre-mount placeholder and the mounted editor with one line height', () => {
     const all = rules();
-    const host = all.find(rule => rule.selectorText === '.claudian-input-wrapper .claudian-composer-editor')!;
+    const host = all.find(rule => rule.selectorText === '.scribe-input-wrapper .scribe-composer-editor')!;
     expect(host.style.getPropertyValue('line-height')).toBe('1.4');
 
     // CodeMirror's base theme sets its own .cm-scroller line height; the composer must not follow it.
-    const scroller = all.find(rule => rule.selectorText === '.claudian-composer-editor .cm-scroller')!;
+    const scroller = all.find(rule => rule.selectorText === '.scribe-composer-editor .cm-scroller')!;
     expect(scroller.style.getPropertyValue('line-height')).toBe('inherit');
 
-    const placeholder = all.find(rule => rule.selectorText === '.claudian-composer-editor:empty::before')!;
+    const placeholder = all.find(rule => rule.selectorText === '.scribe-composer-editor:empty::before')!;
     expect(placeholder.style.getPropertyValue('line-height')).toBe('');
   });
 });

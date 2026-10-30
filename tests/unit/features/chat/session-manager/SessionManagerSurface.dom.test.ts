@@ -3,23 +3,23 @@
 import '@/providers';
 
 import { axe } from '@test/helpers/accessibility';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { createProjectsFake, projectRecord } from '@test/helpers/features/chat/ProjectsFake';
 import { createObsidianWorkspace } from '@test/helpers/ObsidianWorkspace';
 import { testDate } from '@test/helpers/testClock';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { Menu, setIcon } from 'obsidian';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
-import type { ClaudianSettings, ConversationMeta } from '@/core/types';
+import type { ConversationMeta,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { createProject } from '@/features/chat/projects/projectActions';
 import { SessionBrowser } from '@/features/chat/session-manager/SessionBrowser';
 import { SessionManagerSurface } from '@/features/chat/session-manager/SessionManagerSurface';
 import { ChatViewPublisher } from '@/features/chat/workspace/ChatViewPublisher';
-import { t } from '@/i18n/i18n';
+import { setLocale, t } from '@/i18n/i18n';
 
 vi.mock('@/features/chat/projects/projectActions', async () => ({
   ...(await vi.importActual<typeof import('@/features/chat/projects/projectActions')>('@/features/chat/projects/projectActions')),
@@ -83,13 +83,43 @@ function createSurface() {
 
 afterEach(() => {
   document.body.replaceChildren();
+  setLocale('en');
+});
+
+it('shows sidebar controls in the selected language', () => {
+  setLocale('zh-CN');
+  const { host, surface } = createSurface();
+  try {
+    const ui = within(host);
+    expect(ui.getByRole('button', { name: '新建' })).toBeTruthy();
+    expect(ui.getByRole('button', { name: '搜索' })).toBeTruthy();
+    expect(ui.getByRole('button', { name: '归档' })).toBeTruthy();
+  } finally {
+    surface.dispose();
+  }
+});
+
+it('updates sidebar and history language without losing the search query', () => {
+  const { host, surface } = createSurface();
+  const history = document.body.createDiv();
+  surface.mountHistoryControl(history);
+  try {
+    fireEvent.click(within(host).getByRole('button', { name: 'Search' }));
+    fireEvent.input(within(host).getByRole('searchbox', { name: 'Search sessions' }), { target: { value: 'draft' } });
+    setLocale('zh-CN');
+    surface.refreshLocale();
+    expect((within(host).getByRole('searchbox', { name: '搜索会话' }) as HTMLInputElement).value).toBe('draft');
+    expect(within(history).getByRole('button', { name: '聊天记录' })).toBeTruthy();
+  } finally {
+    surface.dispose();
+  }
 });
 
 it('follows the left sidebar theme token through theme changes and releases its listener', () => {
   const navigation = document.body.createDiv({ cls: 'mod-left-split' });
   navigation.style.setProperty('--nav-item-background-active', 'rgba(100, 100, 100, 0.2)');
   const { host, surface, workspace } = createSurface();
-  const background = () => host.style.getPropertyValue('--claudian-session-background-active');
+  const background = () => host.style.getPropertyValue('--scribe-session-background-active');
   try {
     expect(background()).toBe('rgba(100, 100, 100, 0.2)');
     navigation.style.setProperty('--nav-item-background-active', 'transparent');
@@ -182,7 +212,7 @@ it.each([false, true])('keeps session navigation named and operable without tool
     fireEvent.keyDown(sidebar.getByRole('button', { name: 'Archive' }), { key: 'Enter' });
   }
   const archiveName = archived ? 'Sessions' : 'Archive';
-  const list = host.querySelector('.claudian-history-list')!;
+  const list = host.querySelector('.scribe-history-list')!;
   expect(within(list as HTMLElement).getByText(archived ? 'Archived' : 'Sessions')).toBeTruthy();
 
   for (const name of ['New', 'Search', archiveName]) {
@@ -226,14 +256,14 @@ describe('projects section', () => {
 
   function createProjectSurface({ wide = true, persisted }: {
     wide?: boolean;
-    persisted?: { settings: ClaudianSettings; storage: ClaudianSettingsStorage };
+    persisted?: { settings: ScribeSettings; storage: ScribeSettingsStorage };
   } = {}) {
     const conversations = [
       conversation('member', { title: 'Member session', projectId: 'launch', lastActivityAt: testDate({ hours: -1 }).getTime() }),
       conversation('loose', { title: 'Loose session' }),
       conversation('pinned', { title: 'Pinned session', isPinned: true }),
     ];
-    const settings = persisted?.settings ?? { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), enableAutoTitleGeneration: false };
+    const settings = persisted?.settings ?? { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), enableAutoTitleGeneration: false };
     const views: { surface?: SessionManagerSurface } = {};
     const publisher = new ChatViewPublisher({
       views: { getAllViews: () => [{ notifyConversationListChanged: () => views.surface?.invalidate() }] },
@@ -254,7 +284,7 @@ describe('projects section', () => {
         projectRecord({ id: 'launch', name: 'Launch', createdAt: testDate({ days: -10 }).getTime() }),
         projectRecord({ id: 'empty', name: 'Empty', createdAt: testDate({ days: -2 }).getTime() }),
       ]),
-      mutateSettings: vi.fn(async (mutation: (value: ClaudianSettings) => void) => {
+      mutateSettings: vi.fn(async (mutation: (value: ScribeSettings) => void) => {
         if (coordinator) return coordinator.mutate(mutation);
         mutation(settings);
         views.surface?.invalidate();
@@ -298,7 +328,7 @@ describe('projects section', () => {
       write: async (path: string, content: string) => { files.set(path, content); },
     } as unknown as VaultFileAdapter;
     const reload = async () => {
-      const storage = new ClaudianSettingsStorage(adapter, DEFAULT_CLAUDIAN_SETTINGS);
+      const storage = new ScribeSettingsStorage(adapter, DEFAULT_SCRIBE_SETTINGS);
       const ui = createProjectSurface({ wide, persisted: { settings: await storage.load(), storage } });
       if (!wide) {
         ui.surface.mountHistoryControl(ui.host);
@@ -355,7 +385,7 @@ describe('projects section', () => {
     expect((await axe(host)).violations).toEqual([]);
 
     // Projects keep the user's dragged order, so the header has no sort menu.
-    const header = region().querySelector<HTMLElement>('.claudian-session-projects-header')!;
+    const header = region().querySelector<HTMLElement>('.scribe-session-projects-header')!;
     expect(within(header).getAllByRole('button').map(button => button.getAttribute('aria-label') ?? button.textContent))
       .toEqual([t('chat.projects.header'), t('chat.projects.newProjectAction')]);
 
@@ -372,7 +402,7 @@ describe('projects section', () => {
     const dismissOnDocumentClick = (event: Event) => surface.dismissDropdownFor(event);
     document.addEventListener('click', dismissOnDocumentClick);
     fireEvent.click(within(host).getByRole('button', { name: 'Chat history' }));
-    const menuEl = host.querySelector<HTMLElement>('.claudian-history-menu')!;
+    const menuEl = host.querySelector<HTMLElement>('.scribe-history-menu')!;
     const history = () => within(menuEl);
     const projects = () => within(history().getByRole('region', { name: t('chat.projects.header') }));
     const titles = () => menus().at(-1)!.items.map(entry => entry.title);
@@ -417,12 +447,12 @@ describe('projects section', () => {
     const { host, surface } = createProjectSurface({ wide: false });
     surface.mountHistoryControl(host);
     fireEvent.click(within(host).getByRole('button', { name: 'Chat history' }));
-    const menuEl = host.querySelector<HTMLElement>('.claudian-history-menu')!;
+    const menuEl = host.querySelector<HTMLElement>('.scribe-history-menu')!;
     // jsdom has no layout: stack every row 40px tall in document order inside a 400px list.
-    const rowSelector = '.claudian-history-item, .claudian-session-group-header, .claudian-history-header, .claudian-history-archive-control';
+    const rowSelector = '.scribe-history-item, .scribe-session-group-header, .scribe-history-header, .scribe-history-archive-control';
     const rect = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 300, width: 300 }) as DOMRect;
     const layout = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const list = menuEl.querySelector<HTMLElement>('.claudian-history-list')!;
+      const list = menuEl.querySelector<HTMLElement>('.scribe-history-list')!;
       if (this === list) return rect(0, 400);
       const rows = Array.from(list.querySelectorAll<HTMLElement>(rowSelector));
       const index = rows.indexOf(this);
@@ -441,11 +471,11 @@ describe('projects section', () => {
 
   it('keeps the wide session list at the top when newer sessions load above it, as after startup', () => {
     const { host, plugin, surface } = createProjectSurface();
-    const sessionList = () => host.querySelector<HTMLElement>('.claudian-session-list-items')!;
+    const sessionList = () => host.querySelector<HTMLElement>('.scribe-session-list-items')!;
     // jsdom has no layout: stack every session row 40px tall in document order.
     const layout = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const list = sessionList();
-      const index = Array.from(list.querySelectorAll<HTMLElement>('.claudian-history-item, .claudian-session-group-header')).indexOf(this);
+      const index = Array.from(list.querySelectorAll<HTMLElement>('.scribe-history-item, .scribe-session-group-header')).indexOf(this);
       const top = this === list ? 0 : index * 40 - list.scrollTop;
       const height = this === list ? 400 : index < 0 ? 0 : 40;
       return { top, bottom: top + height, height, left: 0, right: 300, width: 300 } as DOMRect;
@@ -481,16 +511,16 @@ describe('projects section', () => {
     expect(folderIcon(emptyToggle())).toBe('lucide-folder');
     fireEvent.click(emptyToggle());
 
-    fireEvent.click(host.querySelector('.claudian-session-archive-control')!);
+    fireEvent.click(host.querySelector('.scribe-session-archive-control')!);
     expect(view.queryByRole('region', { name: t('chat.projects.header') })).toBeNull();
-    fireEvent.click(host.querySelector('.claudian-session-archive-control')!);
+    fireEvent.click(host.querySelector('.scribe-session-archive-control')!);
     expect(within(region()).getByRole('button', { name: sectionName('Empty', 0) }).getAttribute('aria-expanded'))
       .toBe('true');
   });
 
   it('finds project members by search under their expanded project, then restores the collapsed projects', () => {
     const { host, region, view } = createProjectSurface();
-    fireEvent.click(host.querySelector('.claudian-session-search-control')!);
+    fireEvent.click(host.querySelector('.scribe-session-search-control')!);
     const searchBox = view.getByRole('searchbox', { name: 'Search sessions' });
 
     fireEvent.input(searchBox, { target: { value: 'member' } });
@@ -555,7 +585,7 @@ describe('projects section', () => {
     fireEvent.click(sessionsToggle());
     expect(sessionRow()).not.toBeNull();
     // The archive keeps its own section state.
-    fireEvent.click(host.querySelector('.claudian-session-archive-control')!);
+    fireEvent.click(host.querySelector('.scribe-session-archive-control')!);
     const archived = view.getByRole('region', { name: 'Archived' });
     expect(archived.hasAttribute('aria-label')).toBe(false);
     expect(within(archived).getByRole('button', { name: 'Archived' }).getAttribute('aria-expanded')).toBe('true');
@@ -564,7 +594,7 @@ describe('projects section', () => {
   it('shows matches in collapsed sections while searching, then restores the collapse', () => {
     const { host, region, view } = createProjectSurface();
     fireEvent.click(within(region()).getByRole('button', { name: t('chat.projects.header') }));
-    fireEvent.click(host.querySelector('.claudian-session-search-control')!);
+    fireEvent.click(host.querySelector('.scribe-session-search-control')!);
 
     fireEvent.input(view.getByRole('searchbox', { name: 'Search sessions' }), { target: { value: 'member' } });
     expect(within(region()).getByRole('button', { name: t('chat.projects.header') }).getAttribute('aria-expanded'))

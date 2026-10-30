@@ -9,7 +9,7 @@ import { Menu, setIcon } from 'obsidian';
 import type { Mock } from 'vitest';
 
 import type { TitleGenerationService } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import { type ConversationControllerDeps } from '@/features/chat/conversation/ConversationController';
 import { SessionBrowser } from '@/features/chat/session-manager/SessionBrowser';
 import { formatSessionDate } from '@/features/chat/session-manager/SessionStatusPresentation';
@@ -22,7 +22,7 @@ vi.mock('@/shared/modals/ConfirmModal', () => ({
   confirm: vi.fn().mockResolvedValue(true),
 }));
 
-function createMockDeps(overrides: Record<string, unknown> = {}): ConversationControllerDeps & { session: ChatSessionRuntime; plugin: ConversationControllerDeps['plugin'] & { settings: ClaudianSettings }; getHistoryDropdown: () => HTMLElement; getTitleGenerationService: () => TitleGenerationService | null } {
+function createMockDeps(overrides: Record<string, unknown> = {}): ConversationControllerDeps & { session: ChatSessionRuntime; plugin: ConversationControllerDeps['plugin'] & { settings: ScribeSettings }; getHistoryDropdown: () => HTMLElement; getTitleGenerationService: () => TitleGenerationService | null } {
   const session = createTestSession({ getState: () => state });
   const state: ChatState = new ChatState({}, undefined, session.turns);
   const inputEl = { value: '', focus: vi.fn() } as unknown as HTMLTextAreaElement;
@@ -138,7 +138,7 @@ describe('SessionBrowser', () => {
 
         expect(dropdown.children[0].children[0].textContent).toBe('Sessions');
         const list = dropdown.children[1];
-        expect(list.children[0].hasClass('claudian-history-empty')).toBe(true);
+        expect(list.children[0].hasClass('scribe-history-empty')).toBe(true);
         expect(list.children[0].textContent).toBe('No conversations');
       });
 
@@ -153,9 +153,9 @@ describe('SessionBrowser', () => {
 
         expect(dropdown.children.length).toBe(2);
         const list = dropdown.children[1];
-        expect(list.hasClass('claudian-history-list')).toBe(true);
+        expect(list.hasClass('scribe-history-list')).toBe(true);
         expect(list.children.length).toBe(3);
-        expect(list.querySelectorAll('.claudian-history-item-title')
+        expect(list.querySelectorAll('.scribe-history-item-title')
           .map((title: { textContent: string }) => title.textContent))
           .toEqual(['New', 'Mid', 'Old']);
       });
@@ -169,7 +169,7 @@ describe('SessionBrowser', () => {
 
         const list = dropdown.children[1];
         const item = list.children[0];
-        const loadingEl = item.querySelector('.claudian-action-loading');
+        const loadingEl = item.querySelector('.scribe-action-loading');
         expect(loadingEl).toBeTruthy();
       });
 
@@ -185,7 +185,7 @@ describe('SessionBrowser', () => {
 
         const list = dropdown.children[1];
         const item = list.children[0];
-        const deleteBtn = item.querySelector('.claudian-delete-btn');
+        const deleteBtn = item.querySelector('.scribe-delete-btn');
         expect(deleteBtn).toBeTruthy();
 
         const clickHandlers = deleteBtn!._eventListeners?.get('click');
@@ -211,16 +211,16 @@ describe('SessionBrowser', () => {
           sort: 'last-updated',
         });
 
-        const pinnedSection = container.querySelector('.claudian-history-section--pinned')!;
-        const sessionsSection = container.querySelector('.claudian-history-section--sessions')!;
-        expect(pinnedSection.querySelector('.claudian-history-section-label')?.textContent)
+        const pinnedSection = container.querySelector('.scribe-history-section--pinned')!;
+        const sessionsSection = container.querySelector('.scribe-history-section--sessions')!;
+        expect(pinnedSection.querySelector('.scribe-history-section-label')?.textContent)
           .toBe('Pinned');
-        expect(sessionsSection.querySelector('.claudian-history-section-label')?.textContent)
+        expect(sessionsSection.querySelector('.scribe-history-section-label')?.textContent)
           .toBe('Sessions');
-        expect(pinnedSection.querySelectorAll('.claudian-history-item-title')
+        expect(pinnedSection.querySelectorAll('.scribe-history-item-title')
           .map((el: { textContent: string }) => el.textContent))
           .toEqual(['Pinned new', 'Pinned old']);
-        expect(sessionsSection.querySelectorAll('.claudian-history-item-title')
+        expect(sessionsSection.querySelectorAll('.scribe-history-item-title')
           .map((el: { textContent: string }) => el.textContent))
           .toEqual(['Normal']);
       });
@@ -272,25 +272,25 @@ describe('SessionBrowser', () => {
           ]),
         });
 
-        const pinnedSection = container.querySelector('.claudian-history-section--pinned')!;
-        const pinnedHeaders = pinnedSection.querySelectorAll('.claudian-session-group-header');
+        const pinnedSection = container.querySelector('.scribe-history-section--pinned')!;
+        const pinnedHeaders = pinnedSection.querySelectorAll('.scribe-session-group-header');
         expect(pinnedHeaders.map((header: any) => header.getAttribute('data-content-path'))).toEqual([
           'Projects/Plan.md',
           'Projects/Empty.md',
         ]);
-        expect(pinnedSection.querySelectorAll('.claudian-session-group-body')[0]
-          .querySelectorAll('.claudian-history-item-title')
+        expect(pinnedSection.querySelectorAll('.scribe-session-group-body')[0]
+          .querySelectorAll('.scribe-history-item-title')
           .map((item: any) => item.textContent))
           .toEqual(['Note regular', 'Note pinned session']);
-        expect(pinnedSection.querySelectorAll('.claudian-history-item-title')
+        expect(pinnedSection.querySelectorAll('.scribe-history-item-title')
           .map((item: any) => item.textContent))
           .toEqual(['Note regular', 'Note pinned session', 'Standalone pinned']);
 
-        const sessionsSection = container.querySelector('.claudian-history-section--sessions')!;
-        expect(sessionsSection.querySelectorAll('.claudian-history-item-title')
+        const sessionsSection = container.querySelector('.scribe-history-section--sessions')!;
+        expect(sessionsSection.querySelectorAll('.scribe-history-item-title')
           .map((item: any) => item.textContent))
           .toEqual(['Regular']);
-        expect(container.querySelectorAll('.claudian-history-item').filter((item: any) => (
+        expect(container.querySelectorAll('.scribe-history-item').filter((item: any) => (
           item.getAttribute('data-conversation-id') === 'note-pinned-session'
         ))).toHaveLength(1);
       });
@@ -311,8 +311,8 @@ describe('SessionBrowser', () => {
           showMetadataPopover: true,
         });
 
-        const item = container.querySelector('.claudian-history-item')!;
-        const content = item.querySelector('.claudian-history-item-content')!;
+        const item = container.querySelector('.scribe-history-item')!;
+        const content = item.querySelector('.scribe-history-item-content')!;
         const preventDefault = vi.fn();
         const stopPropagation = vi.fn();
         expect(item.getAttribute('role')).toBeNull();
@@ -344,8 +344,8 @@ describe('SessionBrowser', () => {
           showPinnedSection: true,
         });
 
-        expect(container.querySelector('.claudian-history-section--pinned')).toBeNull();
-        expect(container.querySelector('.claudian-history-section--sessions')).not.toBeNull();
+        expect(container.querySelector('.scribe-history-section--pinned')).toBeNull();
+        expect(container.querySelector('.scribe-history-section--sessions')).not.toBeNull();
       });
 
       it('pulses completed reviews and hides inline actions while a session waits or errored', () => {
@@ -381,18 +381,18 @@ describe('SessionBrowser', () => {
           showPinnedSection: true,
         });
 
-        expect(container.querySelector('.claudian-history-section--attention')).toBeNull();
-        const items = container.querySelectorAll('.claudian-history-item');
+        expect(container.querySelector('.scribe-history-section--attention')).toBeNull();
+        const items = container.querySelectorAll('.scribe-history-item');
         expect(items).toHaveLength(5);
         const findItem = (id: string) => items.find(
           (item: HTMLElement) => item.getAttribute('data-conversation-id') === id,
         )!;
-        const attentionIds = container.querySelectorAll('.claudian-history-item--attention')
+        const attentionIds = container.querySelectorAll('.scribe-history-item--attention')
           .map((item: HTMLElement) => item.getAttribute('data-conversation-id'));
         expect(attentionIds.sort()).toEqual(['review', 'review-pinned']);
-        expect(container.querySelector('.claudian-session-attention-indicator')).toBeNull();
+        expect(container.querySelector('.scribe-session-attention-indicator')).toBeNull();
 
-        const inlineActionLabels = (id: string) => ['claudian-pin-btn', 'claudian-archive-btn']
+        const inlineActionLabels = (id: string) => ['scribe-pin-btn', 'scribe-archive-btn']
           .flatMap(cls => findItem(id).querySelectorAll(`.${cls}`))
           .map((button: HTMLElement) => button.getAttribute('aria-label'));
         expect(inlineActionLabels('normal')).toEqual(['Pin', 'Archive']);
@@ -420,8 +420,8 @@ describe('SessionBrowser', () => {
           showAttentionState: true,
         });
 
-        expect(container.querySelectorAll('.claudian-history-item')).toHaveLength(1);
-        expect(container.querySelector('.claudian-history-item--attention')).toBeNull();
+        expect(container.querySelectorAll('.scribe-history-item')).toHaveLength(1);
+        expect(container.querySelector('.scribe-history-item--attention')).toBeNull();
       });
 
       it('filters the current session scope by title and linked-content path', () => {
@@ -462,7 +462,7 @@ describe('SessionBrowser', () => {
           searchQuery: 'ROADMAP',
         });
 
-        expect(container.querySelectorAll('.claudian-history-item-title')
+        expect(container.querySelectorAll('.scribe-history-item-title')
           .map((el: { textContent: string }) => el.textContent))
           .toEqual(['Roadmap review', 'Planning notes']);
       });
@@ -480,7 +480,7 @@ describe('SessionBrowser', () => {
           searchQuery: 'missing',
         });
 
-        expect(container.querySelector('.claudian-history-empty')?.textContent)
+        expect(container.querySelector('.scribe-history-empty')?.textContent)
           .toBe('No matching sessions');
       });
 
@@ -516,7 +516,7 @@ describe('SessionBrowser', () => {
 
         });
 
-        expect(container.querySelectorAll('.claudian-session-group-label')
+        expect(container.querySelectorAll('.scribe-session-group-label')
           .map((el: { textContent: string }) => el.textContent))
           .toEqual(['B', 'A']);
       });
@@ -559,20 +559,20 @@ describe('SessionBrowser', () => {
         });
 
         const labels = container
-          .querySelectorAll('.claudian-session-group-label')
+          .querySelectorAll('.scribe-session-group-label')
           .map((label: { textContent: string }) => label.textContent);
         expect(labels).toEqual(['Plan', 'Plan', 'Unlinked']);
         expect(labels).not.toContain('Untitled 2');
-        const groupHeaders = container.querySelectorAll('.claudian-session-group-header');
+        const groupHeaders = container.querySelectorAll('.scribe-session-group-header');
         expect(groupHeaders[0].getAttribute('title')).toBe('Projects/A/Plan.md');
         expect(groupHeaders[1].getAttribute('title')).toBe('Projects/B/Plan.md');
-        const groupIcons = container.querySelectorAll('.claudian-session-group-icon');
+        const groupIcons = container.querySelectorAll('.scribe-session-group-icon');
         expect(groupIcons).toHaveLength(3);
         expect(setIcon).toHaveBeenCalledWith(groupIcons[0], 'link');
         expect(setIcon).toHaveBeenCalledWith(groupIcons[1], 'link');
         expect(setIcon).toHaveBeenCalledWith(groupIcons[2], 'inbox');
         const linkedContentActions = container.querySelectorAll(
-          '.claudian-session-group-new-action',
+          '.scribe-session-group-new-action',
         );
         expect(linkedContentActions).toHaveLength(2);
         expect(linkedContentActions[0].tagName).toBe('SPAN');
@@ -595,18 +595,18 @@ describe('SessionBrowser', () => {
         ]);
         expect(groupHeaders[0].getAttribute('role')).toBe('button');
         expect(groupHeaders[0].getAttribute('aria-expanded')).toBe('true');
-        const groupBodies = container.querySelectorAll('.claudian-session-group-body');
+        const groupBodies = container.querySelectorAll('.scribe-session-group-body');
         expect(groupBodies).toHaveLength(3);
 
         groupHeaders[0].click();
 
         expect(groupHeaders[0].getAttribute('aria-expanded')).toBe('false');
-        expect(groupBodies[0].hasClass('claudian-session-group-body--collapsed')).toBe(true);
+        expect(groupBodies[0].hasClass('scribe-session-group-body--collapsed')).toBe(true);
         expect(onGroupCollapseChange).toHaveBeenCalledWith(
           'content:Projects/A/Plan.md',
           true,
         );
-        expect(container.querySelectorAll('.claudian-history-item')).toHaveLength(3);
+        expect(container.querySelectorAll('.scribe-history-item')).toHaveLength(3);
       });
 
       it('keeps missing groups visible without offering a new linked chat', () => {
@@ -627,9 +627,9 @@ describe('SessionBrowser', () => {
           onStartLinkedContentConversation: vi.fn(),
         });
 
-        expect(container.querySelector('.claudian-session-group-status')?.textContent)
+        expect(container.querySelector('.scribe-session-group-status')?.textContent)
           .toBe('Missing');
-        expect(container.querySelector('.claudian-session-group-new-action')).toBeNull();
+        expect(container.querySelector('.scribe-session-group-new-action')).toBeNull();
       });
 
       it('paginates large history lists and loads the next bounded page on demand', () => {
@@ -648,14 +648,14 @@ describe('SessionBrowser', () => {
         });
 
         let list = container.children[1];
-        expect(list.querySelectorAll('.claudian-history-item')).toHaveLength(25);
-        const loadMore = list.querySelector('.claudian-history-load-more');
+        expect(list.querySelectorAll('.scribe-history-item')).toHaveLength(25);
+        const loadMore = list.querySelector('.scribe-history-load-more');
         expect(loadMore).not.toBeNull();
 
         loadMore!.click();
         list = container.children[1];
-        expect(list.querySelectorAll('.claudian-history-item')).toHaveLength(50);
-        expect(list.querySelector('.claudian-history-load-more')).not.toBeNull();
+        expect(list.querySelectorAll('.scribe-history-item')).toHaveLength(50);
+        expect(list.querySelector('.scribe-history-load-more')).not.toBeNull();
       });
 
       it('keeps pagination bounded across pinned and regular dual-mode sessions', () => {
@@ -684,19 +684,19 @@ describe('SessionBrowser', () => {
         };
         controller.renderHistoryDropdown(container, options);
 
-        let list = container.querySelector('.claudian-history-list')!;
-        expect(list.querySelectorAll('.claudian-history-item')).toHaveLength(25);
-        expect(list.querySelector('.claudian-history-load-more')).not.toBeNull();
+        let list = container.querySelector('.scribe-history-list')!;
+        expect(list.querySelectorAll('.scribe-history-item')).toHaveLength(25);
+        expect(list.querySelector('.scribe-history-load-more')).not.toBeNull();
 
-        list.querySelector('.claudian-history-load-more')!.click();
+        list.querySelector('.scribe-history-load-more')!.click();
         expect(onRerender).toHaveBeenCalledTimes(1);
         expect(list.dataset.visibleCount).toBe('50');
-        expect(list.querySelectorAll('.claudian-history-item')).toHaveLength(25);
+        expect(list.querySelectorAll('.scribe-history-item')).toHaveLength(25);
 
         controller.renderHistoryDropdown(container, options);
-        list = container.querySelector('.claudian-history-list')!;
-        expect(list.querySelectorAll('.claudian-history-item')).toHaveLength(40);
-        expect(list.querySelector('.claudian-history-load-more')).toBeNull();
+        list = container.querySelector('.scribe-history-list')!;
+        expect(list.querySelectorAll('.scribe-history-item')).toHaveLength(40);
+        expect(list.querySelector('.scribe-history-load-more')).toBeNull();
       });
 
       it('does not let collapsed groups consume pagination or hide later headers', () => {
@@ -734,13 +734,13 @@ describe('SessionBrowser', () => {
           },
         });
 
-        const labels = container.querySelectorAll('.claudian-session-group-label');
+        const labels = container.querySelectorAll('.scribe-session-group-label');
         expect(labels.map((label: { textContent: string }) => label.textContent))
           .toEqual(['A', 'B']);
-        expect(container.querySelectorAll('.claudian-history-item')).toHaveLength(1);
-        expect(container.querySelector('.claudian-history-load-more')).toBeNull();
+        expect(container.querySelectorAll('.scribe-history-item')).toHaveLength(1);
+        expect(container.querySelector('.scribe-history-load-more')).toBeNull();
 
-        container.querySelectorAll('.claudian-session-group-header')[0].click();
+        container.querySelectorAll('.scribe-session-group-header')[0].click();
         expect(onRerender).toHaveBeenCalledTimes(1);
       });
 
@@ -774,7 +774,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const openItem = list.children[1];
-        const openItemDate = openItem.querySelector('.claudian-history-item-date');
+        const openItemDate = openItem.querySelector('.scribe-history-item-date');
 
         expect(openItem.hasClass('open')).toBe(true);
         expect(openItem.hasClass('active')).toBe(false);
@@ -802,7 +802,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const currentItem = list.children[0];
-        const currentItemDate = currentItem.querySelector('.claudian-history-item-date');
+        const currentItemDate = currentItem.querySelector('.scribe-history-item-date');
 
         expect(currentItem.getAttribute('data-tab-index')).toBe('1');
         expect(currentItem.getAttribute('data-tab-location')).toBe('current-view');
@@ -827,7 +827,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const openItem = list.children[1];
-        const openItemDate = openItem.querySelector('.claudian-history-item-date');
+        const openItemDate = openItem.querySelector('.scribe-history-item-date');
 
         expect(openItem.getAttribute('data-tab-index')).toBe('2');
         expect(openItem.getAttribute('data-tab-location')).toBe('current-view');
@@ -854,12 +854,12 @@ describe('SessionBrowser', () => {
         });
 
         const list = container.children[1];
-        expect(list.children[0].querySelector('.claudian-history-item-date')?.textContent)
+        expect(list.children[0].querySelector('.scribe-history-item-date')?.textContent)
           .toBe(formatSessionDate(currentActivity));
-        expect(list.children[1].querySelector('.claudian-history-item-date')?.textContent)
+        expect(list.children[1].querySelector('.scribe-history-item-date')?.textContent)
           .toBe(formatSessionDate(openActivity));
         const runningIndicators = list.querySelectorAll(
-          '.claudian-session-running-indicator',
+          '.scribe-session-running-indicator',
         );
         expect(runningIndicators).toHaveLength(1);
         expect(setIcon).toHaveBeenCalledWith(runningIndicators[0], 'loader-2');
@@ -892,51 +892,51 @@ describe('SessionBrowser', () => {
           }),
         });
 
-        const items = container.querySelectorAll('.claudian-history-item');
+        const items = container.querySelectorAll('.scribe-history-item');
         const findItem = (id: string) => items.find(
           (item: HTMLElement) => item.getAttribute('data-conversation-id') === id,
         )!;
         const waitingItem = findItem('waiting');
         const waitingBadge = waitingItem.querySelector(
-          '.claudian-session-status-indicator--action-required',
+          '.scribe-session-status-indicator--action-required',
         )!;
         const workingItem = findItem('working');
         const errorItem = findItem('error');
         const errorBadge = errorItem.querySelector(
-          '.claudian-session-status-indicator--error',
+          '.scribe-session-status-indicator--error',
         )!;
 
         expect(waitingBadge).not.toBeNull();
-        expect(waitingBadge.hasClass('claudian-session-status-indicator')).toBe(true);
+        expect(waitingBadge.hasClass('scribe-session-status-indicator')).toBe(true);
         expect(waitingBadge.getAttribute('aria-label')).toBe('Needs your input');
-        expect(waitingItem.querySelector('.claudian-session-running-indicator')).toBeNull();
+        expect(waitingItem.querySelector('.scribe-session-running-indicator')).toBeNull();
         expect(waitingItem.hasClass('running')).toBe(false);
         expect(waitingItem.getAttribute('data-running')).toBe('true');
         expect(setIcon).toHaveBeenCalledWith(
-          waitingItem.querySelector('.claudian-history-item-icon'),
+          waitingItem.querySelector('.scribe-history-item-icon'),
           'message-square',
         );
-        expect(waitingItem.hasClass('claudian-history-item--attention')).toBe(false);
+        expect(waitingItem.hasClass('scribe-history-item--attention')).toBe(false);
         expect(setIcon).toHaveBeenCalledWith(waitingBadge, 'alert-circle');
 
-        expect(workingItem.querySelector('.claudian-session-running-indicator')).not.toBeNull();
-        expect(workingItem.querySelector('.claudian-session-status-indicator')).toBeNull();
+        expect(workingItem.querySelector('.scribe-session-running-indicator')).not.toBeNull();
+        expect(workingItem.querySelector('.scribe-session-status-indicator')).toBeNull();
 
         expect(errorBadge).not.toBeNull();
-        expect(errorBadge.hasClass('claudian-session-status-indicator')).toBe(true);
+        expect(errorBadge.hasClass('scribe-session-status-indicator')).toBe(true);
         expect(errorBadge.getAttribute('aria-label')).toBe('Stopped with an error');
-        expect(errorItem.hasClass('claudian-history-item--attention')).toBe(false);
+        expect(errorItem.hasClass('scribe-history-item--attention')).toBe(false);
         expect(setIcon).toHaveBeenCalledWith(errorBadge, 'x-circle');
 
         const reviewItem = findItem('review');
-        const unreadBadges = reviewItem.querySelectorAll('.claudian-session-status-indicator');
-        expect(reviewItem.hasClass('claudian-history-item--attention')).toBe(true);
+        const unreadBadges = reviewItem.querySelectorAll('.scribe-session-status-indicator');
+        expect(reviewItem.hasClass('scribe-history-item--attention')).toBe(true);
         expect(unreadBadges).toHaveLength(1);
-        expect(unreadBadges[0].hasClass('claudian-session-status-indicator--unread')).toBe(true);
+        expect(unreadBadges[0].hasClass('scribe-session-status-indicator--unread')).toBe(true);
         expect(unreadBadges[0].getAttribute('aria-label')).toBe('Unread');
         expect(setIcon).not.toHaveBeenCalledWith(unreadBadges[0], expect.anything());
-        expect(errorItem.querySelector('.claudian-session-status-indicator--unread')).toBeNull();
-        expect(findItem('idle').querySelector('.claudian-session-status-indicator')).toBeNull();
+        expect(errorItem.querySelector('.scribe-session-status-indicator--unread')).toBeNull();
+        expect(findItem('idle').querySelector('.scribe-session-status-indicator')).toBeNull();
       });
 
       it('displays the timestamp selected by the session sort mode', () => {
@@ -958,7 +958,7 @@ describe('SessionBrowser', () => {
           showOpenStateLabels: false,
         });
 
-        expect(container.querySelector('.claudian-history-item-date')?.textContent)
+        expect(container.querySelector('.scribe-history-item-date')?.textContent)
           .toBe(formatSessionDate(lastActivityAt));
 
         controller.renderHistoryDropdown(container, {
@@ -967,7 +967,7 @@ describe('SessionBrowser', () => {
           showOpenStateLabels: false,
         });
 
-        expect(container.querySelector('.claudian-history-item-date')?.textContent)
+        expect(container.querySelector('.scribe-history-item-date')?.textContent)
           .toBe(formatSessionDate(createdAt));
       });
 
@@ -1000,19 +1000,19 @@ describe('SessionBrowser', () => {
           }),
         });
 
-        const header = container.querySelector('.claudian-session-group-header')!;
+        const header = container.querySelector('.scribe-session-group-header')!;
         const headerIndicator = header.querySelector(
-          '.claudian-session-group-running-indicator',
+          '.scribe-session-group-running-indicator',
         )!;
         expect(headerIndicator).not.toBeNull();
         expect(headerIndicator.hasClass(
-          'claudian-session-group-running-indicator--visible',
+          'scribe-session-group-running-indicator--visible',
         )).toBe(false);
 
         header.click();
 
         expect(headerIndicator.hasClass(
-          'claudian-session-group-running-indicator--visible',
+          'scribe-session-group-running-indicator--visible',
         )).toBe(true);
         expect(setIcon).toHaveBeenCalledWith(headerIndicator, 'loader-2');
       });
@@ -1050,18 +1050,18 @@ describe('SessionBrowser', () => {
           }),
         });
 
-        const header = container.querySelector('.claudian-session-group-header')!;
+        const header = container.querySelector('.scribe-session-group-header')!;
         const badge = header.querySelector(
-          '.claudian-session-group-status-indicator',
+          '.scribe-session-group-status-indicator',
         )!;
         expect(badge).not.toBeNull();
-        expect(badge.hasClass('claudian-session-status-indicator--action-required')).toBe(true);
-        expect(badge.hasClass('claudian-session-group-status-indicator--visible')).toBe(false);
-        expect(header.querySelector('.claudian-session-group-running-indicator')).toBeNull();
+        expect(badge.hasClass('scribe-session-status-indicator--action-required')).toBe(true);
+        expect(badge.hasClass('scribe-session-group-status-indicator--visible')).toBe(false);
+        expect(header.querySelector('.scribe-session-group-running-indicator')).toBeNull();
 
         header.click();
 
-        expect(badge.hasClass('claudian-session-group-status-indicator--visible')).toBe(true);
+        expect(badge.hasClass('scribe-session-group-status-indicator--visible')).toBe(true);
         expect(badge.getAttribute('aria-label')).toBe('Needs your input');
         expect(setIcon).toHaveBeenCalledWith(badge, 'alert-circle');
       });
@@ -1091,14 +1091,14 @@ describe('SessionBrowser', () => {
           }),
         });
 
-        const header = container.querySelector('.claudian-session-group-header')!;
+        const header = container.querySelector('.scribe-session-group-header')!;
         const badge = header.querySelector(
-          '.claudian-session-group-status-indicator',
+          '.scribe-session-group-status-indicator',
         )!;
         header.click();
 
-        expect(badge.hasClass('claudian-session-status-indicator--error')).toBe(true);
-        expect(badge.hasClass('claudian-session-group-status-indicator--visible')).toBe(true);
+        expect(badge.hasClass('scribe-session-status-indicator--error')).toBe(true);
+        expect(badge.hasClass('scribe-session-group-status-indicator--visible')).toBe(true);
         expect(badge.getAttribute('aria-label')).toBe('Stopped with an error');
         expect(setIcon).toHaveBeenCalledWith(badge, 'x-circle');
       });
@@ -1136,18 +1136,18 @@ describe('SessionBrowser', () => {
           }),
         });
 
-        const header = container.querySelector('.claudian-session-group-header')!;
-        expect(header.hasClass('claudian-session-group-header--attention')).toBe(false);
-        expect(header.querySelector('.claudian-session-group-attention-indicator')).toBeNull();
+        const header = container.querySelector('.scribe-session-group-header')!;
+        expect(header.hasClass('scribe-session-group-header--attention')).toBe(false);
+        expect(header.querySelector('.scribe-session-group-attention-indicator')).toBeNull();
 
-        const badge = header.querySelector('.claudian-session-group-status-indicator')!;
-        expect(badge.hasClass('claudian-session-status-indicator--unread')).toBe(true);
-        expect(badge.hasClass('claudian-session-group-status-indicator--visible')).toBe(false);
+        const badge = header.querySelector('.scribe-session-group-status-indicator')!;
+        expect(badge.hasClass('scribe-session-status-indicator--unread')).toBe(true);
+        expect(badge.hasClass('scribe-session-group-status-indicator--visible')).toBe(false);
 
         header.click();
 
-        expect(header.hasClass('claudian-session-group-header--attention')).toBe(true);
-        expect(badge.hasClass('claudian-session-group-status-indicator--visible')).toBe(true);
+        expect(header.hasClass('scribe-session-group-header--attention')).toBe(true);
+        expect(badge.hasClass('scribe-session-group-status-indicator--visible')).toBe(true);
       });
 
       it('should display running status for the current conversation', () => {
@@ -1168,7 +1168,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const currentItem = list.children[0];
-        const currentItemDate = currentItem.querySelector('.claudian-history-item-date');
+        const currentItemDate = currentItem.querySelector('.scribe-history-item-date');
 
         expect(currentItem.hasClass('active')).toBe(true);
         expect(currentItem.hasClass('running')).toBe(true);
@@ -1194,7 +1194,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const runningItem = list.children[1];
-        const runningItemDate = runningItem.querySelector('.claudian-history-item-date');
+        const runningItemDate = runningItem.querySelector('.scribe-history-item-date');
 
         expect(runningItem.hasClass('open')).toBe(true);
         expect(runningItem.hasClass('running')).toBe(true);
@@ -1229,8 +1229,8 @@ describe('SessionBrowser', () => {
         const list = container.children[1];
         const openOtherPaneItem = list.children[1];
         const runningOtherPaneItem = list.children[2];
-        const runningOtherPaneDate = runningOtherPaneItem.querySelector('.claudian-history-item-date');
-        const openOtherPaneDate = openOtherPaneItem.querySelector('.claudian-history-item-date');
+        const runningOtherPaneDate = runningOtherPaneItem.querySelector('.scribe-history-item-date');
+        const openOtherPaneDate = openOtherPaneItem.querySelector('.scribe-history-item-date');
 
         expect(runningOtherPaneItem.getAttribute('data-tab-location')).toBe('other-view');
         expect(runningOtherPaneItem.getAttribute('data-tab-index')).toBeNull();
@@ -1257,7 +1257,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const otherItem = list.children[1];
-        const content = otherItem.querySelector('.claudian-history-item-content');
+        const content = otherItem.querySelector('.scribe-history-item-content');
         const clickHandlers = content?._eventListeners?.get('click');
         expect(clickHandlers).toBeDefined();
 
@@ -1293,7 +1293,7 @@ describe('SessionBrowser', () => {
 
         const list = container.children[1];
         const otherItem = list.children[1];
-        const content = otherItem.querySelector('.claudian-history-item-content');
+        const content = otherItem.querySelector('.scribe-history-item-content');
         const auxClickHandlers = content?._eventListeners?.get('auxclick');
         expect(auxClickHandlers).toBeDefined();
 
@@ -1325,8 +1325,8 @@ describe('SessionBrowser', () => {
           showOpenStateActions: true,
         });
 
-        const item = container.querySelector('.claudian-history-item')!;
-        const title = item.querySelector('.claudian-history-item-title')!;
+        const item = container.querySelector('.scribe-history-item')!;
+        const title = item.querySelector('.scribe-history-item-title')!;
         title.replaceWith = vi.fn();
         item.dispatchEvent({
           type: 'contextmenu',
@@ -1342,14 +1342,14 @@ describe('SessionBrowser', () => {
         menu.items.find(menuItem => menuItem.title === 'Rename')?.clickHandler?.();
 
         expect(title.replaceWith).not.toHaveBeenCalled();
-        expect(item.querySelector('.claudian-rename-input')).toBeNull();
+        expect(item.querySelector('.scribe-rename-input')).toBeNull();
         expect(onRequestInlineRename).toHaveBeenCalledWith({
           beginRename: expect.any(Function),
           conversationId: 'active',
         });
 
         onRequestInlineRename.mock.calls[0][0].beginRename(item);
-        const input = item.querySelector('.claudian-rename-input')!;
+        const input = item.querySelector('.scribe-rename-input')!;
         expect(title.replaceWith).toHaveBeenCalledWith(input);
         input.value = 'Renamed title';
         input.blur();
@@ -1386,10 +1386,10 @@ describe('SessionBrowser', () => {
       const list = dropdown.children[1];
       const currentItem = list.children[0];
       expect(currentItem.hasClass('active')).toBe(true);
-      expect(currentItem.querySelector('.claudian-history-item-content')
+      expect(currentItem.querySelector('.scribe-history-item-content')
         ?._eventListeners?.get('click')).toBeUndefined();
       const otherItem = list.children[1];
-      const content = otherItem.querySelector('.claudian-history-item-content');
+      const content = otherItem.querySelector('.scribe-history-item-content');
       const clickHandlers = content?._eventListeners?.get('click');
       expect(otherItem.hasClass('active')).toBe(false);
       expect(clickHandlers).toBeDefined();
@@ -1420,7 +1420,7 @@ describe('SessionBrowser', () => {
 
       const list = dropdown.children[1];
       const item = list.children[0];
-      const actions = item.querySelector('.claudian-history-item-actions');
+      const actions = item.querySelector('.scribe-history-item-actions');
       expect(actions).toBeTruthy();
       expect(actions!.children).toHaveLength(3);
       // First child is the regenerate button
@@ -1456,11 +1456,11 @@ describe('SessionBrowser', () => {
         sort: 'created',
       });
 
-      const item = container.querySelector('.claudian-history-item')!;
-      const title = item.querySelector('.claudian-history-item-title')!;
+      const item = container.querySelector('.scribe-history-item')!;
+      const title = item.querySelector('.scribe-history-item-title')!;
       title.replaceWith = vi.fn();
-      item.querySelector('.claudian-history-item-actions')!.children.find((button: HTMLElement) => button.getAttribute('aria-label') === 'Rename')!.click();
-      const input = item.querySelector('.claudian-rename-input')!;
+      item.querySelector('.scribe-history-item-actions')!.children.find((button: HTMLElement) => button.getAttribute('aria-label') === 'Rename')!.click();
+      const input = item.querySelector('.scribe-rename-input')!;
       input.value = 'New title';
       input.blur();
       await Promise.resolve();
@@ -1482,11 +1482,11 @@ describe('SessionBrowser', () => {
         onRerender,
       });
 
-      const item = container.querySelector('.claudian-history-item')!;
-      const title = item.querySelector('.claudian-history-item-title')!;
+      const item = container.querySelector('.scribe-history-item')!;
+      const title = item.querySelector('.scribe-history-item-title')!;
       title.replaceWith = vi.fn();
-      item.querySelector('.claudian-history-item-actions')!.children.find((button: HTMLElement) => button.getAttribute('aria-label') === 'Rename')!.click();
-      const input = item.querySelector('.claudian-rename-input')!;
+      item.querySelector('.scribe-history-item-actions')!.children.find((button: HTMLElement) => button.getAttribute('aria-label') === 'Rename')!.click();
+      const input = item.querySelector('.scribe-rename-input')!;
       input.value = 'Unsaved title';
 
       expect(controller.cancelInlineRename()).toBe(true);
@@ -1509,11 +1509,11 @@ describe('SessionBrowser', () => {
       ]);
 
       controller.renderHistoryDropdown(container, options);
-      const item = container.querySelector('.claudian-history-item')!;
-      const title = item.querySelector('.claudian-history-item-title')!;
+      const item = container.querySelector('.scribe-history-item')!;
+      const title = item.querySelector('.scribe-history-item-title')!;
       title.replaceWith = vi.fn();
-      item.querySelector('.claudian-history-item-actions')!.children.find((button: HTMLElement) => button.getAttribute('aria-label') === 'Rename')!.click();
-      const input = item.querySelector('.claudian-rename-input')!;
+      item.querySelector('.scribe-history-item-actions')!.children.find((button: HTMLElement) => button.getAttribute('aria-label') === 'Rename')!.click();
+      const input = item.querySelector('.scribe-rename-input')!;
       input.value = 'Detached draft';
 
       controller.renderHistoryDropdown(container, options);
@@ -1534,7 +1534,7 @@ describe('SessionBrowser', () => {
 
       const list = dropdown.children[1];
       const otherItem = list.children[1]; // conv-2
-      const deleteBtn = otherItem.querySelector('.claudian-delete-btn');
+      const deleteBtn = otherItem.querySelector('.scribe-delete-btn');
       const clickHandlers = deleteBtn!._eventListeners?.get('click');
 
       await clickHandlers![0]({ stopPropagation: vi.fn() });

@@ -35,19 +35,19 @@ function renderAskUserQuestionResult(container: HTMLElement, toolCall: ToolCallI
   if (toolCall.input.replyMode === 'user-message' && !questions.every(answered)) return false;
   container.empty();
 
-  const reviewEl = container.createDiv({ cls: 'claudian-ask-review' });
+  const reviewEl = container.createDiv({ cls: 'scribe-ask-review' });
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     const answer = formatAnswer(
       (q.id && Object.hasOwn(answers, q.id) ? answers[q.id] : undefined)
         ?? (Object.hasOwn(answers, q.question) ? answers[q.question] : undefined)
     );
-    const pairEl = reviewEl.createDiv({ cls: 'claudian-ask-review-pair' });
-    const bodyEl = pairEl.createDiv({ cls: 'claudian-ask-review-body' });
-    bodyEl.createDiv({ text: q.question, cls: 'claudian-ask-review-q-text' });
+    const pairEl = reviewEl.createDiv({ cls: 'scribe-ask-review-pair' });
+    const bodyEl = pairEl.createDiv({ cls: 'scribe-ask-review-body' });
+    bodyEl.createDiv({ text: q.question, cls: 'scribe-ask-review-q-text' });
     bodyEl.createDiv({
       text: answer || t('chat.questions.notAnswered'),
-      cls: answer ? 'claudian-ask-review-a-text' : 'claudian-ask-review-empty',
+      cls: answer ? 'scribe-ask-review-a-text' : 'scribe-ask-review-empty',
     });
   }
 
@@ -59,20 +59,20 @@ function renderAskUserQuestionOption(
   option: AskUserQuestionOption,
   isMultiSelect: boolean,
 ): void {
-  const itemEl = parentEl.createDiv({ cls: 'claudian-ask-item is-disabled' });
+  const itemEl = parentEl.createDiv({ cls: 'scribe-ask-item is-disabled' });
 
   if (isMultiSelect) {
-    itemEl.createDiv({ cls: 'claudian-ask-check', attr: { 'aria-hidden': 'true' } });
+    itemEl.createDiv({ cls: 'scribe-ask-check', attr: { 'aria-hidden': 'true' } });
   } else {
-    itemEl.createDiv({ cls: 'claudian-ask-radio', attr: { 'aria-hidden': 'true' } });
+    itemEl.createDiv({ cls: 'scribe-ask-radio', attr: { 'aria-hidden': 'true' } });
   }
 
-  const contentEl = itemEl.createDiv({ cls: 'claudian-ask-item-content' });
-  const labelRowEl = contentEl.createDiv({ cls: 'claudian-ask-label-row' });
-  labelRowEl.createDiv({ cls: 'claudian-ask-item-label', text: option.label });
+  const contentEl = itemEl.createDiv({ cls: 'scribe-ask-item-content' });
+  const labelRowEl = contentEl.createDiv({ cls: 'scribe-ask-label-row' });
+  labelRowEl.createDiv({ cls: 'scribe-ask-item-label', text: option.label });
 
   if (option.description) {
-    contentEl.createDiv({ cls: 'claudian-ask-item-desc', text: option.description });
+    contentEl.createDiv({ cls: 'scribe-ask-item-desc', text: option.description });
   }
 }
 
@@ -90,24 +90,24 @@ function renderAskUserQuestionFallback(container: HTMLElement, toolCall: ToolCal
 
   if (initialText || toolCall.result) {
     container.createDiv({
-      cls: 'claudian-ask-review-prompt',
+      cls: 'scribe-ask-review-prompt',
       text: initialText || toolCall.result || t('chat.questions.waiting'),
     });
   }
 
   for (let questionIndex = 0; questionIndex < questions.length; questionIndex++) {
     const question = questions[questionIndex];
-    const reviewEl = container.createDiv({ cls: 'claudian-ask-review' });
-    const pairEl = reviewEl.createDiv({ cls: 'claudian-ask-review-pair' });
-    const bodyEl = pairEl.createDiv({ cls: 'claudian-ask-review-body' });
-    bodyEl.createDiv({ text: question.question, cls: 'claudian-ask-review-q-text' });
+    const reviewEl = container.createDiv({ cls: 'scribe-ask-review' });
+    const pairEl = reviewEl.createDiv({ cls: 'scribe-ask-review-pair' });
+    const bodyEl = pairEl.createDiv({ cls: 'scribe-ask-review-body' });
+    bodyEl.createDiv({ text: question.question, cls: 'scribe-ask-review-q-text' });
 
     if (!Array.isArray(question.options) || question.options.length === 0) {
-      bodyEl.createDiv({ cls: 'claudian-ask-review-empty', text: t('chat.questions.noOptions') });
+      bodyEl.createDiv({ cls: 'scribe-ask-review-empty', text: t('chat.questions.noOptions') });
       continue;
     }
 
-    const listEl = bodyEl.createDiv({ cls: 'claudian-ask-list' });
+    const listEl = bodyEl.createDiv({ cls: 'scribe-ask-list' });
     question.options.forEach((option) => {
       renderAskUserQuestionOption(listEl, option, question.multiSelect === true);
     });
@@ -119,7 +119,7 @@ function renderAskUserQuestionFallback(container: HTMLElement, toolCall: ToolCal
  * the recorded options with a prompt (`pending` while the live card awaits them).
  */
 export function renderAskUserQuestionContent(container: HTMLElement, tool: ToolCallInfo, pending: boolean): void {
-  container.addClass('claudian-tool-content-ask');
+  container.addClass('scribe-tool-content-ask');
   if (renderAskUserQuestionResult(container, tool)) return;
   const prompt = tool.input.replyMode === 'user-message'
     ? tool.questionStatus === 'pending' ? t('chat.questions.answerBelow') : t('chat.questions.expired')

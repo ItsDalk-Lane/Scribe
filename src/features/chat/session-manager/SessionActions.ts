@@ -84,7 +84,7 @@ export interface SessionRow extends SessionRowActionInput {
   beginRename: () => void;
 }
 
-/** Project texts are localized when shown; session texts are not localized yet. */
+/** Texts are localized when shown. */
 type ActionText = string | { key: TranslationKey };
 
 function actionText(text: ActionText): string {
@@ -92,48 +92,48 @@ function actionText(text: ActionText): string {
 }
 
 const ROW_ACTION_TITLES: Readonly<Record<SessionRowActionKind, ActionText>> = {
-  'open-in-new-tab': 'Open in new tab',
-  'open-in-background-tab': 'Open in background tab',
-  'switch-to-open': 'Switch to open session',
-  'assign-device': 'Assign to this device',
-  pin: 'Pin',
-  unpin: 'Unpin',
-  'mark-unread': 'Mark as unread',
-  'mark-read': 'Mark as read',
-  rename: 'Rename',
-  'copy-session-id': 'Copy session ID',
+  'open-in-new-tab': { key: 'chat.sessionManager.openNewTab' },
+  'open-in-background-tab': { key: 'chat.sessionManager.openBackgroundTab' },
+  'switch-to-open': { key: 'chat.sessionManager.switchOpen' },
+  'assign-device': { key: 'chat.sessionManager.assignDevice' },
+  pin: { key: 'chat.sessionManager.pin' },
+  unpin: { key: 'chat.sessionManager.unpin' },
+  'mark-unread': { key: 'chat.sessionManager.markUnread' },
+  'mark-read': { key: 'chat.sessionManager.markRead' },
+  rename: { key: 'chat.sessionManager.rename' },
+  'copy-session-id': { key: 'chat.sessionManager.copyId' },
   'move-to-project': { key: 'chat.projects.menu.moveTo' },
   'remove-from-project': { key: 'chat.projects.menu.removeFrom' },
-  archive: 'Archive',
-  restore: 'Restore',
-  delete: 'Delete',
+  archive: { key: 'chat.sessionManager.archive' },
+  restore: { key: 'chat.sessionManager.restore' },
+  delete: { key: 'chat.sessionManager.delete' },
 };
 
 const INLINE_BUTTONS: Readonly<Partial<Record<SessionRowActionKind, { cls: string; icon: string }>>> = {
-  'open-in-new-tab': { cls: 'claudian-open-new-tab-btn', icon: 'square-plus' },
-  'assign-device': { cls: 'claudian-assign-device-btn', icon: 'monitor-down' },
-  pin: { cls: 'claudian-pin-btn', icon: 'pin' },
-  unpin: { cls: 'claudian-pin-btn', icon: 'pin-off' },
+  'open-in-new-tab': { cls: 'scribe-open-new-tab-btn', icon: 'square-plus' },
+  'assign-device': { cls: 'scribe-assign-device-btn', icon: 'monitor-down' },
+  pin: { cls: 'scribe-pin-btn', icon: 'pin' },
+  unpin: { cls: 'scribe-pin-btn', icon: 'pin-off' },
   rename: { cls: '', icon: 'pencil' },
-  archive: { cls: 'claudian-archive-btn', icon: 'archive' },
-  restore: { cls: 'claudian-restore-btn', icon: 'undo-2' },
-  delete: { cls: 'claudian-delete-btn', icon: 'trash-2' },
+  archive: { cls: 'scribe-archive-btn', icon: 'archive' },
+  restore: { cls: 'scribe-restore-btn', icon: 'undo-2' },
+  delete: { cls: 'scribe-delete-btn', icon: 'trash-2' },
 };
 
 type SynchronousRowActionKind = 'rename' | 'mark-unread' | 'mark-read' | 'move-to-project';
 
 const ROW_ACTION_FAILURES: Readonly<Record<Exclude<SessionRowActionKind, SynchronousRowActionKind>, ActionText>> = {
-  'open-in-new-tab': 'Failed to load conversation',
-  'open-in-background-tab': 'Failed to load conversation',
-  'switch-to-open': 'Failed to load conversation',
-  'copy-session-id': 'Failed to copy session ID',
-  'assign-device': 'Failed to assign session to this device',
-  pin: 'Failed to pin session',
-  unpin: 'Failed to unpin session',
+  'open-in-new-tab': { key: 'chat.sessionManager.loadFailed' },
+  'open-in-background-tab': { key: 'chat.sessionManager.loadFailed' },
+  'switch-to-open': { key: 'chat.sessionManager.loadFailed' },
+  'copy-session-id': { key: 'chat.sessionManager.copyIdFailed' },
+  'assign-device': { key: 'chat.sessionManager.assignFailed' },
+  pin: { key: 'chat.sessionManager.pinFailed' },
+  unpin: { key: 'chat.sessionManager.unpinFailed' },
   'remove-from-project': { key: 'chat.projects.errors.remove' },
-  archive: 'Failed to archive session',
-  restore: 'Failed to restore session',
-  delete: 'Failed to delete conversation',
+  archive: { key: 'chat.sessionManager.archiveFailed' },
+  restore: { key: 'chat.sessionManager.restoreFailed' },
+  delete: { key: 'chat.sessionManager.deleteFailed' },
 };
 
 function action(kind: SessionRowActionKind, disabled = false): SessionRowAction {
@@ -198,7 +198,7 @@ export function resolveRowActions(
     const readAction = readStateAction(input);
     if (readAction) actions.push(readAction);
   }
-  // The ID lets the user point an agent's claudian_send_message at this session.
+  // The ID lets the user point an agent's scribe_send_message at this session.
   actions.push(action('rename'), action('copy-session-id'));
   if (mode === 'active') {
     actions.push(action('move-to-project'));
@@ -228,8 +228,8 @@ export interface SessionActionsDeps {
   selection: SessionMultiSelection;
 }
 
-function sessionCount(count: number): string {
-  return `${count} ${count === 1 ? 'session' : 'sessions'}`;
+function countText(key: 'restoreCount' | 'deleteCount' | 'pinCount' | 'unpinCount' | 'archiveCount' | 'permanentDeleteCount', count: number): string {
+  return t(`chat.sessionManager.${key}`, { count }).replace(/\((s|en|es)\)/g, count === 1 ? '' : '$1');
 }
 
 /** Offers and runs session actions for rows, multi-selections, and groups. */
@@ -245,14 +245,14 @@ export class SessionActions {
       const presentation = INLINE_BUTTONS[rowAction.kind];
       if (!presentation) continue;
       const button = actionsEl.createEl('button', {
-        cls: ['claudian-action-btn', presentation.cls].filter(Boolean).join(' '),
+        cls: ['scribe-action-btn', presentation.cls].filter(Boolean).join(' '),
         attr: { type: 'button' },
       });
       setIcon(button, presentation.icon);
       button.setAttribute(
         'aria-label',
         rowAction.kind === 'archive' && rowAction.disabled
-          ? 'Cannot archive a running session'
+          ? t('chat.sessionManager.cannotArchiveRunning')
           : actionText(ROW_ACTION_TITLES[rowAction.kind]),
       );
       if (rowAction.disabled) {
@@ -305,18 +305,18 @@ export class SessionActions {
     if (isArchivedView) {
       const ids = selected.map(conversation => conversation.id);
       menu.addItem(menuItem => menuItem
-        .setTitle(`Restore ${sessionCount(ids.length)}`)
+        .setTitle(countText('restoreCount', ids.length))
         .onClick(() => {
           selection.clear();
-          runSessionAction(() => lifecycle.restore(ids), 'Failed to restore sessions');
+          runSessionAction(() => lifecycle.restore(ids), t('chat.sessionManager.restoreManyFailed'));
         }));
       menu.addItem(menuItem => menuItem
-        .setTitle(`Delete ${sessionCount(ids.length)}`)
+        .setTitle(countText('deleteCount', ids.length))
         .onClick(() => {
           selection.clear();
           runSessionAction(
             () => this.deleteSessions(ids, { confirm: true, rerender: options.onRerender }),
-            'Failed to delete sessions',
+            t('chat.sessionManager.deleteManyFailed'),
           );
         }));
       return menu;
@@ -329,12 +329,12 @@ export class SessionActions {
       const isPinning = unpinnedIds.length > 0;
       const pinIds = isPinning ? unpinnedIds : selected.map(conversation => conversation.id);
       menu.addItem(menuItem => menuItem
-        .setTitle(`${isPinning ? 'Pin' : 'Unpin'} ${sessionCount(pinIds.length)}`)
+        .setTitle(countText(isPinning ? 'pinCount' : 'unpinCount', pinIds.length))
         .onClick(() => {
           selection.clear();
           runSessionAction(
             () => lifecycle.setPinned(pinIds, isPinning),
-            isPinning ? 'Failed to pin sessions' : 'Failed to unpin sessions',
+            isPinning ? t('chat.sessionManager.pinManyFailed') : t('chat.sessionManager.unpinManyFailed'),
           );
         }));
 
@@ -368,14 +368,14 @@ export class SessionActions {
       .map(conversation => conversation.id);
     menu.addItem((menuItem) => {
       menuItem
-        .setTitle(`Archive ${sessionCount(archivableIds.length)}`)
+        .setTitle(countText('archiveCount', archivableIds.length))
         .setDisabled(archivableIds.length === 0);
       if (archivableIds.length > 0 && options.sessionActionMode === 'active') {
         menuItem.onClick(() => {
           selection.clear();
           runSessionAction(
             () => lifecycle.archive(archivableIds),
-            'Failed to archive sessions',
+            t('chat.sessionManager.archiveManyFailed'),
           );
         });
       }
@@ -409,11 +409,11 @@ export class SessionActions {
       if (canTogglePin && linkedContent && onSetLinkedContentPinned) {
         const { path, isPinned } = linkedContent;
         menu.addItem(menuItem => menuItem
-          .setTitle(isPinned ? 'Unpin Linked content' : 'Pin Linked content')
+          .setTitle(isPinned ? t('chat.sessionManager.unpinLinked') : t('chat.sessionManager.pinLinked'))
           .onClick(() => {
             runSessionAction(
               () => onSetLinkedContentPinned(path, !isPinned),
-              isPinned ? 'Failed to unpin Linked content' : 'Failed to pin Linked content',
+              isPinned ? t('chat.sessionManager.unpinLinkedFailed') : t('chat.sessionManager.pinLinkedFailed'),
             );
           }));
       }
@@ -423,8 +423,8 @@ export class SessionActions {
           menu,
           conversations,
           isRunning,
-          'Archive all sessions',
-          linkedContent ? 'Failed to archive Linked content sessions' : 'Failed to archive sessions',
+          t('chat.sessionManager.archiveAll'),
+          linkedContent ? t('chat.sessionManager.archiveLinkedFailed') : t('chat.sessionManager.archiveManyFailed'),
         );
       }
       if (isArchivedView) {
@@ -531,13 +531,13 @@ export class SessionActions {
     const { plugin, selection } = this.deps;
     selection.clear();
     if (target.kind === 'pinned') {
-      runSessionAction(() => plugin.conversationLifecycle.setPinned(conversationIds, true), 'Failed to pin sessions');
+      runSessionAction(() => plugin.conversationLifecycle.setPinned(conversationIds, true), t('chat.sessionManager.pinManyFailed'));
       return;
     }
     const projectId = target.kind === 'project' ? target.projectId : null;
     runSessionAction(
       () => plugin.conversationLifecycle.setPlacement(conversationIds, { projectId, isPinned: false }),
-      projectId ? t('chat.projects.errors.move') : 'Failed to move sessions',
+      projectId ? t('chat.projects.errors.move') : t('chat.sessionManager.moveManyFailed'),
     );
   }
 
@@ -596,7 +596,7 @@ export class SessionActions {
     const count = conversationIds.length;
     const confirmed = await confirmDelete(
       plugin.app,
-      `Permanently delete ${sessionCount(count)}?`,
+      countText('permanentDeleteCount', count),
     );
     if (!confirmed) return;
 
@@ -615,18 +615,18 @@ export class SessionActions {
     const ids = conversations.map(conversation => conversation.id);
     const lifecycle = this.deps.plugin.conversationLifecycle;
     menu.addItem(menuItem => menuItem
-      .setTitle('Restore all sessions')
+      .setTitle(t('chat.sessionManager.restoreAll'))
       .setDisabled(ids.length === 0)
       .onClick(() => {
-        runSessionAction(() => lifecycle.restore(ids), 'Failed to restore sessions');
+        runSessionAction(() => lifecycle.restore(ids), t('chat.sessionManager.restoreManyFailed'));
       }));
     menu.addItem(menuItem => menuItem
-      .setTitle('Delete all sessions')
+      .setTitle(t('chat.sessionManager.deleteAll'))
       .setDisabled(ids.length === 0)
       .onClick(() => {
         runSessionAction(
           () => this.deleteSessions(ids, { confirm: true, rerender: options.onRerender }),
-          'Failed to delete sessions',
+          t('chat.sessionManager.deleteManyFailed'),
         );
       }));
   }
@@ -672,7 +672,7 @@ export class SessionActions {
         case 'assign-device':
           return options.onAssignConversationToDevice?.(id);
         case 'copy-session-id':
-          return navigator.clipboard.writeText(id).then(() => { new Notice('Session ID copied'); });
+          return navigator.clipboard.writeText(id).then(() => { new Notice(t('chat.sessionManager.idCopied')); });
         case 'pin':
         case 'unpin':
           return this.deps.plugin.conversationLifecycle.setPinned([id], kind === 'pin');

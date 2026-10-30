@@ -56,7 +56,7 @@ export interface OpencodeSessionKernel {
   whenIdle(): Promise<void>;
   connect(options: OpencodeKernelConnectOptions): Promise<void>;
   openSession(resumeSessionId?: string): Promise<OpencodeNativeSessionInfo>;
-  /** Selects a Claudian agent profile, or a native agent ID it does not own. */
+  /** Selects a Scribe agent profile, or a native agent ID it does not own. */
   setAgent(sessionId: string, agent: string): Promise<void>;
   /** Selects `<providerID>/<id>`; an omitted variant selects the model's native default. */
   setModel(sessionId: string, rawModelId: string, variant?: string): Promise<void>;

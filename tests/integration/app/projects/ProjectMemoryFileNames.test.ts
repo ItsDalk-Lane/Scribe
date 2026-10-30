@@ -15,7 +15,7 @@ describe('project memory files with long names', () => {
   let store: ProjectStore;
 
   beforeEach(async () => {
-    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-project-memory-')));
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-project-memory-')));
     const resolve = (relative: string) => path.join(root, ...relative.split('/'));
     files = new VaultFileAdapter({
       vault: { adapter: {

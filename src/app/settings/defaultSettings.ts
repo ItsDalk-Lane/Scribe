@@ -1,16 +1,16 @@
 import { DEFAULT_REASONING_VALUE } from '../../core/providers/reasoning';
-import type { ClaudianSettings, ProviderConfigMap } from '../../core/types/settings';
+import type { ProviderConfigMap,ScribeSettings } from '../../core/types/settings';
 
 /**
  * Application defaults. Provider-owned defaults are assembled by the composition
  * root and injected, so app settings never import concrete providers.
  */
-export function createDefaultClaudianSettings(providerConfigs: ProviderConfigMap): ClaudianSettings {
-  return structuredClone({ ...DEFAULT_CLAUDIAN_SETTINGS, providerConfigs });
+export function createDefaultScribeSettings(providerConfigs: ProviderConfigMap): ScribeSettings {
+  return structuredClone({ ...DEFAULT_SCRIBE_SETTINGS, providerConfigs });
 }
 
 /** Provider-neutral defaults; `providerConfigs` stays empty until providers inject theirs. */
-export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
+export const DEFAULT_SCRIBE_SETTINGS: ScribeSettings = {
   userName: '',
 
   permissionMode: 'auto',

@@ -8,11 +8,11 @@ export interface ConversationDirectoryEntry {
 
 /** Reads the titles published on rendered prompts, including new messages and edited previews. */
 export function getRenderedConversationDirectory(messagesEl: HTMLElement): ConversationDirectoryEntry[] {
-  return Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message-user, [data-role="user"]'))
+  return Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message-user, [data-role="user"]'))
     .map(el => ({
       reveal: () => el,
       title: (el.getAttribute('data-toc-title') ?? '').trim()
-        || formatConversationDirectoryTitle(el.querySelector<HTMLElement>('.claudian-message-content')?.textContent ?? el.textContent ?? ''),
+        || formatConversationDirectoryTitle(el.querySelector<HTMLElement>('.scribe-message-content')?.textContent ?? el.textContent ?? ''),
     }))
     .filter(entry => entry.title.length > 0);
 }

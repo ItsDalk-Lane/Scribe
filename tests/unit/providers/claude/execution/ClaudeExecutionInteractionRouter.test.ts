@@ -40,14 +40,14 @@ const nativeOptions = {
 };
 
 describe('ClaudeExecutionInteractionRouter', () => {
-  it('auto-allows Claudian session tools before ordinary policy and interaction routing', async () => {
+  it('auto-allows Scribe session tools before ordinary policy and interaction routing', async () => {
     const port = createPort();
     const handler = new ClaudeExecutionInteractionRouter({
       interactionPort: port, sessionInstanceId: 'session', getTurnId: () => null,
       isToolAllowed: () => false, onToolBlocked: vi.fn(),
     }).canUseTool;
     const input = { text: 'Hello' };
-    expect(await handler('mcp__claudian_sessions__claudian_send_message', input, nativeOptions))
+    expect(await handler('mcp__scribe_sessions__scribe_send_message', input, nativeOptions))
       .toEqual({ behavior: 'allow', updatedInput: input });
     expect(port.requestApproval).not.toHaveBeenCalled();
   });

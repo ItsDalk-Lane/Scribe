@@ -61,12 +61,12 @@ export function formatToolDisplayValue(value: unknown): string {
 }
 
 export function renderEmptyResult(container: HTMLElement, text = t('chat.tools.noResult')): void {
-  container.createDiv({ cls: 'claudian-tool-empty', text });
+  container.createDiv({ cls: 'scribe-tool-empty', text });
 }
 
 export function contentFallback(container: HTMLElement, text: string): void {
-  const resultRow = container.createDiv({ cls: 'claudian-tool-result-row' });
-  const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
+  const resultRow = container.createDiv({ cls: 'scribe-tool-result-row' });
+  const resultText = resultRow.createSpan({ cls: 'scribe-tool-result-text' });
   resultText.setText(text);
 }
 
@@ -81,16 +81,16 @@ export function renderLinesExpanded(
   for (let offset = result.indexOf('\n'); offset !== -1; offset = result.indexOf('\n', offset + 1)) lineCount++;
   const truncated = lineCount > maxLines;
 
-  const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
+  const linesEl = container.createDiv({ cls: 'scribe-tool-lines' });
   for (const line of displayLines) {
-    const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
+    const lineEl = linesEl.createDiv({ cls: 'scribe-tool-line' });
     if (hoverable) lineEl.addClass('hoverable');
     lineEl.setText(line || ' ');
   }
 
   if (truncated) {
     linesEl.createDiv({
-      cls: 'claudian-tool-truncated',
+      cls: 'scribe-tool-truncated',
       text: t('chat.tools.moreLines', { count: lineCount - maxLines }),
     });
   }
@@ -101,16 +101,16 @@ export function appendToolLink(parent: HTMLElement, title: string, url: string):
   let isWebURL = false;
   try { isWebURL = ['https:', 'http:'].includes(new URL(url).protocol); } catch { /* Reference or malformed URL. */ }
   if (!isWebURL) {
-    parent.createDiv({ cls: 'claudian-tool-line claudian-tool-line-wrap', text: title });
+    parent.createDiv({ cls: 'scribe-tool-line scribe-tool-line-wrap', text: title });
     return;
   }
-  const linkEl = parent.createEl('a', { cls: 'claudian-tool-link' });
+  const linkEl = parent.createEl('a', { cls: 'scribe-tool-link' });
   linkEl.setAttribute('href', url);
   linkEl.setAttribute('target', '_blank');
   linkEl.setAttribute('rel', 'noopener noreferrer');
 
-  const iconEl = linkEl.createSpan({ cls: 'claudian-tool-link-icon' });
+  const iconEl = linkEl.createSpan({ cls: 'scribe-tool-link-icon' });
   setIcon(iconEl, 'external-link');
 
-  linkEl.createSpan({ cls: 'claudian-tool-link-title', text: title });
+  linkEl.createSpan({ cls: 'scribe-tool-link-title', text: title });
 }

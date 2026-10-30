@@ -32,6 +32,7 @@ import {
   scheduleAnimationFrame,
   type ScheduledAnimationFrame,
 } from '@/features/chat/utils/animationFrame';
+import { t } from '@/i18n/i18n';
 import { hasStreamingMathDelimiters } from '@/utils/markdownMath';
 
 export interface StreamControllerDeps {
@@ -474,8 +475,8 @@ export class StreamController {
     if (!state.currentContentEl) return;
     // Compaction is over; later waiting in this response shows ordinary flavor.
     this.thinkingIndicator.endExplicit();
-    const el = state.currentContentEl.createDiv({ cls: 'claudian-compact-boundary' });
-    el.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Conversation compacted' });
+    const el = state.currentContentEl.createDiv({ cls: 'scribe-compact-boundary' });
+    el.createSpan({ cls: 'scribe-compact-boundary-label', text: t('chat.compacted') });
   }
 
   // ============================================

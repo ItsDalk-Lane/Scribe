@@ -33,16 +33,16 @@ function createPlacement(tabs: ReturnType<typeof createPlacedTab>[]) {
   });
   const chatPanelEl = document.body.createDiv();
   placement.mount(chatPanelEl);
-  const footerEl = chatPanelEl.querySelector<HTMLElement>('.claudian-input-footer')!;
+  const footerEl = chatPanelEl.querySelector<HTMLElement>('.scribe-input-footer')!;
   return {
     chatPanelEl,
-    chipHostEl: footerEl.querySelector<HTMLElement>('.claudian-side-chat-chip-slot')!,
+    chipHostEl: footerEl.querySelector<HTMLElement>('.scribe-side-chat-chip-slot')!,
     footerEl,
-    navHostEl: footerEl.querySelector<HTMLElement>('.claudian-view-input-nav-row')!,
+    navHostEl: footerEl.querySelector<HTMLElement>('.scribe-view-input-nav-row')!,
     placement,
     setActive: (tab: ChatTab | null) => { active = tab; },
     setWide: (wide: boolean) => { isWide = wide; },
-    slotEl: footerEl.querySelector<HTMLElement>('.claudian-active-input-slot')!,
+    slotEl: footerEl.querySelector<HTMLElement>('.scribe-active-input-slot')!,
   };
 }
 
@@ -76,7 +76,7 @@ describe('ChatPresentationPlacement', () => {
     const entry = createPlacedTab('tab-1');
     const harness = createPlacement([entry]);
     harness.placement.update();
-    const pendingPromptEl = entry.dom.inputComposerEl.createDiv({ cls: 'claudian-ask-question-inline' });
+    const pendingPromptEl = entry.dom.inputComposerEl.createDiv({ cls: 'scribe-ask-question-inline' });
 
     harness.placement.update();
 

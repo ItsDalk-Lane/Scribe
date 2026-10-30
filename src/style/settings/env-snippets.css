@@ -1,9 +1,9 @@
 /* Context Limits Styles */
-.claudian-context-limits-container {
+.scribe-context-limits-container {
   margin-top: 16px;
 }
 
-.claudian-context-limits-header {
+.scribe-context-limits-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -12,27 +12,27 @@
   padding: 0 12px;
 }
 
-.claudian-context-limits-label {
+.scribe-context-limits-label {
   font-size: var(--font-ui-small);
   color: var(--text-muted);
   font-weight: var(--font-medium);
 }
 
-.claudian-context-limits-desc {
+.scribe-context-limits-desc {
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   padding: 0 12px;
   margin-bottom: 8px;
 }
 
-.claudian-context-limits-list {
+.scribe-context-limits-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
 }
 
-.claudian-context-limits-item {
+.scribe-context-limits-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -42,11 +42,11 @@
   transition: background-color 0.2s;
 }
 
-.claudian-context-limits-item:hover {
+.scribe-context-limits-item:hover {
   background: var(--background-modifier-hover);
 }
 
-.claudian-context-limits-model {
+.scribe-context-limits-model {
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
   color: var(--text-normal);
@@ -55,7 +55,7 @@
   word-break: break-all;
 }
 
-.claudian-context-limits-input-wrapper {
+.scribe-context-limits-input-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -63,7 +63,7 @@
   flex-shrink: 0;
 }
 
-.claudian-context-alias-input {
+.scribe-context-alias-input {
   width: 180px;
   padding: 4px 8px;
   font-size: var(--font-ui-small);
@@ -73,12 +73,12 @@
   color: var(--text-normal);
 }
 
-.claudian-context-alias-input:focus {
+.scribe-context-alias-input:focus {
   border-color: var(--interactive-accent);
   outline: none;
 }
 
-.claudian-context-limits-input {
+.scribe-context-limits-input {
   width: 80px;
   padding: 4px 8px;
   font-size: var(--font-ui-small);
@@ -88,27 +88,27 @@
   color: var(--text-normal);
 }
 
-.claudian-context-limits-input:focus {
+.scribe-context-limits-input:focus {
   border-color: var(--interactive-accent);
   outline: none;
 }
 
-.claudian-context-limits-input.claudian-input-error {
+.scribe-context-limits-input.scribe-input-error {
   border-color: var(--text-error);
 }
 
-.claudian-context-limit-validation {
+.scribe-context-limit-validation {
   font-size: var(--font-ui-smaller);
   color: var(--text-error);
   margin-left: 4px;
 }
 
 /* Environment Snippets Styles */
-.claudian-env-snippets-container {
+.scribe-env-snippets-container {
   margin-top: 16px;
 }
 
-.claudian-snippet-header {
+.scribe-snippet-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -117,14 +117,14 @@
   padding: 0 12px;
 }
 
-.claudian-snippet-label {
+.scribe-snippet-label {
   font-size: var(--font-ui-small);
   color: var(--text-muted);
   font-weight: var(--font-medium);
 }
 
 /* Empty state doubles as the save action; specificity beats the settings button reset. */
-.claudian-settings .claudian-env-snippets-container button.claudian-snippet-empty {
+.scribe-settings .scribe-env-snippets-container button.scribe-snippet-empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -141,34 +141,34 @@
 }
 
 /* The border must survive every interaction state, or the settings reset drops it and shifts layout. */
-.claudian-settings .claudian-env-snippets-container button.claudian-snippet-empty,
-.claudian-settings .claudian-env-snippets-container button.claudian-snippet-empty:is(:hover, :focus-visible, :active) {
+.scribe-settings .scribe-env-snippets-container button.scribe-snippet-empty,
+.scribe-settings .scribe-env-snippets-container button.scribe-snippet-empty:is(:hover, :focus-visible, :active) {
   border: 1px dashed var(--background-modifier-border);
 }
 
-.claudian-settings .claudian-env-snippets-container button.claudian-snippet-empty:is(:hover, :focus-visible) {
+.scribe-settings .scribe-env-snippets-container button.scribe-snippet-empty:is(:hover, :focus-visible) {
   border-color: var(--interactive-accent);
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.claudian-snippet-empty-icon {
+.scribe-snippet-empty-icon {
   display: inline-flex;
 }
 
-.claudian-snippet-empty-icon svg {
+.scribe-snippet-empty-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-snippet-list {
+.scribe-snippet-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
 }
 
-.claudian-snippet-item {
+.scribe-snippet-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -178,27 +178,27 @@
   transition: background-color 0.2s;
 }
 
-.claudian-snippet-item:hover {
+.scribe-snippet-item:hover {
   background: var(--background-modifier-hover);
 }
 
-.claudian-snippet-info {
+.scribe-snippet-info {
   flex: 1;
   min-width: 0;
 }
 
-.claudian-snippet-name {
+.scribe-snippet-name {
   font-weight: 600;
   margin-bottom: 4px;
   word-break: break-word;
 }
 
-.claudian-snippet-description {
+.scribe-snippet-description {
   font-size: 13px;
   color: var(--text-muted);
 }
 
-.claudian-snippet-actions {
+.scribe-snippet-actions {
   display: flex;
   gap: 4px;
   margin-left: 16px;
@@ -206,41 +206,41 @@
 }
 
 /* Env Snippet Modal */
-.claudian-env-snippet-modal .modal-content {
+.scribe-env-snippet-modal .modal-content {
   max-width: 550px;
   width: 550px;
   padding: 16px;
 }
 
-.claudian-env-snippet-modal h2 {
+.scribe-env-snippet-modal h2 {
   margin: 0 0 16px 0;
 }
 
-.claudian-env-snippet-modal .setting-item {
+.scribe-env-snippet-modal .setting-item {
   padding: 8px 0;
   margin: 0;
 }
 
-.claudian-env-snippet-modal .setting-item-info {
+.scribe-env-snippet-modal .setting-item-info {
   margin-bottom: 4px;
 }
 
 /* Full-width env vars textarea setting */
-.claudian-env-snippet-setting {
+.scribe-env-snippet-setting {
   flex-direction: column;
   align-items: flex-start;
 }
 
-.claudian-env-snippet-setting .setting-item-info {
+.scribe-env-snippet-setting .setting-item-info {
   width: 100%;
   margin-bottom: 8px;
 }
 
-.claudian-env-snippet-control {
+.scribe-env-snippet-control {
   width: 100%;
 }
 
-.claudian-env-snippet-control textarea {
+.scribe-env-snippet-control textarea {
   width: 100%;
   min-width: 100%;
   font-family: var(--font-monospace);
@@ -248,15 +248,15 @@
   resize: vertical;
 }
 
-.claudian-snippet-buttons {
+.scribe-snippet-buttons {
   display: flex;
   gap: 8px;
   margin-top: 16px;
   justify-content: flex-end;
 }
 
-.claudian-cancel-btn,
-.claudian-save-btn {
+.scribe-cancel-btn,
+.scribe-save-btn {
   padding: 6px 16px;
   font-size: 13px;
   border: none;
@@ -264,53 +264,53 @@
   cursor: pointer;
 }
 
-.claudian-cancel-btn {
+.scribe-cancel-btn {
   background: var(--background-modifier-border);
   color: var(--text-normal);
 }
 
-.claudian-cancel-btn:hover {
+.scribe-cancel-btn:hover {
   background: var(--background-modifier-border-hover);
 }
 
-.claudian-save-btn {
+.scribe-save-btn {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }
 
-.claudian-save-btn:hover {
+.scribe-save-btn:hover {
   opacity: 0.9;
 }
 
 /* Context limits section in snippet modal */
-.claudian-snippet-context-limits {
+.scribe-snippet-context-limits {
   margin-top: 1em;
 }
 
-.claudian-snippet-context-limits .setting-item-description {
+.scribe-snippet-context-limits .setting-item-description {
   margin-bottom: 0.5em;
 }
 
-.claudian-snippet-limit-row {
+.scribe-snippet-limit-row {
   display: flex;
   align-items: center;
   gap: 0.5em;
   margin-bottom: 0.5em;
 }
 
-.claudian-snippet-limit-model {
+.scribe-snippet-limit-model {
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
 }
 
-.claudian-snippet-limit-spacer {
+.scribe-snippet-limit-spacer {
   flex: 1;
 }
 
-.claudian-snippet-limit-input {
+.scribe-snippet-limit-input {
   width: 80px;
 }
 
-.claudian-snippet-alias-input {
+.scribe-snippet-alias-input {
   width: 160px;
 }

@@ -61,12 +61,12 @@ describe.each(['live', 'history'] as const)('%s DeepSeek applied edit', mode => 
         renderer = new MessageRenderer(plugin, component, messages);
         stream = new StreamController({ plugin, state, renderer, subagentManager: new SubagentManager(() => undefined), getMessagesEl: () => messages, updateQueueIndicator: () => undefined });
         state.addMessage(response);
-        state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+        state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
         for (const [sequence, event] of events.entries()) {
           const chunk = providerOutputEventToStreamChunk({ ...event, scope: { kind: 'requested', executionId: 'run', sessionInstanceId: 'session', turnId: 'turn', sequence } } as ProviderExecutionEvent);
           if (chunk) await stream.handleStreamChunk(chunk, response);
         }
-        card = messages.querySelector<HTMLElement>('.claudian-write-edit-block')!;
+        card = messages.querySelector<HTMLElement>('.scribe-write-edit-block')!;
         fireEvent.click(within(card).getByRole('button', { name: /^Edit: note\.md/ }));
       } else {
         const history = await loadDeepSeekHistory({ call: async method => {
@@ -76,8 +76,8 @@ describe.each(['live', 'history'] as const)('%s DeepSeek applied edit', mode => 
         card = renderStoredWriteEdit(messages, history.find(message => message.role === 'assistant')!.toolCalls![0], { initiallyExpanded: true });
       }
       expect(card).not.toBeNull();
-      expect(card.querySelectorAll('.claudian-diff-delete')).toHaveLength(removed);
-      expect(card.querySelectorAll('.claudian-diff-insert')).toHaveLength(1);
+      expect(card.querySelectorAll('.scribe-diff-delete')).toHaveLength(removed);
+      expect(card.querySelectorAll('.scribe-diff-insert')).toHaveLength(1);
       expect(card.textContent).toContain('after');
       expect((await axe(card)).violations).toEqual([]);
     } finally {

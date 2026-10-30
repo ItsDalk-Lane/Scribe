@@ -79,7 +79,7 @@ it.each([false, true])('collapses work across compaction on completion and reloa
   };
   try {
     state.addMessage(response);
-    state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
     await stream.handleStreamChunk({ type: 'tool_use', id: 'before', name: 'Read', input: { file_path: 'before.md' } }, response);
     await stream.handleStreamChunk({ type: 'tool_result', id: 'before', content: 'Before compaction' }, response);
     await stream.handleStreamChunk({ type: 'context_compacted' }, response);
@@ -126,7 +126,7 @@ it.each(['early', 'late', 'none'])('matches live and JSONL notification order wi
   };
   try {
     state.addMessage(response);
-    state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
     if (hasTool) await stream.handleStreamChunk({ type: 'tool_use', id: 'read', name: 'Read', input: { file_path: 'note.md' } }, response);
     renderSessionTaskNotification({ state, renderer, createMessageId: () => 'notification' }, 'Task finished.');
     const notificationElement = within(messagesEl).getByRole('button', { name: 'Task notification' });
@@ -249,7 +249,7 @@ it.each(['between', 'during-second', 'after-second'])('groups an older task noti
     renderer.addMessage(user);
     let response: ChatMessage = { id: 'second-response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [] };
     state.addMessage(response);
-    state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
     if (position === 'during-second') notify();
     const text = { type: 'text' as const, content: 'Second answer.' };
     response = await continueResponseAfterNotification({ state, renderer, stream, createMessageId: () => 'second-continuation' }, response, text);
@@ -307,7 +307,7 @@ it.each(['child', 'result', 'snapshot'] as const)('keeps a pending Agent before 
   const original: ChatMessage = { id: 'original', role: 'assistant', timestamp: 1, content: '', contentBlocks: [] };
   try {
     state.addMessage(original);
-    state.currentContentEl = renderer.addMessage(original).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(original).querySelector('.scribe-message-content');
     await stream.handleStreamChunk({ type: 'tool_use', id: 'agent', name: 'Agent', input: { description: 'Research' } }, original);
     renderSessionTaskNotification({ state, renderer, createMessageId: () => 'notification' }, 'Task finished.');
     const text = { type: 'text' as const, content: 'Continuation.' };
@@ -345,7 +345,7 @@ it('does not recreate a response after its conversation is cleared during finali
   const original: ChatMessage = { id: 'original', role: 'assistant', timestamp: 1, content: '', contentBlocks: [] };
   try {
     state.addMessage(original);
-    state.currentContentEl = renderer.addMessage(original).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(original).querySelector('.scribe-message-content');
     await stream.handleStreamChunk({ type: 'text', content: 'Earlier text.' }, original);
     renderSessionTaskNotification({ state, renderer, createMessageId: () => 'notification' }, 'Task finished.');
     const pending = continueResponseAfterNotification({ state, renderer, stream, createMessageId: () => 'continuation' }, original, { type: 'text', content: 'Later text.' });
@@ -374,7 +374,7 @@ it.each(['background', 'user'] as const)('groups only the requested response acr
   let response: ChatMessage = { id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [] };
   try {
     state.addMessage(response);
-    state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
     await stream.handleStreamChunk({ type: 'tool_use', id: 'read', name: 'Read', input: { file_path: 'note.md' } }, response);
     renderSessionTaskNotification(host, 'First notification.');
     response = await continueResponseAfterNotification(host, response, { type: 'text', content: 'Still working.' });
@@ -438,7 +438,7 @@ it('keeps a notification consumed by an automatic response outside an admitted r
   };
   try {
     state.addMessage(response);
-    state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
     renderSessionTaskNotification(host, 'Background task finished.');
     await renderAutoTriggeredTurn(host, { spans: [{ events: [
         { type: 'tool_started', scope, toolCallId: 'background-read', toolScope: { kind: 'main' }, name: 'Read', input: { file_path: 'background.md' } },

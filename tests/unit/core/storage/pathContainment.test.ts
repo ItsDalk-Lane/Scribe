@@ -27,7 +27,7 @@ describe('isPathWithinRoot', () => {
 
   describePosix('literal POSIX filenames', () => {
     it.each(['root', 'root\\sessions'])('accepts a literal backslash filename under %s', rootName => {
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-posix-path-'));
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-posix-path-'));
       try {
         const root = path.join(tempDir, rootName);
         const candidate = path.join(root, 'turn\\notes.jsonl');
@@ -43,7 +43,7 @@ describe('isPathWithinRoot', () => {
     });
 
     it('rejects sibling, traversal and symlink escapes from a backslash-bearing root', () => {
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-posix-escape-'));
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-posix-escape-'));
       try {
         const root = path.join(tempDir, 'root\\sessions');
         const sibling = `${root}-sibling`;
@@ -66,7 +66,7 @@ describe('isPathWithinRoot', () => {
 
   describeWindows('native root-relative paths', () => {
     it('resolves mixed-separator paths on the host before checking containment', () => {
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-win-path-'));
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-win-path-'));
       const originalCwd = process.cwd();
       try {
         process.chdir(tempDir);
@@ -94,7 +94,7 @@ describe('isPathWithinRoot', () => {
   describePosix('missing descendants of symlinked directories', () => {
     it.each(['escape', 'alias candidate', 'alias root'])(
       'resolves the existing ancestor before admitting a missing history path: %s', scenario => {
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-missing-history-'));
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-missing-history-'));
       try {
         const root = path.join(tempDir, 'root');
         const outside = path.join(tempDir, 'outside');
@@ -118,7 +118,7 @@ describe('isPathWithinRoot', () => {
   it('rejects an existing symlink that escapes the trusted root', () => {
     if (process.platform === 'win32') return;
 
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-path-trust-'));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-path-trust-'));
     const root = path.join(tempDir, 'root');
     const outside = path.join(tempDir, 'outside');
     fs.mkdirSync(root);

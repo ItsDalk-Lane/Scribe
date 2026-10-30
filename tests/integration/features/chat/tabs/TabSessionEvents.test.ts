@@ -100,7 +100,7 @@ async function createCodexChildTab() {
     id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [], toolCalls: [],
   };
   state.addMessage(message);
-  state.currentContentEl = renderer.addMessage(message).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(message).querySelector('.scribe-message-content');
   let parentOutput = Promise.resolve();
   new CodexNotificationRouter(chunk => {
     parentOutput = parentOutput.then(() => stream.handleStreamChunk(chunk, message));
@@ -264,7 +264,7 @@ it('keeps the next turn\'s notification out of a stopped automatic turn rendered
     const second = view.state.messages.find(message => message.contentBlocks?.some(block =>
       block.type === 'task_notification' && block.content === 'Second job finished.'))!;
     expect(second.isInterrupt).toBeUndefined();
-    const header = within(view.messagesEl).getByRole('button', { name: 'Interrupted · What should Claudian do instead?' });
+    const header = within(view.messagesEl).getByRole('button', { name: 'Interrupted · What should Scribe do instead?' });
     const history = document.getElementById(header.getAttribute('aria-controls')!)!;
     fireEvent.click(header);
     expect(history.textContent).toContain('First reply.');

@@ -36,12 +36,12 @@ describe('ToolCallRenderer', () => {
 
 
       const toolEl = renderToolCall(parentEl, toolCall, { initiallyExpanded: true });
-      const header = toolEl.querySelector('.claudian-tool-header');
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const header = toolEl.querySelector('.scribe-tool-header');
+      const content = toolEl.querySelector('.scribe-tool-content');
 
       expect(toolCall.isExpanded).toBe(true);
       expect(toolEl.hasClass('expanded')).toBe(true);
-      expect(content?.hasClass('claudian-hidden')).toBe(false);
+      expect(content?.hasClass('scribe-hidden')).toBe(false);
       expect(header?.getAttribute('aria-expanded')).toBe('true');
     });
 
@@ -52,16 +52,16 @@ describe('ToolCallRenderer', () => {
         input: { command: 'npm test' },
       });
       const toolEl = renderToolCall(parentEl, toolCall);
-      const header = toolEl.querySelector('.claudian-tool-header');
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const header = toolEl.querySelector('.scribe-tool-header');
+      const content = toolEl.querySelector('.scribe-tool-content');
 
-      expect(toolEl.hasClass('claudian-tool-call-bash')).toBe(true);
+      expect(toolEl.hasClass('scribe-tool-call-bash')).toBe(true);
       expect(setIcon).toHaveBeenCalledWith(expect.anything(), 'terminal');
 
       (header as HTMLElement | null)?.click();
       expect(toolCall.isExpanded).toBe(true);
-      expect(toolEl.querySelector('.claudian-tool-bash-command')?.textContent).toBe('$ npm test');
-      expect(content?.hasClass('claudian-hidden')).toBe(false);
+      expect(toolEl.querySelector('.scribe-tool-bash-command')?.textContent).toBe('$ npm test');
+      expect(content?.hasClass('scribe-hidden')).toBe(false);
     });
 
     it('builds TodoWrite preview, content, icon, and toggle handlers', () => {
@@ -73,19 +73,19 @@ describe('ToolCallRenderer', () => {
         },
       });
       const toolEl = renderToolCall(parentEl, toolCall);
-      const header = toolEl.querySelector('.claudian-tool-header');
-      const currentTask = toolEl.querySelector('.claudian-tool-current');
-      const status = toolEl.querySelector('.claudian-tool-status');
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const header = toolEl.querySelector('.scribe-tool-header');
+      const currentTask = toolEl.querySelector('.scribe-tool-current');
+      const status = toolEl.querySelector('.scribe-tool-status');
+      const content = toolEl.querySelector('.scribe-tool-content');
 
       expect(currentTask?.textContent).toBe('Working');
-      expect(content?.hasClass('claudian-tool-content-todo')).toBe(true);
+      expect(content?.hasClass('scribe-tool-content-todo')).toBe(true);
       expect(setIcon).toHaveBeenCalledWith(expect.anything(), 'list-checks');
 
       (header as HTMLElement | null)?.click();
       expect(toolCall.isExpanded).toBe(true);
-      expect(currentTask?.hasClass('claudian-hidden')).toBe(true);
-      expect(status?.hasClass('claudian-hidden')).toBe(true);
+      expect(currentTask?.hasClass('scribe-hidden')).toBe(true);
+      expect(status?.hasClass('scribe-hidden')).toBe(true);
     });
 
     it('builds AskUserQuestion content and renders resolved answers through its dedicated updater', () => {
@@ -97,15 +97,15 @@ describe('ToolCallRenderer', () => {
       });
 
       const toolEl = renderToolCall(parentEl, toolCall);
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const content = toolEl.querySelector('.scribe-tool-content');
 
-      expect(content?.hasClass('claudian-tool-content-ask')).toBe(true);
+      expect(content?.hasClass('scribe-tool-content-ask')).toBe(true);
       expect(setIcon).toHaveBeenCalledWith(expect.anything(), 'help-circle');
 
       toolCall.status = 'completed';
       toolCall.result = 'answered';
       updateToolCallResult(toolEl, toolCall);
-      expect(toolEl.querySelector('.claudian-ask-review-a-text')?.textContent).toBe('Blue');
+      expect(toolEl.querySelector('.scribe-ask-review-a-text')?.textContent).toBe('Blue');
     });
   });
 
@@ -138,7 +138,7 @@ describe('ToolCallRenderer', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const answerEls = toolEl.querySelectorAll('.claudian-ask-review-a-text');
+      const answerEls = toolEl.querySelectorAll('.scribe-ask-review-a-text');
 
       expect(answerEls).toHaveLength(1);
       expect(answerEls[0].textContent).toBe('Blue');
@@ -154,7 +154,7 @@ describe('ToolCallRenderer', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const answerEls = toolEl.querySelectorAll('.claudian-ask-review-a-text');
+      const answerEls = toolEl.querySelectorAll('.scribe-ask-review-a-text');
 
       expect(answerEls).toHaveLength(1);
       expect(answerEls[0].textContent).toBe('Blue');
@@ -170,7 +170,7 @@ describe('ToolCallRenderer', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const answerEls = toolEl.querySelectorAll('.claudian-ask-review-a-text');
+      const answerEls = toolEl.querySelectorAll('.scribe-ask-review-a-text');
 
       expect(answerEls).toHaveLength(1);
       expect(answerEls[0].textContent).toBe('Blue');
@@ -186,7 +186,7 @@ describe('ToolCallRenderer', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const answerEls = toolEl.querySelectorAll('.claudian-ask-review-a-text');
+      const answerEls = toolEl.querySelectorAll('.scribe-ask-review-a-text');
 
       expect(answerEls).toHaveLength(1);
       expect(answerEls[0].textContent).toBe('Red');
@@ -203,8 +203,8 @@ describe('ToolCallRenderer', () => {
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
 
-      expect(toolEl.querySelector('.claudian-ask-review-a-text')).toBeNull();
-      expect(Array.from(toolEl.querySelectorAll('.claudian-ask-item-label'), el => el.textContent)).toEqual(['Blue', 'Red']);
+      expect(toolEl.querySelector('.scribe-ask-review-a-text')).toBeNull();
+      expect(Array.from(toolEl.querySelectorAll('.scribe-ask-item-label'), el => el.textContent)).toEqual(['Blue', 'Red']);
     });
 
     it('keeps key presence for an own empty answer as Not answered', () => {
@@ -218,8 +218,8 @@ describe('ToolCallRenderer', () => {
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
 
-      expect(toolEl.querySelector('.claudian-ask-review-empty')?.textContent).toBe('Not answered');
-      expect(toolEl.querySelectorAll('.claudian-ask-item-label')).toHaveLength(0);
+      expect(toolEl.querySelector('.scribe-ask-review-empty')?.textContent).toBe('Not answered');
+      expect(toolEl.querySelectorAll('.scribe-ask-item-label')).toHaveLength(0);
     });
 
     it('renders AskUserQuestion options during fallback state', () => {
@@ -240,9 +240,9 @@ describe('ToolCallRenderer', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const labelEls = toolEl.querySelectorAll('.claudian-ask-item-label');
-      const descEls = toolEl.querySelectorAll('.claudian-ask-item-desc');
-      const checkEls = toolEl.querySelectorAll('.claudian-ask-check');
+      const labelEls = toolEl.querySelectorAll('.scribe-ask-item-label');
+      const descEls = toolEl.querySelectorAll('.scribe-ask-item-desc');
+      const checkEls = toolEl.querySelectorAll('.scribe-ask-check');
 
       expect(Array.from(labelEls, el => el.textContent)).toEqual(['Non-blocking', 'Blocking']);
       expect(Array.from(descEls, el => el.textContent)).toEqual(['Generate title later.', 'Wait for title first.']);
@@ -258,7 +258,7 @@ describe('ToolCallRenderer', () => {
 
       const toolEl = renderToolCall(parentEl, toolCall);
       expect(toolEl.dataset.toolId).toBe('tool-1');
-      const header = toolEl.querySelector('.claudian-tool-header');
+      const header = toolEl.querySelector('.scribe-tool-header');
       expect(header?.getAttribute('role')).toBe('button');
       expect(header?.getAttribute('tabindex')).toBe('0');
       expect(toolCall.isExpanded).toBe(false);
@@ -268,7 +268,7 @@ describe('ToolCallRenderer', () => {
       toolCall.result = 'Success';
       updateToolCallResult(toolEl, toolCall);
 
-      const statusEl = toolEl.querySelector('.claudian-tool-status');
+      const statusEl = toolEl.querySelector('.scribe-tool-status');
       expect(statusEl?.hasClass('status-completed')).toBe(true);
     });
 
@@ -287,7 +287,7 @@ describe('ToolCallRenderer', () => {
 
       updateToolCallResult(toolEl, toolCall);
 
-      const promptEl = toolEl.querySelector('.claudian-ask-review-prompt');
+      const promptEl = toolEl.querySelector('.scribe-ask-review-prompt');
       expect(promptEl?.textContent).toBe('Answer submitted successfully.');
     });
   });
@@ -317,7 +317,7 @@ describe('ToolCallRenderer', () => {
       };
       updateToolCallResult(toolEl, toolCall);
 
-      const statusEl = parentEl.querySelector('.claudian-tool-status');
+      const statusEl = parentEl.querySelector('.scribe-tool-status');
       expect(statusEl?.hasClass('status-completed')).toBe(true);
     });
 
@@ -334,7 +334,7 @@ describe('ToolCallRenderer', () => {
       const toolEl = renderToolCall(parentEl, toolCall);
       updateToolCallResult(toolEl, toolCall);
 
-      const statusEl = parentEl.querySelector('.claudian-tool-status');
+      const statusEl = parentEl.querySelector('.scribe-tool-status');
       expect(statusEl?.hasClass('status-completed')).toBe(true);
     });
 
@@ -366,13 +366,13 @@ describe('ToolCallRenderer', () => {
         status: 'completed',
         input,
       }));
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const content = toolEl.querySelector('.scribe-tool-content');
 
       expect(toolEl).toBeDefined();
-      expect(content?.hasClass('claudian-todo-list-container')).toBe(true);
-      expect(Array.from(content!.querySelectorAll('.claudian-todo-text'), el => el.textContent))
+      expect(content?.hasClass('scribe-todo-list-container')).toBe(true);
+      expect(Array.from(content!.querySelectorAll('.scribe-todo-text'), el => el.textContent))
         .toEqual(expectedTasks);
-      expect(content?.querySelector('.claudian-tool-result-item')?.textContent ?? null).toBe(expectedFallback);
+      expect(content?.querySelector('.scribe-tool-result-item')?.textContent ?? null).toBe(expectedFallback);
     });
   });
 });

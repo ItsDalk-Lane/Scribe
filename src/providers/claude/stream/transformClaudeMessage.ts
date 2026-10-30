@@ -117,12 +117,12 @@ function describeAssistantError(error: SDKAssistantMessageError): string {
 }
 
 /**
- * An inherited credential can make a separate CLI subscription fail only inside Claudian.
+ * An inherited credential can make a separate CLI subscription fail only inside Scribe.
  * The hint stays conditional: it does not read the environment or claim a subscription was detected.
  */
 const AUTHENTICATION_CONFLICT_HINT =
   'If the same CLI works with a subscription separately, an inherited ANTHROPIC_API_KEY or '
-  + 'ANTHROPIC_AUTH_TOKEN may be interfering. In Settings → Claudian → Providers → Claude Code → Environment → Custom variables '
+  + 'ANTHROPIC_AUTH_TOKEN may be interfering. In Settings → Scribe → Providers → Claude Code → Environment → Custom variables '
   + '(Claude only), add an empty assignment only for the conflicting credential you intend to disable, '
   + 'such as ANTHROPIC_API_KEY= or ANTHROPIC_AUTH_TOKEN=.';
 

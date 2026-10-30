@@ -1,14 +1,14 @@
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 
 import { ChatModelSelectionCoordinator } from '@/app/settings/ChatModelSelectionCoordinator';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 
 function createCoordinator(
-  persist: (settings: ClaudianSettings) => Promise<void> = async () => undefined,
+  persist: (settings: ScribeSettings) => Promise<void> = async () => undefined,
   publish?: () => void | Promise<void>,
 ) {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   const settingsCoordinator = new SettingsCoordinator(settings, persist, publish);
   return {
     coordinator: new ChatModelSelectionCoordinator(settingsCoordinator),

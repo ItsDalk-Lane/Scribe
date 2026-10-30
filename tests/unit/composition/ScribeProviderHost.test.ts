@@ -1,28 +1,28 @@
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { ClaudianProviderHost, type ClaudianProviderHostDeps } from '@/composition/ClaudianProviderHost';
+import { ScribeProviderHost, type ScribeProviderHostDeps } from '@/composition/ScribeProviderHost';
 import {
   ProviderExecutionLifecycleRegistry,
   type ProviderExecutionTransitionScope,
 } from '@/core/execution';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import type { ProviderSessionArchive } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 
-function createHost(overrides: Partial<ClaudianProviderHostDeps> = {}): ClaudianProviderHost {
-  const settings = { userName: 'before' } as ClaudianSettings;
-  return new ClaudianProviderHost({
-    app: {} as ClaudianProviderHostDeps['app'],
+function createHost(overrides: Partial<ScribeProviderHostDeps> = {}): ScribeProviderHost {
+  const settings = { userName: 'before' } as ScribeSettings;
+  return new ScribeProviderHost({
+    app: {} as ScribeProviderHostDeps['app'],
     executionLifecycleRegistry: new ProviderExecutionLifecycleRegistry(),
     storage: { installationKey: 'device-key' as never },
     sessionToolEndpoint: { registerMCPRoute: vi.fn(), registerCallRoute: vi.fn() },
     settings: new SettingsCoordinator(settings, async () => undefined),
-    environment: {} as ClaudianProviderHostDeps['environment'],
+    environment: {} as ScribeProviderHostDeps['environment'],
     notifyProviderChatOptionsChanged: async () => undefined,
     ...overrides,
   });
 }
 
-describe('ClaudianProviderHost', () => {
+describe('ScribeProviderHost', () => {
   afterEach(() => {
     ProviderWorkspaceRegistry.clear();
   });
@@ -41,7 +41,7 @@ describe('ClaudianProviderHost', () => {
 
   it('projects the local vault directory as the provider working directory', () => {
     const adapter: { basePath?: unknown } = { basePath: '/vault' };
-    const host = createHost({ app: { vault: { adapter } } as unknown as ClaudianProviderHostDeps['app'] });
+    const host = createHost({ app: { vault: { adapter } } as unknown as ScribeProviderHostDeps['app'] });
 
     expect(host.workingDirectory).toBe('/vault');
     adapter.basePath = '/moved';
@@ -56,7 +56,7 @@ describe('ClaudianProviderHost', () => {
       savedProviderModel: { pi: 'pi/saved', codex: 'codex/saved' },
       sharedEnvironmentVariables: 'SHARED=1',
       providerConfigs: { pi: { enabled: true, environmentVariables: 'PI=1', nested: { kept: true } }, codex: { enabled: false } },
-    } as unknown as ClaudianSettings;
+    } as unknown as ScribeSettings;
     const coordinator = new SettingsCoordinator(settings, async () => undefined);
     const host = createHost({ settings: coordinator, manifest: { version: '9.9.9' } });
     const runtime = host.getRuntimeHost('pi');

@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.mocked(loadMermaid).mockResolvedValue({ render });
   vi.mocked(MarkdownRenderer.render).mockImplementation(async (_app, markdown, target) => {
     // Obsidian boundary fixture: preserve the neutralized language and native copy control.
-    const language = markdown.match(/claudian-display-only-fence-\d+/)?.[0];
+    const language = markdown.match(/scribe-display-only-fence-\d+/)?.[0];
     const pre = (target as HTMLElement).createEl('pre');
     pre.createEl('code', { cls: `language-${language}`, text: source });
     pre.createEl('button', { text: 'Copy', cls: 'copy-code-button', attr: { type: 'button' } });

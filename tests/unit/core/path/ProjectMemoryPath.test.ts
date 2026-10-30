@@ -8,7 +8,7 @@ describe('normalizeProjectMemoryPath', () => {
     ['./Work/./MEMORY.md', 'Work/MEMORY.md'],
     ['MEMORY.md', 'MEMORY.md'],
     ['Work/Notes.MD', 'Work/Notes.MD'],
-    ['.claudian/projects/launch/MEMORY.md', '.claudian/projects/launch/MEMORY.md'],
+    ['.scribe/projects/launch/MEMORY.md', '.scribe/projects/launch/MEMORY.md'],
   ])('normalizes %o to the vault-relative file %o', (input, expected) => {
     expect(normalizeProjectMemoryPath(input)).toBe(expected);
   });
@@ -52,14 +52,14 @@ describe('normalizeProjectMemoryPath', () => {
 
 describe('defaultProjectMemoryPath', () => {
   it.each([
-    ['Q3 Launch: Plan!', '.claudian/projects/q3-launch-plan/MEMORY.md'],
-    ['  Équipe Été  ', '.claudian/projects/équipe-été/MEMORY.md'],
-    ['', '.claudian/projects/project/MEMORY.md'],
-    ['!!!', '.claudian/projects/project/MEMORY.md'],
-    ['CON', '.claudian/projects/project-con/MEMORY.md'],
-    ['LPT1', '.claudian/projects/project-lpt1/MEMORY.md'],
-    ['Console', '.claudian/projects/console/MEMORY.md'],
-    ['a'.repeat(80), `.claudian/projects/${'a'.repeat(48)}/MEMORY.md`],
+    ['Q3 Launch: Plan!', '.scribe/projects/q3-launch-plan/MEMORY.md'],
+    ['  Équipe Été  ', '.scribe/projects/équipe-été/MEMORY.md'],
+    ['', '.scribe/projects/project/MEMORY.md'],
+    ['!!!', '.scribe/projects/project/MEMORY.md'],
+    ['CON', '.scribe/projects/project-con/MEMORY.md'],
+    ['LPT1', '.scribe/projects/project-lpt1/MEMORY.md'],
+    ['Console', '.scribe/projects/console/MEMORY.md'],
+    ['a'.repeat(80), `.scribe/projects/${'a'.repeat(48)}/MEMORY.md`],
   ])('derives the default for %o as %o', (name, expected) => {
     expect(defaultProjectMemoryPath(name)).toBe(expected);
     expect(normalizeProjectMemoryPath(expected)).toBe(expected);

@@ -9,7 +9,7 @@ export interface ForkSource {
 }
 
 /** View type identifier for Obsidian. */
-export const VIEW_TYPE_CLAUDIAN = 'claudian-view';
+export const VIEW_TYPE_SCRIBE = 'scribe-view';
 
 /** Supported image media types for attachments. */
 export type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
@@ -99,7 +99,7 @@ export interface ChatMessage {
   /** Legacy replay-only field. New messages must use linkedContentPath. */
   readonly currentNote?: string;
   images?: ImageAttachment[];
-  /** Canonical submitted input correlated from Claudian-owned persistence. */
+  /** Canonical submitted input correlated from Scribe-owned persistence. */
   executionInput?: ExecutionInputSnapshot;
   /** True if this message represents a user interrupt (from SDK storage). */
   isInterrupt?: boolean;
@@ -116,7 +116,7 @@ export interface ChatMessage {
   treeBranches?: readonly string[];
   /** Provider-native assistant message identifier used for rewind/fork checkpoints. */
   assistantMessageId?: string;
-  /** Sender of a user message delivered from another Claudian session; set live and on history replay. */
+  /** Sender of a user message delivered from another Scribe session; set live and on history replay. */
   sessionMessage?: SessionMessageSender;
 }
 

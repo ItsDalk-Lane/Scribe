@@ -3,12 +3,12 @@ import { Notice } from 'obsidian';
 import type { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import type { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 
 import type { SettingsCoordinator } from './SettingsCoordinator';
 
 export interface ProviderChatOptionsReconcilerDeps {
-  readonly settings: Pick<SettingsCoordinator<ClaudianSettings>, 'mutateConditionally'>;
+  readonly settings: Pick<SettingsCoordinator<ScribeSettings>, 'mutateConditionally'>;
   readonly providers: Pick<typeof ProviderRegistry, 'getProviderDisplayName'>;
   readonly providerSettings: Pick<typeof ProviderSettingsCoordinator, 'reconcileTitleGenerationModelSelection'>;
   reconcileConversationModels(providerId: ProviderId): Promise<Conversation[]>;

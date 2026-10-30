@@ -29,7 +29,7 @@ function createMockCallbacks() {
 
 function createContainerWithInputWrapper(): { container: any; inputWrapper: any } {
   const container = createMockEl();
-  const inputWrapper = container.createDiv({ cls: 'claudian-input-wrapper' });
+  const inputWrapper = container.createDiv({ cls: 'scribe-input-wrapper' });
   return { container, inputWrapper };
 }
 
@@ -109,11 +109,11 @@ describe('ImageContextManager', () => {
       ]);
       expect(manager.hasImages()).toBe(true);
 
-      expect(container.querySelector('.claudian-context-row').hasClass('has-content')).toBe(true);
+      expect(container.querySelector('.scribe-context-row').hasClass('has-content')).toBe(true);
       manager.clearImages();
       expect(manager.hasImages()).toBe(false);
       expect(manager.getAttachedImages()).toEqual([]);
-      expect(container.querySelector('.claudian-context-row').hasClass('has-content')).toBe(false);
+      expect(container.querySelector('.scribe-context-row').hasClass('has-content')).toBe(false);
     });
   });
 
@@ -166,7 +166,7 @@ describe('ImageContextManager', () => {
 
       new ImageContextManager(keymap, c, input, cb, previewContainer);
       expect(previewContainer.children).toContain(existingContent);
-      expect(previewContainer.querySelector('.claudian-context-row')).not.toBeNull();
+      expect(previewContainer.querySelector('.scribe-context-row')).not.toBeNull();
     });
   });
 });
@@ -629,7 +629,7 @@ describe('ImageContextManager - Private Helpers', () => {
 
   describe('destroy', () => {
     it('unregisters paste and drag/drop listeners', () => {
-      const inputWrapper = manager['containerEl'].querySelector('.claudian-input-wrapper');
+      const inputWrapper = manager['containerEl'].querySelector('.scribe-input-wrapper');
       const inputEl = manager['inputEl'];
 
       expect(inputEl.getEventListenerCount('paste')).toBe(1);
@@ -665,12 +665,12 @@ describe('ImageContextManager - Private Helpers', () => {
       try {
         manager.setImages([createImageAttachment({ name: 'photo.png' })]);
         const previewButton = manager['contextTray']['containerEl']
-          .querySelector('.claudian-context-chip-main');
+          .querySelector('.scribe-context-chip-main');
 
         expect(previewButton.tagName).toBe('BUTTON');
         previewButton.click();
         expect(mockBody.createDiv).toHaveBeenCalledWith({
-          cls: 'claudian-image-modal-overlay',
+          cls: 'scribe-image-modal-overlay',
         });
 
         manager.destroy();
@@ -691,18 +691,18 @@ describe('ImageContextManager - Private Helpers', () => {
 
       const trayEl = manager['contextTray']['containerEl'];
       expect(trayEl.hasClass('has-content')).toBe(true);
-      const chipEl = trayEl.querySelector('.claudian-context-chip--image');
+      const chipEl = trayEl.querySelector('.scribe-context-chip--image');
       expect(chipEl).not.toBeNull();
-      expect(chipEl.querySelector('.claudian-context-chip-main').getAttribute('aria-label'))
+      expect(chipEl.querySelector('.scribe-context-chip-main').getAttribute('aria-label'))
         .toBe(`Image attachment: photo.png · ${expectedSize}`);
 
-      const thumbEl = chipEl.querySelector('.claudian-context-chip-thumbnail');
+      const thumbEl = chipEl.querySelector('.scribe-context-chip-thumbnail');
       expect(thumbEl).toBeNull();
 
-      const labelEl = chipEl.querySelector('.claudian-context-chip-label');
+      const labelEl = chipEl.querySelector('.scribe-context-chip-label');
       expect(labelEl?.textContent).toBe('Image');
 
-      const removeEl = chipEl.querySelector('.claudian-context-chip-remove');
+      const removeEl = chipEl.querySelector('.scribe-context-chip-remove');
       expect(removeEl).not.toBeNull();
     });
 
@@ -713,7 +713,7 @@ describe('ImageContextManager - Private Helpers', () => {
       ]);
 
       const trayEl = manager['contextTray']['containerEl'];
-      const labels = trayEl.querySelectorAll('.claudian-context-chip-label');
+      const labels = trayEl.querySelectorAll('.scribe-context-chip-label');
 
       expect(labels.map((label: any) => label.textContent)).toEqual(['Image 1', 'Image 2']);
     });
@@ -731,8 +731,8 @@ describe('ImageContextManager - Private Helpers', () => {
       expect(mgr.getAttachedImages()).toHaveLength(2);
 
       const trayEl = mgr['contextTray']['containerEl'];
-      const firstChip = trayEl.querySelector('.claudian-context-chip--image');
-      const removeEl = firstChip.querySelector('.claudian-context-chip-remove');
+      const firstChip = trayEl.querySelector('.scribe-context-chip--image');
+      const removeEl = firstChip.querySelector('.scribe-context-chip-remove');
       removeEl.dispatchEvent({ type: 'click', stopPropagation: vi.fn() });
 
       expect(mgr.getAttachedImages()).toHaveLength(1);

@@ -227,7 +227,7 @@ it('keeps later steers behind an earlier pending lookup when a middle lookup fai
 });
 
 
-const callSessionTool = async (id = 'ses_main') => invokeSessionTool('claudian_list_destinations', {},
+const callSessionTool = async (id = 'ses_main') => invokeSessionTool('scribe_list_destinations', {},
   resolveCaller?.(id) ?? {port:undefined,toolPolicy:undefined,signal:new AbortController().signal});
 const startToolRun = async (policy: ProviderToolPolicy = {kind:'provider-default'}) => {
   // The third parameter is the captured execution request, forwarded only by the HTTP path.
@@ -237,7 +237,7 @@ const startToolRun = async (policy: ProviderToolPolicy = {kind:'provider-default
   event('session.execution.started');
   return {completion};
 };
-it.each<ProviderToolPolicy>([{kind:'provider-default'},{kind:'unrestricted'},{kind:'read-only'},{kind:'passive'},{kind:'allow-list',names:['claudian_list_destinations']}])('dispatches session tools with the owning policy %j', async policy => {
+it.each<ProviderToolPolicy>([{kind:'provider-default'},{kind:'unrestricted'},{kind:'read-only'},{kind:'passive'},{kind:'allow-list',names:['scribe_list_destinations']}])('dispatches session tools with the owning policy %j', async policy => {
   const list = vi.fn().mockResolvedValue({ sessions: [] });
   sessionConfig.sessionTools = {list,send:vi.fn()};
   const {completion} = await startToolRun(policy);
@@ -271,9 +271,9 @@ it('denies an unbound caller and pins child calls to the original run through se
   event('session.execution.interrupted'); await second.completion;
 });
 it('normalizes native session tools in live output without losing the raw name', () => {
-  event('session.tool.input.started',{name:'claudian_send_message'});
+  event('session.tool.input.started',{name:'scribe_send_message'});
   event('session.tool.called',{input:{text:'hello'}});
-  expect(output.at(-1)?.event).toMatchObject({type:'tool_started',name:'claudian_send_message',providerPayload:{rawName:'claudian_send_message'}});
+  expect(output.at(-1)?.event).toMatchObject({type:'tool_started',name:'scribe_send_message',providerPayload:{rawName:'scribe_send_message'}});
 });
 
 it.each(['cancel', 'completion', 'failure'])('aborts an in-flight child session-tool call on child %s without cancelling the parent', async ending => {
@@ -296,7 +296,7 @@ it.each(['cancel', 'completion', 'failure'])('aborts an in-flight child session-
 
 it('auto-approves native session-tool permission requests without opening approval UI', async () => {
   sessionConfig.interactionPort.requestApproval = vi.fn().mockResolvedValue({ interactionId: 'tool_shell', decision: 'deny' });
-  event('permission.asked', { action: 'claudian_send_message', resources: ['*'] });
+  event('permission.asked', { action: 'scribe_send_message', resources: ['*'] });
   await vi.advanceTimersByTimeAsync(0);
   expect(sessionConfig.interactionPort.requestApproval).not.toHaveBeenCalled();
   expect(requests).toContain('/api/session/ses_main/permission/tool_shell/reply');

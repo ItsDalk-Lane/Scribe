@@ -27,7 +27,7 @@ export class ComposerDropdownView {
   private dropdownEl: HTMLElement | null = null;
   private rows: ItemRow[] = [];
   private positioningWindow: Window | null = null;
-  private readonly listboxId = `claudian-composer-listbox-${++nextListboxId}`;
+  private readonly listboxId = `scribe-composer-listbox-${++nextListboxId}`;
   /** Textbox relationships this menu wrote; another popup may have replaced them since. */
   private readonly writtenAttributes = new Map<string, string>();
 
@@ -99,13 +99,13 @@ export class ComposerDropdownView {
     el.setAttribute('id', `${this.listboxId}-option-${index}`);
     el.setAttribute('role', 'option');
     const icon = item.kind === 'status' ? undefined : item.icon;
-    const iconEl = icon ? el.createSpan({ cls: 'claudian-composer-dropdown-icon' }) : null;
-    const copyEl = el.createDiv({ cls: 'claudian-composer-dropdown-copy' });
+    const iconEl = icon ? el.createSpan({ cls: 'scribe-composer-dropdown-icon' }) : null;
+    const copyEl = el.createDiv({ cls: 'scribe-composer-dropdown-copy' });
     const row: ItemRow = {
       el,
       iconEl,
-      labelEl: copyEl.createDiv({ cls: 'claudian-composer-dropdown-label' }),
-      detailEl: item.detail ? copyEl.createDiv({ cls: 'claudian-composer-dropdown-detail' }) : null,
+      labelEl: copyEl.createDiv({ cls: 'scribe-composer-dropdown-label' }),
+      detailEl: item.detail ? copyEl.createDiv({ cls: 'scribe-composer-dropdown-detail' }) : null,
       icon: undefined,
       selectable: false,
     };
@@ -124,7 +124,7 @@ export class ComposerDropdownView {
   #updateRow(row: ItemRow, item: ComposerDropdownItem, selected: boolean): void {
     row.selectable = item.kind !== 'status' && !item.disabled;
     row.el.className = [
-      'claudian-composer-dropdown-item',
+      'scribe-composer-dropdown-item',
       item.className ?? '',
       item.kind === 'status' ? `is-${item.state}` : '',
       selected ? 'is-selected' : '',
@@ -168,8 +168,8 @@ export class ComposerDropdownView {
     if (this.dropdownEl) return this.dropdownEl;
     this.dropdownEl = this.containerEl.createDiv({
       cls: [
-        'claudian-composer-dropdown',
-        this.options.fixed ? 'claudian-composer-dropdown--fixed' : '',
+        'scribe-composer-dropdown',
+        this.options.fixed ? 'scribe-composer-dropdown--fixed' : '',
       ].filter(Boolean).join(' '),
       attr: { id: this.listboxId, role: 'listbox', 'aria-label': t('common.inputSuggestions') },
     });
@@ -208,9 +208,9 @@ export class ComposerDropdownView {
     const viewportHeight = this.options.inputEl.ownerDocument.defaultView?.innerHeight
       ?? window.innerHeight;
     this.dropdownEl.setCssProps({
-      '--claudian-fixed-dropdown-bottom': `${viewportHeight - inputRect.top + 4}px`,
-      '--claudian-fixed-dropdown-left': `${inputRect.left}px`,
-      '--claudian-fixed-dropdown-width': `${Math.max(inputRect.width, 280)}px`,
+      '--scribe-fixed-dropdown-bottom': `${viewportHeight - inputRect.top + 4}px`,
+      '--scribe-fixed-dropdown-left': `${inputRect.left}px`,
+      '--scribe-fixed-dropdown-width': `${Math.max(inputRect.width, 280)}px`,
     });
   };
 }

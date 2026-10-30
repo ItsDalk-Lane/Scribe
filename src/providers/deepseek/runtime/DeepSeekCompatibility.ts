@@ -8,14 +8,14 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const name = 'claudian-compatibility';
+export const name = 'scribe-compatibility';
 export const inject = ['systemPrompt', 'tools', 'sessionProjections'];
 
 export function apply(ctx, config) {
   if (typeof config?.promptDirectory !== 'string' || !config.promptDirectory) {
-    throw new TypeError('Claudian compatibility requires a prompt directory.');
+    throw new TypeError('Scribe compatibility requires a prompt directory.');
   }
-  // Claudian writes one prompt per claimed native session. A session without its own (a subagent) runs on its parent's,
+  // Scribe writes one prompt per claimed native session. A session without its own (a subagent) runs on its parent's,
   // and every session keeps the prompt its current turn started with.
   const own = id => {
     try { return readFileSync(join(config.promptDirectory, createHash('sha256').update(id).digest('hex') + '.txt'), 'utf8'); }
@@ -44,7 +44,7 @@ export function apply(ctx, config) {
     ctx.effect(() => ctx.systemPrompt.section({
       name, order: ctx.systemPrompt.getSectionOrder(order), text,
       interpolate: false, complete: false,
-    }), 'claudian.compatibility.section()');
+    }), 'scribe.compatibility.section()');
   }
   if (config.allow !== undefined) {
     ctx.on('agent/created', ({ agent }) => {
@@ -53,7 +53,7 @@ export function apply(ctx, config) {
     });
   }
   if (config.codeModeFile !== undefined) {
-    // Chat presentation follows Claudian's live code-mode preference, read only between turns.
+    // Chat presentation follows Scribe's live code-mode preference, read only between turns.
     const declared = new WeakMap();
     const present = agent => {
       let mode = 'native';
@@ -69,16 +69,16 @@ export function apply(ctx, config) {
 }
 `;
 
-/** Registers only Claudian's session tools; the Host owns routing and the execution session owns policy/lifetime. */
+/** Registers only Scribe's session tools; the Host owns routing and the execution session owns policy/lifetime. */
 export const DEEPSEEK_SESSIONS_SOURCE = String.raw`
 import { readFile } from 'node:fs/promises';
 
-export const name = 'claudian-sessions';
+export const name = 'scribe-sessions';
 export const inject = ['tools', 'loader'];
 
 export async function apply(ctx, config) {
   if (typeof config?.endpointFile !== 'string' || !Array.isArray(config.tools)) {
-    throw new TypeError('Claudian sessions requires an endpoint file and tool specs.');
+    throw new TypeError('Scribe sessions requires an endpoint file and tool specs.');
   }
   const { defineTool } = await ctx.loader.import('@deepseek-ai/dsh-tools');
   for (const spec of config.tools) {
@@ -98,17 +98,17 @@ export async function apply(ctx, config) {
       async execute(args, exec) {
         exec.signal.throwIfAborted();
         const callerNativeId = exec.agent?.id;
-        if (typeof callerNativeId !== 'string' || !callerNativeId) throw new Error('Unbound Claudian session tool caller.');
+        if (typeof callerNativeId !== 'string' || !callerNativeId) throw new Error('Unbound Scribe session tool caller.');
         // Read on every call: an endpoint replacement never restarts the shared native Host.
         const route = JSON.parse(await readFile(config.endpointFile, 'utf8'));
-        if (typeof route.url !== 'string' || typeof route.routeId !== 'string') throw new Error('Claudian session tools are unavailable.');
+        if (typeof route.url !== 'string' || typeof route.routeId !== 'string') throw new Error('Scribe session tools are unavailable.');
         const response = await fetch(route.url, {
           method: 'POST', headers: { 'Content-Type': 'application/json', [config.routeHeader]: route.routeId },
           body: JSON.stringify({ tool: spec.name, args, callerNativeId }), signal: exec.signal,
         });
-        if (!response.ok) throw new Error('Claudian session tool endpoint returned HTTP ' + response.status);
+        if (!response.ok) throw new Error('Scribe session tool endpoint returned HTTP ' + response.status);
         const result = await response.json();
-        if (typeof result?.text !== 'string' || typeof result?.isError !== 'boolean') throw new Error('Invalid Claudian session tool result.');
+        if (typeof result?.text !== 'string' || typeof result?.isError !== 'boolean') throw new Error('Invalid Scribe session tool result.');
         if (result.isError) throw new Error(result.text);
         return result;
       },
@@ -118,12 +118,12 @@ export async function apply(ctx, config) {
 `;
 
 /**
- * Claudian keeps the Host's stdin open for its whole lifetime; EOF means the owner is gone. Native runProfile's SIGTERM
+ * Scribe keeps the Host's stdin open for its whole lifetime; EOF means the owner is gone. Native runProfile's SIGTERM
  * listener runs its bounded interrupt, which a delivered signal never reaches on Windows (TerminateProcess), so it is
  * emitted in-process, once: a second interrupt forces exit.
  */
 export const DEEPSEEK_LIFECYCLE_SOURCE = String.raw`
-export const name = 'claudian-lifecycle';
+export const name = 'scribe-lifecycle';
 
 export function apply() {
   let ended = false;
@@ -136,15 +136,15 @@ export function apply() {
 }
 `;
 
-/** Native session ids with this prefix live only in the Host process; Claudian chooses them for ephemeral roots. */
-export const DEEPSEEK_EPHEMERAL_PREFIX = 'claudian-ephemeral-';
+/** Native session ids with this prefix live only in the Host process; Scribe chooses them for ephemeral roots. */
+export const DEEPSEEK_EPHEMERAL_PREFIX = 'scribe-ephemeral-';
 
 /**
  * Keeps ephemeral sessions in Host memory. It decorates the mounted persistence backend through its public seam, so
- * every other session stays native. Ephemeral: a prefixed id, a fork that claims a Claudian-offered token for its parent
+ * every other session stays native. Ephemeral: a prefixed id, a fork that claims a Scribe-offered token for its parent
  * and checkpoint, and every child of an ephemeral session. Durable stores that index sessions (projection cache,
  * workspace membership, archive and pin sets) never record one. Attachments, image caches and oversized tool output use
- * Claudian's launch directory, removed with the Host. The ready file tells Claudian every guard is in place.
+ * Scribe's launch directory, removed with the Host. The ready file tells Scribe every guard is in place.
  */
 export const DEEPSEEK_EPHEMERAL_SOURCE = String.raw`
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -152,7 +152,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const name = 'claudian-ephemeral';
+export const name = 'scribe-ephemeral';
 export const inject = ['sessionPersistence'];
 
 const PREFIX = '${DEEPSEEK_EPHEMERAL_PREFIX}';
@@ -201,7 +201,7 @@ class MemoryEntry {
 
 export function apply(ctx, config) {
   if (!['stateFile', 'readyFile', 'spillRoot', 'attachmentRoot'].every(key => typeof config?.[key] === 'string' && config[key])) {
-    throw new TypeError('Claudian ephemeral sessions require state, readiness, spill and attachment paths.');
+    throw new TypeError('Scribe ephemeral sessions require state, readiness, spill and attachment paths.');
   }
   const ready = { persistence: false, projectionGuard: false, workspaceGuard: false, spillGuard: false, attachmentGuard: false };
   const report = () => {
@@ -217,7 +217,7 @@ export function apply(ctx, config) {
   };
   const memory = new Map();
   const claimed = new Set();
-  // Claudian owns the state file and offers one token per fork; this process only remembers which it claimed.
+  // Scribe owns the state file and offers one token per fork; this process only remembers which it claimed.
   const claimFork = (parent, inheritedEventCount) => {
     let forks;
     try { forks = JSON.parse(readFileSync(config.stateFile, 'utf8')).forks; } catch { return false; }
@@ -254,7 +254,7 @@ export function apply(ctx, config) {
       return { header: entry.header, revision: 'memory:' + entry.events.length, eventCount: entry.events.length };
     },
   });
-  ctx.effect(() => () => { Object.assign(backend, original); }, 'claudian.ephemeral.persistence');
+  ctx.effect(() => () => { Object.assign(backend, original); }, 'scribe.ephemeral.persistence');
   // The backend routes live events only to its own handles.
   ctx.on('session/event', (session, event) => {
     const entry = memory.get(session.id);
@@ -288,7 +288,7 @@ export function apply(ctx, config) {
     for (const key of ['prompt', 'attachment']) {
       wrap(guardCtx.sessionController, key, method => function (request, ...args) {
         return admission.run(request.sessionId, () => method.call(this, request, ...args));
-      }, guardCtx, 'claudian.ephemeral.attachment-' + key);
+      }, guardCtx, 'scribe.ephemeral.attachment-' + key);
     }
     // An ephemeral fork may inherit durable references. Read those from native without copying or deleting them;
     // native's request-image implementation still puts every newly derived variant in the temporary store.
@@ -312,7 +312,7 @@ export function apply(ctx, config) {
       if (typeof store[key] !== 'function') continue;
       wrap(store, key, method => function (...args) {
         return ephemeral() ? temporary[key](...args) : method.apply(this, args);
-      }, guardCtx, 'claudian.ephemeral.attachments-' + key);
+      }, guardCtx, 'scribe.ephemeral.attachments-' + key);
     }
     // A successful Files API upload also creates a durable image index. Keep its native algorithm and locking, but
     // route ephemeral operations to a disposable index, including invalidation and quota-recovery rewrites.
@@ -320,7 +320,7 @@ export function apply(ctx, config) {
     for (const key of ['get', 'commit', 'remove', 'clear']) {
       wrap(DeepSeekUploadIndex.prototype, key, method => function (...args) {
         return method.apply(ephemeral() ? index : this, args);
-      }, guardCtx, 'claudian.ephemeral.uploads-' + key);
+      }, guardCtx, 'scribe.ephemeral.uploads-' + key);
     }
     ready.attachmentGuard = true;
     report();
@@ -328,27 +328,27 @@ export function apply(ctx, config) {
   // The projection cache keeps one never-pruned record per session, titled with its first user message.
   ctx.inject(['storageDomain', 'sessionProjectionCache'], guardCtx => {
     const domain = guardCtx.storageDomain.get('session_projcache');
-    if (!domain) { guardCtx.logger.warn('Claudian ephemeral sessions: the projection cache is not open.'); return; }
+    if (!domain) { guardCtx.logger.warn('Scribe ephemeral sessions: the projection cache is not open.'); return; }
     wrap(domain.table('sessions'), 'put', put => function (key, value) {
       return memory.has(key) ? Promise.resolve() : put.call(this, key, value);
-    }, guardCtx, 'claudian.ephemeral.projections');
+    }, guardCtx, 'scribe.ephemeral.projections');
     ready.projectionGuard = true;
     report();
   });
   // Native attaches forks to their parent's workspace; no workspace, archive or pin set may account an ephemeral session.
   ctx.inject(['storageDomain', 'workspaceRegistry'], guardCtx => {
     const domain = guardCtx.storageDomain.get('workspace');
-    if (!domain) { guardCtx.logger.warn('Claudian ephemeral sessions: workspaces are not open.'); return; }
+    if (!domain) { guardCtx.logger.warn('Scribe ephemeral sessions: workspaces are not open.'); return; }
     const without = ids => ids.filter(id => !memory.has(id));
     const record = value => Array.isArray(value?.sessionIds) ? { ...value, sessionIds: without(value.sessionIds) } : value;
     const table = domain.table('workspaces');
-    wrap(table, 'put', put => function (key, value) { return put.call(this, key, record(value)); }, guardCtx, 'claudian.ephemeral.workspace-put');
-    wrap(table, 'update', update => function (key, fn) { return update.call(this, key, current => record(fn(current))); }, guardCtx, 'claudian.ephemeral.workspace-update');
+    wrap(table, 'put', put => function (key, value) { return put.call(this, key, record(value)); }, guardCtx, 'scribe.ephemeral.workspace-put');
+    wrap(table, 'update', update => function (key, fn) { return update.call(this, key, current => record(fn(current))); }, guardCtx, 'scribe.ephemeral.workspace-update');
     wrap(domain.global, 'set', set => function (value) {
       const next = { ...value };
       for (const key of ['archivedSessionIds', 'pinnedSessionIds']) if (Array.isArray(next[key])) next[key] = without(next[key]);
       return set.call(this, next);
-    }, guardCtx, 'claudian.ephemeral.workspace-global');
+    }, guardCtx, 'scribe.ephemeral.workspace-global');
     ready.workspaceGuard = true;
     report();
   });
@@ -360,7 +360,7 @@ export function apply(ctx, config) {
       const path = join(config.spillRoot, randomBytes(6).toString('hex') + '-' + String(input.suggestedName).replace(/[^A-Za-z0-9._-]/g, '_'));
       writeFileSync(path, input.content, { mode: 0o600, flag: 'wx' });
       return { locator: path, bytes: Buffer.byteLength(input.content, 'utf8'), retrievalHint: 'Use read with offset/limit, or grep this path to search within it.' };
-    }, guardCtx, 'claudian.ephemeral.spill');
+    }, guardCtx, 'scribe.ephemeral.spill');
     ready.spillGuard = true;
     report();
   });

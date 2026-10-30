@@ -57,14 +57,14 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-history-load-more')?.click();
-    const previousList = container.querySelector('.claudian-history-list')!;
+    container.querySelector('.scribe-history-load-more')?.click();
+    const previousList = container.querySelector('.scribe-history-list')!;
     previousList.scrollTop = 320;
 
     controller.renderHistoryDropdown(container, options);
 
-    const rerenderedList = container.querySelector('.claudian-history-list')!;
-    expect(rerenderedList.querySelectorAll('.claudian-history-item')).toHaveLength(50);
+    const rerenderedList = container.querySelector('.scribe-history-list')!;
+    expect(rerenderedList.querySelectorAll('.scribe-history-item')).toHaveLength(50);
     expect(rerenderedList.scrollTop).toBe(320);
   });
 
@@ -82,10 +82,10 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-session-project-items')!.scrollTop = 180;
+    container.querySelector('.scribe-session-project-items')!.scrollTop = 180;
     controller.renderHistoryDropdown(container, options);
 
-    expect(container.querySelector('.claudian-session-project-items')!.scrollTop).toBe(180);
+    expect(container.querySelector('.scribe-session-project-items')!.scrollTop).toBe(180);
   });
 
   it('preserves the compact menu scroll, which moves its projects and sessions as one list', () => {
@@ -102,11 +102,11 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-history-list')!.scrollTop = 220;
+    container.querySelector('.scribe-history-list')!.scrollTop = 220;
     controller.renderHistoryDropdown(container, options);
 
-    const list = container.querySelector('.claudian-history-list')!;
-    expect(list.querySelector('.claudian-session-list-items')).not.toBeNull();
+    const list = container.querySelector('.scribe-history-list')!;
+    expect(list.querySelector('.scribe-session-list-items')).not.toBeNull();
     expect(list.scrollTop).toBe(220);
   });
 
@@ -128,14 +128,14 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-history-load-more')?.click();
-    const previousList = container.querySelector('.claudian-history-list')!;
+    container.querySelector('.scribe-history-load-more')?.click();
+    const previousList = container.querySelector('.scribe-history-list')!;
     previousList.scrollTop = 320;
 
     controller.renderHistoryDropdown(container, options);
 
-    const rerenderedList = container.querySelector('.claudian-history-list')!;
-    expect(rerenderedList.querySelectorAll('.claudian-history-item')).toHaveLength(50);
+    const rerenderedList = container.querySelector('.scribe-history-list')!;
+    expect(rerenderedList.querySelectorAll('.scribe-history-item')).toHaveLength(50);
     expect(rerenderedList.scrollTop).toBe(320);
   });
 
@@ -157,18 +157,18 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-history-load-more')?.click();
+    container.querySelector('.scribe-history-load-more')?.click();
     controller.renderHistoryDropdown(container, options);
-    expect(container.querySelectorAll('.claudian-history-item')).toHaveLength(50);
+    expect(container.querySelectorAll('.scribe-history-item')).toHaveLength(50);
 
     controller.renderHistoryDropdown(container, {
       ...options,
       searchQuery: 'missing',
     });
-    expect(container.querySelector('.claudian-history-list')?.dataset.visibleCount).toBe('50');
+    expect(container.querySelector('.scribe-history-list')?.dataset.visibleCount).toBe('50');
 
     controller.renderHistoryDropdown(container, options);
-    expect(container.querySelectorAll('.claudian-history-item')).toHaveLength(50);
+    expect(container.querySelectorAll('.scribe-history-item')).toHaveLength(50);
   });
 
   it('preserves dual-mode pinned and session scroll positions across a rerender', () => {
@@ -190,19 +190,19 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    const pinnedItems = container.querySelector('.claudian-history-section--pinned')!
-      .querySelector('.claudian-history-section-items')!;
-    const sessionItems = container.querySelector('.claudian-session-list-items')!;
+    const pinnedItems = container.querySelector('.scribe-history-section--pinned')!
+      .querySelector('.scribe-history-section-items')!;
+    const sessionItems = container.querySelector('.scribe-session-list-items')!;
     pinnedItems.scrollTop = 24;
     sessionItems.scrollTop = 320;
 
     controller.renderHistoryDropdown(container, options);
 
     expect(
-      container.querySelector('.claudian-history-section--pinned')!
-        .querySelector('.claudian-history-section-items')!.scrollTop,
+      container.querySelector('.scribe-history-section--pinned')!
+        .querySelector('.scribe-history-section-items')!.scrollTop,
     ).toBe(24);
-    expect(container.querySelector('.claudian-session-list-items')!.scrollTop).toBe(320);
+    expect(container.querySelector('.scribe-session-list-items')!.scrollTop).toBe(320);
   });
 
   it('preserves list position when archiving removes the final active session', () => {
@@ -222,12 +222,12 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-history-list')!.scrollTop = 120;
+    container.querySelector('.scribe-history-list')!.scrollTop = 120;
     conversation.isArchived = true;
 
     controller.renderHistoryDropdown(container, options);
 
-    expect(container.querySelector('.claudian-history-list')!.scrollTop).toBe(120);
+    expect(container.querySelector('.scribe-history-list')!.scrollTop).toBe(120);
   });
 
   it('installs surface controls before restoring preserved list position', () => {
@@ -239,7 +239,7 @@ describe('SessionListPosition', () => {
       onSelectConversation: vi.fn(),
       preserveListState: true,
       onBeforeRestoreListState: (listContainer: HTMLElement) => {
-        const list = listContainer.querySelector<HTMLElement>('.claudian-history-list')!;
+        const list = listContainer.querySelector<HTMLElement>('.scribe-history-list')!;
         list.insertBefore(createMockEl(), list.firstChild);
         // Installing controls resets scroll; restoration must run afterwards to win.
         list.scrollTop = 0;
@@ -247,11 +247,11 @@ describe('SessionListPosition', () => {
     };
 
     controller.renderHistoryDropdown(container, options);
-    container.querySelector('.claudian-history-list')!.scrollTop = 120;
+    container.querySelector('.scribe-history-list')!.scrollTop = 120;
 
     controller.renderHistoryDropdown(container, options);
 
-    expect(container.querySelector('.claudian-history-list')!.scrollTop).toBe(120);
+    expect(container.querySelector('.scribe-history-list')!.scrollTop).toBe(120);
   });
 
   it.each(['active', 'archived'] as const)(
@@ -259,7 +259,7 @@ describe('SessionListPosition', () => {
     (sessionScope) => {
       const container = createMockEl();
       const onBeforeRestoreListState = vi.fn((listContainer: HTMLElement) => {
-        const list = listContainer.querySelector('.claudian-history-list')!;
+        const list = listContainer.querySelector('.scribe-history-list')!;
         list.insertBefore(createMockEl(), list.firstChild);
       });
       (deps.plugin.getConversationList as Mock).mockReturnValue([]);
@@ -271,9 +271,9 @@ describe('SessionListPosition', () => {
         onBeforeRestoreListState,
       });
 
-      const list = container.querySelector('.claudian-history-list')!;
+      const list = container.querySelector('.scribe-history-list')!;
       expect(onBeforeRestoreListState).toHaveBeenCalledWith(container);
-      const emptyState = list.querySelector('.claudian-history-empty');
+      const emptyState = list.querySelector('.scribe-history-empty');
       expect(list.children[0]).not.toBe(emptyState);
       expect(emptyState).not.toBeNull();
     },

@@ -83,11 +83,11 @@ function renderRawResult(container: HTMLElement, tool: ToolSnapshot): void {
 }
 
 function addBadge(parent: HTMLElement, text: string, modifier: string): void {
-  parent.createSpan({ cls: `claudian-session-tool-badge claudian-session-tool-badge--${modifier}`, text });
+  parent.createSpan({ cls: `scribe-session-tool-badge scribe-session-tool-badge--${modifier}`, text });
 }
 
 // ============================================
-// claudian_list_destinations
+// scribe_list_destinations
 // ============================================
 
 export function renderListDestinationsContent(container: HTMLElement, tool: ToolSnapshot): void {
@@ -96,42 +96,42 @@ export function renderListDestinationsContent(container: HTMLElement, tool: Tool
     renderRawResult(container, tool);
     return;
   }
-  const root = container.createDiv({ cls: 'claudian-session-tool' });
+  const root = container.createDiv({ cls: 'scribe-session-tool' });
   if (destinations.sessions.length === 0) {
-    root.createDiv({ cls: 'claudian-tool-empty', text: t('chat.sessionTools.noSessions') });
+    root.createDiv({ cls: 'scribe-tool-empty', text: t('chat.sessionTools.noSessions') });
   } else {
-    const list = root.createEl('ul', { cls: 'claudian-session-tool-list' });
+    const list = root.createEl('ul', { cls: 'scribe-session-tool-list' });
     for (const session of destinations.sessions) {
-      const row = list.createEl('li', { cls: 'claudian-session-tool-row' });
+      const row = list.createEl('li', { cls: 'scribe-session-tool-row' });
       // The caller's own row names the transcript being read; it needs no link to itself.
       if (session.self) {
-        row.createSpan({ cls: 'claudian-session-tool-title', text: session.title });
+        row.createSpan({ cls: 'scribe-session-tool-title', text: session.title });
       } else {
-        createSessionLink(row, { sessionId: session.sessionId, text: session.title, cls: 'claudian-session-tool-title', tooltip: false });
+        createSessionLink(row, { sessionId: session.sessionId, text: session.title, cls: 'scribe-session-tool-title', tooltip: false });
       }
       if (session.self) addBadge(row, t('chat.sessionTools.thisSession'), 'self');
     }
   }
   if (destinations.truncated) {
-    root.createDiv({ cls: 'claudian-session-tool-note', text: t('chat.sessionTools.truncated') });
+    root.createDiv({ cls: 'scribe-session-tool-note', text: t('chat.sessionTools.truncated') });
   }
   // The catalog is for the agent; the user already knows their enabled models.
   if (destinations.hasProviders) {
-    root.createDiv({ cls: 'claudian-session-tool-note', text: t('chat.sessionTools.providersIncluded') });
+    root.createDiv({ cls: 'scribe-session-tool-note', text: t('chat.sessionTools.providersIncluded') });
   }
 }
 
 // ============================================
-// claudian_send_message
+// scribe_send_message
 // ============================================
 
 export function renderSendMessageContent(container: HTMLElement, tool: ToolSnapshot): void {
   const result = parseSendResult(tool);
-  const root = container.createDiv({ cls: 'claudian-session-tool' });
+  const root = container.createDiv({ cls: 'scribe-session-tool' });
   if (!result) {
     renderRawResult(root, tool);
   } else {
-    const fields = root.createEl('dl', { cls: 'claudian-session-tool-fields' });
+    const fields = root.createEl('dl', { cls: 'scribe-session-tool-fields' });
     const addField = (label: string): HTMLElement => {
       fields.createEl('dt', { text: label });
       return fields.createEl('dd');
@@ -142,7 +142,7 @@ export function renderSendMessageContent(container: HTMLElement, tool: ToolSnaps
       sessionId: result.sessionId,
       text: createdSession ? t('chat.sessionTools.newSession') : result.title,
       provider: result.provider,
-      cls: 'claudian-session-tool-title',
+      cls: 'scribe-session-tool-title',
     });
     // A plain send needs no delivery line; steering and interrupting are worth calling out.
     const mode = getInputText(tool.input, 'mode');
@@ -155,13 +155,13 @@ export function renderSendMessageContent(container: HTMLElement, tool: ToolSnaps
   }
   const text = getInputText(tool.input, 'text');
   if (text) {
-    root.createDiv({ cls: 'claudian-session-tool-heading', text: t('chat.sessionTools.message') });
-    root.createDiv({ cls: 'claudian-session-tool-message', text });
+    root.createDiv({ cls: 'scribe-session-tool-heading', text: t('chat.sessionTools.message') });
+    root.createDiv({ cls: 'scribe-session-tool-message', text });
   }
 }
 
 // ============================================
-// claudian_read_session
+// scribe_read_session
 // ============================================
 
 function parseTurn(value: unknown): number | undefined {
@@ -170,14 +170,14 @@ function parseTurn(value: unknown): number | undefined {
 
 export function renderReadSessionContent(container: HTMLElement, tool: ToolSnapshot): void {
   const result = parseResult(tool);
-  const root = container.createDiv({ cls: 'claudian-session-tool' });
+  const root = container.createDiv({ cls: 'scribe-session-tool' });
   const sessionId = optionalString(result?.sessionId) ?? getInputText(tool.input, 'sessionId');
   if (tool.result && !result) {
     renderRawResult(root, tool);
     return;
   }
   if (!sessionId) return;
-  const fields = root.createEl('dl', { cls: 'claudian-session-tool-fields' });
+  const fields = root.createEl('dl', { cls: 'scribe-session-tool-fields' });
   const addField = (label: string): HTMLElement => {
     fields.createEl('dt', { text: label });
     return fields.createEl('dd');
@@ -187,7 +187,7 @@ export function renderReadSessionContent(container: HTMLElement, tool: ToolSnaps
     sessionId,
     text: optionalString(result?.title),
     provider: optionalString(result?.provider),
-    cls: 'claudian-session-tool-title',
+    cls: 'scribe-session-tool-title',
   });
   const from = parseTurn(result?.fromTurn);
   const to = parseTurn(result?.toTurn);

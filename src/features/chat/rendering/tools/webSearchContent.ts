@@ -111,8 +111,8 @@ function renderWebSearchActionExpanded(container: HTMLElement, input: Record<str
     return rendered;
   }
   if (Array.isArray(input.requests)) {
-    const lines = container.createDiv({ cls: 'claudian-tool-lines' });
-    lines.createDiv({ cls: 'claudian-tool-line', text: getWebOperationLabel(getInputText(input, 'actionType')) });
+    const lines = container.createDiv({ cls: 'scribe-tool-lines' });
+    lines.createDiv({ cls: 'scribe-tool-line', text: getWebOperationLabel(getInputText(input, 'actionType')) });
     renderLinesExpanded(container, JSON.stringify(input.requests, null, 2), 20);
     return true;
   }
@@ -122,31 +122,31 @@ function renderWebSearchActionExpanded(container: HTMLElement, input: Record<str
     return false;
   }
 
-  const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
+  const linesEl = container.createDiv({ cls: 'scribe-tool-lines' });
 
   switch (data.actionType) {
     case 'click':
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.clickLink', { id: data.linkId }) });
+      linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.clickLink', { id: data.linkId }) });
       if (data.url) appendToolLink(linesEl, data.url, data.url);
       return true;
     case 'open_page':
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.openPage') });
+      linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.openPage') });
       if (data.url) {
         appendToolLink(linesEl, data.url, data.url);
       } else {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.urlUnavailable') });
+        linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.urlUnavailable') });
       }
       return true;
 
     case 'find_in_page':
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.findInPage') });
+      linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.findInPage') });
       if (data.url) {
         appendToolLink(linesEl, data.url, data.url);
       } else {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.urlUnavailable') });
+        linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.urlUnavailable') });
       }
       if (data.pattern) {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.pattern', { pattern: data.pattern }) });
+        linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.pattern', { pattern: data.pattern }) });
       }
       return true;
 
@@ -154,17 +154,17 @@ function renderWebSearchActionExpanded(container: HTMLElement, input: Record<str
     default: {
       const primaryQuery = data.query || data.queries[0];
       linesEl.createDiv({
-        cls: 'claudian-tool-line',
+        cls: 'scribe-tool-line',
         text: primaryQuery ? t('chat.web.query', { query: primaryQuery }) : t('chat.web.search'),
       });
 
       const alternateQueries = data.queries.filter(query => query !== primaryQuery);
       for (const query of alternateQueries.slice(0, 4)) {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.web.altQuery', { query }) });
+        linesEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.web.altQuery', { query }) });
       }
       if (alternateQueries.length > 4) {
         linesEl.createDiv({
-          cls: 'claudian-tool-truncated',
+          cls: 'scribe-tool-truncated',
           text: t('chat.web.moreQueries', { count: alternateQueries.length - 4 }),
         });
       }
@@ -183,7 +183,7 @@ export function renderWebSearchExpanded(
   const renderedRequest = renderWebSearchActionExpanded(container, input);
   const links = structuredResults?.length ? structuredResults : parseWebSearchLinks(result ?? '');
   if (links.length > 0) {
-    const linksEl = container.createDiv({ cls: 'claudian-tool-lines' });
+    const linksEl = container.createDiv({ cls: 'scribe-tool-lines' });
     for (const link of links) appendToolLink(linksEl, link.title, link.url);
   } else if (!renderedRequest) {
     renderEmptyResult(container);

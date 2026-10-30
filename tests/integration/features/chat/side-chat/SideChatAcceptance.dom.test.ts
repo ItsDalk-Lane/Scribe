@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import '@/providers';
 
-import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
 import { createProjectsFake, projectRecord } from '@test/helpers/features/chat/ProjectsFake';
+import { createScribeView } from '@test/helpers/features/chat/ScribeViewHarness';
 import {
   createHarness,
   releaseSideChatHarnesses,
@@ -33,7 +33,7 @@ it('delivers an admitted prompt to the child even when the panel collapses durin
   expect(harness.backend.latest.requests[0].input).toEqual([{ text: 'Explore B', type: 'text' }]);
   // Late preparation cannot force the panel open again.
   expect(harness.controller.destination).toBe('main');
-  expect(harness.composerEl.classList.contains('claudian-side-chat-expanded')).toBe(false);
+  expect(harness.composerEl.classList.contains('scribe-side-chat-expanded')).toBe(false);
   expect(screen.getByRole('button', { name: 'Side chat' })).toBeTruthy();
 });
 
@@ -84,7 +84,7 @@ it('admits only one child per main conversation while startup is pending', async
 it('keeps one composer mounted and the collapsed status bar visible for every state', async () => {
   const harness = createHarness();
   const { started } = await startSideChat(harness);
-  const composerCount = () => harness.composerEl.querySelectorAll('.claudian-input-wrapper').length;
+  const composerCount = () => harness.composerEl.querySelectorAll('.scribe-input-wrapper').length;
   expect(composerCount()).toBe(1);
 
   harness.controller.collapse();
@@ -199,7 +199,7 @@ it('refreshes side completion timestamps when the view timestamp setting changes
     harness.plugin,
     () => { throw new Error('Timestamp refresh must not read the runtime'); },
   );
-  const view = createClaudianView({ tabManager: { getAllTabs: () => [tab] } });
+  const view = createScribeView({ tabManager: { getAllTabs: () => [tab] } });
   const clock = vi.spyOn(Date, 'now').mockReturnValue(testDate().getTime());
   try {
     const { started } = await startSideChat(harness);

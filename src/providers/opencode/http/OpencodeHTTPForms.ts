@@ -18,7 +18,7 @@ export function projectOpencodeFormQuestions(form: Record<string, unknown>): Ask
       || ['format', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'maxItems'].some(key => field[key] !== undefined)
       || (field.type === 'multiselect' && field.minItems !== 1);
   });
-  if (!fields.length || unsupported) throw new Error('Unsupported OpenCode form: this form requires field semantics unavailable in Claudian.');
+  if (!fields.length || unsupported) throw new Error('Unsupported OpenCode form: this form requires field semantics unavailable in Scribe.');
   return fields.map(field => {
     const title = questionTool ? field.title : form.title;
     return {

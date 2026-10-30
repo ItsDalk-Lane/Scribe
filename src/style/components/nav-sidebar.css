@@ -1,5 +1,5 @@
 /* Navigation Sidebar */
-.claudian-nav-sidebar {
+.scribe-nav-sidebar {
     position: absolute;
     right: 2px;
     top: 50%;
@@ -16,16 +16,16 @@
     transition: opacity 0.2s ease, visibility 0.2s;
 }
 
-.claudian-nav-sidebar.visible {
+.scribe-nav-sidebar.visible {
     opacity: 1;
     pointer-events: auto;
     visibility: visible;
 }
 
 /* Buttons dim individually, so keyboard focus can reveal one without lingering after a mouse click. */
-.claudian-nav-sidebar button.claudian-nav-btn,
-.claudian-nav-sidebar button.claudian-nav-btn:focus,
-.claudian-nav-sidebar button.claudian-nav-btn:active {
+.scribe-nav-sidebar button.scribe-nav-btn,
+.scribe-nav-sidebar button.scribe-nav-btn:focus,
+.scribe-nav-sidebar button.scribe-nav-btn:active {
     opacity: 0.15;
     width: 32px;
     height: 32px;
@@ -42,29 +42,29 @@
     transition: all 0.2s ease;
 }
 
-.claudian-nav-sidebar button.claudian-nav-btn:hover {
+.scribe-nav-sidebar button.scribe-nav-btn:hover {
     background: var(--background-secondary);
     color: var(--text-normal);
     box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
     transform: scale(1.05);
 }
 
-.claudian-nav-sidebar:hover button.claudian-nav-btn {
+.scribe-nav-sidebar:hover button.scribe-nav-btn {
     opacity: 1;
 }
 
-.claudian-nav-sidebar button.claudian-nav-btn:focus-visible {
+.scribe-nav-sidebar button.scribe-nav-btn:focus-visible {
     opacity: 1;
     outline: 2px solid var(--interactive-accent);
     outline-offset: 1px;
 }
 
-.claudian-nav-btn svg {
+.scribe-nav-btn svg {
     width: 18px;
     height: 18px;
 }
 
-.claudian-nav-toc-popover {
+.scribe-nav-toc-popover {
     position: absolute;
     right: 42px;
     top: 50%;
@@ -83,18 +83,18 @@
     box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
 }
 
-body.theme-dark .claudian-nav-toc-popover {
+body.theme-dark .scribe-nav-toc-popover {
     background-color: #1e1e1e;
 }
 
-.claudian-nav-toc-title {
+.scribe-nav-toc-title {
     padding: 4px 6px 8px;
     color: var(--text-muted);
     font-size: var(--font-ui-smaller);
     font-weight: 600;
 }
 
-.claudian-nav-toc-list {
+.scribe-nav-toc-list {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -102,8 +102,8 @@ body.theme-dark .claudian-nav-toc-popover {
     min-height: 0;
 }
 
-.claudian-nav-toc-popover button.claudian-nav-toc-item,
-.claudian-nav-toc-popover button.claudian-nav-toc-item:active {
+.scribe-nav-toc-popover button.scribe-nav-toc-item,
+.scribe-nav-toc-popover button.scribe-nav-toc-item:active {
     display: block;
     flex-shrink: 0;
     box-sizing: border-box;
@@ -127,19 +127,19 @@ body.theme-dark .claudian-nav-toc-popover {
     white-space: nowrap;
 }
 
-.claudian-nav-toc-popover button.claudian-nav-toc-item:hover,
-.claudian-nav-toc-popover button.claudian-nav-toc-item:focus {
+.scribe-nav-toc-popover button.scribe-nav-toc-item:hover,
+.scribe-nav-toc-popover button.scribe-nav-toc-item:focus {
     background: var(--background-secondary);
     box-shadow: none;
     outline: none;
 }
 
-.claudian-nav-toc-popover button.claudian-nav-toc-item:focus-visible {
+.scribe-nav-toc-popover button.scribe-nav-toc-item:focus-visible {
     outline: 2px solid var(--interactive-accent);
     outline-offset: -2px;
 }
 
-.claudian-nav-toc-empty {
+.scribe-nav-toc-empty {
     padding: 8px;
     color: var(--text-muted);
     font-size: var(--font-ui-small);
@@ -147,10 +147,10 @@ body.theme-dark .claudian-nav-toc-popover {
 }
 
 /* Specific button spacing/grouping if needed */
-.claudian-nav-btn-top {
+.scribe-nav-btn-top {
     margin-bottom: 4px;
 }
 
-.claudian-nav-btn-bottom {
+.scribe-nav-btn-bottom {
     margin-top: 4px;
 }

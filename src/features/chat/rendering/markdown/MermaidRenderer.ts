@@ -1,5 +1,7 @@
 import { loadMermaid, setIcon } from 'obsidian';
 
+import { t } from '@/i18n/i18n';
+
 interface MermaidApi {
   render(id: string, source: string, container: HTMLElement): Promise<{ svg: string }>;
 }
@@ -33,8 +35,8 @@ export async function renderMermaidDiagrams(
       const mermaid = await loadMermaid() as MermaidApi;
       if (!isCurrent() || !container.contains(code)) return;
       const doc = container.ownerDocument;
-      staging = doc.body.createDiv({ cls: 'claudian-mermaid-staging' });
-      const { svg } = await mermaid.render(`claudian-mermaid-${nextDiagramId++}`, code.textContent ?? '', staging);
+      staging = doc.body.createDiv({ cls: 'scribe-mermaid-staging' });
+      const { svg } = await mermaid.render(`scribe-mermaid-${nextDiagramId++}`, code.textContent ?? '', staging);
       if (!isCurrent() || !container.contains(code) || typeof svg !== 'string') continue;
       const direct = new DOMParser().parseFromString(svg, 'image/svg+xml');
       // An HTML reparse is lossy for SVG content outside labels, so keep well-formed output as is.
@@ -45,27 +47,27 @@ export async function renderMermaidDiagrams(
         || parsed.querySelector('parsererror, .error-icon, .error-text')
         || !parsed.documentElement.children.length) continue;
 
-      const wrapper = code.closest<HTMLElement>('.claudian-code-wrapper');
+      const wrapper = code.closest<HTMLElement>('.scribe-code-wrapper');
       if (!wrapper) continue;
-      const diagram = staging.createDiv({ cls: 'claudian-mermaid' });
+      const diagram = staging.createDiv({ cls: 'scribe-mermaid' });
       const image = diagram.createEl('img');
-      image.alt = 'Mermaid diagram';
+      image.alt = t('chat.displayFeedback.mermaidDiagram');
       // An image document cannot execute SVG scripts or bind Mermaid click callbacks.
       image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
       const source = diagram.createDiv();
       source.hidden = true;
       const toggle = diagram.createEl('button', {
-        cls: 'claudian-mermaid-toggle',
+        cls: 'scribe-mermaid-toggle',
         attr: { type: 'button' },
       });
-      toggle.setAttribute('aria-label', 'Show diagram source');
+      toggle.setAttribute('aria-label', t('chat.displayFeedback.mermaidSource'));
       setIcon(toggle, 'code-2');
       source.tabIndex = -1;
       const showSource = (visible: boolean) => {
         source.hidden = !visible;
         image.hidden = visible;
         toggle.hidden = visible;
-        diagram.classList.toggle('claudian-mermaid--source', visible);
+        diagram.classList.toggle('scribe-mermaid--source', visible);
       };
       toggle.addEventListener('click', () => {
         showSource(true);

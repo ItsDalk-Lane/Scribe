@@ -5,6 +5,7 @@ import { within } from '@testing-library/dom';
 
 import type { UsageInfo } from '@/core/types';
 import { ContextUsageMeter } from '@/features/chat/composer/toolbar/ContextUsageMeter';
+import { setLocale } from '@/i18n/i18n';
 
 HTMLElement.prototype.empty = function () { this.replaceChildren(); };
 HTMLElement.prototype.addClass = function (...classes) { this.classList.add(...classes); };
@@ -16,10 +17,19 @@ HTMLElement.prototype.toggleClass = function (classes, value) {
 
 // The visibility utility from styles, so role queries skip a hidden meter.
 const hiddenStyle = document.head.appendChild(document.createElement('style'));
-hiddenStyle.textContent = '.claudian-hidden { display: none; }';
+hiddenStyle.textContent = '.scribe-hidden { display: none; }';
 
 afterEach(() => {
+  setLocale('en');
   document.body.replaceChildren();
+});
+
+it('localizes the context usage description', () => {
+  setLocale('zh-CN');
+  const host = document.body.createDiv();
+  const meter = new ContextUsageMeter(host);
+  meter.update({ contextTokens: 170000, contextWindow: 200000, percentage: 85 } as UsageInfo);
+  expect(within(host).getByRole('progressbar', { name: '上下文使用量：85% · 170k / 200k（接近上限，运行 `/compact` 以继续）' })).toBeDefined();
 });
 
 it('shows accessible context usage with one native tooltip and warns only above 80%', async () => {

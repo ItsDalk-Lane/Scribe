@@ -54,11 +54,11 @@ function fireKeyDown(
 }
 
 function findRoot(container: any): any {
-  return container.querySelector('.claudian-ask-question-inline');
+  return container.querySelector('.scribe-ask-question-inline');
 }
 
 function findItems(container: any): any[] {
-  return container.querySelectorAll('claudian-ask-item');
+  return container.querySelectorAll('scribe-ask-item');
 }
 
 describe('InlineAskUserQuestion', () => {
@@ -83,7 +83,7 @@ describe('InlineAskUserQuestion', () => {
         { question: 'First question?', options: ['A'] },
         { question: 'Second question?', options: ['B'] },
       ]));
-      const tabs = container.querySelectorAll('claudian-ask-tab') as HTMLElement[];
+      const tabs = container.querySelectorAll('scribe-ask-tab') as HTMLElement[];
       expect(tabs.map(tab => tab.getAttribute('title'))).toEqual([null, null, null]);
     });
 
@@ -95,8 +95,8 @@ describe('InlineAskUserQuestion', () => {
       const { container, resolve } = renderWidget(input);
       // Should render — Q2 is valid
       expect(resolve).not.toHaveBeenCalled();
-      expect(container.querySelectorAll('claudian-ask-tab')).toHaveLength(2);
-      expect(container.querySelector('claudian-ask-question-text')?.textContent).toBe('Q2');
+      expect(container.querySelectorAll('scribe-ask-tab')).toHaveLength(2);
+      expect(container.querySelector('scribe-ask-question-text')?.textContent).toBe('Q2');
       findItems(container)[0]?.click();
       findItems(container)[0]?.click();
       expect(resolve).toHaveBeenCalledWith({ Q2: 'A' });
@@ -127,7 +127,7 @@ describe('InlineAskUserQuestion', () => {
       const { container, resolve } = renderWidget(input);
 
       expect(resolve).not.toHaveBeenCalled();
-      expect(container.querySelector('claudian-ask-custom-item')).not.toBeNull();
+      expect(container.querySelector('scribe-ask-custom-item')).not.toBeNull();
     });
 
     it('filters out entries missing required fields', () => {
@@ -142,8 +142,8 @@ describe('InlineAskUserQuestion', () => {
       const { container, resolve } = renderWidget(input);
       // Only "Valid" survives — widget should render
       expect(resolve).not.toHaveBeenCalled();
-      expect(container.querySelectorAll('claudian-ask-tab')).toHaveLength(2);
-      expect(container.querySelector('claudian-ask-question-text')?.textContent).toBe('Valid');
+      expect(container.querySelectorAll('scribe-ask-tab')).toHaveLength(2);
+      expect(container.querySelector('scribe-ask-question-text')?.textContent).toBe('Valid');
       findItems(container)[0]?.click();
       findItems(container)[0]?.click();
       expect(resolve).toHaveBeenCalledWith({ Valid: 'A' });
@@ -155,12 +155,12 @@ describe('InlineAskUserQuestion', () => {
       ]);
       const { container } = renderWidget(input);
       // Find option items (excluding custom input row)
-      const items = container.querySelectorAll('claudian-ask-item');
+      const items = container.querySelectorAll('scribe-ask-item');
       // 2 unique options + 1 custom input row = 3
       const optionLabels = items
-        .filter((item: any) => !item.hasClass('claudian-ask-custom-item'))
+        .filter((item: any) => !item.hasClass('scribe-ask-custom-item'))
         .map((item: any) => {
-          const labelEl = item.querySelector('claudian-ask-item-label');
+          const labelEl = item.querySelector('scribe-ask-item-label');
           return labelEl?.textContent;
         });
       expect(optionLabels).toEqual(['A', 'B']);
@@ -172,7 +172,7 @@ describe('InlineAskUserQuestion', () => {
         { question: 'Second', options: ['B'] },
       ]);
       const { container } = renderWidget(input);
-      const tabLabels = container.querySelectorAll('claudian-ask-tab-label');
+      const tabLabels = container.querySelectorAll('scribe-ask-tab-label');
       // Tab labels: MyHeader, Q2, Submit
       expect(tabLabels[0]?.textContent).toBe('MyHeader');
       expect(tabLabels[1]?.textContent).toBe('Q2');
@@ -187,11 +187,11 @@ describe('InlineAskUserQuestion', () => {
       const { container } = renderWidget(input);
 
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
 
-      expect(container.querySelector('claudian-ask-review-title')?.textContent).toBe('Review your answers');
+      expect(container.querySelector('scribe-ask-review-title')?.textContent).toBe('Review your answers');
     });
 
     it('truncates header to 12 characters', () => {
@@ -199,7 +199,7 @@ describe('InlineAskUserQuestion', () => {
         { question: 'Q', options: ['A'], header: 'VeryLongHeaderText' },
       ]);
       const { container } = renderWidget(input);
-      const tabLabels = container.querySelectorAll('claudian-ask-tab-label');
+      const tabLabels = container.querySelectorAll('scribe-ask-tab-label');
       expect(tabLabels[0]?.textContent).toBe('VeryLongHead');
     });
   });
@@ -209,7 +209,7 @@ describe('InlineAskUserQuestion', () => {
       const input = makeInput([{ question: 'Q', options: ['Yes', 'No'] }]);
       const { container } = renderWidget(input);
       const labels = container
-        .querySelectorAll('claudian-ask-item-label')
+        .querySelectorAll('scribe-ask-item-label')
         .map((el: any) => el.textContent);
       expect(labels).toContain('Yes');
       expect(labels).toContain('No');
@@ -229,7 +229,7 @@ describe('InlineAskUserQuestion', () => {
       ]);
       const { container } = renderWidget(input);
       const labels = container
-        .querySelectorAll('claudian-ask-item-label')
+        .querySelectorAll('scribe-ask-item-label')
         .map((el: any) => el.textContent);
       expect(labels).toContain('Option A');
       expect(labels).toContain('Option B');
@@ -242,7 +242,7 @@ describe('InlineAskUserQuestion', () => {
         { question: 'Q', options: [{ label: 'A', description: 'Some desc' }] },
       ]);
       const { container } = renderWidget(input);
-      const descEl = container.querySelector('claudian-ask-item-desc');
+      const descEl = container.querySelector('scribe-ask-item-desc');
       expect(descEl?.textContent).toBe('Some desc');
     });
 
@@ -250,7 +250,7 @@ describe('InlineAskUserQuestion', () => {
       const input = makeInput([{ question: 'Q', options: [42] }]);
       const { container } = renderWidget(input);
       const labels = container
-        .querySelectorAll('claudian-ask-item-label')
+        .querySelectorAll('scribe-ask-item-label')
         .map((el: any) => el.textContent);
       expect(labels).toContain('42');
     });
@@ -264,7 +264,7 @@ describe('InlineAskUserQuestion', () => {
       ]);
       const { container, resolve } = renderWidget(input);
       const labels = container
-        .querySelectorAll('claudian-ask-item-label')
+        .querySelectorAll('scribe-ask-item-label')
         .map((el: any) => el.textContent);
       expect(labels).toContain('Approve and remember');
       findItems(container)[0]?.click();
@@ -283,15 +283,15 @@ describe('InlineAskUserQuestion', () => {
 
       // Click first option
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       vi.advanceTimersByTime(200);
 
       // Auto-advanced to submit tab — now submit
-      const submitItems = container.querySelectorAll('claudian-ask-item');
+      const submitItems = container.querySelectorAll('scribe-ask-item');
       const submitRow = submitItems.find(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       submitRow?.click();
 
@@ -306,20 +306,20 @@ describe('InlineAskUserQuestion', () => {
       const { container } = renderWidget(input);
 
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       // Select X and Y
       items[0]?.click();
       items[1]?.click();
 
       // Check marks for multi-select
-      const checks = container.querySelectorAll('claudian-ask-check');
+      const checks = container.querySelectorAll('scribe-ask-check');
       const checkedCount = checks.filter((c: any) => c.hasClass('is-checked')).length;
       expect(checkedCount).toBe(2);
 
       // Deselect X
       items[0]?.click();
-      const checksAfter = container.querySelectorAll('claudian-ask-check');
+      const checksAfter = container.querySelectorAll('scribe-ask-check');
       const checkedAfter = checksAfter.filter((c: any) => c.hasClass('is-checked')).length;
       expect(checkedAfter).toBe(1);
     });
@@ -357,22 +357,22 @@ describe('InlineAskUserQuestion', () => {
 
       // Select "Red" for Q1
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       vi.advanceTimersByTime(200);
 
       // Now on Q2 — select "M" (index 1)
       const q2Items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       q2Items[1]?.click();
       vi.advanceTimersByTime(200);
 
       // Now on submit tab — click submit
-      const submitItems = container.querySelectorAll('claudian-ask-item');
+      const submitItems = container.querySelectorAll('scribe-ask-item');
       const submitRow = submitItems.find(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       submitRow?.click();
 
@@ -390,7 +390,7 @@ describe('InlineAskUserQuestion', () => {
       const { container, resolve } = renderWidget(input);
 
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       items[1]?.click();
@@ -411,13 +411,13 @@ describe('InlineAskUserQuestion', () => {
         questions: [{ question: 'Pick one', options: ['A', 'B'], isOther: false }],
       };
       const { container: noOther } = renderWidget(disallowOtherInput);
-      expect(noOther.querySelectorAll('claudian-ask-custom-item')).toHaveLength(0);
+      expect(noOther.querySelectorAll('scribe-ask-custom-item')).toHaveLength(0);
 
       const allowOtherInput = {
         questions: [{ question: 'Pick one', options: ['A', 'B'], isOther: true }],
       };
       const { container: withOther } = renderWidget(allowOtherInput);
-      expect(withOther.querySelectorAll('claudian-ask-custom-item')).toHaveLength(1);
+      expect(withOther.querySelectorAll('scribe-ask-custom-item')).toHaveLength(1);
     });
   });
 
@@ -434,22 +434,22 @@ describe('InlineAskUserQuestion', () => {
 
       // Select "Red" for Q1
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       vi.advanceTimersByTime(200);
 
       // Select "M" for Q2
       const q2Items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       q2Items[1]?.click();
       vi.advanceTimersByTime(200);
 
       // Submit
-      const submitItems = container.querySelectorAll('claudian-ask-item');
+      const submitItems = container.querySelectorAll('scribe-ask-item');
       const submitRow = submitItems.find(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       submitRow?.click();
 
@@ -600,7 +600,7 @@ describe('InlineAskUserQuestion', () => {
       fireKeyDown(root, 'Tab');
 
       // Should now be on Q2 — check tab bar
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[1]?.hasClass('is-active')).toBe(true);
     });
 
@@ -616,7 +616,7 @@ describe('InlineAskUserQuestion', () => {
       fireKeyDown(root, 'Tab');
       fireKeyDown(root, 'Tab', { shiftKey: true });
 
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[0]?.hasClass('is-active')).toBe(true);
     });
 
@@ -630,7 +630,7 @@ describe('InlineAskUserQuestion', () => {
 
       fireKeyDown(root, 'ArrowRight');
 
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[1]?.hasClass('is-active')).toBe(true);
     });
 
@@ -642,7 +642,7 @@ describe('InlineAskUserQuestion', () => {
 
       // Select option A
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       vi.advanceTimersByTime(200);
@@ -662,7 +662,7 @@ describe('InlineAskUserQuestion', () => {
 
       // Select A and auto-advance to submit
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       vi.advanceTimersByTime(200);
@@ -686,7 +686,7 @@ describe('InlineAskUserQuestion', () => {
       vi.advanceTimersByTime(200);
 
       // After auto-advance we should be on submit tab
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       const submitTab = tabs[tabs.length - 1];
       expect(submitTab?.hasClass('is-active')).toBe(true);
 
@@ -698,7 +698,7 @@ describe('InlineAskUserQuestion', () => {
       const { container } = renderWidget(input);
 
       const items = findItems(container);
-      const customItem = items.find((i: any) => i.hasClass('claudian-ask-custom-item'));
+      const customItem = items.find((i: any) => i.hasClass('scribe-ask-custom-item'));
       customItem?.click();
 
       expect(customItem?.hasClass('is-focused')).toBe(true);
@@ -710,7 +710,7 @@ describe('InlineAskUserQuestion', () => {
       const root = findRoot(container);
 
       const items = findItems(container);
-      const customItem = items.find((i: any) => i.hasClass('claudian-ask-custom-item'));
+      const customItem = items.find((i: any) => i.hasClass('scribe-ask-custom-item'));
       // Simulate click on custom row (focusedItemIndex = options.length, isInputFocused = true)
       customItem?.click();
 
@@ -719,7 +719,7 @@ describe('InlineAskUserQuestion', () => {
       // Focus should move to the last regular option (index = options.length - 1)
       const updatedItems = findItems(container);
       const lastOption = updatedItems.filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       expect(lastOption[lastOption.length - 1]?.hasClass('is-focused')).toBe(true);
       expect(customItem?.hasClass('is-focused')).toBe(false);
@@ -739,12 +739,12 @@ describe('InlineAskUserQuestion', () => {
 
       // First Enter activates input
       fireKeyDown(root, 'Enter');
-      expect(container.querySelectorAll('claudian-ask-tab')[0]?.hasClass('is-active')).toBe(true);
+      expect(container.querySelectorAll('scribe-ask-tab')[0]?.hasClass('is-active')).toBe(true);
       // Second Enter advances
       fireKeyDown(root, 'Enter');
 
       // Should be on Q2 tab now
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[1]?.hasClass('is-active')).toBe(true);
     });
 
@@ -754,7 +754,7 @@ describe('InlineAskUserQuestion', () => {
       const root = findRoot(container);
 
       const items = findItems(container);
-      const customItem = items.find((i: any) => i.hasClass('claudian-ask-custom-item'));
+      const customItem = items.find((i: any) => i.hasClass('scribe-ask-custom-item'));
       customItem?.click();
 
       fireKeyDown(root, 'ArrowDown');
@@ -782,12 +782,12 @@ describe('InlineAskUserQuestion', () => {
       expect(resolve).not.toHaveBeenCalled();
 
       // Should still be on Q1 tab
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[0]?.hasClass('is-active')).toBe(true);
 
       // Custom row should still be focused in navigation mode
       const items = findItems(container);
-      const customItem = items.find((i: any) => i.hasClass('claudian-ask-custom-item'));
+      const customItem = items.find((i: any) => i.hasClass('scribe-ask-custom-item'));
       expect(customItem?.hasClass('is-focused')).toBe(true);
     });
 
@@ -805,9 +805,9 @@ describe('InlineAskUserQuestion', () => {
 
       // Simulate typing text
       const customItem = findItems(container).find((i: any) =>
-        i.hasClass('claudian-ask-custom-item'),
+        i.hasClass('scribe-ask-custom-item'),
       );
-      const inputEl = customItem?.querySelector('.claudian-ask-custom-text');
+      const inputEl = customItem?.querySelector('.scribe-ask-custom-text');
       inputEl.value = 'my custom text';
       inputEl.dispatchEvent({ type: 'input' });
 
@@ -815,7 +815,7 @@ describe('InlineAskUserQuestion', () => {
       fireKeyDown(root, 'Enter');
 
       // Should be on Q2 tab
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[1]?.hasClass('is-active')).toBe(true);
     });
 
@@ -827,13 +827,13 @@ describe('InlineAskUserQuestion', () => {
       const { container, widget } = renderWidget(input);
       const root = findRoot(container);
       const customItem = findItems(container).find((item: any) =>
-        item.hasClass('claudian-ask-custom-item'),
+        item.hasClass('scribe-ask-custom-item'),
       );
 
       customItem?.click();
       fireKeyDown(root, 'Enter', { isComposing: true });
 
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs[0]?.hasClass('is-active')).toBe(true);
       expect((widget as any).isInputFocused).toBe(true);
     });
@@ -867,14 +867,14 @@ describe('InlineAskUserQuestion - immediateSelect mode', () => {
       const { container, resolve } = renderImmediateWidget(input);
 
       // Should render tab bar (immediateSelect disabled due to multi-question)
-      const tabBar = container.querySelector('claudian-ask-tab-bar');
+      const tabBar = container.querySelector('scribe-ask-tab-bar');
       expect(tabBar).not.toBeNull();
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs.length).toBeGreaterThan(0);
 
       // Should NOT resolve immediately on click (normal multi-tab flow)
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
       expect(resolve).not.toHaveBeenCalled();
@@ -885,36 +885,36 @@ describe('InlineAskUserQuestion - immediateSelect mode', () => {
     it('does not render tab bar', () => {
       const input = makeInput([{ question: 'Pick', options: ['A', 'B'] }]);
       const { container } = renderImmediateWidget(input);
-      const tabBar = container.querySelector('claudian-ask-tab-bar');
+      const tabBar = container.querySelector('scribe-ask-tab-bar');
       expect(tabBar).toBeNull();
-      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const tabs = container.querySelectorAll('scribe-ask-tab');
       expect(tabs).toHaveLength(0);
     });
 
     it('does not render custom input row', () => {
       const input = makeInput([{ question: 'Pick', options: ['A', 'B'], isOther: true }]);
       const { container } = renderImmediateWidget(input);
-      const customItems = container.querySelectorAll('claudian-ask-custom-item');
+      const customItems = container.querySelectorAll('scribe-ask-custom-item');
       expect(customItems).toHaveLength(0);
     });
 
     it('uses custom title when provided', () => {
       const input = makeInput([{ question: 'Pick', options: ['A'] }]);
       const { container } = renderImmediateWidget(input, { title: 'Permission required' });
-      const title = container.querySelector('claudian-ask-inline-title');
+      const title = container.querySelector('scribe-ask-inline-title');
       expect(title?.textContent).toBe('Permission required');
     });
 
     it('renders headerEl between title and content', () => {
       const headerEl = createMockEl('div');
-      headerEl.addClass('claudian-ask-approval-info');
+      headerEl.addClass('scribe-ask-approval-info');
       const input = makeInput([{ question: 'Pick', options: ['A'] }]);
       const { container } = renderImmediateWidget(input, { headerEl: headerEl as any });
       const root = findRoot(container);
-      expect(root.children.some((c: any) => c.hasClass('claudian-ask-approval-info'))).toBe(true);
-      expect(root.children[0].hasClass('claudian-ask-inline-title')).toBe(true);
+      expect(root.children.some((c: any) => c.hasClass('scribe-ask-approval-info'))).toBe(true);
+      expect(root.children[0].hasClass('scribe-ask-inline-title')).toBe(true);
       expect(root.children[1]).toBe(headerEl);
-      expect(root.children[2].hasClass('claudian-ask-content')).toBe(true);
+      expect(root.children[2].hasClass('scribe-ask-content')).toBe(true);
     });
   });
 
@@ -924,7 +924,7 @@ describe('InlineAskUserQuestion - immediateSelect mode', () => {
       const { container, resolve } = renderImmediateWidget(input);
 
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
 
@@ -936,7 +936,7 @@ describe('InlineAskUserQuestion - immediateSelect mode', () => {
       const { container, resolve } = renderImmediateWidget(input);
 
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[1]?.click();
 
@@ -952,7 +952,7 @@ describe('InlineAskUserQuestion - immediateSelect mode', () => {
       const { container, resolve } = renderImmediateWidget(input);
 
       const items = findItems(container).filter(
-        (i: any) => !i.hasClass('claudian-ask-custom-item'),
+        (i: any) => !i.hasClass('scribe-ask-custom-item'),
       );
       items[0]?.click();
 

@@ -54,7 +54,7 @@ beforeEach(async () => {
   port = { requestApproval: vi.fn(), askUserQuestion: vi.fn(), dismissInteraction: vi.fn() };
   peer = new NativePeer();
   const native = nativeDefaults({ seq: () => seq, roster: () => ['root'] });
-  peer.onCall = (method, args) => method === 'session/create' ? { sessionId: 'root', agentPreset: 'claudian' } : native.call(method, args);
+  peer.onCall = (method, args) => method === 'session/create' ? { sessionId: 'root', agentPreset: 'scribe' } : native.call(method, args);
   peer.onOpen = native.open;
   await peer.open();
   ({ deepseek } = peer.host());
@@ -186,9 +186,9 @@ it('restores an answered native question from history as its answered review, no
     { type: 'turn/end', seq: 4, time, data: { turn: 3, reason: { kind: 'completed' } } },
   ].map(event => ({ type: 'event', event }));
   const native = peer.onCall;
-  peer.onCall = (method, args) => method === 'session/projections' ? { asOfSeq: 4, values: { agentPreset: 'claudian' } }
+  peer.onCall = (method, args) => method === 'session/projections' ? { asOfSeq: 4, values: { agentPreset: 'scribe' } }
     : method === 'session/page' ? { records, hasMore: false } : native(method, args);
-  const providerState = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'claudian' };
+  const providerState = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'scribe' };
   const { messages } = await new DeepSeekConversationHistoryService(async () => deepseek).hydrateConversationHistory({ sessionId: 'root', providerState, messages: [] }, '/vault');
   const tool = messages!.flatMap(message => message.toolCalls ?? [])[0];
   document.body.replaceChildren();
@@ -211,9 +211,9 @@ it('keeps own __proto__ answers through history hydration as a visible answered 
     { type: 'turn/end', seq: 4, time, data: { turn: 3, reason: { kind: 'completed' } } },
   ].map(event => ({ type: 'event', event }));
   const native = peer.onCall;
-  peer.onCall = (method, args) => method === 'session/projections' ? { asOfSeq: 4, values: { agentPreset: 'claudian' } }
+  peer.onCall = (method, args) => method === 'session/projections' ? { asOfSeq: 4, values: { agentPreset: 'scribe' } }
     : method === 'session/page' ? { records, hasMore: false } : native(method, args);
-  const providerState = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'claudian' };
+  const providerState = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'scribe' };
   const { messages } = await new DeepSeekConversationHistoryService(async () => deepseek).hydrateConversationHistory({ sessionId: 'root', providerState, messages: [] }, '/vault');
   const tool = messages!.flatMap(message => message.toolCalls ?? [])[0];
   document.body.replaceChildren();

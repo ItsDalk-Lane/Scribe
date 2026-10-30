@@ -16,7 +16,7 @@ import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
-import type { ClaudianSettings, Conversation, ConversationMutablePatch, SessionMetadata } from '@/core/types';
+import type { Conversation, ConversationMutablePatch, ScribeSettings, SessionMetadata } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { SessionMessagingService } from '@/features/chat/session-messaging/SessionMessagingService';
 import { getSessionSettingsSnapshot } from '@/features/chat/sessions/sessionSettings';
@@ -35,7 +35,7 @@ function setup() {
     model: sonnet, permissionMode: 'normal', effortLevel: 'high', excludedTags: [],
     lastSelectedChatModel: { providerId: 'claude', model: sonnet },
     providerConfigs: { claude: claudeCatalogFixture(['claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-6'], ['low', 'high']) },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const records: Conversation[] = ['sender', 'recipient'].map(id => ({
     id, sessionId: null, providerId: 'claude', selectedModel: sonnet, title: id, messages: [],
     createdAt: testDate().getTime(), lastActivityAt: testDate().getTime(),

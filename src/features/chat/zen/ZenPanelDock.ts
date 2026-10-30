@@ -1,17 +1,17 @@
 import type { ZenModePosition } from '@/core/types';
 import { dockOutlinePath, type OutlineBox } from '@/features/chat/zen/dockOutline';
 
-const DRAGGING_CLASS = 'claudian-zen--dragging';
-const SNAPPED_CLASS = 'claudian-zen--snapped';
-const HINT_CLASS = 'claudian-zen-dock-hint';
-const HINT_ACTIVE_CLASS = 'claudian-zen-dock-hint--active';
-const OPENS_BELOW_CLASS = 'claudian-zen--opens-below';
-const OFFSET_X_PROPERTY = '--claudian-zen-offset-x';
-const OFFSET_Y_PROPERTY = '--claudian-zen-offset-y';
-const BOTTOM_CLEARANCE_PROPERTY = '--claudian-zen-bottom-clearance';
-const INSET_PROPERTY = '--claudian-zen-inset';
-const PADDING_PROPERTY = '--claudian-zen-padding';
-const COMPOSER_RADIUS_PROPERTY = '--claudian-zen-composer-radius';
+const DRAGGING_CLASS = 'scribe-zen--dragging';
+const SNAPPED_CLASS = 'scribe-zen--snapped';
+const HINT_CLASS = 'scribe-zen-dock-hint';
+const HINT_ACTIVE_CLASS = 'scribe-zen-dock-hint--active';
+const OPENS_BELOW_CLASS = 'scribe-zen--opens-below';
+const OFFSET_X_PROPERTY = '--scribe-zen-offset-x';
+const OFFSET_Y_PROPERTY = '--scribe-zen-offset-y';
+const BOTTOM_CLEARANCE_PROPERTY = '--scribe-zen-bottom-clearance';
+const INSET_PROPERTY = '--scribe-zen-inset';
+const PADDING_PROPERTY = '--scribe-zen-padding';
+const COMPOSER_RADIUS_PROPERTY = '--scribe-zen-composer-radius';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // A dragged panel released this close to its dock snaps back into it.
 const DOCK_SNAP_DISTANCE = 32;
@@ -256,8 +256,8 @@ export class ZenPanelDock {
     const hintEl = this.#hostEl.createDiv({ cls: HINT_CLASS, attr: { 'aria-hidden': 'true' } });
     const doc = this.#hostEl.ownerDocument;
     const svgEl = doc.createElementNS(SVG_NS, 'svg');
-    svgEl.setAttribute('class', 'claudian-zen-dock-hint-shape');
-    for (const cls of ['claudian-zen-dock-hint-glow', 'claudian-zen-dock-hint-outline']) {
+    svgEl.setAttribute('class', 'scribe-zen-dock-hint-shape');
+    for (const cls of ['scribe-zen-dock-hint-glow', 'scribe-zen-dock-hint-outline']) {
       const pathEl = doc.createElementNS(SVG_NS, 'path');
       pathEl.setAttribute('class', cls);
       svgEl.appendChild(pathEl);

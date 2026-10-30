@@ -10,7 +10,7 @@ import { DEEPSEEK_PRESETS } from '../types';
 import { DEEPSEEK_COMPATIBILITY_SOURCE, DEEPSEEK_EPHEMERAL_SOURCE, DEEPSEEK_LIFECYCLE_SOURCE, DEEPSEEK_SESSIONS_SOURCE } from './DeepSeekCompatibility';
 import { buildDeepSeekPresetPlugins, type DeepSeekPresetPlugin } from './DeepSeekPresetPlugins';
 
-/** Launch-only overlay for one shared Host: every Claudian preset, the lifecycle tether and ephemeral sessions. */
+/** Launch-only overlay for one shared Host: every Scribe preset, the lifecycle tether and ephemeral sessions. */
 export interface DeepSeekLaunchArtifacts {
   readonly patchPath: string;
   readonly desktopRunnerPath: string;
@@ -36,20 +36,20 @@ export async function prepareDeepSeekLaunchArtifacts(
   directory = tmpdir(), presetPlugins: readonly DeepSeekPresetPlugin[] = [],
   sessionToolRoute?: Pick<SessionToolRoute, 'url' | 'routeId'>,
 ): Promise<DeepSeekLaunchArtifacts> {
-  const root = await mkdtemp(join(directory, 'claudian-deepseek-'));
-  const compatibilityPath = join(root, 'claudian-compatibility.mjs');
-  const sessionsPath = join(root, 'claudian-sessions.mjs');
+  const root = await mkdtemp(join(directory, 'scribe-deepseek-'));
+  const compatibilityPath = join(root, 'scribe-compatibility.mjs');
+  const sessionsPath = join(root, 'scribe-sessions.mjs');
   const sessionToolsFile = join(root, 'session-tools.json');
-  const lifecyclePath = join(root, 'claudian-lifecycle.mjs');
+  const lifecyclePath = join(root, 'scribe-lifecycle.mjs');
   const promptDirectory = join(root, 'prompts');
   const promptPath = (sessionId: string): string => join(promptDirectory, deepseekPromptFileName(sessionId));
   const codeModePath = join(root, 'code-mode');
-  const ephemeralPath = join(root, 'claudian-ephemeral.mjs');
+  const ephemeralPath = join(root, 'scribe-ephemeral.mjs');
   const ephemeralStatePath = join(root, 'ephemeral-forks.json');
   const ephemeralReadyPath = join(root, 'ephemeral-ready.json');
   const ephemeralSpillPath = join(root, 'spill');
   const ephemeralAttachmentPath = join(root, 'attachments');
-  const patchPath = join(root, 'claudian.patch.json');
+  const patchPath = join(root, 'scribe.patch.json');
   const desktopRunnerPath = join(root, 'desktop-runner.mjs');
   const written = new Map<string, string>();
   let writes = Promise.resolve();
@@ -103,13 +103,13 @@ export async function prepareDeepSeekLaunchArtifacts(
       { id: 'hmr', disabled: true },
       { id: 'session-title-llm', disabled: true },
       { insert: [
-        { id: 'claudian-lifecycle', name: lifecyclePath },
+        { id: 'scribe-lifecycle', name: lifecyclePath },
         ...DEEPSEEK_PRESETS.map(preset => ({
           id: `preset-${preset}`, name: '@deepseek-ai/dsh-agent-preset',
-          config: { id: preset, name: 'Claudian', plugins: buildDeepSeekPresetPlugins(preset, paths, presetPlugins).map(anchorModuleName) },
+          config: { id: preset, name: 'Scribe', plugins: buildDeepSeekPresetPlugins(preset, paths, presetPlugins).map(anchorModuleName) },
         })),
       ] },
-      { insert: [{ id: 'claudian-ephemeral', name: ephemeralPath, config: { stateFile: ephemeralStatePath, readyFile: ephemeralReadyPath, spillRoot: ephemeralSpillPath, attachmentRoot: ephemeralAttachmentPath } }] },
+      { insert: [{ id: 'scribe-ephemeral', name: ephemeralPath, config: { stateFile: ephemeralStatePath, readyFile: ephemeralReadyPath, spillRoot: ephemeralSpillPath, attachmentRoot: ephemeralAttachmentPath } }] },
     ];
     await Promise.all([
       replace(sessionsPath, DEEPSEEK_SESSIONS_SOURCE),

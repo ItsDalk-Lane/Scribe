@@ -81,7 +81,7 @@ describe('native Host process', () => {
     const packages = join(resources, 'app.asar', 'dsh', 'node_modules', '@deepseek-ai');
     await Promise.all([mkdir(dirname(cli), { recursive: true }), mkdir(dirname(electron), { recursive: true }),
       mkdir(join(packages, 'dsh-app-boot'), { recursive: true }), mkdir(join(packages, 'dsh'), { recursive: true })]);
-    // The bundled command only forwards to the Electron executable; Claudian runs that executable itself, never the wrapper.
+    // The bundled command only forwards to the Electron executable; Scribe runs that executable itself, never the wrapper.
     await writeFile(cli, WINDOWS ? '@exit /b 9\r\n' : '#!/bin/sh\nexit 9\n');
     // Node stands in for Electron: it accepts --expose-internals and runs the given script, as ELECTRON_RUN_AS_NODE does.
     if (WINDOWS) await link(process.execPath, electron).catch(() => copyFile(process.execPath, electron));
@@ -166,7 +166,7 @@ describe('native Host process', () => {
       await hostProcess.writeCodeMode(true);
       expect(await readFile(join(artifactRoot(invocation), 'code-mode'), 'utf8')).toBe('both');
       const patch = JSON.parse(await readFile(invocation.args[invocation.args.indexOf('--patch') + 1], 'utf8'));
-      const chat = patch.find((entry: { insert?: unknown }) => entry.insert).insert.find((entry: any) => entry.config?.id === 'claudian');
+      const chat = patch.find((entry: { insert?: unknown }) => entry.insert).insert.find((entry: any) => entry.config?.id === 'scribe');
       expect(chat.config.plugins.at(-1)).toEqual({ id: 'tool-todo', name: '@deepseek-ai/dsh-tool-todo' });
     } finally { await hostProcess.dispose(); }
     await expectGone(invocation);
@@ -178,7 +178,7 @@ describe('native Host process', () => {
     const invocation = await launched();
     try {
       const exited = new Promise<void>(resolve => hostProcess.onExit(resolve));
-      // Claudian's end of the pipe closing is what the bundled lifecycle plugin tethers the native Host to.
+      // Scribe's end of the pipe closing is what the bundled lifecycle plugin tethers the native Host to.
       (hostProcess as unknown as { process: { stdin: Writable } }).process.stdin.end();
       await exited;
       expect(() => process.kill(invocation.pid, 0)).toThrow();

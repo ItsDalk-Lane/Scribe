@@ -6,7 +6,7 @@ export const OPENCODE_SESSION_TOOLS_PLUGIN_SOURCE = `const specs = ${JSON.string
 const routeHeader = ${JSON.stringify(SESSION_TOOL_ROUTE_HEADER)};
 ` + String.raw`
 export default {
-  id: 'claudian-session-tools',
+  id: 'scribe-session-tools',
   async setup(ctx) {
     for (const spec of specs) {
       await ctx.tool.transform(d => d.add({
@@ -16,16 +16,16 @@ export default {
         output: {},
         options: { codemode: false },
         async execute(args, ctx) {
-          const response = await fetch(process.env.CLAUDIAN_SESSION_TOOLS_URL, {
+          const response = await fetch(process.env.SCRIBE_SESSION_TOOLS_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              [routeHeader]: process.env.CLAUDIAN_SESSION_TOOLS_ROUTE_ID,
+              [routeHeader]: process.env.SCRIBE_SESSION_TOOLS_ROUTE_ID,
             },
             body: JSON.stringify({ tool: spec.name, args, callerNativeId: ctx.sessionID }),
             signal: ctx.signal,
           });
-          if (!response.ok) throw new Error('Claudian session tools unavailable (' + response.status + ').');
+          if (!response.ok) throw new Error('Scribe session tools unavailable (' + response.status + ').');
           const result = await response.json();
           if (result.isError) throw new Error(result.text);
           return { output: result.text };

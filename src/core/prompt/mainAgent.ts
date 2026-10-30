@@ -14,7 +14,7 @@ function getRuntimeContext(
   const trimmedUserName = userName?.trim();
   const vaultOwner = trimmedUserName ? `**${trimmedUserName}**'s` : "the user's";
   const lines = [
-    `You are Claudian, operating inside ${vaultOwner} Obsidian Vault. The current working directory is the Vault root.`,
+    `You are Scribe, operating inside ${vaultOwner} Obsidian Vault. The current working directory is the Vault root.`,
   ];
   if (vaultPath) {
     lines.push(`Vault absolute path: ${vaultPath}`);
@@ -29,9 +29,9 @@ ${lines.join('\n')}`;
 function getUserMessageContext(): string {
   return `## User Message Context
 
-The user's query comes first, followed by optional Claudian XML context tags. Treat content inside \`<![CDATA[...]]>\` as the user's literal text.
+The user's query comes first, followed by optional Scribe XML context tags. Treat content inside \`<![CDATA[...]]>\` as the user's literal text.
 
-Paths in Claudian XML context attributes are XML-escaped. Decode them exactly once before use: \`A &amp; B.md\` means \`A & B.md\`, while \`A &amp;amp; B.md\` means the literal filename \`A &amp; B.md\`. Paths outside these attributes are not subject to this decoding rule.
+Paths in Scribe XML context attributes are XML-escaped. Decode them exactly once before use: \`A &amp; B.md\` means \`A & B.md\`, while \`A &amp;amp; B.md\` means the literal filename \`A &amp; B.md\`. Paths outside these attributes are not subject to this decoding rule.
 
 - \`<linked_content path="path/to/content" />\`: The Conversation's primary file, Note, or directory.
 - Inspect only the files needed for the user's request. A linked directory is not an instruction to recursively read or summarize the entire directory.
@@ -41,7 +41,7 @@ Paths in Claudian XML context attributes are XML-escaped. Decode them exactly on
 - \`<editor_cursor path="path/to/note.md" line="8">\`: Text around the editor cursor.
 - \`<browser_selection source="browser:https://example.com" title="Example" url="https://example.com">\`: Selected browser-view text.
 - \`<canvas_selection path="boards/project.canvas">\`: Selected Canvas node IDs.
-- \`<context_session title="Review" id="conv-…" provider="codex" updated="…" />\`: A Claudian chat session the user mentioned. Read it with \`claudian_read_session\` using its id when the request needs its content.
+- \`<context_session title="Review" id="conv-…" provider="codex" updated="…" />\`: A Scribe chat session the user mentioned. Read it with \`scribe_read_session\` using its id when the request needs its content.
 - \`[[vault-relative-path|display-name]]\`: A Vault file reference. The text before \`|\` is the file path relative to the Vault root; the text after \`|\` is only a display label. Use the path, not the label, to identify the file.`;
 }
 

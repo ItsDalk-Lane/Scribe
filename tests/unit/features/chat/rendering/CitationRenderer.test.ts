@@ -24,20 +24,20 @@ describe('CitationRenderer', () => {
       ],
     });
 
-    const headerEl = wrapperEl.querySelector('.claudian-citations-header');
-    const contentEl = wrapperEl.querySelector('.claudian-citations-content');
+    const headerEl = wrapperEl.querySelector('.scribe-citations-header');
+    const contentEl = wrapperEl.querySelector('.scribe-citations-content');
 
     expect(headerEl?.getAttribute('role')).toBe('button');
     expect(headerEl?.getAttribute('tabindex')).toBe('0');
     expect(headerEl?.getAttribute('aria-expanded')).toBe('false');
     expect(headerEl?.children[1].textContent).toBe('Memory used');
     expect(headerEl?.children[2].textContent).toBe('2 sources');
-    expect(contentEl?.hasClass('claudian-hidden')).toBe(true);
+    expect(contentEl?.hasClass('scribe-hidden')).toBe(true);
 
     (headerEl as HTMLElement | null)?.click();
 
     expect(headerEl?.getAttribute('aria-expanded')).toBe('true');
-    expect(contentEl?.hasClass('claudian-hidden')).toBe(false);
+    expect(contentEl?.hasClass('scribe-hidden')).toBe(false);
     expect(contentEl?.children[0].children[0].textContent).toBe('MEMORY.md:10–12');
     expect(contentEl?.children[0].children[1].textContent).toBe('Used project conventions');
   });
@@ -54,7 +54,7 @@ describe('CitationRenderer', () => {
         note: '<script>alert(1)</script>',
       }],
     });
-    const contentEl = wrapperEl.querySelector('.claudian-citations-content');
+    const contentEl = wrapperEl.querySelector('.scribe-citations-content');
 
     expect(contentEl?.children[0].children[0].textContent).toBe(
       '<img src=x onerror=alert(1)>:1',

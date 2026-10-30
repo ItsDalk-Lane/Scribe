@@ -23,7 +23,7 @@ export {
   type StreamChunk,
   type TurnStats,
   type UsageInfo,
-  VIEW_TYPE_CLAUDIAN,
+  VIEW_TYPE_SCRIBE,
 } from './chat';
 export {
   type ProjectCreateInput,
@@ -43,11 +43,11 @@ export { type ProviderId } from './provider';
 // Settings and command types
 export {
   type ApprovalDecision,
-  type ClaudianSettings,
   type EnvironmentScope,
   type EnvSnippet,
   type HostnameCLIPaths,
   type KeyboardNavigationSettings,
+  type ScribeSettings,
   type SessionAutoArchiveAfter,
   type SessionManagerOrganization,
   type SessionManagerSort,

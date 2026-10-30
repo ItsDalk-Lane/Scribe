@@ -21,9 +21,9 @@ class ForkTargetModal extends Modal {
 
   onOpen() {
     this.setTitle(t('chat.fork.chooseTarget'));
-    this.modalEl.addClass('claudian-fork-target-modal');
+    this.modalEl.addClass('scribe-fork-target-modal');
 
-    const list = this.contentEl.createDiv({ cls: 'claudian-fork-target-list' });
+    const list = this.contentEl.createDiv({ cls: 'scribe-fork-target-list' });
 
     this.createOption(list, 'current-tab', t('chat.fork.targetCurrentTab'));
     this.createOption(list, 'new-tab', t('chat.fork.targetNewTab'));
@@ -31,7 +31,7 @@ class ForkTargetModal extends Modal {
 
   private createOption(container: HTMLElement, target: ForkTarget, label: string): void {
     const item = container.createEl('button', {
-      cls: 'claudian-fork-target-option',
+      cls: 'scribe-fork-target-option',
       text: label,
       attr: { type: 'button' },
     });

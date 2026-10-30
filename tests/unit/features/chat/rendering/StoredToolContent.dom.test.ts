@@ -79,18 +79,18 @@ it('refreshes a flushed Bash header without settling, rebuilding or expanding it
     stream.flush();
     const card = state.toolCallElements.get('refined-bash')!;
     const header = within(card).getByRole('button', { name: 'Bash: command - click to expand' });
-    const content = card.querySelector('.claudian-tool-content')!;
+    const content = card.querySelector('.scribe-tool-content')!;
     const tool = message.toolCalls![0];
     expect(content.childElementCount).toBe(0);
 
     stream.use({ type: 'tool_use', id: 'refined-bash', name: 'Bash', input: { command: 'printf refined' } }, message);
-    expect(card.querySelector('.claudian-tool-summary')?.textContent).toBe('printf refined');
+    expect(card.querySelector('.scribe-tool-summary')?.textContent).toBe('printf refined');
     expect(within(card).getByRole('button', { name: 'Bash: printf refined - click to expand' })).toBe(header);
     expect(state.toolCallElements.get('refined-bash')).toBe(card);
     expect(message.toolCalls).toHaveLength(1);
     expect(message.toolCalls?.[0]).toBe(tool);
     expect(tool.status).toBe('running');
-    expect(card.querySelector('.claudian-tool-status')?.getAttribute('aria-label')).toBe('Status: running');
+    expect(card.querySelector('.scribe-tool-status')?.getAttribute('aria-label')).toBe('Status: running');
     expect(content.childElementCount).toBe(0);
     expect(header.getAttribute('aria-expanded')).toBe('false');
 
@@ -124,14 +124,14 @@ it.each([false, true])('refines a rendered Read input through real header owners
     const card = state.toolCallElements.get('read-refinement')!;
     const header = within(card).getByRole('button', { name: 'Read: notes/original.md - click to expand' });
     if (initiallyExpanded) fireEvent.click(header);
-    const content = card.querySelector('.claudian-tool-content')!;
+    const content = card.querySelector('.scribe-tool-content')!;
     const body = content.firstElementChild;
     const tool = message.toolCalls![0];
 
     stream.use({ type: 'tool_use', id: 'read-refinement', name: 'Read', input: { file_path: 'notes/updated.md' } }, message);
     const suffix = initiallyExpanded ? 'collapse' : 'expand';
     expect(within(card).getByRole('button', { name: `Read: notes/updated.md - click to ${suffix}` })).toBe(header);
-    expect(card.querySelector('.claudian-tool-summary')?.textContent).toBe('updated.md');
+    expect(card.querySelector('.scribe-tool-summary')?.textContent).toBe('updated.md');
     expect(state.toolCallElements.get('read-refinement')).toBe(card);
     expect(message.toolCalls).toHaveLength(1);
     expect(message.toolCalls![0]).toBe(tool);
@@ -163,8 +163,8 @@ it('presents a title-only generic-to-Read refinement with retained logical ident
     stream.use({ type: 'tool_use', id: 'title-only', name: 'Read', input: {} }, message);
     const current = state.toolCallElements.get('title-only')!;
     const header = within(current).getByRole('button', { name: 'Read: notes/retained.md - click to collapse' });
-    expect(current.querySelector('.claudian-tool-name')?.textContent).toBe('Read');
-    expect(current.querySelector('.claudian-tool-summary')?.textContent).toBe('retained.md');
+    expect(current.querySelector('.scribe-tool-name')?.textContent).toBe('Read');
+    expect(current.querySelector('.scribe-tool-summary')?.textContent).toBe('retained.md');
     expect(message.toolCalls).toHaveLength(2);
     expect(message.toolCalls![0]).toBe(tool);
     expect(tool).toMatchObject({ id: 'title-only', name: 'Read', input: { file_path: 'notes/retained.md', offset: 2 }, status: 'running', isExpanded: true });
@@ -221,16 +221,16 @@ it.each([false, true])('refreshes replacement result snapshots without changing 
   const tool: ToolCallInfo = { id: 'replaced-read', name: 'Read', input: {}, status: 'running' };
   const card = renderToolCall(document.body.createDiv(), tool, { initiallyExpanded });
   const header = within(card).getByRole('button');
-  const content = card.querySelector('.claudian-tool-content')!;
+  const content = card.querySelector('.scribe-tool-content')!;
   const previousBody = content.firstElementChild;
   updateToolCallResult(card, {
     ...tool, input: { file_path: 'project/latest.md' }, status: 'completed', result: 'Latest file contents',
   });
-  expect(card.querySelector('.claudian-tool-summary')?.textContent).toBe('latest.md');
+  expect(card.querySelector('.scribe-tool-summary')?.textContent).toBe('latest.md');
   const suffix = initiallyExpanded ? 'collapse' : 'expand';
   expect(within(card).getByRole('button', { name: `Read: project/latest.md - click to ${suffix}` })).toBe(header);
   expect(header.getAttribute('aria-expanded')).toBe(String(initiallyExpanded));
-  expect(card.querySelector('.claudian-tool-status')?.getAttribute('aria-label')).toBe('Status: completed');
+  expect(card.querySelector('.scribe-tool-status')?.getAttribute('aria-label')).toBe('Status: completed');
   expect(content.firstElementChild === previousBody).toBe(!initiallyExpanded);
   fireEvent.click(header);
   fireEvent.click(header);
@@ -249,7 +249,7 @@ it('restores a completed Bash result without mounting its collapsed body until e
   };
   const parent = document.body.createDiv();
   const block = renderStoredToolCall(parent, tool);
-  const content = block.querySelector<HTMLElement>('.claudian-tool-content')!;
+  const content = block.querySelector<HTMLElement>('.scribe-tool-content')!;
   const header = within(block).getByRole('button', { name: /Bash: printf fixture/ });
 
   expect(header.getAttribute('aria-expanded')).toBe('false');
@@ -283,7 +283,7 @@ it('restores an Edit summary without mounting diff rows until keyboard expansion
     },
   };
   const block = renderStoredWriteEdit(document.body.createDiv(), tool);
-  const content = block.querySelector<HTMLElement>('.claudian-write-edit-content')!;
+  const content = block.querySelector<HTMLElement>('.scribe-write-edit-content')!;
   const header = within(block).getByRole('button', { name: /Edit: fixture.md/ });
 
   expect(header.textContent).toContain('+1');
@@ -292,7 +292,7 @@ it('restores an Edit summary without mounting diff rows until keyboard expansion
 
   fireEvent.keyDown(header, { key: ' ' });
   expect(header.getAttribute('aria-expanded')).toBe('true');
-  expect(Array.from(content.querySelectorAll('.claudian-diff-text'), el => el.textContent))
+  expect(Array.from(content.querySelectorAll('.scribe-diff-text'), el => el.textContent))
     .toEqual(['old fixture', 'new fixture']);
   const firstRow = content.firstElementChild;
 
@@ -312,7 +312,7 @@ describe.each(['completed', 'error', 'blocked'] as const)('stored %s output', (s
     };
     const original = JSON.stringify(tool);
     const block = renderStoredToolCall(document.body.createDiv(), tool, { initiallyExpanded: true });
-    const content = block.querySelector<HTMLElement>('.claudian-tool-content')!;
+    const content = block.querySelector<HTMLElement>('.scribe-tool-content')!;
     const header = within(block).getByRole('button', { name: /Read: fixture.md/ });
 
     expect(header.getAttribute('aria-expanded')).toBe('true');
@@ -334,7 +334,7 @@ describe.each(['completed', 'error', 'blocked'] as const)('stored %s output', (s
     };
     const original = JSON.stringify(tool);
     const block = renderStoredWriteEdit(document.body.createDiv(), tool);
-    const content = block.querySelector<HTMLElement>('.claudian-write-edit-content')!;
+    const content = block.querySelector<HTMLElement>('.scribe-write-edit-content')!;
     const header = within(block).getByRole('button', { name: /Edit: fixture.md/ });
 
     expect(content.childElementCount).toBe(0);
@@ -355,18 +355,18 @@ it('keeps running stored tools and expanded live result updates eager', () => {
   };
   const parent = document.body.createDiv();
   const stored = renderStoredToolCall(parent, tool);
-  expect(stored.querySelector('.claudian-tool-content')?.textContent).toContain('partial output');
+  expect(stored.querySelector('.scribe-tool-content')?.textContent).toContain('partial output');
 
   const runningEdit = renderStoredWriteEdit(parent, {
     ...tool, name: 'Edit', input: { file_path: 'fixture.md' },
   });
-  expect(runningEdit.querySelector('.claudian-write-edit-content')?.childElementCount).toBeGreaterThan(0);
+  expect(runningEdit.querySelector('.scribe-write-edit-content')?.childElementCount).toBeGreaterThan(0);
 
   const live = renderToolCall(parent, tool, { initiallyExpanded: true });
   tool.status = 'completed';
   tool.result = 'finished output';
   updateToolCallResult(live, tool);
-  expect(live.querySelector('.claudian-tool-content')?.textContent).toContain('finished output');
+  expect(live.querySelector('.scribe-tool-content')?.textContent).toContain('finished output');
 });
 
 it('keeps default-expanded Edit diffs available immediately', async () => {
@@ -386,7 +386,7 @@ it('keeps default-expanded Edit diffs available immediately', async () => {
   }, { initiallyExpanded: true });
   expect(within(block).getByRole('button', { name: /Edit: fixture.md/ }).getAttribute('aria-expanded'))
     .toBe('true');
-  expect(Array.from(block.querySelectorAll('.claudian-diff-text'), el => el.textContent))
+  expect(Array.from(block.querySelectorAll('.scribe-diff-text'), el => el.textContent))
     .toEqual(['before', 'after']);
   expect((await axe(block)).violations).toEqual([]);
 });
@@ -402,12 +402,12 @@ it('keeps restored apply_patch statistics available before rendering its diff', 
     result: 'Applied patch',
   });
   const header = within(block).getByRole('button', { name: /apply_patch/ });
-  const content = block.querySelector<HTMLElement>('.claudian-tool-content')!;
+  const content = block.querySelector<HTMLElement>('.scribe-tool-content')!;
   expect(header.textContent).toContain('+1');
   expect(header.textContent).toContain('-1');
   expect(content.childElementCount).toBe(0);
   fireEvent.keyDown(header, { key: ' ' });
-  expect(Array.from(content.querySelectorAll('.claudian-diff-text'), el => el.textContent))
+  expect(Array.from(content.querySelectorAll('.scribe-diff-text'), el => el.textContent))
     .toEqual(['old', 'new']);
 });
 
@@ -415,7 +415,7 @@ it('renders only the latest live output when expanded and keeps expanded updates
   const tool: ToolCallInfo = { id: 'live', name: 'Bash', input: { command: 'echo fixture' }, status: 'running' };
 
   const block = renderToolCall(document.body.createDiv(), tool);
-  const content = block.querySelector<HTMLElement>('.claudian-tool-content')!;
+  const content = block.querySelector<HTMLElement>('.scribe-tool-content')!;
   const header = within(block).getByRole('button');
   for (let index = 0; index < 20; index++) {
     tool.result = `Output ${index}`;
@@ -444,7 +444,7 @@ it('defers live diff rows while keeping statistics and final status current', ()
   const diff = { filePath: 'fixture.md', diffLines: [{ type: 'insert' as const, text: 'first', newLineNum: 1 }], stats: { added: 1, removed: 0 } };
   updateWriteEditWithDiff(state, diff);
   expect(state.statsEl.textContent).toContain('+1');
-  expect(state.contentEl.querySelector('.claudian-diff-text')).toBeNull();
+  expect(state.contentEl.querySelector('.scribe-diff-text')).toBeNull();
   fireEvent.click(state.headerEl);
   expect(state.contentEl.textContent).toContain('first');
   fireEvent.click(state.headerEl);

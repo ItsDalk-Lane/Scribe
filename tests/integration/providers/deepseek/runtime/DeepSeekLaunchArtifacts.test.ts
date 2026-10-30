@@ -21,21 +21,21 @@ it('gives every preset the session prompt directory and its tool policy while ke
   try {
     const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
     const inserted = patch.find((entry: { insert?: unknown }) => entry.insert).insert;
-    expect(inserted[0]).toMatchObject({ id: 'claudian-lifecycle' });
-    const presets = Object.fromEntries(inserted.slice(1).map((entry: any) => [entry.config.id, entry.config.plugins.find((plugin: any) => plugin.id === 'claudian-compatibility')]));
-    expect(Object.keys(presets)).toEqual(['claudian', 'claudian-code', 'claudian-passive', 'claudian-read-only']);
+    expect(inserted[0]).toMatchObject({ id: 'scribe-lifecycle' });
+    const presets = Object.fromEntries(inserted.slice(1).map((entry: any) => [entry.config.id, entry.config.plugins.find((plugin: any) => plugin.id === 'scribe-compatibility')]));
+    expect(Object.keys(presets)).toEqual(['scribe', 'scribe-code', 'scribe-passive', 'scribe-read-only']);
     expect(new Set(Object.values(presets).map((plugin: any) => plugin.config.promptDirectory)).size).toBe(1);
-    expect(presets['claudian-passive'].config.allow).toEqual([]);
-    expect(presets['claudian-read-only'].config.allow).toEqual(['read', 'read_image', 'glob', 'grep']);
-    expect(presets.claudian.config.allow).toBeUndefined();
+    expect(presets['scribe-passive'].config.allow).toEqual([]);
+    expect(presets['scribe-read-only'].config.allow).toEqual(['read', 'read_image', 'glob', 'grep']);
+    expect(presets.scribe.config.allow).toBeUndefined();
     // One chat preset: the legacy code-mode id stays declared for saved conversations with identical content, and code
     // mode is a live per-agent presentation rather than a preset row. Auxiliary presets keep their fixed native policy.
     const plugins = Object.fromEntries(inserted.slice(1).map((entry: any) => [entry.config.id, entry.config.plugins]));
-    expect(plugins['claudian-code']).toEqual(plugins.claudian);
-    expect(plugins.claudian.some((row: any) => row.id === 'agent-tool-presentation')).toBe(false);
-    expect(presets.claudian.config.codeModeFile).toEqual(expect.any(String));
-    expect(presets['claudian-code'].config.codeModeFile).toBe(presets.claudian.config.codeModeFile);
-    for (const auxiliary of ['claudian-passive', 'claudian-read-only']) {
+    expect(plugins['scribe-code']).toEqual(plugins.scribe);
+    expect(plugins.scribe.some((row: any) => row.id === 'agent-tool-presentation')).toBe(false);
+    expect(presets.scribe.config.codeModeFile).toEqual(expect.any(String));
+    expect(presets['scribe-code'].config.codeModeFile).toBe(presets.scribe.config.codeModeFile);
+    for (const auxiliary of ['scribe-passive', 'scribe-read-only']) {
       expect(presets[auxiliary].config.codeModeFile).toBeUndefined();
       expect(plugins[auxiliary].find((row: any) => row.id === 'agent-tool-presentation').config).toEqual({ mode: 'native' });
     }
@@ -44,7 +44,7 @@ it('gives every preset the session prompt directory and its tool policy while ke
     // Native session ids need not be valid file names.
     const sessionId = 'C:\\session/../# 文档';
     await artifacts.writePrompt(sessionId, first);
-    const pluginPath = presets.claudian.name;
+    const pluginPath = presets.scribe.name;
     // Native imports preset plugin names literally, so the test must not repair Windows paths or URL fragments.
     const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', `
       const plugin = await import(process.argv[1]);
@@ -62,13 +62,13 @@ it('gives every preset the session prompt directory and its tool policy while ke
       const persona = sections[0];
       const session = { id: process.argv[3], header: { id: process.argv[3] } };
       process.stdout.write(JSON.stringify({ persona, text: persona.text({ agent: { id: session.id, session } }), agentless: persona.text({}), webSurface: sections.find(section => section.name === 'app:web-surface').text }));
-    `, pluginPath, JSON.stringify(presets.claudian.config), sessionId], { cwd: root });
+    `, pluginPath, JSON.stringify(presets.scribe.config), sessionId], { cwd: root });
     const result = JSON.parse(stdout);
     expect(result).toMatchObject({ persona: { interpolate: false, complete: false }, text: first, agentless: '', webSurface: '' });
     expect(await readFile(new URL(pluginPath), 'utf8')).not.toContain(first);
 
-    const [promptFile] = await readdir(presets.claudian.config.promptDirectory);
-    const modes = await Promise.all([artifacts.patchPath, new URL(pluginPath), inserted[0].name, join(presets.claudian.config.promptDirectory, promptFile)].map(path => stat(path)));
+    const [promptFile] = await readdir(presets.scribe.config.promptDirectory);
+    const modes = await Promise.all([artifacts.patchPath, new URL(pluginPath), inserted[0].name, join(presets.scribe.config.promptDirectory, promptFile)].map(path => stat(path)));
     expect(process.platform === 'win32' || modes.every(mode => (mode.mode & 0o777) === 0o600)).toBe(true);
     await artifacts.dispose();
     await expect(access(artifacts.patchPath)).rejects.toThrow();
@@ -82,7 +82,7 @@ it('gives every preset the session prompt directory and its tool policy while ke
 async function sessionPromptFile(artifacts: Awaited<ReturnType<typeof prepareDeepSeekLaunchArtifacts>>): Promise<string> {
   const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
   const directory = patch.find((entry: { insert?: unknown }) => entry.insert).insert
-    .find((entry: any) => entry.config?.id === 'claudian').config.plugins[0].config.promptDirectory;
+    .find((entry: any) => entry.config?.id === 'scribe').config.plugins[0].config.promptDirectory;
   const files = await readdir(directory);
   expect(files).toHaveLength(1);
   return join(directory, files[0]);
@@ -140,7 +140,7 @@ it('switches each chat agent between direct tools and code mode at its next turn
   try {
     const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
     const compatibility = patch.find((entry: { insert?: unknown }) => entry.insert).insert
-      .find((entry: any) => entry.config?.id === 'claudian').config.plugins.find((row: any) => row.id === 'claudian-compatibility');
+      .find((entry: any) => entry.config?.id === 'scribe').config.plugins.find((row: any) => row.id === 'scribe-compatibility');
     // Drive the bundled plugin as native does: agent creation, then turn status changes, with code mode edited in between.
     const script = `
       import { writeFileSync } from 'node:fs';
@@ -163,7 +163,7 @@ it('switches each chat agent between direct tools and code mode at its next turn
     const run = async (steps: unknown[]): Promise<string[]> => JSON.parse((await promisify(execFile)(process.execPath,
       ['--input-type=module', '-e', script, compatibility.name, JSON.stringify(compatibility.config), JSON.stringify(steps)], { cwd: root })).stdout);
 
-    // A fresh Host starts in direct-tool mode until Claudian writes the preference.
+    // A fresh Host starts in direct-tool mode until Scribe writes the preference.
     expect(await run([{ created: 'first' }])).toEqual(['first present native']);
     await artifacts.writeCodeMode(true);
     expect(await run([
@@ -193,7 +193,7 @@ it('reports ready only once every durable store an ephemeral session could reach
   const artifacts = await prepareDeepSeekLaunchArtifacts(root);
   try {
     const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
-    const row = patch.flatMap((entry: { insert?: any[] }) => entry.insert ?? []).find((entry: any) => entry.id === 'claudian-ephemeral');
+    const row = patch.flatMap((entry: { insert?: any[] }) => entry.insert ?? []).find((entry: any) => entry.id === 'scribe-ephemeral');
     // Native without workspaces open: persistence, projections and spill are guarded, workspace membership is not.
     // The first readiness replacement meets a transient Windows file lock.
     await promisify(execFile)(process.execPath, ['--input-type=module', '-e', `
@@ -226,7 +226,7 @@ it('never republishes a fork token whose publication failed', async () => {
   const artifacts = await prepareDeepSeekLaunchArtifacts(root);
   try {
     const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
-    const { stateFile } = patch.flatMap((entry: { insert?: any[] }) => entry.insert ?? []).find((entry: any) => entry.id === 'claudian-ephemeral').config;
+    const { stateFile } = patch.flatMap((entry: { insert?: any[] }) => entry.insert ?? []).find((entry: any) => entry.id === 'scribe-ephemeral').config;
     // A non-empty directory cannot be replaced on any platform, so the offer fails and its caller never receives a withdrawal.
     await rm(stateFile, { force: true });
     await mkdir(join(stateFile, 'blocker'), { recursive: true });
@@ -243,7 +243,7 @@ it('never republishes a fork token whose publication failed', async () => {
   }
 });
 
-it('appends user plugin rows to the chat presets after Claudian\'s own rows, never to auxiliary presets', async () => {
+it('appends user plugin rows to the chat presets after Scribe\'s own rows, never to auxiliary presets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'deepseek extra plugins # '));
   const local = join(root, 'local #1.mjs');
   const extra = [
@@ -260,11 +260,11 @@ it('appends user plugin rows to the chat presets after Claudian\'s own rows, nev
       .find((entry: { insert?: unknown }) => entry.insert).insert.slice(1).map((entry: any) => [entry.config.id, entry.config.plugins]));
     const [ownRows, extendedRows] = await Promise.all([presetRows(own.patchPath), presetRows(extended.patchPath)]);
     const ids = (rows: any[]) => rows.map(row => row.id);
-    for (const chat of ['claudian', 'claudian-code']) {
+    for (const chat of ['scribe', 'scribe-code']) {
       expect(extendedRows[chat].slice(-extra.length)).toEqual(launched);
       expect(ids(extendedRows[chat].slice(0, -extra.length))).toEqual(ids(ownRows[chat]));
     }
-    for (const auxiliary of ['claudian-passive', 'claudian-read-only']) expect(ids(extendedRows[auxiliary])).toEqual(ids(ownRows[auxiliary]));
+    for (const auxiliary of ['scribe-passive', 'scribe-read-only']) expect(ids(extendedRows[auxiliary])).toEqual(ids(ownRows[auxiliary]));
   } finally {
     await Promise.all([own.dispose(), extended.dispose()]);
     await rm(root, { recursive: true, force: true });
@@ -276,7 +276,7 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
   const artifacts = await prepareDeepSeekLaunchArtifacts(root);
   try {
     const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
-    const row = patch.flatMap((entry: { insert?: any[] }) => entry.insert ?? []).find((entry: any) => entry.id === 'claudian-ephemeral');
+    const row = patch.flatMap((entry: { insert?: any[] }) => entry.insert ?? []).find((entry: any) => entry.id === 'scribe-ephemeral');
     expect(row).toMatchObject({ config: { stateFile: expect.any(String), readyFile: expect.any(String), spillRoot: expect.any(String) } });
     // Native's own JSONL backend stays mounted; the plugin only decorates it.
     expect(patch.some((entry: any) => entry.id === 'session-persistence-jsonl')).toBe(false);
@@ -376,26 +376,26 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
       const attempt = async (name, run) => { try { await run(); out.errors[name] = false; } catch { out.errors[name] = true; } };
 
       // An ephemeral root: handle appends and live events overlap, the log stays contiguous by seq.
-      const aux = await backend.create(header('claudian-ephemeral-aux'));
+      const aux = await backend.create(header('scribe-ephemeral-aux'));
       await aux.append([event(0), event(1)]);
-      emit('session/event', { id: 'claudian-ephemeral-aux' }, event(1));
-      emit('session/event', { id: 'claudian-ephemeral-aux' }, event(2));
+      emit('session/event', { id: 'scribe-ephemeral-aux' }, event(1));
+      emit('session/event', { id: 'scribe-ephemeral-aux' }, event(2));
       await attempt('gap', () => aux.append([event(5)]));
-      await attempt('second writer', () => backend.open('claudian-ephemeral-aux', 'write'));
-      out.auxRead = (await (await backend.open('claudian-ephemeral-aux', 'read')).read()).events.map(e => e.seq);
-      out.auxStat = await backend.stat('claudian-ephemeral-aux');
+      await attempt('second writer', () => backend.open('scribe-ephemeral-aux', 'write'));
+      out.auxRead = (await (await backend.open('scribe-ephemeral-aux', 'read')).read()).events.map(e => e.seq);
+      out.auxStat = await backend.stat('scribe-ephemeral-aux');
       await aux.close();
       // A closed handle releases ownership but not the log: dsh may reopen it within this process.
-      out.auxReopened = (await (await backend.open('claudian-ephemeral-aux', 'write')).read(1, 1)).events.map(e => e.seq);
+      out.auxReopened = (await (await backend.open('scribe-ephemeral-aux', 'write')).read(1, 1)).events.map(e => e.seq);
 
       // Ordinary sessions, forks and subagents stay with the mounted backend.
       await backend.create(header('saved'));
       await backend.open('saved', 'write');
       await backend.stat('saved');
       // Children of an ephemeral session (subagents, forks) are ephemeral too.
-      const child = await backend.create(header('child', { parentSession: 'claudian-ephemeral-aux', origin: 'subagent' }));
+      const child = await backend.create(header('child', { parentSession: 'scribe-ephemeral-aux', origin: 'subagent' }));
       out.childNative = !!child.native;
-      // Claudian's fork token makes exactly one fork of its parent at its checkpoint ephemeral.
+      // Scribe's fork token makes exactly one fork of its parent at its checkpoint ephemeral.
       const forks = {};
       for (const [id, parent, inheritedEventCount] of JSON.parse(process.argv[3])) {
         const handle = forks[id] = await backend.create(header(id, { parentSession: parent, isSeeded: true }), { inheritedEventCount });
@@ -415,7 +415,7 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
       // Concurrent RPC admissions have no native initiator; tool/model work inherits the exact native Agent.
       const image = data => ({ data, mediaType: 'image/png' });
       const [temporary, saved] = await Promise.all([
-        sessionController.prompt({ sessionId: 'claudian-ephemeral-aux', images: [image('temporary-input')] }),
+        sessionController.prompt({ sessionId: 'scribe-ephemeral-aux', images: [image('temporary-input')] }),
         sessionController.prompt({ sessionId: 'saved', images: [image('durable-input')] }),
       ]);
       const derived = await initiators.run({ id: 'child' }, async () => {
@@ -425,7 +425,7 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
         return { ref, path: attachments.imageHostPath(ref) };
       });
       out.inheritedImage = await initiators.run({ id: 'side' }, () => attachments.readImageRequest(saved[0]));
-      out.temporaryImage = await sessionController.attachment({ sessionId: 'claudian-ephemeral-aux', ref: temporary[0] });
+      out.temporaryImage = await sessionController.attachment({ sessionId: 'scribe-ephemeral-aux', ref: temporary[0] });
       out.savedImage = await sessionController.attachment({ sessionId: 'saved', ref: saved[0] });
       out.temporaryUpload = await initiators.run({ id: 'child' }, () => uploads.get());
       out.nativeUpload = await uploads.get() ?? null;
@@ -435,15 +435,15 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
       out.nativeImages = await (await import('node:fs/promises')).readdir(attachments.root);
       out.nativeVariants = await (await import('node:fs/promises')).readdir(attachments.cacheRoot).catch(() => []);
 
-      // Oversized tool output of an ephemeral session stays in Claudian's launch directory, removed with the Host.
+      // Oversized tool output of an ephemeral session stays in Scribe's launch directory, removed with the Host.
       const spill = name => ({ owner: { sessionId: name }, source: { kind: 'tool', toolName: 'bash' }, suggestedName: '../bash out.txt', content: 'big output ' + name });
-      out.auxSpill = await spillStore.saveText(spill('claudian-ephemeral-aux'));
+      out.auxSpill = await spillStore.saveText(spill('scribe-ephemeral-aux'));
       out.savedSpill = await spillStore.saveText(spill('saved'));
       // Durable dsh stores never record an ephemeral session.
-      await projcacheTable.put('claudian-ephemeral-aux', {}); await projcacheTable.put('side', {}); await projcacheTable.put('saved', {});
-      await workspaceTable.update('ws', record => ({ ...record, sessionIds: ['side', ...record.sessionIds, 'claudian-ephemeral-aux'] }));
+      await projcacheTable.put('scribe-ephemeral-aux', {}); await projcacheTable.put('side', {}); await projcacheTable.put('saved', {});
+      await workspaceTable.update('ws', record => ({ ...record, sessionIds: ['side', ...record.sessionIds, 'scribe-ephemeral-aux'] }));
       await workspaceTable.put('ws', { path: '/vault', sessionIds: ['child', 'saved'] });
-      await globalHandle.set({ archivedSessionIds: ['side', 'saved'], pinnedSessionIds: ['claudian-ephemeral-aux'], workspaceIds: ['ws'] });
+      await globalHandle.set({ archivedSessionIds: ['side', 'saved'], pinnedSessionIds: ['scribe-ephemeral-aux'], workspaceIds: ['ws'] });
 
       for (const dispose of disposers.reverse()) await dispose();
       out.restored = backend.create === original.create && backend.open === original.open && backend.stat === original.stat;
@@ -457,7 +457,7 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
     expect(JSON.parse(await readFile(row.config.stateFile, 'utf8'))).toEqual({ forks: [] });
 
     expect(result.auxRead).toEqual([0, 1, 2]);
-    expect(result.auxStat).toMatchObject({ header: { id: 'claudian-ephemeral-aux' }, eventCount: 3 });
+    expect(result.auxStat).toMatchObject({ header: { id: 'scribe-ephemeral-aux' }, eventCount: 3 });
     expect(result.auxReopened).toEqual([1]);
     expect(result.errors).toEqual({ gap: true, 'second writer': true });
     expect(result.childNative).toBe(false);
@@ -481,10 +481,10 @@ it('keeps ephemeral sessions in process memory and out of every durable dsh stor
     expect(result.spilled).toEqual(['saved']);
     expect(result.savedSpill.locator).toBe('/native/saved');
     expect(dirname(result.auxSpill.locator)).toBe(row.config.spillRoot);
-    expect(await readFile(result.auxSpill.locator, 'utf8')).toBe('big output claudian-ephemeral-aux');
-    expect(result.auxSpill).toMatchObject({ bytes: Buffer.byteLength('big output claudian-ephemeral-aux'), retrievalHint: expect.any(String) });
+    expect(await readFile(result.auxSpill.locator, 'utf8')).toBe('big output scribe-ephemeral-aux');
+    expect(result.auxSpill).toMatchObject({ bytes: Buffer.byteLength('big output scribe-ephemeral-aux'), retrievalHint: expect.any(String) });
     expect(process.platform === 'win32' || ((await stat(result.auxSpill.locator)).mode & 0o777) === 0o600).toBe(true);
-    // Every guard reported ready, so Claudian may rely on it, including attachment handling.
+    // Every guard reported ready, so Scribe may rely on it, including attachment handling.
     expect(await artifacts.readEphemeralReady()).toBe(true);
     const ready = JSON.parse(await readFile(row.config.readyFile, 'utf8'));
     const { writeFile } = await import('node:fs/promises');
@@ -555,7 +555,7 @@ it('runs the sessions plugin in a child, forwarding caller identity, re-reading 
       return { isError: false, text: 'first route' };
     });
     const patch = JSON.parse(await readFile(artifacts.patchPath, 'utf8'));
-    const row = patch.find((entry: any) => entry.insert).insert.find((entry: any) => entry.config?.id === 'claudian').config.plugins.find((entry: any) => entry.id === 'claudian-sessions');
+    const row = patch.find((entry: any) => entry.insert).insert.find((entry: any) => entry.config?.id === 'scribe').config.plugins.find((entry: any) => entry.id === 'scribe-sessions');
     expect(row).toBeDefined();
     await artifacts.writeSessionToolRoute(first);
     const file = row.config.endpointFile;
@@ -599,9 +599,9 @@ it('runs the sessions plugin in a child, forwarding caller identity, re-reading 
     expect(output.tools[1].parameters.text.required).not.toBe(true);
     await aborted;
     expect(calls).toEqual([
-      { name: 'claudian_list_destinations', args: {}, callerNativeId: 'child-native' },
-      { name: 'claudian_send_message', args: { sessionId: 'target', text: 'hello' }, callerNativeId: 'child-native' },
-      { name: 'claudian_send_message', args: { text: 'hold' }, callerNativeId: 'child-native' },
+      { name: 'scribe_list_destinations', args: {}, callerNativeId: 'child-native' },
+      { name: 'scribe_send_message', args: { sessionId: 'target', text: 'hello' }, callerNativeId: 'child-native' },
+      { name: 'scribe_send_message', args: { text: 'hold' }, callerNativeId: 'child-native' },
     ]);
   } finally { await endpoint.close(); await replacement.close(); await artifacts.dispose(); }
 });

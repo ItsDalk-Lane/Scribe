@@ -5,6 +5,7 @@ import { axe } from '@test/helpers/accessibility';
 import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 
+import { setLocale } from '@/i18n/i18n';
 import { OpencodeHTTPClient } from '@/providers/opencode/http/OpencodeHTTPClient';
 import { OpencodeMetadataService } from '@/providers/opencode/metadata/OpencodeMetadataService';
 import { createOpencodeModels } from '@/providers/opencode/runtime/OpencodeModels';
@@ -55,7 +56,16 @@ function setup() {
   } };
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { setLocale('en'); vi.restoreAllMocks(); });
+
+it('shows the model section in the selected language', async () => {
+  setLocale('zh-CN');
+  const f = setup();
+  const view = f.render();
+  try {
+    expect(within(f.container).getByText('模型')).toBeTruthy();
+  } finally { view?.dispose(); await f.dispose(); }
+});
 
 it.each([true, false])('shows the native request failure and only its supplied error ref (%s), then permits retry', async hasRef => {
   const f = setup();

@@ -540,7 +540,7 @@ describe('PiExecutionBackend', () => {
       } },
     }));
     harness.responses.set('get_state', { sessionId: 'pi-session-1', sessionFile });
-    harness.responses.set('claudian_tree', { cancelled: false, leafId: null, sessionId: 'pi-session-1', sessionFile });
+    harness.responses.set('scribe_tree', { cancelled: false, leafId: null, sessionId: 'pi-session-1', sessionFile });
     try {
       const events = collect(harness.session.execute(createRequest()).events);
       await waitFor(() => (harness.kernels[0]?.requests.some(r => r.type === 'prompt') ?? false) || harness.session.getStatus() !== 'executing');
@@ -548,10 +548,10 @@ describe('PiExecutionBackend', () => {
         throw new Error(JSON.stringify(await events));
       }
       const requests = harness.kernels[0].requests;
-      expect(requests.find(r => r.type === 'claudian_tree')?.payload).toMatchObject({
+      expect(requests.find(r => r.type === 'scribe_tree')?.payload).toMatchObject({
         operation: 'restore', targetId: 'first-user', leafId: null,
       });
-      expect(requests.findIndex(r => r.type === 'claudian_tree')).toBeLessThan(requests.findIndex(r => r.type === 'set_model'));
+      expect(requests.findIndex(r => r.type === 'scribe_tree')).toBeLessThan(requests.findIndex(r => r.type === 'set_model'));
       completeTurn(harness.kernels[0]);
       await events;
     } finally {

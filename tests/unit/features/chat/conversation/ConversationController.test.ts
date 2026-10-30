@@ -78,10 +78,10 @@ describe('ConversationController', () => {
       controller.initializeWelcome();
       const initialCallCount = createDivSpy.mock.calls.length;
       expect(setWelcomeEl).toHaveBeenCalledWith(welcomeEl);
-      expect(welcomeEl.querySelector('.claudian-welcome-linked-content')).not.toBeNull();
+      expect(welcomeEl.querySelector('.scribe-welcome-linked-content')).not.toBeNull();
       expect(linkedContentController.resetAutoDraft).not.toHaveBeenCalled();
-      expect(welcomeEl.querySelector('.claudian-welcome-brand')).not.toBeNull();
-      expect(welcomeEl.querySelector('.claudian-welcome-greeting')).not.toBeNull();
+      expect(welcomeEl.querySelector('.scribe-welcome-brand')).not.toBeNull();
+      expect(welcomeEl.querySelector('.scribe-welcome-greeting')).not.toBeNull();
 
       controller.initializeWelcome();
       expect(createDivSpy).toHaveBeenCalledTimes(initialCallCount);

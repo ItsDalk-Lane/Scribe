@@ -7,7 +7,7 @@ import test from 'node:test';
 
 // Exercise the real runner in an isolated checkout with observable child programs.
 test('the runner executes only selected Vitest and script suites, and handles empty selections', () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'claudian-test-runner-'));
+  const root = mkdtempSync(path.join(os.tmpdir(), 'scribe-test-runner-'));
   try {
     mkdirSync(path.join(root, 'scripts'));
     for (const file of ['run-tests.js', 'run-cross-platform-tests.js', 'testSuites.cjs']) copyFileSync(`scripts/${file}`, path.join(root, 'scripts', file));
@@ -41,7 +41,7 @@ test('the runner executes only selected Vitest and script suites, and handles em
 });
 
 test('full Vitest shards cover every suite once and propagate failures from either shard', () => {
-  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'claudian-sharded-tests-')));
+  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'scribe-sharded-tests-')));
   try {
     mkdirSync(path.join(root, 'scripts'));
     mkdirSync(path.join(root, 'tests/unit'), { recursive: true });

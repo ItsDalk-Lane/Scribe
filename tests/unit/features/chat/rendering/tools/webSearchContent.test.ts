@@ -21,8 +21,8 @@ function createToolCall(overrides: Partial<ToolCallInfo> = {}): ToolCallInfo {
 
 function collectRenderedText(toolEl: HTMLElement): string {
   return [
-    ...Array.from(toolEl.querySelectorAll('.claudian-tool-line')),
-    ...Array.from(toolEl.querySelectorAll('.claudian-tool-link-title')),
+    ...Array.from(toolEl.querySelectorAll('.scribe-tool-line')),
+    ...Array.from(toolEl.querySelectorAll('.scribe-tool-link-title')),
   ].map(el => el.textContent ?? '').join('\n');
 }
 
@@ -46,8 +46,8 @@ describe('webSearchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
-      const lines = Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent);
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
+      const lines = Array.from(toolEl.querySelectorAll('.scribe-tool-line')).map(line => line.textContent);
 
       expect(lines).toContain('Query: obsidian plugin API');
       expect(lines).toContain('Alt query: obsidian docs');
@@ -67,14 +67,14 @@ describe('webSearchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
-      const links = toolEl.querySelectorAll('.claudian-tool-link');
-      const lines = Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent);
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
+      const links = toolEl.querySelectorAll('.scribe-tool-link');
+      const lines = Array.from(toolEl.querySelectorAll('.scribe-tool-line')).map(line => line.textContent);
 
       expect(lines).toContain('Open page');
       expect(links).toHaveLength(1);
       expect(links[0].getAttribute('href')).toBe('https://example.com/docs');
-      expect(links[0].querySelector('.claudian-tool-link-title')?.textContent).toBe('https://example.com/docs');
+      expect(links[0].querySelector('.scribe-tool-link-title')?.textContent).toBe('https://example.com/docs');
     });
 
     it.each([
@@ -87,11 +87,11 @@ describe('webSearchContent', () => {
       const toolCall = createToolCall({ name: 'WebSearch', status: 'completed', input: { query: 'obsidian plugin API' }, ...fields });
 
       const toolEl = renderStoredToolCall(createMockEl(), toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
 
-      expect(Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent))
+      expect(Array.from(toolEl.querySelectorAll('.scribe-tool-line')).map(line => line.textContent))
         .toContain('Query: obsidian plugin API');
-      expect(Array.from(toolEl.querySelectorAll('.claudian-tool-link')).map(link => link.getAttribute('href')))
+      expect(Array.from(toolEl.querySelectorAll('.scribe-tool-link')).map(link => link.getAttribute('href')))
         .toEqual(links);
       expect(collectRenderedText(toolEl)).not.toMatch(/Synthesized answer|Provider result text|Hit snippet|2026-01-01|FallbackSource/);
     });
@@ -113,11 +113,11 @@ describe('webSearchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(createMockEl(), toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
 
-      expect(Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent))
+      expect(Array.from(toolEl.querySelectorAll('.scribe-tool-line')).map(line => line.textContent))
         .toContain('Query: docs');
-      expect(Array.from(toolEl.querySelectorAll('.claudian-tool-link')).map(link => link.getAttribute('href')))
+      expect(Array.from(toolEl.querySelectorAll('.scribe-tool-link')).map(link => link.getAttribute('href')))
         .toEqual(['https://first.example.com/', 'https://second.example.com/']);
       const renderedText = collectRenderedText(toolEl);
       expect(renderedText).not.toContain('BadUrlMarker7f3a');

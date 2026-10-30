@@ -1,5 +1,5 @@
 /* Resume Session Dropdown */
-.claudian-resume-dropdown {
+.scribe-resume-dropdown {
   display: none;
   position: absolute;
   bottom: 100%;
@@ -16,15 +16,15 @@
   overflow: hidden;
 }
 
-body.theme-dark .claudian-resume-dropdown {
+body.theme-dark .scribe-resume-dropdown {
   background-color: #1e1e1e;
 }
 
-.claudian-resume-dropdown.visible {
+.scribe-resume-dropdown.visible {
   display: block;
 }
 
-.claudian-resume-header {
+.scribe-resume-header {
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -34,19 +34,19 @@ body.theme-dark .claudian-resume-dropdown {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.claudian-resume-list {
+.scribe-resume-list {
   max-height: 350px;
   overflow-y: auto;
 }
 
-.claudian-resume-empty {
+.scribe-resume-empty {
   padding: 16px;
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.claudian-resume-item {
+.scribe-resume-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -56,43 +56,43 @@ body.theme-dark .claudian-resume-dropdown {
   transition: background 0.1s ease;
 }
 
-.claudian-resume-item:last-child {
+.scribe-resume-item:last-child {
   border-bottom: none;
 }
 
-.claudian-resume-item:hover,
-.claudian-resume-item.selected {
+.scribe-resume-item:hover,
+.scribe-resume-item.selected {
   background: var(--background-modifier-hover);
 }
 
-.claudian-resume-item.current {
+.scribe-resume-item.current {
   background: var(--background-secondary);
   border-inline-start: 2px solid var(--interactive-accent);
   padding-inline-start: 10px;
 }
 
-.claudian-resume-item-icon {
+.scribe-resume-item-icon {
   display: flex;
   align-items: center;
   color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.claudian-resume-item-icon svg {
+.scribe-resume-item-icon svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-resume-item.current .claudian-resume-item-icon {
+.scribe-resume-item.current .scribe-resume-item-icon {
   color: var(--interactive-accent);
 }
 
-.claudian-resume-item-content {
+.scribe-resume-item-content {
   flex: 1;
   min-width: 0;
 }
 
-.claudian-resume-item-title {
+.scribe-resume-item-title {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-normal);
@@ -101,22 +101,22 @@ body.theme-dark .claudian-resume-dropdown {
   text-overflow: ellipsis;
 }
 
-.claudian-resume-item-date {
+.scribe-resume-item-date {
   font-size: 11px;
   color: var(--text-faint);
   margin-top: 2px;
 }
 
 /* Scrollbar */
-.claudian-resume-list::-webkit-scrollbar {
+.scribe-resume-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.claudian-resume-list::-webkit-scrollbar-track {
+.scribe-resume-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.claudian-resume-list::-webkit-scrollbar-thumb {
+.scribe-resume-list::-webkit-scrollbar-thumb {
   background: var(--background-modifier-border);
   border-radius: 3px;
 }

@@ -215,7 +215,7 @@ it('gates the highlight style on only while the chat shows a mock selection high
   const original = { CSS: (globalThis as { CSS?: unknown }).CSS, Highlight: (window as { Highlight?: unknown }).Highlight };
   Object.assign(globalThis, { CSS: { highlights } });
   Object.assign(window, { Highlight: class { constructor(...ranges: Range[]) { Object.assign(this, { ranges }); } } });
-  const highlightStyled = () => document.body.classList.contains('claudian-selection-highlight-active');
+  const highlightStyled = () => document.body.classList.contains('scribe-selection-highlight-active');
   try {
     vi.useFakeTimers();
     const view = new SourceViewer(SOURCE);
@@ -226,14 +226,14 @@ it('gates the highlight style on only while the chat shows a mock selection high
     fireEvent.pointerDown(active.input);
     document.getSelection()?.removeAllRanges();
     active.input.focus();
-    expect(highlights.has('claudian-selection')).toBe(true);
+    expect(highlights.has('scribe-selection')).toBe(true);
     expect(highlightStyled()).toBe(true);
 
     active.input.blur();
     vi.advanceTimersByTime(2000);
     active.controller.poll();
     expect(active.selections.capture()).toEqual({});
-    expect(highlights.has('claudian-selection')).toBe(false);
+    expect(highlights.has('scribe-selection')).toBe(false);
     expect(highlightStyled()).toBe(false);
   } finally {
     Object.assign(globalThis, { CSS: original.CSS });

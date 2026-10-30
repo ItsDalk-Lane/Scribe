@@ -1,15 +1,15 @@
 /* Collapsible response blocks share one layout: a clickable header row over
    tree-branch content whose border aligns with the 16px header icon. */
-.claudian-thinking-block,
-.claudian-tool-call,
-.claudian-subagent-list {
+.scribe-thinking-block,
+.scribe-tool-call,
+.scribe-subagent-list {
   margin: 8px 0;
 }
 
-.claudian-thinking-header,
-.claudian-tool-header,
-.claudian-subagent-header,
-.claudian-write-edit-header {
+.scribe-thinking-header,
+.scribe-tool-header,
+.scribe-subagent-header,
+.scribe-write-edit-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -18,9 +18,9 @@
   overflow: hidden;
 }
 
-.claudian-thinking-content,
-.claudian-tool-content,
-.claudian-subagent-content {
+.scribe-thinking-content,
+.scribe-tool-content,
+.scribe-subagent-content {
   padding: 4px 0;
   padding-inline-start: 16px;
   margin-inline-start: 7px;

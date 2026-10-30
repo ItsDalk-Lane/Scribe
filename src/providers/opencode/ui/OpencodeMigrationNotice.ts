@@ -2,7 +2,7 @@ import { t } from '@/i18n/i18n';
 
 export function renderOpencodeMigrationNotice(container: HTMLElement): (version: string | null) => void {
   const notice = container.createDiv({
-    cls: 'setting-item-description claudian-opencode-migration-notice',
+    cls: 'setting-item-description scribe-opencode-migration-notice',
     attr: { role: 'status' },
   });
   notice.hidden = true;

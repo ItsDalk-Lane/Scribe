@@ -12,6 +12,7 @@ import {
   renderExpandedContent,
 } from '@/features/chat/rendering/tools/toolPresentation';
 import { setToolStatus } from '@/features/chat/rendering/tools/toolStatus';
+import { t } from '@/i18n/i18n';
 import { formatDurationMmSs } from '@/utils/date';
 
 interface SubagentToolView {
@@ -54,14 +55,14 @@ function truncateDescription(description: string, maxLength = 40): string {
 }
 
 function createSection(parentEl: HTMLElement, title: string, bodyClass?: string): SubagentSection {
-  const wrapperEl = parentEl.createDiv({ cls: 'claudian-subagent-section' });
+  const wrapperEl = parentEl.createDiv({ cls: 'scribe-subagent-section' });
 
-  const headerEl = wrapperEl.createDiv({ cls: 'claudian-subagent-section-header' });
+  const headerEl = wrapperEl.createDiv({ cls: 'scribe-subagent-section-header' });
 
-  const titleEl = headerEl.createDiv({ cls: 'claudian-subagent-section-title' });
+  const titleEl = headerEl.createDiv({ cls: 'scribe-subagent-section-title' });
   titleEl.setText(title);
 
-  const bodyEl = wrapperEl.createDiv({ cls: 'claudian-subagent-section-body' });
+  const bodyEl = wrapperEl.createDiv({ cls: 'scribe-subagent-section-body' });
   if (bodyClass) bodyEl.addClass(bodyClass);
 
   const state = { isExpanded: false };
@@ -74,24 +75,24 @@ function createSection(parentEl: HTMLElement, title: string, bodyClass?: string)
 
 function setPromptText(promptBodyEl: HTMLElement, prompt: string): void {
   promptBodyEl.empty();
-  const textEl = promptBodyEl.createDiv({ cls: 'claudian-subagent-prompt-text' });
+  const textEl = promptBodyEl.createDiv({ cls: 'scribe-subagent-prompt-text' });
   textEl.setText(prompt);
 }
 
 function updateSyncHeaderAria(state: SubagentState): void {
   state.headerEl.setAttribute(
     'aria-label',
-    `Subagent task: ${state.info.description} - Status: ${state.info.status} - click to expand`
+    t('chat.subagent.taskAria', { description: state.info.description, status: t(`chat.tools.status.${state.info.status}`) })
   );
-  state.statusEl.setAttribute('aria-label', `Status: ${state.info.status}`);
+  state.statusEl.setAttribute('aria-label', t(`chat.tools.status.${state.info.status}`));
 }
 
 function renderSubagentToolContent(contentEl: HTMLElement, toolCall: ToolCallInfo): void {
   contentEl.empty();
 
   if (!toolCall.result && toolCall.status === 'running') {
-    const emptyEl = contentEl.createDiv({ cls: 'claudian-subagent-tool-empty' });
-    emptyEl.setText('Running...');
+    const emptyEl = contentEl.createDiv({ cls: 'scribe-subagent-tool-empty' });
+    emptyEl.setText(t('chat.tools.running'));
     return;
   }
 
@@ -101,10 +102,10 @@ function renderSubagentToolContent(contentEl: HTMLElement, toolCall: ToolCallInf
 function updateSubagentToolView(view: SubagentToolView, toolCall: ToolCallInfo): void {
   if (view.renderedToolCall === toolCall) return;
   view.renderedToolCall = toolCall;
-  view.wrapperEl.className = `claudian-subagent-tool-item claudian-subagent-tool-${toolCall.status}`;
+  view.wrapperEl.className = `scribe-subagent-tool-item scribe-subagent-tool-${toolCall.status}`;
   view.nameEl.setText(getToolName(toolCall.name, toolCall.input));
   view.summaryEl.setText(getToolSummary(toolCall.name, toolCall.input));
-  setToolStatus(view.statusEl, toolCall.status, 'claudian-subagent-tool-status');
+  setToolStatus(view.statusEl, toolCall.status, 'scribe-subagent-tool-status');
   if (view.isExpanded) renderSubagentToolBody(view);
 }
 
@@ -117,21 +118,21 @@ function renderSubagentToolBody(view: SubagentToolView): void {
 
 function createSubagentToolView(parentEl: HTMLElement, toolCall: ToolCallInfo): SubagentToolView {
   const wrapperEl = parentEl.createDiv({
-    cls: `claudian-subagent-tool-item claudian-subagent-tool-${toolCall.status}`,
+    cls: `scribe-subagent-tool-item scribe-subagent-tool-${toolCall.status}`,
   });
   wrapperEl.dataset.toolId = toolCall.id;
 
-  const headerEl = wrapperEl.createDiv({ cls: 'claudian-subagent-tool-header' });
+  const headerEl = wrapperEl.createDiv({ cls: 'scribe-subagent-tool-header' });
 
-  const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-icon' });
+  const iconEl = headerEl.createDiv({ cls: 'scribe-subagent-tool-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
   setToolIcon(iconEl, toolCall.name);
 
-  const nameEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-name' });
-  const summaryEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-summary' });
-  const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-status' });
+  const nameEl = headerEl.createDiv({ cls: 'scribe-subagent-tool-name' });
+  const summaryEl = headerEl.createDiv({ cls: 'scribe-subagent-tool-summary' });
+  const statusEl = headerEl.createDiv({ cls: 'scribe-subagent-tool-status' });
 
-  const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-tool-content' });
+  const contentEl = wrapperEl.createDiv({ cls: 'scribe-subagent-tool-content' });
 
   const view: SubagentToolView = {
     isExpanded: toolCall.isExpanded ?? false,
@@ -154,16 +155,16 @@ function createSubagentToolView(parentEl: HTMLElement, toolCall: ToolCallInfo): 
 type SubagentProgressView = Pick<SubagentState, 'wrapperEl' | 'headerEl' | 'progressEl' | 'progress'>;
 
 function formatTokenCount(tokens: number): string {
-  if (tokens < 1000) return `${tokens} tokens`;
+  if (tokens < 1000) return t('chat.subagent.tokens', { count: tokens });
   const thousands = tokens / 1000;
   const value = thousands >= 100 ? String(Math.round(thousands)) : thousands.toFixed(1).replace(/\.0$/, '');
-  return `${value}k tokens`;
+  return t('chat.subagent.tokens', { count: `${value}k` });
 }
 
 function formatProgressMeta(progress: SubagentProgress): string {
   const parts: string[] = [];
   if (progress.toolUses !== undefined) {
-    parts.push(`${progress.toolUses} ${progress.toolUses === 1 ? 'tool use' : 'tool uses'}`);
+    parts.push(t(progress.toolUses === 1 ? 'chat.subagent.toolUse' : 'chat.subagent.toolUses', { count: progress.toolUses }));
   }
   if (progress.totalTokens) parts.push(formatTokenCount(progress.totalTokens));
   if (progress.durationMs) parts.push(formatDurationMmSs(Math.round(progress.durationMs / 1000)));
@@ -180,20 +181,20 @@ export function updateSubagentProgress(state: SubagentProgressView, update: Suba
   state.progress = progress;
 
   const activity = progress.summary
-    ?? (progress.lastToolName ? `Last tool: ${progress.lastToolName}` : '');
+    ?? (progress.lastToolName ? t('chat.subagent.lastTool', { tool: progress.lastToolName }) : '');
   const meta = formatProgressMeta(progress);
   if (!activity && !meta) return;
 
   if (!state.progressEl) {
-    state.progressEl = state.wrapperEl.createDiv({ cls: 'claudian-subagent-progress' });
+    state.progressEl = state.wrapperEl.createDiv({ cls: 'scribe-subagent-progress' });
     state.headerEl.after(state.progressEl);
   }
   state.progressEl.empty();
   if (activity) {
-    state.progressEl.createDiv({ cls: 'claudian-subagent-progress-summary', text: activity });
+    state.progressEl.createDiv({ cls: 'scribe-subagent-progress-summary', text: activity });
   }
   if (meta) {
-    state.progressEl.createDiv({ cls: 'claudian-subagent-progress-meta', text: meta });
+    state.progressEl.createDiv({ cls: 'scribe-subagent-progress-meta', text: meta });
   }
 }
 
@@ -208,10 +209,10 @@ function ensureResultSection(state: SubagentState): SubagentSection {
     return { wrapperEl: state.resultSectionEl, bodyEl: state.resultBodyEl };
   }
 
-  const section = createSection(state.contentEl, 'Result', 'claudian-subagent-result-body');
-  section.wrapperEl.addClass('claudian-subagent-section-result');
+  const section = createSection(state.contentEl, t('chat.subagent.result'), 'scribe-subagent-result-body');
+  section.wrapperEl.addClass('scribe-subagent-section-result');
   // Earlier runs stay below the current run's result.
-  const history = state.contentEl.querySelector(':scope > .claudian-subagent-history');
+  const history = state.contentEl.querySelector(':scope > .scribe-subagent-history');
   if (history) state.contentEl.insertBefore(section.wrapperEl, history);
   state.resultSectionEl = section.wrapperEl;
   state.resultBodyEl = section.bodyEl;
@@ -222,7 +223,7 @@ function setResultText(state: SubagentState, text: string): void {
   const section = ensureResultSection(state);
   if (section.bodyEl.textContent === text) return;
   section.bodyEl.empty();
-  const resultEl = section.bodyEl.createDiv({ cls: 'claudian-subagent-result-output' });
+  const resultEl = section.bodyEl.createDiv({ cls: 'scribe-subagent-result-output' });
   resultEl.setText(text);
 }
 
@@ -232,28 +233,28 @@ function createSubagentView(
 ): SubagentState {
   const { id: taskToolId, description, prompt = '' } = info;
 
-  const wrapperEl = parentEl.createDiv({ cls: 'claudian-subagent-list' });
+  const wrapperEl = parentEl.createDiv({ cls: 'scribe-subagent-list' });
   wrapperEl.dataset.subagentId = taskToolId;
 
-  const headerEl = wrapperEl.createDiv({ cls: 'claudian-subagent-header' });
+  const headerEl = wrapperEl.createDiv({ cls: 'scribe-subagent-header' });
 
-  const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-icon' });
+  const iconEl = headerEl.createDiv({ cls: 'scribe-subagent-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
   setIcon(iconEl, getToolIcon(TOOL_SUBAGENT));
 
-  const labelEl = headerEl.createDiv({ cls: 'claudian-subagent-label' });
+  const labelEl = headerEl.createDiv({ cls: 'scribe-subagent-label' });
   labelEl.setText(truncateDescription(description));
 
-  const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-status status-running' });
-  statusEl.setAttribute('aria-label', 'Status: running');
+  const statusEl = headerEl.createDiv({ cls: 'scribe-subagent-status status-running' });
+  statusEl.setAttribute('aria-label', t('chat.tools.status.running'));
 
-  const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-content' });
+  const contentEl = wrapperEl.createDiv({ cls: 'scribe-subagent-content' });
 
-  const promptSection = createSection(contentEl, 'Prompt', 'claudian-subagent-prompt-body');
-  promptSection.wrapperEl.addClass('claudian-subagent-section-prompt');
+  const promptSection = createSection(contentEl, t('chat.subagent.prompt'), 'scribe-subagent-prompt-body');
+  promptSection.wrapperEl.addClass('scribe-subagent-section-prompt');
   setPromptText(promptSection.bodyEl, prompt);
 
-  const toolsContainerEl = contentEl.createDiv({ cls: 'claudian-subagent-tools' });
+  const toolsContainerEl = contentEl.createDiv({ cls: 'scribe-subagent-tools' });
 
   const state: SubagentState = {
     isExpanded: false,
@@ -324,8 +325,8 @@ export function updateSubagentBlock(state: SubagentState, info: Readonly<Subagen
   state.labelEl.setText(truncateDescription(info.description));
   state.headerEl.title = info.description;
   updateSubagentContent(state, info, info.status === 'running' ? undefined
-    : info.result?.trim() ? info.result : (info.status === 'error' ? 'ERROR' : 'DONE'));
-  state.statusEl.className = `claudian-subagent-status status-${info.status}`;
+    : info.result?.trim() ? info.result : t(info.status === 'error' ? 'chat.tools.errorResult' : 'chat.tools.done'));
+  state.statusEl.className = `scribe-subagent-status status-${info.status}`;
   state.statusEl.empty();
   state.wrapperEl.removeClass('done', 'error');
   if (info.status !== 'running') {
@@ -365,9 +366,9 @@ function getAsyncDisplayStatus(asyncStatus: string | undefined): 'running' | 'co
 
 function getAsyncStatusText(asyncStatus: string | undefined): string {
   switch (asyncStatus) {
-    case 'pending': return 'Initializing';
-    case 'error': return 'Error';
-    case 'orphaned': return 'Orphaned';
+    case 'pending': return t('chat.subagent.initializing');
+    case 'error': return t('chat.subagent.error');
+    case 'orphaned': return t('chat.subagent.orphaned');
     // Running and completed cards show only their status icon.
     default: return '';
   }
@@ -375,11 +376,11 @@ function getAsyncStatusText(asyncStatus: string | undefined): string {
 
 function getAsyncStatusAriaLabel(asyncStatus: string | undefined): string {
   switch (asyncStatus) {
-    case 'pending': return 'Initializing';
-    case 'completed': return 'Completed';
-    case 'error': return 'Error';
-    case 'orphaned': return 'Orphaned';
-    default: return 'Running in background';
+    case 'pending': return t('chat.subagent.initializing');
+    case 'completed': return t('chat.subagent.completed');
+    case 'error': return t('chat.subagent.error');
+    case 'orphaned': return t('chat.subagent.orphaned');
+    default: return t('chat.subagent.backgroundRunning');
   }
 }
 
@@ -390,7 +391,7 @@ function updateAsyncLabel(state: AsyncSubagentState): void {
   const statusLabel = getAsyncStatusAriaLabel(state.info.asyncStatus);
   state.headerEl.setAttribute(
     'aria-label',
-    `Background task: ${state.info.description} - ${statusLabel} - click to expand`
+    t('chat.subagent.backgroundAria', { description: state.info.description, status: statusLabel })
   );
 }
 
@@ -402,7 +403,7 @@ export function createAsyncSubagentBlock(
   const view = createSubagentView(parentEl, info);
   delete view.wrapperEl.dataset.subagentId;
   view.wrapperEl.dataset.asyncSubagentId = info.id;
-  const statusTextEl = view.headerEl.createDiv({ cls: 'claudian-subagent-status-text' });
+  const statusTextEl = view.headerEl.createDiv({ cls: 'scribe-subagent-status-text' });
   view.headerEl.insertBefore(statusTextEl, view.statusEl);
   const state: AsyncSubagentState = Object.assign(view, { statusTextEl });
   updateAsyncSubagentBlock(state, info);
@@ -418,8 +419,8 @@ export function updateAsyncSubagentBlock(state: AsyncSubagentState, info: Readon
   updateAsyncLabel(state);
   state.statusTextEl.setText(getAsyncStatusText(info.asyncStatus));
   const status = displayStatus === 'orphaned' ? 'error' : displayStatus;
-  state.statusEl.className = `claudian-subagent-status status-${status}`;
-  state.statusEl.setAttribute('aria-label', `Status: ${getAsyncStatusAriaLabel(info.asyncStatus)}`);
+  state.statusEl.className = `scribe-subagent-status status-${status}`;
+  state.statusEl.setAttribute('aria-label', t('chat.subagent.statusAria', { status: getAsyncStatusAriaLabel(info.asyncStatus) }));
   state.statusEl.empty();
   if (displayStatus !== 'running') {
     setIcon(state.statusEl, displayStatus === 'orphaned' ? 'alert-circle' : displayStatus === 'error' ? 'x' : 'check');
@@ -427,8 +428,8 @@ export function updateAsyncSubagentBlock(state: AsyncSubagentState, info: Readon
     clearSubagentProgress(state);
   }
   updateSubagentContent(state, info, displayStatus === 'running' ? undefined
-    : displayStatus === 'orphaned' ? (info.result || 'Conversation ended before task completed')
-      : info.result?.trim() ? info.result : (displayStatus === 'error' ? 'ERROR' : 'DONE'));
+    : displayStatus === 'orphaned' ? (info.result || t('chat.subagent.orphanedResult'))
+      : info.result?.trim() ? info.result : t(displayStatus === 'error' ? 'chat.tools.errorResult' : 'chat.tools.done'));
 }
 
 export function renderStoredAsyncSubagent(parentEl: HTMLElement, subagent: Readonly<SubagentInfo>): HTMLElement {

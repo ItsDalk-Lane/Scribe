@@ -1,6 +1,6 @@
 import { SESSION_TOOL_SPECS } from '@/core/session-tools/sessionToolSpecs';
 
-export const PI_SESSION_TOOLS_TITLE = 'claudian-session-tools';
+export const PI_SESSION_TOOLS_TITLE = 'scribe-session-tools';
 
 /** Pi 1.1 accepts plain JSON Schema; keep the embedded extension dependency-free. */
 export const PI_SESSION_TOOLS_EXTENSION_SOURCE = `

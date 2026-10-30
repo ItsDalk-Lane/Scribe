@@ -70,7 +70,7 @@ export class DesktopVault {
   }
 
   static async create(): Promise<DesktopVault> {
-    return new DesktopVault(await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-'))));
+    return new DesktopVault(await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-'))));
   }
 
   resolve(relativePath: string): string {

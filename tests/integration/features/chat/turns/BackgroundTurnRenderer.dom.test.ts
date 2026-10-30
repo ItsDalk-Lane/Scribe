@@ -54,7 +54,7 @@ it.each(['attached', 'detached', 'absent', 'late-text', 'late-thinking'] as cons
     };
     state.addMessage(message);
     const mountContent = () => {
-      state.currentContentEl = renderer.addMessage(message).querySelector('.claudian-message-content');
+      state.currentContentEl = renderer.addMessage(message).querySelector('.scribe-message-content');
     };
     if (presentation === 'attached' || presentation === 'detached') mountContent();
     if (presentation === 'detached') messagesEl.remove();
@@ -129,7 +129,7 @@ it.each([
     await coordinator.prepare();
     const requested: ChatMessage = { id: 'requested', role: 'assistant', timestamp: 1, content: '', contentBlocks: [] };
     state.addMessage(requested);
-    state.currentContentEl = renderer.addMessage(requested).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(requested).querySelector('.scribe-message-content');
     await stream.handleStreamChunk({ type: 'text', content: 'Requested ' }, requested);
     const current = state.currentContentEl;
     const native = backend.latest;
@@ -453,7 +453,7 @@ function visibleText(element: HTMLElement): string {
 }
 
 function visibleTranscript(root: HTMLElement): string {
-  return Array.from(root.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' ');
+  return Array.from(root.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' ');
 }
 
 it.each([true, false])('folds a stopped automatic reply under Interrupted after its notification, live and on reload (output: %s)', async output => {
@@ -470,7 +470,7 @@ it.each([true, false])('folds a stopped automatic reply under Interrupted after 
   const scope = { kind: 'background' as const, sessionInstanceId: 'native', turnId: 'automatic', sequence: 0 };
   const next = () => ({ ...scope, sequence: ++scope.sequence });
   const inspect = () => {
-    const header = within(messagesEl).queryByRole('button', { name: 'Interrupted · What should Claudian do instead?' });
+    const header = within(messagesEl).queryByRole('button', { name: 'Interrupted · What should Scribe do instead?' });
     const history = header && document.getElementById(header.getAttribute('aria-controls')!)!;
     const collapsed = visibleTranscript(messagesEl);
     const actions = within(messagesEl).queryAllByRole('button', { name: /^(Copy message|Fork conversation|Worked.*)$/ }).length;
@@ -479,7 +479,7 @@ it.each([true, false])('folds a stopped automatic reply under Interrupted after 
       collapsed, actions,
       folded: history ? visibleText(history) : null,
       // The header carries the indicator; the body never repeats it.
-      indicatorInBody: history ? history.querySelector('.claudian-interrupted') !== null : null,
+      indicatorInBody: history ? history.querySelector('.scribe-interrupted') !== null : null,
     };
     if (header) fireEvent.click(header);
     return result;
@@ -495,7 +495,7 @@ it.each([true, false])('folds a stopped automatic reply under Interrupted after 
     await Promise.resolve();
     // Replays may describe a never-finished tool differently; the fold, its order and its header must match.
     const foldedBody = expect.stringMatching(/^Read job\.log\b.*Checking the job\.$/);
-    const live = { collapsed: 'Task notification Interrupted · What should Claudian do instead?', actions: 0,
+    const live = { collapsed: 'Task notification Interrupted · What should Scribe do instead?', actions: 0,
       indicatorInBody: output ? false : null, folded: output ? foldedBody : null };
     expect(inspect()).toEqual(live);
     expect((await axe(messagesEl)).violations).toEqual([]);
@@ -558,7 +558,7 @@ it('keeps a reply before a steer intact and ends the steered input in an indicat
   const session = createBackgroundSession();
   const { messagesEl, renderer, state, background } = session;
   const inspect = () => ({
-    transcript: Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean),
+    transcript: Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean),
     disclosures: within(messagesEl).queryAllByRole('button', { name: /^(Interrupted|Worked)/ }).length,
   });
   try {
@@ -569,7 +569,7 @@ it('keeps a reply before a steer intact and ends the steered input in an indicat
     await session.stop();
     await Promise.resolve();
     const expected = { transcript: ['Task notification', 'Background reply.', 'Make it shorter',
-      'Interrupted · What should Claudian do instead?'], disclosures: 0 };
+      'Interrupted · What should Scribe do instead?'], disclosures: 0 };
     expect(inspect()).toEqual(expected);
     expect(state.messages.find(message => message.content === 'Background reply.')?.isInterrupt).toBeUndefined();
     renderer.renderMessages(state.messages, () => 'Welcome');
@@ -584,7 +584,7 @@ it('keeps a completed answer intact when the automatic turn after it stops befor
   const session = createBackgroundSession();
   const { messagesEl, renderer, state, background } = session;
   const inspect = () => ({
-    transcript: Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean),
+    transcript: Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean),
     interrupted: within(messagesEl).queryAllByRole('button', { name: /^Interrupted/ }).length,
   });
   try {
@@ -597,7 +597,7 @@ it('keeps a completed answer intact when the automatic turn after it stops befor
     background.reserve('binding', 'automatic');
     await session.stop();
     await Promise.resolve();
-    const expected = { transcript: ['Do the work', 'Completed answer.', 'Interrupted · What should Claudian do instead?'], interrupted: 0 };
+    const expected = { transcript: ['Do the work', 'Completed answer.', 'Interrupted · What should Scribe do instead?'], interrupted: 0 };
     expect(inspect()).toEqual(expected);
     renderer.renderMessages(state.messages, () => 'Welcome');
     await Promise.resolve();
@@ -644,7 +644,7 @@ it.each([true, false])('folds a background turn stopped after blank thinking lik
     await background.handle('binding', { type: 'thinking_delta', text: '   ', scope: session.next() }, () => true);
     await session.stop();
     await Promise.resolve();
-    const expected = { transcript: 'Interrupted · What should Claudian do instead?', headers: earlier ? 1 : 0 };
+    const expected = { transcript: 'Interrupted · What should Scribe do instead?', headers: earlier ? 1 : 0 };
     expect(inspect()).toEqual(expected);
     renderer.renderMessages(state.messages, () => 'Welcome');
     await Promise.resolve();
@@ -667,7 +667,7 @@ it('keeps a notification visible when blank thinking surrounds it in a stopped b
     await blankThinking();
     await session.stop();
     await Promise.resolve();
-    const expected = { transcript: 'Task notification Interrupted · What should Claudian do instead?', headers: 0 };
+    const expected = { transcript: 'Task notification Interrupted · What should Scribe do instead?', headers: 0 };
     expect(inspect()).toEqual(expected);
     renderer.renderMessages(state.messages, () => 'Welcome');
     await Promise.resolve();
@@ -679,16 +679,16 @@ it('folds a stopped automatic turn across a later notification once, live and on
   const session = createBackgroundSession();
   const { messagesEl, renderer, state, background } = session;
   const inspect = () => {
-    const header = within(messagesEl).getByRole('button', { name: 'Interrupted · What should Claudian do instead?' });
+    const header = within(messagesEl).getByRole('button', { name: 'Interrupted · What should Scribe do instead?' });
     const history = document.getElementById(header.getAttribute('aria-controls')!)!;
-    const collapsed = Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' ');
+    const collapsed = Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' ');
     fireEvent.click(header);
     const body = visibleText(history);
     fireEvent.click(header);
     return { collapsed, body, headers: within(messagesEl).getAllByRole('button', { name: /^Interrupted/ }).length };
   };
   // Replays may describe the never-finished tool differently; the fold, its order and its header must match.
-  const expected = { collapsed: 'Task notification Interrupted · What should Claudian do instead?',
+  const expected = { collapsed: 'Task notification Interrupted · What should Scribe do instead?',
     body: expect.stringMatching(/^First part\. Read job\.log\b.*Task notification Second part\.$/), headers: 1 };
   try {
     renderSessionTaskNotification(session.host, 'First job finished.', undefined, session.next());
@@ -760,7 +760,7 @@ it('keeps a completed Pi reply outside a later hidden-trigger interrupted disclo
   try {
     renderer.renderMessages(messages, () => 'Welcome');
     const header = await waitFor(() => within(messagesEl).getByRole('button', {
-      name: 'Interrupted \u00b7 What should Claudian do instead?',
+      name: 'Interrupted \u00b7 What should Scribe do instead?',
     }));
     const history = document.getElementById(header.getAttribute('aria-controls')!)!;
     expect(history).not.toBeNull();
@@ -787,7 +787,7 @@ it('keeps per-notification boundaries of a completed automatic turn, live and on
   const session = createBackgroundSession();
   const { messagesEl, renderer, background } = session;
   const transcript = () => ({
-    visible: Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' '),
+    visible: Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' '),
     disclosures: within(messagesEl).queryAllByRole('button', { name: /^(Interrupted|Worked)/ }).length,
   });
   // Each reply stays beside the notification it followed, with its tool visible.
@@ -822,10 +822,10 @@ it('keeps per-notification boundaries of a completed automatic turn, live and on
 it.each([true, false])('folds a notification that trails the stopped reply into its turn, live and on Claude reload (output: %s)', async output => {
   const session = createBackgroundSession();
   const { messagesEl, renderer, state, background } = session;
-  const INTERRUPTED = 'Interrupted · What should Claudian do instead?';
+  const INTERRUPTED = 'Interrupted · What should Scribe do instead?';
   const inspect = () => {
     const header = within(messagesEl).queryByRole('button', { name: INTERRUPTED });
-    const visible = Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' ');
+    const visible = Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' ');
     if (!header) return { visible, body: null };
     const history = document.getElementById(header.getAttribute('aria-controls')!)!;
     fireEvent.click(header);
@@ -869,11 +869,11 @@ it.each([true, false])('folds a notification that trails the stopped reply into 
 it.each([true, false])('folds a stopped automatic turn across compaction once, live and on Claude reload (output after compaction: %s)', async after => {
   const session = createBackgroundSession();
   const { messagesEl, renderer, state, background } = session;
-  const INTERRUPTED = 'Interrupted · What should Claudian do instead?';
+  const INTERRUPTED = 'Interrupted · What should Scribe do instead?';
   const inspect = () => {
     const header = within(messagesEl).getByRole('button', { name: INTERRUPTED });
     const history = document.getElementById(header.getAttribute('aria-controls')!)!;
-    const visible = Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' ');
+    const visible = Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' ');
     fireEvent.click(header);
     const body = visibleText(history);
     fireEvent.click(header);

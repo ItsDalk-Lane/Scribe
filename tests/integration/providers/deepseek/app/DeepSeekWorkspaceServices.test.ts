@@ -82,7 +82,7 @@ it('lists vault skills for the dropdown from saved native sessions without activ
     { sessionId: 'elsewhere', updatedAt: 5, agentAvailable: false, running: false, blank: false, cwd: '/other' },
     { sessionId: 'title', updatedAt: 4, agentAvailable: false, running: false, blank: false, cwd: '/vault' },
   ];
-  const presets: Record<string, string> = { 'older-chat': 'claudian', elsewhere: 'claudian', title: 'claudian-passive', child: 'claudian', chat: 'claudian', saved: 'claudian-code', relocated: 'claudian' };
+  const presets: Record<string, string> = { 'older-chat': 'scribe', elsewhere: 'scribe', title: 'scribe-passive', child: 'scribe', chat: 'scribe', saved: 'scribe-code', relocated: 'scribe' };
   let listFailure: Error | undefined;
   peer.onCall = (method, args: any) => {
     if (method === 'session/list') { if (listFailure) throw listFailure; return { items: rows }; }
@@ -98,12 +98,12 @@ it('lists vault skills for the dropdown from saved native sessions without activ
     expect(await load(null, false)).toMatchObject({ status: 'requires-session' });
     expect(start).not.toHaveBeenCalled();
     const home = getDeepSeekHome(process.env, process.cwd());
-    const saved = { sessionId: 'saved', providerState: { schemaVersion: 1, home, profile: 'web', preset: 'claudian-code' } };
+    const saved = { sessionId: 'saved', providerState: { schemaVersion: 1, home, profile: 'web', preset: 'scribe-code' } };
     expect(await load(saved)).toMatchObject({ status: 'ready', items: [{ name: 'skill-of-saved', kind: 'skill' }] });
     // Both chat presets mount the same skills (code mode changes tools only); a passive root is never the catalog.
     expect(await load(null)).toMatchObject({ status: 'ready', items: [{ name: 'skill-of-chat', kind: 'skill' }] });
     // A conversation saved against another native store cannot name a session in this Host's store.
-    const relocated = { sessionId: 'relocated', providerState: { schemaVersion: 1, home: `${home}-relocated`, profile: 'web', preset: 'claudian' } };
+    const relocated = { sessionId: 'relocated', providerState: { schemaVersion: 1, home: `${home}-relocated`, profile: 'web', preset: 'scribe' } };
     expect(await load(relocated)).toMatchObject({ status: 'ready', items: [{ name: 'skill-of-chat', kind: 'skill' }] });
     listFailure = new Error('native store busy');
     expect(await load(null)).toEqual({ status: 'error', message: 'Could not load DeepSeek skills.', retryable: true });
@@ -155,7 +155,7 @@ it('stops the shared Host before a provider transition and restarts it lazily wi
   } finally { await workspace?.dispose?.(); await registry.dispose(); await peer.close(); }
 });
 
-it('mirrors Claudian archive state onto native sessions in this Host store', async () => {
+it('mirrors Scribe archive state onto native sessions in this Host store', async () => {
   expect(deepseekWorkspaceRegistration.providesSessionArchive).toBe(true);
   const peer = new NativePeer(); await peer.open();
   const registry = new ProviderExecutionLifecycleRegistry();
@@ -170,7 +170,7 @@ it('mirrors Claudian archive state onto native sessions in this Host store', asy
     return { archivedSessionIds: [] };
   };
   const home = getDeepSeekHome(process.env, process.cwd());
-  const state = (extra: Record<string, unknown> = {}) => ({ schemaVersion: 1, home, profile: 'web', preset: 'claudian', ...extra });
+  const state = (extra: Record<string, unknown> = {}) => ({ schemaVersion: 1, home, profile: 'web', preset: 'scribe', ...extra });
   const change = (sessionId: string | null, isArchived: boolean, providerState: Record<string, unknown> = state()) => ({ conversation: { sessionId, providerState, messages: [] }, isArchived });
   let workspace: DeepSeekWorkspaceServices | undefined;
   try {
@@ -186,7 +186,7 @@ it('mirrors Claudian archive state onto native sessions in this Host store', asy
     ]);
     const mutations = () => peer.calls.filter(call => call.method.startsWith('workspace/')).map(call => [call.method, call.args.request]);
     expect(mutations()).toEqual([
-      // Claudian archives only closed sessions; leftover native work must not refuse the archive.
+      // Scribe archives only closed sessions; leftover native work must not refuse the archive.
       ['workspace/archiveSession', { sessionId: 'chat', stopActivity: true }],
       ['workspace/archiveSession', { sessionId: 'gone', stopActivity: true }],
       ['workspace/unarchiveSession', { sessionId: 'restored' }],
@@ -225,7 +225,7 @@ it('lets an admitted archive finish before a provider transition stops the Host'
   try {
     workspace = createDeepSeekWorkspaceServices(withRuntimeHosts(host), start);
     const home = getDeepSeekHome(process.env, process.cwd());
-    const operation = workspace.sessionArchive!.setSessionsArchived([{ conversation: { sessionId: 'chat', providerState: { schemaVersion: 1, home, profile: 'web', preset: 'claudian' }, messages: [] }, isArchived: true }]);
+    const operation = workspace.sessionArchive!.setSessionsArchived([{ conversation: { sessionId: 'chat', providerState: { schemaVersion: 1, home, profile: 'web', preset: 'scribe' }, messages: [] }, isArchived: true }]);
     await inFlight;
     const transition = registry.runTransition(['deepseek'], async () => {});
     await new Promise(resolve => setTimeout(resolve, 20));

@@ -1,6 +1,6 @@
 /* Context usage meter, in the toolbar right after the model picker */
 
-.claudian-context-meter {
+.scribe-context-meter {
   position: relative;
   display: flex;
   align-items: center;
@@ -10,7 +10,7 @@
   cursor: default;
 }
 
-.claudian-context-meter-gauge {
+.scribe-context-meter-gauge {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,21 +18,21 @@
   height: 24px;
 }
 
-.claudian-context-meter-gauge svg {
+.scribe-context-meter-gauge svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-meter-bg {
+.scribe-meter-bg {
   stroke: var(--background-modifier-border);
 }
 
-.claudian-meter-fill {
-  stroke: var(--claudian-brand);
+.scribe-meter-fill {
+  stroke: var(--scribe-brand);
   transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
 }
 
-.claudian-context-meter-percent {
+.scribe-context-meter-percent {
   font-size: 11px;
   color: var(--text-muted);
   min-width: 24px;
@@ -43,10 +43,10 @@
 }
 
 /* Warning state (> 80%) - pale red */
-.claudian-context-meter.warning .claudian-meter-fill {
+.scribe-context-meter.warning .scribe-meter-fill {
   stroke: #E57373;
 }
 
-.claudian-context-meter.warning .claudian-context-meter-percent {
+.scribe-context-meter.warning .scribe-context-meter-percent {
   color: #E57373;
 }

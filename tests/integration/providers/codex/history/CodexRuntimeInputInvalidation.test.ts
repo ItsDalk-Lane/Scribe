@@ -1,7 +1,7 @@
 import '@/providers';
 
 import { TEST_CODEX_CATALOG, TEST_CODEX_MODEL } from '@test/helpers/codexModels';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { withRuntimeHosts } from '@test/helpers/providerRuntimeHost';
 import { testDate } from '@test/helpers/testClock';
 import * as fs from 'fs';
@@ -16,7 +16,7 @@ import { ProviderExecutionLifecycleRegistry } from '@/core/execution/ProviderExe
 import { SessionSnapshotState } from '@/core/execution/SessionSnapshotState';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import { ExecutionSessionSupervisor } from '@/features/chat/execution/ExecutionSessionSupervisor';
 import { createCodexWorkspaceServices } from '@/providers/codex/app/CodexWorkspaceServices';
 
@@ -51,7 +51,7 @@ function closedConversation(id: string, threadId: string, question: string, answ
 }
 
 function fixture() {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS) as ClaudianSettings & Record<string, any>;
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS) as ScribeSettings & Record<string, any>;
   settings.providerConfigs = {
     ...settings.providerConfigs,
     codex: {
@@ -105,7 +105,7 @@ async function visibleHistory(repository: ConversationRepository, id: string): P
 
 describe('Codex runtime-input changes', () => {
   beforeEach(() => {
-    codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-codex-runtime-'));
+    codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-codex-runtime-'));
   });
 
   afterEach(() => {

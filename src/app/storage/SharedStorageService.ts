@@ -3,17 +3,17 @@ import { Notice, type Plugin } from 'obsidian';
 import type { SharedAppStorage } from '@/core/bootstrap/storage';
 import { getInstallationKey, type InstallationKey } from '@/core/device/InstallationKey';
 import { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 
 import { ProjectStore } from '../projects/ProjectStore';
-import { ClaudianSettingsStorage, type StoredClaudianSettings } from '../settings/ClaudianSettingsStorage';
+import { ScribeSettingsStorage, type StoredScribeSettings } from '../settings/ScribeSettingsStorage';
 import { ConversationPersistenceStore } from './ConversationPersistenceStore';
 import { migrateSessionSidecars } from './migrateSessionSidecars';
 import { SessionStorage } from './SessionStorage';
 
 export class SharedStorageService implements SharedAppStorage {
   readonly installationKey: InstallationKey;
-  readonly claudianSettings: ClaudianSettingsStorage;
+  readonly scribeSettings: ScribeSettingsStorage;
   readonly sessions: SessionStorage;
   readonly conversationPersistence: ConversationPersistenceStore;
   readonly projects: ProjectStore;
@@ -21,19 +21,19 @@ export class SharedStorageService implements SharedAppStorage {
   private adapter: VaultFileAdapter;
   private obsoleteSessionInputs: string[] = [];
 
-  constructor(plugin: Plugin, defaultSettings: Readonly<ClaudianSettings>) {
+  constructor(plugin: Plugin, defaultSettings: Readonly<ScribeSettings>) {
     this.adapter = new VaultFileAdapter(plugin.app);
     const deviceKey = this.installationKey = getInstallationKey();
-    this.claudianSettings = new ClaudianSettingsStorage(this.adapter, defaultSettings);
+    this.scribeSettings = new ScribeSettingsStorage(this.adapter, defaultSettings);
     this.sessions = new SessionStorage(this.adapter, deviceKey);
     this.conversationPersistence = new ConversationPersistenceStore(this.adapter, deviceKey);
     this.projects = new ProjectStore(this.adapter);
   }
 
-  async initialize(): Promise<{ claudian: Record<string, unknown> }> {
+  async initialize(): Promise<{ scribe: Record<string, unknown> }> {
     // Settings and session recovery touch separate files. Join both even if settings fail.
     const [settings] = await Promise.allSettled([
-      this.claudianSettings.load(),
+      this.scribeSettings.load(),
       migrateSessionSidecars(this.adapter).then(paths => {
         this.obsoleteSessionInputs = paths;
       }).catch(() => {
@@ -41,7 +41,7 @@ export class SharedStorageService implements SharedAppStorage {
       }),
     ]);
     if (settings.status === 'rejected') throw settings.reason;
-    return { claudian: settings.value };
+    return { scribe: settings.value };
   }
 
   async cleanupObsoleteSessionInputs(signal: AbortSignal): Promise<void> {
@@ -56,8 +56,8 @@ export class SharedStorageService implements SharedAppStorage {
     }
   }
 
-  async saveClaudianSettings(settings: Record<string, unknown>): Promise<void> {
-    await this.claudianSettings.save(settings as StoredClaudianSettings);
+  async saveScribeSettings(settings: Record<string, unknown>): Promise<void> {
+    await this.scribeSettings.save(settings as StoredScribeSettings);
   }
 
   getAdapter(): VaultFileAdapter {

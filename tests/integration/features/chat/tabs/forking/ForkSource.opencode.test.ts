@@ -49,7 +49,7 @@ function readNativeLog(root: string): Array<Record<string, unknown>> {
 
 describe('OpenCode fork integration', () => {
   let root: string;
-  beforeEach(() => { root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-opencode-fork-'))); });
+  beforeEach(() => { root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-opencode-fork-'))); });
   afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
   function fork(cliPath: string, environment: NodeJS.ProcessEnv = process.env) {

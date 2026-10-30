@@ -2,10 +2,10 @@
  * Visibility utilities are imported late so they can override component display
  * defaults without importance flags.
  */
-.claudian-hidden.claudian-hidden {
+.scribe-hidden.scribe-hidden {
   display: none;
 }
 
-.claudian-visible-flex.claudian-visible-flex {
+.scribe-visible-flex.scribe-visible-flex {
   display: flex;
 }

@@ -29,10 +29,10 @@ describe('PiHistoryStore', () => {
 
   it('keeps neutral session tool names and native names in replay', () => {
     const messages = parsePiSessionContent(JSON.stringify({ type: 'message', id: 'assistant', message: {
-      role: 'assistant', content: [{ type: 'toolCall', id: 'tool', name: 'claudian_send_message', arguments: { text: 'Hello' } }],
+      role: 'assistant', content: [{ type: 'toolCall', id: 'tool', name: 'scribe_send_message', arguments: { text: 'Hello' } }],
     } }));
-    expect(messages[0].toolCalls).toEqual([{ id: 'tool', name: 'claudian_send_message', input: { text: 'Hello' },
-      status: 'running', providerPayload: { rawName: 'claudian_send_message' } }]);
+    expect(messages[0].toolCalls).toEqual([{ id: 'tool', name: 'scribe_send_message', input: { text: 'Hello' },
+      status: 'running', providerPayload: { rawName: 'scribe_send_message' } }]);
   });
 
   it('correlates repeated live prompts by their anchored order and leaves unsaved input unbound', () => {

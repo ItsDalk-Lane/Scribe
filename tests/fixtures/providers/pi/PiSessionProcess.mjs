@@ -4,7 +4,7 @@ import * as readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
 
 // A deterministic external Pi RPC peer that loads the generated launch extensions.
-const root = process.env.CLAUDIAN_TEST_PI_ROOT;
+const root = process.env.SCRIBE_TEST_PI_ROOT;
 const args = process.argv.slice(2);
 const sessionIndex = args.indexOf('--session');
 const noSession = args.includes('--no-session');
@@ -88,9 +88,9 @@ for await (const line of lines) {
   const request = JSON.parse(line);
   switch (request.type) {
     case 'get_state': {
-      if (process.env.CLAUDIAN_TEST_PI_STARTUP_TOOL === '1' && !startupToolAttempted) {
+      if (process.env.SCRIBE_TEST_PI_STARTUP_TOOL === '1' && !startupToolAttempted) {
         startupToolAttempted = true;
-        const tool = tools.get('claudian_send_message');
+        const tool = tools.get('scribe_send_message');
         write({ type: 'tool_execution_start', toolCallId: 'startup', toolName: tool.name, args: { text: 'Too early' } });
         void tool.execute('startup', { text: 'Too early' }, new AbortController().signal, undefined, extensionContext).then(result => {
           fs.writeFileSync(path.join(root, 'startup-tool.json'), JSON.stringify(result));
@@ -100,7 +100,7 @@ for await (const line of lines) {
       const [header] = readRecords(sessionFile);
       respond(request, {
         sessionId: header?.id ?? 'pi-source',
-        sessionFile: process.env.CLAUDIAN_TEST_PI_MISMATCH === '1' ? path.join(root, 'wrong.jsonl') : sessionFile,
+        sessionFile: process.env.SCRIBE_TEST_PI_MISMATCH === '1' ? path.join(root, 'wrong.jsonl') : sessionFile,
         pid: process.pid,
       });
       break;
@@ -198,7 +198,7 @@ for await (const line of lines) {
       break;
     case 'fixture_private_input':
       pendingDialogs.set(request.dialogId, request);
-      write({ type: 'extension_ui_request', id: request.dialogId, method: 'input', title: 'claudian-session-tools', placeholder: JSON.stringify(request.payload) });
+      write({ type: 'extension_ui_request', id: request.dialogId, method: 'input', title: 'scribe-session-tools', placeholder: JSON.stringify(request.payload) });
       break;
     case 'fixture_emit': write(request.event); respond(request, {}); break;
     case 'abort':

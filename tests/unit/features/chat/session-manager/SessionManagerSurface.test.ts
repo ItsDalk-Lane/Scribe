@@ -115,13 +115,13 @@ function createHarness(options: HarnessOptions = {}) {
 
   return {
     conversations,
-    historyButton: navEl.querySelector('.claudian-input-nav-btn'),
-    historyMenu: navEl.querySelector('.claudian-history-menu'),
+    historyButton: navEl.querySelector('.scribe-input-nav-btn'),
+    historyMenu: navEl.querySelector('.scribe-history-menu'),
     navigation,
     notifyOtherViews,
     plugin,
     requestNew,
-    sessionSurfaceEl: sidebarEl.querySelector('.claudian-session-surface'),
+    sessionSurfaceEl: sidebarEl.querySelector('.scribe-session-surface'),
     settings,
     sidebarEl,
     state,
@@ -130,26 +130,26 @@ function createHarness(options: HarnessOptions = {}) {
 }
 
 function renderedIds(container: any): string[] {
-  return container.querySelectorAll('.claudian-history-item')
+  return container.querySelectorAll('.scribe-history-item')
     .map((item: any) => item.getAttribute('data-conversation-id'));
 }
 
 function findItem(container: any, conversationId: string): any {
-  return container.querySelectorAll('.claudian-history-item')
+  return container.querySelectorAll('.scribe-history-item')
     .find((item: any) => item.getAttribute('data-conversation-id') === conversationId);
 }
 
 function navLabel(control: any): string | undefined {
-  return control?.querySelector('.claudian-session-nav-label')?.textContent;
+  return control?.querySelector('.scribe-session-nav-label')?.textContent;
 }
 
 function sessionsHeaderLabel(container: any): string | undefined {
-  return container.querySelector('.claudian-session-list-header')
-    ?.querySelector('.claudian-history-section-label')?.textContent;
+  return container.querySelector('.scribe-session-list-header')
+    ?.querySelector('.scribe-history-section-label')?.textContent;
 }
 
 function searchInput(container: any): any {
-  return container.querySelector('.claudian-session-search-input');
+  return container.querySelector('.scribe-session-search-input');
 }
 
 function typeSearch(container: any, value: string): void {
@@ -159,8 +159,8 @@ function typeSearch(container: any, value: string): void {
 }
 
 function headerActions(container: any): any {
-  return container.querySelector('.claudian-session-list-header')
-    ?.querySelector('.claudian-session-header-actions');
+  return container.querySelector('.scribe-session-list-header')
+    ?.querySelector('.scribe-session-header-actions');
 }
 
 afterEach(() => {
@@ -177,9 +177,9 @@ describe('SessionManagerSurface session header', () => {
     const container = h.sessionSurfaceEl;
     const actions = headerActions(container);
     const optionsButton = actions?.children[0];
-    const newButton = container.querySelector('.claudian-session-new-control');
-    const searchButton = container.querySelector('.claudian-session-search-control');
-    const archiveButton = container.querySelector('.claudian-session-archive-control');
+    const newButton = container.querySelector('.scribe-session-new-control');
+    const searchButton = container.querySelector('.scribe-session-search-control');
+    const archiveButton = container.querySelector('.scribe-session-archive-control');
     expect(sessionsHeaderLabel(container)).toBe('Sessions');
     expect(actions?.children).toHaveLength(1);
     expect(optionsButton?.getAttribute('aria-label')).toBe('Session options');
@@ -187,23 +187,23 @@ describe('SessionManagerSurface session header', () => {
     expect(newButton?.getAttribute('role')).toBe('button');
     expect(newButton?.getAttribute('tabindex')).toBe('0');
     expect(newButton?.getAttribute('aria-label')).toBeNull();
-    expect(newButton?.querySelector('.claudian-session-new-label')?.textContent).toBe('New');
+    expect(newButton?.querySelector('.scribe-session-new-label')?.textContent).toBe('New');
     expect(setIcon).toHaveBeenCalledWith(
-      newButton?.querySelector('.claudian-session-new-icon'),
+      newButton?.querySelector('.scribe-session-new-icon'),
       'square-pen',
     );
     expect(searchButton?.getAttribute('aria-label')).toBeNull();
     expect(navLabel(searchButton)).toBe('Search');
-    expect(container.querySelector('.claudian-session-files-control')).toBeNull();
+    expect(container.querySelector('.scribe-session-files-control')).toBeNull();
     expect(archiveButton?.getAttribute('aria-label')).toBeNull();
-    expect(container.querySelector('.claudian-history-list')).not.toBeNull();
+    expect(container.querySelector('.scribe-history-list')).not.toBeNull();
 
     newButton?.click();
     expect(h.requestNew).toHaveBeenCalledTimes(1);
     expect(searchInput(container)).toBeNull();
     searchButton?.click();
     expect(searchInput(container)).not.toBeNull();
-    expect(container.querySelector('.claudian-session-search-control')).toBeNull();
+    expect(container.querySelector('.scribe-session-search-control')).toBeNull();
   });
 
   it('switches between active and archived session manager views', () => {
@@ -215,13 +215,13 @@ describe('SessionManagerSurface session header', () => {
     });
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
-    const archiveControl = container.querySelector('.claudian-session-archive-control');
+    const archiveControl = container.querySelector('.scribe-session-archive-control');
     expect(navLabel(archiveControl)).toBe('Archive');
     expect(renderedIds(container)).toEqual(['active']);
 
     archiveControl.click();
 
-    const sessionsControl = container.querySelector('.claudian-session-archive-control');
+    const sessionsControl = container.querySelector('.scribe-session-archive-control');
     expect(sessionsControl).not.toBe(archiveControl);
     expect(navLabel(sessionsControl)).toBe('Sessions');
     expect(sessionsHeaderLabel(container)).toBe('Archived');
@@ -229,7 +229,7 @@ describe('SessionManagerSurface session header', () => {
 
     sessionsControl.click();
 
-    expect(navLabel(container.querySelector('.claudian-session-archive-control')))
+    expect(navLabel(container.querySelector('.scribe-session-archive-control')))
       .toBe('Archive');
     expect(sessionsHeaderLabel(container)).toBe('Sessions');
     expect(renderedIds(container)).toEqual(['active']);
@@ -246,13 +246,13 @@ describe('SessionManagerSurface session header', () => {
     });
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     typeSearch(container, 'roadmap');
 
     const input = searchInput(container);
     expect(input.value).toBe('roadmap');
     expect(input.getAttribute('placeholder')).toBe('Search sessions');
-    expect(container.querySelector('.claudian-session-search-close')).toBeNull();
+    expect(container.querySelector('.scribe-session-search-close')).toBeNull();
     expect(renderedIds(container).sort()).toEqual(['roadmap-draft', 'roadmap-review']);
 
     typeSearch(container, 'roadmap review');
@@ -294,7 +294,7 @@ describe('SessionManagerSurface session header', () => {
     committedInput.dispatchEvent(escape);
     expect(escape.preventDefault).toHaveBeenCalledTimes(1);
     expect(searchInput(container)).toBeNull();
-    expect(container.querySelector('.claudian-session-search-control')).not.toBeNull();
+    expect(container.querySelector('.scribe-session-search-control')).not.toBeNull();
     expect(renderedIds(container)).toHaveLength(4);
   });
 
@@ -308,17 +308,17 @@ describe('SessionManagerSurface session header', () => {
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
     const scrollLists = () => {
-      const list = container.querySelector('.claudian-history-list');
+      const list = container.querySelector('.scribe-history-list');
       return {
-        pinnedList: list.querySelector('.claudian-history-section--pinned')
-          .querySelector('.claudian-history-section-items'),
-        sessionList: list.querySelector('.claudian-session-list-items'),
+        pinnedList: list.querySelector('.scribe-history-section--pinned')
+          .querySelector('.scribe-history-section-items'),
+        sessionList: list.querySelector('.scribe-session-list-items'),
       };
     };
     scrollLists().pinnedList.scrollTop = 40;
     scrollLists().sessionList.scrollTop = 160;
 
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     typeSearch(container, 'notes');
     scrollLists().pinnedList.scrollTop = 0;
     scrollLists().sessionList.scrollTop = 0;
@@ -335,7 +335,7 @@ describe('SessionManagerSurface session header', () => {
     const container = h.sessionSurfaceEl;
     const activateSearchWithListeners = () => {
       const listeners = new Map<string, (event: Event) => void>();
-      container.querySelector('.claudian-session-search-control').click();
+      container.querySelector('.scribe-session-search-control').click();
       const ownerDocument = searchInput(container).ownerDocument;
       ownerDocument.addEventListener = vi.fn((type: string, listener: (event: Event) => void) => {
         listeners.set(type, listener);
@@ -348,8 +348,8 @@ describe('SessionManagerSurface session header', () => {
     const { listeners, ownerDocument } = activateSearchWithListeners();
     await Promise.resolve();
 
-    const searchField = container.querySelector('.claudian-session-search-field');
-    const outsideTarget = container.querySelector('.claudian-history-list');
+    const searchField = container.querySelector('.scribe-session-search-field');
+    const outsideTarget = container.querySelector('.scribe-history-list');
     listeners.get('focusin')?.({ target: searchInput(container) } as unknown as Event);
     expect(isSearchOpen()).toBe(true);
     listeners.get('pointerdown')?.({ target: outsideTarget } as unknown as Event);
@@ -385,15 +385,15 @@ describe('SessionManagerSurface session header', () => {
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
     const toggleButton = () => headerActions(container).children[1];
-    const groupHeader = (kind: string) => container.querySelectorAll('.claudian-session-group-header')
+    const groupHeader = (kind: string) => container.querySelectorAll('.scribe-session-group-header')
       .find((header: any) => header.getAttribute('data-group-kind') === kind);
-    const collapsedBodies = () => container.querySelectorAll('.claudian-session-group-body')
-      .filter((body: any) => body.hasClass('claudian-session-group-body--collapsed'))
+    const collapsedBodies = () => container.querySelectorAll('.scribe-session-group-body')
+      .filter((body: any) => body.hasClass('scribe-session-group-body--collapsed'))
       .map((body: any) => body.getAttribute('data-group-key'))
       .sort();
 
     expect(headerActions(container).children).toHaveLength(2);
-    const collapseIcon = toggleButton().querySelector('.claudian-session-header-icon');
+    const collapseIcon = toggleButton().querySelector('.scribe-session-header-icon');
     expect(toggleButton().getAttribute('aria-label')).toBe('Collapse all groups');
     expect(collapseIcon.dataset.iconState).toBe('collapse');
     expect(collapseIcon.children[0]?.tagName).toBe('SVG');
@@ -403,7 +403,7 @@ describe('SessionManagerSurface session header', () => {
 
     expect(collapsedBodies()).toEqual(['content:Projects/Plan.md', 'ungrouped']);
     expect(toggleButton().getAttribute('aria-label')).toBe('Expand all groups');
-    expect(toggleButton().querySelector('.claudian-session-header-icon').dataset.iconState)
+    expect(toggleButton().querySelector('.scribe-session-header-icon').dataset.iconState)
       .toBe('expand');
 
     toggleButton().click();
@@ -429,17 +429,17 @@ describe('SessionManagerSurface session header', () => {
     });
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     searchInput(container).dispatchEvent('compositionstart');
     const toggleButton = headerActions(container).children[1];
 
-    for (const header of container.querySelectorAll('.claudian-session-group-header')) {
+    for (const header of container.querySelectorAll('.scribe-session-group-header')) {
       header.click();
     }
 
     expect(headerActions(container).children[1]).toBe(toggleButton);
     expect(toggleButton.getAttribute('aria-label')).toBe('Expand all groups');
-    expect(toggleButton.querySelector('.claudian-session-header-icon').dataset.iconState)
+    expect(toggleButton.querySelector('.scribe-session-header-icon').dataset.iconState)
       .toBe('expand');
   });
 
@@ -449,7 +449,7 @@ describe('SessionManagerSurface session header', () => {
       settings: { sessionManagerOrganization: 'linked-content' },
     });
     h.surface.renderSidebar();
-    const groupHeader = h.sessionSurfaceEl.querySelector('.claudian-session-group-header');
+    const groupHeader = h.sessionSurfaceEl.querySelector('.scribe-session-group-header');
 
     groupHeader.dispatchEvent({
       type: 'contextmenu',
@@ -481,7 +481,7 @@ describe('SessionManagerSurface session header', () => {
     expect(actions?.children).toHaveLength(1);
     const optionsButton = actions?.children[0];
     expect(optionsButton?.getAttribute('aria-label')).toBe('Session options');
-    expect(container.querySelector('.claudian-session-group-header')).toBeNull();
+    expect(container.querySelector('.scribe-session-group-header')).toBeNull();
     optionsButton?.click();
 
     const menu = menuInstances().at(-1)!;
@@ -502,7 +502,7 @@ describe('SessionManagerSurface session header', () => {
 
     expect(h.settings.sessionManagerOrganization).toBe('linked-content');
     expect(h.plugin.mutateSettings).toHaveBeenCalledTimes(1);
-    expect(container.querySelectorAll('.claudian-session-group-header')).toHaveLength(2);
+    expect(container.querySelectorAll('.scribe-session-group-header')).toHaveLength(2);
     expect(h.notifyOtherViews).toHaveBeenCalledTimes(1);
   });
 
@@ -537,7 +537,7 @@ describe('SessionManagerSurface session column rendering', () => {
     const h = createHarness({ conversations: [conversation('first')] });
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     const input = searchInput(container);
     input.dispatchEvent('compositionstart');
     const render = vi.spyOn(SessionBrowser.prototype, 'renderHistoryDropdown');
@@ -569,13 +569,13 @@ describe('SessionManagerSurface session column rendering', () => {
     const listsSeenByRender: unknown[] = [];
     const render = vi.spyOn(SessionBrowser.prototype, 'renderHistoryDropdown')
       .mockImplementation(function (this: SessionBrowser, target, options) {
-        listsSeenByRender.push(target.querySelector('.claudian-history-list'));
+        listsSeenByRender.push(target.querySelector('.scribe-history-list'));
         renderList.call(this, target, options);
       });
     h.surface.renderSidebar();
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     typeSearch(container, 'roadmap');
-    const previousList = container.querySelector('.claudian-history-list');
+    const previousList = container.querySelector('.scribe-history-list');
     render.mockClear();
     listsSeenByRender.length = 0;
 
@@ -647,13 +647,13 @@ describe('SessionManagerSurface session column rendering', () => {
     sessionOptions.onRequestInlineRename({ beginRename, conversationId: 'roadmap' });
 
     expect(searchInput(container)).toBeNull();
-    expect(container.querySelector('.claudian-session-search-control')).not.toBeNull();
+    expect(container.querySelector('.scribe-session-search-control')).not.toBeNull();
     expect(ownerRequestAnimationFrame).toHaveBeenCalledTimes(1);
     const replacementItem = findItem(container, 'roadmap');
     expect(replacementItem).not.toBe(staleItem);
     expect(beginRename).toHaveBeenCalledWith(replacementItem);
 
-    container.querySelector('.claudian-session-archive-control').click();
+    container.querySelector('.scribe-session-archive-control').click();
 
     expect(render).toHaveBeenLastCalledWith(
       container,
@@ -705,10 +705,10 @@ describe('SessionManagerSurface session column rendering', () => {
 
 describe('SessionManagerSurface New availability', () => {
   const newControl = (h: ReturnType<typeof createHarness>) => (
-    h.sessionSurfaceEl.querySelector('.claudian-session-new-control')
+    h.sessionSurfaceEl.querySelector('.scribe-session-new-control')
   );
   const availability = (control: any) => ({
-    hidden: control.hasClass('claudian-hidden'),
+    hidden: control.hasClass('scribe-hidden'),
     ariaDisabled: control.getAttribute('aria-disabled'),
     ariaHidden: control.getAttribute('aria-hidden'),
   });
@@ -744,16 +744,16 @@ describe('SessionManagerSurface history dropdown', () => {
       wide: false,
     });
     h.historyButton.click();
-    const list = h.historyMenu.querySelector('.claudian-history-list');
+    const list = h.historyMenu.querySelector('.scribe-history-list');
 
-    const archiveControl = list.querySelector('.claudian-history-archive-control');
+    const archiveControl = list.querySelector('.scribe-history-archive-control');
     expect(list.children[0]).toBe(archiveControl);
     expect(navLabel(archiveControl)).toBe('Archive');
     const stopPropagation = vi.fn();
     archiveControl.dispatchEvent({ type: 'click', stopPropagation });
 
     expect(stopPropagation).toHaveBeenCalledTimes(1);
-    expect(navLabel(h.historyMenu.querySelector('.claudian-history-archive-control')))
+    expect(navLabel(h.historyMenu.querySelector('.scribe-history-archive-control')))
       .toBe('Sessions');
     expect(renderedIds(h.historyMenu)).toEqual(['archived']);
   });
@@ -780,8 +780,8 @@ describe('SessionManagerSurface history dropdown', () => {
     expect(options).not.toHaveProperty('organization');
     expect(options).not.toHaveProperty('showMetadataPopover');
     const item = findItem(h.historyMenu, 'conversation-1');
-    expect(item.querySelector('.claudian-open-new-tab-btn')).not.toBeNull();
-    expect(item.querySelector('.claudian-pin-btn')).toBeNull();
+    expect(item.querySelector('.scribe-open-new-tab-btn')).not.toBeNull();
+    expect(item.querySelector('.scribe-pin-btn')).toBeNull();
 
     // An outside click hides the menu without abandoning the rendered list.
     h.surface.dismissDropdownFor(outsideClick());
@@ -799,7 +799,7 @@ describe('SessionManagerSurface history dropdown', () => {
     const h = createHarness({ conversations: [conversation('conversation-1')], wide: false });
     h.historyButton.click();
     const content = findItem(h.historyMenu, 'conversation-1')
-      .querySelector('.claudian-history-item-content');
+      .querySelector('.scribe-history-item-content');
 
     content.dispatchEvent({ type: 'click', stopPropagation: vi.fn() });
     await new Promise(resolve => setImmediate(resolve));
@@ -829,7 +829,7 @@ describe('SessionManagerSurface history dropdown', () => {
       }),
     );
     expect(renderedIds(h.historyMenu)).toEqual(['active']);
-    h.historyMenu.querySelector('.claudian-history-archive-control').click();
+    h.historyMenu.querySelector('.scribe-history-archive-control').click();
 
     expect(render).toHaveBeenLastCalledWith(
       h.historyMenu,
@@ -841,10 +841,10 @@ describe('SessionManagerSurface history dropdown', () => {
       }),
     );
     expect(render.mock.calls.at(-1)?.[1]).not.toHaveProperty('onOpenConversationInNewTab');
-    expect(h.historyMenu.querySelector('.claudian-session-nav-label')?.textContent)
+    expect(h.historyMenu.querySelector('.scribe-session-nav-label')?.textContent)
       .toBe('Sessions');
     expect(renderedIds(h.historyMenu)).toEqual(['archived']);
-    expect(findItem(h.historyMenu, 'archived').hasClass('claudian-history-item--noninteractive'))
+    expect(findItem(h.historyMenu, 'archived').hasClass('scribe-history-item--noninteractive'))
       .toBe(true);
   });
 
@@ -919,9 +919,9 @@ describe('SessionManagerSurface history dropdown', () => {
       wide: false,
     });
     h.historyButton.click();
-    h.historyMenu.querySelector('.claudian-history-archive-control').click();
+    h.historyMenu.querySelector('.scribe-history-archive-control').click();
 
-    const deleteButton = findItem(h.historyMenu, targetId).querySelector('.claudian-delete-btn');
+    const deleteButton = findItem(h.historyMenu, targetId).querySelector('.scribe-delete-btn');
     deleteButton.dispatchEvent({ type: 'click', stopPropagation: vi.fn() });
     await new Promise(resolve => setImmediate(resolve));
 
@@ -957,7 +957,7 @@ describe('SessionManagerSurface wide layout transitions', () => {
       conversations: [conversation('active'), conversation('archived', { isArchived: true })],
     });
     h.surface.renderSidebar();
-    h.sessionSurfaceEl.querySelector('.claudian-session-archive-control').click();
+    h.sessionSurfaceEl.querySelector('.scribe-session-archive-control').click();
     expect(renderedIds(h.sessionSurfaceEl)).toEqual(['archived']);
 
     h.state.wide = false;
@@ -965,10 +965,10 @@ describe('SessionManagerSurface wide layout transitions', () => {
     h.historyButton.click();
 
     expect(renderedIds(h.historyMenu)).toEqual(['archived']);
-    expect(navLabel(h.historyMenu.querySelector('.claudian-history-archive-control')))
+    expect(navLabel(h.historyMenu.querySelector('.scribe-history-archive-control')))
       .toBe('Sessions');
 
-    h.historyMenu.querySelector('.claudian-history-archive-control').click();
+    h.historyMenu.querySelector('.scribe-history-archive-control').click();
     expect(renderedIds(h.historyMenu)).toEqual(['active']);
 
     h.state.wide = true;
@@ -976,7 +976,7 @@ describe('SessionManagerSurface wide layout transitions', () => {
     h.surface.renderSidebar();
 
     expect(renderedIds(h.sessionSurfaceEl)).toEqual(['active']);
-    expect(navLabel(h.sessionSurfaceEl.querySelector('.claudian-session-archive-control')))
+    expect(navLabel(h.sessionSurfaceEl.querySelector('.scribe-session-archive-control')))
       .toBe('Archive');
   });
 
@@ -989,7 +989,7 @@ describe('SessionManagerSurface wide layout transitions', () => {
     });
     h.surface.renderSidebar();
     const container = h.sessionSurfaceEl;
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     typeSearch(container, 'roadmap');
     expect(renderedIds(container)).toEqual(['roadmap']);
     const render = vi.spyOn(SessionBrowser.prototype, 'renderHistoryDropdown');
@@ -997,13 +997,13 @@ describe('SessionManagerSurface wide layout transitions', () => {
     h.surface.leaveWide();
 
     expect(searchInput(container)).toBeNull();
-    expect(container.querySelector('.claudian-session-search-control')).not.toBeNull();
+    expect(container.querySelector('.scribe-session-search-control')).not.toBeNull();
     // Search ended with its query: the unfiltered list renders, and that render is then abandoned.
     expect(renderedIds(container).sort()).toEqual(['groceries', 'roadmap']);
     expect(render).toHaveBeenCalledTimes(1);
     expect(signalOf(render, 0).aborted).toBe(true);
     // A new search starts empty rather than resuming the closed query.
-    container.querySelector('.claudian-session-search-control').click();
+    container.querySelector('.scribe-session-search-control').click();
     expect(searchInput(container).value).toBe('');
     expect(renderedIds(container).sort()).toEqual(['groceries', 'roadmap']);
   });
@@ -1013,7 +1013,7 @@ describe('SessionManagerSurface Escape handling', () => {
   function createSearchingHarness() {
     const h = createHarness({ conversations: [conversation('first')] });
     h.surface.renderSidebar();
-    h.sessionSurfaceEl.querySelector('.claudian-session-search-control').click();
+    h.sessionSurfaceEl.querySelector('.scribe-session-search-control').click();
     expect(searchInput(h.sessionSurfaceEl)).not.toBeNull();
     return h;
   }
@@ -1035,7 +1035,7 @@ describe('SessionManagerSurface Escape handling', () => {
     expect(h.surface.handleEscape()).toBe(true);
 
     expect(searchInput(h.sessionSurfaceEl)).toBeNull();
-    expect(h.sessionSurfaceEl.querySelector('.claudian-session-search-control')).not.toBeNull();
+    expect(h.sessionSurfaceEl.querySelector('.scribe-session-search-control')).not.toBeNull();
     // With nothing left to dismiss, Escape falls through to the view.
     expect(h.surface.handleEscape()).toBe(false);
   });

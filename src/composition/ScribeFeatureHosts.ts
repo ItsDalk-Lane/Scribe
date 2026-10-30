@@ -11,16 +11,16 @@ import { resolveConversationModel } from '@/core/providers/conversationModel';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import type { ProviderId } from '@/core/providers/types';
 import type {
-  ClaudianSettings,
   Conversation,
   ConversationMeta,
   ConversationMutablePatch,
   ConversationSummary,
+  ScribeSettings,
   StoredChatModelSelection,
 } from '@/core/types';
 import type { ChatFeatureHost, ChatProjects, ChatSessionRuntimes } from '@/features/chat/ChatFeatureHost';
-import type { ClaudianView } from '@/features/chat/ClaudianView';
 import type { ConversationLifecycle } from '@/features/chat/conversation/ConversationLifecycle';
+import type { ScribeView } from '@/features/chat/ScribeView';
 import type { SessionMessagingService, SessionToolBinding } from '@/features/chat/session-messaging/SessionMessagingService';
 import type { SessionRuntimePool } from '@/features/chat/sessions/SessionRuntimePool';
 import type { ZenModeSource } from '@/features/chat/zen/types';
@@ -28,17 +28,17 @@ import type { ZenModeController } from '@/features/chat/zen/ZenModeController';
 import type { FeatureHost } from '@/features/FeatureHost';
 
 import type { AgentSkillResources } from './AgentSkillResources';
-import type { ClaudianViews } from './ClaudianViews';
+import type { ScribeViews } from './ScribeViews';
 
 export interface FeatureHostDomains {
   readonly app: App;
   readonly providerHost: ProviderHost;
   readonly storage: SharedAppStorage;
-  readonly settings: Pick<SettingsCoordinator<ClaudianSettings>, 'getCommittedSettings' | 'mutate'>;
+  readonly settings: Pick<SettingsCoordinator<ScribeSettings>, 'getCommittedSettings' | 'mutate'>;
   readonly environment: Pick<EnvironmentSettingsService, 'getActiveEnvironmentVariables'>;
   readonly agentSkills: AgentSkillResources;
   readonly conversations: Pick<ConversationService, 'getConversationSummary'>;
-  readonly views: ClaudianViews;
+  readonly views: ScribeViews;
   notifyProviderChatOptionsChanged(providerId: ProviderId): Promise<void>;
 }
 
@@ -54,7 +54,7 @@ export interface ChatFeatureHostDomains extends FeatureHostDomains {
 }
 
 /** Feature-neutral application capabilities for settings, inline edit, and chat. */
-export class ClaudianFeatureHost implements FeatureHost {
+export class ScribeFeatureHost implements FeatureHost {
   readonly app: App;
   readonly providerHost: ProviderHost;
   readonly storage: SharedAppStorage;
@@ -65,15 +65,15 @@ export class ClaudianFeatureHost implements FeatureHost {
     this.storage = domains.storage;
   }
 
-  get settings(): Readonly<ClaudianSettings> {
+  get settings(): Readonly<ScribeSettings> {
     return this.domains.settings.getCommittedSettings();
   }
 
-  getCommittedSettings(): Readonly<ClaudianSettings> {
+  getCommittedSettings(): Readonly<ScribeSettings> {
     return this.domains.settings.getCommittedSettings();
   }
 
-  mutateSettings(mutation: (settings: ClaudianSettings) => void | Promise<void>): Promise<void> {
+  mutateSettings(mutation: (settings: ScribeSettings) => void | Promise<void>): Promise<void> {
     return this.domains.settings.mutate(mutation);
   }
 
@@ -109,7 +109,7 @@ export class ClaudianFeatureHost implements FeatureHost {
 }
 
 /** Chat capabilities: conversations, execution persistence, tab workspace state, and views. */
-export class ClaudianChatFeatureHost extends ClaudianFeatureHost implements ChatFeatureHost {
+export class ScribeChatFeatureHost extends ScribeFeatureHost implements ChatFeatureHost {
   readonly sessionRuntimes: ChatSessionRuntimes;
   readonly chatModelSelection: ChatModelSelectionCoordinator;
   readonly executionPersistence: ConversationRepository;
@@ -212,15 +212,15 @@ export class ClaudianChatFeatureHost extends ClaudianFeatureHost implements Chat
     return this.domains.zenMode.register(source);
   }
 
-  getView(): ClaudianView | null {
+  getView(): ScribeView | null {
     return this.domains.views.getView();
   }
 
-  getAllViews(): ClaudianView[] {
+  getAllViews(): ScribeView[] {
     return this.domains.views.getAllViews();
   }
 
-  findConversationAcrossViews(conversationId: string): { view: ClaudianView; tabId: string } | null {
+  findConversationAcrossViews(conversationId: string): { view: ScribeView; tabId: string } | null {
     return this.domains.views.findConversationAcrossViews(conversationId);
   }
 }

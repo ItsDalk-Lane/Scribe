@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { selectCiTests, selectRelatedCiTests } from './ciTestSelection.mjs';
 
 const prompt = 'tests/unit/core/prompt/mainAgent.systemPrompt.test.ts';
-const panel = 'tests/unit/features/chat/ClaudianView.test.ts';
+const panel = 'tests/unit/features/chat/ScribeView.test.ts';
 const native = 'tests/integration/core/process/ManagedStdioProcess.test.ts';
 const docs = 'tests/unit/docs/Documentation.test.ts';
 const select = (paths, relatedTests = [], eventName = 'pull_request') => selectCiTests({
@@ -24,7 +24,7 @@ test('ordinary PRs and pushes select affected consumers', () => {
 });
 
 test('presentation changes do not trigger native checks through main composition', () => {
-  const result = select(['src/features/chat/ClaudianView.ts'], [panel, 'tests/integration/main.test.ts']);
+  const result = select(['src/features/chat/ScribeView.ts'], [panel, 'tests/integration/main.test.ts']);
   assert.deepEqual(result.testFiles, [panel, 'tests/integration/main.test.ts']);
   assert.deepEqual(result.crossPlatformTests, []);
 });
@@ -210,7 +210,7 @@ for (const [name, selector] of [
 test('native Pi launch runs only when affected', () => {
   const pi = 'tests/integration/providers/pi/runtime/PiSubprocess.windows.test.ts';
   assert.equal(select(['src/providers/pi/runtime/PiSubprocess.ts'], [pi]).piWindows, true);
-  assert.equal(select(['src/features/chat/ClaudianView.ts'], [panel]).piWindows, false);
+  assert.equal(select(['src/features/chat/ScribeView.ts'], [panel]).piWindows, false);
 });
 
 test('script edits select their script tests without unrelated Vitest work', () => {
@@ -264,7 +264,7 @@ test('the CI entry point handles real Git ranges, renames, missing bases and rel
   const { copyFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const path = await import('node:path');
-  const root = mkdtempSync(path.join(tmpdir(), 'claudian-ci-scope-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'scribe-ci-scope-'));
   try {
     for (const directory of ['scripts', 'src', 'tests/unit']) mkdirSync(path.join(root, directory), { recursive: true });
     for (const file of ['ciTestSelection.mjs', 'testSuites.cjs']) copyFileSync(`scripts/${file}`, path.join(root, 'scripts', file));
@@ -339,7 +339,7 @@ test('local selection includes committed, staged, unstaged and untracked edits w
   const { copyFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const path = await import('node:path');
-  const root = mkdtempSync(path.join(tmpdir(), 'claudian-local-scope-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'scribe-local-scope-'));
   try {
     for (const directory of ['scripts', 'src', 'tests/unit']) mkdirSync(path.join(root, directory), { recursive: true });
     for (const file of ['ciTestSelection.mjs', 'testSuites.cjs', 'run-affected-tests.mjs']) copyFileSync(`scripts/${file}`, path.join(root, 'scripts', file));

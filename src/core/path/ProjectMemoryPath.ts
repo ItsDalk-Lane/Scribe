@@ -26,7 +26,7 @@ export function normalizeProjectMemoryPath(value: string): string | null {
   return fileName.endsWith(MEMORY_EXTENSION) ? path : `${path}${MEMORY_EXTENSION}`;
 }
 
-/** The memory path offered for a new project: `.claudian/projects/<name-slug>/MEMORY.md`. */
+/** The memory path offered for a new project: `.scribe/projects/<name-slug>/MEMORY.md`. */
 export function defaultProjectMemoryPath(name: string): string {
   return `${PROJECTS_PATH}/${slugifyProjectName(name)}/MEMORY.md`;
 }

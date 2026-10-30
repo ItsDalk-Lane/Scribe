@@ -12,7 +12,7 @@ import { App, Component } from 'obsidian';
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { TabManager } from '@/features/chat/tabs/TabManager';
 import { VaultMentionDataProvider } from '@/shared/mention/VaultMentionDataProvider';
@@ -52,7 +52,7 @@ function setup() {
   const settings = {
     model: 'claude-sonnet-4-5', permissionMode: 'normal', effortLevel: 'high', excludedTags: [],
     providerConfigs: { claude: claudeCatalogFixture(['claude-sonnet-4-5'], ['low', 'high']) },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const conversation = {
     id: 'conversation', providerId: 'claude', selectedModel: settings.model, sessionId: 'native',
     title: 'Conversation', messages: [], createdAt: testDate().getTime(), lastActivityAt: testDate().getTime(),
@@ -69,7 +69,7 @@ function setup() {
     getConversationList: () => [conversation],
     findConversationAcrossViews: () => null,
     updateConversation: async () => undefined,
-    mutateSettings: async (mutate: (settings: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (settings: ScribeSettings) => void) => mutate(settings),
     executionPersistence: {
       registerExecutionBinding() {}, releaseExecutionBinding() {},
       assertConversationExecutionAuthority: async () => undefined,

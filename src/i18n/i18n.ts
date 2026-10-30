@@ -1,5 +1,5 @@
 /**
- * i18n - Internationalization service for Claudian
+ * i18n - Internationalization service for Scribe
  *
  * Provides translation functionality for all UI strings.
  * Supports 10 locales with English as the default fallback.
@@ -63,6 +63,8 @@ function loadTranslation(locale: Locale): TranslationDictionary | undefined {
 
 const DEFAULT_LOCALE: Locale = 'en';
 let currentLocale: Locale = DEFAULT_LOCALE;
+
+export function getLocale(): Locale { return currentLocale; }
 
 /**
  * Get a translation by key with optional parameters

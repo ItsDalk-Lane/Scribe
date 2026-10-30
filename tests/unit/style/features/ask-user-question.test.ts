@@ -19,7 +19,7 @@ describe('ask-user-question.css', () => {
 
   it('suppresses Obsidian hover tooltips across question and permission prompts', () => {
     const prompt = document.createElement('div');
-    prompt.className = 'claudian-ask-question-inline';
+    prompt.className = 'scribe-ask-question-inline';
     document.body.appendChild(prompt);
 
     // Obsidian skips aria-label tooltips when the hovered element inherits --no-tooltip: true.
@@ -28,7 +28,7 @@ describe('ask-user-question.css', () => {
 
   it('keeps a hidden inline prompt out of layout', () => {
     const prompt = document.createElement('div');
-    prompt.className = 'claudian-ask-question-inline';
+    prompt.className = 'scribe-ask-question-inline';
     prompt.hidden = true;
     document.body.appendChild(prompt);
 
@@ -43,13 +43,13 @@ describe('ask-user-question.css', () => {
     document.head.appendChild(hostStyle);
 
     const prompt = document.createElement('div');
-    prompt.className = 'claudian-ask-question-inline';
+    prompt.className = 'scribe-ask-question-inline';
     const item = document.createElement('button');
-    item.className = 'claudian-ask-item';
+    item.className = 'scribe-ask-item';
     const content = document.createElement('span');
-    content.className = 'claudian-ask-item-content';
+    content.className = 'scribe-ask-item-content';
     const desc = document.createElement('span');
-    desc.className = 'claudian-ask-item-desc';
+    desc.className = 'scribe-ask-item-desc';
     desc.textContent = 'A description long enough to wrap inside the prompt width.';
     content.appendChild(desc);
     item.appendChild(content);
@@ -66,13 +66,13 @@ describe('ask-user-question.css', () => {
 
   it('accents the custom-text underline only while the input has focus', () => {
     const prompt = document.createElement('div');
-    prompt.className = 'claudian-ask-question-inline';
+    prompt.className = 'scribe-ask-question-inline';
     const [focused, idle] = [0, 1].map(() => {
       const item = document.createElement('div');
-      item.className = 'claudian-ask-item claudian-ask-custom-item';
+      item.className = 'scribe-ask-item scribe-ask-custom-item';
       const input = document.createElement('input');
       input.type = 'text';
-      input.className = 'claudian-ask-custom-text';
+      input.className = 'scribe-ask-custom-text';
       item.appendChild(input);
       prompt.appendChild(item);
       return input;
@@ -82,7 +82,7 @@ describe('ask-user-question.css', () => {
     // jsdom caches computed styles across focus changes, so read each input once.
     focused.focus();
     expect(document.activeElement).toBe(focused);
-    expect(window.getComputedStyle(focused).borderBottomColor).toBe('var(--claudian-ask-accent)');
-    expect(window.getComputedStyle(idle).borderBottomColor).not.toBe('var(--claudian-ask-accent)');
+    expect(window.getComputedStyle(focused).borderBottomColor).toBe('var(--scribe-ask-accent)');
+    expect(window.getComputedStyle(idle).borderBottomColor).not.toBe('var(--scribe-ask-accent)');
   });
 });

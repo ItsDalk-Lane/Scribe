@@ -3,8 +3,8 @@ import '@/providers';
 
 import { axe } from '@test/helpers/accessibility';
 import { claudeCatalogFixture } from '@test/helpers/claudeModels';
-import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
 import { createProjectsFake } from '@test/helpers/features/chat/ProjectsFake';
+import { createScribeView } from '@test/helpers/features/chat/ScribeViewHarness';
 import { installSessionRuntimePool } from '@test/helpers/features/chat/SessionRuntimePoolHarness';
 import { FakeSideBackend, type FakeSideSession } from '@test/helpers/features/chat/SideChatSessionHarness';
 import { testDate } from '@test/helpers/testClock';
@@ -13,7 +13,7 @@ import { App, Component, type Scope } from 'obsidian';
 
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
-import { type ChatMessage, type ClaudianSettings, type Conversation, type ImageAttachment } from '@/core/types';
+import { type ChatMessage, type Conversation, type ImageAttachment,type ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { activateTab, destroyTab } from '@/features/chat/tabs/TabLifecycle';
 import { createTabRuntime } from '@/features/chat/tabs/TabRuntimeFactory';
@@ -68,7 +68,7 @@ async function createView() {
     providerConfigs: { claude: {
       ...claudeCatalogFixture(['claude-sonnet-4-5'], ['low', 'high']), promptSuggestions: true,
     } },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const conversation = {
     id: 'conversation-1', providerId: 'claude', selectedModel: 'claude-sonnet-4-5',
     sessionId: 'main-session', messages: [], title: 'Existing conversation',
@@ -88,14 +88,14 @@ async function createView() {
       persistExecutionSnapshot: async (...args: unknown[]) => { saved.push(structuredClone(args)); return true; },
       recordConversationActivity: async () => {},
     },
-    getSessionSnapshotDirectory: () => '/tmp/claudian-sessions', getCommittedSettings: () => settings,
+    getSessionSnapshotDirectory: () => '/tmp/scribe-sessions', getCommittedSettings: () => settings,
     getActiveEnvironmentVariables: () => '', getConversationSummary: (id: string) => conversations.get(id),
     projects: createProjectsFake(),
     getConversationSync: (id: string) => conversations.get(id), getCachedConversation: (id: string) => conversations.get(id),
     getConversationById: async (id: string) => conversations.get(id), findConversationAcrossViews: () => null,
     getConversationList: () => [conversation], renameConversation: async () => {},
     updateConversation: async (_id: string, patch: unknown) => { saved.push(structuredClone(patch)); },
-    mutateSettings: async (mutate: (value: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (value: ScribeSettings) => void) => mutate(settings),
     chatModelSelection: { beginIntent: () => 1, commitIntent: async () => true },
   } as unknown as ChatFeatureHost;
   const pool = installSessionRuntimePool(plugin);
@@ -111,11 +111,11 @@ async function createView() {
   await tab.executionCoordinator.bindConversation({ conversationId: conversation.id, providerId: 'claude' });
   await tab.executionCoordinator.prepare();
   vi.spyOn(tab.dom.messagesEl, 'getClientRects').mockImplementation(() =>
-    (tab.dom.contentEl.classList.contains('claudian-hidden') ? [] : [{}]) as unknown as DOMRectList);
+    (tab.dom.contentEl.classList.contains('scribe-hidden') ? [] : [{}]) as unknown as DOMRectList);
   activateTab(tab);
   tab.dom.inputEl.focus();
   // The real view Scope is the host keymap's destination; only its delivery is external.
-  const root = createClaudianView({ host: plugin, containerEl: tab.dom.contentEl,
+  const root = createScribeView({ host: plugin, containerEl: tab.dom.contentEl,
     contentEl: tab.dom.contentEl, tabManager: { getActiveTab: () => tab } });
   root.wireEventHandlers();
   return { get tab() { return tab; }, backend, saved, conversation, plugin, root, scopes,

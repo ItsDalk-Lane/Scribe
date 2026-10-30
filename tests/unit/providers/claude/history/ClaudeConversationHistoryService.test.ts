@@ -219,7 +219,7 @@ describe('ClaudeConversationHistoryService', () => {
 
   describe('conversation open without a stored model', () => {
     it.each([false, true])('parses the transcript once unless it changes before hydration (changed: %s)', async (changed) => {
-      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-model-read-'));
+      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-model-read-'));
       const vaultPath = path.join(configDir, 'vault');
       const pathContext = { environment: { CLAUDE_CONFIG_DIR: configDir }, vaultPath };
       const sessionDir = path.join(historyStore.getSDKProjectsPath(pathContext), historyStore.encodeVaultPathForSDK(vaultPath));
@@ -256,7 +256,7 @@ describe('ClaudeConversationHistoryService', () => {
     });
 
     it('releases an unused parsed transcript after 30 seconds without another history read', async () => {
-      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-read-expiry-'));
+      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-read-expiry-'));
       const sessionPath = path.join(directory, 'session-1.jsonl');
       await fs.writeFile(sessionPath, JSON.stringify({
         type: 'assistant', uuid: 'a1', timestamp: testTime(),
@@ -282,7 +282,7 @@ describe('ClaudeConversationHistoryService', () => {
     });
 
     it('cancels expiry timers when a pending parse is replaced, evicted, or consumed', async () => {
-      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-read-lifecycle-'));
+      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-read-lifecycle-'));
       const sessionPaths = Array.from({ length: 5 }, (_, index) => path.join(directory, `${index}.jsonl`));
       const entry = JSON.stringify({ type: 'assistant', uuid: 'a1', timestamp: testTime(),
         message: { model: 'claude-opus-4-6', content: [{ type: 'text', text: 'Answer' }] } });
@@ -309,7 +309,7 @@ describe('ClaudeConversationHistoryService', () => {
     });
 
     it('shares relocated session lookups between copies of the same session state only', async () => {
-      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-relocated-open-'));
+      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-relocated-open-'));
       const vaultPath = path.join(configDir, 'vault');
       const pathContext = { environment: { CLAUDE_CONFIG_DIR: configDir }, vaultPath };
       const projectsPath = historyStore.getSDKProjectsPath(pathContext);
@@ -491,7 +491,7 @@ describe('ClaudeConversationHistoryService', () => {
     });
 
     async function recover(conversation: Conversation, sessionIds: string[]) {
-      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-retired-binding-'));
+      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-retired-binding-'));
       const vaultPath = path.join(configDir, 'vault');
       const pathContext = { environment: { CLAUDE_CONFIG_DIR: configDir }, vaultPath };
       const sessionDir = path.join(historyStore.getSDKProjectsPath(pathContext), historyStore.encodeVaultPathForSDK(vaultPath));
@@ -534,7 +534,7 @@ describe('ClaudeConversationHistoryService', () => {
 
   describe('hydrateConversationHistory', () => {
     it.each([false, true])('keeps a pending fork at its checkpoint after the source branches (cached: %s)', async cached => {
-      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-fork-checkpoint-'));
+      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-fork-checkpoint-'));
       const vaultPath = path.join(configDir, 'vault');
       const pathContext = { environment: { CLAUDE_CONFIG_DIR: configDir } };
       const sessionDir = path.join(historyStore.getSDKProjectsPath(pathContext), historyStore.encodeVaultPathForSDK(vaultPath));
@@ -641,7 +641,7 @@ describe('ClaudeConversationHistoryService', () => {
     });
 
     it('replaces live turn projections with native history, keeping unconsumed notifications and the unconfirmed tail', async () => {
-      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-live-projection-'));
+      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-live-projection-'));
       const sessionPath = path.join(directory, 'session-1.jsonl');
       const notification = '<task-notification><task-id>bg-1</task-id><tool-use-id>bash</tool-use-id>'
         + '<status>completed</status><summary>Background command completed (exit code 0).</summary></task-notification>';
@@ -698,7 +698,7 @@ describe('ClaudeConversationHistoryService', () => {
     });
 
     it('uses native recovery instead of old conversation backup headers', async () => {
-      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-retired-backup-'));
+      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-retired-backup-'));
       const service = new ClaudeConversationHistoryService();
       const conversation = createConversation({ sessionId: null, providerState: undefined });
       const recoverySpy = vi.spyOn(historyStore, 'recoverSDKSessionIdByTime').mockResolvedValue(null);
@@ -1032,7 +1032,7 @@ describe('ClaudeConversationHistoryService', () => {
           previousProviderSessionIds: ['session-previous'],
           providerSessionId: 'session-1',
         },
-        // Cached messages are the live projection under Claudian-local ids.
+        // Cached messages are the live projection under Scribe-local ids.
         messages: [
           {
             id: 'local-previous-user',

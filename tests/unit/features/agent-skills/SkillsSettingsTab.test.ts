@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 import { axe } from '@test/helpers/accessibility';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { fireEvent, screen, waitFor, within } from '@testing-library/dom';
 import type { App } from 'obsidian';
 
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import { AGENT_SKILLS_ROOT, CLAUDE_COMMANDS_ROOT, CLAUDE_SKILLS_ROOT } from '@/features/agent-skills/AgentSkillRepository';
 import { ClaudeSkillSync } from '@/features/agent-skills/ClaudeSkillSync';
 import { SkillsSettingsTab } from '@/features/agent-skills/SkillsSettingsTab';
@@ -22,13 +22,13 @@ function skill(name: string, description = 'Description'): string {
 
 describe('SkillsSettingsTab', () => {
   let vault: DesktopVault;
-  let settings: ClaudianSettings;
+  let settings: ScribeSettings;
   let tab: SkillsSettingsTab | null;
 
   beforeEach(async () => {
     document.body.replaceChildren();
     vault = await DesktopVault.create();
-    settings = { ...DEFAULT_CLAUDIAN_SETTINGS, hiddenCommands: ['compact'] };
+    settings = { ...DEFAULT_SCRIBE_SETTINGS, hiddenCommands: ['compact'] };
     tab = null;
   });
 
@@ -80,7 +80,7 @@ describe('SkillsSettingsTab', () => {
     const claudeTab = await screen.findByRole('button', { name: t('settings.skills.subTabs.claude') });
     const subTabBar = claudeTab.parentElement!;
     expect(subTabBar.contains(screen.getByRole('button', { name: t('settings.skills.actions.sync') }))).toBe(true);
-    expect(subTabBar.querySelector('.claudian-skills-status-text')).toBeNull();
+    expect(subTabBar.querySelector('.scribe-skills-status-text')).toBeNull();
     const sharedTab = screen.getByRole('button', { name: t('settings.skills.subTabs.shared') });
     expect(claudeTab.getAttribute('aria-pressed')).toBe('true');
     expect(sharedTab.getAttribute('aria-pressed')).toBe('false');
@@ -91,7 +91,7 @@ describe('SkillsSettingsTab', () => {
 
     fireEvent.click(sharedTab);
     expect(sharedTab.getAttribute('aria-pressed')).toBe('true');
-    expect(sharedTab.classList.contains('claudian-settings-provider-tab--active')).toBe(true);
+    expect(sharedTab.classList.contains('scribe-settings-provider-tab--active')).toBe(true);
     expect((await axe(container)).violations).toEqual([]);
   });
 
@@ -107,7 +107,7 @@ describe('SkillsSettingsTab', () => {
     const refresh = screen.getByRole('button', { name: t('common.refresh') });
     expect(indicator.parentElement).toBe(refresh.parentElement);
     const title = screen.getByRole('heading', { name: t('settings.tabs.skills') });
-    expect(title.closest('.claudian-agent-skills-header')).toBe(refresh.closest('.claudian-agent-skills-header'));
+    expect(title.closest('.scribe-agent-skills-header')).toBe(refresh.closest('.scribe-agent-skills-header'));
     expect(screen.queryByText(/links to \.agents\/skills/)).toBeNull();
     expect(await screen.findByText('shared-one')).toBeTruthy();
     expect(await screen.findByText('/later')).toBeTruthy();

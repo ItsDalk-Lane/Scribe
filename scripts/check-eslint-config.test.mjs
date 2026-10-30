@@ -29,7 +29,7 @@ for (const [name, code, rule] of [
 test('metadata lint checks manifest structure and disallowed dependencies', async () => {
   const eslint = new ESLint();
   for (const [filePath, code, rule] of [
-    ['manifest.json', '{ "name": "Claudian" }', 'obsidianmd/validate-manifest'],
+    ['manifest.json', '{ "name": "Scribe" }', 'obsidianmd/validate-manifest'],
     ['package.json', '{ "dependencies": { "left-pad": "1.3.0" } }', 'depend/ban-dependencies'],
   ]) {
     assert.ok(packageJson.scripts.lint.includes(filePath));
@@ -58,7 +58,7 @@ test('TypeScript promise rejections require Error reasons with type information'
 test('source lint matches strict Obsidian and type-aware review policy', async () => {
   const eslint = new ESLint();
   const config = await eslint.calculateConfigForFile(
-    'src/features/chat/ClaudianView.ts',
+    'src/features/chat/ScribeView.ts',
   );
 
   for (const rule of [

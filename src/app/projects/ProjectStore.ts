@@ -17,7 +17,7 @@ export interface ProjectStoreLoadResult {
 const RECORD_SUFFIX = '.json';
 
 /**
- * One JSON file per project (`.claudian/projects/<id>.json`), so synced devices never contend
+ * One JSON file per project (`.scribe/projects/<id>.json`), so synced devices never contend
  * over a shared last-writer-wins file. Only records this store decoded are ever written.
  */
 export class ProjectStore {

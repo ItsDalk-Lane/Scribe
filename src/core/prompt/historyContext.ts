@@ -1,5 +1,5 @@
 /**
- * Claudian - History Context
+ * Scribe - History Context
  *
  * Rebuilds prompt context from conversation history for session recovery.
  */

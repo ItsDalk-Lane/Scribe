@@ -130,7 +130,7 @@ it('cleans a failed render and suppresses errors from a superseded render', asyn
     throw new Error('render failure');
   });
   await renderer.renderContent(target, 'embed');
-  expect(target.querySelector('.claudian-render-error')).not.toBeNull();
+  expect(target.querySelector('.scribe-render-error')).not.toBeNull();
   expect(activeEmbeds.size).toBe(0);
 });
 

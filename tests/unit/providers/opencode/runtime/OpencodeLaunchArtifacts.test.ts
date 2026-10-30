@@ -49,15 +49,15 @@ describe('buildOpencodeManagedConfig', () => {
             read: 'allow',
           },
         },
-        id: 'claudian-aux-readonly',
+        id: 'scribe-aux-readonly',
         prompt: 'Read-only instructions',
       }],
-      'claudian-aux-readonly',
+      'scribe-aux-readonly',
     )).toEqual({
       $schema: 'https://opencode.ai/config.json',
       agent: {
         plan: { disable: true },
-        'claudian-aux-readonly': {
+        'scribe-aux-readonly': {
           mode: 'primary',
           permission: {
             '*': 'deny',
@@ -66,13 +66,13 @@ describe('buildOpencodeManagedConfig', () => {
           prompt: 'Read-only instructions',
         },
       },
-      default_agent: 'claudian-aux-readonly',
+      default_agent: 'scribe-aux-readonly',
     });
   });
 
   it.each([
     undefined,
-    [{ id: 'claudian-aux-readonly', definition: { permission: { '*': 'deny' } } }],
+    [{ id: 'scribe-aux-readonly', definition: { permission: { '*': 'deny' } } }],
   ])('disables the native plan agent while preserving user agent configuration', (managedAgents) => {
     const baseConfig = {
       agent: {
@@ -138,8 +138,8 @@ describe('buildOpencodeManagedConfig', () => {
 
 describe('prepareOpencodeLaunchArtifacts', () => {
   it('launches without instructions write, reference and keep no prompt', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-prompts-'));
-    const legacyPrompts = path.join(root, '.claudian', 'opencode', 'prompts');
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-prompts-'));
+    const legacyPrompts = path.join(root, '.scribe', 'opencode', 'prompts');
     await fs.mkdir(legacyPrompts, { recursive: true });
     await fs.writeFile(path.join(legacyPrompts, 'main.md'), 'Stale instructions\n');
     try {
@@ -159,7 +159,7 @@ describe('prepareOpencodeLaunchArtifacts', () => {
   });
 
   it('resolves the same database when the resolved default database is later passed as OPENCODE_DB', async () => {
-    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-artifacts-'));
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-artifacts-'));
     const baseParams = {
       workspaceRoot: tmpRoot,
     };
@@ -182,7 +182,7 @@ describe('prepareOpencodeLaunchArtifacts', () => {
   });
 
   it('creates the resolved OpenCode database directory before launch', async () => {
-    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-artifacts-'));
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-artifacts-'));
     const xdgDataHome = path.join(tmpRoot, 'xdg-data');
     const databaseDir = path.join(xdgDataHome, 'opencode');
 
@@ -203,7 +203,7 @@ describe('prepareOpencodeLaunchArtifacts', () => {
     ['accepts the shared file a concurrent launch already wrote', true],
     ['rejects a failed replacement that left the shared file stale', false],
   ])('%s', async (_name, peerWrites) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-rename-'));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-rename-'));
     const file = path.join(root, 'config.json');
     const content = '{"agents":{}}\n';
     await fs.writeFile(file, '{}\n');
@@ -227,16 +227,16 @@ describe('prepareOpencodeLaunchArtifacts', () => {
 
 it('layers v2 native agent policies after user rules and pins the native system prompt', () => {
   const config = buildOpencodeManagedConfig({ agents: {
-    'claudian-inline-edit': { system: 'old', model: 'test/model', permissions: [{ action: '*', resource: '*', effect: 'allow' }] },
+    'scribe-inline-edit': { system: 'old', model: 'test/model', permissions: [{ action: '*', resource: '*', effect: 'allow' }] },
     plan: { disabled: false },
     reviewer: { description: 'Keep this' },
-  } }, [{ id: 'claudian-inline-edit', prompt: 'Inline edit instructions', definition: {
+  } }, [{ id: 'scribe-inline-edit', prompt: 'Inline edit instructions', definition: {
     mode: 'primary', permission: { '*': 'deny', read: { '*': 'allow', '*.env': 'deny' }, bash: 'ask' },
-  } }], 'claudian-inline-edit');
+  } }], 'scribe-inline-edit');
   expect(config).toMatchObject({
-    default_agent: 'claudian-inline-edit',
+    default_agent: 'scribe-inline-edit',
     agents: {
-      'claudian-inline-edit': {
+      'scribe-inline-edit': {
         system: 'Inline edit instructions', model: 'test/model', mode: 'primary',
         permissions: [
           { action: '*', resource: '*', effect: 'allow' },
@@ -264,7 +264,7 @@ it('preserves legacy user agent semantics under v2 native-over-legacy precedence
 });
 
 it('parses inline JSONC settings into the managed native layer', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-config-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-config-'));
   try {
     const result = await prepareOpencodeLaunchArtifacts({
       workspaceRoot: root,
@@ -280,7 +280,7 @@ it('parses inline JSONC settings into the managed native layer', async () => {
 });
 
 it.each(['malformed-inline', 'non-object-inline'])('rejects %s configuration before launching with lost user settings', async source => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-config-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-config-'));
   try {
     await expect(prepareOpencodeLaunchArtifacts({
       workspaceRoot: root,
@@ -293,7 +293,7 @@ it.each(['malformed-inline', 'non-object-inline'])('rejects %s configuration bef
 });
 
 it('accepts native raw environment expressions without copying expanded user config into the vault', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-config-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-config-'));
   try {
     const result = await prepareOpencodeLaunchArtifacts({
       workspaceRoot: root,
@@ -306,12 +306,12 @@ it('accepts native raw environment expressions without copying expanded user con
     });
     expect(JSON.parse(result.configContent)).toMatchObject({ snapshots: false, username: '{env:PROBE_SECOND}' });
     expect(result.configContent).not.toContain('{env:PROBE_SECOND}');
-    await expect(fs.access(path.join(root, '.claudian', 'opencode'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.access(path.join(root, '.scribe', 'opencode'))).rejects.toMatchObject({ code: 'ENOENT' });
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 
 it('resolves inline file expressions from the workspace before parsing without recursive expansion', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-config-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-config-'));
   await fs.writeFile(path.join(root, 'flag.txt'), 'true\n');
   await fs.writeFile(path.join(root, 'literal.txt'), '{file:./missing.txt} {env:PROBE_SECRET}\n');
   try {
@@ -333,7 +333,7 @@ it('resolves inline file expressions from the workspace before parsing without r
 });
 
 it('uses the native process home for file references and keeps shell variable filenames literal', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-config-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-config-'));
   const nativeHome = path.join(root, 'native-home');
   await fs.mkdir(nativeHome);
   await fs.writeFile(path.join(nativeHome, 'literal-$HOME.txt'), 'Native home value');

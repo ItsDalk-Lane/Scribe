@@ -98,7 +98,7 @@ export class MessageActions {
     toolbar.empty();
     for (const child of Array.from(contentEl.children)) {
       if (getResponseElementKind(child as HTMLElement) === 'text') {
-        child.querySelector('.claudian-text-copy-btn')?.remove();
+        child.querySelector('.scribe-text-copy-btn')?.remove();
       }
     }
     if (answer?.trim()) this.addTextCopyButton(toolbar, answer);
@@ -110,7 +110,7 @@ export class MessageActions {
       const rate = (stats.outputTokens / (stats.durationMs / 1000)).toFixed(1);
       // Obsidian renders aria-label as its tooltip; a title would duplicate it.
       toolbar.createSpan({
-        cls: 'claudian-response-throughput', text: `${rate} tok/s`,
+        cls: 'scribe-response-throughput', text: `${rate} tok/s`,
         attr: { 'aria-label': `${stats.outputTokens.toLocaleString()} tokens · ${formatTurnDuration(stats.durationMs)}` },
       });
     }
@@ -121,12 +121,12 @@ export class MessageActions {
     if (timestampMs === undefined) return;
     msgEl.setAttribute('data-message-timestamp', String(timestampMs));
     const toolbar = this.#getOrCreateToolbar(msgEl);
-    toolbar.querySelector<HTMLElement>('.claudian-message-timestamp')?.remove();
+    toolbar.querySelector<HTMLElement>('.scribe-message-timestamp')?.remove();
     if (this.plugin.settings?.showMessageTimestamps !== true) {
       return;
     }
 
-    const timestampEl = toolbar.createDiv({ cls: 'claudian-message-timestamp' });
+    const timestampEl = toolbar.createDiv({ cls: 'scribe-message-timestamp' });
     const timestamp = new Date(timestampMs);
     const label = timestamp.toLocaleTimeString(undefined, {
       hour: '2-digit',
@@ -155,7 +155,7 @@ export class MessageActions {
   /** Adds a copy button that copies `markdown` and briefly shows "Copied!". */
   addTextCopyButton(textEl: HTMLElement, markdown: string): void {
     const copyBtn = textEl.createEl('button', {
-      cls: 'claudian-text-copy-btn',
+      cls: 'scribe-text-copy-btn',
       attr: {
         'aria-label': t('chat.copyMessage'),
         type: 'button',
@@ -172,7 +172,7 @@ export class MessageActions {
       || !findRewindContext(allMessages, index).hasResponse) return;
     const msgEl = this.#pendingLiveMessages.get(msg.id);
     if (!msgEl) return;
-    if (this.callbacks.rewind && !msgEl.querySelector('.claudian-message-rewind-btn')) {
+    if (this.callbacks.rewind && !msgEl.querySelector('.scribe-message-rewind-btn')) {
       this.#addRewindButton(msgEl, msg.id);
     }
     this.#pendingLiveMessages.delete(msg.id);
@@ -227,7 +227,7 @@ export class MessageActions {
     const unavailable = button.dataset.branchUnavailable === 'true';
     button.disabled = busy || unavailable;
     // Obsidian uses aria-label for its tooltip; title would add a second one.
-    button.setAttribute('aria-description', busy ? 'Wait for the current response to finish.'
+    button.setAttribute('aria-description', busy ? t('chat.displayFeedback.branchBusy')
       : unavailable ? button.dataset.branchUnavailableReason ?? '' : '');
   }
 
@@ -235,11 +235,11 @@ export class MessageActions {
     const branchActions = this.callbacks.branches;
     if (!branchActions || !this.getCapabilities().supportsConversationBranches
       || message.role !== 'user' || (!message.treeBranches && !pendingNativeIdentity)) return;
-    element.querySelectorAll('[data-branch-action], .claudian-branch-position, .claudian-branch-marker').forEach(child => child.remove());
-    element.classList.remove('claudian-message-branched');
+    element.querySelectorAll('[data-branch-action], .scribe-branch-position, .scribe-branch-marker').forEach(child => child.remove());
+    element.classList.remove('scribe-message-branched');
     const toolbar = this.#getOrCreateToolbar(element);
     if (element === this.messagesEl.querySelector('[data-role="user"]') && !this.hasEarlierMessages()) return;
-    const anchor = toolbar.querySelector('.claudian-user-msg-copy-btn, .claudian-message-timestamp');
+    const anchor = toolbar.querySelector('.scribe-user-msg-copy-btn, .scribe-message-timestamp');
     const addButton = (label: string, icon: string, target?: string, unavailable = false, reason = '') => {
       const button = toolbar.createEl('button', {
         attr: { type: 'button', 'aria-label': label, 'data-branch-action': 'true', 'data-branch-unavailable': String(unavailable), 'data-branch-unavailable-reason': reason },
@@ -256,31 +256,31 @@ export class MessageActions {
     const branches = message.treeBranches ?? [];
     const index = message.userMessageId ? branches.indexOf(message.userMessageId) : -1;
     if (branches.length > 1 && index >= 0) {
-      element.classList.add('claudian-message-branched');
-      const marker = element.querySelector('.claudian-message-content')?.createSpan({
-        cls: 'claudian-branch-marker', attr: { 'aria-hidden': 'true' },
+      element.classList.add('scribe-message-branched');
+      const marker = element.querySelector('.scribe-message-content')?.createSpan({
+        cls: 'scribe-branch-marker', attr: { 'aria-hidden': 'true' },
       });
       if (marker) setIcon(marker, 'git-branch');
-      addButton('Previous branch', 'chevron-left', branches[index - 1], index === 0, 'No previous branch.');
-      const position = toolbar.createSpan({ cls: 'claudian-branch-position', text: `${index + 1}/${branches.length}`,
-        attr: { 'aria-label': `Branch ${index + 1} of ${branches.length}` } });
+      addButton(t('chat.displayFeedback.previousBranch'), 'chevron-left', branches[index - 1], index === 0, t('chat.displayFeedback.noPrevious'));
+      const position = toolbar.createSpan({ cls: 'scribe-branch-position', text: `${index + 1}/${branches.length}`,
+        attr: { 'aria-label': t('chat.displayFeedback.branchPosition', { current: index + 1, total: branches.length }) } });
       toolbar.insertBefore(position, anchor);
-      addButton('Next branch', 'chevron-right', branches[index + 1], index === branches.length - 1, 'No next branch.');
+      addButton(t('chat.displayFeedback.nextBranch'), 'chevron-right', branches[index + 1], index === branches.length - 1, t('chat.displayFeedback.noNext'));
     }
-    addButton('Branch from this prompt', 'git-branch', undefined, !message.userMessageId,
-      'Branching is available after this prompt is saved.');
+    addButton(t('chat.displayFeedback.branchFrom'), 'git-branch', undefined, !message.userMessageId,
+      t('chat.conversationFeedback.savePrompt'));
   }
 
   #getOrCreateToolbar(msgEl: HTMLElement): HTMLElement {
-    const existing = Array.from(msgEl.children).find(child => child.classList.contains('claudian-user-msg-actions')) as HTMLElement | undefined;
+    const existing = Array.from(msgEl.children).find(child => child.classList.contains('scribe-user-msg-actions')) as HTMLElement | undefined;
     if (existing) return existing;
-    return msgEl.createDiv({ cls: 'claudian-user-msg-actions claudian-message-actions' });
+    return msgEl.createDiv({ cls: 'scribe-user-msg-actions scribe-message-actions' });
   }
 
   #addUserCopyButton(msgEl: HTMLElement, content: string): void {
     const toolbar = this.#getOrCreateToolbar(msgEl);
     const copyBtn = toolbar.createEl('button', {
-      cls: 'claudian-user-msg-copy-btn',
+      cls: 'scribe-user-msg-copy-btn',
       attr: { type: 'button' },
     });
     setIcon(copyBtn, 'copy');
@@ -292,7 +292,7 @@ export class MessageActions {
     if (!this.getCapabilities().supportsRewind) return;
     const toolbar = this.#getOrCreateToolbar(msgEl);
     const btn = toolbar.createEl('button', {
-      cls: 'claudian-message-rewind-btn',
+      cls: 'scribe-message-rewind-btn',
       attr: { type: 'button' },
     });
     if (toolbar.firstChild !== btn) toolbar.insertBefore(btn, toolbar.firstChild);
@@ -334,7 +334,7 @@ export class MessageActions {
             try {
               await this.callbacks.rewind?.(messageId, mode);
             } catch (err) {
-              new Notice(t('chat.rewind.failed', { error: err instanceof Error ? err.message : 'Unknown error' }));
+              new Notice(t('chat.rewind.failed', { error: err instanceof Error ? err.message : t('settings.ui.unknownError') }));
             }
           });
         });
@@ -345,7 +345,7 @@ export class MessageActions {
     if (!this.getCapabilities().supportsFork) return;
     const toolbar = this.#getOrCreateToolbar(msgEl);
     const btn = toolbar.createEl('button', {
-      cls: 'claudian-message-fork-btn',
+      cls: 'scribe-message-fork-btn',
       attr: { type: 'button' },
     });
     setIcon(btn, 'git-fork');
@@ -356,7 +356,7 @@ export class MessageActions {
         try {
           await this.callbacks.fork?.(messageId);
         } catch (err) {
-          new Notice(t('chat.fork.failed', { error: err instanceof Error ? err.message : 'Unknown error' }));
+          new Notice(t('chat.fork.failed', { error: err instanceof Error ? err.message : t('settings.ui.unknownError') }));
         }
       });
     });

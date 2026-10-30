@@ -31,13 +31,13 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-const INTERRUPTED = 'Interrupted · What should Claudian do instead?';
+const INTERRUPTED = 'Interrupted · What should Scribe do instead?';
 
 function visibleText(element: HTMLElement): string {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const parts: string[] = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.parentElement?.closest('[hidden], .claudian-hidden') && node.textContent?.trim()) parts.push(node.textContent.trim());
+    if (!node.parentElement?.closest('[hidden], .scribe-hidden') && node.textContent?.trim()) parts.push(node.textContent.trim());
   }
   // Line breaks within a text block read as spaces.
   return parts.join(' ').replace(/\s+/g, ' ');
@@ -46,7 +46,7 @@ function visibleText(element: HTMLElement): string {
 /** What a reader sees: the transcript collapsed, and the interrupted body expanded. */
 function inspect(root: HTMLElement) {
   const headers = within(root).queryAllByRole('button', { name: INTERRUPTED });
-  const collapsed = Array.from(root.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' ');
+  const collapsed = Array.from(root.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' ');
   if (headers.length !== 1) return { headers: headers.length, collapsed, body: null };
   fireEvent.click(headers[0]);
   const body = visibleText(document.getElementById(headers[0].getAttribute('aria-controls')!)!);

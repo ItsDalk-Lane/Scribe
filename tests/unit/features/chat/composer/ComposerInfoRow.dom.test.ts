@@ -69,21 +69,21 @@ it('keeps missing linked content visible and marked', async () => {
 
   const note = view.getByRole('button', { name: 'Linked content: Notes/Plan.md. Missing content' });
   expect(note.textContent).toBe('Plan · Missing content');
-  expect(note.closest('.claudian-input-info-linked')?.classList.contains('claudian-input-info-linked--missing')).toBe(true);
-  expect(rowEl.classList.contains('claudian-hidden')).toBe(false);
+  expect(note.closest('.scribe-input-info-linked')?.classList.contains('scribe-input-info-linked--missing')).toBe(true);
+  expect(rowEl.classList.contains('scribe-hidden')).toBe(false);
   expect(await axe(rowEl)).toHaveNoViolations();
   row.destroy();
 });
 
 it('keeps reserving its row while there is no linked note', () => {
   const { row, rowEl } = mount();
-  expect(rowEl.classList.contains('claudian-hidden')).toBe(false);
+  expect(rowEl.classList.contains('scribe-hidden')).toBe(false);
 
   row.setLinkedContent({ label: 'Plan', ariaLabel: 'Linked content: Notes/Plan.md', onActivate: vi.fn() });
   expect(within(rowEl).getByRole('button', { name: 'Linked content: Notes/Plan.md' })).toBeDefined();
 
   row.setLinkedContent(null);
-  expect(rowEl.classList.contains('claudian-hidden')).toBe(false);
+  expect(rowEl.classList.contains('scribe-hidden')).toBe(false);
   expect(within(rowEl).queryByRole('button')).toBeNull();
   row.destroy();
 });

@@ -14,9 +14,79 @@
     "none": "Aucun"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "Rapide",
+      "fastOn": "mode rapide activé",
+      "fastTitle": "Mode rapide : {state}",
+      "fastFailure": "Impossible de modifier le niveau de service",
+      "standard": "Standard",
+      "context": "Utilisation du contexte",
+      "contextDetails": "Utilisation du contexte : {usage}",
+      "contextWarning": " (Limite proche, exécutez `/compact` pour continuer)",
+      "branchBusy": "Attendez la fin de la réponse en cours.",
+      "previousBranch": "Branche précédente",
+      "noPrevious": "Aucune branche précédente.",
+      "branchPosition": "Branche {current} sur {total}",
+      "nextBranch": "Branche suivante",
+      "noNext": "Aucune branche suivante.",
+      "branchFrom": "Créer une branche à partir de ce message",
+      "previewImage": "Aperçu de {name}",
+      "mermaidDiagram": "Diagramme Mermaid",
+      "mermaidSource": "Afficher la source du diagramme"
+    },
+    "conversationFeedback": {
+      "collapseSide": "Réduisez le chat latéral avant de changer de branche.",
+      "savePrompt": "La création de branche est disponible après l’enregistrement de ce message.",
+      "clearDraft": "Enregistrez ou effacez votre brouillon avant de changer de branche.",
+      "branchInProgress": "Changement de branche en cours.",
+      "conversationChanged": "La conversation a changé.",
+      "conversationMissing": "Conversation introuvable.",
+      "executionUnavailable": "Exécution indisponible.",
+      "recoveryCancelled": "La récupération de la branche a été annulée.",
+      "reconcileFailed": "Impossible de récupérer la branche de conversation : {error}",
+      "cannotArchive": "Impossible d’archiver des sessions en cours",
+      "skippedOpenOne": "{count} session ouverte ou en cours ignorée",
+      "skippedOpenMany": "{count} sessions ouvertes ou en cours ignorées",
+      "cannotDelete": "Impossible de supprimer des sessions en cours",
+      "skippedRunningOne": "{count} session en cours ignorée",
+      "skippedRunningMany": "{count} sessions en cours ignorées",
+      "closeDeletedFailed": "Impossible de fermer la session supprimée",
+      "closeBeforeArchiveFailed": "Impossible de fermer la session avant son archivage",
+      "autoArchiveFailed": "Impossible d’archiver automatiquement les sessions inactives",
+      "autoArchiveOne": "{count} session inactive archivée automatiquement",
+      "autoArchiveMany": "{count} sessions inactives archivées automatiquement"
+    },
+    "tabBar": {
+      "name": "Nom de l’onglet",
+      "rename": "Renommer l’onglet…",
+      "reset": "Réinitialiser le nom de l’onglet",
+      "showNumber": "Afficher le numéro",
+      "showName": "Afficher le nom",
+      "showTitle": "Afficher le titre",
+      "close": "Fermer l’onglet",
+      "active": "actif",
+      "needsInput": "votre réponse est nécessaire",
+      "working": "en cours",
+      "reviewError": "arrêté sur une erreur, prêt à vérifier",
+      "review": "terminé, prêt à vérifier",
+      "idle": "inactif"
+    },
+    "fileMenu": {
+      "add": "Ajouter à Scribe",
+      "notReady": "Le chat Scribe n’est pas encore prêt.",
+      "failed": "Impossible d’ajouter le fichier à Scribe."
+    },
+    "queue": {
+      "steering": "Instruction en cours",
+      "queued": "En attente",
+      "steerNow": "Guider maintenant",
+      "edit": "Modifier le message en attente",
+      "discard": "Supprimer le message en attente",
+      "images": "[images]"
+    },
     "promptSuggestionHint": "Tab pour accepter",
     "selectAvailableModel": "Sélectionnez un modèle disponible avant d’envoyer.",
-    "selectAvailableTitleModel": "Sélectionnez un modèle de titre disponible dans les paramètres de Claudian.",
+    "selectAvailableTitleModel": "Sélectionnez un modèle de titre disponible dans les paramètres de Scribe.",
     "rewind": {
       "confirmMessage": "Rembobiner jusqu'à ce point ? Les modifications de fichiers postérieures à ce message peuvent être écrasées ou supprimées. Cette action est irréversible.",
       "confirmMessageConflicts": "Rembobiner jusqu'à ce point ? {count} fichier(s) modifié(s) hors de l’agent seront écrasés :\n{files}",
@@ -33,7 +103,14 @@
       "failed": "Échec du rembobinage : {error}",
       "cannot": "Impossible de rembobiner : {error}",
       "unavailableStreaming": "Impossible de rembobiner pendant le streaming",
-      "unavailableNoUuid": "Impossible de rembobiner : identifiants de message manquants"
+      "unavailableNoUuid": "Impossible de rembobiner : identifiants de message manquants",
+      "messageNotFound": "Message introuvable",
+      "initializationFailed": "Impossible d’initialiser le service de l’agent",
+      "serviceUnavailable": "Service de l’agent indisponible",
+      "executionUnavailable": "Agent indisponible",
+      "conversationChanged": "La conversation a changé pendant la restauration.",
+      "moreFiles": "+{count} autres",
+      "saveFailed": "Échec de l’enregistrement"
     },
     "fork": {
       "ariaLabel": "Bifurquer la conversation",
@@ -81,7 +158,7 @@
       "busySide": "La conversation annexe répond encore. Attends la fin."
     },
     "zen": {
-      "regionLabel": "Chat Claudian",
+      "regionLabel": "Chat Scribe",
       "showHistory": "Afficher la conversation",
       "move": "Déplacer le panneau de discussion",
       "working": "En cours…",
@@ -109,7 +186,7 @@
     "copyMessage": "Copier le message",
     "showEarlierMessages": "Afficher les messages précédents",
     "renderFailed": "Impossible d’afficher le contenu du message.",
-    "interruptedHint": "· Que doit faire Claudian à la place ?",
+    "interruptedHint": "· Que doit faire Scribe à la place ?",
     "sessions": {
       "empty": "Aucune conversation",
       "noMatch": "Aucune session correspondante",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "Réflexion depuis {seconds}s…",
       "completed": "Réflexion pendant {seconds}s",
-      "label": "Réflexion"
+      "label": "Réflexion",
+      "waitHint": " (Échap pour interrompre · {duration})",
+      "compacting": "Compression en cours..."
     },
     "suggestions": {
       "loading": "Chargement…",
@@ -426,9 +505,205 @@
         "discard": "Abandonner",
         "emptyHint": "Les agents le complètent au fil du projet."
       }
+    },
+    "welcome": {
+      "happySunday": "Bon dimanche",
+      "sundaySession": "Une session dimanche ?",
+      "weekend": "Bienvenue en week-end",
+      "happyMonday": "Bon lundi",
+      "backAtIt": "On reprend",
+      "backAtItExclamation": "On reprend !",
+      "happyTuesday": "Bon mardi",
+      "happyWednesday": "Bon mercredi",
+      "happyThursday": "Bon jeudi",
+      "happyFriday": "Bon vendredi",
+      "fridayFeeling": "Ambiance du vendredi",
+      "happySaturday": "Bon samedi",
+      "happySaturdayExclamation": "Bon samedi !",
+      "morning": "Bonjour",
+      "coffee": "Un café avec Scribe ?",
+      "afternoon": "Bon après-midi",
+      "hey": "Salut",
+      "howGoing": "Comment ça va",
+      "evening": "Bonsoir",
+      "eveningShort": "Bonsoir",
+      "howWasDay": "Comment était ta journée",
+      "nightOwl": "Salut, oiseau de nuit",
+      "hiHow": "Salut, comment ça va ?",
+      "hiHowNamed": "Salut {name}, comment ça va ?",
+      "welcomeBack": "Bon retour",
+      "whatsNew": "Quoi de neuf",
+      "returns": "{name} est de retour !",
+      "absolutelyRight": "Tu as tout à fait raison !",
+      "personalized": "{greeting}, {name}"
+    },
+    "newTab": "Nouvel onglet",
+    "newConversation": "Nouvelle conversation",
+    "sessionManager": {
+      "new": "Nouveau",
+      "search": "Rechercher",
+      "archive": "Archives",
+      "sessions": "Sessions",
+      "archived": "Archivées",
+      "pinned": "Épinglées",
+      "missing": "Manquant",
+      "unlinked": "Non lié",
+      "pastWeek": "Semaine passée",
+      "pastTwoWeeks": "2 dernières semaines",
+      "pastMonth": "Mois dernier",
+      "older": "Plus ancien",
+      "sessionOptions": "Options des sessions",
+      "expandGroups": "Développer tous les groupes",
+      "collapseGroups": "Réduire tous les groupes",
+      "searchArchived": "Rechercher les sessions archivées",
+      "searchSessions": "Rechercher des sessions",
+      "organize": "Organiser les sessions",
+      "oneList": "Dans une seule liste",
+      "byLinked": "Par contenu lié",
+      "sortBy": "Trier les sessions par",
+      "lastActivity": "Dernière activité",
+      "created": "Créé",
+      "lastActive": "Dernière activité",
+      "organizationFailed": "Impossible de modifier l’organisation des sessions",
+      "sortFailed": "Impossible de modifier le tri des sessions",
+      "history": "Historique des conversations",
+      "loadMore": "Charger plus ({count} restantes)",
+      "newForContent": "Nouvelle conversation pour {name}",
+      "startContentFailed": "Impossible de démarrer une conversation pour ce contenu lié",
+      "generatingTitle": "Génération du titre...",
+      "regenerateTitle": "Régénérer le titre",
+      "generateTitle": "Générer le titre",
+      "generateTitleFailed": "Impossible de générer le titre",
+      "actionsFor": "Actions pour {name}",
+      "conversationTitle": "Titre de la conversation",
+      "renameFailed": "Impossible de renommer la conversation",
+      "collapseSaveFailed": "Impossible d’enregistrer l’état du dossier de projet",
+      "selected": "Sélectionné",
+      "openNewTab": "Ouvrir dans un nouvel onglet",
+      "openBackgroundTab": "Ouvrir dans un onglet en arrière-plan",
+      "switchOpen": "Revenir à la session ouverte",
+      "assignDevice": "Attribuer à cet appareil",
+      "pin": "Épingler",
+      "unpin": "Désépingler",
+      "markUnread": "Marquer comme non lu",
+      "markRead": "Marquer comme lu",
+      "rename": "Renommer",
+      "copyId": "Copier l’identifiant de session",
+      "restore": "Restaurer",
+      "delete": "Supprimer",
+      "loadFailed": "Impossible de charger la conversation",
+      "copyIdFailed": "Impossible de copier l’identifiant de session",
+      "assignFailed": "Impossible d’attribuer la session à cet appareil",
+      "pinFailed": "Impossible d’épingler la session",
+      "unpinFailed": "Impossible de désépingler la session",
+      "archiveFailed": "Impossible d’archiver la session",
+      "restoreFailed": "Impossible de restaurer la session",
+      "deleteFailed": "Impossible de supprimer la conversation",
+      "cannotArchiveRunning": "Impossible d’archiver une session en cours",
+      "needsYourInput": "Votre réponse est requise",
+      "stoppedWithError": "Arrêté en raison d’une erreur",
+      "running": "En cours",
+      "unread": "Non lu",
+      "needsInput": "Réponse requise",
+      "runningOtherPane": "En cours dans un autre panneau",
+      "openOtherPane": "Ouvert dans un autre panneau",
+      "tabNumber": "onglet {number}",
+      "currentTab": "onglet actuel",
+      "tab": "onglet",
+      "runningIn": "En cours dans {tab}",
+      "currentTabNumber": "Onglet actuel {number}",
+      "currentSession": "Session actuelle",
+      "openIn": "Ouvert dans {tab}",
+      "restoreCount": "Restaurer {count} session(s)",
+      "deleteCount": "Supprimer {count} session(s)",
+      "pinCount": "Épingler {count} session(s)",
+      "unpinCount": "Désépingler {count} session(s)",
+      "archiveCount": "Archiver {count} session(s)",
+      "permanentDeleteCount": "Supprimer définitivement {count} session(s) ?",
+      "restoreManyFailed": "Impossible de restaurer les sessions",
+      "deleteManyFailed": "Impossible de supprimer les sessions",
+      "pinManyFailed": "Impossible d’épingler les sessions",
+      "unpinManyFailed": "Impossible de désépingler les sessions",
+      "archiveManyFailed": "Impossible d’archiver les sessions",
+      "moveManyFailed": "Impossible de déplacer les sessions",
+      "pinLinked": "Épingler le contenu lié",
+      "unpinLinked": "Désépingler le contenu lié",
+      "pinLinkedFailed": "Impossible d’épingler le contenu lié",
+      "unpinLinkedFailed": "Impossible de désépingler le contenu lié",
+      "archiveAll": "Archiver toutes les sessions",
+      "restoreAll": "Restaurer toutes les sessions",
+      "deleteAll": "Supprimer toutes les sessions",
+      "archiveLinkedFailed": "Impossible d’archiver les sessions du contenu lié",
+      "idCopied": "Identifiant de session copié"
+    },
+    "compacted": "Conversation compactée",
+    "subagent": {
+      "prompt": "Invite",
+      "result": "Résultat",
+      "tokens": "{count} jetons",
+      "toolUse": "{count} utilisation d’outil",
+      "toolUses": "{count} utilisations d’outil",
+      "lastTool": "Dernier outil : {tool}",
+      "taskAria": "Tâche du sous-agent : {description} - {status} - cliquer pour développer",
+      "initializing": "Initialisation",
+      "error": "Erreur",
+      "orphaned": "Orphelin",
+      "completed": "Terminé",
+      "backgroundRunning": "En cours en arrière-plan",
+      "backgroundAria": "Tâche en arrière-plan : {description} - {status} - cliquer pour développer",
+      "statusAria": "Statut : {status}",
+      "orphanedResult": "La conversation s’est terminée avant la tâche"
+    },
+    "notices": {
+      "showWideFailed": "Impossible d’afficher la session en vue large",
+      "createTabFailed": "Impossible de créer l’onglet",
+      "createConversationFailed": "Impossible de créer la conversation",
+      "startConversationFailed": "Impossible de démarrer une nouvelle conversation",
+      "switchTabFailed": "Impossible de changer d’onglet",
+      "closeTabFailed": "Impossible de fermer l’onglet",
+      "resizeSessions": "Redimensionner le panneau des sessions",
+      "closePreviewFailed": "Impossible de fermer l’aperçu de session provisoire",
+      "linkedPathsFailed": "Impossible de mettre à jour les chemins du contenu lié",
+      "pinnedContentFailed": "Impossible de mettre à jour le contenu lié épinglé",
+      "sideProviderSwitch": "Impossible de changer de fournisseur dans une conversation secondaire.",
+      "selectAvailableModel": "Sélectionnez un modèle disponible dans les paramètres de Scribe.",
+      "boundProviderSwitch": "Impossible de changer le fournisseur d’une session liée. Démarrez une nouvelle conversation.",
+      "mainChatMode": "Le choix du mode s’applique à la conversation principale.",
+      "initializeExecutionFailed": "Impossible d’initialiser l’agent. Veuillez réessayer.",
+      "executionUnavailable": "L’agent n’est pas disponible. Veuillez recharger le module.",
+      "sessionDeleted": "La session du fournisseur n’existe plus. Son entrée Scribe a été supprimée ; envoyez à nouveau pour démarrer une session.",
+      "sessionReset": "La session du fournisseur n’existe plus. Scribe a conservé l’historique récupérable ; envoyez à nouveau pour reconstruire la session.",
+      "sessionPreserved": "La session du fournisseur n’existe plus. Scribe a conservé son entrée car l’historique restant n’a pas pu être vérifié.",
+      "sessionMissing": "La session du fournisseur n’existe plus. Envoyez à nouveau pour démarrer une session.",
+      "messageNotSent": "Le message n’a pas été envoyé. Veuillez réessayer.",
+      "unknownError": "Erreur inconnue",
+      "unsupportedCommand": "/{command} n’est pas pris en charge par ce fournisseur.",
+      "fastUnavailable": "Le mode rapide n’est pas disponible pour ce modèle.",
+      "fastToggleFailed": "Impossible de changer le mode rapide.",
+      "unknownCommand": "Commande inconnue : {command}",
+      "openConversationFailed": "Impossible d’ouvrir la conversation : {error}",
+      "tabsUnavailable": "Les onglets de conversation sont indisponibles",
+      "forkUnsupported": "Ce fournisseur ne prend pas en charge les branches."
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "Impossible d’enregistrer les paramètres",
+      "loading": "Chargement des paramètres de {provider}…",
+      "unknownError": "Erreur inconnue",
+      "unavailable": "Indisponible : {model}",
+      "aliasSaveFailed": "Impossible d’enregistrer l’alias du modèle. Réessayez.",
+      "contextLabel": "Fenêtre de contexte pour {model}",
+      "modelSaveFailed": "Impossible d’enregistrer la sélection du modèle. Réessayez.",
+      "snippetRefreshFailed": "L’extrait d’environnement a été enregistré, mais les paramètres n’ont pas été actualisés.",
+      "snippetUpdateFailed": "Impossible de mettre à jour l’extrait d’environnement",
+      "snippetSaveFailed": "Impossible d’enregistrer l’extrait d’environnement",
+      "snippetSaved": "Extrait d’environnement « {name} » enregistré",
+      "snippetUpdated": "Extrait d’environnement « {name} » mis à jour",
+      "snippetDeleted": "Extrait d’environnement « {name} » supprimé",
+      "environmentReview": "Vérifiez la gestion des variables d’environnement : {keys}",
+      "environmentUpdateFailed": "Impossible de mettre à jour l’environnement."
+    },
     "tabs": {
       "general": "Général",
       "providers": "Fournisseurs",
@@ -446,7 +721,7 @@
     "responses": "Réponses",
     "experimental": "Expérimental",
     "userName": {
-      "name": "Comment Claudian doit-il vous appeler ?",
+      "name": "Comment Scribe doit-il vous appeler ?",
       "desc": "Votre nom pour les salutations personnalisées (laisser vide pour les salutations génériques)"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Afficher les diffs Write et Edit développés lors de leur première apparition."
     },
     "chatViewPlacement": {
-      "name": "Ouvrir Claudian dans",
+      "name": "Ouvrir Scribe dans",
       "desc": "Choisissez où le panneau de chat s'ouvre lors de sa création",
       "rightSidebar": "Barre latérale droite",
       "leftSidebar": "Barre latérale gauche",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "Activer {provider}",
-      "lastProviderWarning": "Au moins un fournisseur doit rester activé pour que Claudian fonctionne.",
+      "lastProviderWarning": "Au moins un fournisseur doit rester activé pour que Scribe fonctionne.",
       "noModelsWarning": "Aucun modèle {provider} n’est activé. Dans la section Modèles ci-dessous, activez au moins un modèle."
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "Méthode d’installation",
-        "desc": "Comment Claudian doit lancer Codex sous Windows. Windows natif utilise un chemin d’exécutable Windows. WSL lance la CLI Linux dans une distribution choisie.",
+        "desc": "Comment Scribe doit lancer Codex sous Windows. Windows natif utilise un chemin d’exécutable Windows. WSL lance la CLI Linux dans une distribution choisie.",
         "nativeWindows": "Windows natif",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "Variables d'environnement supplémentaires transmises à OpenCode."
       },
       "migrationNotice": {
-        "text": "OpenCode v1 n'est plus pris en charge. Passez à OpenCode v2 pour l'utiliser dans Claudian.",
+        "text": "OpenCode v1 n'est plus pris en charge. Passez à OpenCode v2 pour l'utiliser dans Scribe.",
         "link": "Migrer vers OpenCode v2"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "Variables d'environnement transmises uniquement à Pi."
       },
       "models": {
-        "desc": "Claudian conserve sa propre liste de modèles, distincte des enabledModels de Pi. Discover liste tous les modèles que Pi peut authentifier dans son environnement actuel, regroupés par la route de fournisseur que Pi appellera. La route détermine les identifiants et la facturation."
+        "desc": "Scribe conserve sa propre liste de modèles, distincte des enabledModels de Pi. Discover liste tous les modèles que Pi peut authentifier dans son environnement actuel, regroupés par la route de fournisseur que Pi appellera. La route détermine les identifiants et la facturation."
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "Plugins de preset supplémentaires",
-        "desc": "Avancé. Une liste YAML (format de dsh) de lignes de plugins dsh natifs ajoutées au preset de discussion de Claudian, chacune avec son propre « id » et son propre « name ». Ces lignes ne peuvent pas remplacer celles de Claudian. L'enregistrement redémarre DeepSeek Harness, ce qui arrête les tours en cours. Les plugins sans interface dans Claudian, comme le mode plan, peuvent ne pas fonctionner."
+        "desc": "Avancé. Une liste YAML (format de dsh) de lignes de plugins dsh natifs ajoutées au preset de discussion de Scribe, chacune avec son propre « id » et son propre « name ». Ces lignes ne peuvent pas remplacer celles de Scribe. L'enregistrement redémarre DeepSeek Harness, ce qui arrête les tours en cours. Les plugins sans interface dans Scribe, comme le mode plan, peuvent ne pas fonctionner."
       },
       "presetPreview": "Aperçu du preset",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "Déplacés {moved}, convertis {converted}, à la corbeille {trashed}, {unlinked} lien(s) supprimé(s)."
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "Options du modèle",
+      "provider": "Fournisseur",
+      "unavailable": "Modèle indisponible",
+      "setup": "Configurer les modèles",
+      "label": "Modèle : {model}",
+      "choose": "Choisissez un modèle activé dans les paramètres du fournisseur. Actualisez la liste si la découverte a échoué.",
+      "heading": "Modèle",
+      "empty": "Aucun modèle disponible. Vérifiez les paramètres du fournisseur et actualisez la liste si nécessaire.",
+      "changeFailed": "Impossible de changer de modèle"
+    },
+    "effort": {
+      "default": "Par défaut",
+      "description": "effort {level}",
+      "heading": "Réflexion",
+      "changeFailed": "Impossible de changer le niveau de réflexion"
+    }
+  },
+  "inlineEdit": {
+    "command": "Modification en ligne",
+    "unavailableView": "Modification en ligne indisponible : impossible d’accéder à la vue Markdown active.",
+    "inserted": "Inséré",
+    "applied": "Modification appliquée",
+    "unavailableEditor": "Modification en ligne indisponible : impossible d’accéder à l’éditeur. Rouvrez la note.",
+    "sourceChanged": "La modification n’a pas été appliquée car le document ou la sélection a changé.",
+    "providerStartFailed": "Impossible de démarrer le fournisseur {provider}.",
+    "vaultLoadFailed": "Impossible de charger les fichiers du coffre. Les mentions @ peuvent être indisponibles.",
+    "insertInstructions": "Instructions d’insertion",
+    "editInstructions": "Instructions de modification",
+    "insertPlaceholder": "Instructions d’insertion...",
+    "editPlaceholder": "Instructions de modification...",
+    "modelRequired": "Sélectionnez un modèle disponible dans les paramètres Scribe.",
+    "actions": "Actions de modification en ligne",
+    "line": "ligne",
+    "lines": "lignes",
+    "reject": "Refuser",
+    "accept": "Accepter",
+    "rejectAria": "Refuser la modification en ligne",
+    "acceptAria": "Accepter la modification en ligne",
+    "retryError": "Erreur : réessayez",
+    "replyPlaceholder": "Répondez pour continuer...",
+    "noResponse": "Aucune réponse de l’agent"
+  },
+  "commands": {
+    "openScribe": "Ouvrir Scribe",
+    "toggleChat": "Basculer la vue de discussion",
+    "copyDiagnostics": "Copier le diagnostic de démarrage",
+    "new": "Nouveau",
+    "replaceConversation": "Remplacer la conversation actuelle",
+    "closeTab": "Fermer l’onglet actuel",
+    "renameTab": "Renommer l’onglet actuel",
+    "focusChat": "Basculer le focus de saisie",
+    "toggleZenHistory": "Basculer l’historique du mode zen"
   }
 }

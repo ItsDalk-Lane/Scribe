@@ -19,8 +19,8 @@ export class ImagePreviewModal {
     this.close();
 
     const previouslyFocusedElement = getFocusableActiveElement(ownerDocument);
-    const overlay = ownerDocument.body.createDiv({ cls: 'claudian-image-modal-overlay' });
-    const modal = overlay.createDiv({ cls: 'claudian-image-modal' });
+    const overlay = ownerDocument.body.createDiv({ cls: 'scribe-image-modal-overlay' });
+    const modal = overlay.createDiv({ cls: 'scribe-image-modal' });
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-label', t('chat.images.preview', { name: image.name }));
@@ -33,7 +33,7 @@ export class ImagePreviewModal {
     });
 
     const closeButton = modal.createEl('button', {
-      cls: 'claudian-image-modal-close',
+      cls: 'scribe-image-modal-close',
       attr: {
         'aria-label': t('chat.images.closePreview'),
         type: 'button',

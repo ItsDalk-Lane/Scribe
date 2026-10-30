@@ -8,7 +8,7 @@ import { firePointer } from '@test/helpers/dom/pointer';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
+import { createProviderRuntimeHost } from '@/composition/ScribeProviderHost';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import { createCodexModels } from '@/providers/codex/runtime/CodexModels';
 import { getCodexProviderSettings } from '@/providers/codex/settings';
@@ -30,10 +30,10 @@ let paneScroll = 0;
 function installRowLayout(): () => void {
   const original = HTMLElement.prototype.getBoundingClientRect;
   HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
-    if (this.classList.contains('claudian-provider-model-picker-selected-rows')) {
+    if (this.classList.contains('scribe-provider-model-picker-selected-rows')) {
       return { top: LIST_TOP - paneScroll } as DOMRect;
     }
-    if (!this.classList.contains('claudian-provider-model-picker-selected-row')) return original.call(this);
+    if (!this.classList.contains('scribe-provider-model-picker-selected-row')) return original.call(this);
     const index = Array.from(this.parentElement!.children).indexOf(this);
     const top = LIST_TOP - paneScroll + index * (ROW_HEIGHT + ROW_GAP);
     return { top, bottom: top + ROW_HEIGHT, height: ROW_HEIGHT } as DOMRect;
@@ -65,7 +65,7 @@ async function setup() {
   const picker = renderProviderModelsSection(container, 'codex', 'Codex', catalog);
   const row = (id: string) => container.querySelector<HTMLElement>(`[data-model-id="${id}"]`)!;
   const rowOrder = () => [...container.querySelectorAll('[data-model-id]')].map(el => el.getAttribute('data-model-id'));
-  const press = (id: string, el: Element = row(id).querySelector('.claudian-provider-model-picker-selected-name')!) => {
+  const press = (id: string, el: Element = row(id).querySelector('.scribe-provider-model-picker-selected-name')!) => {
     const startY = row(id).getBoundingClientRect().top + ROW_HEIGHT / 2;
     firePointer('pointerDown', el, startY);
     return startY;
@@ -95,11 +95,11 @@ it('lifts a selected model and slides the others aside, saving its slot on relea
     // Alpha sits at 100–150, Beta at 156–206, Gamma at 212–262.
     const startY = h.press('alpha');
     h.moveTo(startY + 2);
-    expect(h.row('alpha').classList.contains('claudian-live-sort-lifted')).toBe(false);
+    expect(h.row('alpha').classList.contains('scribe-live-sort-lifted')).toBe(false);
 
     // Lowered 40px, Alpha's bottom (190) covers Beta past 30% but not Gamma; Beta moves up by a row and its gap.
     h.moveTo(startY + 40);
-    expect(h.row('alpha').classList.contains('claudian-live-sort-lifted')).toBe(true);
+    expect(h.row('alpha').classList.contains('scribe-live-sort-lifted')).toBe(true);
     expect(h.row('alpha').style.transform).toBe('translateY(40px)');
     expect(h.row('beta').style.transform).toBe(`translateY(-${ROW_HEIGHT + ROW_GAP}px)`);
     expect(h.row('gamma').style.transform).toBe('');
@@ -165,15 +165,15 @@ it('leaves the alias field and remove button to their own pointer behavior', asy
     ]) {
       const startY = h.press('beta', control);
       h.moveTo(startY + 60);
-      expect(h.row('beta').classList.contains('claudian-live-sort-lifted')).toBe(false);
+      expect(h.row('beta').classList.contains('scribe-live-sort-lifted')).toBe(false);
       h.release(startY + 60);
     }
     // The reorder handle still lifts the row.
     const startY = h.press('beta', rowView.getByRole('button', { name: /Reorder Beta/ }));
     h.moveTo(startY + 60);
-    expect(h.row('beta').classList.contains('claudian-live-sort-lifted')).toBe(true);
+    expect(h.row('beta').classList.contains('scribe-live-sort-lifted')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(h.row('beta').classList.contains('claudian-live-sort-lifted')).toBe(false);
+    expect(h.row('beta').classList.contains('scribe-live-sort-lifted')).toBe(false);
     expect(h.notify).not.toHaveBeenCalled();
   } finally {
     await h.dispose();

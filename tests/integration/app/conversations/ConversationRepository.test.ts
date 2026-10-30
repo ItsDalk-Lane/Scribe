@@ -1,6 +1,6 @@
 import '@/providers';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { FakeSideBackend, waitFor } from '@test/helpers/features/chat/SideChatSessionHarness';
 import { testDate } from '@test/helpers/testClock';
 
@@ -36,7 +36,7 @@ function fixture() {
     deleteCurrentMetadata: vi.fn().mockResolvedValue(undefined),
     assignMetadataToDevice: vi.fn().mockResolvedValue(undefined),
   };
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   const repository = new ConversationRepository({
     providers: ProviderRegistry,
     providerSettings: ProviderSettingsCoordinator,
@@ -480,7 +480,7 @@ test('context controls read detached metadata without copying the transcript', a
     id: 'large-message', role: 'user', content: 'transcript'.repeat(100_000), timestamp: testDate().getTime(),
   }];
   repository.replaceAll([conversation]);
-  const settings = { ...DEFAULT_CLAUDIAN_SETTINGS, customContextLimits: { sonnet: 100_000, opus: 200_000 } };
+  const settings = { ...DEFAULT_SCRIBE_SETTINGS, customContextLimits: { sonnet: 100_000, opus: 200_000 } };
   const fullRead = vi.spyOn(repository, 'getSync');
   const summaryRead = vi.spyOn(repository, 'getSummary');
   const update = vi.fn();

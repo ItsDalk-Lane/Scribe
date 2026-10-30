@@ -86,7 +86,7 @@ it('renders the latest turns first and reveals earlier turns above them in order
   // The window starts at the stopped turn's prompt, never at its bare marker.
   expect(renderedPrompts(messagesEl)[0]).toBe('Stopped prompt');
   expect(renderedPrompts(messagesEl)).not.toContain('Prompt 29');
-  expect(Array.from(messagesEl.querySelectorAll('.claudian-message')).filter(el => !el.hasAttribute('data-message-id'))).toEqual([]);
+  expect(Array.from(messagesEl.querySelectorAll('.scribe-message')).filter(el => !el.hasAttribute('data-message-id'))).toEqual([]);
   expect(messagesEl.querySelector('[data-message-id="a-stopped"]')?.textContent).toContain('Interrupted');
 
   const showEarlier = within(messagesEl).getByRole('button', { name: 'Show earlier messages' });

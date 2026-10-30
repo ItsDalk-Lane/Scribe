@@ -506,7 +506,7 @@ describe('ClaudeSettingsTab', () => {
     await toggle.onChangeCallback?.(false);
 
     expect(warningCallIndex).toBeGreaterThanOrEqual(0);
-    expect(warningEl.toggleClass).toHaveBeenLastCalledWith('claudian-hidden', false);
+    expect(warningEl.toggleClass).toHaveBeenLastCalledWith('scribe-hidden', false);
     expect(plugin.settings.providerConfigs.claude.enabled).toBe(true);
     expect(plugin.runProviderExecutionTransition).not.toHaveBeenCalled();
     expect(coordinator.applyProviderEnablement).not.toHaveBeenCalled();
@@ -636,16 +636,16 @@ describe('ClaudeSettingsTab', () => {
     const container = domElement();
     createSettingsRenderer().render(container, createContext(plugin));
     const warning = within(container).getByText('settings.providerEnablement.noModelsWarning');
-    expect(warning.classList.contains('claudian-hidden')).toBe(false);
+    expect(warning.classList.contains('scribe-hidden')).toBe(false);
     const onUpdate = mockRenderModelPicker.mock.calls[0][4] as () => void;
     plugin.settings.providerConfigs.claude.visibleModels = ['opus'];
     onUpdate();
-    expect(warning.classList.contains('claudian-hidden')).toBe(true);
+    expect(warning.classList.contains('scribe-hidden')).toBe(true);
     plugin.settings.providerConfigs.claude.discoveredModels = [];
     onUpdate();
-    expect(warning.classList.contains('claudian-hidden')).toBe(false);
+    expect(warning.classList.contains('scribe-hidden')).toBe(false);
     await findSetting('settings.providerEnablement.name').toggleComponents[0].onChangeCallback?.(false);
-    expect(warning.classList.contains('claudian-hidden')).toBe(true);
+    expect(warning.classList.contains('scribe-hidden')).toBe(true);
     const warningRegion = document.createElement('main');
     warningRegion.append(warning);
     expect(await axe(warningRegion)).toHaveNoViolations();

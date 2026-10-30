@@ -1,5 +1,7 @@
 import { Notice } from 'obsidian';
 
+import { t } from '@/i18n/i18n';
+
 const WIDE_SESSION_LAYOUT_MIN_WIDTH = 600;
 const MIN_CHAT_PANEL_WIDTH = 320;
 const MIN_SESSION_SIDEBAR_WIDTH = 180;
@@ -58,7 +60,7 @@ export class DualPaneLayout {
     this.elements = elements;
     const { containerEl, resizerEl } = elements;
     resizerEl.setAttribute('role', 'separator');
-    resizerEl.setAttribute('aria-label', 'Resize conversation sessions');
+    resizerEl.setAttribute('aria-label', t('chat.notices.resizeSessions'));
     resizerEl.setAttribute('aria-orientation', 'vertical');
     resizerEl.setAttribute('tabindex', '0');
     resizerEl.addEventListener('pointerdown', (event) => this.startResize(event));
@@ -66,7 +68,7 @@ export class DualPaneLayout {
 
     this.requestedWide = false;
     this.wide = false;
-    containerEl.removeClass('claudian-wide-session-layout');
+    containerEl.removeClass('scribe-wide-session-layout');
     this.update(containerEl.getBoundingClientRect().width, { renderSidebar: false });
   }
 
@@ -109,7 +111,7 @@ export class DualPaneLayout {
     const renderSidebar = options.renderSidebar ?? true;
     const settings = this.hooks.getSettings();
 
-    containerEl.toggleClass('claudian-session-sidebar-left', settings?.dualPaneSide === 'left');
+    containerEl.toggleClass('scribe-session-sidebar-left', settings?.dualPaneSide === 'left');
 
     const shouldUseWideLayout = (settings?.enableDualPane ?? true)
       && width >= WIDE_SESSION_LAYOUT_MIN_WIDTH;
@@ -127,7 +129,7 @@ export class DualPaneLayout {
     if (shouldUseWideLayout) {
       if (!this.wide) {
         this.wide = true;
-        containerEl.addClass('claudian-wide-session-layout');
+        containerEl.addClass('scribe-wide-session-layout');
         this.hooks.onWideChanged();
       }
       this.hooks.onEnterWide();
@@ -150,14 +152,14 @@ export class DualPaneLayout {
     } catch {
       // Overlapping requests share one cleanup, so only the latest one reports its failure.
       if (requestRevision === this.compactRequestRevision) {
-        new Notice('Failed to close the provisional session preview');
+        new Notice(t('chat.notices.closePreviewFailed'));
       }
     }
     const containerEl = this.elements?.containerEl;
     if (requestRevision !== this.requestRevision || this.requestedWide || !containerEl) return;
 
     this.wide = false;
-    containerEl.removeClass('claudian-wide-session-layout');
+    containerEl.removeClass('scribe-wide-session-layout');
     this.hooks.onWideChanged();
   }
 
@@ -181,12 +183,12 @@ export class DualPaneLayout {
     ownerDocument.addEventListener('pointermove', handlePointerMove);
     ownerDocument.addEventListener('pointerup', handlePointerEnd);
     ownerDocument.addEventListener('pointercancel', handlePointerEnd);
-    elements.containerEl.addClass('claudian-resizing-session-sidebar');
+    elements.containerEl.addClass('scribe-resizing-session-sidebar');
     this.resizeCleanup = () => {
       ownerDocument.removeEventListener('pointermove', handlePointerMove);
       ownerDocument.removeEventListener('pointerup', handlePointerEnd);
       ownerDocument.removeEventListener('pointercancel', handlePointerEnd);
-      elements.containerEl.removeClass('claudian-resizing-session-sidebar');
+      elements.containerEl.removeClass('scribe-resizing-session-sidebar');
     };
   }
 
@@ -227,7 +229,7 @@ export class DualPaneLayout {
     ));
 
     this.sidebarWidth = width;
-    elements.containerEl.style.setProperty('--claudian-session-sidebar-width', `${width}px`);
+    elements.containerEl.style.setProperty('--scribe-session-sidebar-width', `${width}px`);
     elements.resizerEl.setAttribute('aria-valuenow', String(width));
     elements.resizerEl.setAttribute('aria-valuemin', String(MIN_SESSION_SIDEBAR_WIDTH));
     elements.resizerEl.setAttribute('aria-valuemax', String(Math.round(maxWidth)));

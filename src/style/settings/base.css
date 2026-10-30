@@ -1,21 +1,21 @@
 /* Settings surfaces label their controls for assistive tech only; Obsidian would otherwise show every aria-label on hover. */
-.claudian-settings,
-.claudian-skill-sync-modal,
-.claudian-agent-skill-modal,
-.claudian-env-snippet-modal {
+.scribe-settings,
+.scribe-skill-sync-modal,
+.scribe-agent-skill-modal,
+.scribe-env-snippet-modal {
   --no-tooltip: true;
 }
 
 /* ── Settings tab navigation ── */
 
-.claudian-settings-tabs {
+.scribe-settings-tabs {
   display: flex;
   gap: 2px;
   border-bottom: 1px solid var(--background-modifier-border);
   margin-bottom: 16px;
 }
 
-.claudian-settings-tab {
+.scribe-settings-tab {
   padding: 8px 16px;
   border: none;
   background: transparent;
@@ -28,31 +28,31 @@
   margin-bottom: -1px;
 }
 
-.claudian-settings-tab:hover {
+.scribe-settings-tab:hover {
   color: var(--text-normal);
 }
 
-.claudian-settings-tab--active {
+.scribe-settings-tab--active {
   color: var(--text-normal);
   border-bottom-color: var(--interactive-accent);
 }
 
-.claudian-settings-tab-content {
+.scribe-settings-tab-content {
   display: none;
 }
 
-.claudian-settings-tab-content--active {
+.scribe-settings-tab-content--active {
   display: block;
 }
 
-.claudian-settings-provider-tabs {
+.scribe-settings-provider-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 16px;
 }
 
-.claudian-settings button.claudian-settings-provider-tab {
+.scribe-settings button.scribe-settings-provider-tab {
   padding: 5px 10px;
   border: none;
   background: transparent;
@@ -62,32 +62,32 @@
   cursor: pointer;
 }
 
-.claudian-settings button.claudian-settings-provider-tab:hover,
-.claudian-settings button.claudian-settings-provider-tab:focus,
-.claudian-settings button.claudian-settings-provider-tab:active {
+.scribe-settings button.scribe-settings-provider-tab:hover,
+.scribe-settings button.scribe-settings-provider-tab:focus,
+.scribe-settings button.scribe-settings-provider-tab:active {
   color: var(--text-normal);
   background: transparent;
 }
 
-.claudian-settings button.claudian-settings-provider-tab--active {
+.scribe-settings button.scribe-settings-provider-tab--active {
   color: var(--text-normal);
   background: transparent;
 }
 
-.claudian-settings-provider-content {
+.scribe-settings-provider-content {
   display: none;
 }
 
-.claudian-settings-provider-content--active {
+.scribe-settings-provider-content--active {
   display: block;
 }
 
 /* Settings page - remove separator lines from setting items */
-.setting-group > .setting-items.claudian-settings-items {
+.setting-group > .setting-items.scribe-settings-items {
   background: transparent;
 }
 
-.setting-item.claudian-settings {
+.setting-item.scribe-settings {
   display: block;
   width: 100%;
   padding: 0;
@@ -95,36 +95,36 @@
   background: transparent;
 }
 
-.claudian-settings .setting-item {
+.scribe-settings .setting-item {
   border-top: none;
 }
 
 /* Settings section headings (via setHeading()) */
-.claudian-settings .setting-item-heading {
+.scribe-settings .setting-item-heading {
   padding-top: 18px;
   margin-top: 12px;
   border-top: 1px solid var(--background-modifier-border);
 }
 
-.claudian-settings .setting-item-heading:first-child {
+.scribe-settings .setting-item-heading:first-child {
   padding-top: 0;
   margin-top: 0;
   border-top: none;
 }
 
-.claudian-settings .setting-item-heading .setting-item-name {
+.scribe-settings .setting-item-heading .setting-item-name {
   font-size: var(--font-ui-medium);
   font-weight: var(--font-semibold);
   color: var(--text-normal);
 }
 
 /* Custom section descriptions - align with items */
-.claudian-opencode-migration-notice {
+.scribe-opencode-migration-notice {
   margin-bottom: var(--size-4-5);
 }
 
 /* Unified icon action buttons for settings */
-.claudian-settings-action-btn {
+.scribe-settings-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,50 +139,50 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.claudian-settings-action-btn:hover {
+.scribe-settings-action-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.claudian-settings-action-btn svg {
+.scribe-settings-action-btn svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-settings-delete-btn:hover {
+.scribe-settings-delete-btn:hover {
   color: var(--text-error);
 }
 
-.claudian-setting-validation {
+.scribe-setting-validation {
   font-size: var(--font-ui-smaller);
   margin-top: -0.5em;
   margin-bottom: 0.5em;
 }
 
-.claudian-setting-validation-error {
+.scribe-setting-validation-error {
   color: var(--text-error);
 }
 
-.claudian-setting-validation-warning {
+.scribe-setting-validation-warning {
   color: var(--text-warning);
 }
 
-.claudian-settings-cli-path-input {
+.scribe-settings-cli-path-input {
   width: 100%;
 }
 
-.claudian-settings-cli-path-input.claudian-input-error {
+.scribe-settings-cli-path-input.scribe-input-error {
   border-color: var(--text-error);
 }
 
 /* Media folder input width */
-.claudian-settings-media-input {
+.scribe-settings-media-input {
   width: 200px;
 }
 
 /* ── Shared settings panel layout (used by command, skill, and provider agent settings) ── */
 
-.claudian-sp-header {
+.scribe-sp-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -190,12 +190,12 @@
   padding: 0 12px;
 }
 
-.claudian-sp-header-actions {
+.scribe-sp-header-actions {
   display: flex;
   gap: 4px;
 }
 
-.claudian-sp-empty-state {
+.scribe-sp-empty-state {
   padding: 20px;
   text-align: center;
   color: var(--text-muted);
@@ -204,14 +204,14 @@
   margin-top: 8px;
 }
 
-.claudian-sp-list {
+.scribe-sp-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
 }
 
-.claudian-sp-item {
+.scribe-sp-item {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -220,34 +220,34 @@
   border-radius: 6px;
 }
 
-.claudian-sp-item:hover {
+.scribe-sp-item:hover {
   background: var(--background-modifier-hover);
 }
 
-.claudian-sp-info {
+.scribe-sp-info {
   flex: 1;
   min-width: 0;
 }
 
-.claudian-sp-item-header {
+.scribe-sp-item-header {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.claudian-sp-item-name {
+.scribe-sp-item-name {
   font-weight: 600;
   font-family: var(--font-monospace);
   color: var(--text-normal);
 }
 
-.claudian-sp-item-desc {
+.scribe-sp-item-desc {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 2px;
 }
 
-.claudian-sp-item-actions {
+.scribe-sp-item-actions {
   display: flex;
   gap: 4px;
   margin-left: 16px;

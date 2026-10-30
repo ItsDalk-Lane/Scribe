@@ -287,7 +287,7 @@ it.each([
   const history = new Promise<Conversation | null>(resolve => { resolveHistory = resolve; });
   const read = vi.fn(() => history);
   Object.assign(plugin, { getConversationById: read });
-  const draft = '@[Source](claudian-session:conv-1-source)';
+  const draft = '@[Source](scribe-session:conv-1-source)';
   const input = getByRole(tab.dom.inputComposerEl, 'textbox');
   tab.dom.inputEl.value = draft;
   const sending = tab.controllers.inputController.sendMessage();
@@ -337,7 +337,7 @@ it('dispatches pending mailbox work after the last busy-main reference preparati
   const history = new Promise<Conversation | null>((_resolve, reject) => { rejectHistory = reject; });
   const read = vi.fn((id: string) => id === 'conv-1-source' ? history : Promise.resolve(plugin.getConversationSync(id)));
   Object.assign(plugin, { getConversationById: read });
-  tab.dom.inputEl.value = '@[Source](claudian-session:conv-1-source)';
+  tab.dom.inputEl.value = '@[Source](scribe-session:conv-1-source)';
   const preparing = tab.controllers.inputController.sendMessage();
   expect(read).toHaveBeenCalled();
   expect(tab.controllers.inputController.isPreparingMainTurn).toBe(true);
@@ -351,7 +351,7 @@ it('dispatches pending mailbox work after the last busy-main reference preparati
   try {
     await waitFor(() => expect(harness.backend.sessions.flatMap(session => session.requests)).toHaveLength(1), { onTimeout: error => error });
     expect(mailbox.hasPending).toBe(false);
-    expect(tab.dom.inputEl.value).toBe('@[Source](claudian-session:conv-1-source)');
+    expect(tab.dom.inputEl.value).toBe('@[Source](scribe-session:conv-1-source)');
   } finally {
     mailbox.clear();
     harness.backend.sessions.forEach(session => session.complete());

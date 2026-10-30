@@ -3,6 +3,13 @@ import { testDate } from '@test/helpers/testClock';
 import { formatSessionDate } from '@/features/chat/session-manager/SessionStatusPresentation';
 
 describe('formatSessionDate', () => {
+  it('formats an older date using the chosen language', () => {
+    const now = testDate();
+    const earlier = new Date(now.getTime() - 2 * 86_400_000);
+    expect(formatSessionDate(earlier.getTime(), now, 'zh-CN')).toBe(
+      earlier.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+    );
+  });
   it('should return time format for today', () => {
     const now = testDate();
 

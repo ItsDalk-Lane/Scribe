@@ -49,25 +49,25 @@ function assertEntryValue(value: unknown, path: string): void {
 }
 
 const PREVIEW_PATHS: DeepSeekPresetPaths = {
-  sessions: '<claudian-sessions.mjs>', sessionToolsFile: '<session tools endpoint>',
-  compatibility: '<claudian-compatibility.mjs>', codeModeFile: '<code mode>', promptDirectory: '<session prompts>',
+  sessions: '<scribe-sessions.mjs>', sessionToolsFile: '<session tools endpoint>',
+  compatibility: '<scribe-compatibility.mjs>', codeModeFile: '<code mode>', promptDirectory: '<session prompts>',
 };
 
 /**
- * Plugin rows of one Claudian preset. Both chat presets are identical (`claudian-code` is the legacy code-mode id),
- * and only they take the user's additional rows, after Claudian's own.
+ * Plugin rows of one Scribe preset. Both chat presets are identical (`scribe-code` is the legacy code-mode id),
+ * and only they take the user's additional rows, after Scribe's own.
  */
 export function buildDeepSeekPresetPlugins(
   preset: DeepSeekPreset, paths: DeepSeekPresetPaths, additional: readonly DeepSeekPresetPlugin[] = [],
 ): DeepSeekPresetPlugin[] {
   const auxiliary = isDeepSeekAuxiliaryPreset(preset);
-  const allow = preset === 'claudian-passive' ? [] : ['read', 'read_image', 'glob', 'grep'];
+  const allow = preset === 'scribe-passive' ? [] : ['read', 'read_image', 'glob', 'grep'];
   const plugin = (name: string, config?: unknown): DeepSeekPresetPlugin => ({
     id: name, name: `@deepseek-ai/dsh-${name}`, ...(config === undefined ? {} : { config }),
   });
   return [
     {
-      id: 'claudian-compatibility', name: paths.compatibility,
+      id: 'scribe-compatibility', name: paths.compatibility,
       config: { promptDirectory: paths.promptDirectory, ...(auxiliary ? { allow } : { codeModeFile: paths.codeModeFile }) },
     },
     // Chat presets present tools per agent from the live code-mode preference instead.
@@ -77,7 +77,7 @@ export function buildDeepSeekPresetPlugins(
     plugin('tool-fs'),
     plugin('tool-fs-search', { sampleOverCapGlobResults: false }),
     // Read-only tasks (Inline Edit) take a user's `/skill` gestures; their `allow` policy still hides the skill tool.
-    ...(preset !== 'claudian-passive' ? [plugin('skill-filesystem'), plugin('tool-skill')] : []),
+    ...(preset !== 'scribe-passive' ? [plugin('skill-filesystem'), plugin('tool-skill')] : []),
     ...(!auxiliary ? [
       // Native mounts only the platform's shell executor (PowerShell on Windows); its tool must match.
       plugin(process.platform === 'win32' ? 'tool-pwsh' : 'tool-bash'),
@@ -87,7 +87,7 @@ export function buildDeepSeekPresetPlugins(
       plugin('tool-subagent', { provider: 'spawn', toolName: 'subagent', backgroundMode: 'continuable', modelSelectionSettings: false }),
       { ...plugin('tool-subagent', { provider: 'fork', toolName: 'subagent_fork', backgroundMode: 'continuable', modelSelectionSettings: false }), id: 'tool-subagent-fork' },
       plugin('tool-ask-user'),
-      { id: 'claudian-sessions', name: paths.sessions, config: { endpointFile: paths.sessionToolsFile, routeHeader: SESSION_TOOL_ROUTE_HEADER, tools: SESSION_TOOL_SPECS } },
+      { id: 'scribe-sessions', name: paths.sessions, config: { endpointFile: paths.sessionToolsFile, routeHeader: SESSION_TOOL_ROUTE_HEADER, tools: SESSION_TOOL_SPECS } },
       plugin('tool-web', { fetch: true, searchTimeoutMs: 60000 }),
     ] : []),
     {
@@ -102,7 +102,7 @@ export function buildDeepSeekPresetPlugins(
   ];
 }
 
-/** Every row id Claudian's chat preset declares, including rows nested in its groups. */
+/** Every row id Scribe's chat preset declares, including rows nested in its groups. */
 function ownRowIds(): Set<string> {
   const ids = new Set<string>();
   const visit = (rows: readonly unknown[]): void => {
@@ -113,7 +113,7 @@ function ownRowIds(): Set<string> {
       if (Array.isArray(config)) visit(config);
     }
   };
-  visit(buildDeepSeekPresetPlugins('claudian', PREVIEW_PATHS));
+  visit(buildDeepSeekPresetPlugins('scribe', PREVIEW_PATHS));
   return ids;
 }
 
@@ -138,7 +138,7 @@ export function parseDeepSeekPresetPlugins(text: string): DeepSeekPresetPlugin[]
     const { id, name } = row as { id?: unknown; name?: unknown };
     if (typeof id !== 'string' || !id.trim()) throw new Error(`Plugin row ${index + 1} needs a non-empty string "id".`);
     if (typeof name !== 'string' || !name.trim()) throw new Error(`Plugin row "${id}" needs a non-empty string "name" (the plugin module).`);
-    if (own.has(id)) throw new Error(`Plugin row "${id}" is already part of Claudian's preset. Choose a different id.`);
+    if (own.has(id)) throw new Error(`Plugin row "${id}" is already part of Scribe's preset. Choose a different id.`);
     if (seen.has(id)) throw new Error(`Plugin row "${id}" appears more than once.`);
     seen.add(id);
     return row as DeepSeekPresetPlugin;
@@ -147,5 +147,5 @@ export function parseDeepSeekPresetPlugins(text: string): DeepSeekPresetPlugin[]
 
 /** The effective chat preset as it launches, with machine-specific launch paths shown as placeholders. */
 export function renderDeepSeekPresetPreview(additional: readonly DeepSeekPresetPlugin[]): string {
-  return stringify(buildDeepSeekPresetPlugins('claudian', PREVIEW_PATHS, additional), { ...YAML_OPTIONS, lineWidth: 0 });
+  return stringify(buildDeepSeekPresetPlugins('scribe', PREVIEW_PATHS, additional), { ...YAML_OPTIONS, lineWidth: 0 });
 }

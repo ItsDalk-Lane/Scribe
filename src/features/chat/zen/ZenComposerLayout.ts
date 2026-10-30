@@ -4,7 +4,7 @@ import {
   type ScheduledAnimationFrame,
 } from '@/features/chat/utils/animationFrame';
 
-const STACKED_CLASS = 'claudian-zen-composer--stacked';
+const STACKED_CLASS = 'scribe-zen-composer--stacked';
 // Room kept between the typed text and the controls before they move to their own row.
 const CONTROL_CLEARANCE = 16;
 
@@ -78,12 +78,12 @@ export class ZenComposerLayout {
 
   /** Null keeps the current layout when there is nothing laid out to measure. */
   #shouldStack(): boolean | null {
-    const wrapperEl = this.slotEl.querySelector<HTMLElement>('.claudian-input-wrapper');
-    const editorEl = wrapperEl?.querySelector<HTMLElement>(':scope > .claudian-composer-editor');
-    const toolbarEl = wrapperEl?.querySelector<HTMLElement>(':scope > .claudian-input-toolbar');
+    const wrapperEl = this.slotEl.querySelector<HTMLElement>('.scribe-input-wrapper');
+    const editorEl = wrapperEl?.querySelector<HTMLElement>(':scope > .scribe-composer-editor');
+    const toolbarEl = wrapperEl?.querySelector<HTMLElement>(':scope > .scribe-input-toolbar');
     if (!wrapperEl || !editorEl || !toolbarEl) return false;
     // Attachments share the controls' row, which then sits below the input.
-    if (wrapperEl.querySelector(':scope > .claudian-context-row.has-content')) return true;
+    if (wrapperEl.querySelector(':scope > .scribe-context-row.has-content')) return true;
 
     const style = this.slotEl.ownerDocument.defaultView?.getComputedStyle(wrapperEl);
     const innerWidth = wrapperEl.clientWidth - pixels(style?.paddingLeft) - pixels(style?.paddingRight);

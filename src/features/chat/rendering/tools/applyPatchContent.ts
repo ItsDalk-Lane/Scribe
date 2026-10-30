@@ -54,11 +54,11 @@ export function setApplyPatchStatus(statusEl: HTMLElement, toolCall: ToolCallInf
   const isError = toolCall.status === 'error' || toolCall.status === 'blocked';
   const stats = isError ? undefined : getApplyPatchDiffStats(toolCall.input);
   if (!stats) {
-    setToolStatus(statusEl, toolCall.status, 'claudian-tool-status');
+    setToolStatus(statusEl, toolCall.status, 'scribe-tool-status');
     return;
   }
 
-  statusEl.className = 'claudian-tool-status claudian-write-edit-stats';
+  statusEl.className = 'scribe-tool-status scribe-write-edit-stats';
   statusEl.empty();
   statusEl.setAttribute('aria-label', t('chat.tools.changes', { added: stats.added, removed: stats.removed }));
   renderDiffStats(statusEl, stats);
@@ -76,10 +76,10 @@ function renderApplyPatchDiffSections(container: HTMLElement, fileDiffs: ApplyPa
   for (const fileDiff of fileDiffs) {
     const path = fileDiff.movedTo ? `${fileDiff.filePath} -> ${fileDiff.movedTo}` : fileDiff.filePath;
     const sectionEl = container.createDiv({
-      cls: 'claudian-tool-patch-section',
+      cls: 'scribe-tool-patch-section',
       attr: { role: 'group', 'aria-label': path },
     });
-    sectionEl.createDiv({ cls: 'claudian-tool-line', text: path });
+    sectionEl.createDiv({ cls: 'scribe-tool-line', text: path });
 
     if (fileDiff.operation === 'delete' && fileDiff.diffLines.length === 0) {
       renderEmptyResult(sectionEl, t('chat.tools.fileDeleted'));
@@ -91,8 +91,8 @@ function renderApplyPatchDiffSections(container: HTMLElement, fileDiffs: ApplyPa
       continue;
     }
 
-    const diffRow = sectionEl.createDiv({ cls: 'claudian-write-edit-diff-row' });
-    const diffEl = diffRow.createDiv({ cls: 'claudian-write-edit-diff' });
+    const diffRow = sectionEl.createDiv({ cls: 'scribe-write-edit-diff-row' });
+    const diffEl = diffRow.createDiv({ cls: 'scribe-write-edit-diff' });
     renderDiffContent(diffEl, fileDiff.diffLines);
   }
 }
@@ -116,7 +116,7 @@ export function renderApplyPatchExpanded(
 
   const changes = Array.isArray(input.changes) ? input.changes : [];
   if (changes.length > 0) {
-    const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
+    const linesEl = container.createDiv({ cls: 'scribe-tool-lines' });
     for (const change of changes as unknown[]) {
       if (!change || typeof change !== 'object' || Array.isArray(change)) continue;
       const changeRecord = change as Record<string, unknown>;
@@ -124,7 +124,7 @@ export function renderApplyPatchExpanded(
       if (!path) continue;
       const movedTo = readMoveTarget(changeRecord.kind);
       const pathText = movedTo ? `${path} -> ${movedTo}` : path;
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: pathText });
+      linesEl.createDiv({ cls: 'scribe-tool-line', text: pathText });
     }
     return;
   }
@@ -137,11 +137,11 @@ export function renderApplyPatchExpanded(
   if (result) {
     const fileMatches = [...result.matchAll(/(?:update|add|delete|create|modify|Applied:\s*)(?:\w+:\s*)?([^\n,]+)/gi)];
     if (fileMatches.length > 0) {
-      const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
+      const linesEl = container.createDiv({ cls: 'scribe-tool-lines' });
       for (const match of fileMatches) {
         const filePath = match[1]?.trim();
         if (filePath) {
-          const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
+          const lineEl = linesEl.createDiv({ cls: 'scribe-tool-line' });
           lineEl.setText(filePath);
         }
       }

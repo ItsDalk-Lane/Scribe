@@ -532,7 +532,7 @@ it('forks the settled transcript while the admitted main turn is still preparing
     findConversationAcrossViews: () => null,
   });
   const settled = harness.tab.state.messages.map(message => ({ ...message }));
-  const main = createRunningMainRouting(harness, harness.tab.state.messages, 'Compare @[Old](claudian-session:conv-1-source)');
+  const main = createRunningMainRouting(harness, harness.tab.state.messages, 'Compare @[Old](scribe-session:conv-1-source)');
   await entered.promise;
   expect(main.routing.state.isStreaming).toBe(true);
 
@@ -678,7 +678,7 @@ it.each([false, true])('keeps the captured side mention after collapse (cancel m
     getConversationById: () => { entered.resolve(); return hydration.promise; },
     findConversationAcrossViews: () => null,
   });
-  harness.inputEl.value = '@[Old](claudian-session:conv-1-source)';
+  harness.inputEl.value = '@[Old](scribe-session:conv-1-source)';
   const sending = routing.controller.sendMessage();
   await entered.promise;
   harness.controller.collapse();
@@ -713,7 +713,7 @@ it('shows side preparation as working and cancels it through the selected destin
   const hydration = deferred<any>();
   const entered = deferred<void>();
   Object.assign(routing.deps.plugin, { getConversationById: () => { entered.resolve(); return hydration.promise; } });
-  const token = '@[Old](claudian-session:conv-1-source)';
+  const token = '@[Old](scribe-session:conv-1-source)';
   harness.inputEl.value = token;
   const sending = routing.controller.sendMessage();
   await entered.promise;
@@ -735,7 +735,7 @@ it('runs a queued side command after mention preparation fails', async () => {
   const hydration = deferred<any>();
   const entered = deferred<void>();
   Object.assign(routing.deps.plugin, { getConversationById: () => { entered.resolve(); return hydration.promise; } });
-  const token = '@[Old](claudian-session:conv-1-source)';
+  const token = '@[Old](scribe-session:conv-1-source)';
   harness.inputEl.value = token;
   const sending = routing.controller.sendMessage();
   await entered.promise;
@@ -766,7 +766,7 @@ it.each(['side', 'btw'].flatMap(command => ['new', 'collapsed', 'queued'].map(mo
     }
     harness.controller.collapse();
   }
-  const token = '@[Old](claudian-session:conv-1-source)';
+  const token = '@[Old](scribe-session:conv-1-source)';
   Object.assign(routing.deps.plugin, {
     getConversationById: async () => ({
       id: 'conv-1-source', title: 'Renamed', providerId: 'codex', createdAt: testDate().getTime(), lastActivityAt: testDate().getTime(),
@@ -802,7 +802,7 @@ it('reserves command order and resolves queued mentions before the child becomes
     getConversationById: () => { entered(); return hydration.promise; },
     findConversationAcrossViews: () => null,
   });
-  harness.inputEl.value = '/side First @[Old](claudian-session:conv-1-source)';
+  harness.inputEl.value = '/side First @[Old](scribe-session:conv-1-source)';
   const first = routing.controller.sendMessage();
   await waitFor(() => expect(harness.controller.runtime?.queuedCount).toBe(1));
   // Hydration must begin at admission, while the current side turn is still active.
@@ -836,7 +836,7 @@ it.each(['failure', 'cancel', 'dispose'])('restores a queued command and attachm
   const hydration = deferred<any>();
   const entered = vi.fn();
   Object.assign(harness.plugin, { getConversationById: () => { entered(); return hydration.promise; } });
-  const command = '/btw Use @[Old](claudian-session:conv-1-source)';
+  const command = '/btw Use @[Old](scribe-session:conv-1-source)';
   const attachment = { id: 'image-1', data: 'aW1hZ2U=', mediaType: 'image/png', name: 'image.png' };
   harness.imageContextManager.setImages([attachment]);
   harness.inputEl.value = command;
@@ -869,7 +869,7 @@ it('joins a starting command on disposal before fork capture or hydration settle
   const hydration = deferred<any>();
   harness.tab.executionCoordinator.resolveForkSource = () => capture.promise;
   Object.assign(harness.plugin, { getConversationById: () => hydration.promise });
-  const command = '/side Use @[Old](claudian-session:conv-1-source)';
+  const command = '/side Use @[Old](scribe-session:conv-1-source)';
   harness.inputEl.value = command;
   const sending = routing.controller.sendMessage();
   let disposed = false;

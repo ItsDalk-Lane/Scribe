@@ -1,4 +1,4 @@
-import type { ClaudianSettings } from '../../types/settings';
+import type { ScribeSettings } from '../../types/settings';
 
 function normalizeHiddenCommandName(value: string): string {
   return value.trim().replace(/^[/$]+/, '');
@@ -54,7 +54,7 @@ export function migrateHiddenCommands(stored: Record<string, unknown>): string[]
 }
 
 export function getHiddenCommandSet(
-  settings: Pick<ClaudianSettings, 'hiddenCommands'>,
+  settings: Pick<ScribeSettings, 'hiddenCommands'>,
 ): Set<string> {
   return new Set((settings.hiddenCommands ?? []).map(command => command.toLowerCase()));
 }

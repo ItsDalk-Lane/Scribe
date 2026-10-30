@@ -1,10 +1,10 @@
 import '@/providers';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { modelCatalogCases as cases } from '@test/helpers/providerModelCatalogs';
 import { writeGrokCatalog } from '@test/helpers/providers/grokSettings';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
@@ -16,7 +16,7 @@ import { getOpencodeProviderSettings } from '@/providers/opencode/settings';
 import { getPiProviderSettings } from '@/providers/pi/settings';
 
 it.each(cases)('$id persists selected metadata without saving the available catalog', async ({ id, populate, read }) => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   populate(settings);
   let content = '';
   const adapter = {
@@ -25,7 +25,7 @@ it.each(cases)('$id persists selected metadata without saving the available cata
     write: vi.fn(async (_path: string, value: string) => { content = value; }),
     delete: vi.fn(async () => undefined),
   } as unknown as VaultFileAdapter;
-  const storage = new ClaudianSettingsStorage(adapter, DEFAULT_CLAUDIAN_SETTINGS);
+  const storage = new ScribeSettingsStorage(adapter, DEFAULT_SCRIBE_SETTINGS);
   const expectedMetadata = read(settings)[0];
   await storage.save(settings);
   expect(content).not.toContain('unselected-catalog-entry');
@@ -38,7 +38,7 @@ it.each(cases)('$id persists selected metadata without saving the available cata
 });
 
 it.each(cases)('$id keeps an unavailable saved selection unchanged', ({ id: providerId, populate, selected }) => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.model = selected;
   populate(settings);
   const current = settings.providerConfigs[providerId]!;
@@ -60,13 +60,13 @@ it.each(cases)('$id keeps an unavailable saved selection unchanged', ({ id: prov
 });
 
 it.each(cases)('$id does not restore removed models from an older selected snapshot', async ({ id, populate, read }) => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   populate(settings);
   let content = '';
-  const storage = new ClaudianSettingsStorage({
+  const storage = new ScribeSettingsStorage({
     exists: async () => Boolean(content), read: async () => content,
     write: async (_path: string, value: string) => { content = value; }, delete: async () => undefined,
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
   await storage.save(settings);
   const restored = await storage.load();
   const config = restored.providerConfigs[id]!;
@@ -87,7 +87,7 @@ it.each(cases)('$id does not restore removed models from an older selected snaps
 });
 
 it.each(cases)('$id keeps runtime catalog and selection intact when persistence fails', async ({ id, populate, read }) => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   populate(settings);
   const before = read(settings);
   const coordinator = new SettingsCoordinator(settings, async () => { throw new Error('Disk full'); });
@@ -98,7 +98,7 @@ it.each(cases)('$id keeps runtime catalog and selection intact when persistence 
 
 it('materializes legacy implicit selections before a new catalog arrives', async () => {
   for (const id of ['claude', 'codex', 'grok'] as const) {
-    const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+    const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
     cases.find(entry => entry.id === id)!.populate(settings);
     settings.providerConfigs[id]!.visibleModels = null;
     const normalized = structuredClone(settings);
@@ -109,7 +109,7 @@ it('materializes legacy implicit selections before a new catalog arrives', async
 });
 
 it.each(['codex', 'grok'] as const)('does not implicitly enable %s discovery on a fresh profile', async id => {
-  const storage = new ClaudianSettingsStorage({ exists: async () => false } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  const storage = new ScribeSettingsStorage({ exists: async () => false } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
   const settings = await storage.load();
   const selected = settings.providerConfigs[id]!.visibleModels;
   expect(selected).toEqual([]);
@@ -119,7 +119,7 @@ it.each(['codex', 'grok'] as const)('does not implicitly enable %s discovery on 
 });
 
 it.each(cases)('$id removes deselected aliases, preferences and saved effort projections from disk', async ({ id, populate, selected }) => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   populate(settings);
   const config = settings.providerConfigs[id]!;
   const selectedId = (config.visibleModels as string[])[0];
@@ -138,10 +138,10 @@ it.each(cases)('$id removes deselected aliases, preferences and saved effort pro
   settings.savedProviderServiceTier = { [id]: 'fast' };
   settings.savedProviderPermissionMode = { [id]: 'normal' };
   let content = '';
-  const storage = new ClaudianSettingsStorage({
+  const storage = new ScribeSettingsStorage({
     exists: async () => false,
     write: async (_path: string, value: string) => { content = value; },
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
 
   await storage.save(settings);
 
@@ -157,19 +157,19 @@ it.each(cases)('$id removes deselected aliases, preferences and saved effort pro
 });
 
 it('cleans stale projections for every provider together when loading saved settings', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   for (const { id, populate } of cases) {
     populate(settings);
     settings.savedProviderModel[id] = 'unselected-catalog-entry';
     settings.savedProviderEffort[id] = 'medium';
   }
   let content = JSON.stringify(settings);
-  const storage = new ClaudianSettingsStorage({
+  const storage = new ScribeSettingsStorage({
     exists: async () => true,
     delete: async () => undefined,
     read: async () => content,
     write: async (_path: string, value: string) => { content = value; },
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
   const restored = await storage.load();
   for (const { id, read } of cases) {
     expect(restored.savedProviderModel[id]).toBeUndefined();
@@ -181,22 +181,22 @@ it('cleans stale projections for every provider together when loading saved sett
 });
 
 it('preserves the alias of a Claude model selected through its resolved identity', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.providerConfigs.claude = { enabled: true, visibleModels: ['claude-sonnet-resolved'],
     discoveredModels: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-resolved', label: 'Sonnet', description: '' }],
     modelAliases: { sonnet: 'My Sonnet', removed: 'Remove' } };
   let content = '';
-  await new ClaudianSettingsStorage({
+  await new ScribeSettingsStorage({
     exists: async () => false,
     write: async (_path: string, value: string) => { content = value; },
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS).save(settings);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS).save(settings);
   expect(JSON.parse(content).providerConfigs.claude.modelAliases).toEqual({ sonnet: 'My Sonnet' });
 });
 
 it.each(cases.flatMap(entry => [false, true].map(unavailable => ({ ...entry, unavailable }))))(
   '$id retains saved projections for an explicitly selected model (unavailable: $unavailable)',
   async ({ id, populate, unavailable }) => {
-    const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+    const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
     populate(settings);
     const selected = ProviderRegistry.getChatUIConfig(id).getModelOptions(settings)[0].value;
     settings.savedProviderModel = { [id]: selected };
@@ -213,10 +213,10 @@ it.each(cases.flatMap(entry => [false, true].map(unavailable => ({ ...entry, una
       }
     }
     let content = '';
-    await new ClaudianSettingsStorage({
+    await new ScribeSettingsStorage({
       exists: async () => false,
       write: async (_path: string, value: string) => { content = value; },
-    } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS).save(settings);
+    } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS).save(settings);
     expect(JSON.parse(content).savedProviderModel[id]).toBe(selected);
     expect(JSON.parse(content).savedProviderEffort[id]).toBe('low');
     expect(JSON.parse(content).customContextLimits).toEqual({ [selected]: 128_000 });
@@ -225,16 +225,16 @@ it.each(cases.flatMap(entry => [false, true].map(unavailable => ({ ...entry, una
 );
 
 it('keeps xHigh for an explicitly selected Grok model while its capabilities are unavailable', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.providerConfigs.grok = { enabled: true, visibleModels: ['temporarily-unavailable'],
     preferredReasoningByModel: { 'temporarily-unavailable': 'xhigh', deselected: 'max' } };
   let content = '';
-  const storage = new ClaudianSettingsStorage({
+  const storage = new ScribeSettingsStorage({
     exists: async () => Boolean(content),
     read: async () => content,
     write: async (_path: string, value: string) => { content = value; },
     delete: async () => undefined,
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
   await storage.save(settings);
   expect(JSON.parse(content).providerConfigs.grok.preferredReasoningByModel)
     .toEqual({ 'temporarily-unavailable': 'xhigh' });
@@ -244,7 +244,7 @@ it('keeps xHigh for an explicitly selected Grok model while its capabilities are
 });
 
 it('cleans context overrides by provider identity while preserving resolved aliases and snippet templates', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   for (const { populate } of cases) populate(settings);
   settings.providerConfigs.claude = { enabled: true, visibleModels: ['claude-sonnet-resolved'],
     discoveredModels: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-resolved', label: 'Sonnet', description: '' }] };
@@ -262,12 +262,12 @@ it('cleans context overrides by provider identity while preserving resolved alia
     contextLimits: { removed: 32_000 }, modelAliases: { removed: 'Template model' } }];
   const before = structuredClone(settings);
   let content = '';
-  const storage = new ClaudianSettingsStorage({
+  const storage = new ScribeSettingsStorage({
     exists: async () => Boolean(content),
     read: async () => content,
     write: async (_path: string, value: string) => { content = value; },
     delete: async () => undefined,
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
   await storage.save(settings);
   const expected = {
     'claude-sonnet-resolved': 128_000, 'claude-code/sonnet': 128_000,

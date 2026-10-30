@@ -1,5 +1,5 @@
 /**
- * Claudian - Editor Context Utilities
+ * Scribe - Editor Context Utilities
  *
  * Editor cursor and selection context for inline editing.
  */

@@ -14,9 +14,79 @@
     "none": "Nenhum"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "Rápido",
+      "fastOn": "modo rápido ativado",
+      "fastTitle": "Modo rápido: {state}",
+      "fastFailure": "Não foi possível alterar o nível de serviço",
+      "standard": "Padrão",
+      "context": "Uso de contexto",
+      "contextDetails": "Uso de contexto: {usage}",
+      "contextWarning": " (Próximo do limite, execute `/compact` para continuar)",
+      "branchBusy": "Aguarde a resposta atual terminar.",
+      "previousBranch": "Ramificação anterior",
+      "noPrevious": "Não há ramificação anterior.",
+      "branchPosition": "Ramificação {current} de {total}",
+      "nextBranch": "Próxima ramificação",
+      "noNext": "Não há próxima ramificação.",
+      "branchFrom": "Criar ramificação desta mensagem",
+      "previewImage": "Pré-visualizar {name}",
+      "mermaidDiagram": "Diagrama Mermaid",
+      "mermaidSource": "Mostrar código do diagrama"
+    },
+    "conversationFeedback": {
+      "collapseSide": "Recolha o chat lateral antes de mudar de ramificação.",
+      "savePrompt": "A ramificação estará disponível após salvar esta mensagem.",
+      "clearDraft": "Salve ou limpe o rascunho antes de mudar de ramificação.",
+      "branchInProgress": "Mudança de ramificação em andamento.",
+      "conversationChanged": "A conversa foi alterada.",
+      "conversationMissing": "Conversa não encontrada.",
+      "executionUnavailable": "A execução não está disponível.",
+      "recoveryCancelled": "A recuperação da ramificação foi cancelada.",
+      "reconcileFailed": "Não foi possível recuperar a ramificação da conversa: {error}",
+      "cannotArchive": "Sessões em execução não podem ser arquivadas",
+      "skippedOpenOne": "{count} sessão aberta ou em execução ignorada",
+      "skippedOpenMany": "{count} sessões abertas ou em execução ignoradas",
+      "cannotDelete": "Sessões em execução não podem ser excluídas",
+      "skippedRunningOne": "{count} sessão em execução ignorada",
+      "skippedRunningMany": "{count} sessões em execução ignoradas",
+      "closeDeletedFailed": "Não foi possível fechar a sessão excluída",
+      "closeBeforeArchiveFailed": "Não foi possível fechar a sessão antes de arquivar",
+      "autoArchiveFailed": "Não foi possível arquivar automaticamente as sessões inativas",
+      "autoArchiveOne": "{count} sessão inativa arquivada automaticamente",
+      "autoArchiveMany": "{count} sessões inativas arquivadas automaticamente"
+    },
+    "tabBar": {
+      "name": "Nome da aba",
+      "rename": "Renomear aba…",
+      "reset": "Redefinir nome da aba",
+      "showNumber": "Mostrar número",
+      "showName": "Mostrar nome",
+      "showTitle": "Mostrar título",
+      "close": "Fechar aba",
+      "active": "ativa",
+      "needsInput": "precisa da sua resposta",
+      "working": "trabalhando",
+      "reviewError": "interrompida por erro, pronta para revisão",
+      "review": "concluída, pronta para revisão",
+      "idle": "ociosa"
+    },
+    "fileMenu": {
+      "add": "Adicionar ao Scribe",
+      "notReady": "O chat do Scribe ainda não está pronto.",
+      "failed": "Não foi possível adicionar o arquivo ao Scribe."
+    },
+    "queue": {
+      "steering": "Direcionando",
+      "queued": "Na fila",
+      "steerNow": "Direcionar agora",
+      "edit": "Editar mensagem na fila",
+      "discard": "Descartar mensagem na fila",
+      "images": "[imagens]"
+    },
     "promptSuggestionHint": "Tab para aceitar",
     "selectAvailableModel": "Selecione um modelo disponível antes de enviar.",
-    "selectAvailableTitleModel": "Selecione um modelo de título disponível nas configurações do Claudian.",
+    "selectAvailableTitleModel": "Selecione um modelo de título disponível nas configurações do Scribe.",
     "rewind": {
       "confirmMessage": "Retroceder até este ponto? As alterações de arquivos após esta mensagem podem ser sobrescritas ou removidas. Esta ação não pode ser desfeita.",
       "confirmMessageConflicts": "Retroceder até este ponto? {count} arquivo(s) modificados fora do agente serão sobrescritos:\n{files}",
@@ -33,7 +103,14 @@
       "failed": "Falha ao retroceder: {error}",
       "cannot": "Não é possível retroceder: {error}",
       "unavailableStreaming": "Não é possível retroceder durante a transmissão",
-      "unavailableNoUuid": "Não é possível retroceder: identificadores de mensagem ausentes"
+      "unavailableNoUuid": "Não é possível retroceder: identificadores de mensagem ausentes",
+      "messageNotFound": "Mensagem não encontrada",
+      "initializationFailed": "Não foi possível inicializar o serviço do agente",
+      "serviceUnavailable": "Serviço do agente indisponível",
+      "executionUnavailable": "Execução do agente indisponível",
+      "conversationChanged": "A conversa mudou durante a reversão.",
+      "moreFiles": "+{count} outros",
+      "saveFailed": "Falha ao salvar"
     },
     "fork": {
       "ariaLabel": "Bifurcar conversa",
@@ -81,7 +158,7 @@
       "busySide": "A conversa lateral ainda está respondendo. Aguarde a conclusão."
     },
     "zen": {
-      "regionLabel": "Chat do Claudian",
+      "regionLabel": "Chat do Scribe",
       "showHistory": "Mostrar conversa",
       "move": "Mover o painel de chat",
       "working": "Trabalhando…",
@@ -109,7 +186,7 @@
     "copyMessage": "Copiar mensagem",
     "showEarlierMessages": "Mostrar mensagens anteriores",
     "renderFailed": "Não foi possível exibir o conteúdo da mensagem.",
-    "interruptedHint": "· O que Claudian deve fazer em vez disso?",
+    "interruptedHint": "· O que Scribe deve fazer em vez disso?",
     "sessions": {
       "empty": "Nenhuma conversa",
       "noMatch": "Nenhuma sessão correspondente",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "Pensando há {seconds}s…",
       "completed": "Pensou por {seconds}s",
-      "label": "Raciocínio"
+      "label": "Raciocínio",
+      "waitHint": " (Esc para interromper · {duration})",
+      "compacting": "Compactando..."
     },
     "suggestions": {
       "loading": "Carregando…",
@@ -426,9 +505,205 @@
         "discard": "Descartar",
         "emptyHint": "Os agentes preenchem isto conforme o projeto avança."
       }
+    },
+    "welcome": {
+      "happySunday": "Feliz domingo",
+      "sundaySession": "Uma sessão no domingo?",
+      "weekend": "Bem-vindo ao fim de semana",
+      "happyMonday": "Feliz segunda-feira",
+      "backAtIt": "De volta ao trabalho",
+      "backAtItExclamation": "De volta ao trabalho!",
+      "happyTuesday": "Feliz terça-feira",
+      "happyWednesday": "Feliz quarta-feira",
+      "happyThursday": "Feliz quinta-feira",
+      "happyFriday": "Feliz sexta-feira",
+      "fridayFeeling": "Clima de sexta-feira",
+      "happySaturday": "Feliz sábado",
+      "happySaturdayExclamation": "Feliz sábado!",
+      "morning": "Bom dia",
+      "coffee": "Um café com Scribe?",
+      "afternoon": "Boa tarde",
+      "hey": "Olá",
+      "howGoing": "Como vai",
+      "evening": "Boa noite",
+      "eveningShort": "Boa noite",
+      "howWasDay": "Como foi seu dia",
+      "nightOwl": "Olá, coruja",
+      "hiHow": "Olá, como vai?",
+      "hiHowNamed": "Olá {name}, como vai?",
+      "welcomeBack": "Bem-vindo de volta",
+      "whatsNew": "Quais as novidades",
+      "returns": "{name} voltou!",
+      "absolutelyRight": "Você tem toda a razão!",
+      "personalized": "{greeting}, {name}"
+    },
+    "newTab": "Nova aba",
+    "newConversation": "Nova conversa",
+    "sessionManager": {
+      "new": "Novo",
+      "search": "Pesquisar",
+      "archive": "Arquivar",
+      "sessions": "Conversas",
+      "archived": "Arquivado",
+      "pinned": "Fixado",
+      "missing": "Ausente",
+      "unlinked": "Sem vínculo",
+      "pastWeek": "Última semana",
+      "pastTwoWeeks": "Últimas 2 semanas",
+      "pastMonth": "Último mês",
+      "older": "Mais antigas",
+      "sessionOptions": "Opções da conversa",
+      "expandGroups": "Expandir todos os grupos",
+      "collapseGroups": "Recolher todos os grupos",
+      "searchArchived": "Pesquisar conversas arquivadas",
+      "searchSessions": "Pesquisar conversas",
+      "organize": "Organizar conversas",
+      "oneList": "Em uma lista",
+      "byLinked": "Por conteúdo vinculado",
+      "sortBy": "Ordenar conversas por",
+      "lastActivity": "Última atividade",
+      "created": "Criação",
+      "lastActive": "Última atividade",
+      "organizationFailed": "Não foi possível atualizar a organização das conversas",
+      "sortFailed": "Não foi possível atualizar a ordenação das conversas",
+      "history": "Histórico do chat",
+      "loadMore": "Carregar mais ({count} restantes)",
+      "newForContent": "Nova conversa para {name}",
+      "startContentFailed": "Não foi possível iniciar uma conversa para este conteúdo vinculado",
+      "generatingTitle": "Gerando título...",
+      "regenerateTitle": "Gerar título novamente",
+      "generateTitle": "Gerar título",
+      "generateTitleFailed": "Não foi possível gerar o título",
+      "actionsFor": "Ações de {name}",
+      "conversationTitle": "Título da conversa",
+      "renameFailed": "Não foi possível renomear a conversa",
+      "collapseSaveFailed": "Não foi possível salvar a expansão da pasta do projeto",
+      "selected": "Selecionado",
+      "openNewTab": "Abrir em nova aba",
+      "openBackgroundTab": "Abrir em aba em segundo plano",
+      "switchOpen": "Alternar para conversa aberta",
+      "assignDevice": "Atribuir a este dispositivo",
+      "pin": "Fixar",
+      "unpin": "Desafixar",
+      "markUnread": "Marcar como não lida",
+      "markRead": "Marcar como lida",
+      "rename": "Renomear",
+      "copyId": "Copiar ID da conversa",
+      "restore": "Restaurar",
+      "delete": "Excluir",
+      "loadFailed": "Não foi possível carregar a conversa",
+      "copyIdFailed": "Não foi possível copiar o ID da conversa",
+      "assignFailed": "Não foi possível atribuir a conversa a este dispositivo",
+      "pinFailed": "Não foi possível fixar a conversa",
+      "unpinFailed": "Não foi possível desafixar a conversa",
+      "archiveFailed": "Não foi possível arquivar a conversa",
+      "restoreFailed": "Não foi possível restaurar a conversa",
+      "deleteFailed": "Não foi possível excluir a conversa",
+      "cannotArchiveRunning": "Não é possível arquivar uma conversa em andamento",
+      "needsYourInput": "Precisa da sua resposta",
+      "stoppedWithError": "Interrompido por um erro",
+      "running": "Em andamento",
+      "unread": "Não lida",
+      "needsInput": "Precisa de resposta",
+      "runningOtherPane": "Em andamento em outro painel",
+      "openOtherPane": "Aberta em outro painel",
+      "tabNumber": "aba {number}",
+      "currentTab": "aba atual",
+      "tab": "aba",
+      "runningIn": "Em andamento em {tab}",
+      "currentTabNumber": "Aba atual {number}",
+      "currentSession": "Conversa atual",
+      "openIn": "Aberta em {tab}",
+      "restoreCount": "Restaurar {count} conversa",
+      "deleteCount": "Excluir {count} conversa",
+      "pinCount": "Fixar {count} conversa",
+      "unpinCount": "Desafixar {count} conversa",
+      "archiveCount": "Arquivar {count} conversa",
+      "permanentDeleteCount": "Excluir permanentemente {count} conversa?",
+      "restoreManyFailed": "Não foi possível restaurar as conversas",
+      "deleteManyFailed": "Não foi possível excluir as conversas",
+      "pinManyFailed": "Não foi possível fixar as conversas",
+      "unpinManyFailed": "Não foi possível desafixar as conversas",
+      "archiveManyFailed": "Não foi possível arquivar as conversas",
+      "moveManyFailed": "Não foi possível mover as conversas",
+      "pinLinked": "Fixar conteúdo vinculado",
+      "unpinLinked": "Desafixar conteúdo vinculado",
+      "pinLinkedFailed": "Não foi possível fixar o conteúdo vinculado",
+      "unpinLinkedFailed": "Não foi possível desafixar o conteúdo vinculado",
+      "archiveAll": "Arquivar todas as conversas",
+      "restoreAll": "Restaurar todas as conversas",
+      "deleteAll": "Excluir todas as conversas",
+      "archiveLinkedFailed": "Não foi possível arquivar as conversas vinculadas",
+      "idCopied": "ID da conversa copiado"
+    },
+    "compacted": "Conversa compactada",
+    "subagent": {
+      "prompt": "Prompt",
+      "result": "Resultado",
+      "tokens": "{count} tokens",
+      "toolUse": "{count} uso de ferramenta",
+      "toolUses": "{count} usos de ferramenta",
+      "lastTool": "Última ferramenta: {tool}",
+      "taskAria": "Tarefa do subagente: {description} - {status} - clique para expandir",
+      "initializing": "Inicializando",
+      "error": "Erro",
+      "orphaned": "Desconectado",
+      "completed": "Concluído",
+      "backgroundRunning": "Em execução em segundo plano",
+      "backgroundAria": "Tarefa em segundo plano: {description} - {status} - clique para expandir",
+      "statusAria": "Status: {status}",
+      "orphanedResult": "A conversa terminou antes da conclusão da tarefa"
+    },
+    "notices": {
+      "showWideFailed": "Não foi possível mostrar a conversa no layout amplo",
+      "createTabFailed": "Não foi possível criar a aba",
+      "createConversationFailed": "Não foi possível criar a conversa",
+      "startConversationFailed": "Não foi possível iniciar uma nova conversa",
+      "switchTabFailed": "Não foi possível trocar de aba",
+      "closeTabFailed": "Não foi possível fechar a aba",
+      "resizeSessions": "Redimensionar a área de conversas",
+      "closePreviewFailed": "Não foi possível fechar a prévia provisória",
+      "linkedPathsFailed": "Não foi possível atualizar os caminhos do conteúdo vinculado",
+      "pinnedContentFailed": "Não foi possível atualizar o conteúdo vinculado fixado",
+      "sideProviderSwitch": "Não é possível trocar de provedor em uma conversa lateral.",
+      "selectAvailableModel": "Selecione um modelo disponível nas configurações do Scribe.",
+      "boundProviderSwitch": "Não é possível trocar de provedor em uma conversa vinculada. Inicie uma nova conversa.",
+      "mainChatMode": "A seleção de modo se aplica à conversa principal.",
+      "initializeExecutionFailed": "Não foi possível iniciar o agente. Tente novamente.",
+      "executionUnavailable": "A execução do agente não está disponível. Recarregue o plugin.",
+      "sessionDeleted": "A conversa do provedor não existe mais. O registro do Scribe foi removido; envie novamente para iniciar uma nova conversa.",
+      "sessionReset": "A conversa do provedor não existe mais. O Scribe preservou o histórico recuperável; envie novamente para reconstruir a conversa.",
+      "sessionPreserved": "A conversa do provedor não existe mais. O Scribe preservou o registro porque não foi possível verificar o histórico restante.",
+      "sessionMissing": "A conversa do provedor não existe mais. Envie novamente para iniciar uma nova conversa.",
+      "messageNotSent": "A mensagem não foi enviada. Tente novamente.",
+      "unknownError": "Erro desconhecido",
+      "unsupportedCommand": "Este provedor não oferece suporte a /{command}.",
+      "fastUnavailable": "O modo rápido não está disponível neste modelo.",
+      "fastToggleFailed": "Não foi possível alternar o modo rápido.",
+      "unknownCommand": "Comando desconhecido: {command}",
+      "openConversationFailed": "Não foi possível abrir a conversa: {error}",
+      "tabsUnavailable": "As abas do chat estão indisponíveis",
+      "forkUnsupported": "Este provedor não oferece suporte à ramificação de conversas."
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "Não foi possível salvar as configurações",
+      "loading": "Carregando configurações de {provider}…",
+      "unknownError": "Erro desconhecido",
+      "unavailable": "Indisponível: {model}",
+      "aliasSaveFailed": "Não foi possível salvar o apelido do modelo. Tente novamente.",
+      "contextLabel": "Janela de contexto de {model}",
+      "modelSaveFailed": "Não foi possível salvar a seleção do modelo. Tente novamente.",
+      "snippetRefreshFailed": "O trecho de ambiente foi salvo, mas as configurações não foram atualizadas.",
+      "snippetUpdateFailed": "Não foi possível atualizar o trecho de ambiente",
+      "snippetSaveFailed": "Não foi possível salvar o trecho de ambiente",
+      "snippetSaved": "Trecho de ambiente “{name}” salvo",
+      "snippetUpdated": "Trecho de ambiente “{name}” atualizado",
+      "snippetDeleted": "Trecho de ambiente “{name}” excluído",
+      "environmentReview": "Revise o gerenciamento das variáveis de ambiente: {keys}",
+      "environmentUpdateFailed": "Não foi possível atualizar o ambiente."
+    },
     "tabs": {
       "general": "Geral",
       "providers": "Provedores",
@@ -446,7 +721,7 @@
     "responses": "Respostas",
     "experimental": "Experimental",
     "userName": {
-      "name": "Como o Claudian deve chamá-lo?",
+      "name": "Como o Scribe deve chamá-lo?",
       "desc": "Seu nome para saudações personalizadas (deixe vazio para saudações genéricas)"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Mostrar os diffs de Write e Edit expandidos quando aparecerem pela primeira vez."
     },
     "chatViewPlacement": {
-      "name": "Abrir Claudian em",
+      "name": "Abrir Scribe em",
       "desc": "Escolha onde o painel de chat abre quando é criado",
       "rightSidebar": "Barra lateral direita",
       "leftSidebar": "Barra lateral esquerda",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "Ativar {provider}",
-      "lastProviderWarning": "Pelo menos um provedor deve permanecer habilitado para o Claudian funcionar.",
+      "lastProviderWarning": "Pelo menos um provedor deve permanecer habilitado para o Scribe funcionar.",
       "noModelsWarning": "Nenhum modelo {provider} está ativado. Vá para Modelos abaixo e ative pelo menos um modelo."
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "Método de instalação",
-        "desc": "Como o Claudian deve iniciar o Codex no Windows. Windows nativo usa um caminho de executável do Windows. WSL inicia a CLI Linux dentro de uma distro selecionada.",
+        "desc": "Como o Scribe deve iniciar o Codex no Windows. Windows nativo usa um caminho de executável do Windows. WSL inicia a CLI Linux dentro de uma distro selecionada.",
         "nativeWindows": "Windows nativo",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "Variáveis de ambiente extras passadas ao OpenCode."
       },
       "migrationNotice": {
-        "text": "O OpenCode v1 não é mais compatível. Atualize para o OpenCode v2 para usá-lo no Claudian.",
+        "text": "O OpenCode v1 não é mais compatível. Atualize para o OpenCode v2 para usá-lo no Scribe.",
         "link": "Migrar para o OpenCode v2"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "Variáveis de ambiente passadas somente ao Pi."
       },
       "models": {
-        "desc": "O Claudian mantém sua própria lista de modelos, separada dos enabledModels do Pi. Discover lista todos os modelos que o Pi consegue autenticar no ambiente atual, agrupados pela rota de provedor que o Pi chamará. A rota determina as credenciais e a cobrança."
+        "desc": "O Scribe mantém sua própria lista de modelos, separada dos enabledModels do Pi. Discover lista todos os modelos que o Pi consegue autenticar no ambiente atual, agrupados pela rota de provedor que o Pi chamará. A rota determina as credenciais e a cobrança."
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "Plugins adicionais do preset",
-        "desc": "Avançado. Uma lista YAML (formato do dsh) de linhas de plugins nativos do dsh adicionadas ao preset de chat do Claudian, cada uma com seu próprio \"id\" e \"name\". As linhas não podem substituir as do Claudian. Salvar reinicia o DeepSeek Harness, o que interrompe turnos em andamento. Plugins sem interface no Claudian, como o modo de plano, podem não funcionar."
+        "desc": "Avançado. Uma lista YAML (formato do dsh) de linhas de plugins nativos do dsh adicionadas ao preset de chat do Scribe, cada uma com seu próprio \"id\" e \"name\". As linhas não podem substituir as do Scribe. Salvar reinicia o DeepSeek Harness, o que interrompe turnos em andamento. Plugins sem interface no Scribe, como o modo de plano, podem não funcionar."
       },
       "presetPreview": "Pré-visualização do preset",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "Movidos {moved}, convertidos {converted}, na lixeira {trashed}, {unlinked} link(s) removido(s)."
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "Opções do modelo",
+      "provider": "Provedor",
+      "unavailable": "Modelo indisponível",
+      "setup": "Configurar modelos",
+      "label": "Modelo: {model}",
+      "choose": "Escolha um modelo habilitado nas configurações do provedor. Atualize a lista se a descoberta falhar.",
+      "heading": "Modelo",
+      "empty": "Nenhum modelo disponível. Verifique as configurações do provedor e atualize a lista se a descoberta falhar.",
+      "changeFailed": "Não foi possível alterar o modelo"
+    },
+    "effort": {
+      "default": "Padrão",
+      "description": "esforço {level}",
+      "heading": "Raciocínio",
+      "changeFailed": "Não foi possível alterar o nível de raciocínio"
+    }
+  },
+  "inlineEdit": {
+    "command": "Edição em linha",
+    "unavailableView": "Edição em linha indisponível: não foi possível acessar a visualização Markdown ativa.",
+    "inserted": "Inserido",
+    "applied": "Edição aplicada",
+    "unavailableEditor": "Edição em linha indisponível: não foi possível acessar o editor. Reabra a nota.",
+    "sourceChanged": "A edição não foi aplicada porque o documento ou a seleção mudou.",
+    "providerStartFailed": "Não foi possível iniciar o provedor {provider}.",
+    "vaultLoadFailed": "Não foi possível carregar os arquivos do cofre. As menções @ podem ficar indisponíveis.",
+    "insertInstructions": "Instruções de inserção",
+    "editInstructions": "Instruções de edição",
+    "insertPlaceholder": "Digite instruções de inserção...",
+    "editPlaceholder": "Digite instruções de edição...",
+    "modelRequired": "Selecione um modelo disponível nas configurações do Scribe.",
+    "actions": "Ações de edição em linha",
+    "line": "linha",
+    "lines": "linhas",
+    "reject": "Rejeitar",
+    "accept": "Aceitar",
+    "rejectAria": "Rejeitar edição em linha",
+    "acceptAria": "Aceitar edição em linha",
+    "retryError": "Erro — tente novamente",
+    "replyPlaceholder": "Responda para continuar...",
+    "noResponse": "O agente não respondeu"
+  },
+  "commands": {
+    "openScribe": "Abrir Scribe",
+    "toggleChat": "Alternar visualização do chat",
+    "copyDiagnostics": "Copiar diagnóstico de inicialização",
+    "new": "Novo",
+    "replaceConversation": "Substituir conversa atual",
+    "closeTab": "Fechar aba atual",
+    "renameTab": "Renomear aba atual",
+    "focusChat": "Alternar foco da entrada do chat",
+    "toggleZenHistory": "Alternar histórico do modo zen"
   }
 }

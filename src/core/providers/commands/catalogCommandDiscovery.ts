@@ -41,7 +41,7 @@ export interface ProviderCommandLoaderDiscovery {
   readonly commandSnapshot?: readonly SlashCommand[];
 }
 
-/** Projects loader discovery through the provider catalog, without Claudian built-ins, for every picker surface. */
+/** Projects loader discovery through the provider catalog, without Scribe built-ins, for every picker surface. */
 export async function listDiscoveredCommandEntries(
   catalog: ProviderCommandCatalog,
   discovery: ProviderCommandLoaderDiscovery,

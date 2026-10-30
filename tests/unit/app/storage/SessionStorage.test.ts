@@ -335,8 +335,8 @@ describe('SessionStorage', () => {
   describe('listMetadata', () => {
     it('returns metadata for .meta.json files', async () => {
       mockAdapter.listFiles.mockResolvedValue([
-        '.claudian/sessions/native-1.meta.json',
-        '.claudian/sessions/native-2.meta.json',
+        '.scribe/sessions/native-1.meta.json',
+        '.scribe/sessions/native-2.meta.json',
       ]);
 
       mockAdapter.read.mockImplementation((path: string) => {
@@ -394,8 +394,8 @@ describe('SessionStorage', () => {
 
     it('skips files that fail to load', async () => {
       mockAdapter.listFiles.mockResolvedValue([
-        '.claudian/sessions/good.meta.json',
-        '.claudian/sessions/bad.meta.json',
+        '.scribe/sessions/good.meta.json',
+        '.scribe/sessions/bad.meta.json',
       ]);
 
       mockAdapter.read.mockImplementation((path: string) => {
@@ -476,8 +476,8 @@ describe('SessionStorage', () => {
         lastActivityAt: 1,
       });
       mockAdapter.listFiles.mockResolvedValue([
-        '.claudian/sessions/filename-id.meta.json',
-        '.claudian/sessions/%2Funsafe.meta.json',
+        '.scribe/sessions/filename-id.meta.json',
+        '.scribe/sessions/%2Funsafe.meta.json',
       ]);
       mockAdapter.read.mockResolvedValue(original);
 

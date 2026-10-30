@@ -89,7 +89,7 @@ describe('DualPaneLayout', () => {
     harness.initialize();
 
     expect(harness.layout.isWide).toBe(true);
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(true);
     expect(harness.hooks.onWideChanged).toHaveBeenCalledTimes(1);
     expect(harness.hooks.onEnterWide).toHaveBeenCalledTimes(1);
     expect(harness.hooks.renderSidebar).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe('DualPaneLayout', () => {
     observeWidths(harness);
 
     expect(harness.layout.isWide).toBe(false);
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(false);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(false);
     expect(harness.hooks.renderSidebar).not.toHaveBeenCalled();
   });
 
@@ -142,8 +142,8 @@ describe('DualPaneLayout', () => {
     });
     harness.initialize();
 
-    expect(harness.containerEl.hasClass('claudian-session-sidebar-left')).toBe(true);
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-session-sidebar-left')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(true);
   });
 
   it('keeps dual-mode controls in place until provisional cleanup finishes', async () => {
@@ -158,14 +158,14 @@ describe('DualPaneLayout', () => {
     observer.resize(599);
 
     expect(harness.layout.isWide).toBe(true);
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(true);
     expect(harness.calls).toEqual(['leave-wide', 'discard']);
 
     cleanup.resolve();
     await flushPromises();
 
     expect(harness.layout.isWide).toBe(false);
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(false);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(false);
     expect(harness.calls).toEqual(['leave-wide', 'discard', 'wide-changed']);
   });
 
@@ -178,7 +178,7 @@ describe('DualPaneLayout', () => {
 
     expect(harness.hooks.releaseViewerSlot).not.toHaveBeenCalled();
     expect(harness.layout.isWide).toBe(true);
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(true);
   });
 
   it('reports one failure when overlapping compact transitions share a failed preview cleanup', async () => {
@@ -216,7 +216,7 @@ describe('DualPaneLayout', () => {
     cleanup.resolve();
     await flushPromises();
 
-    expect(harness.containerEl.hasClass('claudian-wide-session-layout')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-wide-session-layout')).toBe(true);
     expect(harness.layout.isWide).toBe(true);
     expect(harness.hooks.renderSidebar).toHaveBeenCalledTimes(1);
   });
@@ -260,14 +260,14 @@ describe('DualPaneLayout', () => {
     documentListeners.get('pointermove')?.({ clientX: 450 } as unknown as Event);
 
     expect(harness.containerEl.style.setProperty).toHaveBeenLastCalledWith(
-      '--claudian-session-sidebar-width',
+      '--scribe-session-sidebar-width',
       '290px',
     );
     expect(harness.resizerEl.getAttribute('aria-valuenow')).toBe('290');
-    expect(harness.containerEl.hasClass('claudian-resizing-session-sidebar')).toBe(true);
+    expect(harness.containerEl.hasClass('scribe-resizing-session-sidebar')).toBe(true);
 
     documentListeners.get('pointerup')?.({} as Event);
-    expect(harness.containerEl.hasClass('claudian-resizing-session-sidebar')).toBe(false);
+    expect(harness.containerEl.hasClass('scribe-resizing-session-sidebar')).toBe(false);
     expect(ownerDocument.removeEventListener).toHaveBeenCalledWith(
       'pointermove',
       expect.any(Function),
@@ -295,7 +295,7 @@ describe('DualPaneLayout', () => {
     documentListeners.get('pointermove')?.({ clientX: 550 } as unknown as Event);
 
     expect(harness.containerEl.style.setProperty).toHaveBeenLastCalledWith(
-      '--claudian-session-sidebar-width',
+      '--scribe-session-sidebar-width',
       '290px',
     );
   });
@@ -311,7 +311,7 @@ describe('DualPaneLayout', () => {
 
     expect(preventDefault).toHaveBeenCalled();
     expect(harness.containerEl.style.setProperty).toHaveBeenLastCalledWith(
-      '--claudian-session-sidebar-width',
+      '--scribe-session-sidebar-width',
       '375px',
     );
     expect(harness.resizerEl.getAttribute('aria-valuemax')).toBe('375');

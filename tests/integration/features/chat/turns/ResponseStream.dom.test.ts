@@ -73,32 +73,32 @@ function visibleText(element: HTMLElement): string {
   return parts.join(' ');
 }
 
-const INTERRUPTED = 'Interrupted · What should Claudian do instead?';
+const INTERRUPTED = 'Interrupted · What should Scribe do instead?';
 
 /** The interrupted turn as a reader sees it, collapsed and then expanded. */
 function inspectInterruptedTurn(root: HTMLElement, folded: RegExp[]) {
   const header = within(root).getByRole('button', { name: INTERRUPTED });
   const history = document.getElementById(header.getAttribute('aria-controls')!)!;
-  const turn = Array.from(root.querySelectorAll<HTMLElement>('.claudian-message-assistant'))
-    .filter(message => visibleText(message.querySelector<HTMLElement>('.claudian-message-content')!));
+  const turn = Array.from(root.querySelectorAll<HTMLElement>('.scribe-message-assistant'))
+    .filter(message => visibleText(message.querySelector<HTMLElement>('.scribe-message-content')!));
   const collapsed = { expanded: header.getAttribute('aria-expanded'), visible: turn.map(message =>
-    visibleText(message.querySelector<HTMLElement>('.claudian-message-content')!)),
+    visibleText(message.querySelector<HTMLElement>('.scribe-message-content')!)),
   actions: turn.flatMap(message => within(message).queryAllByRole('button', { name: /^(Copy message|Fork conversation)$/ })).length,
-  header: [header.querySelector('.claudian-interrupted')?.textContent, header.querySelector('.claudian-interrupted-hint')?.textContent] };
+  header: [header.querySelector('.scribe-interrupted')?.textContent, header.querySelector('.scribe-interrupted-hint')?.textContent] };
   fireEvent.click(header);
   const items = folded.map(pattern => within(history).getByText(pattern));
   const ordered = items.every((item, index) => index === 0
     || (items[index - 1].compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
   const expanded = { expanded: header.getAttribute('aria-expanded'), ordered, hidden: history.hidden,
     // The header carries the indicator; the body never repeats it.
-    indicatorInBody: history.querySelector('.claudian-interrupted, .claudian-interrupted-hint') !== null,
+    indicatorInBody: history.querySelector('.scribe-interrupted, .scribe-interrupted-hint') !== null,
     worked: within(root).queryAllByRole('button', { name: /^Worked/ }).length };
   fireEvent.click(header);
   return { collapsed, expanded };
 }
 
 const expectedTurn = {
-  collapsed: { expanded: 'false', visible: [INTERRUPTED], actions: 0, header: ['Interrupted', '· What should Claudian do instead?'] },
+  collapsed: { expanded: 'false', visible: [INTERRUPTED], actions: 0, header: ['Interrupted', '· What should Scribe do instead?'] },
   expanded: { expanded: 'true', ordered: true, hidden: false, indicatorInBody: false, worked: 0 },
 };
 

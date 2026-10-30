@@ -19,13 +19,13 @@ describe('CodexHistoryStore', () => {
     const content = [
       { type: 'event_msg', payload: { type: 'user_message', message: encodeSessionMessage({ from: 'Planner', sessionId: 'sender', text: 'Hello' }) } },
       { type: 'response_item', payload: kind === 'direct'
-        ? { type: 'function_call', name: 'claudian_sessions__claudian_send_message', call_id: 'send', arguments: '{"text":"Reply","sessionId":"sender"}' }
-        : { type: 'custom_tool_call', name: 'exec', call_id: 'send', input: 'text(await tools.claudian_sessions__claudian_send_message({text:"Reply",sessionId:"sender"}));' } },
+        ? { type: 'function_call', name: 'scribe_sessions__scribe_send_message', call_id: 'send', arguments: '{"text":"Reply","sessionId":"sender"}' }
+        : { type: 'custom_tool_call', name: 'exec', call_id: 'send', input: 'text(await tools.scribe_sessions__scribe_send_message({text:"Reply",sessionId:"sender"}));' } },
       { type: 'response_item', payload: { type: kind === 'direct' ? 'function_call_output' : 'custom_tool_call_output', call_id: 'send', output: '{"sessionId":"sender","status":"started"}' } },
     ].map(record => JSON.stringify({ ...record, timestamp: testDate().toISOString() })).join('\n');
     const messages = parseCodexSessionContent(content);
     expect(messages.find(message => message.role === 'user')).toMatchObject({ displayContent: 'Hello', sessionMessage: { from: 'Planner', sessionId: 'sender' } });
-    expect(messages.flatMap(message => message.toolCalls ?? [])).toEqual([expect.objectContaining({ name: 'claudian_send_message', providerPayload: expect.objectContaining({ rawName: 'claudian_sessions__claudian_send_message' }) })]);
+    expect(messages.flatMap(message => message.toolCalls ?? [])).toEqual([expect.objectContaining({ name: 'scribe_send_message', providerPayload: expect.objectContaining({ rawName: 'scribe_sessions__scribe_send_message' }) })]);
   });
 
   it('replays native activity after parent completion and across follow-up turns', () => {

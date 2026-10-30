@@ -80,19 +80,19 @@ export interface MockElement {
 }
 
 const CLASS_DISPLAY: Record<string, string> = {
-  'claudian-context-meter': 'flex',
-  'claudian-mcp-selector': 'flex',
-  'claudian-mode-selector': 'flex',
-  'claudian-permission-toggle': 'flex',
-  'claudian-service-tier-toggle': 'flex',
-  'claudian-tab-content': 'flex',
-  'claudian-thinking-budget': 'flex',
-  'claudian-thinking-effort': 'flex',
+  'scribe-context-meter': 'flex',
+  'scribe-mcp-selector': 'flex',
+  'scribe-mode-selector': 'flex',
+  'scribe-permission-toggle': 'flex',
+  'scribe-service-tier-toggle': 'flex',
+  'scribe-tab-content': 'flex',
+  'scribe-thinking-budget': 'flex',
+  'scribe-thinking-effort': 'flex',
 };
 
 const DISPLAY_CLASSES = new Set([
-  'claudian-hidden',
-  'claudian-visible-flex',
+  'scribe-hidden',
+  'scribe-visible-flex',
   ...Object.keys(CLASS_DISPLAY),
 ]);
 
@@ -110,8 +110,8 @@ export function createMockEl(tag = 'div'): any {
   let textContent = '';
 
   const resolveDisplay = (): string | null => {
-    if (classes.has('claudian-hidden')) return 'none';
-    if (classes.has('claudian-visible-flex')) return 'flex';
+    if (classes.has('scribe-hidden')) return 'none';
+    if (classes.has('scribe-visible-flex')) return 'flex';
 
     for (const [cls, display] of Object.entries(CLASS_DISPLAY)) {
       if (classes.has(cls)) return display;

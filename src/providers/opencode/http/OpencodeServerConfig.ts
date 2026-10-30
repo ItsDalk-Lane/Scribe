@@ -74,7 +74,7 @@ export class OpencodeServerConfig {
 
 export async function createOpencodeServerConfig(cwd: string, environment: NodeJS.ProcessEnv, sessionTools = false): Promise<OpencodeServerConfig> {
   // Explicit config can contain credentials; never copy it into a synced vault.
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-opencode-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-opencode-'));
   try {
     const pluginPath = sessionTools ? path.join(root, 'session-tools') : undefined;
     if (pluginPath) {

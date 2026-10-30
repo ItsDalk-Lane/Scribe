@@ -14,9 +14,79 @@
     "none": "無"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "快速",
+      "fastOn": "快速模式已開啟",
+      "fastTitle": "快速模式：{state}",
+      "fastFailure": "切換服務等級失敗",
+      "standard": "標準",
+      "context": "上下文使用量",
+      "contextDetails": "上下文使用量：{usage}",
+      "contextWarning": "（接近上限，執行 `/compact` 以繼續）",
+      "branchBusy": "請等待目前回覆完成。",
+      "previousBranch": "上一分支",
+      "noPrevious": "沒有上一分支。",
+      "branchPosition": "分支 {current} / {total}",
+      "nextBranch": "下一分支",
+      "noNext": "沒有下一分支。",
+      "branchFrom": "從此訊息建立分支",
+      "previewImage": "預覽 {name}",
+      "mermaidDiagram": "Mermaid 圖表",
+      "mermaidSource": "顯示圖表原始碼"
+    },
+    "conversationFeedback": {
+      "collapseSide": "請先收起側邊對話，再切換對話分支。",
+      "savePrompt": "此訊息儲存後才能切換分支。",
+      "clearDraft": "請先儲存或清空草稿，再切換對話分支。",
+      "branchInProgress": "正在切換分支。",
+      "conversationChanged": "對話已變更。",
+      "conversationMissing": "找不到對話。",
+      "executionUnavailable": "目前無法執行。",
+      "recoveryCancelled": "已取消還原分支。",
+      "reconcileFailed": "無法還原對話分支：{error}",
+      "cannotArchive": "無法封存執行中的對話",
+      "skippedOpenOne": "已略過 {count} 個開啟或執行中的對話",
+      "skippedOpenMany": "已略過 {count} 個開啟或執行中的對話",
+      "cannotDelete": "無法刪除執行中的對話",
+      "skippedRunningOne": "已略過 {count} 個執行中的對話",
+      "skippedRunningMany": "已略過 {count} 個執行中的對話",
+      "closeDeletedFailed": "無法關閉已刪除的對話",
+      "closeBeforeArchiveFailed": "封存前無法關閉對話",
+      "autoArchiveFailed": "自動封存不活躍對話失敗",
+      "autoArchiveOne": "已自動封存 {count} 個不活躍對話",
+      "autoArchiveMany": "已自動封存 {count} 個不活躍對話"
+    },
+    "tabBar": {
+      "name": "分頁名稱",
+      "rename": "重新命名分頁…",
+      "reset": "重設分頁名稱",
+      "showNumber": "顯示數字",
+      "showName": "顯示名稱",
+      "showTitle": "顯示標題",
+      "close": "關閉分頁",
+      "active": "使用中",
+      "needsInput": "需要您的輸入",
+      "working": "處理中",
+      "reviewError": "因錯誤停止，等待檢查",
+      "review": "已完成，等待檢查",
+      "idle": "閒置"
+    },
+    "fileMenu": {
+      "add": "加入 Scribe",
+      "notReady": "Scribe 聊天尚未準備好。",
+      "failed": "無法將檔案加入 Scribe。"
+    },
+    "queue": {
+      "steering": "正在引導",
+      "queued": "已排隊",
+      "steerNow": "立即引導",
+      "edit": "編輯排隊訊息",
+      "discard": "捨棄排隊訊息",
+      "images": "[圖片]"
+    },
     "promptSuggestionHint": "按 Tab 接受",
     "selectAvailableModel": "請先選擇可用的模型再傳送。",
-    "selectAvailableTitleModel": "請在 Claudian 設定中選擇可用的標題產生模型。",
+    "selectAvailableTitleModel": "請在 Scribe 設定中選擇可用的標題產生模型。",
     "rewind": {
       "confirmMessage": "回退到此處？此訊息之後的檔案變更可能被覆寫或刪除。此操作無法復原。",
       "confirmMessageConflicts": "回退到此處？偵測到 {count} 個檔案在代理之外被修改，繼續操作將覆寫這些變更：\n{files}",
@@ -33,7 +103,14 @@
       "failed": "回退失敗：{error}",
       "cannot": "無法回退：{error}",
       "unavailableStreaming": "串流回應中無法回退",
-      "unavailableNoUuid": "無法回退：缺少訊息識別碼"
+      "unavailableNoUuid": "無法回退：缺少訊息識別碼",
+      "messageNotFound": "找不到訊息",
+      "initializationFailed": "無法初始化智能體服務",
+      "serviceUnavailable": "智能體服務不可用",
+      "executionUnavailable": "智能體執行不可用",
+      "conversationChanged": "回退期間對話已變更。",
+      "moreFiles": "還有 {count} 項",
+      "saveFailed": "儲存失敗"
     },
     "fork": {
       "ariaLabel": "分叉對話",
@@ -81,7 +158,7 @@
       "busySide": "側邊對話仍在回覆，請稍候。"
     },
     "zen": {
-      "regionLabel": "Claudian 聊天",
+      "regionLabel": "Scribe 聊天",
       "showHistory": "顯示對話",
       "move": "移動聊天面板",
       "working": "處理中…",
@@ -109,7 +186,7 @@
     "copyMessage": "複製訊息",
     "showEarlierMessages": "顯示較早的訊息",
     "renderFailed": "訊息內容呈現失敗。",
-    "interruptedHint": "· 你希望 Claudian 改做什麼？",
+    "interruptedHint": "· 你希望 Scribe 改做什麼？",
     "sessions": {
       "empty": "尚無對話",
       "noMatch": "沒有符合的工作階段",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "思考中，已用時 {seconds} 秒…",
       "completed": "思考了 {seconds} 秒",
-      "label": "思考過程"
+      "label": "思考過程",
+      "waitHint": "（按 Esc 中斷 · {duration}）",
+      "compacting": "正在壓縮..."
     },
     "suggestions": {
       "loading": "正在載入…",
@@ -426,9 +505,205 @@
         "discard": "放棄",
         "emptyHint": "代理會隨著專案推進填寫這裡。"
       }
+    },
+    "welcome": {
+      "happySunday": "週日愉快",
+      "sundaySession": "週日來聊聊？",
+      "weekend": "週末愉快",
+      "happyMonday": "週一愉快",
+      "backAtIt": "繼續加油",
+      "backAtItExclamation": "繼續加油！",
+      "happyTuesday": "週二愉快",
+      "happyWednesday": "週三愉快",
+      "happyThursday": "週四愉快",
+      "happyFriday": "週五愉快",
+      "fridayFeeling": "週五的感覺",
+      "happySaturday": "週六愉快",
+      "happySaturdayExclamation": "週六愉快！",
+      "morning": "早安",
+      "coffee": "喝杯咖啡，開始使用 Scribe？",
+      "afternoon": "午安",
+      "hey": "你好",
+      "howGoing": "最近怎麼樣",
+      "evening": "晚安",
+      "eveningShort": "晚上好",
+      "howWasDay": "今天過得怎麼樣",
+      "nightOwl": "夜貓子，你好",
+      "hiHow": "你好，最近怎麼樣？",
+      "hiHowNamed": "你好，{name}，最近怎麼樣？",
+      "welcomeBack": "歡迎回來",
+      "whatsNew": "有什麼新鮮事",
+      "returns": "{name} 回來了！",
+      "absolutelyRight": "你說得太對了！",
+      "personalized": "{name}，{greeting}"
+    },
+    "newTab": "新增分頁",
+    "newConversation": "新增對話",
+    "sessionManager": {
+      "new": "新增",
+      "search": "搜尋",
+      "archive": "封存",
+      "sessions": "對話",
+      "archived": "已封存",
+      "pinned": "已釘選",
+      "missing": "遺失",
+      "unlinked": "未連結",
+      "pastWeek": "最近一週",
+      "pastTwoWeeks": "最近兩週",
+      "pastMonth": "最近一個月",
+      "older": "更早",
+      "sessionOptions": "對話選項",
+      "expandGroups": "展開所有群組",
+      "collapseGroups": "收合所有群組",
+      "searchArchived": "搜尋已封存的對話",
+      "searchSessions": "搜尋對話",
+      "organize": "整理對話",
+      "oneList": "顯示為單一清單",
+      "byLinked": "依連結內容",
+      "sortBy": "對話排序依據",
+      "lastActivity": "最近活動",
+      "created": "建立時間",
+      "lastActive": "最近活動",
+      "organizationFailed": "更新對話整理方式失敗",
+      "sortFailed": "更新對話排序失敗",
+      "history": "聊天記錄",
+      "loadMore": "載入更多（剩餘 {count}）",
+      "newForContent": "為 {name} 建立對話",
+      "startContentFailed": "無法為此連結內容建立對話",
+      "generatingTitle": "正在產生標題...",
+      "regenerateTitle": "重新產生標題",
+      "generateTitle": "產生標題",
+      "generateTitleFailed": "產生標題失敗",
+      "actionsFor": "{name} 的操作",
+      "conversationTitle": "對話標題",
+      "renameFailed": "重新命名對話失敗",
+      "collapseSaveFailed": "儲存專案資料夾展開狀態失敗",
+      "selected": "已選取",
+      "openNewTab": "在新分頁開啟",
+      "openBackgroundTab": "在背景分頁開啟",
+      "switchOpen": "切換到已開啟的對話",
+      "assignDevice": "指派到此裝置",
+      "pin": "釘選",
+      "unpin": "取消釘選",
+      "markUnread": "標記為未讀",
+      "markRead": "標記為已讀",
+      "rename": "重新命名",
+      "copyId": "複製對話 ID",
+      "restore": "還原",
+      "delete": "刪除",
+      "loadFailed": "載入對話失敗",
+      "copyIdFailed": "複製對話 ID 失敗",
+      "assignFailed": "指派對話到此裝置失敗",
+      "pinFailed": "釘選對話失敗",
+      "unpinFailed": "取消釘選對話失敗",
+      "archiveFailed": "封存對話失敗",
+      "restoreFailed": "還原對話失敗",
+      "deleteFailed": "刪除對話失敗",
+      "cannotArchiveRunning": "無法封存進行中的對話",
+      "needsYourInput": "需要你的輸入",
+      "stoppedWithError": "因錯誤停止",
+      "running": "進行中",
+      "unread": "未讀",
+      "needsInput": "需要輸入",
+      "runningOtherPane": "在另一窗格中執行",
+      "openOtherPane": "在另一窗格中開啟",
+      "tabNumber": "分頁 {number}",
+      "currentTab": "目前分頁",
+      "tab": "分頁",
+      "runningIn": "在 {tab} 中執行",
+      "currentTabNumber": "目前分頁 {number}",
+      "currentSession": "目前對話",
+      "openIn": "在 {tab} 中開啟",
+      "restoreCount": "還原 {count} 個對話",
+      "deleteCount": "刪除 {count} 個對話",
+      "pinCount": "釘選 {count} 個對話",
+      "unpinCount": "取消釘選 {count} 個對話",
+      "archiveCount": "封存 {count} 個對話",
+      "permanentDeleteCount": "永久刪除 {count} 個對話？",
+      "restoreManyFailed": "還原對話失敗",
+      "deleteManyFailed": "刪除對話失敗",
+      "pinManyFailed": "釘選對話失敗",
+      "unpinManyFailed": "取消釘選對話失敗",
+      "archiveManyFailed": "封存對話失敗",
+      "moveManyFailed": "移動對話失敗",
+      "pinLinked": "釘選連結內容",
+      "unpinLinked": "取消釘選連結內容",
+      "pinLinkedFailed": "釘選連結內容失敗",
+      "unpinLinkedFailed": "取消釘選連結內容失敗",
+      "archiveAll": "封存所有對話",
+      "restoreAll": "還原所有對話",
+      "deleteAll": "刪除所有對話",
+      "archiveLinkedFailed": "封存連結內容對話失敗",
+      "idCopied": "已複製對話 ID"
+    },
+    "compacted": "對話已壓縮",
+    "subagent": {
+      "prompt": "提示詞",
+      "result": "結果",
+      "tokens": "{count} 個詞元",
+      "toolUse": "使用工具 {count} 次",
+      "toolUses": "使用工具 {count} 次",
+      "lastTool": "最近使用的工具：{tool}",
+      "taskAria": "子代理任務：{description} - {status} - 點擊展開",
+      "initializing": "正在初始化",
+      "error": "錯誤",
+      "orphaned": "已失去連線",
+      "completed": "已完成",
+      "backgroundRunning": "正在背景執行",
+      "backgroundAria": "背景任務：{description} - {status} - 點擊展開",
+      "statusAria": "狀態：{status}",
+      "orphanedResult": "任務完成前對話已結束"
+    },
+    "notices": {
+      "showWideFailed": "無法在寬版面中顯示對話",
+      "createTabFailed": "無法建立分頁",
+      "createConversationFailed": "無法建立對話",
+      "startConversationFailed": "無法開始新對話",
+      "switchTabFailed": "無法切換分頁",
+      "closeTabFailed": "無法關閉分頁",
+      "resizeSessions": "調整對話區大小",
+      "closePreviewFailed": "無法關閉暫時的對話預覽",
+      "linkedPathsFailed": "無法更新連結內容路徑",
+      "pinnedContentFailed": "無法更新釘選的連結內容",
+      "sideProviderSwitch": "無法在側邊對話中切換服務商。",
+      "selectAvailableModel": "請在 Scribe 設定中選擇可用模型。",
+      "boundProviderSwitch": "無法在已綁定的對話中切換服務商。請開始新對話。",
+      "mainChatMode": "模式選擇適用於主對話。",
+      "initializeExecutionFailed": "無法初始化代理執行。請重試。",
+      "executionUnavailable": "代理執行不可用。請重新載入插件。",
+      "sessionDeleted": "服務商的對話已不存在。Scribe 已移除記錄；再次傳送以開始新對話。",
+      "sessionReset": "服務商的對話已不存在。Scribe 已保留可復原的歷史記錄；再次傳送以重建對話。",
+      "sessionPreserved": "服務商的對話已不存在。由於無法驗證剩餘歷史記錄，Scribe 保留了其記錄。",
+      "sessionMissing": "服務商的對話已不存在。再次傳送以開始新對話。",
+      "messageNotSent": "訊息未傳送，請重試。",
+      "unknownError": "未知錯誤",
+      "unsupportedCommand": "此服務商不支援 /{command} 命令。",
+      "fastUnavailable": "此模型不支援快速模式。",
+      "fastToggleFailed": "無法切換快速模式。",
+      "unknownCommand": "未知命令：{command}",
+      "openConversationFailed": "無法開啟對話：{error}",
+      "tabsUnavailable": "聊天分頁不可用",
+      "forkUnsupported": "此服務商不支援分支對話。"
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "儲存設定失敗",
+      "loading": "正在載入 {provider} 設定…",
+      "unknownError": "未知錯誤",
+      "unavailable": "無法使用：{model}",
+      "aliasSaveFailed": "無法儲存模型別名，請重試。",
+      "contextLabel": "{model} 的上下文視窗",
+      "modelSaveFailed": "無法儲存模型選擇，請重試。",
+      "snippetRefreshFailed": "環境片段已儲存，但設定重新整理失敗。",
+      "snippetUpdateFailed": "無法完成環境片段更新",
+      "snippetSaveFailed": "無法完成環境片段儲存",
+      "snippetSaved": "環境片段「{name}」已儲存",
+      "snippetUpdated": "環境片段「{name}」已更新",
+      "snippetDeleted": "環境片段「{name}」已刪除",
+      "environmentReview": "請檢查這些環境變數的歸屬：{keys}",
+      "environmentUpdateFailed": "無法完成環境變數更新。"
+    },
     "tabs": {
       "general": "一般",
       "providers": "提供者",
@@ -446,7 +721,7 @@
     "responses": "回覆",
     "experimental": "實驗性功能",
     "userName": {
-      "name": "Claudian 應該如何稱呼您？",
+      "name": "Scribe 應該如何稱呼您？",
       "desc": "用於個人化問候的使用者名稱（留空使用通用問候）"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Write 和 Edit diff 首次出現時以展開狀態顯示。"
     },
     "chatViewPlacement": {
-      "name": "Claudian 開啟位置",
+      "name": "Scribe 開啟位置",
       "desc": "選擇新建聊天面板時的開啟位置",
       "rightSidebar": "右側邊欄",
       "leftSidebar": "左側邊欄",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "啟用 {provider}",
-      "lastProviderWarning": "至少需要啟用一個提供者，Claudian 才能正常運作。",
+      "lastProviderWarning": "至少需要啟用一個提供者，Scribe 才能正常運作。",
       "noModelsWarning": "未啟用任何 {provider} 模型。請前往下方的「模型」區段並至少啟用一個模型。"
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "安裝方式",
-        "desc": "Claudian 在 Windows 上啟動 Codex 的方式。原生 Windows 使用 Windows 可執行檔路徑；WSL 會在所選發行版內啟動 Linux CLI。",
+        "desc": "Scribe 在 Windows 上啟動 Codex 的方式。原生 Windows 使用 Windows 可執行檔路徑；WSL 會在所選發行版內啟動 Linux CLI。",
         "nativeWindows": "原生 Windows",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "傳遞給 OpenCode 的額外環境變數。"
       },
       "migrationNotice": {
-        "text": "OpenCode v1 已不再受支援。請更新至 OpenCode v2 以在 Claudian 中使用。",
+        "text": "OpenCode v1 已不再受支援。請更新至 OpenCode v2 以在 Scribe 中使用。",
         "link": "遷移至 OpenCode v2"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "僅傳遞給 Pi 的環境變數。"
       },
       "models": {
-        "desc": "Claudian 維護獨立於 Pi enabledModels 的模型清單。Discover 會列出 Pi 在目前環境中可驗證的所有模型，並依 Pi 實際呼叫的供應商路由分組。路由決定憑證與計費。"
+        "desc": "Scribe 維護獨立於 Pi enabledModels 的模型清單。Discover 會列出 Pi 在目前環境中可驗證的所有模型，並依 Pi 實際呼叫的供應商路由分組。路由決定憑證與計費。"
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "附加預設外掛",
-        "desc": "進階。附加到 Claudian 聊天預設的原生 dsh 外掛列 YAML 清單（dsh 格式），每列需有自己的 \"id\" 與 \"name\"。這些列不能取代 Claudian 自己的列。儲存會重新啟動 DeepSeek Harness，並停止進行中的回合。Claudian 沒有介面支援的外掛（例如計畫模式）可能無法正常運作。"
+        "desc": "進階。附加到 Scribe 聊天預設的原生 dsh 外掛列 YAML 清單（dsh 格式），每列需有自己的 \"id\" 與 \"name\"。這些列不能取代 Scribe 自己的列。儲存會重新啟動 DeepSeek Harness，並停止進行中的回合。Scribe 沒有介面支援的外掛（例如計畫模式）可能無法正常運作。"
       },
       "presetPreview": "預設預覽",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "已移動 {moved},已轉換 {converted},已移至垃圾桶 {trashed},已移除 {unlinked} 個連結。"
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "模型選項",
+      "provider": "服務商",
+      "unavailable": "模型不可用",
+      "setup": "設定模型",
+      "label": "模型：{model}",
+      "choose": "請在服務商設定中選擇已啟用的模型。若探索失敗，請重新整理模型清單。",
+      "heading": "模型",
+      "empty": "沒有可用的模型。請檢查服務商設定，探索失敗時請重新整理模型清單。",
+      "changeFailed": "變更模型失敗"
+    },
+    "effort": {
+      "default": "預設",
+      "description": "推理強度 {level}",
+      "heading": "思考",
+      "changeFailed": "變更推理強度失敗"
+    }
+  },
+  "inlineEdit": {
+    "command": "行內編輯",
+    "unavailableView": "無法使用行內編輯：無法存取目前的 Markdown 檢視。",
+    "inserted": "已插入",
+    "applied": "已套用編輯",
+    "unavailableEditor": "無法使用行內編輯：無法存取目前的編輯器。請嘗試重新開啟筆記。",
+    "sourceChanged": "原文件或選取範圍已變更，未套用行內編輯。",
+    "providerStartFailed": "啟動 {provider} 服務商失敗。",
+    "vaultLoadFailed": "載入資料庫檔案失敗，@提及 可能無法使用。",
+    "insertInstructions": "插入指令",
+    "editInstructions": "編輯指令",
+    "insertPlaceholder": "輸入插入指令...",
+    "editPlaceholder": "輸入編輯指令...",
+    "modelRequired": "請在 Scribe 設定中選擇可用模型。",
+    "actions": "行內編輯操作",
+    "line": "行",
+    "lines": "行",
+    "reject": "拒絕",
+    "accept": "接受",
+    "rejectAria": "拒絕行內編輯",
+    "acceptAria": "接受行內編輯",
+    "retryError": "發生錯誤，請重試",
+    "replyPlaceholder": "回覆以繼續...",
+    "noResponse": "代理沒有回覆"
+  },
+  "commands": {
+    "openScribe": "開啟 Scribe",
+    "toggleChat": "切換聊天檢視",
+    "copyDiagnostics": "複製啟動診斷資訊",
+    "new": "新增",
+    "replaceConversation": "取代目前對話",
+    "closeTab": "關閉目前分頁",
+    "renameTab": "重新命名目前分頁",
+    "focusChat": "切換聊天輸入焦點",
+    "toggleZenHistory": "切換禪模式歷史記錄"
   }
 }

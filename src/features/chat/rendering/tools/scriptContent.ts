@@ -49,12 +49,12 @@ function summarizeToolInput(input: Record<string, unknown>): string {
 }
 
 function renderScriptToolCalls(container: HTMLElement, calls: ScriptToolCallItem[], describeTool: DescribeTool): void {
-  container.createDiv({ cls: 'claudian-tool-script-label', text: t('chat.tools.calls') });
-  const listEl = container.createEl('ul', { cls: 'claudian-tool-script-calls', attr: { 'aria-label': t('chat.tools.calls') } });
+  container.createDiv({ cls: 'scribe-tool-script-label', text: t('chat.tools.calls') });
+  const listEl = container.createEl('ul', { cls: 'scribe-tool-script-calls', attr: { 'aria-label': t('chat.tools.calls') } });
   for (const call of calls) {
-    const itemEl = listEl.createEl('li', { cls: 'claudian-tool-script-call' });
+    const itemEl = listEl.createEl('li', { cls: 'scribe-tool-script-call' });
     const statusEl = itemEl.createSpan({
-      cls: `claudian-tool-status status-${call.status}`,
+      cls: `scribe-tool-status status-${call.status}`,
       attr: { role: 'img', 'aria-label': t(`chat.tools.status.${call.status}`) },
     });
     const icon = SCRIPT_CALL_STATUS_ICONS[call.status];
@@ -64,17 +64,17 @@ function renderScriptToolCalls(container: HTMLElement, calls: ScriptToolCallItem
       call.input ? described?.summary || summarizeToolInput(call.input) : call.args ?? '',
       80,
     );
-    itemEl.createSpan({ cls: 'claudian-tool-script-call-name', text: described?.name ?? call.name });
+    itemEl.createSpan({ cls: 'scribe-tool-script-call-name', text: described?.name ?? call.name });
     if (summary) {
       itemEl.append(' ');
-      itemEl.createSpan({ cls: 'claudian-tool-script-call-detail', text: summary });
+      itemEl.createSpan({ cls: 'scribe-tool-script-call-detail', text: summary });
     }
     if (call.durationMs !== undefined) {
       itemEl.append(' ');
-      itemEl.createSpan({ cls: 'claudian-tool-script-call-detail', text: formatScriptCallDuration(call.durationMs) });
+      itemEl.createSpan({ cls: 'scribe-tool-script-call-detail', text: formatScriptCallDuration(call.durationMs) });
     }
     if (call.error) {
-      itemEl.createDiv({ cls: 'claudian-tool-script-call-error', text: call.error });
+      itemEl.createDiv({ cls: 'scribe-tool-script-call-error', text: call.error });
     }
   }
 }
@@ -87,17 +87,17 @@ export function renderScriptContent(
 ): void {
   const source = getScriptSource(toolCall.input);
   if (source) {
-    container.createDiv({ cls: 'claudian-tool-script-label', text: getScriptLanguage(toolCall.input) });
-    const sourceEl = container.createEl('pre', { cls: 'claudian-tool-script-code' });
+    container.createDiv({ cls: 'scribe-tool-script-label', text: getScriptLanguage(toolCall.input) });
+    const sourceEl = container.createEl('pre', { cls: 'scribe-tool-script-code' });
     sourceEl.createEl('code', { text: source });
   }
   if (toolCall.scriptToolCalls?.length) {
     renderScriptToolCalls(container, toolCall.scriptToolCalls, describeTool);
   }
   const result = toolCall.result ?? '';
-  container.createDiv({ cls: 'claudian-tool-script-label', text: t('chat.tools.output') });
+  container.createDiv({ cls: 'scribe-tool-script-label', text: t('chat.tools.output') });
   if (result) {
-    container.createEl('pre', { cls: 'claudian-tool-script-output', text: result });
+    container.createEl('pre', { cls: 'scribe-tool-script-output', text: result });
   } else if (!toolCall.resultImages?.length) {
     contentFallback(container, toolCall.status === 'running' ? t('chat.tools.running') : t('chat.tools.noResult'));
   }

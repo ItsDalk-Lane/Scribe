@@ -13,11 +13,11 @@ describe('ComposerContextTray', () => {
     const item = { id: 'editor-selection', kind: 'selection' as const, label: '3 lines · Draft.md' };
 
     tray.setItems('editor-selection', [{ ...item, onRemove: vi.fn() }]);
-    expect(containerEl.querySelector('.claudian-context-chip-remove')).not.toBeNull();
+    expect(containerEl.querySelector('.scribe-context-chip-remove')).not.toBeNull();
 
     tray.setItems('editor-selection', [item]);
-    expect(containerEl.querySelector('.claudian-context-chip')).not.toBeNull();
-    expect(containerEl.querySelector('.claudian-context-chip-remove')).toBeNull();
+    expect(containerEl.querySelector('.scribe-context-chip')).not.toBeNull();
+    expect(containerEl.querySelector('.scribe-context-chip-remove')).toBeNull();
     tray.destroy();
   });
 
@@ -73,7 +73,7 @@ describe('ComposerContextTray', () => {
     expect(containerEl.hasClass('has-content')).toBe(true);
     // Presentations can match on which slots are filled without inspecting chips.
     expect(containerEl.dataset.contextSlots).toBe('editor-selection browser-selection images');
-    expect(containerEl.querySelectorAll('.claudian-context-chip').map((item: any) => item.dataset.contextSlot)).toEqual([
+    expect(containerEl.querySelectorAll('.scribe-context-chip').map((item: any) => item.dataset.contextSlot)).toEqual([
       'editor-selection',
       'browser-selection',
       'images',
@@ -96,8 +96,8 @@ describe('ComposerContextTray', () => {
       onRemove,
     }]);
 
-    const mainButton = containerEl.querySelector('.claudian-context-chip-main');
-    const removeButton = containerEl.querySelector('.claudian-context-chip-remove');
+    const mainButton = containerEl.querySelector('.scribe-context-chip-main');
+    const removeButton = containerEl.querySelector('.scribe-context-chip-remove');
 
     expect(mainButton?.tagName).toBe('BUTTON');
     expect(removeButton?.tagName).toBe('BUTTON');
@@ -121,22 +121,22 @@ describe('ComposerContextTray', () => {
       onRemove: vi.fn(),
     })));
 
-    const chips = containerEl.querySelectorAll('.claudian-context-chip');
+    const chips = containerEl.querySelectorAll('.scribe-context-chip');
     [0, 0, 38, 76].forEach((offsetTop, index) => {
       Object.defineProperty(chips[index], 'offsetTop', { configurable: true, value: offsetTop });
     });
 
     tray.refreshLayout();
 
-    expect(chips[2].hasClass('claudian-context-chip--overflow-hidden')).toBe(true);
-    expect(chips[3].hasClass('claudian-context-chip--overflow-hidden')).toBe(true);
-    const moreButton = containerEl.querySelector('.claudian-context-more');
+    expect(chips[2].hasClass('scribe-context-chip--overflow-hidden')).toBe(true);
+    expect(chips[3].hasClass('scribe-context-chip--overflow-hidden')).toBe(true);
+    const moreButton = containerEl.querySelector('.scribe-context-more');
     expect(moreButton?.textContent).toBe('+2 more');
 
     moreButton?.click();
 
-    expect(containerEl.hasClass('claudian-context-row--expanded')).toBe(true);
-    expect(chips.every((chip: any) => !chip.hasClass('claudian-context-chip--overflow-hidden'))).toBe(true);
+    expect(containerEl.hasClass('scribe-context-row--expanded')).toBe(true);
+    expect(chips.every((chip: any) => !chip.hasClass('scribe-context-chip--overflow-hidden'))).toBe(true);
     expect(moreButton?.textContent).toBe('Show less');
   });
 
@@ -163,7 +163,7 @@ describe('ComposerContextTray', () => {
       onRemove: vi.fn(),
     }]);
 
-    const chips = containerEl.querySelectorAll('.claudian-context-chip');
+    const chips = containerEl.querySelectorAll('.scribe-context-chip');
     [[4, 24], [0, 32], [4, 24]].forEach(([offsetTop, offsetHeight], index) => {
       Object.defineProperties(chips[index], {
         offsetTop: { configurable: true, value: offsetTop },
@@ -173,7 +173,7 @@ describe('ComposerContextTray', () => {
 
     tray.refreshLayout();
 
-    expect(containerEl.querySelector('.claudian-context-more')?.hasClass('claudian-hidden')).toBe(true);
+    expect(containerEl.querySelector('.scribe-context-more')?.hasClass('scribe-hidden')).toBe(true);
   });
 
   it('measures rows from rendered chips only, ignoring chips a presentation hides', () => {
@@ -188,7 +188,7 @@ describe('ComposerContextTray', () => {
     })));
 
     // Hidden elements report no offset parent and a zero position.
-    const chips = containerEl.querySelectorAll('.claudian-context-chip');
+    const chips = containerEl.querySelectorAll('.scribe-context-chip');
     const layout = (visibleTops: number[]) => [null, ...visibleTops].forEach((offsetTop, index) => {
       Object.defineProperties(chips[index], {
         offsetParent: { configurable: true, value: offsetTop === null ? null : containerEl },
@@ -196,17 +196,17 @@ describe('ComposerContextTray', () => {
         offsetHeight: { configurable: true, value: offsetTop === null ? 0 : 24 },
       });
     });
-    const moreButton = containerEl.querySelector('.claudian-context-more');
+    const moreButton = containerEl.querySelector('.scribe-context-more');
 
     layout([8, 8, 8]);
     tray.refreshLayout();
-    expect(moreButton?.hasClass('claudian-hidden')).toBe(true);
+    expect(moreButton?.hasClass('scribe-hidden')).toBe(true);
 
     layout([8, 8, 46]);
     tray.refreshLayout();
     expect(moreButton?.textContent).toBe('+1 more');
-    expect(chips[3].hasClass('claudian-context-chip--overflow-hidden')).toBe(true);
-    expect(chips[1].hasClass('claudian-context-chip--overflow-hidden')).toBe(false);
+    expect(chips[3].hasClass('scribe-context-chip--overflow-hidden')).toBe(true);
+    expect(chips[1].hasClass('scribe-context-chip--overflow-hidden')).toBe(false);
   });
 
   it('removes the tray when the final owner clears its items', () => {

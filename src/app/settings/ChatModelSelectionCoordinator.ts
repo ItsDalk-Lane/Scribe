@@ -1,4 +1,4 @@
-import type { ClaudianSettings, StoredChatModelSelection } from '../../core/types';
+import type { ScribeSettings, StoredChatModelSelection } from '../../core/types';
 import type { SettingsCoordinator } from './SettingsCoordinator';
 
 export class ChatModelSelectionCoordinator {
@@ -6,7 +6,7 @@ export class ChatModelSelectionCoordinator {
   private committedIntent = 0;
 
   constructor(
-    private readonly settingsCoordinator: SettingsCoordinator<ClaudianSettings>,
+    private readonly settingsCoordinator: SettingsCoordinator<ScribeSettings>,
   ) {}
 
   beginIntent(): number {

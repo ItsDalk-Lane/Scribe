@@ -358,7 +358,7 @@ function createEventContext(
 }
 
 function browseProvider(tab: { dom: { inputWrapper: HTMLElement } }, providerId: string): void {
-  const tabs = Array.from(tab.dom.inputWrapper.querySelectorAll('.claudian-model-provider-tab')) as HTMLElement[];
+  const tabs = Array.from(tab.dom.inputWrapper.querySelectorAll('.scribe-model-provider-tab')) as HTMLElement[];
   tabs.find(item => item.dataset.provider === providerId)?.click();
 }
 
@@ -761,7 +761,7 @@ describe('Tab provider execution ownership', () => {
     tab.dom.messagesEl.scrollTo = vi.fn();
 
     const bottomButton = tab.dom.messagesWrapperEl.querySelector(
-      '.claudian-nav-btn-bottom',
+      '.scribe-nav-btn-bottom',
     );
     bottomButton?.click();
 
@@ -779,25 +779,25 @@ describe('Tab provider execution ownership', () => {
 
     expect(tab.state.autoScrollEnabled).toBe(true);
 
-    const sidebar = tab.dom.messagesWrapperEl.querySelector('.claudian-nav-sidebar');
+    const sidebar = tab.dom.messagesWrapperEl.querySelector('.scribe-nav-sidebar');
     for (const buttonIndex of [0, 1, 3]) {
       bottomButton?.click();
       sidebar?.children[buttonIndex]?.click();
       expect(tab.state.autoScrollEnabled).toBe(false);
     }
 
-    const userMessage = tab.dom.messagesEl.createDiv({ cls: 'claudian-message-user' });
+    const userMessage = tab.dom.messagesEl.createDiv({ cls: 'scribe-message-user' });
     userMessage.setAttribute('data-toc-title', 'Prompt');
     const queryMessages = tab.dom.messagesEl.querySelectorAll.bind(tab.dom.messagesEl);
     tab.dom.messagesEl.querySelectorAll = vi.fn((selector: string) => (
-      selector === '.claudian-message-user, [data-role="user"]'
+      selector === '.scribe-message-user, [data-role="user"]'
         ? [userMessage]
         : queryMessages(selector)
     ));
     const messageControl = userMessage.createEl('button');
     bottomButton?.click();
     sidebar?.children[2]?.click();
-    tab.dom.messagesWrapperEl.querySelector('.claudian-nav-toc-item')?.click();
+    tab.dom.messagesWrapperEl.querySelector('.scribe-nav-toc-item')?.click();
     expect(tab.state.autoScrollEnabled).toBe(false);
 
     bottomButton?.click();
@@ -973,7 +973,7 @@ describe('Tab provider execution ownership', () => {
     tab.state.autoScrollEnabled = false;
     tab.dom.messagesEl.scrollTo = vi.fn();
 
-    tab.dom.messagesWrapperEl.querySelector('.claudian-nav-btn-bottom')?.click();
+    tab.dom.messagesWrapperEl.querySelector('.scribe-nav-btn-bottom')?.click();
 
     expect(tab.state.autoScrollEnabled).toBe(false);
   });
@@ -1068,7 +1068,7 @@ describe('Tab provider execution ownership', () => {
       tab.state.autoScrollEnabled = false;
 
       tab.dom.messagesEl.dispatchEvent('scroll');
-      tab.dom.messagesWrapperEl.querySelector('.claudian-nav-btn-top')?.click();
+      tab.dom.messagesWrapperEl.querySelector('.scribe-nav-btn-top')?.click();
       tab.dom.messagesEl.dispatchEvent({ type: 'wheel', deltaY: 120 });
       vi.advanceTimersByTime(150);
 
@@ -1443,7 +1443,7 @@ describe('Tab provider execution ownership', () => {
       await manager.restoreState(saved);
       expect(manager.getTabCount()).toBe(20);
       expect(manager.getAllTabs()).toHaveLength(1);
-      expect(root.querySelectorAll('.claudian-tab-content')).toHaveLength(1);
+      expect(root.querySelectorAll('.scribe-tab-content')).toHaveLength(1);
       expect(coordinatorInstances).toHaveLength(1);
       expect(titleServiceInstances).toHaveLength(1);
       expect(manager.getPersistedState().openTabs.map(tab => tab.tabId)).toEqual(saved.openTabs.map(tab => tab.tabId));
@@ -1453,7 +1453,7 @@ describe('Tab provider execution ownership', () => {
       await manager.switchToTab('saved-1');
       expect(manager.getActiveTab()?.draftModel).toBe('claude-default');
       expect(coordinatorInstances).toHaveLength(2);
-      expect(root.querySelectorAll('.claudian-tab-content')).toHaveLength(2);
+      expect(root.querySelectorAll('.scribe-tab-content')).toHaveLength(2);
     } finally { await manager.destroy(); }
     expect(coordinatorInstances.every(coordinator => coordinator.dispose.mock.calls.length === 1)).toBe(true);
   });
@@ -1504,7 +1504,7 @@ describe('Tab provider execution ownership', () => {
     expect(reopened.getActiveTab()?.providerId).toBeNull();
     expect(ensureInitialized).not.toHaveBeenCalled();
     const active = reopened.getActiveTab()!;
-    const option = Array.from(active.dom.inputWrapper.querySelectorAll('.claudian-model-option'))
+    const option = Array.from(active.dom.inputWrapper.querySelectorAll('.scribe-model-option'))
       .find(el => Array.from(el.children).some(child => child.textContent === 'Claude Default')) as HTMLElement;
     expect(option).toBeDefined();
     option.click();
@@ -1557,7 +1557,7 @@ describe('Tab provider execution ownership', () => {
     });
     const modelOptions = Array.from(
       tab.dom.inputWrapper.querySelectorAll(
-        '.claudian-model-option',
+        '.scribe-model-option',
       ) as NodeListOf<HTMLElement>,
     );
     const alternate = modelOptions.find(option =>
@@ -1603,7 +1603,7 @@ describe('Tab provider execution ownership', () => {
       });
       const modelOptions = Array.from(
         tab.dom.inputWrapper.querySelectorAll(
-          '.claudian-model-option',
+          '.scribe-model-option',
         ) as NodeListOf<HTMLElement>,
       );
       const codex = modelOptions.find(option =>
@@ -1660,7 +1660,7 @@ describe('Tab provider execution ownership', () => {
       browseProvider(tab, 'codex');
       const modelOptions = Array.from(
         tab.dom.inputWrapper.querySelectorAll(
-          '.claudian-model-option',
+          '.scribe-model-option',
         ) as NodeListOf<HTMLElement>,
       );
       const codex = modelOptions.find(option =>
@@ -1704,7 +1704,7 @@ describe('Tab provider execution ownership', () => {
     const tab = await createTestTab({ plugin, containerEl: createMockEl() as any });
     const modelOptions = Array.from(
       tab.dom.inputWrapper.querySelectorAll(
-        '.claudian-model-option',
+        '.scribe-model-option',
       ) as NodeListOf<HTMLElement>,
     );
     const alternate = modelOptions.find(option =>
@@ -1757,7 +1757,7 @@ describe('Tab provider execution ownership', () => {
       browseProvider(tab, 'codex');
       const modelOptions = Array.from(
         tab.dom.inputWrapper.querySelectorAll(
-          '.claudian-model-option',
+          '.scribe-model-option',
         ) as NodeListOf<HTMLElement>,
       );
       const first = modelOptions.find(option =>
@@ -1799,7 +1799,7 @@ describe('Tab provider execution ownership', () => {
     });
     const modelOptions = Array.from(
       tab.dom.inputWrapper.querySelectorAll(
-        '.claudian-model-option',
+        '.scribe-model-option',
       ) as NodeListOf<HTMLElement>,
     );
     const alternate = modelOptions.find(option =>
@@ -1842,7 +1842,7 @@ describe('Tab provider execution ownership', () => {
     });
     const modelOptions = Array.from(
       tab.dom.inputWrapper.querySelectorAll(
-        '.claudian-model-option',
+        '.scribe-model-option',
       ) as NodeListOf<HTMLElement>,
     );
     const alternate = modelOptions.find(option =>
@@ -1875,7 +1875,7 @@ describe('Tab provider execution ownership', () => {
     });
     const modelOptions = Array.from(
       tab.dom.inputWrapper.querySelectorAll(
-        '.claudian-model-option',
+        '.scribe-model-option',
       ) as NodeListOf<HTMLElement>,
     );
     const alternate = modelOptions.find(option =>
@@ -2074,7 +2074,7 @@ describe('Tab provider execution ownership', () => {
     selectionController.updateIndicator();
 
     const removeButton = tab.dom.contextRowEl.querySelector(
-      '.claudian-context-chip-remove',
+      '.scribe-context-chip-remove',
     ) as any;
     removeButton.dispatchEvent('click');
 

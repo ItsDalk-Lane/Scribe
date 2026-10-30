@@ -1,9 +1,9 @@
 import '@/providers';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import type { Mock } from 'vitest';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 import { getClaudeProviderSettings } from '@/providers/claude/settings';
 
@@ -19,7 +19,7 @@ function createStorage(initial: Record<string, unknown>) {
   } as unknown as VaultFileAdapter;
   return {
     adapter,
-    storage: new ClaudianSettingsStorage(adapter, DEFAULT_CLAUDIAN_SETTINGS),
+    storage: new ScribeSettingsStorage(adapter, DEFAULT_SCRIBE_SETTINGS),
     read: () => JSON.parse(content) as Record<string, any>,
   };
 }

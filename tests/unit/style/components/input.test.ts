@@ -25,38 +25,38 @@ describe('Composer input styles', () => {
     style.textContent = css;
     document.head.appendChild(style);
     document.body.innerHTML = `
-      <div class="claudian-input-composer">
-        <div class="claudian-input-container">
-          <div class="claudian-input-nav-row"></div>
-          <div class="claudian-input-wrapper">
-            <div class="claudian-input-queue-strip claudian-hidden"></div>
-            <div class="claudian-context-row"></div>
-            <div class="claudian-composer-editor"><div class="cm-content"></div></div>
-            <div class="claudian-input-toolbar">
-              <div class="claudian-toolbar-chip-anchor claudian-toolbar-chip-anchor--model"></div>
-              <div class="claudian-toolbar-chip-anchor claudian-permission-toggle">
-                <div class="claudian-toolbar-popover"></div>
+      <div class="scribe-input-composer">
+        <div class="scribe-input-container">
+          <div class="scribe-input-nav-row"></div>
+          <div class="scribe-input-wrapper">
+            <div class="scribe-input-queue-strip scribe-hidden"></div>
+            <div class="scribe-context-row"></div>
+            <div class="scribe-composer-editor"><div class="cm-content"></div></div>
+            <div class="scribe-input-toolbar">
+              <div class="scribe-toolbar-chip-anchor scribe-toolbar-chip-anchor--model"></div>
+              <div class="scribe-toolbar-chip-anchor scribe-permission-toggle">
+                <div class="scribe-toolbar-popover"></div>
               </div>
             </div>
           </div>
-          <div class="claudian-input-info-row">
-            <div class="claudian-input-info-linked"></div>
+          <div class="scribe-input-info-row">
+            <div class="scribe-input-info-linked"></div>
           </div>
         </div>
       </div>
     `;
-    return document.querySelector('.claudian-input-composer') as HTMLElement;
+    return document.querySelector('.scribe-input-composer') as HTMLElement;
   }
 
   const style = (el: Element) => window.getComputedStyle(el);
 
   it('sizes the idle input box from its content instead of a fixed floor', () => {
     const composer = renderComposer();
-    const wrapper = style(composer.querySelector('.claudian-input-wrapper')!);
+    const wrapper = style(composer.querySelector('.scribe-input-wrapper')!);
     expect(['', '0', '0px', 'auto']).toContain(wrapper.minHeight);
     expect(wrapper.flexDirection).toBe('column');
     // About two lines of text before the toolbar.
-    expect(style(composer.querySelector('.claudian-composer-editor')!).minHeight).toBe('48px');
+    expect(style(composer.querySelector('.scribe-composer-editor')!).minHeight).toBe('48px');
     expect(style(composer.querySelector('.cm-content')!).minHeight).toBe('48px');
   });
 
@@ -70,21 +70,21 @@ describe('Composer input styles', () => {
   });
 
   it('keeps the input box unfilled, as before the redesign, and sizes toolbar labels from it', () => {
-    const wrapper = style(renderComposer().querySelector('.claudian-input-wrapper')!);
+    const wrapper = style(renderComposer().querySelector('.scribe-input-wrapper')!);
     expect(['', 'rgba(0, 0, 0, 0)', 'transparent']).toContain(wrapper.getPropertyValue('background-color'));
     // The box, not the shrink-wrapped toolbar, is the size container for narrow-width labels.
     expect(wrapper.getPropertyValue('container-type')).toBe('inline-size');
   });
 
   it('shows the queued-message strip only while visible, as a cap on the input box', () => {
-    const strip = renderComposer().querySelector<HTMLElement>('.claudian-input-queue-strip')!;
+    const strip = renderComposer().querySelector<HTMLElement>('.scribe-input-queue-strip')!;
     expect(style(strip).display).toBe('none');
-    strip.classList.replace('claudian-hidden', 'claudian-visible-flex');
+    strip.classList.replace('scribe-hidden', 'scribe-visible-flex');
     expect(style(strip).display).toBe('flex');
     // jsdom does not compute border longhands, so read the strip's own declaration.
     const rule = Array.from(document.head.querySelector('style')!.sheet!.cssRules)
       .find((candidate): candidate is CSSStyleRule => (
-        candidate instanceof CSSStyleRule && candidate.selectorText === '.claudian-input-queue-strip'
+        candidate instanceof CSSStyleRule && candidate.selectorText === '.scribe-input-queue-strip'
       ))!;
     expect(rule.style.getPropertyValue('border-bottom')).toBe('1px solid var(--background-modifier-border)');
   });
@@ -94,15 +94,15 @@ describe('Composer input styles', () => {
     const rules = Array.from(document.head.querySelector('style')!.sheet!.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule);
     for (const control of [
-      'claudian-input-info-linked-main',
-      'claudian-input-info-linked-remove',
-      'claudian-queue-indicator-action',
-      'claudian-queue-indicator-icon-action',
+      'scribe-input-info-linked-main',
+      'scribe-input-info-linked-remove',
+      'scribe-queue-indicator-action',
+      'scribe-queue-indicator-icon-action',
     ]) {
       const outline = rules
         .filter(rule => rule.selectorText.split(',').some(selector => (
           selector.includes(':focus-visible')
-          && (selector.includes(control) || selector.includes('.claudian-input-info-linked > button:focus-visible'))
+          && (selector.includes(control) || selector.includes('.scribe-input-info-linked > button:focus-visible'))
         )))
         .map(rule => rule.style.getPropertyValue('outline'))
         .find(Boolean);
@@ -112,15 +112,15 @@ describe('Composer input styles', () => {
 
   it('pushes the permission control to the far end of the toolbar, its menu opening end-aligned', () => {
     const composer = renderComposer();
-    const anchor = composer.querySelector('.claudian-permission-toggle')!;
+    const anchor = composer.querySelector('.scribe-permission-toggle')!;
     expect(style(anchor).getPropertyValue('margin-inline-start')).toBe('auto');
-    const popover = style(anchor.querySelector('.claudian-toolbar-popover')!);
+    const popover = style(anchor.querySelector('.scribe-toolbar-popover')!);
     expect([popover.getPropertyValue('inset-inline-start'), popover.getPropertyValue('inset-inline-end')]).toEqual(['auto', '0']);
   });
 
   it('keeps the info row borderless', () => {
     const composer = renderComposer();
-    const row = composer.querySelector<HTMLElement>('.claudian-input-info-row')!;
+    const row = composer.querySelector<HTMLElement>('.scribe-input-info-row')!;
     expect(style(row).display).toBe('flex');
     expect(style(row).borderStyle).toBe('');
   });

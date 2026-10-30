@@ -264,7 +264,7 @@ export class MessageRenderer {
   }
 
   getMessageContentEl(messageId: string): HTMLElement | null {
-    return this.findMessageEl(messageId)?.querySelector<HTMLElement>('.claudian-message-content') ?? null;
+    return this.findMessageEl(messageId)?.querySelector<HTMLElement>('.scribe-message-content') ?? null;
   }
 
   removeMessage(messageId: string): void {
@@ -404,9 +404,9 @@ export class MessageRenderer {
   }
 
   #createEarlierControl(): HTMLElement {
-    const control = this.messagesEl.createDiv({ cls: 'claudian-earlier-messages' });
+    const control = this.messagesEl.createDiv({ cls: 'scribe-earlier-messages' });
     const button = control.createEl('button', {
-      cls: 'claudian-earlier-messages-btn', text: t('chat.showEarlierMessages'), attr: { type: 'button' },
+      cls: 'scribe-earlier-messages-btn', text: t('chat.showEarlierMessages'), attr: { type: 'button' },
     });
     button.addEventListener('click', () => this.revealEarlierMessages());
     return control;
@@ -496,7 +496,7 @@ export class MessageRenderer {
     if (msg.sessionMessage) {
       const { from, sessionId } = msg.sessionMessage;
       // Only the session name is the link; the label stays plain text beside it.
-      const senderEl = contentEl.createDiv({ cls: 'claudian-session-message-sender' });
+      const senderEl = contentEl.createDiv({ cls: 'scribe-session-message-sender' });
       senderEl.createSpan({ text: t('chat.sessionMessage.fromLabel') });
       createSessionLink(senderEl, { sessionId, text: from });
     }
@@ -507,21 +507,21 @@ export class MessageRenderer {
 
   #createMessageEl(msg: ChatMessage): { msgEl: HTMLElement; contentEl: HTMLElement } {
     const msgEl = this.messagesEl.createDiv({
-      cls: `claudian-message claudian-message-${msg.role}`,
+      cls: `scribe-message scribe-message-${msg.role}`,
       attr: {
         'data-message-id': msg.id,
         'data-role': msg.role,
       },
     });
     this.messageEls.set(msg.id, msgEl);
-    const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
+    const contentEl = msgEl.createDiv({ cls: 'scribe-message-content', attr: { dir: 'auto' } });
     return { msgEl, contentEl };
   }
 
   /** Reparents completed output without replacing live tool or Markdown elements. */
   finalizeResponse(msg: ChatMessage, messages: ChatMessage[], collapse = true, index?: number): void {
     const msgEl = this.findMessageEl(msg.id);
-    const contentEl = msgEl?.querySelector<HTMLElement>('.claudian-message-content');
+    const contentEl = msgEl?.querySelector<HTMLElement>('.scribe-message-content');
     if (!msgEl || !contentEl) return;
     const finalized = this.#finalizer.finalize(msgEl, contentEl, msg, messages, collapse, index);
     if (finalized === null) return;
@@ -549,13 +549,13 @@ export class MessageRenderer {
   }
 
   #renderInterruptMessage(): void {
-    const msgEl = this.messagesEl.createDiv({ cls: 'claudian-message claudian-message-assistant' });
-    const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
+    const msgEl = this.messagesEl.createDiv({ cls: 'scribe-message scribe-message-assistant' });
+    const contentEl = msgEl.createDiv({ cls: 'scribe-message-content', attr: { dir: 'auto' } });
     this.appendInterruptIndicator(contentEl);
   }
 
   appendInterruptIndicator(contentEl: HTMLElement): void {
-    appendInterruptLabel(markResponseElement(contentEl.createDiv({ cls: 'claudian-text-block' }), 'interrupt'));
+    appendInterruptLabel(markResponseElement(contentEl.createDiv({ cls: 'scribe-text-block' }), 'interrupt'));
   }
 
   renderTaskNotification(contentEl: HTMLElement, content: string): void {
@@ -595,8 +595,8 @@ export class MessageRenderer {
         } else if (block.type === 'task_notification') {
           this.#finalizer.renderTaskNotification(contentEl, block.content);
         } else if (block.type === 'context_compacted') {
-          const boundaryEl = contentEl.createDiv({ cls: 'claudian-compact-boundary' });
-          boundaryEl.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Conversation compacted' });
+          const boundaryEl = contentEl.createDiv({ cls: 'scribe-compact-boundary' });
+          boundaryEl.createSpan({ cls: 'scribe-compact-boundary-label', text: t('chat.compacted') });
         } else if (block.type === 'subagent') {
           const taskToolCall = msg.toolCalls?.find((toolCall) => {
             if (toolCall.id !== block.subagentId) return false;
@@ -755,13 +755,13 @@ export class MessageRenderer {
 
   /** Renders image attachments above a message; each opens a full-size preview. */
   #renderMessageImages(images: ImageAttachment[]): HTMLElement {
-    const imagesEl = this.messagesEl.createDiv({ cls: 'claudian-message-images' });
+    const imagesEl = this.messagesEl.createDiv({ cls: 'scribe-message-images' });
 
     for (const image of images) {
       const imageWrapper = imagesEl.createEl('button', {
-        cls: 'claudian-message-image',
+        cls: 'scribe-message-image',
         attr: {
-          'aria-label': `Preview ${image.name}`,
+          'aria-label': t('chat.displayFeedback.previewImage', { name: image.name }),
           type: 'button',
         },
       });

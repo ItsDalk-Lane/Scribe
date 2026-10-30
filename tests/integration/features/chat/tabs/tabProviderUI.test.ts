@@ -2,7 +2,7 @@ import '@/providers';
 
 import { createTabSession } from '@test/helpers/ConversationPorts';
 
-import type { ClaudianSettings, UsageInfo } from '@/core/types';
+import type { ScribeSettings, UsageInfo } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { refreshTabContextUsage } from '@/features/chat/tabs/tabProviderUI';
 import type { AssembledTabRuntime } from '@/features/chat/tabs/types';
@@ -33,7 +33,7 @@ function createTab(model: string, customContextLimits: Record<string, number>, u
       model,
       customContextLimits,
       providerConfigs: { claude: { enabled: true, discoveredModels: [], visibleModels: [] } },
-    } as unknown as ClaudianSettings,
+    } as unknown as ScribeSettings,
   } as ChatFeatureHost;
   return { tab, plugin, update };
 }

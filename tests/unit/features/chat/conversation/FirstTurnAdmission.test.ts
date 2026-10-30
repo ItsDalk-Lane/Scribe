@@ -290,7 +290,7 @@ it('does not steer Linked content captured while the first turn resolves session
   const turn = deferred<{ accepted: boolean; status: string }>();
   fixture.coordinator.execute.mockReturnValueOnce(turn.promise);
 
-  const first = fixture.controller.sendMessage({ content: 'Use @[Source](claudian-session:conv-1-source)' });
+  const first = fixture.controller.sendMessage({ content: 'Use @[Source](scribe-session:conv-1-source)' });
   await waitForCall(fixture.plugin.getConversationById);
   await fixture.controller.sendMessage({ content: 'steered follow-up' });
   source.resolve({

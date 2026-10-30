@@ -209,8 +209,8 @@ describe('provider settings controls', () => {
       'validate:/invalid/provider',
     ]);
     expect(control.validationEl.textContent).toBe('Invalid path');
-    expect(control.validationEl.classList.contains('claudian-hidden')).toBe(false);
-    expect(text.inputEl.classList.contains('claudian-input-error')).toBe(true);
+    expect(control.validationEl.classList.contains('scribe-hidden')).toBe(false);
+    expect(text.inputEl.classList.contains('scribe-input-error')).toBe(true);
   });
 
   it('supports disabled CLI controls and dynamic presentation updates', async () => {

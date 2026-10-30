@@ -35,16 +35,16 @@ export class NavigationSidebar {
     /** Includes unrendered prompts; choosing an entry reveals only the needed transcript window. */
     private readonly getDirectoryEntries?: () => readonly ConversationDirectoryEntry[],
   ) {
-    this.container = this.parentEl.createDiv({ cls: 'claudian-nav-sidebar' });
+    this.container = this.parentEl.createDiv({ cls: 'scribe-nav-sidebar' });
 
     try {
       // Create buttons
-      this.topBtn = this.#createButton('claudian-nav-btn-top', 'chevrons-up', t('chat.navigation.scrollToTop'));
-      this.prevBtn = this.#createButton('claudian-nav-btn-prev', 'chevron-up', t('chat.navigation.previousMessage'));
-      this.tocBtn = this.#createButton('claudian-nav-btn-toc', 'list-tree', t('chat.navigation.directory'));
+      this.topBtn = this.#createButton('scribe-nav-btn-top', 'chevrons-up', t('chat.navigation.scrollToTop'));
+      this.prevBtn = this.#createButton('scribe-nav-btn-prev', 'chevron-up', t('chat.navigation.previousMessage'));
+      this.tocBtn = this.#createButton('scribe-nav-btn-toc', 'list-tree', t('chat.navigation.directory'));
       this.tocBtn.setAttribute('aria-expanded', 'false');
-      this.nextBtn = this.#createButton('claudian-nav-btn-next', 'chevron-down', t('chat.navigation.nextMessage'));
-      this.bottomBtn = this.#createButton('claudian-nav-btn-bottom', 'chevrons-down', t('chat.navigation.scrollToBottom'));
+      this.nextBtn = this.#createButton('scribe-nav-btn-next', 'chevron-down', t('chat.navigation.nextMessage'));
+      this.bottomBtn = this.#createButton('scribe-nav-btn-bottom', 'chevrons-down', t('chat.navigation.scrollToBottom'));
 
       this.#setupEventListeners();
       this.#applyVisibility();
@@ -56,7 +56,7 @@ export class NavigationSidebar {
 
   #createButton(cls: string, icon: string, label: string): HTMLButtonElement {
     const btn = this.container.createEl('button', {
-      cls: `claudian-nav-btn ${cls}`,
+      cls: `scribe-nav-btn ${cls}`,
       attr: { type: 'button', 'aria-label': label },
     });
     setIcon(btn, icon);
@@ -136,7 +136,7 @@ export class NavigationSidebar {
   #applyVisibility(): void {
     const { scrollHeight, clientHeight } = this.messagesEl;
     const isScrollable = scrollHeight > clientHeight + 50; // Small buffer
-    this.tocBtn.classList.remove('claudian-hidden');
+    this.tocBtn.classList.remove('scribe-hidden');
     if (this.isVisible === isScrollable) return;
     this.isVisible = isScrollable;
     this.container.classList.toggle('visible', isScrollable);
@@ -159,7 +159,7 @@ export class NavigationSidebar {
     if (this.#isDirectoryMessageElement(node)) return true;
     const candidate = node as { querySelector?: (selector: string) => Element | null };
     return typeof candidate.querySelector === 'function'
-      && candidate.querySelector('.claudian-message-user, [data-role="user"]') !== null;
+      && candidate.querySelector('.scribe-message-user, [data-role="user"]') !== null;
   }
 
   #isDirectoryMessageElement(node: Node): boolean {
@@ -169,9 +169,9 @@ export class NavigationSidebar {
       getAttribute?: (name: string) => string | null;
     };
     if (typeof candidate.matches === 'function') {
-      return candidate.matches('.claudian-message-user, [data-role="user"]');
+      return candidate.matches('.scribe-message-user, [data-role="user"]');
     }
-    return candidate.classList?.contains?.('claudian-message-user') === true
+    return candidate.classList?.contains?.('scribe-message-user') === true
       || candidate.getAttribute?.('data-role') === 'user';
   }
 
@@ -187,13 +187,13 @@ export class NavigationSidebar {
     const entries = this.getDirectoryEntries?.() ?? getRenderedConversationDirectory(this.messagesEl);
     this.#closeDirectory();
     this.tocBtn.setAttribute('aria-expanded', 'true');
-    this.tocPopover = this.parentEl.createDiv({ cls: 'claudian-nav-toc-popover' });
-    this.tocPopover.createDiv({ cls: 'claudian-nav-toc-title', text: t('chat.navigation.directory') });
-    const listEl = this.tocPopover.createDiv({ cls: 'claudian-nav-toc-list' });
+    this.tocPopover = this.parentEl.createDiv({ cls: 'scribe-nav-toc-popover' });
+    this.tocPopover.createDiv({ cls: 'scribe-nav-toc-title', text: t('chat.navigation.directory') });
+    const listEl = this.tocPopover.createDiv({ cls: 'scribe-nav-toc-list' });
 
     if (entries.length === 0) {
       listEl.createDiv({
-        cls: 'claudian-nav-toc-empty',
+        cls: 'scribe-nav-toc-empty',
         text: t('chat.navigation.emptyDirectory'),
       });
       return;
@@ -201,7 +201,7 @@ export class NavigationSidebar {
 
     entries.forEach((entry, index) => {
       const itemEl = listEl.createEl('button', {
-        cls: 'claudian-nav-toc-item',
+        cls: 'scribe-nav-toc-item',
         text: `${index + 1}. ${entry.title}`,
         attr: { type: 'button', title: entry.title },
       });
@@ -237,7 +237,7 @@ export class NavigationSidebar {
    * Scrolls to previous or next user message, skipping assistant messages.
    */
   #scrollToMessage(direction: 'prev' | 'next'): void {
-    const messages = Array.from(this.messagesEl.querySelectorAll<HTMLElement>('.claudian-message-user'));
+    const messages = Array.from(this.messagesEl.querySelectorAll<HTMLElement>('.scribe-message-user'));
 
     if (messages.length === 0) return;
 

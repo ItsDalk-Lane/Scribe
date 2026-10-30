@@ -65,7 +65,7 @@ implements GrokExecutionNativeConnection {
       output: this.process.stdin,
     });
     this.connection = new ACPClientConnection({
-      clientInfo: { name: 'claudian', version: options.version },
+      clientInfo: { name: 'scribe', version: options.version },
       delegate: {
         onSessionNotification: notification => this.notify(notification, 'standard'),
         requestPermission: request => options.requestPermission(request),
@@ -102,7 +102,7 @@ implements GrokExecutionNativeConnection {
       // Grok fails open on callback errors, even during cancellation.
       this.unsubscribers.push(this.transport.onRequest(method, () => ({
         decision: 'deny',
-        systemMessage: 'Plan mode is unavailable in Claudian. Continue in normal mode.',
+        systemMessage: 'Plan mode is unavailable in Scribe. Continue in normal mode.',
       })));
     }
     for (const method of GROK_EXTENSION_NOTIFICATION_METHODS) {
@@ -251,7 +251,7 @@ function withPlanModeHooks(meta: Record<string, unknown> | null | undefined): Re
     'x.ai/hooks': {
       PreToolUse: [{
         matcher: '^(enter_plan_mode|exit_plan_mode)$',
-        hookCallbackIds: ['claudian-block-plan'],
+        hookCallbackIds: ['scribe-block-plan'],
       }],
     },
   };

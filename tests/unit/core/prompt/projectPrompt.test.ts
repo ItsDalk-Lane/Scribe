@@ -1,12 +1,12 @@
 import { renderProjectMemberInstructions } from '@/core/prompt/projectPrompt';
 
-const MEMORY_PATH = '.claudian/projects/alpha-beta/MEMORY.md';
+const MEMORY_PATH = '.scribe/projects/alpha-beta/MEMORY.md';
 
 // Expected text is the v2 project prompt with name, instructions and memory path substituted.
 const MEMBER_TEXT = [
   '## Project',
   '',
-  'This session is a member of the Claudian project **Alpha & Beta**. A project is a group of sessions working toward one goal.',
+  'This session is a member of the Scribe project **Alpha & Beta**. A project is a group of sessions working toward one goal.',
   '',
   '### Project Instructions',
   '',
@@ -16,7 +16,7 @@ const MEMBER_TEXT = [
   '',
   '### Project Memory',
   '',
-  '`.claudian/projects/alpha-beta/MEMORY.md` (Vault-relative) is the project\'s shared memory file. Read it first and use it to guide your work and to assess whether the work meets the intended outcome. Treat the user\'s latest instructions as authoritative.',
+  '`.scribe/projects/alpha-beta/MEMORY.md` (Vault-relative) is the project\'s shared memory file. Read it first and use it to guide your work and to assess whether the work meets the intended outcome. Treat the user\'s latest instructions as authoritative.',
   '',
   'Keep it current as the user clarifies their intent: the project\'s goal, expected behavior, scope, constraints, acceptance criteria, and unresolved questions. Keep it concise. Distinguish explicit requirements from assumptions.',
   '',
@@ -28,9 +28,9 @@ const MEMBER_TEXT = [
   '',
   '### Working With Other Sessions',
   '',
-  '- When asked to find or check on other sessions in this project, use `claudian_list_destinations` with `project: true`, and `claudian_read_session` to read one.',
-  '- When asked to hand off, delegate, or coordinate work, use `claudian_send_message`. Messages must be self-contained; the recipient cannot see this conversation.',
-  '- Sessions you start with `claudian_send_message` join this project.',
+  '- When asked to find or check on other sessions in this project, use `scribe_list_destinations` with `project: true`, and `scribe_read_session` to read one.',
+  '- When asked to hand off, delegate, or coordinate work, use `scribe_send_message`. Messages must be self-contained; the recipient cannot see this conversation.',
+  '- Sessions you start with `scribe_send_message` join this project.',
   ].join('\n');
 
 describe('project prompt renderers', () => {

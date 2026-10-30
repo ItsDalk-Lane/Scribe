@@ -128,7 +128,7 @@ it.each([true, false])('retires the process when a native fork never settles ins
   try {
     const lease = await deepseek.attach();
     vi.useFakeTimers({ toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
-    // Without the plugin the unfinished fork could still persist an orphan after Claudian reported it failed.
+    // Without the plugin the unfinished fork could still persist an orphan after Scribe reported it failed.
     const hung = lease.fork({ sessionId: 'saved', atSeq: 1 }, ready);
     const queued = lease.fork({ sessionId: 'saved', atSeq: 1 }, false);
     const settled = vi.fn();
@@ -208,7 +208,7 @@ it.each([true, false])('hands out ephemeral identities only from a process whose
   try {
     const lease = await deepseek.attach();
     const mint = (): string => { try { return lease.ephemeralSessionId(); } catch (error) { return `refused: ${(error as Error).message}`; } };
-    expect(mint()).toMatch(ready ? /^claudian-ephemeral-[0-9a-f-]{36}$/ : /^refused: DeepSeek cannot keep this session ephemeral/);
+    expect(mint()).toMatch(ready ? /^scribe-ephemeral-[0-9a-f-]{36}$/ : /^refused: DeepSeek cannot keep this session ephemeral/);
     lease.release();
   } finally { await deepseek.dispose(); }
 });

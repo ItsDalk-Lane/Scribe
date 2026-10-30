@@ -15,7 +15,7 @@ process.on('SIGTERM', signal => {
 });
 const mode = process.env.FAKE_DSH_MODE;
 const patch = JSON.parse(readFileSync(args[args.indexOf('--patch') + 1], 'utf8'));
-const lifecycle = patch.find(entry => entry.insert).insert.find(plugin => plugin.id === 'claudian-lifecycle');
+const lifecycle = patch.find(entry => entry.insert).insert.find(plugin => plugin.id === 'scribe-lifecycle');
 // `untethered` stands in for a Host whose lifecycle plugin never ends it.
 if (mode !== 'untethered') (await import(pathToFileURL(lifecycle.name).href)).apply();
 if (mode === 'exit') {

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 describe('Tool renderer hover tooltips', () => {
-  it.each(['claudian-tool-header', 'claudian-write-edit-header'])('suppresses Obsidian tooltips on %s', (className) => {
+  it.each(['scribe-tool-header', 'scribe-write-edit-header'])('suppresses Obsidian tooltips on %s', (className) => {
     const style = document.createElement('style');
     style.textContent = readFileSync(path.resolve('src/style/components/toolcalls.css'), 'utf8');
     document.head.appendChild(style);
@@ -28,7 +28,7 @@ describe('Session message tool card', () => {
     style.textContent = readFileSync(path.resolve('src/style/components/toolcalls.css'), 'utf8');
     document.head.appendChild(style);
     const message = document.createElement('div');
-    message.className = 'claudian-session-tool-message';
+    message.className = 'scribe-session-tool-message';
     document.body.appendChild(message);
 
     try {

@@ -157,7 +157,7 @@ it.each([false, true])('updates an open command menu while preserving focus and 
     expect(subscriptionSignals.at(-1)!.aborted).toBe(true);
     await Promise.all(subscriptions);
     activeTabId = tab.id;
-    container.removeClass('claudian-hidden');
+    container.removeClass('scribe-hidden');
     fireEvent.input(input, { target: { value: '/' } });
     await waitFor(() => expect(ui.getByRole('option', { name: /after-transition/ })).toBeTruthy());
     // Tab release must stop observation even before the presentation finishes its teardown.

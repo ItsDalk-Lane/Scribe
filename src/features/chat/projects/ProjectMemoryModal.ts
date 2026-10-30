@@ -61,26 +61,26 @@ export class ProjectMemoryModal extends Modal {
   }
 
   onOpen(): void {
-    this.modalEl.addClass('claudian-project-memory-modal');
+    this.modalEl.addClass('scribe-project-memory-modal');
     this.renderHeader();
 
-    this.noticeEl = this.contentEl.createDiv({ cls: 'claudian-project-memory-notice' });
-    this.missingEl = this.contentEl.createDiv({ cls: 'claudian-project-memory-missing' });
+    this.noticeEl = this.contentEl.createDiv({ cls: 'scribe-project-memory-notice' });
+    this.missingEl = this.contentEl.createDiv({ cls: 'scribe-project-memory-missing' });
     // The rendered view and the editor share one display area; its corner holds the switch between them.
-    const body = this.contentEl.createDiv({ cls: 'claudian-project-memory-body' });
+    const body = this.contentEl.createDiv({ cls: 'scribe-project-memory-body' });
     this.previewEl = body.createDiv({
-      cls: 'claudian-project-memory-preview markdown-rendered',
+      cls: 'scribe-project-memory-preview markdown-rendered',
       attr: { tabindex: '0' },
     });
     this.previewEl.addEventListener('click', event => this.editAtHeading(event));
     // An aria-label would surface as an Obsidian hover tooltip; the modal title names the editor instead.
     this.contentArea = body.createEl('textarea', {
-      cls: 'claudian-project-memory-content',
+      cls: 'scribe-project-memory-content',
       attr: { spellcheck: 'false', 'aria-labelledby': this.titleTextEl.id },
     });
     this.contentArea.addEventListener('input', () => this.sync());
     this.modeButton = body.createEl('button', {
-      cls: 'claudian-project-memory-icon-btn claudian-project-memory-mode',
+      cls: 'scribe-project-memory-icon-btn scribe-project-memory-mode',
       attr: { type: 'button' },
     });
     this.modeButton.addEventListener('click', () => this.setEditing(!this.editing));
@@ -123,15 +123,15 @@ export class ProjectMemoryModal extends Modal {
 
   private renderHeader(): void {
     this.titleEl.empty();
-    this.titleEl.addClass('claudian-project-memory-title');
+    this.titleEl.addClass('scribe-project-memory-title');
     this.titleTextEl = this.titleEl.createSpan({
-      cls: 'claudian-project-memory-title-text',
+      cls: 'scribe-project-memory-title-text',
       text: t('chat.projects.memory.title', { name: this.options.project.name }),
     });
-    this.titleTextEl.id = `claudian-project-memory-title-${++nextTitleId}`;
+    this.titleTextEl.id = `scribe-project-memory-title-${++nextTitleId}`;
     this.modalEl.setAttribute('aria-labelledby', this.titleTextEl.id);
     this.dirtyMarkEl = this.titleTextEl.createSpan({
-      cls: 'claudian-project-memory-dirty',
+      cls: 'scribe-project-memory-dirty',
       text: ' •',
       attr: { 'aria-hidden': 'true' },
     });
@@ -139,26 +139,26 @@ export class ProjectMemoryModal extends Modal {
     // Obsidian's close button joins the title row and takes the look of the panel's icon buttons.
     const closeButton = this.modalEl.querySelector<HTMLElement>('.modal-close-button');
     if (closeButton) {
-      closeButton.addClass('claudian-project-memory-icon-btn');
+      closeButton.addClass('scribe-project-memory-icon-btn');
       this.titleEl.appendChild(closeButton);
     }
   }
 
   private renderFooter(): void {
-    const footer = this.contentEl.createDiv({ cls: 'claudian-project-memory-footer' });
-    const info = footer.createDiv({ cls: 'claudian-project-memory-info' });
-    info.createEl('code', { cls: 'claudian-project-memory-path-value', text: this.options.project.memoryPath });
-    this.updatedEl = info.createSpan({ cls: 'claudian-project-memory-updated' });
+    const footer = this.contentEl.createDiv({ cls: 'scribe-project-memory-footer' });
+    const info = footer.createDiv({ cls: 'scribe-project-memory-info' });
+    info.createEl('code', { cls: 'scribe-project-memory-path-value', text: this.options.project.memoryPath });
+    this.updatedEl = info.createSpan({ cls: 'scribe-project-memory-updated' });
 
-    const actions = footer.createDiv({ cls: 'claudian-project-modal-actions' });
+    const actions = footer.createDiv({ cls: 'scribe-project-modal-actions' });
     this.cancelButton = actions.createEl('button', {
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
       text: t('common.cancel'),
       attr: { type: 'button' },
     });
     this.cancelButton.addEventListener('click', () => { void this.cancelEdits(); });
     this.saveButton = actions.createEl('button', {
-      cls: 'claudian-save-btn mod-cta',
+      cls: 'scribe-save-btn mod-cta',
       text: t('common.save'),
       attr: { type: 'button' },
     });
@@ -222,7 +222,7 @@ export class ProjectMemoryModal extends Modal {
       target.setText(markdown);
     });
     if (!hasBody(markdown)) {
-      this.previewEl.createEl('p', { cls: 'claudian-project-memory-empty', text: t('chat.projects.memory.emptyHint') });
+      this.previewEl.createEl('p', { cls: 'scribe-project-memory-empty', text: t('chat.projects.memory.emptyHint') });
     }
   }
 
@@ -395,15 +395,15 @@ export class ProjectMemoryModal extends Modal {
 
   private clearNotice(): void {
     this.noticeEl.empty();
-    this.noticeEl.removeClass('claudian-project-memory-notice--visible');
+    this.noticeEl.removeClass('scribe-project-memory-notice--visible');
   }
 
   private showNotice(message: string, role: 'status' | 'alert' = 'status'): HTMLElement {
     this.clearNotice();
-    this.noticeEl.addClass('claudian-project-memory-notice--visible');
-    const messageEl = this.noticeEl.createEl('p', { cls: 'claudian-project-memory-notice-text', text: message });
+    this.noticeEl.addClass('scribe-project-memory-notice--visible');
+    const messageEl = this.noticeEl.createEl('p', { cls: 'scribe-project-memory-notice-text', text: message });
     messageEl.setAttribute('role', role);
-    return this.noticeEl.createDiv({ cls: 'claudian-project-memory-notice-actions' });
+    return this.noticeEl.createDiv({ cls: 'scribe-project-memory-notice-actions' });
   }
 
   /** The missing file takes the content's place, with the way to bring it back. */

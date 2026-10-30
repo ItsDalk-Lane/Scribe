@@ -11,13 +11,13 @@ export class ModeSelector {
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks, menuGroup?: ToolbarMenuGroup) {
     this.callbacks = callbacks;
     this.menu = new ToolbarMenu(parentEl, {
-      anchorCls: 'claudian-mode-selector',
+      anchorCls: 'scribe-mode-selector',
       menuLabel: 'Mode',
       closeOnSelect: true,
       group: menuGroup,
       onOpen: () => this.updateDisplay(),
     });
-    this.labelEl = this.menu.createChipPart('claudian-toolbar-chip-primary claudian-mode-label');
+    this.labelEl = this.menu.createChipPart('scribe-toolbar-chip-primary scribe-mode-label');
     this.updateDisplay();
   }
 
@@ -37,18 +37,18 @@ export class ModeSelector {
     const selectorConfig = this.#getSelectorConfig();
     if (!selectorConfig || selectorConfig.options.length !== 2) {
       this.menu.close(false);
-      this.menu.anchorEl.addClass('claudian-hidden');
+      this.menu.anchorEl.addClass('scribe-hidden');
       return;
     }
 
-    this.menu.anchorEl.removeClass('claudian-hidden');
+    this.menu.anchorEl.removeClass('scribe-hidden');
     const active = this.#resolveActiveOption(selectorConfig);
     const currentOption = selectorConfig.options.find((option) => option.value === selectorConfig.value)
       ?? selectorConfig.options[0];
     const currentLabel = currentOption.label || selectorConfig.label;
 
     this.labelEl.setText(currentLabel);
-    this.menu.buttonEl.toggleClass('claudian-toolbar-chip--accent', currentOption.value === active.value);
+    this.menu.buttonEl.toggleClass('scribe-toolbar-chip--accent', currentOption.value === active.value);
     this.menu.buttonEl.setAttribute('aria-label', `${selectorConfig.label}: ${currentLabel}`);
     this.menu.menuEl.setAttribute('aria-label', selectorConfig.label);
 

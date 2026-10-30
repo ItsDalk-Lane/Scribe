@@ -31,7 +31,7 @@ beforeEach(async () => {
     handles.push(handle);
     return handle;
   });
-  root = await fs.mkdtemp(path.join(tmpdir(), 'claudian-recovery-lines-'));
+  root = await fs.mkdtemp(path.join(tmpdir(), 'scribe-recovery-lines-'));
   project = path.join(root, 'projects', encodeVaultPathForSDK(vault));
   await fs.mkdir(project, { recursive: true });
 });

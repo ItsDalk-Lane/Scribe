@@ -8,8 +8,8 @@ import { Prec, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { axe } from '@test/helpers/accessibility';
 import { claudeCatalogFixture } from '@test/helpers/claudeModels';
-import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
 import { createProjectsFake } from '@test/helpers/features/chat/ProjectsFake';
+import { createScribeView } from '@test/helpers/features/chat/ScribeViewHarness';
 import { installSessionRuntimePool } from '@test/helpers/features/chat/SessionRuntimePoolHarness';
 import { FakeSideBackend } from '@test/helpers/features/chat/SideChatSessionHarness';
 import { testDate } from '@test/helpers/testClock';
@@ -21,7 +21,7 @@ import type { ProviderCommandDiscoveryResult } from '@/core/providers/commands/P
 import { ProviderCommandDiscoveryStore } from '@/core/providers/commands/ProviderCommandDiscoveryStore';
 import type { ProviderCommandEntry } from '@/core/providers/commands/ProviderCommandEntry';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
-import { type ChatMessage, type ClaudianSettings, type Conversation, isCanonicalUserMessage } from '@/core/types';
+import { type ChatMessage, type Conversation, isCanonicalUserMessage,type ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { PromptHistoryNavigation } from '@/features/chat/composer/PromptHistoryNavigation';
 import { activateTab, destroyTab } from '@/features/chat/tabs/TabLifecycle';
@@ -71,7 +71,7 @@ async function createView(provisional = false, options: { managed?: boolean; dra
     providerConfigs: { claude: {
       ...claudeCatalogFixture(['claude-sonnet-4-5'], ['low', 'high']), promptSuggestions: true,
     } },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const conversation = {
     id: 'conversation-1', providerId: 'claude', selectedModel: 'claude-sonnet-4-5',
     sessionId: 'main-session', messages: [], title: 'Existing conversation',
@@ -94,14 +94,14 @@ async function createView(provisional = false, options: { managed?: boolean; dra
       persistExecutionSnapshot: async (...args: unknown[]) => { saved.push(structuredClone(args)); return true; },
       recordConversationActivity: async () => {},
     },
-    getSessionSnapshotDirectory: () => '/tmp/claudian-sessions', getCommittedSettings: () => settings,
+    getSessionSnapshotDirectory: () => '/tmp/scribe-sessions', getCommittedSettings: () => settings,
     getActiveEnvironmentVariables: () => '', getConversationSummary: (id: string) => conversations.get(id),
     projects: createProjectsFake(),
     getConversationSync: (id: string) => conversations.get(id), getCachedConversation: (id: string) => conversations.get(id),
     getConversationById: async (id: string) => conversations.get(id), findConversationAcrossViews: () => null,
     getConversationList: () => [conversation], renameConversation: async () => {},
     updateConversation: async (_id: string, patch: unknown) => { saved.push(structuredClone(patch)); },
-    mutateSettings: async (mutate: (value: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (value: ScribeSettings) => void) => mutate(settings),
     chatModelSelection: { beginIntent: () => 1, commitIntent: async () => true },
   } as unknown as ChatFeatureHost;
   const pool = installSessionRuntimePool(plugin);
@@ -120,7 +120,7 @@ async function createView(provisional = false, options: { managed?: boolean; dra
     await tab.executionCoordinator.prepare();
   }
   vi.spyOn(tab.dom.messagesEl, 'getClientRects').mockImplementation(() =>
-    (tab.dom.contentEl.classList.contains('claudian-hidden') ? [] : [{}]) as unknown as DOMRectList);
+    (tab.dom.contentEl.classList.contains('scribe-hidden') ? [] : [{}]) as unknown as DOMRectList);
   activateTab(tab);
   tab.dom.inputEl.focus();
   return { get tab() { return manager?.getActiveTab() ?? tab; }, backend, saved, conversation, manager, plugin,
@@ -213,7 +213,7 @@ it.each([false, true])('restores history before the actual View Scope consumes E
     expect(view.tab.dom.inputEl.value).toBe(busy ? 'Running prompt' : 'Previous prompt');
     const native = view.backend.latest;
     const cancellations = native.cancelCalls;
-    const root = createClaudianView({ host: view.plugin, containerEl: view.tab.dom.contentEl,
+    const root = createScribeView({ host: view.plugin, containerEl: view.tab.dom.contentEl,
       contentEl: view.tab.dom.contentEl, tabManager: { getActiveTab: () => view.tab } });
     root.wireEventHandlers();
     const handler = root.scope.handlers.find((entry: { key: string }) => entry.key === 'Escape');
@@ -620,12 +620,12 @@ it('updates the actual Side draft preview on recall and draft restoration withou
   try {
     view.tab.state.messages = [user('side-preview', '/side Explore another approach')];
     key(view, 'ArrowUp');
-    expect(view.tab.dom.inputWrapper.classList.contains('claudian-input-side-chat-preview')).toBe(true);
+    expect(view.tab.dom.inputWrapper.classList.contains('scribe-input-side-chat-preview')).toBe(true);
     expect(view.tab.controllers.sideChatController.runtime).toBeNull();
     expect(view.backend.sessions).toHaveLength(1);
     key(view, 'ArrowDown');
     expect(view.tab.dom.inputEl.value).toBe('');
-    expect(view.tab.dom.inputWrapper.classList.contains('claudian-input-side-chat-preview')).toBe(false);
+    expect(view.tab.dom.inputWrapper.classList.contains('scribe-input-side-chat-preview')).toBe(false);
     expect(view.tab.controllers.sideChatController.runtime).toBeNull();
   } finally { await view.dispose(); }
 });

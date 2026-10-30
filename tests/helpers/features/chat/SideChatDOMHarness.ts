@@ -86,11 +86,11 @@ export function createHarness(options: {
   } as unknown as ProviderRegistration);
 
   const composerEl = document.body.appendChild(document.createElement('div'));
-  composerEl.className = 'claudian-input-composer';
+  composerEl.className = 'scribe-input-composer';
   const inputContainerEl = composerEl.appendChild(document.createElement('div'));
-  inputContainerEl.className = 'claudian-input-container';
+  inputContainerEl.className = 'scribe-input-container';
   const inputWrapperEl = inputContainerEl.appendChild(document.createElement('div'));
-  inputWrapperEl.className = 'claudian-input-wrapper';
+  inputWrapperEl.className = 'scribe-input-wrapper';
   const inputEl = inputWrapperEl.appendChild(document.createElement('textarea'));
   inputEl.placeholder = 'Ask to make changes';
 

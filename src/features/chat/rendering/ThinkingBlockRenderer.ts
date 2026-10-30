@@ -26,11 +26,11 @@ interface ThinkingBlockElements {
 }
 
 function createThinkingBlockElements(parentEl: HTMLElement, label: string, content = ''): ThinkingBlockElements {
-  const wrapperEl = parentEl.createDiv({ cls: 'claudian-thinking-block' });
-  const headerEl = wrapperEl.createDiv({ cls: 'claudian-thinking-header' });
-  const labelEl = headerEl.createSpan({ cls: 'claudian-thinking-label' });
+  const wrapperEl = parentEl.createDiv({ cls: 'scribe-thinking-block' });
+  const headerEl = wrapperEl.createDiv({ cls: 'scribe-thinking-header' });
+  const labelEl = headerEl.createSpan({ cls: 'scribe-thinking-label' });
   labelEl.setText(label);
-  const contentEl = wrapperEl.createDiv({ cls: 'claudian-thinking-content', text: content });
+  const contentEl = wrapperEl.createDiv({ cls: 'scribe-thinking-content', text: content });
   return { wrapperEl, headerEl, labelEl, contentEl };
 }
 
@@ -85,7 +85,7 @@ export function finalizeThinkingBlock(
   state.labelEl.setText(t('chat.thinking.completed', { seconds: durationSeconds }));
 
   // Collapse when done and sync state
-  const header = state.wrapperEl.querySelector('.claudian-thinking-header');
+  const header = state.wrapperEl.querySelector('.scribe-thinking-header');
   if (header) {
     collapseElement(state.wrapperEl, header as HTMLElement, state.contentEl, state);
   }

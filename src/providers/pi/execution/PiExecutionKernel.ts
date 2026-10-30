@@ -67,7 +67,7 @@ export class PiRPCSessionKernel implements PiExecutionKernel {
   ) {
     let processSpec = launchSpec;
     if (launchSpec.enableTreeBridge || launchSpec.enableSessionTools) {
-      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-pi-extensions-'));
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-pi-extensions-'));
       try {
         const args = [...launchSpec.args];
         for (const [name, enabled, source] of [
@@ -143,7 +143,7 @@ export class PiRPCSessionKernel implements PiExecutionKernel {
     signal?: AbortSignal,
   ): Promise<T> {
     if (type === 'abort') this.#clearSessionTools();
-    if (type === 'claudian_tree') {
+    if (type === 'scribe_tree') {
       return requestPiTree(this.#requireTransport(), payload, signal) as Promise<T>;
     }
     return this.#requireTransport().request(type, payload, timeoutMs, signal);

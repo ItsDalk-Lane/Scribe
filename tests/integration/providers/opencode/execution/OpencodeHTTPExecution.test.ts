@@ -319,7 +319,7 @@ process.stdin.resume(); process.stdin.on('end', () => server.close());
 `;
 
 function createFixture(resume = false, approval?: (signal: AbortSignal) => Promise<void>, environmentVariables = '', resolveAnswers?: (questions: unknown) => AskUserAnswers) {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-execution-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-http-execution-')));
   const cliPath = path.join(root, 'opencode.cjs');
   writeFileSync(cliPath, fixture, { mode: 0o700 });
   const plugin: any = {
@@ -445,7 +445,7 @@ it('rejects compact arguments unsupported by the native endpoint', async () => {
 });
 
 it('cancels native compaction, declines steering, and can continue the session', async () => {
-  const started = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-compact-'))), 'started');
+  const started = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-http-compact-'))), 'started');
   const f = createFixture(true, undefined, `COMPACT_STARTED_FILE=${started}`);
   try {
     const run = f.session.execute(request('/compact'));
@@ -548,7 +548,7 @@ it('uses HTTP for v2 commands, waits for execution completion, and answers nativ
 });
 
 it('reads turn statistics from the newest native page without fetching older history', async () => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-history-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-http-history-')));
   const log = path.join(root, 'requests');
   // More earlier history than one native page can hold.
   const f = createFixture(false, undefined, `SEED_HISTORY=450\nREQUEST_LOG=${log}`);
@@ -568,7 +568,7 @@ it.each([
   // Statistics die with the stream, and the next turn must reopen the native runtime.
   ['the native event stream closes', 'CLOSE_EVENTS_ON_HOLD=1', () => undefined, {}, 'invalidated'],
 ] as const)('keeps native completion when %s while turn statistics load', async (_, environment, interrupt, stats, status) => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-history-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-http-history-')));
   const hold = path.join(root, 'history'), log = path.join(root, 'requests');
   const f = createFixture(false, undefined, `HOLD_HISTORY=${hold}\nREQUEST_LOG=${log}\n${environment}`);
   try {
@@ -636,7 +636,7 @@ it('interrupts HTTP execution and continues the same native session on the next 
 });
 
 it('keeps a turn cancelled during configuration from changing the next turn approval policy', async () => {
-  const hold = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-hold-'))), 'model');
+  const hold = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-http-hold-'))), 'model');
   const f = createFixture(false, undefined, `HOLD_SECOND_MODEL=${hold}`);
   try {
     for await (const event of f.session.execute(request()).events) void event;
@@ -1168,7 +1168,7 @@ it('requires replaying recovered context before compacting a replacement native 
 
 
 it.each([0, 150])('recalls a queued compact before continuing after cancellation (admission delay: %s)', async delay => {
-  const queued = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-queued-compact-'))), 'queued');
+  const queued = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-queued-compact-'))), 'queued');
   const f = createFixture(true, undefined, `COMPACT_QUEUED_FILE=${queued}\nCOMPACT_ADMISSION_DELAY=${delay}`);
   try {
     const run = f.session.execute(request('/compact'));

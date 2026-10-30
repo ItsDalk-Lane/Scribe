@@ -19,13 +19,13 @@ import type {
 } from '@/core/execution';
 import { isSteerableExecutionSession } from '@/core/execution';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import { CodexConversationHistoryService } from '@/providers/codex/history/CodexConversationHistoryService';
 import { createCodexPathMapper } from '@/providers/codex/runtime/CodexPathMapper';
 
 /** The backend resolves its runtime per session; tests pin one instance. */
 const fixedRuntime = (runtime: CodexAppServerRuntime) => (): CodexAppServerRuntime => runtime;
-type MutableTestHost = ProviderHost & { settings: ClaudianSettings };
+type MutableTestHost = ProviderHost & { settings: ScribeSettings };
 
 const mockTransportRequest = vi.fn();
 const mockTransportNotify = vi.fn();
@@ -1962,7 +1962,7 @@ describe('CodexExecutionBackend', () => {
   });
 
   it('keeps an orphaned transcript from an older missing-thread reset when the next send starts a thread', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'claudian-codex-orphan-'));
+    const root = mkdtempSync(join(tmpdir(), 'scribe-codex-orphan-'));
     const sessions = join(root, 'sessions', '2026', '03', '27');
     mkdirSync(sessions, { recursive: true });
     const rollout = (threadId: string, question: string, answer: string) => [
@@ -2600,7 +2600,7 @@ describe('CodexExecutionBackend', () => {
     let probes: MockInstance[];
 
     beforeEach(() => {
-      codexHome = mkdtempSync(join(tmpdir(), 'claudian-codex-home-'));
+      codexHome = mkdtempSync(join(tmpdir(), 'scribe-codex-home-'));
       sessionsRoot = join(codexHome, 'sessions');
       mkdirSync(join(sessionsRoot, 'nested'), { recursive: true });
       probes = [
@@ -2782,7 +2782,7 @@ describe('CodexExecutionBackend', () => {
     expect(mockTransportRequest).toHaveBeenCalledWith('thread/resume', expect.objectContaining({
       threadId: 'thread-fork',
       experimentalRawEvents: true,
-      baseInstructions: expect.stringContaining('predates Claudian client-hosted workspace dependency tools'),
+      baseInstructions: expect.stringContaining('predates Scribe client-hosted workspace dependency tools'),
     }));
 
     const forkedSnapshot = session.getSnapshot();

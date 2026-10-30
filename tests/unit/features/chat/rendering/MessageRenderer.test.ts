@@ -113,9 +113,9 @@ describe('MessageRenderer', () => {
 
     expect(emptySpy).toHaveBeenCalled();
     expect(renderStoredSpy).toHaveBeenCalledTimes(1);
-    expect(welcomeEl.hasClass('claudian-welcome')).toBe(true);
-    expect(welcomeEl.children[0].hasClass('claudian-welcome-brand')).toBe(true);
-    expect(welcomeEl.children[0].textContent).toBe('Claudian');
+    expect(welcomeEl.hasClass('scribe-welcome')).toBe(true);
+    expect(welcomeEl.children[0].hasClass('scribe-welcome-brand')).toBe(true);
+    expect(welcomeEl.children[0].textContent).toBe('Scribe');
     expect(welcomeEl.children[1].textContent).toBe('Hello');
   });
 
@@ -126,7 +126,7 @@ describe('MessageRenderer', () => {
     const welcomeEl = renderer.renderMessages([], () => 'Welcome!');
 
     expect(renderStoredSpy).not.toHaveBeenCalled();
-    expect(welcomeEl.hasClass('claudian-welcome')).toBe(true);
+    expect(welcomeEl.hasClass('scribe-welcome')).toBe(true);
   });
 
   // ============================================
@@ -151,12 +151,12 @@ describe('MessageRenderer', () => {
     // Should create assistant-style message with interrupt content
     expect(messagesEl.children.length).toBe(1);
     const msgEl = messagesEl.children[0];
-    expect(msgEl.hasClass('claudian-message-assistant')).toBe(true);
+    expect(msgEl.hasClass('scribe-message-assistant')).toBe(true);
     // Check the content contains interrupt styling
     const contentEl = msgEl.children[0];
     const textEl = contentEl.children[0];
     const interruptedEl = textEl.children[0];
-    expect(interruptedEl.hasClass('claudian-interrupted')).toBe(true);
+    expect(interruptedEl.hasClass('scribe-interrupted')).toBe(true);
     expect(interruptedEl.textContent).toBe('Interrupted');
   });
 
@@ -173,7 +173,7 @@ describe('MessageRenderer', () => {
     });
 
     const msgEl = messagesEl.children[0];
-    const timestampEl = msgEl.querySelector('.claudian-message-timestamp');
+    const timestampEl = msgEl.querySelector('.scribe-message-timestamp');
     expect(timestampEl).toBeTruthy();
     expect(timestampEl.textContent).toBe(new Date(timestamp).toLocaleTimeString(undefined, {
       hour: '2-digit',
@@ -195,7 +195,7 @@ describe('MessageRenderer', () => {
     });
 
     const msgEl = messagesEl.children[0];
-    expect(msgEl.querySelector('.claudian-message-timestamp')).toBeNull();
+    expect(msgEl.querySelector('.scribe-message-timestamp')).toBeNull();
   });
 
   it('renders persisted citation content blocks', () => {
@@ -243,10 +243,10 @@ describe('MessageRenderer', () => {
     // Should create a bare interrupt marker (same as Claude-style)
     expect(messagesEl.children.length).toBe(1);
     const msgEl = messagesEl.children[0];
-    expect(msgEl.hasClass('claudian-message-assistant')).toBe(true);
+    expect(msgEl.hasClass('scribe-message-assistant')).toBe(true);
     const contentEl = msgEl.children[0];
     const textEl = contentEl.children[0];
-    expect(textEl.children[0].hasClass('claudian-interrupted')).toBe(true);
+    expect(textEl.children[0].hasClass('scribe-interrupted')).toBe(true);
   });
 
   it('skips rebuilt context messages', () => {
@@ -282,7 +282,7 @@ describe('MessageRenderer', () => {
 
     expect(messagesEl.children.length).toBe(1);
     const msgEl = messagesEl.children[0];
-    expect(msgEl.hasClass('claudian-message-user')).toBe(true);
+    expect(msgEl.hasClass('scribe-message-user')).toBe(true);
   });
 
   it('renders user message with displayContent instead of content', () => {
@@ -335,10 +335,10 @@ describe('MessageRenderer', () => {
     renderer.renderStoredMessage(msg);
 
     // Images should still be rendered, but no message bubble
-    expect(messagesEl.querySelector('.claudian-message-image')?.children[0]).not.toBeNull();
+    expect(messagesEl.querySelector('.scribe-message-image')?.children[0]).not.toBeNull();
     // Only the images container, no message bubble
     const bubbles = messagesEl.children.filter(
-      (c: any) => c.hasClass('claudian-message')
+      (c: any) => c.hasClass('scribe-message')
     );
     expect(bubbles.length).toBe(0);
   });
@@ -362,7 +362,7 @@ describe('MessageRenderer', () => {
 
     renderer.renderStoredMessage(msg);
 
-    expect(messagesEl.querySelector('.claudian-message-image')?.children[0]?.getAttribute('src')).toBe('data:image/png;base64,base64data');
+    expect(messagesEl.querySelector('.scribe-message-image')?.children[0]?.getAttribute('src')).toBe('data:image/png;base64,base64data');
   });
 
   it('adds rewind but not fork for a completed first user message', () => {
@@ -386,8 +386,8 @@ describe('MessageRenderer', () => {
 
     renderer.renderStoredMessage(allMessages[0], allMessages, 0);
 
-    expect(messagesEl.querySelector('.claudian-message-rewind-btn')).not.toBeNull();
-    expect(messagesEl.querySelector('.claudian-message-fork-btn')).toBeNull();
+    expect(messagesEl.querySelector('.scribe-message-rewind-btn')).not.toBeNull();
+    expect(messagesEl.querySelector('.scribe-message-fork-btn')).toBeNull();
   });
 
   it('does not add a rewind button when stored render is called without context', () => {
@@ -406,7 +406,7 @@ describe('MessageRenderer', () => {
 
     renderer.renderStoredMessage(msg);
 
-    expect(messagesEl.querySelector('.claudian-message-rewind-btn')).toBeNull();
+    expect(messagesEl.querySelector('.scribe-message-rewind-btn')).toBeNull();
   });
 
   it('positions the rewind menu for pointer and keyboard activation', async () => {
@@ -432,7 +432,7 @@ describe('MessageRenderer', () => {
 
     renderer.refreshActionButtons(userMsg, allMessages, 1);
 
-    const btn = messagesEl.querySelector('.claudian-message-rewind-btn');
+    const btn = messagesEl.querySelector('.scribe-message-rewind-btn');
     expect(btn).not.toBeNull();
 
     const pointerEvent = {
@@ -496,8 +496,8 @@ describe('MessageRenderer', () => {
       { id: 'a1', role: 'assistant', content: 'response', timestamp: 2, assistantMessageId: 'resp-a' },
     ], 0);
 
-    expect(messagesEl.querySelector('.claudian-message-rewind-btn')).not.toBeNull();
-    expect(messagesEl.querySelector('.claudian-message-fork-btn')).toBeNull();
+    expect(messagesEl.querySelector('.scribe-message-rewind-btn')).not.toBeNull();
+    expect(messagesEl.querySelector('.scribe-message-fork-btn')).toBeNull();
   });
 
   // ============================================
@@ -1006,7 +1006,7 @@ describe('MessageRenderer', () => {
 
     const msgEl = renderer.addMessage(msg);
 
-    expect(msgEl.hasClass('claudian-message-user')).toBe(true);
+    expect(msgEl.hasClass('scribe-message-user')).toBe(true);
   });
 
   it('addMessage stores a truncated first-line table-of-contents title for user messages', () => {
@@ -1045,7 +1045,7 @@ describe('MessageRenderer', () => {
 
     renderer.addMessage(msg);
 
-    expect(messagesEl.querySelector('.claudian-message-image')?.children[0]?.getAttribute('src')).toBe('data:image/png;base64,base64data');
+    expect(messagesEl.querySelector('.scribe-message-image')?.children[0]?.getAttribute('src')).toBe('data:image/png;base64,base64data');
   });
 
   it('addMessage skips empty bubble for image-only user messages', () => {
@@ -1081,7 +1081,7 @@ describe('MessageRenderer', () => {
 
     const msgEl = renderer.addMessage(msg);
 
-    expect(msgEl.hasClass('claudian-message-assistant')).toBe(true);
+    expect(msgEl.hasClass('scribe-message-assistant')).toBe(true);
   });
 
   // ============================================
@@ -1102,8 +1102,8 @@ describe('MessageRenderer', () => {
     // Should create images container with 2 image wrappers
     expect(containerEl.children.length).toBe(1);
     const imagesContainer = containerEl.children[0];
-    expect(imagesContainer.hasClass('claudian-message-images')).toBe(true);
-    expect(imagesContainer.children.filter((child: any) => child.hasClass('claudian-message-image'))).toHaveLength(2);
+    expect(imagesContainer.hasClass('scribe-message-images')).toBe(true);
+    expect(imagesContainer.children.filter((child: any) => child.hasClass('scribe-message-image'))).toHaveLength(2);
   });
 
   it('renders the attachment data URI', () => {
@@ -1120,7 +1120,7 @@ describe('MessageRenderer', () => {
     };
 
     renderer.addMessage({ id: 'image-message', role: 'user', content: '', timestamp: Date.now(), images: [image] });
-    const imgEl = messagesEl.querySelector('.claudian-message-image')!.children[0];
+    const imgEl = messagesEl.querySelector('.scribe-message-image')!.children[0];
 
     expect(imgEl.getAttribute('src')).toBe('data:image/png;base64,abc123');
   });
@@ -1194,7 +1194,7 @@ describe('MessageRenderer', () => {
 
     renderer.renderMessages(messages, () => 'Hello');
 
-    const msgEl = messagesEl.querySelector('.claudian-message-user');
+    const msgEl = messagesEl.querySelector('.scribe-message-user');
     expect(msgEl?.getAttribute('data-toc-title')).toBe('Visible slash command');
   });
 
@@ -1394,7 +1394,7 @@ describe('MessageRenderer', () => {
       };
       renderer.addMessage({ id: 'u1', role: 'user', content: '', timestamp: Date.now(), images: [image] });
 
-      const previewButton = messagesEl.querySelector('.claudian-message-image')!;
+      const previewButton = messagesEl.querySelector('.scribe-message-image')!;
       const imgEl = previewButton.children[0];
       expect(previewButton.tagName).toBe('BUTTON');
       expect(previewButton.getAttribute('type')).toBe('button');
@@ -1410,7 +1410,7 @@ describe('MessageRenderer', () => {
       (globalThis as any).document = { body: mockBody, addEventListener: vi.fn(), removeEventListener: vi.fn() };
       try {
         previewButton.click();
-        expect(mockBody.createDiv).toHaveBeenCalledWith({ cls: 'claudian-image-modal-overlay' });
+        expect(mockBody.createDiv).toHaveBeenCalledWith({ cls: 'scribe-image-modal-overlay' });
 
         renderer.dispose();
         previewButton.click();

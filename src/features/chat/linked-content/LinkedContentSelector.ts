@@ -17,7 +17,7 @@ export interface LinkedContentSelectorOptions {
 let linkedContentSelectorSequence = 0;
 
 export class LinkedContentSelector {
-  private readonly prefixId = `claudian-linked-content-prefix-${++linkedContentSelectorSequence}`;
+  private readonly prefixId = `scribe-linked-content-prefix-${++linkedContentSelectorSequence}`;
   private selectorRow: HTMLElement | null = null;
   private selectorButton: HTMLButtonElement | null = null;
   private pickerEl: HTMLElement | null = null;
@@ -54,16 +54,16 @@ export class LinkedContentSelector {
   }
 
   #buildSelectorButton(): void {
-    this.selectorRow = this.mountEl.createDiv({ cls: 'claudian-linked-content-selector-row' });
-    const iconEl = this.selectorRow.createSpan({ cls: 'claudian-linked-content-selector-icon' });
+    this.selectorRow = this.mountEl.createDiv({ cls: 'scribe-linked-content-selector-row' });
+    const iconEl = this.selectorRow.createSpan({ cls: 'scribe-linked-content-selector-icon' });
     setIcon(iconEl, 'link');
     const prefixEl = this.selectorRow.createSpan({
-      cls: 'claudian-linked-content-selector-prefix',
+      cls: 'scribe-linked-content-selector-prefix',
       text: t('chat.linkedContent.label'),
     });
     prefixEl.setAttribute('id', this.prefixId);
     this.selectorButton = this.selectorRow.createEl('button', {
-      cls: 'claudian-linked-content-selector',
+      cls: 'scribe-linked-content-selector',
       attr: {
         type: 'button',
         'aria-haspopup': 'listbox',
@@ -93,7 +93,7 @@ export class LinkedContentSelector {
     this.selectorButton.setAttribute('aria-expanded', 'true');
     this.selectorRow.addClass('is-editing');
     this.searchInput = this.selectorRow.createEl('input', {
-      cls: 'claudian-linked-content-picker-search',
+      cls: 'scribe-linked-content-picker-search',
       attr: {
         type: 'text',
         'aria-labelledby': this.prefixId,
@@ -104,7 +104,7 @@ export class LinkedContentSelector {
     this.searchInput.addEventListener('keydown', this.handleSearchKeydown);
     this.#sizeSearchInputToSelector(selectorRect);
     this.pickerEl = this.mountEl.createDiv({
-      cls: 'claudian-composer-dropdown claudian-linked-content-picker',
+      cls: 'scribe-composer-dropdown scribe-linked-content-picker',
     });
     this.pickerEl.addEventListener('keydown', this.handlePickerBoundaryKeydown);
     this.pickerKeyTarget = this.mountEl.ownerDocument.defaultView;
@@ -188,13 +188,13 @@ export class LinkedContentSelector {
     if (!this.pickerEl) return;
     this.#clearPickerResults();
     this.#showPickerResults();
-    const listEl = this.pickerEl.createDiv({ cls: 'claudian-linked-content-picker-list' });
+    const listEl = this.pickerEl.createDiv({ cls: 'scribe-linked-content-picker-list' });
     listEl.setAttribute('role', 'listbox');
     listEl.setAttribute('aria-label', t('chat.linkedContent.choices'));
 
     if (this.filteredItems.length === 0) {
       listEl.createDiv({
-        cls: 'claudian-composer-dropdown-item is-empty claudian-linked-content-picker-empty',
+        cls: 'scribe-composer-dropdown-item is-empty scribe-linked-content-picker-empty',
         text: t('chat.linkedContent.noMatch'),
       });
       return;
@@ -202,7 +202,7 @@ export class LinkedContentSelector {
 
     this.filteredItems.forEach((item, index) => {
       const optionEl = listEl.createEl('button', {
-        cls: 'claudian-composer-dropdown-item claudian-linked-content-picker-option',
+        cls: 'scribe-composer-dropdown-item scribe-linked-content-picker-option',
         attr: {
           type: 'button',
           role: 'option',
@@ -212,18 +212,18 @@ export class LinkedContentSelector {
       });
       optionEl.toggleClass('is-selected', index === this.activeIndex);
       const iconEl = optionEl.createSpan({
-        cls: 'claudian-composer-dropdown-icon claudian-linked-content-picker-option-icon',
+        cls: 'scribe-composer-dropdown-icon scribe-linked-content-picker-option-icon',
       });
       setIcon(iconEl, item.icon);
       const textEl = optionEl.createSpan({
-        cls: 'claudian-composer-dropdown-copy claudian-linked-content-picker-option-text',
+        cls: 'scribe-composer-dropdown-copy scribe-linked-content-picker-option-text',
       });
       textEl.createSpan({
-        cls: 'claudian-composer-dropdown-label claudian-linked-content-picker-option-label',
+        cls: 'scribe-composer-dropdown-label scribe-linked-content-picker-option-label',
         text: item.label,
       });
       textEl.createSpan({
-        cls: 'claudian-composer-dropdown-detail claudian-linked-content-picker-option-path',
+        cls: 'scribe-composer-dropdown-detail scribe-linked-content-picker-option-path',
         text: item.detail,
       });
       const listener = (): void => this.select(item);
@@ -239,7 +239,7 @@ export class LinkedContentSelector {
     ) % this.filteredItems.length;
     this.#renderItems();
     const options = this.pickerEl?.querySelectorAll<HTMLElement>(
-      '.claudian-linked-content-picker-option',
+      '.scribe-linked-content-picker-option',
     );
     options?.[this.activeIndex]?.scrollIntoView({ block: 'nearest' });
   }
@@ -276,7 +276,7 @@ export class LinkedContentSelector {
   #clearPickerResults(): void {
     if (!this.pickerEl) return;
     this.#clearOptionListeners();
-    this.pickerEl.querySelector('.claudian-linked-content-picker-list')?.remove();
+    this.pickerEl.querySelector('.scribe-linked-content-picker-list')?.remove();
   }
 
   #closePicker(returnFocus: boolean): void {

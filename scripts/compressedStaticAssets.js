@@ -6,7 +6,7 @@ const {
 } = require('node:zlib');
 
 const localeFilter = /[\\/]src[\\/]i18n[\\/]locales[\\/][^\\/]+\.json$/;
-const localeCatalogSpecifier = 'claudian:compressed-locale-catalog';
+const localeCatalogSpecifier = 'scribe:compressed-locale-catalog';
 const localeCatalogNamespace = 'compressed-locale-catalog';
 
 function compress(contents, mode) {
@@ -24,7 +24,7 @@ function createCompressedStaticAssetsPlugin({ root = process.cwd() } = {}) {
   return {
     name: 'compressed-static-assets',
     setup(build) {
-      build.onResolve({ filter: /^claudian:compressed-locale-catalog$/ }, () => ({
+      build.onResolve({ filter: /^scribe:compressed-locale-catalog$/ }, () => ({
         namespace: localeCatalogNamespace,
         path: 'all',
       }));

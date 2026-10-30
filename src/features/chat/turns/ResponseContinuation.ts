@@ -130,6 +130,6 @@ export async function continueResponseAfterNotification(
   (host.streamState ?? host.state).response.messageId = continuation.id;
   const element = host.renderer?.addMessage(continuation);
   element?.parentElement?.querySelector(`[data-message-id="${preceding.id}"]`)?.after(element);
-  (host.streamState ?? host.state).currentContentEl = element?.querySelector<HTMLElement>('.claudian-message-content') ?? null;
+  (host.streamState ?? host.state).currentContentEl = element?.querySelector<HTMLElement>('.scribe-message-content') ?? null;
   return continuation;
 }

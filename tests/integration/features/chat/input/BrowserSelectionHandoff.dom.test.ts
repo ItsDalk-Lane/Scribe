@@ -25,7 +25,7 @@ Object.assign(HTMLElement.prototype, {
 let visibility: HTMLStyleElement;
 beforeEach(() => {
   visibility = document.head.appendChild(document.createElement('style'));
-  visibility.textContent = '.claudian-hidden { display: none; }';
+  visibility.textContent = '.scribe-hidden { display: none; }';
   const execute = FakeSession.prototype.execute;
   vi.spyOn(FakeSession.prototype, 'execute').mockImplementation(function (this: FakeSession, request) {
     const result = execute.call(this, request);
@@ -51,7 +51,7 @@ it.each([
   const sourceLeaf = { view: sourceView };
   const composer = document.body.createDiv();
   const input = composer.createEl('textarea', { attr: { 'aria-label': 'Message' } });
-  const ownLeaf = { view: { containerEl: composer, getViewType: () => 'claudian-view' } };
+  const ownLeaf = { view: { containerEl: composer, getViewType: () => 'scribe-view' } };
   let activeLeaf: { view: { containerEl: HTMLElement; getViewType: () => string } } = sourceLeaf;
   let sourceOpen = true;
   const app = { workspace: {
@@ -76,7 +76,7 @@ it.each([
     if (action === 'other composer') {
       const otherComposer = document.body.createDiv();
       otherComposer.createEl('textarea').focus();
-      activeLeaf = { view: { containerEl: otherComposer, getViewType: () => 'claudian-view' } };
+      activeLeaf = { view: { containerEl: otherComposer, getViewType: () => 'scribe-view' } };
     }
     if (action === 'source closed') { sourceOpen = false; source.remove(); }
     if (action === 'source replaced') sourceView.containerEl = document.body.createDiv();

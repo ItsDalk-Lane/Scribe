@@ -4,15 +4,15 @@ import { stringifyUnknown } from '@/utils/stringify';
 
 import { type PiRPCRecord, PiRPCResponseError, type PiRPCTransport } from './PiRPCTransport';
 
-export const PI_TREE_COMMAND = 'claudian-tree';
-const STATUS_PREFIX = 'claudian-tree:';
+export const PI_TREE_COMMAND = 'scribe-tree';
+const STATUS_PREFIX = 'scribe-tree:';
 
 /** Embedded extension; exceptional leaf restoration uses the hosting Pi SDK. */
 export const PI_TREE_EXTENSION_SOURCE = String.raw`
 export default function (pi) {
   let busy = false;
-  pi.registerCommand('claudian-tree', {
-    description: 'Internal Claudian conversation navigation',
+  pi.registerCommand('scribe-tree', {
+    description: 'Internal Scribe conversation navigation',
     handler: async (args, ctx) => {
       let request;
       let responseContext = ctx;
@@ -34,7 +34,7 @@ export default function (pi) {
           const expected = before ? entry.parentId : entry.id;
           if (request.operation === 'restore' && manager.getLeafId() === request.leafId) {
             // Preserve an incomplete turn at a directly navigable, context-free entry.
-            if (before && entry.id === request.leafId) pi.appendEntry('claudian-tree-anchor');
+            if (before && entry.id === request.leafId) pi.appendEntry('scribe-tree-anchor');
           } else {
             if (request.operation === 'restore' && expected !== request.leafId) {
               if (!before || request.leafId !== entry.id) throw new Error('Invalid Pi branch position');
@@ -46,7 +46,7 @@ export default function (pi) {
                 throw new Error('Pi session changed before branch restoration');
               }
               disk.branch(entry.id);
-              const anchorId = disk.appendCustomEntry('claudian-tree-anchor');
+              const anchorId = disk.appendCustomEntry('scribe-tree-anchor');
               reloadRequired = true;
               const result = await ctx.switchSession(request.sessionFile, {
                 withSession: async fresh => {
@@ -57,32 +57,32 @@ export default function (pi) {
                       throw new Error('Pi branch restoration was interrupted');
                     }
                   }
-                  fresh.ui.setStatus('claudian-tree:' + request.id, JSON.stringify({
+                  fresh.ui.setStatus('scribe-tree:' + request.id, JSON.stringify({
                     cancelled: false, leafId: anchorId,
                     sessionId: fresh.sessionManager.getSessionId(), sessionFile: fresh.sessionManager.getSessionFile()
                   }));
                 }
               });
-              if (result.cancelled) ctx.ui.setStatus('claudian-tree:' + request.id, JSON.stringify({ cancelled: true, reloadRequired: true }));
+              if (result.cancelled) ctx.ui.setStatus('scribe-tree:' + request.id, JSON.stringify({ cancelled: true, reloadRequired: true }));
               return;
             }
             // Native navigateTree is a no-op when its target is the current leaf.
-            if (before && manager.getLeafId() === entry.id) pi.appendEntry('claudian-tree-anchor');
+            if (before && manager.getLeafId() === entry.id) pi.appendEntry('scribe-tree-anchor');
             const result = await ctx.navigateTree(request.targetId, { summarize: false });
             if (result.cancelled) {
-              ctx.ui.setStatus('claudian-tree:' + request.id, JSON.stringify({ cancelled: true }));
+              ctx.ui.setStatus('scribe-tree:' + request.id, JSON.stringify({ cancelled: true }));
               return;
             }
             if (manager.getLeafId() !== expected) throw new Error('Pi branch position changed during navigation');
           }
         }
-        ctx.ui.setStatus('claudian-tree:' + request.id, JSON.stringify({
+        ctx.ui.setStatus('scribe-tree:' + request.id, JSON.stringify({
           cancelled: false, leafId: manager.getLeafId(),
           sessionId: manager.getSessionId(), sessionFile: manager.getSessionFile()
         }));
       } catch (error) {
         if (request && typeof request.id === 'string') {
-          responseContext.ui.setStatus('claudian-tree:' + request.id, JSON.stringify({ error: String(error.message || error), uncertain: reloadRequired }));
+          responseContext.ui.setStatus('scribe-tree:' + request.id, JSON.stringify({ error: String(error.message || error), uncertain: reloadRequired }));
         }
       } finally {
         if (acquired) busy = false;
@@ -105,7 +105,7 @@ export async function requestPiTree(
 ): Promise<unknown> {
   const catalog = await transport.request<{ commands?: Array<{ name: string }> }>('get_commands', {}, 10_000, signal);
   if (!catalog.commands?.some(command => command.name === PI_TREE_COMMAND)) {
-    throw new PiRPCResponseError('claudian_tree', 'Pi conversation branching extension is unavailable.');
+    throw new PiRPCResponseError('scribe_tree', 'Pi conversation branching extension is unavailable.');
   }
   const id = randomUUID();
   return new Promise((resolve, reject) => {
@@ -128,7 +128,7 @@ export async function requestPiTree(
         if (!result || typeof result !== 'object') throw new Error('Invalid Pi tree response');
         if ('error' in result && result.error) {
           if ('uncertain' in result && result.uncertain) throw new Error(stringifyUnknown(result.error), { cause: result.error });
-          throw new PiRPCResponseError('claudian_tree', stringifyUnknown(result.error));
+          throw new PiRPCResponseError('scribe_tree', stringifyUnknown(result.error));
         }
         cleanup();
         resolve(result);

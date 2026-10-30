@@ -8,7 +8,7 @@ import {
 import { normalizePiToolName } from '@/providers/pi/normalization/piToolNormalization';
 
 describe('Pi event normalization', () => {
-  it.each(['claudian_list_destinations', 'claudian_send_message'])('preserves the session tool name and native payload: %s', name => {
+  it.each(['scribe_list_destinations', 'scribe_send_message'])('preserves the session tool name and native payload: %s', name => {
     expect(normalizePiRPCEvent({ type: 'tool_execution_start', toolCallId: 'call', toolName: name, args: {} }, createPiEventNormalizationState()))
       .toEqual([{ type: 'tool_use', id: 'call', name, input: {}, providerPayload: { rawName: name } }]);
   });

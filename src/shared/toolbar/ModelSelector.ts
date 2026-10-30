@@ -1,4 +1,5 @@
 import type { ProviderUIOption } from '@/core/providers/types';
+import { t } from '@/i18n/i18n';
 import { createProviderIconSvg } from '@/shared/icons';
 import { nextToolbarId, runToolbarAction, ToolbarMenu, type ToolbarMenuGroup } from '@/shared/toolbar/ToolbarMenu';
 import type { ModelPickerCallbacks } from '@/shared/toolbar/types';
@@ -47,9 +48,9 @@ export class ModelSelector {
   ) {
     this.callbacks = callbacks;
     this.menu = new ToolbarMenu(parentEl, {
-      anchorCls: 'claudian-toolbar-chip-anchor--model claudian-model-selector',
-      buttonCls: 'claudian-model-btn',
-      menuLabel: 'Model options',
+      anchorCls: 'scribe-toolbar-chip-anchor--model scribe-model-selector',
+      buttonCls: 'scribe-model-btn',
+      menuLabel: t('toolbar.model.options'),
       popupRole: 'dialog',
       closeOnSelect: false,
       group: menuGroup,
@@ -61,17 +62,17 @@ export class ModelSelector {
         for (const refresh of this.partRefreshers) refresh();
       },
     });
-    this.menu.menuEl.addClass('claudian-model-popover');
-    this.iconSlotEl = this.menu.createChipPart('claudian-toolbar-chip-icon');
-    this.labelEl = this.menu.createChipPart('claudian-toolbar-chip-primary claudian-model-label');
+    this.menu.menuEl.addClass('scribe-model-popover');
+    this.iconSlotEl = this.menu.createChipPart('scribe-toolbar-chip-icon');
+    this.labelEl = this.menu.createChipPart('scribe-toolbar-chip-primary scribe-model-label');
     this.providersEl = this.menu.menuEl.createDiv({
-      cls: 'claudian-model-column claudian-model-providers',
-      attr: { role: 'tablist', 'aria-label': 'Provider', 'aria-orientation': 'vertical' },
+      cls: 'scribe-model-column scribe-model-providers',
+      attr: { role: 'tablist', 'aria-label': t('toolbar.model.provider'), 'aria-orientation': 'vertical' },
     });
     this.optionsEl = this.menu.menuEl.createDiv({
-      cls: 'claudian-model-column claudian-model-options',
+      cls: 'scribe-model-column scribe-model-options',
     });
-    this.partsEl = this.menu.menuEl.createDiv({ cls: 'claudian-model-column claudian-model-parts claudian-hidden' });
+    this.partsEl = this.menu.menuEl.createDiv({ cls: 'scribe-model-column scribe-model-parts scribe-hidden' });
     this.updateDisplay();
     this.renderOptions();
   }
@@ -80,15 +81,15 @@ export class ModelSelector {
   attachPart(key: string, chipCls: string, refresh: () => void): ModelMenuPart {
     this.partRefreshers.push(refresh);
     this.partDescriptions.set(key, null);
-    const sectionEl = this.partsEl.createDiv({ cls: 'claudian-toolbar-popover-section claudian-hidden' });
+    const sectionEl = this.partsEl.createDiv({ cls: 'scribe-toolbar-popover-section scribe-hidden' });
     return {
       chipEl: this.menu.createChipPart(chipCls),
       sectionEl,
       menu: this.menu,
       showSection: (visible) => {
-        sectionEl.toggleClass('claudian-hidden', !visible);
-        const anyVisible = Array.from(this.partsEl.children).some(el => !el.hasClass('claudian-hidden'));
-        this.partsEl.toggleClass('claudian-hidden', !anyVisible);
+        sectionEl.toggleClass('scribe-hidden', !visible);
+        const anyVisible = Array.from(this.partsEl.children).some(el => !el.hasClass('scribe-hidden'));
+        this.partsEl.toggleClass('scribe-hidden', !anyVisible);
       },
       describe: (text) => {
         this.partDescriptions.set(key, text);
@@ -117,6 +118,8 @@ export class ModelSelector {
   }
 
   updateDisplay() {
+    this.menu.menuEl.setAttribute('aria-label', t('toolbar.model.options'));
+    this.providersEl.setAttribute('aria-label', t('toolbar.model.provider'));
     const currentModel = this.callbacks.getSettings().model;
     const models = this.#getAvailableModels();
     const modelInfo = models.find(m => m.value === currentModel);
@@ -128,17 +131,17 @@ export class ModelSelector {
     this.iconSlotEl.empty();
     if (icon) {
       createProviderIconSvg(icon, {
-        className: 'claudian-model-provider-icon',
+        className: 'scribe-model-provider-icon',
         height: 12,
         parent: this.iconSlotEl,
         width: 12,
       });
     }
-    const label = modelInfo?.label || (currentModel ? 'Model unavailable' : 'Set up models');
+    const label = modelInfo?.label || (currentModel ? t('toolbar.model.unavailable') : t('toolbar.model.setup'));
     this.labelEl.setText(label);
-    this.modelDescription = modelInfo ? `Model: ${label}` : label;
+    this.modelDescription = modelInfo ? t('toolbar.model.label', { model: label }) : label;
     this.#updateAccessibleName();
-    this.menu.buttonEl.title = modelInfo ? '' : 'Choose an enabled model in provider settings. If discovery failed, refresh the model list.';
+    this.menu.buttonEl.title = modelInfo ? '' : t('toolbar.model.choose');
   }
 
   renderOptions() {
@@ -161,18 +164,18 @@ export class ModelSelector {
 
     this.optionsEl.empty();
     const headingId = nextToolbarId('heading');
-    this.optionsEl.createDiv({ cls: 'claudian-toolbar-popover-heading', text: 'Model', attr: { id: headingId } });
+    this.optionsEl.createDiv({ cls: 'scribe-toolbar-popover-heading', text: t('toolbar.model.heading'), attr: { id: headingId } });
     if (!models.length) {
       this.optionsEl.createDiv({
-        cls: 'claudian-toolbar-popover-empty',
-        text: 'No models available. Check provider settings and refresh the model list if discovery failed.',
+        cls: 'scribe-toolbar-popover-empty',
+        text: t('toolbar.model.empty'),
         attr: { role: 'status' },
       });
     }
 
     const listEl = models.length
       ? this.optionsEl.createDiv({
-        cls: 'claudian-model-list',
+        cls: 'scribe-model-list',
         attr: { id: this.listId, role: 'listbox', 'aria-labelledby': headingId },
       })
       : null;
@@ -185,11 +188,11 @@ export class ModelSelector {
       if (model.group && model.group !== lastGroup) {
         const groupHeadingId = nextToolbarId('heading');
         groupEl = listEl.createDiv({
-          cls: 'claudian-toolbar-popover-group',
+          cls: 'scribe-toolbar-popover-group',
           attr: { role: 'group', 'aria-labelledby': groupHeadingId },
         });
         groupEl.createDiv({
-          cls: 'claudian-toolbar-popover-heading claudian-model-group',
+          cls: 'scribe-toolbar-popover-heading scribe-model-group',
           text: model.group,
           attr: { id: groupHeadingId },
         });
@@ -205,7 +208,7 @@ export class ModelSelector {
         tabbable: hasSelection ? selected : index === 0,
         label: model.label,
         detail: model.description,
-        cls: 'claudian-model-option',
+        cls: 'scribe-model-option',
         title: model.description,
         showCheck: true,
         onSelect: () => {
@@ -213,11 +216,11 @@ export class ModelSelector {
             await this.callbacks.onModelChange(model.value);
             this.updateDisplay();
             this.renderOptions();
-          }, 'Failed to change model');
+          }, t('toolbar.model.changeFailed'));
         },
       });
       // The model's name is the option's name; its title already carries the description.
-      itemEl.querySelector('.claudian-toolbar-popover-option-detail')?.setAttribute('aria-hidden', 'true');
+      itemEl.querySelector('.scribe-toolbar-popover-option-detail')?.setAttribute('aria-hidden', 'true');
     }
     this.menu.restoreFocus();
   }
@@ -229,7 +232,7 @@ export class ModelSelector {
   #setShowsCurrentModel(shows: boolean): void {
     if (shows) this.partsEl.removeAttribute('inert');
     else this.partsEl.setAttribute('inert', '');
-    this.partsEl.toggleClass('claudian-model-parts--inert', !shows);
+    this.partsEl.toggleClass('scribe-model-parts--inert', !shows);
     if (shows === this.#showsCurrentModel) return;
     this.#showsCurrentModel = shows;
     for (const refresh of this.partRefreshers) refresh();
@@ -238,7 +241,7 @@ export class ModelSelector {
   /** One icon tab per provider, each named by its provider's display name. */
   #renderProviders(providers: ReadonlyMap<string, ProviderUIOption>): void {
     this.providersEl.empty();
-    this.providersEl.toggleClass('claudian-hidden', providers.size === 0);
+    this.providersEl.toggleClass('scribe-hidden', providers.size === 0);
     for (const [providerId, model] of providers) {
       const selected = providerId === this.#browsedProviderId;
       const name = model.providerLabel ?? providerId;
@@ -248,7 +251,7 @@ export class ModelSelector {
         checked: selected,
         tabbable: selected,
         label: name,
-        cls: 'claudian-model-provider-tab',
+        cls: 'scribe-model-provider-tab',
         title: name,
         onSelect: () => {
           if (this.#browsedProviderId === providerId) return;
@@ -261,11 +264,11 @@ export class ModelSelector {
       tabEl.setAttribute('aria-label', name);
       tabEl.setAttribute('aria-controls', this.listId);
       tabEl.dataset.provider = providerId;
-      const iconEl = tabEl.createSpan({ cls: 'claudian-model-provider-tile' });
+      const iconEl = tabEl.createSpan({ cls: 'scribe-model-provider-tile' });
       const icon = model.providerIcon ?? this.callbacks.getUIConfig().getProviderIcon?.();
       if (icon) {
         createProviderIconSvg(icon, {
-          className: 'claudian-model-provider-icon',
+          className: 'scribe-model-provider-icon',
           height: 13,
           parent: iconEl,
           width: 13,

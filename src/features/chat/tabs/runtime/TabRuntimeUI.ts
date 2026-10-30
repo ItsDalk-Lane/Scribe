@@ -40,6 +40,7 @@ import type {
   ProviderCatalogInfo,
   TabUIComponents,
 } from '@/features/chat/tabs/types';
+import { t } from '@/i18n/i18n';
 import { getProviderPickerModelOptions } from '@/shared/toolbar/providerPickerModelOptions';
 
 function buildContextManagers(
@@ -114,7 +115,7 @@ function buildInputToolbar(
   const { dom } = core;
   const { plugin } = options;
 
-  const inputToolbar = dom.inputWrapper.createDiv({ cls: 'claudian-input-toolbar' });
+  const inputToolbar = dom.inputWrapper.createDiv({ cls: 'scribe-input-toolbar' });
 
   const blankTabUIConfigProxy = (): ProviderChatUIConfig => {
     const baseConfig = getSessionChatUIConfig(core, plugin);
@@ -200,7 +201,7 @@ function buildInputToolbar(
       if (sideChat) {
         // Enabled-model checks still apply; a side selection never substitutes one.
         if (getEnabledProviderForModel(model, plugin.settings) !== sideChat.runtime?.providerId) {
-          new Notice('Cannot switch provider inside a side chat.');
+          new Notice(t('chat.notices.sideProviderSwitch'));
           tab.ui.modelSelector.updateDisplay();
           return;
         }
@@ -216,7 +217,7 @@ function buildInputToolbar(
           plugin.settings,
         );
         if (!newProvider) {
-          new Notice('Select an available model in Claudian settings.');
+          new Notice(t('chat.notices.selectAvailableModel'));
           tab.ui.modelSelector.updateDisplay();
           return;
         }
@@ -265,7 +266,7 @@ function buildInputToolbar(
       const boundProvider = tab.providerId;
       const modelProvider = getProviderForModel(model, plugin.settings);
       if (!boundProvider || modelProvider !== boundProvider) {
-        new Notice('Cannot switch provider on a bound session. Start a new conversation instead.');
+        new Notice(t('chat.notices.boundProviderSwitch'));
         tab.ui.modelSelector.updateDisplay();
         return;
       }
@@ -323,7 +324,7 @@ function buildInputToolbar(
       const tab = runtimeRef.requirePublished();
       if (getSelectedSideChat()) {
         // Mode selection is provider-owned UI state that side chat does not project.
-        new Notice('Mode selection applies to the main chat.');
+        new Notice(t('chat.notices.mainChatMode'));
         tab.ui.modeSelector.updateDisplay();
         return;
       }

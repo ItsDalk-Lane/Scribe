@@ -29,7 +29,7 @@ function mount(scrollable: boolean) {
   const parentEl = document.body.createDiv();
   const messagesEl = parentEl.createDiv();
   for (const title of ['First question', 'Second question']) {
-    messagesEl.createDiv({ cls: 'claudian-message claudian-message-user', attr: { 'data-toc-title': title } });
+    messagesEl.createDiv({ cls: 'scribe-message scribe-message-user', attr: { 'data-toc-title': title } });
   }
   Object.defineProperty(messagesEl, 'scrollHeight', { configurable: true, value: scrollable ? 2_000 : 400 });
   Object.defineProperty(messagesEl, 'clientHeight', { configurable: true, value: 400 });
@@ -57,7 +57,7 @@ it('localizes the named navigation controls and the directory in the selected lo
 
   // External geometry the owner must target; jsdom lays nothing out.
   const [firstMessage, secondMessage] = Array.from(
-    messagesEl.querySelectorAll<HTMLElement>('.claudian-message-user'),
+    messagesEl.querySelectorAll<HTMLElement>('.scribe-message-user'),
   );
   Object.defineProperty(firstMessage, 'offsetTop', { configurable: true, value: 600 });
   Object.defineProperty(secondMessage, 'offsetTop', { configurable: true, value: 1_200 });
@@ -112,7 +112,7 @@ it('renders the localized empty directory state once the messages are cleared', 
   // The entry query addresses live entries while they exist.
   expect(view.getByRole('button', { name: '1. First question' })).toBeTruthy();
 
-  for (const message of Array.from(messagesEl.querySelectorAll('.claudian-message-user'))) {
+  for (const message of Array.from(messagesEl.querySelectorAll('.scribe-message-user'))) {
     message.remove();
   }
 
@@ -177,8 +177,8 @@ const directoryTitleCases = [
 ] as const;
 
 function addUserPrompt(messagesEl: HTMLElement, rawText: string): HTMLElement {
-  const msgEl = messagesEl.createDiv({ cls: 'claudian-message claudian-message-user' });
-  msgEl.createDiv({ cls: 'claudian-message-content', text: rawText });
+  const msgEl = messagesEl.createDiv({ cls: 'scribe-message scribe-message-user' });
+  msgEl.createDiv({ cls: 'scribe-message-content', text: rawText });
   return msgEl;
 }
 

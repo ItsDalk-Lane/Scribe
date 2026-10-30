@@ -28,7 +28,7 @@ describe('CodexConversationHistoryService', () => {
   let tempHome: string;
 
   beforeEach(() => {
-    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-codex-home-'));
+    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-codex-home-'));
     homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome);
   });
 

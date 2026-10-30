@@ -23,7 +23,7 @@ describe('OpencodePaths', () => {
 
   it('uses the home data directory on Windows even when AppData paths are available', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
-    const home = path.join(os.tmpdir(), 'claudian-opencode-home');
+    const home = path.join(os.tmpdir(), 'scribe-opencode-home');
     const env = {
       APPDATA: path.join(home, 'AppData', 'Roaming'),
       HOME: home,
@@ -37,11 +37,11 @@ describe('OpencodePaths', () => {
 
   it('preserves XDG_DATA_HOME and OPENCODE_DB precedence on Windows', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
-    const xdgDataHome = path.join(os.tmpdir(), 'claudian-opencode-xdg');
-    const absoluteDatabasePath = path.join(os.tmpdir(), 'claudian-opencode-custom.db');
+    const xdgDataHome = path.join(os.tmpdir(), 'scribe-opencode-xdg');
+    const absoluteDatabasePath = path.join(os.tmpdir(), 'scribe-opencode-custom.db');
     const env = {
-      APPDATA: path.join(os.tmpdir(), 'claudian-opencode-appdata'),
-      HOME: path.join(os.tmpdir(), 'claudian-opencode-home'),
+      APPDATA: path.join(os.tmpdir(), 'scribe-opencode-appdata'),
+      HOME: path.join(os.tmpdir(), 'scribe-opencode-home'),
       XDG_DATA_HOME: xdgDataHome,
     } as NodeJS.ProcessEnv;
 
@@ -57,7 +57,7 @@ describe('OpencodePaths', () => {
   });
 
   it('resolves the existing database in the XDG data directory', () => {
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-opencode-paths-'));
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-opencode-paths-'));
     const xdgDataHome = path.join(tmpRoot, 'xdg-data');
     const dbDir = path.join(xdgDataHome, 'opencode');
     const dbPath = path.join(dbDir, 'opencode.db');

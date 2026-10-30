@@ -114,7 +114,7 @@ export class SideChatController {
       && detectSideChatCommand(this.#presentation?.getInputEl().value ?? '') !== null;
     if (isPreview === this.#previewActive) return;
     this.#previewActive = isPreview;
-    this.#presentation?.inputWrapperEl.toggleClass('claudian-input-side-chat-preview', isPreview);
+    this.#presentation?.inputWrapperEl.toggleClass('scribe-input-side-chat-preview', isPreview);
   }
 
   /**
@@ -374,11 +374,11 @@ export class SideChatController {
   }
 
   #teardownPanel(): void {
-    this.#presentation?.composerEl.removeClass('claudian-side-chat-prompt');
+    this.#presentation?.composerEl.removeClass('scribe-side-chat-prompt');
     this.#panel?.destroy();
     this.#panel = null;
     this.#previewActive = false;
-    this.#presentation?.inputWrapperEl.removeClass('claudian-input-side-chat-preview');
+    this.#presentation?.inputWrapperEl.removeClass('scribe-input-side-chat-preview');
   }
 
   #setExpanded(expanded: boolean): void {
@@ -392,13 +392,27 @@ export class SideChatController {
     this.deps.onDestinationChanged();
   }
 
+  refreshLocale(): void {
+    const inputEl = this.#presentation?.getInputEl();
+    if (!inputEl) return;
+    this.#mainPlaceholder = t('chat.composer.placeholder');
+    if (this.destination === 'side') {
+      inputEl.placeholder = t('chat.sideChat.placeholder');
+      inputEl.setAttribute('aria-label', t('chat.sideChat.composerLabel'));
+      inputEl.setAccessibleLabel?.(t('chat.sideChat.composerLabel'));
+    } else {
+      inputEl.placeholder = this.#mainPlaceholder;
+      inputEl.setAccessibleLabel?.(t('chat.composer.message'));
+    }
+  }
+
   #applyDestinationPresentation(destination: SideChatDestination): void {
     const isSide = destination === 'side';
     this.#runtime?.setPromptActive(isSide);
-    this.#presentation?.composerEl.toggleClass('claudian-side-chat-expanded', isSide);
+    this.#presentation?.composerEl.toggleClass('scribe-side-chat-expanded', isSide);
     this.#syncPromptPresentation();
     this.#previewActive = false;
-    this.#presentation?.inputWrapperEl.removeClass('claudian-input-side-chat-preview');
+    this.#presentation?.inputWrapperEl.removeClass('scribe-input-side-chat-preview');
 
     const inputEl = this.#presentation?.getInputEl();
     if (!inputEl) return;
@@ -406,14 +420,16 @@ export class SideChatController {
       this.#mainPlaceholder ??= inputEl.placeholder;
       inputEl.placeholder = t('chat.sideChat.placeholder');
       inputEl.setAttribute('aria-label', t('chat.sideChat.composerLabel'));
+      inputEl.setAccessibleLabel?.(t('chat.sideChat.composerLabel'));
     } else {
       if (this.#mainPlaceholder !== null) inputEl.placeholder = this.#mainPlaceholder;
       inputEl.removeAttribute('aria-label');
+      inputEl.setAccessibleLabel?.(t('chat.composer.message'));
     }
   }
 
   #syncPromptPresentation(): void {
-    this.#presentation?.composerEl.toggleClass('claudian-side-chat-prompt',
+    this.#presentation?.composerEl.toggleClass('scribe-side-chat-prompt',
       this.isExpanded && this.#runtime?.state.attention?.kind === 'action-required');
   }
 

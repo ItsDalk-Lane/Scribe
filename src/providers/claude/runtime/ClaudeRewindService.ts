@@ -46,7 +46,7 @@ export async function createClaudeRewindBackup(
     return null;
   }
 
-  const backupRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-rewind-'));
+  const backupRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-rewind-'));
   const entries: BackupEntry[] = [];
   let restoreFailed = false;
   const backupPathForIndex = (index: number) => path.join(backupRoot, String(index));

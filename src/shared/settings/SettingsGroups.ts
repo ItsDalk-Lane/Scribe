@@ -3,12 +3,12 @@ export function frameSettingsGroups(container: HTMLElement): void {
   let body: HTMLElement | null = null;
   for (const child of Array.from(container.children)) {
     if (child.classList.contains('setting-item-heading')) {
-      const group = container.createDiv({ cls: 'claudian-settings-group' });
+      const group = container.createDiv({ cls: 'scribe-settings-group' });
       group.setAttribute('role', 'group');
       group.setAttribute('aria-label', child.textContent?.trim() ?? '');
       container.insertBefore(group, child);
       group.appendChild(child);
-      body = group.createDiv({ cls: 'claudian-settings-group-body' });
+      body = group.createDiv({ cls: 'scribe-settings-group-body' });
     } else if (body) {
       body.appendChild(child);
     }

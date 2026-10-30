@@ -72,7 +72,7 @@ function createChatStream() {
   });
   const response: ChatMessage = { id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [] };
   state.addMessage(response);
-  state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
   return { stream, response, messages, close: () => messages.remove() };
 }
 
@@ -94,7 +94,7 @@ async function restoreLiveWithCard(call: NativeToolCall, observe?: (messages: HT
   const { stream, response, messages, close } = createChatStream();
   for (const chunk of chunks) await stream.handleStreamChunk(chunk, response);
   await observe?.(messages);
-  const liveCard = messages.querySelector<HTMLElement>('.claudian-write-edit-block') ?? undefined;
+  const liveCard = messages.querySelector<HTMLElement>('.scribe-write-edit-block') ?? undefined;
   close();
   expect(response.toolCalls).toHaveLength(1);
   return { tool: response.toolCalls![0], liveCard };
@@ -172,7 +172,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
     const tool = await restore(mode, { name: 'read', args: { path: 'arrows.md' }, text });
     const block = renderStoredToolCall(document.body.createDiv(), tool);
     expand(block, /^Read: arrows\.md/);
-    expect([...block.querySelectorAll('.claudian-tool-line')].map(line => line.textContent)).toEqual(text.split('\n'));
+    expect([...block.querySelectorAll('.scribe-tool-line')].map(line => line.textContent)).toEqual(text.split('\n'));
   });
 
   it('builds edit diffs from the native unified patch, not the numbered display diff', async () => {
@@ -249,7 +249,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
     expect(getToolIcon(find.name)).toBe('folder-search');
     const block = renderStoredToolCall(document.body.createDiv(), find);
     expand(block, /^Glob: \*\*\/\*\.md/);
-    expect([...block.querySelectorAll('.claudian-tool-line')].map(line => line.textContent)).toEqual(['plan.md', 'ideas/todo.md']);
+    expect([...block.querySelectorAll('.scribe-tool-line')].map(line => line.textContent)).toEqual(['plan.md', 'ideas/todo.md']);
 
     const ls = await restore(mode, { name: 'ls', args: { path: 'notes' }, text: 'plan.md\nideas/' });
     expect(getToolIcon(ls.name)).toBe('list');
@@ -297,7 +297,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
     if (mode === 'live') {
       // The live stream card is asserted before teardown; no stored card stands in for it.
       await restoreLive(call, async messages => {
-        await assertGenericCard(messages.querySelector<HTMLElement>('.claudian-tool-call'));
+        await assertGenericCard(messages.querySelector<HTMLElement>('.scribe-tool-call'));
       });
     } else {
       await assertGenericCard(renderStoredToolCall(document.body.createDiv(), restoreHistory(call)));
@@ -337,7 +337,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
       const block = renderStoredToolCall(document.body.createDiv(), tool);
       expand(block, /^Script: const \[notes, plan\] = await Promise\.all\(\[/);
       expect(block.querySelector('code')?.textContent).toBe(code);
-      expect(block.querySelector('.claudian-tool-script-output')?.textContent).toBe('notes=17 plan=13');
+      expect(block.querySelector('.scribe-tool-script-output')?.textContent).toBe('notes=17 plan=13');
       const calls = within(within(block).getByRole('list', { name: 'Tool calls' })).getAllByRole('listitem');
       expect(calls.map(call => call.textContent)).toEqual(['Read notes.md 4ms', 'Read plan.md 3ms', 'Edit plan.md 1.3s']);
       expect(within(block).getAllByRole('img', { name: 'Status: completed' })).toHaveLength(3);
@@ -361,7 +361,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
       expect(tool.status).toBe('error');
       const block = renderStoredToolCall(document.body.createDiv(), tool);
       expand(block, /^Script: text\('starting'\);/);
-      expect(block.querySelector('.claudian-tool-script-output')?.textContent).toBe(
+      expect(block.querySelector('.scribe-tool-script-output')?.textContent).toBe(
         `starting\nScript error:\nError: ${failure}\n\nTool calls made before the failure (they are not undone): read (error)`,
       );
       const [call] = within(within(block).getByRole('list', { name: 'Tool calls' })).getAllByRole('listitem');
@@ -390,7 +390,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
       const header = expand(card, /^Write: notes\/todo\.md/);
       expect(header.getAttribute('aria-label')).toContain('click to collapse');
       expect(within(card).getByText(`+${stats.added}`)).toBeDefined();
-      expect([...card.querySelectorAll('.claudian-diff-text')].map(line => line.textContent)).toEqual(rows);
+      expect([...card.querySelectorAll('.scribe-diff-text')].map(line => line.textContent)).toEqual(rows);
       expect((await axe(card)).violations).toEqual([]);
 
       // Metadata follows the rendered result so a wrong render fails on the actual card first.
@@ -411,7 +411,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
       // The two existing empty surfaces keep their own wording.
       const expectedEmptyLabel = mode === 'live' ? 'No changes' : 'DONE';
       expect(within(card).getByText(expectedEmptyLabel)).toBeDefined();
-      expect([...card.querySelectorAll('.claudian-diff-text')]).toEqual([]);
+      expect([...card.querySelectorAll('.scribe-diff-text')]).toEqual([]);
       expect(within(card).queryByText(/\+\d/)).toBeNull();
       expect((await axe(card)).violations).toEqual([]);
 
@@ -427,7 +427,7 @@ describe.each(['live', 'history'] as const)('%s Pi tool presentation', mode => {
       const controlCard = writeCardForMode(mode, control.tool, control.liveCard);
       expand(controlCard, /^Write: notes\/control\.md/);
       expect(within(controlCard).getByText(/\+\d/)).toBeDefined();
-      expect([...controlCard.querySelectorAll('.claudian-diff-text')].map(line => line.textContent)).toEqual(['x']);
+      expect([...controlCard.querySelectorAll('.scribe-diff-text')].map(line => line.textContent)).toEqual(['x']);
     });
   });
 });
@@ -444,7 +444,7 @@ it('streams a running script\'s nested calls through the Pi session and refreshe
   const backend = new PiExecutionBackend(runtimeHostFor(host, 'pi'), {
     createKernel: (spec, callbacks) => new PiRPCSessionKernel({ ...spec, command: process.execPath,
       args: [path.resolve('tests/fixtures/providers/pi/PiSessionProcess.mjs'), ...spec.args],
-      env: { ...spec.env, CLAUDIAN_TEST_PI_ROOT: root },
+      env: { ...spec.env, SCRIBE_TEST_PI_ROOT: root },
     }, callbacks, null),
   });
   const session = backend.createSession({

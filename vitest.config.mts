@@ -35,7 +35,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     maxWorkers,
-    execArgv: [`--localstorage-file=${join(tmpdir(), 'claudian-localstorage')}`],
+    execArgv: [`--localstorage-file=${join(tmpdir(), 'scribe-localstorage')}`],
     // Preserve mock history and hook registration order.
     clearMocks: false,
     sequence: { hooks: 'list' },

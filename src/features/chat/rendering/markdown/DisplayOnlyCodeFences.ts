@@ -3,7 +3,7 @@ import { loadPrism } from 'obsidian';
 import { escapeRawHTMLTags } from '@/features/chat/rendering/markdown/markdownHTML';
 import { transformMarkdownSegments } from '@/utils/markdownSegments';
 
-const PLACEHOLDER_LANGUAGE_PREFIX = 'claudian-display-only-fence-';
+const PLACEHOLDER_LANGUAGE_PREFIX = 'scribe-display-only-fence-';
 
 interface PrismHighlighter {
   highlightElement(element: Element): void;

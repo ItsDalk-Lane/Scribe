@@ -1,5 +1,5 @@
 /**
- * Claudian - Built-in slash commands
+ * Scribe - Built-in slash commands
  *
  * System commands that perform actions (not prompt expansions).
  * These are handled separately from user-defined slash commands.
@@ -157,7 +157,7 @@ export function detectSideChatCommand(input: string): SideChatCommandMatch | nul
 }
 
 /**
- * Leading built-in command token that Claudian owns for the main chat only,
+ * Leading built-in command token that Scribe owns for the main chat only,
  * regardless of provider capability. Side-chat aliases are excluded because
  * they are the side feature's own controls. Compaction keeps its provider
  * execution path on either destination.

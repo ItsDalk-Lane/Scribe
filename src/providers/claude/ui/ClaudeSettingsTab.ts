@@ -69,7 +69,7 @@ export function createClaudeSettingsTabRenderer(
         },
       };
 
-      const installationContainer = container.createDiv({ cls: 'claudian-claude-installation' });
+      const installationContainer = container.createDiv({ cls: 'scribe-claude-installation' });
       const lastProviderWarning = renderLastEnabledProviderWarning(container);
       const modelWarning = renderProviderModelEnablementWarning(container, context, {
         getHasEnabledModels: () => getClaudeModelOptions(getClaudeModelSource(settingsBag)).length > 0,

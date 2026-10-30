@@ -1,8 +1,8 @@
 import {
   type SessionToolName,
-  TOOL_CLAUDIAN_LIST_DESTINATIONS,
-  TOOL_CLAUDIAN_READ_SESSION,
-  TOOL_CLAUDIAN_SEND_MESSAGE,
+  TOOL_SCRIBE_LIST_DESTINATIONS,
+  TOOL_SCRIBE_READ_SESSION,
+  TOOL_SCRIBE_SEND_MESSAGE,
 } from '@/core/tools/toolNames';
 
 export type SessionToolSessionStatus = 'idle' | 'running' | 'awaiting-user';
@@ -114,9 +114,9 @@ export interface SessionToolReadSessionResult {
 }
 
 export type SessionToolCall =
-  | { readonly tool: typeof TOOL_CLAUDIAN_LIST_DESTINATIONS; readonly args: SessionToolListDestinationsArgs }
-  | { readonly tool: typeof TOOL_CLAUDIAN_SEND_MESSAGE; readonly args: SessionToolSendMessageArgs }
-  | { readonly tool: typeof TOOL_CLAUDIAN_READ_SESSION; readonly args: SessionToolReadSessionArgs };
+  | { readonly tool: typeof TOOL_SCRIBE_LIST_DESTINATIONS; readonly args: SessionToolListDestinationsArgs }
+  | { readonly tool: typeof TOOL_SCRIBE_SEND_MESSAGE; readonly args: SessionToolSendMessageArgs }
+  | { readonly tool: typeof TOOL_SCRIBE_READ_SESSION; readonly args: SessionToolReadSessionArgs };
 
 export type SessionToolCallDecodeResult =
   | { readonly ok: true; readonly call: SessionToolCall }
@@ -162,7 +162,7 @@ export interface SessionToolSpec {
 
 const LIST_LIMIT_DEFAULT = 50;
 const LIST_LIMIT_MAX = 200;
-const LIST_OPTIONS_HINT = `Call ${TOOL_CLAUDIAN_LIST_DESTINATIONS} with includeProviders: true to see the options.`;
+const LIST_OPTIONS_HINT = `Call ${TOOL_SCRIBE_LIST_DESTINATIONS} with includeProviders: true to see the options.`;
 
 const LIST_DESTINATIONS_PROPERTIES = {
   includeProviders: {
@@ -175,14 +175,14 @@ const LIST_DESTINATIONS_PROPERTIES = {
   },
   project: {
     type: 'boolean',
-    description: 'Return only sessions in the calling session\'s Claudian project, excluding archived ones. Fails when the calling session is not in a project. Defaults to false.',
+    description: 'Return only sessions in the calling session\'s Scribe project, excluding archived ones. Fails when the calling session is not in a project. Defaults to false.',
   },
 } as const satisfies Record<string, SessionToolProperty>;
 
 const SEND_MESSAGE_PROPERTIES = {
   sessionId: {
     type: 'string',
-    description: `Recipient sessionId from ${TOOL_CLAUDIAN_LIST_DESTINATIONS}, or the session_id of a received message. Omit to create a new session.`,
+    description: `Recipient sessionId from ${TOOL_SCRIBE_LIST_DESTINATIONS}, or the session_id of a received message. Omit to create a new session.`,
   },
   text: {
     type: 'string',
@@ -222,7 +222,7 @@ const SEND_MESSAGE_PROPERTIES = {
 const READ_SESSION_PROPERTIES = {
   sessionId: {
     type: 'string',
-    description: `Session to read: a sessionId from ${TOOL_CLAUDIAN_LIST_DESTINATIONS}, the id of a <context_session>, or the session_id of a received message.`,
+    description: `Session to read: a sessionId from ${TOOL_SCRIBE_LIST_DESTINATIONS}, the id of a <context_session>, or the session_id of a received message.`,
   },
   beforeTurn: {
     type: 'integer',
@@ -232,9 +232,9 @@ const READ_SESSION_PROPERTIES = {
 
 export const SESSION_TOOL_SPECS: readonly SessionToolSpec[] = [
   {
-    name: TOOL_CLAUDIAN_LIST_DESTINATIONS,
+    name: TOOL_SCRIBE_LIST_DESTINATIONS,
     description: [
-      `List where ${TOOL_CLAUDIAN_SEND_MESSAGE} can deliver: existing Claudian chat sessions and, on request, options for a new session.`,
+      `List where ${TOOL_SCRIBE_SEND_MESSAGE} can deliver: existing Scribe chat sessions and, on request, options for a new session.`,
       'Returns {sessions, truncated?, providers?}.',
       'sessions is a list of {sessionId, title, provider, status, active, self?}, most recently active first and capped by limit; truncated is true when more exist.',
       'status is "idle", "running", or "awaiting-user"; active marks the session the user is viewing; self: true marks the calling session, which cannot be messaged.',
@@ -244,16 +244,16 @@ export const SESSION_TOOL_SPECS: readonly SessionToolSpec[] = [
     inputSchema: { type: 'object', properties: LIST_DESTINATIONS_PROPERTIES, additionalProperties: false },
   },
   {
-    name: TOOL_CLAUDIAN_SEND_MESSAGE,
+    name: TOOL_SCRIBE_SEND_MESSAGE,
     description: [
-      'Send a message to another Claudian chat session, or omit sessionId to start a new one.',
+      'Send a message to another Scribe chat session, or omit sessionId to start a new one.',
       'The message starts a turn in the recipient, or queues until it is free.',
       'Returns {sessionId, title, provider, status} immediately, naming the recipient; it does not wait for the turn or a reply.',
       'status is "started" or "queued" for a delivered message, "steered" when it joined the running turn, "uncertain" when a steer may or may not have arrived (do not resend),',
       '"interrupted" when running work was stopped (the message, if any, is next), or "idle" when an interrupt without text found nothing running.',
       'A session cannot message itself.',
       'Messages from other sessions arrive wrapped in <session_message from="…" session_id="…">.',
-      `Replying is optional: call ${TOOL_CLAUDIAN_SEND_MESSAGE} with that session_id only if a response is needed.`,
+      `Replying is optional: call ${TOOL_SCRIBE_SEND_MESSAGE} with that session_id only if a response is needed.`,
     ].join(' '),
     inputSchema: {
       type: 'object',
@@ -262,9 +262,9 @@ export const SESSION_TOOL_SPECS: readonly SessionToolSpec[] = [
     },
   },
   {
-    name: TOOL_CLAUDIAN_READ_SESSION,
+    name: TOOL_SCRIBE_READ_SESSION,
     description: [
-      'Read another Claudian chat session: each turn\'s user prompt and final reply, without tool calls or thinking.',
+      'Read another Scribe chat session: each turn\'s user prompt and final reply, without tool calls or thinking.',
       'Use it for a session the user mentions as <context_session id="…">, or to check on a session you messaged.',
       'Returns {sessionId, title, provider, status, content, fromTurn, toTurn, totalTurns}; content is Markdown with turns numbered from 1.',
       'It holds the latest completed turns that fit; a turn still running is left out.',
@@ -280,7 +280,7 @@ export const SESSION_TOOL_SPECS: readonly SessionToolSpec[] = [
 ];
 
 export function decodeSessionToolCall(name: string, args: unknown): SessionToolCallDecodeResult {
-  if (name !== TOOL_CLAUDIAN_LIST_DESTINATIONS && name !== TOOL_CLAUDIAN_SEND_MESSAGE && name !== TOOL_CLAUDIAN_READ_SESSION) {
+  if (name !== TOOL_SCRIBE_LIST_DESTINATIONS && name !== TOOL_SCRIBE_SEND_MESSAGE && name !== TOOL_SCRIBE_READ_SESSION) {
     return { ok: false, error: `Unknown session tool "${name}".` };
   }
   const input = args ?? {};
@@ -288,14 +288,14 @@ export function decodeSessionToolCall(name: string, args: unknown): SessionToolC
     return { ok: false, error: 'Tool arguments must be an object.' };
   }
   const record = input as Record<string, unknown>;
-  const properties = name === TOOL_CLAUDIAN_SEND_MESSAGE ? SEND_MESSAGE_PROPERTIES
-    : name === TOOL_CLAUDIAN_READ_SESSION ? READ_SESSION_PROPERTIES : LIST_DESTINATIONS_PROPERTIES;
+  const properties = name === TOOL_SCRIBE_SEND_MESSAGE ? SEND_MESSAGE_PROPERTIES
+    : name === TOOL_SCRIBE_READ_SESSION ? READ_SESSION_PROPERTIES : LIST_DESTINATIONS_PROPERTIES;
   const unexpected = Object.keys(record).find(key => !Object.hasOwn(properties, key));
   if (unexpected !== undefined) {
     return { ok: false, error: `Unexpected argument "${unexpected}".` };
   }
   // Null is accepted as omitted: some native harnesses send null for absent optionals.
-  if (name === TOOL_CLAUDIAN_LIST_DESTINATIONS) {
+  if (name === TOOL_SCRIBE_LIST_DESTINATIONS) {
     const includeProviders = record.includeProviders ?? false;
     if (typeof includeProviders !== 'boolean') {
       return { ok: false, error: '"includeProviders" must be a boolean.' };
@@ -310,7 +310,7 @@ export function decodeSessionToolCall(name: string, args: unknown): SessionToolC
     }
     return { ok: true, call: { tool: name, args: { includeProviders, limit, ...(project ? { project } : {}) } } };
   }
-  if (name === TOOL_CLAUDIAN_READ_SESSION) {
+  if (name === TOOL_SCRIBE_READ_SESSION) {
     const { sessionId } = record;
     if (typeof sessionId !== 'string' || sessionId.trim() === '') {
       return { ok: false, error: '"sessionId" must be a non-empty string.' };

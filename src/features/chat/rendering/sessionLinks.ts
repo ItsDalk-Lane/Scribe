@@ -2,7 +2,7 @@ import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { t } from '@/i18n/i18n';
 
 /** Transcript buttons carrying this attribute open the named session through the transcript's owner. */
-const SESSION_LINK_ATTRIBUTE = 'data-claudian-open-session';
+const SESSION_LINK_ATTRIBUTE = 'data-scribe-open-session';
 
 export interface SessionLinkTarget {
   title?: string;
@@ -42,7 +42,7 @@ export function createSessionLink(
   const known = needsLookup ? resolveSession(parent, link.sessionId) : null;
   const provider = link.provider ?? known?.providerId;
   const button = parent.createEl('button', {
-    cls: ['claudian-session-link', ...(link.cls ? [link.cls] : [])],
+    cls: ['scribe-session-link', ...(link.cls ? [link.cls] : [])],
     text: link.text ?? known?.title ?? link.sessionId,
     attr: {
       type: 'button',

@@ -18,64 +18,64 @@ describe('Toolbar popover styles', () => {
     style.textContent = css;
     document.head.appendChild(style);
     document.body.innerHTML = `
-      <div class="claudian-input-toolbar">
-        <div class="claudian-toolbar-chip-anchor claudian-toolbar-chip-anchor--model">
-          <button type="button" class="claudian-toolbar-chip claudian-model-btn">
-            <span class="claudian-toolbar-chip-primary claudian-model-label">Sonnet</span>
-            <span class="claudian-toolbar-chip-secondary claudian-thinking-current">High</span>
-            <span class="claudian-toolbar-chip-secondary claudian-service-tier-indicator"></span>
-            <span class="claudian-toolbar-chip-chevron"></span>
+      <div class="scribe-input-toolbar">
+        <div class="scribe-toolbar-chip-anchor scribe-toolbar-chip-anchor--model">
+          <button type="button" class="scribe-toolbar-chip scribe-model-btn">
+            <span class="scribe-toolbar-chip-primary scribe-model-label">Sonnet</span>
+            <span class="scribe-toolbar-chip-secondary scribe-thinking-current">High</span>
+            <span class="scribe-toolbar-chip-secondary scribe-service-tier-indicator"></span>
+            <span class="scribe-toolbar-chip-chevron"></span>
           </button>
-          <div class="claudian-toolbar-popover claudian-model-popover" data-popover="model">
-            <div class="claudian-model-column claudian-model-providers" role="tablist">
-              <button type="button" role="tab" aria-selected="true" class="claudian-toolbar-popover-option claudian-model-provider-tab">
-                <span class="claudian-model-provider-tile"><svg class="claudian-provider-icon claudian-model-provider-icon"></svg></span>
+          <div class="scribe-toolbar-popover scribe-model-popover" data-popover="model">
+            <div class="scribe-model-column scribe-model-providers" role="tablist">
+              <button type="button" role="tab" aria-selected="true" class="scribe-toolbar-popover-option scribe-model-provider-tab">
+                <span class="scribe-model-provider-tile"><svg class="scribe-provider-icon scribe-model-provider-icon"></svg></span>
               </button>
-              <button type="button" role="tab" aria-selected="false" class="claudian-toolbar-popover-option claudian-model-provider-tab">
-                <span class="claudian-model-provider-tile"><svg class="claudian-provider-icon claudian-model-provider-icon"></svg></span>
-              </button>
-            </div>
-            <div class="claudian-model-column claudian-model-options">
-              <button type="button" role="option" aria-selected="true" class="claudian-toolbar-popover-option claudian-model-option">
-                <span class="claudian-toolbar-popover-option-label">Sonnet</span>
-                <span class="claudian-toolbar-popover-option-check"></span>
-              </button>
-              <button type="button" role="option" aria-selected="false" class="claudian-toolbar-popover-option claudian-model-option">
-                <span class="claudian-toolbar-popover-option-label">Opus</span>
+              <button type="button" role="tab" aria-selected="false" class="scribe-toolbar-popover-option scribe-model-provider-tab">
+                <span class="scribe-model-provider-tile"><svg class="scribe-provider-icon scribe-model-provider-icon"></svg></span>
               </button>
             </div>
-            <div class="claudian-model-column claudian-model-parts">
-              <div class="claudian-toolbar-popover-section claudian-thinking-selector">
-                <button type="button" role="option" aria-selected="true" class="claudian-toolbar-popover-option claudian-thinking-level selected">
-                  <span class="claudian-toolbar-popover-option-label">High</span>
+            <div class="scribe-model-column scribe-model-options">
+              <button type="button" role="option" aria-selected="true" class="scribe-toolbar-popover-option scribe-model-option">
+                <span class="scribe-toolbar-popover-option-label">Sonnet</span>
+                <span class="scribe-toolbar-popover-option-check"></span>
+              </button>
+              <button type="button" role="option" aria-selected="false" class="scribe-toolbar-popover-option scribe-model-option">
+                <span class="scribe-toolbar-popover-option-label">Opus</span>
+              </button>
+            </div>
+            <div class="scribe-model-column scribe-model-parts">
+              <div class="scribe-toolbar-popover-section scribe-thinking-selector">
+                <button type="button" role="option" aria-selected="true" class="scribe-toolbar-popover-option scribe-thinking-level selected">
+                  <span class="scribe-toolbar-popover-option-label">High</span>
                 </button>
               </div>
-              <div class="claudian-toolbar-popover-section claudian-service-tier-toggle">
-                <button type="button" role="switch" aria-checked="true" class="claudian-toolbar-popover-option claudian-toolbar-popover-switch-row">
-                  <span class="claudian-toggle-switch active"></span>
+              <div class="scribe-toolbar-popover-section scribe-service-tier-toggle">
+                <button type="button" role="switch" aria-checked="true" class="scribe-toolbar-popover-option scribe-toolbar-popover-switch-row">
+                  <span class="scribe-toggle-switch active"></span>
                 </button>
               </div>
             </div>
           </div>
         </div>
-        <div class="claudian-toolbar-chip-anchor claudian-permission-toggle">
-          <button type="button" class="claudian-toolbar-chip claudian-toolbar-chip--alert">
-            <span class="claudian-toolbar-chip-icon" data-part="permission-icon"></span>
-            <span class="claudian-toolbar-chip-primary claudian-permission-label">YOLO</span>
-            <span class="claudian-toolbar-chip-chevron"></span>
+        <div class="scribe-toolbar-chip-anchor scribe-permission-toggle">
+          <button type="button" class="scribe-toolbar-chip scribe-toolbar-chip--alert">
+            <span class="scribe-toolbar-chip-icon" data-part="permission-icon"></span>
+            <span class="scribe-toolbar-chip-primary scribe-permission-label">YOLO</span>
+            <span class="scribe-toolbar-chip-chevron"></span>
           </button>
-          <div class="claudian-toolbar-popover" data-popover="permission"></div>
+          <div class="scribe-toolbar-popover" data-popover="permission"></div>
         </div>
       </div>
     `;
-    return document.querySelector('.claudian-input-toolbar') as HTMLElement;
+    return document.querySelector('.scribe-input-toolbar') as HTMLElement;
   }
 
   const style = (el: Element) => window.getComputedStyle(el);
 
   it('sizes the model popover from its button and its content instead of a fixed width', () => {
     const toolbar = renderToolbar();
-    const anchor = toolbar.querySelector('.claudian-toolbar-chip-anchor--model')!;
+    const anchor = toolbar.querySelector('.scribe-toolbar-chip-anchor--model')!;
     const popover = style(toolbar.querySelector('[data-popover="model"]')!);
     // The button is the containing block, so the popover starts at its edge and is at least as wide.
     expect(style(anchor).position).toBe('relative');
@@ -88,27 +88,27 @@ describe('Toolbar popover styles', () => {
     const toolbar = renderToolbar();
     const rules = Array.from(document.head.querySelector('style')!.sheet!.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
-      .filter(rule => rule.selectorText.includes('button.claudian-toolbar-chip')
+      .filter(rule => rule.selectorText.includes('button.scribe-toolbar-chip')
         && /:hover|aria-expanded/.test(rule.selectorText)
         && !rule.selectorText.includes('--accent'));
     expect(rules.map(rule => rule.style.getPropertyValue('background')).filter(value => value && value !== 'transparent'))
       .toEqual([]);
-    const button = toolbar.querySelector<HTMLElement>('button.claudian-model-btn')!;
+    const button = toolbar.querySelector<HTMLElement>('button.scribe-model-btn')!;
     button.setAttribute('aria-expanded', 'true');
     expect(style(button).background).not.toContain('modifier-hover');
   });
 
   it('draws the menus with a border only, no shadow spilling past it', () => {
     const toolbar = renderToolbar();
-    for (const popover of Array.from(toolbar.querySelectorAll('.claudian-toolbar-popover'))) {
+    for (const popover of Array.from(toolbar.querySelectorAll('.scribe-toolbar-popover'))) {
       expect(['', 'none']).toContain(style(popover).boxShadow);
     }
   });
 
   it('flips each chip chevron to point up while its menu is open above it', () => {
     const toolbar = renderToolbar();
-    for (const button of Array.from(toolbar.querySelectorAll<HTMLElement>('button.claudian-toolbar-chip'))) {
-      const chevron = button.querySelector('.claudian-toolbar-chip-chevron')!;
+    for (const button of Array.from(toolbar.querySelectorAll<HTMLElement>('button.scribe-toolbar-chip'))) {
+      const chevron = button.querySelector('.scribe-toolbar-chip-chevron')!;
       expect(['', 'none']).toContain(style(chevron).transform);
       button.setAttribute('aria-expanded', 'true');
       expect(style(chevron).transform).toBe('rotate(180deg)');
@@ -124,7 +124,7 @@ describe('Toolbar popover styles', () => {
   it('sizes the permission menu from its own button the same way, without the slider floor, opening from its end edge', () => {
     const toolbar = renderToolbar();
     const popover = style(toolbar.querySelector('[data-popover="permission"]')!);
-    expect(style(toolbar.querySelector('.claudian-permission-toggle')!).position).toBe('relative');
+    expect(style(toolbar.querySelector('.scribe-permission-toggle')!).position).toBe('relative');
     expect({
       start: popover.getPropertyValue('inset-inline-start'),
       end: popover.getPropertyValue('inset-inline-end'),
@@ -134,9 +134,9 @@ describe('Toolbar popover styles', () => {
   });
 
   it.each([
-    ['the toolbar buttons', /button\.claudian-toolbar-chip$/],
+    ['the toolbar buttons', /button\.scribe-toolbar-chip$/],
     // The popover's own label would otherwise pop up over every control inside it, such as the slider.
-    ['the popovers and everything inside them', /^\.claudian-toolbar-popover$/],
+    ['the popovers and everything inside them', /^\.scribe-toolbar-popover$/],
   ])('suppresses Obsidian hover tooltips on %s', (_name, pattern) => {
     renderToolbar();
     // Obsidian skips aria-label tooltips when the hovered element computes --no-tooltip to "true";
@@ -153,13 +153,13 @@ describe('Toolbar popover styles', () => {
   it('shows every provider icon in its brand colour and marks the chosen model with a light green tick only', () => {
     const toolbar = renderToolbar();
     const color = (selector: string) => style(toolbar.querySelector(selector)!).color;
-    const brand = 'var(--claudian-provider-logo)';
+    const brand = 'var(--scribe-provider-logo)';
     // Only provider icons are tinted; model names read as normal text.
     expect({
-      selectedProvider: color('[role="tab"][aria-selected="true"] .claudian-model-provider-tile'),
-      otherProvider: color('[role="tab"][aria-selected="false"] .claudian-model-provider-tile'),
-      selectedLabel: color('.claudian-model-option[aria-selected="true"] .claudian-toolbar-popover-option-label'),
-      otherLabel: color('.claudian-model-option[aria-selected="false"] .claudian-toolbar-popover-option-label'),
+      selectedProvider: color('[role="tab"][aria-selected="true"] .scribe-model-provider-tile'),
+      otherProvider: color('[role="tab"][aria-selected="false"] .scribe-model-provider-tile'),
+      selectedLabel: color('.scribe-model-option[aria-selected="true"] .scribe-toolbar-popover-option-label'),
+      otherLabel: color('.scribe-model-option[aria-selected="false"] .scribe-toolbar-popover-option-label'),
     }).toEqual({
       selectedProvider: brand, otherProvider: brand, selectedLabel: 'var(--text-normal)', otherLabel: 'var(--text-normal)',
     });
@@ -170,15 +170,15 @@ describe('Toolbar popover styles', () => {
       return `${declared.background} ${declared.backgroundColor}`;
     };
     for (const selected of ['true', 'false']) {
-      expect(fill(`.claudian-model-option[aria-selected="${selected}"]`)).not.toMatch(/modifier-hover|claudian-brand/);
+      expect(fill(`.scribe-model-option[aria-selected="${selected}"]`)).not.toMatch(/modifier-hover|scribe-brand/);
     }
-    expect(color('.claudian-toolbar-popover-option-check')).toBe('var(--claudian-selection-check)');
+    expect(color('.scribe-toolbar-popover-option-check')).toBe('var(--scribe-selection-check)');
     expect({
-      buttonModel: color('.claudian-model-label'),
-      buttonReasoning: color('.claudian-thinking-current'),
-      buttonFastMode: color('.claudian-service-tier-indicator'),
-      level: color('.claudian-thinking-level.selected'),
-      permission: color('.claudian-permission-label'),
+      buttonModel: color('.scribe-model-label'),
+      buttonReasoning: color('.scribe-thinking-current'),
+      buttonFastMode: color('.scribe-service-tier-indicator'),
+      level: color('.scribe-thinking-level.selected'),
+      permission: color('.scribe-permission-label'),
     }).toEqual({
       buttonModel: 'var(--text-normal)',
       buttonReasoning: 'var(--text-muted)',
@@ -189,10 +189,10 @@ describe('Toolbar popover styles', () => {
     });
 
     // Hover, focus and an open menu brighten the chip itself, but the reasoning level stays a muted detail.
-    toolbar.querySelector('button.claudian-model-btn')!.setAttribute('aria-expanded', 'true');
+    toolbar.querySelector('button.scribe-model-btn')!.setAttribute('aria-expanded', 'true');
     expect({
-      buttonReasoning: color('.claudian-thinking-current'),
-      buttonFastMode: color('.claudian-service-tier-indicator'),
+      buttonReasoning: color('.scribe-thinking-current'),
+      buttonFastMode: color('.scribe-service-tier-indicator'),
     }).toEqual({ buttonReasoning: 'var(--text-muted)', buttonFastMode: 'var(--text-normal)' });
   });
 
@@ -205,9 +205,9 @@ describe('Toolbar popover styles', () => {
       const aliases = Array.from(sheet.cssRules)
         .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
         .filter(rule => rule.selectorText.split(',')
-          .some(selector => selector.trim().endsWith(`.claudian-model-provider-tab[data-provider="${provider}"]`)))
-        .map(rule => rule.style.getPropertyValue('--claudian-provider-logo').trim());
-      expect(aliases).toEqual([`var(--claudian-brand-${provider})`]);
+          .some(selector => selector.trim().endsWith(`.scribe-model-provider-tab[data-provider="${provider}"]`)))
+        .map(rule => rule.style.getPropertyValue('--scribe-provider-logo').trim());
+      expect(aliases).toEqual([`var(--scribe-brand-${provider})`]);
     },
   );
 
@@ -216,15 +216,15 @@ describe('Toolbar popover styles', () => {
     const sheet = document.head.querySelector('style')!.sheet!;
     const rule = Array.from(sheet.cssRules)
       .filter((candidate): candidate is CSSStyleRule => candidate instanceof CSSStyleRule)
-      .find(candidate => candidate.selectorText.includes('.claudian-container[data-provider="deepseek"]'))!;
+      .find(candidate => candidate.selectorText.includes('.scribe-container[data-provider="deepseek"]'))!;
     expect({
-      logo: rule.style.getPropertyValue('--claudian-provider-logo').trim(),
-      accent: rule.style.getPropertyValue('--claudian-brand').trim(),
-      accentRgb: rule.style.getPropertyValue('--claudian-brand-rgb').trim(),
+      logo: rule.style.getPropertyValue('--scribe-provider-logo').trim(),
+      accent: rule.style.getPropertyValue('--scribe-brand').trim(),
+      accentRgb: rule.style.getPropertyValue('--scribe-brand-rgb').trim(),
     }).toEqual({
-      logo: 'var(--claudian-brand-deepseek)',
-      accent: 'var(--claudian-brand-neutral)',
-      accentRgb: 'var(--claudian-brand-neutral-rgb)',
+      logo: 'var(--scribe-brand-deepseek)',
+      accent: 'var(--scribe-brand-neutral)',
+      accentRgb: 'var(--scribe-brand-neutral-rgb)',
     });
   });
 
@@ -234,10 +234,10 @@ describe('Toolbar popover styles', () => {
     // The warning shield is Claude orange under every provider; the label reads like any other chip.
     expect({
       icon: color('[data-part="permission-icon"]'),
-      label: color('.claudian-permission-label'),
-      button: color('.claudian-toolbar-chip--alert'),
+      label: color('.scribe-permission-label'),
+      button: color('.scribe-toolbar-chip--alert'),
     }).toEqual({
-      icon: 'var(--claudian-brand-claude)',
+      icon: 'var(--scribe-brand-claude)',
       label: 'var(--text-normal)',
       button: 'var(--text-muted)',
     });
@@ -245,12 +245,12 @@ describe('Toolbar popover styles', () => {
 
   it('shows fast mode on in its own amber, not the provider brand', () => {
     const toolbar = renderToolbar();
-    const track = style(toolbar.querySelector('.claudian-toggle-switch.active')!);
-    const row = style(toolbar.querySelector('.claudian-toolbar-popover-switch-row')!);
+    const track = style(toolbar.querySelector('.scribe-toggle-switch.active')!);
+    const row = style(toolbar.querySelector('.scribe-toolbar-popover-switch-row')!);
     const surfaces = [track.background, track.backgroundColor, row.background, row.backgroundColor].join(' ');
-    expect(surfaces).not.toContain('claudian-brand');
-    expect(track.background || track.backgroundColor).toBe('var(--claudian-fast-mode)');
-    expect(row.background).toContain('var(--claudian-fast-mode)');
+    expect(surfaces).not.toContain('scribe-brand');
+    expect(track.background || track.backgroundColor).toBe('var(--scribe-fast-mode)');
+    expect(row.background).toContain('var(--scribe-fast-mode)');
     // The switch row has no border of its own.
     expect(['', '0', '0px']).toContain(row.borderWidth || row.borderTopWidth);
   });

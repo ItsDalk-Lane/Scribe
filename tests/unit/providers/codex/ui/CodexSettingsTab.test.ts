@@ -623,7 +623,7 @@ describe('CodexSettingsTab', () => {
     );
     const warningEl = container.createDiv.mock.results[warningCallIndex]?.value;
     expect(warningCallIndex).toBeGreaterThanOrEqual(0);
-    expect(warningEl.toggleClass).toHaveBeenLastCalledWith('claudian-hidden', false);
+    expect(warningEl.toggleClass).toHaveBeenLastCalledWith('scribe-hidden', false);
 
     plugin.settings.providerConfigs.codex.discoveredModels = TEST_CODEX_CATALOG;
     plugin.settings.providerConfigs.codex.visibleModels = [TEST_CODEX_MODEL];
@@ -631,7 +631,7 @@ describe('CodexSettingsTab', () => {
     onUpdate();
 
     expect(context.notifyProviderModelOptionsChanged).not.toHaveBeenCalled();
-    expect(warningEl.toggleClass).toHaveBeenLastCalledWith('claudian-hidden', true);
+    expect(warningEl.toggleClass).toHaveBeenLastCalledWith('scribe-hidden', true);
   });
 
   it('persists response styles through an accessible native selector', async () => {
@@ -825,7 +825,7 @@ describe('CodexSettingsTab', () => {
     expect(plugin.runProviderExecutionTransition).not.toHaveBeenCalled();
     expect(mockCodexCLIResolverReset).not.toHaveBeenCalled();
     expect(cliPathSetting.textComponents[0].inputEl.toggleClass).toHaveBeenLastCalledWith(
-      'claudian-input-error', true,
+      'scribe-input-error', true,
     );
   });
 
@@ -849,7 +849,7 @@ describe('CodexSettingsTab', () => {
     expect(mockSaveSettings).not.toHaveBeenCalled();
 
     expect(cliPathSetting.textComponents[0].inputEl.toggleClass).toHaveBeenLastCalledWith(
-      'claudian-input-error',
+      'scribe-input-error',
       true,
     );
   });

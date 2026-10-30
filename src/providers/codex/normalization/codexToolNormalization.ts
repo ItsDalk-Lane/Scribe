@@ -53,7 +53,7 @@ export function isCodexInternalToolCall(rawName: string | undefined, namespace?:
 
 export function normalizeCodexToolName(rawName: string | undefined): string {
   if (!rawName) return 'tool';
-  const sessionName = rawName.startsWith('claudian_sessions__') ? rawName.slice('claudian_sessions__'.length) : rawName;
+  const sessionName = rawName.startsWith('scribe_sessions__') ? rawName.slice('scribe_sessions__'.length) : rawName;
   if (isSessionTool(sessionName)) return sessionName;
   if (NATIVE_TOOLS.has(rawName)) return rawName;
   // Own entries only: prototype keys (e.g. constructor) stay unknown names verbatim.

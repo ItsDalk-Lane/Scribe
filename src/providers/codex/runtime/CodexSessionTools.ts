@@ -6,7 +6,7 @@ import { isSessionTool } from '@/core/tools/toolNames';
 import type { DynamicToolCallParams, DynamicToolCallResponse } from './codexAppServerTypes';
 import type { CodexDynamicToolRegistration } from './CodexDynamicToolRegistry';
 
-export const CODEX_SESSION_TOOL_NAMESPACE = 'claudian_sessions';
+export const CODEX_SESSION_TOOL_NAMESPACE = 'scribe_sessions';
 /**
  * Bumped when the specs change: a thread keeps the specs it started with (2 adds read, 3 adds send modes,
  * 4 adds the list_destinations `project` argument).

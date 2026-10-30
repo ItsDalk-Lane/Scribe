@@ -191,7 +191,7 @@ export function createCodexSettingsTabRenderer(
         cliPathControl.setPlaceholder(cliCopy.placeholder);
         cliPathControl.revalidate();
         if (wslDistroSettingEl) {
-          wslDistroSettingEl.toggleClass('claudian-hidden', installationMethod !== 'wsl');
+          wslDistroSettingEl.toggleClass('scribe-hidden', installationMethod !== 'wsl');
         }
         if (wslDistroInputEl) {
           wslDistroInputEl.disabled = installationMethod !== 'wsl';
@@ -219,7 +219,7 @@ export function createCodexSettingsTabRenderer(
               void cliPathControl.refresh();
             });
 
-          text.inputEl.addClass('claudian-settings-cli-path-input');
+          text.inputEl.addClass('scribe-settings-cli-path-input');
           text.inputEl.disabled = installationMethod !== 'wsl';
           wslDistroInputEl = text.inputEl;
         });

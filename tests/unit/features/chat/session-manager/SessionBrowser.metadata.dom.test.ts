@@ -78,29 +78,29 @@ describe('SessionBrowser session metadata popover', () => {
       getProviderIcon: () => OPENAI_PROVIDER_ICON, getModelLabel: () => 'GPT-5.1 Codex',
     });
     const content = within(container).getByRole('button', { name: /Review architecture/ });
-    const item = content.closest<HTMLElement>('.claudian-history-item')!;
+    const item = content.closest<HTMLElement>('.scribe-history-item')!;
     vi.spyOn(item, 'getBoundingClientRect').mockReturnValue({
       top: 120, left: 20, right: 220, bottom: 148, width: 200, height: 28, x: 20, y: 120, toJSON: () => ({}),
     });
     expect(item.getAttribute('tabindex')).toBeNull();
     expect(item.getAttribute('role')).toBeNull();
     expect(content.getAttribute('tabindex')).toBe('0');
-    expect(item.querySelector('.claudian-history-item-date')).toBeNull();
+    expect(item.querySelector('.scribe-history-item-date')).toBeNull();
     fireEvent.mouseEnter(item);
     const tooltip = within(document.body).getByRole('tooltip');
-    expect([...tooltip.querySelectorAll('.claudian-session-metadata-label')].map(label => label.textContent))
+    expect([...tooltip.querySelectorAll('.scribe-session-metadata-label')].map(label => label.textContent))
       .toEqual(['Created', 'Last active']);
-    const visibleRows = [...tooltip.children].filter(row => !row.classList.contains('claudian-hidden'));
-    expect(visibleRows.map(row => row.querySelector('.claudian-session-metadata-value')?.textContent))
+    const visibleRows = [...tooltip.children].filter(row => !row.classList.contains('scribe-hidden'));
+    expect(visibleRows.map(row => row.querySelector('.scribe-session-metadata-value')?.textContent))
       .toEqual([
         ...(title ? [title] : []),
         'GPT-5.1 Codex',
         formatSessionCreatedDate(createdAt),
         formatSessionLastActive(lastActivityAt),
       ]);
-    expect(tooltip.querySelector('.claudian-session-metadata-provider-icon')).not.toBeNull();
+    expect(tooltip.querySelector('.scribe-session-metadata-provider-icon')).not.toBeNull();
     expect(tooltip.style.top).toBe('120px');
-    expect(tooltip.querySelector('.claudian-session-metadata-value--content')?.getAttribute('title'))
+    expect(tooltip.querySelector('.scribe-session-metadata-value--content')?.getAttribute('title'))
       .toBe(linkedContentPath ?? '');
     fireEvent.keyDown(content, { key: 'Escape' });
     expect(tooltip.isConnected).toBe(false);
@@ -117,7 +117,7 @@ describe('SessionBrowser session metadata popover', () => {
       onSelectConversation: vi.fn().mockResolvedValue(undefined), showMetadataPopover: true,
       getProviderIcon: () => OPENAI_PROVIDER_ICON, getModelLabel: () => 'GPT-5.1 Codex',
     });
-    const content = container.querySelector<HTMLElement>('.claudian-history-item-content')!;
+    const content = container.querySelector<HTMLElement>('.scribe-history-item-content')!;
     expect(content.getAttribute('tabindex')).toBe('0');
 
     // A prevented press keeps the browser from focusing the row; Obsidian's menu then has no row to return focus to.
@@ -156,7 +156,7 @@ describe('SessionBrowser session metadata popover', () => {
     expect(tooltip.children).toHaveLength(rows.length);
     rows.forEach((row, index) => expect(tooltip.children[index]).toBe(row));
     expect(tooltip.querySelector('svg')).toBe(svg);
-    expect(tooltip.querySelector('.claudian-session-metadata-value--content')?.parentElement?.classList.contains('claudian-hidden')).toBe(true);
+    expect(tooltip.querySelector('.scribe-session-metadata-value--content')?.parentElement?.classList.contains('scribe-hidden')).toBe(true);
     expect(tooltip.textContent).toContain('Model two');
     expect(firstButton.hasAttribute('aria-describedby')).toBe(false);
     expect(secondButton.getAttribute('aria-describedby')).toBe(tooltip.id);
@@ -172,7 +172,7 @@ describe('SessionBrowser session metadata popover', () => {
     expect(tooltip.textContent).toContain('Updated');
     expect(tooltip.querySelector('svg')).not.toBe(svg);
     expect(tooltip.querySelector('svg path')?.getAttribute('d')).toBe(icon.path);
-    expect(tooltip.querySelector('.claudian-session-metadata-value--content')?.parentElement?.classList.contains('claudian-hidden')).toBe(false);
+    expect(tooltip.querySelector('.scribe-session-metadata-value--content')?.parentElement?.classList.contains('scribe-hidden')).toBe(false);
     controller.dispose();
     expect(tooltip.isConnected).toBe(false);
   });
@@ -212,14 +212,14 @@ describe('SessionBrowser session metadata popover', () => {
       showMetadataPopover: true,
     });
 
-    const item = container.querySelector<HTMLElement>('.claudian-history-item')!;
+    const item = container.querySelector<HTMLElement>('.scribe-history-item')!;
     item.dispatchEvent(new MouseEvent('mouseenter'));
 
     const popover = document.body.querySelector<HTMLElement>(
-      '.claudian-session-metadata-popover',
+      '.scribe-session-metadata-popover',
     )!;
     const linkedContent = popover.querySelector<HTMLElement>(
-      '.claudian-session-metadata-value--content',
+      '.scribe-session-metadata-value--content',
     )!;
 
     linkedContent.dispatchEvent(new Event('scroll'));

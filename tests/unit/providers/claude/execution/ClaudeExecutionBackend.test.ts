@@ -25,8 +25,8 @@ import {
 import { ProviderModelUnavailableError } from '@/core/providers/models/ProviderModelUnavailableError';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import type { ProviderRuntimeHost } from '@/core/providers/ProviderRuntimeHost';
-import type { ClaudianSettings } from '@/core/types';
-type MutableTestHost = ProviderHost & { settings: ClaudianSettings };
+import type { ScribeSettings } from '@/core/types';
+type MutableTestHost = ProviderHost & { settings: ScribeSettings };
 import type { Mock, Mocked, MockedFunction } from 'vitest';
 
 import * as env from '@/core/process/env';
@@ -350,7 +350,7 @@ describe('ClaudeExecutionBackend', () => {
       sessionTools = { list: async () => ({ sessions: [] }), send: vi.fn(), read: vi.fn() };
       await collectEvents(session.execute(createRequest()).events);
       expect(sdkMock.getQueryCallCount()).toBe(2);
-      expect(sdkMock.getLastOptions()?.mcpServers).toHaveProperty('claudian_sessions');
+      expect(sdkMock.getLastOptions()?.mcpServers).toHaveProperty('scribe_sessions');
       sessionTools = undefined;
       await collectEvents(session.execute(createRequest()).events);
       expect(sdkMock.getQueryCallCount()).toBe(3);
@@ -461,7 +461,7 @@ describe('ClaudeExecutionBackend', () => {
     }).events);
     expect(events).toContainEqual(expect.objectContaining({ type: 'execution_error', category: 'configuration' }));
     expect(JSON.stringify(events)).toContain('selected Claude Code model is unavailable');
-    expect(JSON.stringify(events)).toContain('Open Claudian settings → Claude Code');
+    expect(JSON.stringify(events)).toContain('Open Scribe settings → Claude Code');
     expect(sdkMock.getQueryCallCount()).toBe(0);
     await session.dispose();
   });
@@ -3940,7 +3940,7 @@ it.each([false, true])('anchors notifications after automatic events with native
 
 it.each(['mid-turn', 'next-turn-echo', 'next-turn-no-echo'])('places a consumed task notification at its native boundary (%s)', async delivery => {
   const midTurn = delivery === 'mid-turn';
-  const historyDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-notification-order-'));
+  const historyDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-notification-order-'));
   const completed = createDeferred<unknown>();
   const keepOpen = createDeferred<unknown>();
   const notification = '<task-notification><task-id>task</task-id><status>completed</status><summary>Task finished</summary></task-notification>';

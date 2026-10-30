@@ -36,7 +36,7 @@ describe('collapsible', () => {
       expect(header.tabIndex).toBe(0);
       expect(header.getAttribute('aria-expanded')).toBe('false');
       expect(state.isExpanded).toBe(false);
-      expect(content.classList.contains('claudian-hidden')).toBe(true);
+      expect(content.classList.contains('scribe-hidden')).toBe(true);
       expect(wrapper.classList.contains('expanded')).toBe(false);
       expect(await axe(wrapper)).toHaveNoViolations();
     });
@@ -46,7 +46,7 @@ describe('collapsible', () => {
       const header = within(wrapper).getByRole('button', { name: 'Section' });
 
       expect(state.isExpanded).toBe(true);
-      expect(content.classList.contains('claudian-hidden')).toBe(false);
+      expect(content.classList.contains('scribe-hidden')).toBe(false);
       expect(header.getAttribute('aria-expanded')).toBe('true');
       expect(wrapper.classList.contains('expanded')).toBe(true);
     });
@@ -58,13 +58,13 @@ describe('collapsible', () => {
       fireEvent.click(header);
       expect(state.isExpanded).toBe(true);
       expect(wrapper.classList.contains('expanded')).toBe(true);
-      expect(content.classList.contains('claudian-hidden')).toBe(false);
+      expect(content.classList.contains('scribe-hidden')).toBe(false);
       expect(header.getAttribute('aria-expanded')).toBe('true');
 
       fireEvent.click(header);
       expect(state.isExpanded).toBe(false);
       expect(wrapper.classList.contains('expanded')).toBe(false);
-      expect(content.classList.contains('claudian-hidden')).toBe(true);
+      expect(content.classList.contains('scribe-hidden')).toBe(true);
       expect(header.getAttribute('aria-expanded')).toBe('false');
     });
 
@@ -142,7 +142,7 @@ describe('collapsible', () => {
       expect(within(wrapper).getByRole('button', { name: `Refined - click to ${suffix}` })).toBe(header);
       expect(state.isExpanded).toBe(initiallyExpanded);
       expect(header.getAttribute('aria-expanded')).toBe(String(initiallyExpanded));
-      expect(content.classList.contains('claudian-hidden')).toBe(!initiallyExpanded);
+      expect(content.classList.contains('scribe-hidden')).toBe(!initiallyExpanded);
       expect(onToggle).not.toHaveBeenCalled();
       expect(onFirstExpand).toHaveBeenCalledTimes(Number(initiallyExpanded));
       fireEvent.click(header);
@@ -164,7 +164,7 @@ describe('collapsible', () => {
         const header = wrapper.createDiv({ text: 'Section' });
         const content = wrapper.createDiv();
         const onFirstExpand = vi.fn(() => {
-          visibleWhenRun.push(!content.classList.contains('claudian-hidden'));
+          visibleWhenRun.push(!content.classList.contains('scribe-hidden'));
         });
         setupCollapsible(wrapper, header, content, { isExpanded: false }, { onFirstExpand });
         expect(onFirstExpand).not.toHaveBeenCalled();
@@ -199,7 +199,7 @@ describe('collapsible', () => {
 
       expect(state.isExpanded).toBe(false);
       expect(wrapper.classList.contains('expanded')).toBe(false);
-      expect(content.classList.contains('claudian-hidden')).toBe(true);
+      expect(content.classList.contains('scribe-hidden')).toBe(true);
       expect(header.getAttribute('aria-expanded')).toBe('false');
     });
 
@@ -209,7 +209,7 @@ describe('collapsible', () => {
       collapseElement(wrapper, header, content, state);
 
       expect(state.isExpanded).toBe(false);
-      expect(content.classList.contains('claudian-hidden')).toBe(true);
+      expect(content.classList.contains('scribe-hidden')).toBe(true);
     });
   });
 

@@ -19,7 +19,7 @@
       "PreToolUse": [
         {
           "matcher": "^(enter_plan_mode|exit_plan_mode)$",
-          "hookCallbackIds": ["claudian-block-plan"]
+          "hookCallbackIds": ["scribe-block-plan"]
         }
       ]
     }
@@ -27,7 +27,7 @@
   "request": {
     "method": "_x.ai/hooks/run",
     "params": {
-      "hookCallbackId": "claudian-block-plan",
+      "hookCallbackId": "scribe-block-plan",
       "hookEventName": "pre_tool_use",
       "sessionId": "session-native",
       "permissionMode": "default",

@@ -1,5 +1,5 @@
 /* Full-size Image Modal */
-.claudian-image-modal-overlay {
+.scribe-image-modal-overlay {
   position: fixed;
   inset: 0;
   background: rgb(0 0 0 / 85%);
@@ -10,14 +10,14 @@
   cursor: pointer;
 }
 
-.claudian-image-modal {
+.scribe-image-modal {
   position: relative;
   max-width: 90vw;
   max-height: 90vh;
   cursor: default;
 }
 
-.claudian-image-modal img {
+.scribe-image-modal img {
   max-width: 90vw;
   max-height: 90vh;
   object-fit: contain;
@@ -25,9 +25,9 @@
   box-shadow: 0 8px 32px rgb(0 0 0 / 50%);
 }
 
-button.claudian-image-modal-close,
-button.claudian-image-modal-close:focus,
-button.claudian-image-modal-close:active {
+button.scribe-image-modal-close,
+button.scribe-image-modal-close:focus,
+button.scribe-image-modal-close:active {
   appearance: none;
   position: absolute;
   top: -12px;
@@ -50,7 +50,7 @@ button.claudian-image-modal-close:active {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-button.claudian-image-modal-close:hover {
+button.scribe-image-modal-close:hover {
   border: 0;
   background: var(--background-modifier-error);
   background-image: none;

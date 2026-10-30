@@ -5,6 +5,7 @@ import type { Mock } from 'vitest';
 import { ChatState } from '@/features/chat/state/ChatState';
 import { ThinkingIndicator } from '@/features/chat/turns/ThinkingIndicator';
 import { TurnCoordinator } from '@/features/chat/turns/TurnCoordinator';
+import { setLocale } from '@/i18n/i18n';
 
 
 
@@ -63,6 +64,20 @@ describe('ThinkingIndicator', () => {
     state.clearFlavorTimerInterval();
     restoreTestWindow();
     vi.useRealTimers();
+  });
+
+  it('shows a translated waiting status and timer when Chinese is selected', () => {
+    setLocale('zh-CN');
+    try {
+      state.responseStartTime = 1;
+      indicator.show();
+      vi.advanceTimersByTime(400);
+      expect(state.waitingStatus).toBe('思考中…');
+      const hint = state.thinkingEl!.children[1];
+      Object.defineProperty(hint, 'isConnected', { value: true, configurable: true });
+      vi.advanceTimersByTime(1000);
+      expect(hint.textContent).toContain('按 Esc 中断');
+    } finally { setLocale('en'); }
   });
 
   it('appears after its debounce delay and scrolls it into view', () => {
@@ -229,7 +244,7 @@ describe('ThinkingIndicator', () => {
   });
 
   it('keeps an explicit status across hide and resume until it ends', () => {
-    indicator.show('Compacting...', 'claudian-thinking--compact');
+    indicator.show('Compacting...', 'scribe-thinking--compact');
     vi.advanceTimersByTime(500);
     expect(state.waitingStatus).toBe('Compacting...');
 

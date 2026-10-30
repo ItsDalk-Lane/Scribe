@@ -2,7 +2,7 @@
  * Composer info row: read-only conversation facts attached under the input box.
  * The toolbar inside the box holds only what the user can change.
  */
-.claudian-input-info-row {
+.scribe-input-info-row {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -13,7 +13,7 @@
   font-size: 12px;
 }
 
-.claudian-input-info-linked {
+.scribe-input-info-linked {
   display: inline-flex;
   align-items: center;
   flex: 0 1 auto;
@@ -24,13 +24,13 @@
   --no-tooltip: true;
 }
 
-.claudian-input-info-linked:empty {
+.scribe-input-info-linked:empty {
   display: none;
 }
 
 /* Obsidian restores native button chrome on these states. */
-.claudian-input-info-linked > button.claudian-input-info-linked-main,
-.claudian-input-info-linked > button.claudian-input-info-linked-main:is(:hover, :focus, :focus-visible, :active, :disabled) {
+.scribe-input-info-linked > button.scribe-input-info-linked-main,
+.scribe-input-info-linked > button.scribe-input-info-linked-main:is(:hover, :focus, :focus-visible, :active, :disabled) {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -49,17 +49,17 @@
   cursor: pointer;
 }
 
-.claudian-input-info-linked > button.claudian-input-info-linked-main:not(:disabled):is(:hover, :focus-visible) {
+.scribe-input-info-linked > button.scribe-input-info-linked-main:not(:disabled):is(:hover, :focus-visible) {
   color: var(--text-normal);
 }
 
 /* A chip that cannot change: a started session's project, or a draft's seed while its first turn creates the session. */
-.claudian-input-info-linked > button.claudian-input-info-linked-main:disabled {
+.scribe-input-info-linked > button.scribe-input-info-linked-main:disabled {
   opacity: 1;
   cursor: default;
 }
 
-.claudian-input-info-linked-icon {
+.scribe-input-info-linked-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,24 +68,24 @@
   height: 13px;
 }
 
-.claudian-input-info-linked-icon svg {
+.scribe-input-info-linked-icon svg {
   width: 13px;
   height: 13px;
 }
 
-.claudian-input-info-linked--missing .claudian-input-info-linked-icon {
+.scribe-input-info-linked--missing .scribe-input-info-linked-icon {
   color: var(--text-error);
 }
 
-.claudian-input-info-linked-label {
+.scribe-input-info-linked-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.claudian-input-info-linked > button.claudian-input-info-linked-remove,
-.claudian-input-info-linked > button.claudian-input-info-linked-remove:is(:hover, :focus, :focus-visible, :active) {
+.scribe-input-info-linked > button.scribe-input-info-linked-remove,
+.scribe-input-info-linked > button.scribe-input-info-linked-remove:is(:hover, :focus, :focus-visible, :active) {
   appearance: none;
   display: flex;
   align-items: center;
@@ -106,11 +106,11 @@
   cursor: pointer;
 }
 
-.claudian-input-info-linked > button.claudian-input-info-linked-remove:is(:hover, :focus-visible) {
+.scribe-input-info-linked > button.scribe-input-info-linked-remove:is(:hover, :focus-visible) {
   color: var(--text-normal);
 }
 
-.claudian-input-info-linked > button:focus-visible {
+.scribe-input-info-linked > button:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
   border-radius: 4px;

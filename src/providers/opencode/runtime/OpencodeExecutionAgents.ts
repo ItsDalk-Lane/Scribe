@@ -5,8 +5,8 @@ import type { OpencodeManagedAgentConfig } from './OpencodeLaunchArtifacts';
 export const OPENCODE_BUILD_AGENT_ID = 'build';
 
 export const AUX_AGENT_IDS: Record<Exclude<OpencodeExecutionProfile, 'managed'>, string> = {
-  passive: 'claudian-title',
-  readonly: 'claudian-inline-edit',
+  passive: 'scribe-title',
+  readonly: 'scribe-inline-edit',
 };
 
 const READ_PERMISSION = Object.freeze({
@@ -22,7 +22,7 @@ export function buildAgentConfig(
   return profile === 'readonly'
     ? {
       definition: {
-        description: 'Claudian read-only execution agent.',
+        description: 'Scribe read-only execution agent.',
         mode: 'primary',
         permission: {
           '*': 'deny',
@@ -40,7 +40,7 @@ export function buildAgentConfig(
     }
     : {
       definition: {
-        description: 'Claudian passive execution agent.',
+        description: 'Scribe passive execution agent.',
         mode: 'primary',
         permission: {
           '*': 'deny',

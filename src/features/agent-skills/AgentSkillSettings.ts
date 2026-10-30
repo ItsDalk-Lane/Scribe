@@ -80,11 +80,11 @@ class AgentSkillModal extends Modal {
   onOpen(): void {
     const { initial } = this.options;
     this.setTitle(this.options.title);
-    this.modalEl.addClass('claudian-agent-skill-modal');
+    this.modalEl.addClass('scribe-agent-skill-modal');
 
     if (this.options.droppedKeys && this.options.droppedKeys.length > 0) {
       this.contentEl.createEl('p', {
-        cls: 'claudian-agent-skill-warning',
+        cls: 'scribe-agent-skill-warning',
         text: t('settings.skills.droppedFrontmatterWarning', {
           keys: this.options.droppedKeys.join(', '),
         }),
@@ -118,7 +118,7 @@ class AgentSkillModal extends Modal {
       .setDesc(t('settings.agentSkills.modal.instructionsDesc'));
 
     this.instructionsArea = this.contentEl.createEl('textarea', {
-      cls: 'claudian-agent-skill-instructions',
+      cls: 'scribe-agent-skill-instructions',
       attr: {
         rows: '12',
         'aria-label': t('settings.agentSkills.modal.instructions'),
@@ -156,17 +156,17 @@ class AgentSkillModal extends Modal {
       }
     };
 
-    const actions = this.contentEl.createDiv({ cls: 'claudian-agent-skill-modal-actions' });
+    const actions = this.contentEl.createDiv({ cls: 'scribe-agent-skill-modal-actions' });
     const cancelButton = actions.createEl('button', {
       attr: { type: 'button' },
       text: t('common.cancel'),
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
     });
     cancelButton.addEventListener('click', () => this.close());
     const saveButton = actions.createEl('button', {
       attr: { type: 'button' },
       text: t('common.save'),
-      cls: 'claudian-save-btn',
+      cls: 'scribe-save-btn',
     });
     saveButton.addEventListener('click', () => {
       void save();
@@ -195,7 +195,7 @@ class AgentSkillDeleteModal extends Modal {
     this.setTitle(this.options.title);
     this.contentEl.createEl('p', {
       text: this.options.description,
-      cls: 'claudian-agent-skill-delete-description',
+      cls: 'scribe-agent-skill-delete-description',
     });
     this.contentEl.createEl('code', { text: this.options.path });
 
@@ -218,11 +218,11 @@ class AgentSkillDeleteModal extends Modal {
       }
     };
 
-    const actions = this.contentEl.createDiv({ cls: 'claudian-agent-skill-modal-actions' });
+    const actions = this.contentEl.createDiv({ cls: 'scribe-agent-skill-modal-actions' });
     const cancelButton = actions.createEl('button', {
       attr: { type: 'button' },
       text: t('common.cancel'),
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
     });
     cancelButton.addEventListener('click', () => this.close());
     const deleteButton = actions.createEl('button', {
@@ -265,7 +265,7 @@ export class AgentSkillSettings {
     private readonly app: App,
     private readonly options: AgentSkillSettingsOptions = {},
   ) {
-    this.rootEl = containerEl.createDiv({ cls: 'claudian-agent-skills-manager' });
+    this.rootEl = containerEl.createDiv({ cls: 'scribe-agent-skills-manager' });
     void this.render();
   }
 
@@ -294,7 +294,7 @@ export class AgentSkillSettings {
       this.rootEl.empty();
       this.#renderHeader();
       this.rootEl.createDiv({
-        cls: 'claudian-agent-skills-error',
+        cls: 'scribe-agent-skills-error',
         text: t('settings.agentSkills.loadFailed'),
       });
       return;
@@ -306,11 +306,11 @@ export class AgentSkillSettings {
 
     if (result.skills.length === 0) {
       this.rootEl.createDiv({
-        cls: 'claudian-sp-empty-state',
+        cls: 'scribe-sp-empty-state',
         text: t('settings.agentSkills.noSkills'),
       });
     } else {
-      const list = this.rootEl.createDiv({ cls: 'claudian-sp-list' });
+      const list = this.rootEl.createDiv({ cls: 'scribe-sp-list' });
       for (const skill of result.skills) {
         this.#renderSkill(list, skill);
       }
@@ -323,9 +323,9 @@ export class AgentSkillSettings {
     // Only packages the user can fix or delete; links and unreadable files are left to Sync.
     const diagnostics = result.diagnostics.filter(diagnostic => diagnostic.repairName !== undefined);
     if (diagnostics.length > 0) {
-      const diagnosticsEl = this.rootEl.createDiv({ cls: 'claudian-agent-skills-diagnostics' });
+      const diagnosticsEl = this.rootEl.createDiv({ cls: 'scribe-agent-skills-diagnostics' });
       diagnosticsEl.createDiv({
-        cls: 'claudian-agent-skills-diagnostics-title',
+        cls: 'scribe-agent-skills-diagnostics-title',
         text: t('settings.agentSkills.diagnosticsTitle'),
       });
       for (const diagnostic of diagnostics) {
@@ -336,20 +336,20 @@ export class AgentSkillSettings {
 
   #renderHeader(): void {
     const header = this.rootEl.createDiv({
-      cls: 'claudian-sp-header claudian-agent-skills-header',
+      cls: 'scribe-sp-header scribe-agent-skills-header',
     });
-    const help = header.createDiv({ cls: 'claudian-agent-skills-help' });
+    const help = header.createDiv({ cls: 'scribe-agent-skills-help' });
     if (this.options.title) {
-      help.createEl('h3', { cls: 'claudian-agent-skills-title', text: this.options.title });
+      help.createEl('h3', { cls: 'scribe-agent-skills-title', text: this.options.title });
     }
     if (this.options.help !== null) {
       help.createEl('p', { text: this.options.help ?? t('settings.agentSkills.sharedExpectation') });
     }
 
-    const actions = header.createDiv({ cls: 'claudian-sp-header-actions' });
+    const actions = header.createDiv({ cls: 'scribe-sp-header-actions' });
     this.options.renderHeaderAccessory?.(actions);
     const refreshButton = actions.createEl('button', {
-      cls: 'claudian-settings-action-btn',
+      cls: 'scribe-settings-action-btn',
       attr: { type: 'button', 'aria-label': t('common.refresh') },
     });
     setIcon(refreshButton, 'refresh-cw');
@@ -361,7 +361,7 @@ export class AgentSkillSettings {
       }
     });
     const addButton = actions.createEl('button', {
-      cls: 'claudian-settings-action-btn',
+      cls: 'scribe-settings-action-btn',
       attr: { type: 'button', 'aria-label': t('common.add') },
     });
     setIcon(addButton, 'plus');
@@ -369,17 +369,17 @@ export class AgentSkillSettings {
   }
 
   #renderSkill(list: HTMLElement, skill: AgentSkillDocument): void {
-    const item = list.createDiv({ cls: 'claudian-sp-item' });
-    const info = item.createDiv({ cls: 'claudian-sp-info' });
-    const itemHeader = info.createDiv({ cls: 'claudian-sp-item-header' });
-    itemHeader.createSpan({ text: skill.name, cls: 'claudian-sp-item-name' });
+    const item = list.createDiv({ cls: 'scribe-sp-item' });
+    const info = item.createDiv({ cls: 'scribe-sp-info' });
+    const itemHeader = info.createDiv({ cls: 'scribe-sp-item-header' });
+    itemHeader.createSpan({ text: skill.name, cls: 'scribe-sp-item-name' });
     itemHeader.createSpan({
       text: t('settings.agentSkills.skillBadge'),
-      cls: 'claudian-slash-item-badge',
+      cls: 'scribe-slash-item-badge',
     });
-    info.createDiv({ text: skill.description, cls: 'claudian-sp-item-desc' });
+    info.createDiv({ text: skill.description, cls: 'scribe-sp-item-desc' });
 
-    const actions = item.createDiv({ cls: 'claudian-sp-item-actions' });
+    const actions = item.createDiv({ cls: 'scribe-sp-item-actions' });
     this.#actionButton(actions, t('common.edit'), 'pencil', () => this.#openSkillEditor(skill));
     this.#actionButton(actions, t('common.delete'), 'trash-2', () => {
       this.#openDelete({
@@ -389,13 +389,13 @@ export class AgentSkillSettings {
         remove: () => this.coordinator.trash(skill.name, skill.revision),
         successMessage: t('settings.agentSkills.deleted', { name: skill.name }),
       });
-    }, 'claudian-settings-delete-btn');
+    }, 'scribe-settings-delete-btn');
   }
 
   #renderCommands(commands: ClaudeCommandDocument[]): void {
-    const section = this.rootEl.createDiv({ cls: 'claudian-agent-skills-commands' });
+    const section = this.rootEl.createDiv({ cls: 'scribe-agent-skills-commands' });
     section.createDiv({
-      cls: 'claudian-agent-skills-commands-title',
+      cls: 'scribe-agent-skills-commands-title',
       text: t('settings.skills.commands.title'),
     });
     section.createEl('p', {
@@ -403,21 +403,21 @@ export class AgentSkillSettings {
       text: t('settings.skills.commands.hint'),
     });
     if (commands.length === 0) {
-      section.createDiv({ cls: 'claudian-sp-empty-state', text: t('settings.skills.commands.empty') });
+      section.createDiv({ cls: 'scribe-sp-empty-state', text: t('settings.skills.commands.empty') });
       return;
     }
-    const list = section.createDiv({ cls: 'claudian-sp-list' });
+    const list = section.createDiv({ cls: 'scribe-sp-list' });
     for (const command of commands) {
-      const item = list.createDiv({ cls: 'claudian-sp-item' });
-      const info = item.createDiv({ cls: 'claudian-sp-info' });
-      const itemHeader = info.createDiv({ cls: 'claudian-sp-item-header' });
-      itemHeader.createSpan({ text: `/${command.name}`, cls: 'claudian-sp-item-name' });
-      itemHeader.createSpan({ text: t('settings.skills.commands.badge'), cls: 'claudian-slash-item-badge' });
+      const item = list.createDiv({ cls: 'scribe-sp-item' });
+      const info = item.createDiv({ cls: 'scribe-sp-info' });
+      const itemHeader = info.createDiv({ cls: 'scribe-sp-item-header' });
+      itemHeader.createSpan({ text: `/${command.name}`, cls: 'scribe-sp-item-name' });
+      itemHeader.createSpan({ text: t('settings.skills.commands.badge'), cls: 'scribe-slash-item-badge' });
       if (command.description) {
-        info.createDiv({ text: command.description, cls: 'claudian-sp-item-desc' });
+        info.createDiv({ text: command.description, cls: 'scribe-sp-item-desc' });
       }
 
-      const actions = item.createDiv({ cls: 'claudian-sp-item-actions' });
+      const actions = item.createDiv({ cls: 'scribe-sp-item-actions' });
       this.#actionButton(actions, t('common.edit'), 'pencil', () => this.#openCommandEditor(command));
       this.#actionButton(
         actions,
@@ -433,19 +433,19 @@ export class AgentSkillSettings {
           remove: () => this.coordinator.trashCommand(command),
           successMessage: t('settings.skills.commands.deleted', { name: command.name }),
         });
-      }, 'claudian-settings-delete-btn');
+      }, 'scribe-settings-delete-btn');
     }
   }
 
   #renderDiagnostic(container: HTMLElement, diagnostic: AgentSkillDiagnostic): void {
-    const item = container.createDiv({ cls: 'claudian-agent-skills-diagnostic' });
-    const info = item.createDiv({ cls: 'claudian-agent-skills-diagnostic-info' });
+    const item = container.createDiv({ cls: 'scribe-agent-skills-diagnostic' });
+    const info = item.createDiv({ cls: 'scribe-agent-skills-diagnostic-info' });
     info.createEl('code', { text: diagnostic.directoryPath });
     info.createSpan({ text: diagnostic.message });
     const name = diagnostic.repairName;
     if (name === undefined) return;
 
-    const actions = item.createDiv({ cls: 'claudian-sp-item-actions' });
+    const actions = item.createDiv({ cls: 'scribe-sp-item-actions' });
     this.#actionButton(actions, t('settings.agentSkills.fix'), 'wrench', () => {
       void this.#openRepairEditor(name);
     });
@@ -459,7 +459,7 @@ export class AgentSkillSettings {
           remove: () => this.coordinator.trashBroken(name, revision),
           successMessage: t('settings.agentSkills.deleted', { name }),
         });
-      }, 'claudian-settings-delete-btn');
+      }, 'scribe-settings-delete-btn');
     }
   }
 
@@ -507,7 +507,7 @@ export class AgentSkillSettings {
     extraClass = '',
   ): void {
     const button = container.createEl('button', {
-      cls: `claudian-settings-action-btn${extraClass ? ` ${extraClass}` : ''}`,
+      cls: `scribe-settings-action-btn${extraClass ? ` ${extraClass}` : ''}`,
       attr: { type: 'button', 'aria-label': label },
     });
     setIcon(button, icon);

@@ -27,8 +27,8 @@ describe('toolExpandedContent', () => {
   describe('result presentation contracts', () => {
     const expandedLines = (toolCall: ToolCallInfo) => {
       const toolEl = renderStoredToolCall(createMockEl(), toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
-      return Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent);
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
+      return Array.from(toolEl.querySelectorAll('.scribe-tool-line')).map(line => line.textContent);
     };
 
     it.each([
@@ -63,9 +63,9 @@ describe('toolExpandedContent', () => {
       const toolEl = renderStoredToolCall(createMockEl(), createToolCall({
         name: 'GenerateImage', status: 'completed', input: { prompt: 'p' }, result: 'done', resultImages: [image],
       }));
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
 
-      const img = toolEl.querySelector('.claudian-tool-result-image');
+      const img = toolEl.querySelector('.scribe-tool-result-image');
       expect(img?.getAttribute('src')).toBe(src);
       expect(img?.getAttribute('alt')).toBe(alt);
     });

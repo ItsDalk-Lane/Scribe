@@ -2,8 +2,8 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
-import type { ClaudianProviderHostDeps } from '@/composition/ClaudianProviderHost';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeProviderHostDeps } from '@/composition/ScribeProviderHost';
+import type { ScribeSettings } from '@/core/types';
 
 const describeUnix = process.platform === 'win32' ? describe.skip : describe;
 
@@ -14,10 +14,10 @@ describeUnix('login shell PATH for GUI-launched processes', () => {
 
   beforeEach(() => {
     vi.resetModules();
-    directory = mkdtempSync(path.join(tmpdir(), 'claudian login shell '));
+    directory = mkdtempSync(path.join(tmpdir(), 'scribe login shell '));
     loginBin = path.join(directory, 'login only bin');
     mkdirSync(loginBin);
-    const cli = path.join(loginBin, 'claudian-login-probe');
+    const cli = path.join(loginBin, 'scribe-login-probe');
     writeFileSync(cli, '#!/bin/sh\necho ok\n');
     chmodSync(cli, 0o755);
     // Mirrors a GUI app: minimal PATH, and an empty home so no guessed location holds the CLI.
@@ -50,22 +50,22 @@ describeUnix('login shell PATH for GUI-launched processes', () => {
   }
 
   async function createHost() {
-    const { ClaudianProviderHost } = await import('@/composition/ClaudianProviderHost');
+    const { ScribeProviderHost } = await import('@/composition/ScribeProviderHost');
     const { ProviderExecutionLifecycleRegistry } = await import('@/core/execution');
     const { SettingsCoordinator } = await import('@/app/settings/SettingsCoordinator');
     const { ProviderWorkspaceRegistry } = await import('@/core/providers/ProviderWorkspaceRegistry');
     const { findCLIBinaryPath } = await import('@/core/process/cliBinaryLocator');
     ProviderWorkspaceRegistry.register('login-probe', {
       initialize: async () => ({
-        cliResolver: { resolveFromSettings: () => findCLIBinaryPath('claudian-login-probe'), reset: () => undefined },
+        cliResolver: { resolveFromSettings: () => findCLIBinaryPath('scribe-login-probe'), reset: () => undefined },
       }),
     });
-    return new ClaudianProviderHost({
-      app: {} as ClaudianProviderHostDeps['app'],
+    return new ScribeProviderHost({
+      app: {} as ScribeProviderHostDeps['app'],
       executionLifecycleRegistry: new ProviderExecutionLifecycleRegistry(),
       storage: { installationKey: 'device-key' as never },
-      settings: new SettingsCoordinator({} as ClaudianSettings, async () => undefined),
-      environment: {} as ClaudianProviderHostDeps['environment'],
+      settings: new SettingsCoordinator({} as ScribeSettings, async () => undefined),
+      environment: {} as ScribeProviderHostDeps['environment'],
       sessionToolEndpoint: { registerMCPRoute: vi.fn(), registerCallRoute: vi.fn() },
       notifyProviderChatOptionsChanged: async () => undefined,
     });
@@ -76,7 +76,7 @@ describeUnix('login shell PATH for GUI-launched processes', () => {
     const host = await createHost();
 
     await expect(host.getResolvedProviderCliPath('login-probe'))
-      .resolves.toBe(path.join(loginBin, 'claudian-login-probe'));
+      .resolves.toBe(path.join(loginBin, 'scribe-login-probe'));
 
     const { getEnhancedPath } = await import('@/core/process/env');
     const entries = getEnhancedPath('/configured/bin').split(path.delimiter);

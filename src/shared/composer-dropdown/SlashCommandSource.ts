@@ -192,7 +192,7 @@ export class SlashCommandSource implements ComposerDropdownSource {
     return entry?.kind ?? null;
   }
 
-  /** Destinations without Claudian built-in commands hide them entirely. */
+  /** Destinations without Scribe built-in commands hide them entirely. */
   setBuiltInsEnabled(enabled: boolean): void {
     if (this.includeBuiltIns === enabled) return;
     this.includeBuiltIns = enabled;

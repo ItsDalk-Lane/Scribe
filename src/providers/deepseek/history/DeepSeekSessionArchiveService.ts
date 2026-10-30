@@ -6,7 +6,7 @@ import { isSameDeepSeekHome } from '../runtime/DeepSeekHome';
 import type { DeepSeekHost } from '../runtime/DeepSeekHost';
 import { decodeDeepSeekState } from '../types';
 
-/** Mirrors Claudian archive state onto the native registry-global archive set through the shared Host. */
+/** Mirrors Scribe archive state onto the native registry-global archive set through the shared Host. */
 export class DeepSeekSessionArchiveService implements ProviderSessionArchive {
   private readonly active = new Set<Promise<void>>();
   private readonly fence = new ProviderTransitionFence();
@@ -44,7 +44,7 @@ export class DeepSeekSessionArchiveService implements ProviderSessionArchive {
         // Another store's session id cannot name a session in this Host's store.
         if (home && !isSameDeepSeekHome(home, lease.home)) continue;
         try {
-          // Claudian archives only closed sessions, so leftover native work is stopped rather than refusing the archive.
+          // Scribe archives only closed sessions, so leftover native work is stopped rather than refusing the archive.
           if (isArchived) await lease.client.call('workspace/archiveSession', { request: { sessionId, stopActivity: true } });
           else await lease.client.call('workspace/unarchiveSession', { request: { sessionId } });
         } catch (error) {

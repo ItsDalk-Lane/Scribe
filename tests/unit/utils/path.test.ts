@@ -421,7 +421,7 @@ describe('filesystem path expansion and Windows prefixes', () => {
   });
 
   it('handles chained home and environment variable expansions', () => {
-    const envKey = 'CLAUDIAN_TEST_SUBDIR';
+    const envKey = 'SCRIBE_TEST_SUBDIR';
     const originalValue = process.env[envKey];
     process.env[envKey] = 'project';
 

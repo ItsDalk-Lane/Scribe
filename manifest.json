@@ -1,10 +1,9 @@
 {
-  "id": "realclaudian",
-  "name": "Claudian",
-  "version": "2.3.36",
+  "id": "scribe",
+  "name": "Scribe",
+  "version": "1.0.0",
   "minAppVersion": "1.13.0",
-  "description": "Embeds Claude Code, Codex, and other coding agents as AI collaborators in your vault. Your vault becomes their working directory, giving them capabilities for file reads and writes, search, bash commands, and multi-step workflows.",
-  "author": "Yishen Tu",
-  "authorUrl": "https://github.com/YishenTu",
+  "description": "Bring AI coding agents into your vault for conversations and work across your notes and files.",
+  "author": "Scribe",
   "isDesktopOnly": true
 }

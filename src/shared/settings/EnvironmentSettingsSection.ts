@@ -3,6 +3,7 @@ import { Notice, Setting } from 'obsidian';
 import { getEnvironmentReviewKeysForScope } from '../../core/providers/providerEnvironment';
 import type { ProviderHost } from '../../core/providers/ProviderHost';
 import type { EnvironmentScope } from '../../core/types/settings';
+import { t } from '../../i18n/i18n';
 import { refreshCLIInstallations } from './CLIInstallationSetting';
 import { EnvSnippetManager } from './EnvSnippetManager';
 
@@ -36,37 +37,37 @@ export function renderEnvironmentSettingsSection(
   }
 
   const refreshInstallations = (): void => {
-    refreshCLIInstallations(container.closest('.claudian-settings') ?? container);
+    refreshCLIInstallations(container.closest('.scribe-settings') ?? container);
   };
 
   let envTextarea: HTMLTextAreaElement | null = null;
   const reviewEl = container.createDiv({
-    cls: 'claudian-env-review-warning claudian-setting-validation claudian-setting-validation-warning claudian-hidden',
+    cls: 'scribe-env-review-warning scribe-setting-validation scribe-setting-validation-warning scribe-hidden',
   });
 
   const updateReviewWarning = () => {
     const reviewKeys = getEnvironmentReviewKeysForScope(envTextarea?.value ?? '', scope);
     if (reviewKeys.length === 0) {
-      reviewEl.toggleClass('claudian-hidden', true);
+      reviewEl.toggleClass('scribe-hidden', true);
       reviewEl.empty();
       return;
     }
 
-    reviewEl.setText(`Review environment ownership for: ${reviewKeys.join(', ')}`);
-    reviewEl.toggleClass('claudian-hidden', false);
+    reviewEl.setText(t('settings.ui.environmentReview', { keys: reviewKeys.join(', ') }));
+    reviewEl.toggleClass('scribe-hidden', false);
   };
 
   new Setting(container)
     .setName(name)
     .setDesc(desc)
-    .setClass('claudian-settings-textarea')
+    .setClass('scribe-settings-textarea')
     .addTextArea((text) => {
       text
         .setPlaceholder(placeholder)
         .setValue(plugin.getEnvironmentVariablesForScope(scope));
       text.inputEl.rows = 6;
       text.inputEl.cols = 50;
-      text.inputEl.addClass('claudian-settings-env-textarea');
+      text.inputEl.addClass('scribe-settings-env-textarea');
       text.inputEl.setAttribute('aria-label', name);
       text.inputEl.dataset.envScope = scope;
       text.inputEl.addEventListener('input', () => updateReviewWarning());
@@ -78,7 +79,7 @@ export function renderEnvironmentSettingsSection(
             renderCustomContextLimits?.(contextLimitsContainer);
             updateReviewWarning();
           } catch {
-            new Notice('Could not complete environment update.');
+            new Notice(t('settings.ui.environmentUpdateFailed'));
           }
         })();
       });
@@ -87,10 +88,10 @@ export function renderEnvironmentSettingsSection(
 
   updateReviewWarning();
 
-  const contextLimitsContainer = container.createDiv({ cls: 'claudian-context-limits-container' });
+  const contextLimitsContainer = container.createDiv({ cls: 'scribe-context-limits-container' });
   renderCustomContextLimits?.(contextLimitsContainer);
 
-  const envSnippetsContainer = container.createDiv({ cls: 'claudian-env-snippets-container' });
+  const envSnippetsContainer = container.createDiv({ cls: 'scribe-env-snippets-container' });
   new EnvSnippetManager(envSnippetsContainer, plugin, scope, () => {
     refreshInstallations();
     renderCustomContextLimits?.(contextLimitsContainer);

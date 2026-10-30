@@ -8,10 +8,10 @@ import { hideSelectionHighlight, showSelectionHighlight } from '@/shared/compone
 import { getEditorView } from '@/utils/obsidianCompat';
 
 const INPUT_HANDOFF_GRACE_MS = 1500;
-const HIGHLIGHT_KEY = 'claudian-selection';
+const HIGHLIGHT_KEY = 'scribe-selection';
 // Gates the ::highlight() rule while the highlight is registered: an ungated rule makes Chromium
 // resolve a highlight style for every element on every restyle, even with no highlight registered.
-const HIGHLIGHT_ACTIVE_CLASS = 'claudian-selection-highlight-active';
+const HIGHLIGHT_ACTIVE_CLASS = 'scribe-selection-highlight-active';
 
 type CustomHighlightRegistry = {
   delete: (name: string) => boolean;

@@ -19,7 +19,7 @@ import {
 } from '@test/helpers/features/chat/TabManagerTestHarness';
 import type { Mock } from 'vitest';
 
-import { ClaudianViews } from '@/composition/ClaudianViews';
+import { ScribeViews } from '@/composition/ScribeViews';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import { ChatSessionRuntime } from '@/features/chat/sessions/ChatSessionRuntime';
@@ -1447,7 +1447,7 @@ describe('TabManager provider execution orchestration', () => {
     const first = await createManager(plugin);
     const second = await createManager(plugin);
     const leaves = [first, second].map(({ manager }) => ({ view: { getTabManager: () => manager } }));
-    const views = new ClaudianViews({ getLeavesOfType: () => leaves } as any, () => 'right-sidebar');
+    const views = new ScribeViews({ getLeavesOfType: () => leaves } as any, () => 'right-sidebar');
     plugin.findConversationAcrossViews = (id: string) => views.findConversationAcrossViews(id);
 
     await Promise.all([

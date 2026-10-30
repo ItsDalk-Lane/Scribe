@@ -1,103 +1,103 @@
 /* Brand & semantic color tokens */
-.claudian-container,
-.claudian-settings,
-.claudian-inline-input-container,
-.claudian-inline-menu-layer {
-  --claudian-brand: #D97757;
-  --claudian-brand-rgb: 217, 119, 87;
-  --claudian-provider-logo: var(--claudian-brand-claude);
-  --claudian-brand-neutral: #fff;
-  --claudian-brand-neutral-rgb: 255, 255, 255;
-  --claudian-brand-claude: #D97757;
-  --claudian-brand-claude-rgb: 217, 119, 87;
-  --claudian-brand-codex: #d0d0d0;
-  --claudian-brand-codex-rgb: 208, 208, 208;
-  --claudian-brand-opencode: #B8B8B8;
-  --claudian-brand-opencode-rgb: 184, 184, 184;
-  --claudian-brand-pi: #fff;
-  --claudian-brand-pi-rgb: 255, 255, 255;
-  --claudian-brand-grok: #fff;
-  --claudian-brand-grok-rgb: 255, 255, 255;
-  --claudian-brand-deepseek: #4D6BFE;
-  --claudian-error: #dc3545;
-  --claudian-compact: #5bc0de;
+.scribe-container,
+.scribe-settings,
+.scribe-inline-input-container,
+.scribe-inline-menu-layer {
+  --scribe-brand: #D97757;
+  --scribe-brand-rgb: 217, 119, 87;
+  --scribe-provider-logo: var(--scribe-brand-claude);
+  --scribe-brand-neutral: #fff;
+  --scribe-brand-neutral-rgb: 255, 255, 255;
+  --scribe-brand-claude: #D97757;
+  --scribe-brand-claude-rgb: 217, 119, 87;
+  --scribe-brand-codex: #d0d0d0;
+  --scribe-brand-codex-rgb: 208, 208, 208;
+  --scribe-brand-opencode: #B8B8B8;
+  --scribe-brand-opencode-rgb: 184, 184, 184;
+  --scribe-brand-pi: #fff;
+  --scribe-brand-pi-rgb: 255, 255, 255;
+  --scribe-brand-grok: #fff;
+  --scribe-brand-grok-rgb: 255, 255, 255;
+  --scribe-brand-deepseek: #4D6BFE;
+  --scribe-error: #dc3545;
+  --scribe-compact: #5bc0de;
 
   /* Shared side-chat accent. */
-  --claudian-side-chat: #60a5fa;
+  --scribe-side-chat: #60a5fa;
 
   /* Tick on the current choice in toolbar menus. */
-  --claudian-selection-check: #86efac;
+  --scribe-selection-check: #86efac;
 }
 
-body.theme-light .claudian-container,
-body.theme-light .claudian-inline-input-container,
-body.theme-light .claudian-inline-menu-layer {
-  --claudian-brand-neutral: #000;
-  --claudian-brand-neutral-rgb: 0, 0, 0;
-  --claudian-brand-codex: #000;
-  --claudian-brand-codex-rgb: 0, 0, 0;
-  --claudian-brand-opencode: #707070;
-  --claudian-brand-opencode-rgb: 112, 112, 112;
-  --claudian-brand-pi: #000;
-  --claudian-brand-pi-rgb: 0, 0, 0;
-  --claudian-brand-grok: #000;
-  --claudian-brand-grok-rgb: 0, 0, 0;
-  --claudian-selection-check: #16a34a;
+body.theme-light .scribe-container,
+body.theme-light .scribe-inline-input-container,
+body.theme-light .scribe-inline-menu-layer {
+  --scribe-brand-neutral: #000;
+  --scribe-brand-neutral-rgb: 0, 0, 0;
+  --scribe-brand-codex: #000;
+  --scribe-brand-codex-rgb: 0, 0, 0;
+  --scribe-brand-opencode: #707070;
+  --scribe-brand-opencode-rgb: 112, 112, 112;
+  --scribe-brand-pi: #000;
+  --scribe-brand-pi-rgb: 0, 0, 0;
+  --scribe-brand-grok: #000;
+  --scribe-brand-grok-rgb: 0, 0, 0;
+  --scribe-selection-check: #16a34a;
 }
 
-/* Active-provider aliases (chat, zen, and the inline edit composer and its menu layer): `--claudian-provider-logo` colours provider icons, `--claudian-brand` the other accents.
+/* Active-provider aliases (chat, zen, and the inline edit composer and its menu layer): `--scribe-provider-logo` colours provider icons, `--scribe-brand` the other accents.
    A provider tab in the model menu takes its own provider's. */
-.claudian-container[data-provider="claude"],
-.claudian-inline-input-container[data-provider="claude"],
-.claudian-inline-menu-layer[data-provider="claude"],
-.claudian-model-provider-tab[data-provider="claude"] {
-  --claudian-brand: var(--claudian-brand-claude);
-  --claudian-brand-rgb: var(--claudian-brand-claude-rgb);
-  --claudian-provider-logo: var(--claudian-brand-claude);
+.scribe-container[data-provider="claude"],
+.scribe-inline-input-container[data-provider="claude"],
+.scribe-inline-menu-layer[data-provider="claude"],
+.scribe-model-provider-tab[data-provider="claude"] {
+  --scribe-brand: var(--scribe-brand-claude);
+  --scribe-brand-rgb: var(--scribe-brand-claude-rgb);
+  --scribe-provider-logo: var(--scribe-brand-claude);
 }
 
-.claudian-container[data-provider="codex"],
-.claudian-inline-input-container[data-provider="codex"],
-.claudian-inline-menu-layer[data-provider="codex"],
-.claudian-model-provider-tab[data-provider="codex"] {
-  --claudian-brand: var(--claudian-brand-codex);
-  --claudian-brand-rgb: var(--claudian-brand-codex-rgb);
-  --claudian-provider-logo: var(--claudian-brand-codex);
+.scribe-container[data-provider="codex"],
+.scribe-inline-input-container[data-provider="codex"],
+.scribe-inline-menu-layer[data-provider="codex"],
+.scribe-model-provider-tab[data-provider="codex"] {
+  --scribe-brand: var(--scribe-brand-codex);
+  --scribe-brand-rgb: var(--scribe-brand-codex-rgb);
+  --scribe-provider-logo: var(--scribe-brand-codex);
 }
 
-.claudian-container[data-provider="opencode"],
-.claudian-inline-input-container[data-provider="opencode"],
-.claudian-inline-menu-layer[data-provider="opencode"],
-.claudian-model-provider-tab[data-provider="opencode"] {
-  --claudian-brand: var(--claudian-brand-opencode);
-  --claudian-brand-rgb: var(--claudian-brand-opencode-rgb);
-  --claudian-provider-logo: var(--claudian-brand-opencode);
+.scribe-container[data-provider="opencode"],
+.scribe-inline-input-container[data-provider="opencode"],
+.scribe-inline-menu-layer[data-provider="opencode"],
+.scribe-model-provider-tab[data-provider="opencode"] {
+  --scribe-brand: var(--scribe-brand-opencode);
+  --scribe-brand-rgb: var(--scribe-brand-opencode-rgb);
+  --scribe-provider-logo: var(--scribe-brand-opencode);
 }
 
-.claudian-container[data-provider="pi"],
-.claudian-inline-input-container[data-provider="pi"],
-.claudian-inline-menu-layer[data-provider="pi"],
-.claudian-model-provider-tab[data-provider="pi"] {
-  --claudian-brand: var(--claudian-brand-pi);
-  --claudian-brand-rgb: var(--claudian-brand-pi-rgb);
-  --claudian-provider-logo: var(--claudian-brand-pi);
+.scribe-container[data-provider="pi"],
+.scribe-inline-input-container[data-provider="pi"],
+.scribe-inline-menu-layer[data-provider="pi"],
+.scribe-model-provider-tab[data-provider="pi"] {
+  --scribe-brand: var(--scribe-brand-pi);
+  --scribe-brand-rgb: var(--scribe-brand-pi-rgb);
+  --scribe-provider-logo: var(--scribe-brand-pi);
 }
 
-.claudian-container[data-provider="grok"],
-.claudian-inline-input-container[data-provider="grok"],
-.claudian-inline-menu-layer[data-provider="grok"],
-.claudian-model-provider-tab[data-provider="grok"] {
-  --claudian-brand: var(--claudian-brand-grok);
-  --claudian-brand-rgb: var(--claudian-brand-grok-rgb);
-  --claudian-provider-logo: var(--claudian-brand-grok);
+.scribe-container[data-provider="grok"],
+.scribe-inline-input-container[data-provider="grok"],
+.scribe-inline-menu-layer[data-provider="grok"],
+.scribe-model-provider-tab[data-provider="grok"] {
+  --scribe-brand: var(--scribe-brand-grok);
+  --scribe-brand-rgb: var(--scribe-brand-grok-rgb);
+  --scribe-provider-logo: var(--scribe-brand-grok);
 }
 
-.claudian-container[data-provider="deepseek"],
-.claudian-inline-input-container[data-provider="deepseek"],
-.claudian-inline-menu-layer[data-provider="deepseek"],
-.claudian-model-provider-tab[data-provider="deepseek"] {
+.scribe-container[data-provider="deepseek"],
+.scribe-inline-input-container[data-provider="deepseek"],
+.scribe-inline-menu-layer[data-provider="deepseek"],
+.scribe-model-provider-tab[data-provider="deepseek"] {
   /* DeepSeek blue marks only its logo; its other accents read as normal text. */
-  --claudian-brand: var(--claudian-brand-neutral);
-  --claudian-brand-rgb: var(--claudian-brand-neutral-rgb);
-  --claudian-provider-logo: var(--claudian-brand-deepseek);
+  --scribe-brand: var(--scribe-brand-neutral);
+  --scribe-brand-rgb: var(--scribe-brand-neutral-rgb);
+  --scribe-provider-logo: var(--scribe-brand-deepseek);
 }

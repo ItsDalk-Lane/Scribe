@@ -399,7 +399,7 @@ it('keeps the explicit send shortcut focused inside the editor', () => {
 });
 
 it('lets image attachment handling consume image paste before the rich editor inserts fallback text', () => {
-  const parent = document.body.createDiv({ cls: 'claudian-input-wrapper' });
+  const parent = document.body.createDiv({ cls: 'scribe-input-wrapper' });
   const editor = createEditor(parent);
   const images = new ImageContextManager({ pushScope: vi.fn(), popScope: vi.fn() }, parent, editor.element, {});
   editor.element.value = 'Keep this';
@@ -417,7 +417,7 @@ it('lets image attachment handling consume image paste before the rich editor in
 describe('image batch admission through the composer', () => {
   function createFixture() {
     const parent = document.body.createDiv();
-    const wrapper = parent.createDiv({ cls: 'claudian-input-wrapper' });
+    const wrapper = parent.createDiv({ cls: 'scribe-input-wrapper' });
     const editor = createEditor(wrapper);
     const changed = vi.fn();
     const images = new ImageContextManager({ pushScope: vi.fn(), popScope: vi.fn() }, parent, editor.element, {
@@ -465,7 +465,7 @@ describe('image batch admission through the composer', () => {
     try {
       fixture.images.setEnabled(false);
       if (operation === 'drop') fireEvent.dragEnter(fixture.wrapper, { dataTransfer: { types: ['Files'] } });
-      const overlay = fixture.parent.querySelector('.claudian-drop-overlay');
+      const overlay = fixture.parent.querySelector('.scribe-drop-overlay');
       expect(overlay?.classList.contains('visible')).toBe(operation === 'drop');
       const { event, preventDefault } = dispatchBatch(fixture, operation, [first.file, second.file]);
       // Rejected files settle synchronously through microtasks; observe the whole event, not its first Notice.
@@ -677,8 +677,8 @@ it('upgrades to the editor when a focusin reaches the composer host', () => {
 });
 
 it.each([
-  ['Draft ] \\ review', '@[Draft \\] \\\\ review](claudian-session:conv-1-abc)'],
-  ['Fix `bug`', '@[Fix `bug`](claudian-session:conv-1-abc)'],
+  ['Draft ] \\ review', '@[Draft \\] \\\\ review](scribe-session:conv-1-abc)'],
+  ['Fix `bug`', '@[Fix `bug`](scribe-session:conv-1-abc)'],
 ])('renders session title %s accessibly and deletes its token', async (title, token) => {
   const parent = document.body.createDiv();
   const editor = createEditor(parent);
@@ -696,15 +696,15 @@ it.each([
 });
 
 it.each([
-  '`@[Review](claudian-session:conv-1-abc)`',
-  '```md\n@[Review](claudian-session:conv-1-abc)\n```',
-  '    @[Review](claudian-session:conv-1-abc)',
-  '\\@[Review](claudian-session:conv-1-abc)',
+  '`@[Review](scribe-session:conv-1-abc)`',
+  '```md\n@[Review](scribe-session:conv-1-abc)\n```',
+  '    @[Review](scribe-session:conv-1-abc)',
+  '\\@[Review](scribe-session:conv-1-abc)',
 ])('keeps literal session token editable: %s', source => {
   const parent = document.body.createDiv();
   const editor = createEditor(parent);
   try {
-    editor.element.value = `${source}\n\n@[Visible](claudian-session:conv-2-abc)`;
+    editor.element.value = `${source}\n\n@[Visible](scribe-session:conv-2-abc)`;
     editor.element.focus();
     expect(within(parent).getByRole('img', { name: 'Session: Visible' })).toBeTruthy();
     expect(within(parent).queryByRole('img', { name: 'Session: Review' })).toBeNull();
@@ -1110,7 +1110,7 @@ it('localizes image overflow controls and updates their accessible names on expa
   setLocale('zh-CN');
   const parent = document.body.createDiv();
   // jsdom has no layout engine or host stylesheet; supply row metrics and host visibility semantics.
-  const style = parent.createEl('style', { text: '.claudian-hidden, .claudian-context-chip--overflow-hidden { display: none; }' });
+  const style = parent.createEl('style', { text: '.scribe-hidden, .scribe-context-chip--overflow-hidden { display: none; }' });
   const editor = createEditor(parent);
   const trayEl = parent.createDiv();
   const tray = new ComposerContextTray(trayEl);
@@ -1120,7 +1120,7 @@ it('localizes image overflow controls and updates their accessible names on expa
       id: `image-${index}`, name: `photo-${index}.png`, mediaType: 'image/png' as const,
       data: 'dGVzdA==', size: 500, source: 'paste' as const,
     })));
-    const chips = trayEl.querySelectorAll<HTMLElement>('.claudian-context-chip');
+    const chips = trayEl.querySelectorAll<HTMLElement>('.scribe-context-chip');
     [0, 0, 38, 76].forEach((top, index) => Object.defineProperties(chips[index], {
       offsetParent: { configurable: true, value: trayEl },
       offsetTop: { configurable: true, value: top }, offsetHeight: { configurable: true, value: 20 },
@@ -1169,4 +1169,17 @@ it.each(['loading', 'error'] as const)('localizes provider command %s wrappers t
   } finally {
     dropdown.destroy(); files.destroy(); editor.destroy(); parent.remove(); setLocale('en');
   }
+});
+
+it('updates the active textbox label without changing its draft', () => {
+  const editor = createEditor(document.body.createDiv());
+  editor.element.value = 'draft';
+  editor.element.focus();
+  const textbox = editor.element.getAccessibleTextbox!();
+  editor.element.setAccessibleLabel!('侧边对话消息');
+  expect(textbox.getAttribute('aria-label')).toBe('侧边对话消息');
+  expect(editor.element.value).toBe('draft');
+  editor.element.setAccessibleLabel!('聊天消息');
+  expect(textbox.getAttribute('aria-label')).toBe('聊天消息');
+  editor.destroy();
 });

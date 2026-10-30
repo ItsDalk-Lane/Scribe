@@ -93,7 +93,7 @@ export function renderSessionTaskNotification(
   recordNotificationPredecessors(message, afterRequestedEvent, afterBackgroundEvent);
   host.state.addMessage(message);
   const element = host.renderer?.addMessage(message) ?? null;
-  const contentEl = element?.querySelector<HTMLElement>('.claudian-message-content');
+  const contentEl = element?.querySelector<HTMLElement>('.scribe-message-content');
   if (contentEl) host.renderer?.renderTaskNotification(contentEl, content);
   host.renderer?.scrollToBottom();
 }
@@ -145,7 +145,7 @@ function markInterruptedTurn(
     const index = getTrailingNotificationsEnd(messages, anchor ? messages.indexOf(anchor) : -1, turn);
     messages.splice(index + 1, 0, marker);
     host.state.messages = messages;
-    const contentEl = host.renderer?.addMessage(marker, messages[index]?.id).querySelector<HTMLElement>('.claudian-message-content');
+    const contentEl = host.renderer?.addMessage(marker, messages[index]?.id).querySelector<HTMLElement>('.scribe-message-content');
     if (contentEl) host.renderer?.appendInterruptIndicator(contentEl);
     return undefined;
   }

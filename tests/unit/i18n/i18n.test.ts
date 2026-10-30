@@ -66,7 +66,7 @@ describe('i18n', () => {
   });
 
   it('resolves nested keys', () => {
-    expect(t('settings.userName.name')).toBe('What should Claudian call you?');
+    expect(t('settings.userName.name')).toBe('What should Scribe call you?');
   });
 
   it.each<Locale>(['en', 'de'])('returns an unknown key in %s', locale => {

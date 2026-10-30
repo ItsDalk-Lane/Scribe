@@ -124,27 +124,27 @@ export class SessionInteractions {
     signal?: AbortSignal,
   ): Promise<ApprovalDecision> {
     const createHeader = (parentEl: HTMLElement): HTMLElement => {
-      const headerEl = parentEl.createDiv({ cls: 'claudian-ask-approval-info' });
+      const headerEl = parentEl.createDiv({ cls: 'scribe-ask-approval-info' });
       headerEl.remove();
 
-      const toolEl = headerEl.createDiv({ cls: 'claudian-ask-approval-tool' });
-      const iconEl = toolEl.createSpan({ cls: 'claudian-ask-approval-icon' });
+      const toolEl = headerEl.createDiv({ cls: 'scribe-ask-approval-tool' });
+      const iconEl = toolEl.createSpan({ cls: 'scribe-ask-approval-icon' });
       iconEl.setAttribute('aria-hidden', 'true');
       setToolIcon(iconEl, toolName);
-      toolEl.createSpan({ cls: 'claudian-ask-approval-tool-name', text: toolName });
+      toolEl.createSpan({ cls: 'scribe-ask-approval-tool-name', text: toolName });
 
       if (approvalOptions?.decisionReason) {
-        headerEl.createDiv({ cls: 'claudian-ask-approval-reason', text: approvalOptions.decisionReason });
+        headerEl.createDiv({ cls: 'scribe-ask-approval-reason', text: approvalOptions.decisionReason });
       }
       if (approvalOptions?.blockedPath) {
-        headerEl.createDiv({ cls: 'claudian-ask-approval-blocked-path', text: approvalOptions.blockedPath });
+        headerEl.createDiv({ cls: 'scribe-ask-approval-blocked-path', text: approvalOptions.blockedPath });
       }
       if (approvalOptions?.agentID) {
-        headerEl.createDiv({ cls: 'claudian-ask-approval-agent', text: t('chat.agent', { agent: approvalOptions.agentID }) });
+        headerEl.createDiv({ cls: 'scribe-ask-approval-agent', text: t('chat.agent', { agent: approvalOptions.agentID }) });
       }
 
       const descriptionEl = headerEl.createDiv({
-        cls: 'claudian-ask-approval-desc',
+        cls: 'scribe-ask-approval-desc',
         text: description,
       });
       descriptionEl.setAttribute('aria-label', t('chat.approval.details', { tool: toolName }));
@@ -311,7 +311,7 @@ export class SessionInteractions {
   #syncSuppression(): void {
     const el = this.deps.getSuppressedEl?.();
     if (!el) return;
-    if (this.active && [...this.pending.values()].some(entry => entry.inline !== null)) el.addClass('claudian-hidden');
-    else el.removeClass('claudian-hidden');
+    if (this.active && [...this.pending.values()].some(entry => entry.inline !== null)) el.addClass('scribe-hidden');
+    else el.removeClass('scribe-hidden');
   }
 }

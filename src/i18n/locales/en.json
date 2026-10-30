@@ -14,9 +14,79 @@
     "none": "None"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "Fast",
+      "fastOn": "fast mode on",
+      "fastTitle": "Fast mode: {state}",
+      "fastFailure": "Failed to change service tier",
+      "standard": "Standard",
+      "context": "Context usage",
+      "contextDetails": "Context usage: {usage}",
+      "contextWarning": " (Approaching limit, run `/compact` to continue)",
+      "branchBusy": "Wait for the current response to finish.",
+      "previousBranch": "Previous branch",
+      "noPrevious": "No previous branch.",
+      "branchPosition": "Branch {current} of {total}",
+      "nextBranch": "Next branch",
+      "noNext": "No next branch.",
+      "branchFrom": "Branch from this prompt",
+      "previewImage": "Preview {name}",
+      "mermaidDiagram": "Mermaid diagram",
+      "mermaidSource": "Show diagram source"
+    },
+    "conversationFeedback": {
+      "collapseSide": "Collapse side chat before changing conversation branches.",
+      "savePrompt": "Branching is available after this prompt is saved.",
+      "clearDraft": "Save or clear your draft before changing conversation branches.",
+      "branchInProgress": "Branch navigation is in progress.",
+      "conversationChanged": "Conversation changed.",
+      "conversationMissing": "Conversation is missing.",
+      "executionUnavailable": "Execution is unavailable.",
+      "recoveryCancelled": "Branch recovery was cancelled.",
+      "reconcileFailed": "Could not reconcile conversation branch: {error}",
+      "cannotArchive": "Running sessions cannot be archived",
+      "skippedOpenOne": "Skipped {count} session that is open or running",
+      "skippedOpenMany": "Skipped {count} sessions that are open or running",
+      "cannotDelete": "Running sessions cannot be deleted",
+      "skippedRunningOne": "Skipped {count} session that is running",
+      "skippedRunningMany": "Skipped {count} sessions that are running",
+      "closeDeletedFailed": "Failed to close the deleted session",
+      "closeBeforeArchiveFailed": "Failed to close the session before archiving",
+      "autoArchiveFailed": "Failed to auto-archive inactive sessions",
+      "autoArchiveOne": "Auto-archived {count} inactive session",
+      "autoArchiveMany": "Auto-archived {count} inactive sessions"
+    },
+    "tabBar": {
+      "name": "Tab name",
+      "rename": "Rename tab…",
+      "reset": "Reset tab name",
+      "showNumber": "Show number",
+      "showName": "Show name",
+      "showTitle": "Show title",
+      "close": "Close tab",
+      "active": "active",
+      "needsInput": "needs your input",
+      "working": "working",
+      "reviewError": "stopped with an error, ready to review",
+      "review": "finished, ready to review",
+      "idle": "idle"
+    },
+    "fileMenu": {
+      "add": "Add to Scribe",
+      "notReady": "Scribe chat is not ready.",
+      "failed": "Failed to add file to Scribe."
+    },
+    "queue": {
+      "steering": "Steering",
+      "queued": "Queued",
+      "steerNow": "Steer Now",
+      "edit": "Edit queued message",
+      "discard": "Discard queued message",
+      "images": "[images]"
+    },
     "promptSuggestionHint": "Tab to accept",
     "selectAvailableModel": "Select an available model before sending.",
-    "selectAvailableTitleModel": "Select an available title model in Claudian settings.",
+    "selectAvailableTitleModel": "Select an available title model in Scribe settings.",
     "rewind": {
       "confirmMessage": "Rewind to this point? File changes after this message may be overwritten or removed. This cannot be undone.",
       "confirmMessageConflicts": "Rewind to this point? {count} file(s) were modified outside the agent and will be overwritten:\n{files}",
@@ -33,7 +103,14 @@
       "failed": "Rewind failed: {error}",
       "cannot": "Cannot rewind: {error}",
       "unavailableStreaming": "Cannot rewind while streaming",
-      "unavailableNoUuid": "Cannot rewind: missing message identifiers"
+      "unavailableNoUuid": "Cannot rewind: missing message identifiers",
+      "messageNotFound": "Message not found",
+      "initializationFailed": "Failed to initialize agent service",
+      "serviceUnavailable": "Agent service not available",
+      "executionUnavailable": "Agent execution not available",
+      "conversationChanged": "Conversation changed while rewinding.",
+      "moreFiles": "+{count} more",
+      "saveFailed": "Failed to save"
     },
     "fork": {
       "ariaLabel": "Fork conversation",
@@ -81,7 +158,7 @@
       "busySide": "The side chat is still responding. Wait for it to finish."
     },
     "zen": {
-      "regionLabel": "Claudian chat",
+      "regionLabel": "Scribe chat",
       "showHistory": "Show conversation",
       "move": "Move chat panel",
       "working": "Working…",
@@ -109,7 +186,7 @@
     "copyMessage": "Copy message",
     "showEarlierMessages": "Show earlier messages",
     "renderFailed": "Failed to render message content.",
-    "interruptedHint": "· What should Claudian do instead?",
+    "interruptedHint": "· What should Scribe do instead?",
     "sessions": {
       "empty": "No conversations",
       "noMatch": "No matching sessions",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "Thinking {seconds}s...",
       "completed": "Thought for {seconds}s",
-      "label": "Thought"
+      "label": "Thought",
+      "waitHint": " (esc to interrupt · {duration})",
+      "compacting": "Compacting..."
     },
     "suggestions": {
       "loading": "Loading…",
@@ -426,9 +505,205 @@
         "discard": "Discard",
         "emptyHint": "Agents fill this in as the project progresses."
       }
+    },
+    "welcome": {
+      "happySunday": "Happy Sunday",
+      "sundaySession": "Sunday session?",
+      "weekend": "Welcome to the weekend",
+      "happyMonday": "Happy Monday",
+      "backAtIt": "Back at it",
+      "backAtItExclamation": "Back at it!",
+      "happyTuesday": "Happy Tuesday",
+      "happyWednesday": "Happy Wednesday",
+      "happyThursday": "Happy Thursday",
+      "happyFriday": "Happy Friday",
+      "fridayFeeling": "That Friday feeling",
+      "happySaturday": "Happy Saturday",
+      "happySaturdayExclamation": "Happy Saturday!",
+      "morning": "Good morning",
+      "coffee": "Coffee and Scribe time?",
+      "afternoon": "Good afternoon",
+      "hey": "Hey there",
+      "howGoing": "How's it going",
+      "evening": "Good evening",
+      "eveningShort": "Evening",
+      "howWasDay": "How was your day",
+      "nightOwl": "Hello, night owl",
+      "hiHow": "Hi, how are you?",
+      "hiHowNamed": "Hi {name}, how are you?",
+      "welcomeBack": "Welcome back",
+      "whatsNew": "What's new",
+      "returns": "{name} returns!",
+      "absolutelyRight": "You are absolutely right!",
+      "personalized": "{greeting}, {name}"
+    },
+    "newTab": "New tab",
+    "newConversation": "New conversation",
+    "sessionManager": {
+      "new": "New",
+      "search": "Search",
+      "archive": "Archive",
+      "sessions": "Sessions",
+      "archived": "Archived",
+      "pinned": "Pinned",
+      "missing": "Missing",
+      "unlinked": "Unlinked",
+      "pastWeek": "Past week",
+      "pastTwoWeeks": "Past 2 weeks",
+      "pastMonth": "Past month",
+      "older": "Older",
+      "sessionOptions": "Session options",
+      "expandGroups": "Expand all groups",
+      "collapseGroups": "Collapse all groups",
+      "searchArchived": "Search archived sessions",
+      "searchSessions": "Search sessions",
+      "organize": "Organize sessions",
+      "oneList": "In one list",
+      "byLinked": "By linked content",
+      "sortBy": "Sort sessions by",
+      "lastActivity": "Last activity",
+      "created": "Created",
+      "lastActive": "Last active",
+      "organizationFailed": "Failed to update session organization",
+      "sortFailed": "Failed to update session sorting",
+      "history": "Chat history",
+      "loadMore": "Load more ({count} remaining)",
+      "newForContent": "New chat for {name}",
+      "startContentFailed": "Failed to start a chat for this Linked content",
+      "generatingTitle": "Generating title...",
+      "regenerateTitle": "Regenerate title",
+      "generateTitle": "Generate title",
+      "generateTitleFailed": "Failed to generate title",
+      "actionsFor": "Actions for {name}",
+      "conversationTitle": "Conversation title",
+      "renameFailed": "Failed to rename conversation",
+      "collapseSaveFailed": "Failed to save project folder expansion",
+      "selected": "Selected",
+      "openNewTab": "Open in new tab",
+      "openBackgroundTab": "Open in background tab",
+      "switchOpen": "Switch to open session",
+      "assignDevice": "Assign to this device",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "markUnread": "Mark as unread",
+      "markRead": "Mark as read",
+      "rename": "Rename",
+      "copyId": "Copy session ID",
+      "restore": "Restore",
+      "delete": "Delete",
+      "loadFailed": "Failed to load conversation",
+      "copyIdFailed": "Failed to copy session ID",
+      "assignFailed": "Failed to assign session to this device",
+      "pinFailed": "Failed to pin session",
+      "unpinFailed": "Failed to unpin session",
+      "archiveFailed": "Failed to archive session",
+      "restoreFailed": "Failed to restore session",
+      "deleteFailed": "Failed to delete conversation",
+      "cannotArchiveRunning": "Cannot archive a running session",
+      "needsYourInput": "Needs your input",
+      "stoppedWithError": "Stopped with an error",
+      "running": "Running",
+      "unread": "Unread",
+      "needsInput": "Needs input",
+      "runningOtherPane": "Running in another pane",
+      "openOtherPane": "Open in another pane",
+      "tabNumber": "tab {number}",
+      "currentTab": "current tab",
+      "tab": "tab",
+      "runningIn": "Running in {tab}",
+      "currentTabNumber": "Current tab {number}",
+      "currentSession": "Current session",
+      "openIn": "Open in {tab}",
+      "restoreCount": "Restore {count} session(s)",
+      "deleteCount": "Delete {count} session(s)",
+      "pinCount": "Pin {count} session(s)",
+      "unpinCount": "Unpin {count} session(s)",
+      "archiveCount": "Archive {count} session(s)",
+      "permanentDeleteCount": "Permanently delete {count} session(s)?",
+      "restoreManyFailed": "Failed to restore sessions",
+      "deleteManyFailed": "Failed to delete sessions",
+      "pinManyFailed": "Failed to pin sessions",
+      "unpinManyFailed": "Failed to unpin sessions",
+      "archiveManyFailed": "Failed to archive sessions",
+      "moveManyFailed": "Failed to move sessions",
+      "pinLinked": "Pin Linked content",
+      "unpinLinked": "Unpin Linked content",
+      "pinLinkedFailed": "Failed to pin Linked content",
+      "unpinLinkedFailed": "Failed to unpin Linked content",
+      "archiveAll": "Archive all sessions",
+      "restoreAll": "Restore all sessions",
+      "deleteAll": "Delete all sessions",
+      "archiveLinkedFailed": "Failed to archive Linked content sessions",
+      "idCopied": "Session ID copied"
+    },
+    "compacted": "Conversation compacted",
+    "subagent": {
+      "prompt": "Prompt",
+      "result": "Result",
+      "tokens": "{count} tokens",
+      "toolUse": "{count} tool use",
+      "toolUses": "{count} tool uses",
+      "lastTool": "Last tool: {tool}",
+      "taskAria": "Subagent task: {description} - {status} - click to expand",
+      "initializing": "Initializing",
+      "error": "Error",
+      "orphaned": "Orphaned",
+      "completed": "Completed",
+      "backgroundRunning": "Running in background",
+      "backgroundAria": "Background task: {description} - {status} - click to expand",
+      "statusAria": "Status: {status}",
+      "orphanedResult": "Conversation ended before task completed"
+    },
+    "notices": {
+      "showWideFailed": "Failed to show the session in the wide layout",
+      "createTabFailed": "Failed to create tab",
+      "createConversationFailed": "Failed to create conversation",
+      "startConversationFailed": "Failed to start a new conversation",
+      "switchTabFailed": "Failed to switch tab",
+      "closeTabFailed": "Failed to close tab",
+      "resizeSessions": "Resize conversation sessions",
+      "closePreviewFailed": "Failed to close the provisional session preview",
+      "linkedPathsFailed": "Failed to update linked content paths",
+      "pinnedContentFailed": "Failed to update pinned linked content",
+      "sideProviderSwitch": "Cannot switch provider inside a side chat.",
+      "selectAvailableModel": "Select an available model in Scribe settings.",
+      "boundProviderSwitch": "Cannot switch provider on a bound session. Start a new conversation instead.",
+      "mainChatMode": "Mode selection applies to the main chat.",
+      "initializeExecutionFailed": "Failed to initialize agent execution. Please try again.",
+      "executionUnavailable": "Agent execution is not available. Please reload the plugin.",
+      "sessionDeleted": "The provider session no longer exists. Its Scribe record was removed; send again to start a new session.",
+      "sessionReset": "The provider session no longer exists. Scribe preserved the recoverable history; send again to rebuild the session.",
+      "sessionPreserved": "The provider session no longer exists. Scribe preserved its record because the remaining history could not be verified.",
+      "sessionMissing": "The provider session no longer exists. Send again to start a new session.",
+      "messageNotSent": "Message was not sent. Please try again.",
+      "unknownError": "Unknown error",
+      "unsupportedCommand": "/{command} is not supported by this provider.",
+      "fastUnavailable": "Fast mode is not available for this model.",
+      "fastToggleFailed": "Failed to toggle fast mode.",
+      "unknownCommand": "Unknown command: {command}",
+      "openConversationFailed": "Failed to open conversation: {error}",
+      "tabsUnavailable": "Chat tabs are unavailable",
+      "forkUnsupported": "Fork is not supported by this provider."
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "Failed to save settings",
+      "loading": "Loading {provider} settings...",
+      "unknownError": "Unknown error",
+      "unavailable": "Unavailable: {model}",
+      "aliasSaveFailed": "Could not save model alias. Try again.",
+      "contextLabel": "Context window for {model}",
+      "modelSaveFailed": "Could not save model selection. Try again.",
+      "snippetRefreshFailed": "Environment snippet was saved, but settings refresh failed.",
+      "snippetUpdateFailed": "Could not complete environment snippet update",
+      "snippetSaveFailed": "Could not complete environment snippet save",
+      "snippetSaved": "Environment snippet \"{name}\" saved",
+      "snippetUpdated": "Environment snippet \"{name}\" updated",
+      "snippetDeleted": "Environment snippet \"{name}\" deleted",
+      "environmentReview": "Review environment ownership for: {keys}",
+      "environmentUpdateFailed": "Could not complete environment update."
+    },
     "tabs": {
       "general": "General",
       "providers": "Providers",
@@ -446,7 +721,7 @@
     "responses": "Responses",
     "experimental": "Experimental",
     "userName": {
-      "name": "What should Claudian call you?",
+      "name": "What should Scribe call you?",
       "desc": "Your name for personalized greetings (leave empty for generic greetings)"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Show Write and Edit diffs expanded when they first appear."
     },
     "chatViewPlacement": {
-      "name": "Open Claudian in",
+      "name": "Open Scribe in",
       "desc": "Choose where the chat panel opens when it is created",
       "rightSidebar": "Right sidebar",
       "leftSidebar": "Left sidebar",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "Enable {provider}",
-      "lastProviderWarning": "At least one provider must remain enabled for Claudian to work.",
+      "lastProviderWarning": "At least one provider must remain enabled for Scribe to work.",
       "noModelsWarning": "No {provider} models are enabled. Go to Models below and enable at least one model."
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "Installation method",
-        "desc": "How Claudian should launch Codex on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.",
+        "desc": "How Scribe should launch Codex on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.",
         "nativeWindows": "Native Windows",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "Extra environment variables passed to OpenCode."
       },
       "migrationNotice": {
-        "text": "OpenCode v1 is no longer supported. Update to OpenCode v2 to use it in Claudian.",
+        "text": "OpenCode v1 is no longer supported. Update to OpenCode v2 to use it in Scribe.",
         "link": "Migrate to OpenCode v2"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "Environment variables passed only to Pi."
       },
       "models": {
-        "desc": "Claudian keeps its own model list, separate from Pi's enabledModels. Discover lists every model Pi can authenticate in its current environment, grouped by the provider route Pi will call. The route determines credentials and billing."
+        "desc": "Scribe keeps its own model list, separate from Pi's enabledModels. Discover lists every model Pi can authenticate in its current environment, grouped by the provider route Pi will call. The route determines credentials and billing."
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "Additional preset plugins",
-        "desc": "Advanced. A YAML list (dsh's format) of native dsh plugin rows appended to Claudian's chat preset, each with its own \"id\" and \"name\". Rows cannot replace Claudian's own. Saving restarts DeepSeek Harness, which stops running turns. Plugins Claudian has no interface for, such as plan mode, may not work."
+        "desc": "Advanced. A YAML list (dsh's format) of native dsh plugin rows appended to Scribe's chat preset, each with its own \"id\" and \"name\". Rows cannot replace Scribe's own. Saving restarts DeepSeek Harness, which stops running turns. Plugins Scribe has no interface for, such as plan mode, may not work."
       },
       "presetPreview": "Preset preview",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "Moved {moved}, converted {converted}, trashed {trashed}, removed {unlinked} link(s)."
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "Model options",
+      "provider": "Provider",
+      "unavailable": "Model unavailable",
+      "setup": "Set up models",
+      "label": "Model: {model}",
+      "choose": "Choose an enabled model in provider settings. If discovery failed, refresh the model list.",
+      "heading": "Model",
+      "empty": "No models available. Check provider settings and refresh the model list if discovery failed.",
+      "changeFailed": "Failed to change model"
+    },
+    "effort": {
+      "default": "Default",
+      "description": "effort {level}",
+      "heading": "Thinking",
+      "changeFailed": "Failed to change effort level"
+    }
+  },
+  "inlineEdit": {
+    "command": "Inline edit",
+    "unavailableView": "Inline edit unavailable: could not access the active Markdown view.",
+    "inserted": "Inserted",
+    "applied": "Edit applied",
+    "unavailableEditor": "Inline edit unavailable: could not access the active editor. Try reopening the note.",
+    "sourceChanged": "Inline edit was not applied because the source document or selection changed.",
+    "providerStartFailed": "Failed to start the {provider} provider.",
+    "vaultLoadFailed": "Failed to load vault files. Vault @-mentions may be unavailable.",
+    "insertInstructions": "Insert instructions",
+    "editInstructions": "Edit instructions",
+    "insertPlaceholder": "Insert instructions...",
+    "editPlaceholder": "Edit instructions...",
+    "modelRequired": "Select an available model in Scribe settings.",
+    "actions": "Inline edit actions",
+    "line": "line",
+    "lines": "lines",
+    "reject": "Reject",
+    "accept": "Accept",
+    "rejectAria": "Reject inline edit",
+    "acceptAria": "Accept inline edit",
+    "retryError": "Error - try again",
+    "replyPlaceholder": "Reply to continue...",
+    "noResponse": "No response from agent"
+  },
+  "commands": {
+    "openScribe": "Open Scribe",
+    "toggleChat": "Toggle chat view",
+    "copyDiagnostics": "Copy startup diagnostics",
+    "new": "New",
+    "replaceConversation": "Replace current conversation",
+    "closeTab": "Close current tab",
+    "renameTab": "Rename current tab",
+    "focusChat": "Toggle chat input focus",
+    "toggleZenHistory": "Toggle zen mode history"
   }
 }

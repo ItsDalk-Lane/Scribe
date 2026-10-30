@@ -36,7 +36,7 @@ for (const [tag, status, stderr] of [
   ['12.23.100', 0, ''],
 ]) {
   test(`CLI validates aligned release version ${tag}`, () => {
-    const root = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'claudian-release-version-')));
+    const root = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'scribe-release-version-')));
     try {
       mkdirSync(path.join(root, 'scripts'));
       const script = path.join(root, 'scripts/check-release-version.mjs');

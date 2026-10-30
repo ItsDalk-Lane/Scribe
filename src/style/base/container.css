@@ -1,4 +1,4 @@
-.claudian-container {
+.scribe-container {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -8,12 +8,12 @@
 }
 
 /* Compensate for Obsidian's left-only footer without changing other placements. */
-.workspace-split.mod-left-split .view-content.claudian-container {
+.workspace-split.mod-left-split .view-content.scribe-container {
   padding-bottom: 0;
   overflow: hidden;
 }
 
-.claudian-chat-panel {
+.scribe-chat-panel {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -22,22 +22,22 @@
   overflow: hidden;
 }
 
-.claudian-container.claudian-wide-session-layout {
+.scribe-container.scribe-wide-session-layout {
   flex-direction: row;
 }
 
-.claudian-container.claudian-wide-session-layout.claudian-session-sidebar-left {
+.scribe-container.scribe-wide-session-layout.scribe-session-sidebar-left {
   flex-direction: row-reverse;
 }
 
-.claudian-provider-icon-variant--dark {
+.scribe-provider-icon-variant--dark {
   display: none;
 }
 
-body.theme-dark .claudian-provider-icon-variant--light {
+body.theme-dark .scribe-provider-icon-variant--light {
   display: none;
 }
 
-body.theme-dark .claudian-provider-icon-variant--dark {
+body.theme-dark .scribe-provider-icon-variant--dark {
   display: inline;
 }

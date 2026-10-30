@@ -58,7 +58,7 @@ export const CHAT_VIEW_PLACEMENTS = [
   'main-tab',
 ] as const;
 
-/** Workspace location used when opening the Claudian chat view. */
+/** Workspace location used when opening the Scribe chat view. */
 export type ChatViewPlacement = typeof CHAT_VIEW_PLACEMENTS[number];
 
 export const DUAL_PANE_SIDES = ['left', 'right'] as const;
@@ -100,13 +100,13 @@ export interface StoredInlineEditModelSelection extends StoredChatModelSelection
 }
 
 /**
- * Application settings stored in .claudian/claudian-settings.json.
+ * Application settings stored in .scribe/scribe-settings.json.
  *
  * Provider-specific fields (model, effortLevel, serviceTier, etc.) use
  * `string` here.  The active provider casts internally when it needs
  * narrower types.
  */
-export interface ClaudianSettings {
+export interface ScribeSettings {
   // User preferences
   userName: string;
 

@@ -93,7 +93,7 @@ it('repositions fixed suggestions from their own window and releases that listen
     fireEvent.resize(window);
     expect(measure).not.toHaveBeenCalled();
     fireEvent.resize(owner);
-    expect(list.style.getPropertyValue('--claudian-fixed-dropdown-bottom')).toBe(`${owner.innerHeight - top + 4}px`);
+    expect(list.style.getPropertyValue('--scribe-fixed-dropdown-bottom')).toBe(`${owner.innerHeight - top + 4}px`);
     controller.destroy();
     measure.mockClear();
     fireEvent.resize(owner);

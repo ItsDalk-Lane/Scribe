@@ -5,9 +5,11 @@ import path from 'node:path';
 
 describe('build script', () => {
   it('leaves prefix-only Node modules to the runtime when the build host omits them from builtinModules', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'claudian-node-builtins-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'scribe-node-builtins-'));
     try {
       await mkdir(path.join(root, 'src'));
+      const otherVault = path.join(root, 'other-vault');
+      await mkdir(otherVault);
       await Promise.all(['package.json', 'package-lock.json', 'bun.lock'].map(file => (
         copyFile(path.resolve(file), path.join(root, file))
       )));
@@ -25,9 +27,12 @@ describe('build script', () => {
         path.resolve('esbuild.config.mjs'), 'production',
       ], {
         cwd: root,
-        env: { ...process.env, OBSIDIAN_VAULT: '' },
+        env: { ...process.env, OBSIDIAN_VAULT: otherVault },
         stdio: 'pipe',
       });
+
+      await expect(import('node:fs/promises').then(fs => fs.stat(path.join(otherVault, '.obsidian'))))
+        .rejects.toMatchObject({ code: 'ENOENT' });
 
       const pluginModule = { exports: {} as { loadSqlite(): unknown } };
       const sqlite = { DatabaseSync: class {} };
@@ -46,7 +51,7 @@ describe('build script', () => {
   it('forwards arguments without evaluating them as shell commands', async () => {
     if (process.platform === 'win32') return;
 
-    const root = await mkdtemp(path.join(tmpdir(), 'claudian-build-script-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'scribe-build-script-'));
     try {
       const scriptsDirectory = path.join(root, 'scripts');
       const binaryDirectory = path.join(root, 'bin');

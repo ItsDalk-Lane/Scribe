@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { type OpencodeServerLease,OpencodeServerService } from '@/providers/opencode/http/OpencodeServerService';
 
 test('disposing one lease ends only its native process across historical databases', async () => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-audit-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-audit-')));
   const cli = path.join(root, 'opencode.cjs');
   writeFileSync(cli, `#!/usr/bin/env node
 if (process.argv.includes('--version')) { console.log('2.0.14'); return; }
@@ -39,7 +39,7 @@ process.stdin.on('end', () => server.close());
 
 
 test('a repaired launch configuration can retry after creation fails', async () => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-audit-retry-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-audit-retry-')));
   const config = path.join(root, 'opencode.json');
   const environment = { OPENCODE_DB: path.join(root, 'history.db'), OPENCODE_CONFIG: config };
   // A verified CLI that is never spawned: the lease launches lazily on its first request.

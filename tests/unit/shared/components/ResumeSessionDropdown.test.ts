@@ -51,15 +51,15 @@ function createConversation(
 
 function getRenderedItems(containerEl: any): { title: string; isCurrent: boolean }[] {
   const dropdownEl = containerEl.children.find(
-    (c: any) => c.hasClass('claudian-resume-dropdown')
+    (c: any) => c.hasClass('scribe-resume-dropdown')
   );
   if (!dropdownEl) return [];
-  const items = dropdownEl.querySelectorAll('.claudian-resume-item');
+  const items = dropdownEl.querySelectorAll('.scribe-resume-item');
   return items.map((item: any) => {
     // Check direct children for content div, then find title inside
     let title = '';
     for (const child of item.children) {
-      const found = child.querySelector?.('.claudian-resume-item-title');
+      const found = child.querySelector?.('.scribe-resume-item-title');
       if (found) {
         title = found.textContent ?? '';
         break;
@@ -125,9 +125,9 @@ describe('ResumeSessionDropdown', () => {
       );
 
       const dropdownEl = containerEl.children.find(
-        (c: any) => c.hasClass('claudian-resume-dropdown')
+        (c: any) => c.hasClass('scribe-resume-dropdown')
       );
-      const emptyEl = dropdownEl?.querySelector('.claudian-resume-empty');
+      const emptyEl = dropdownEl?.querySelector('.scribe-resume-empty');
       expect(emptyEl).toBeDefined();
       expect(emptyEl?.textContent).toBe('No conversations');
 
@@ -140,14 +140,14 @@ describe('ResumeSessionDropdown', () => {
       );
 
       const dropdownEl = containerEl.children.find(
-        (c: any) => c.hasClass('claudian-resume-dropdown')
+        (c: any) => c.hasClass('scribe-resume-dropdown')
       );
       expect(dropdownEl).toBeDefined();
       expect(dropdownEl.hasClass('visible')).toBe(true);
       expect(dropdown.isVisible()).toBe(true);
 
-      const listbox = containerEl.querySelector('.claudian-resume-list');
-      const items = listbox?.querySelectorAll('.claudian-resume-item') ?? [];
+      const listbox = containerEl.querySelector('.scribe-resume-list');
+      const items = listbox?.querySelectorAll('.scribe-resume-item') ?? [];
       const listboxId = listbox?.getAttribute('id');
       const activeOptionId = items[0]?.getAttribute('id');
 
@@ -183,7 +183,7 @@ describe('ResumeSessionDropdown', () => {
 
       // Hide it first
       const dropdownEl = containerEl.children.find(
-        (c: any) => c.hasClass('claudian-resume-dropdown')
+        (c: any) => c.hasClass('scribe-resume-dropdown')
       );
       dropdownEl.removeClass('visible');
 
@@ -198,8 +198,8 @@ describe('ResumeSessionDropdown', () => {
       const dropdown = new ResumeSessionDropdown(
         containerEl, inputEl, conversations, null, callbacks
       );
-      const listbox = containerEl.querySelector('.claudian-resume-list');
-      const items = listbox?.querySelectorAll('.claudian-resume-item') ?? [];
+      const listbox = containerEl.querySelector('.scribe-resume-list');
+      const items = listbox?.querySelectorAll('.scribe-resume-item') ?? [];
 
       const event = { key: 'ArrowDown', preventDefault: vi.fn() } as any;
       expect(dropdown.handleKeydown(event)).toBe(true);
@@ -348,9 +348,9 @@ describe('ResumeSessionDropdown', () => {
       );
 
       const dropdownEl = containerEl.children.find(
-        (c: any) => c.hasClass('claudian-resume-dropdown')
+        (c: any) => c.hasClass('scribe-resume-dropdown')
       );
-      const items = dropdownEl.querySelectorAll('.claudian-resume-item');
+      const items = dropdownEl.querySelectorAll('.scribe-resume-item');
       // Find a non-current item (conv-2 is first, conv-1 is current)
       const nonCurrentItem = items.find((i: any) => !i.hasClass('current'));
       nonCurrentItem?.dispatchEvent('click');
@@ -366,9 +366,9 @@ describe('ResumeSessionDropdown', () => {
       );
 
       const dropdownEl = containerEl.children.find(
-        (c: any) => c.hasClass('claudian-resume-dropdown')
+        (c: any) => c.hasClass('scribe-resume-dropdown')
       );
-      const items = dropdownEl.querySelectorAll('.claudian-resume-item');
+      const items = dropdownEl.querySelectorAll('.scribe-resume-item');
       // conv-2 is first after sorting and is current
       const currentItem = items.find((i: any) => i.hasClass('current'));
       currentItem?.dispatchEvent('click');

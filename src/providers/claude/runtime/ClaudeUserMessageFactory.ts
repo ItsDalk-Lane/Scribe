@@ -28,7 +28,7 @@ function buildUserContentBlocks(prompt: string, images?: ImageAttachment[]): Use
   return content;
 }
 
-/** Every Claudian send carries a UUID so native echoes can correlate it. */
+/** Every Scribe send carries a UUID so native echoes can correlate it. */
 export type ClaudeSDKUserMessage = SDKUserMessage & { readonly uuid: string };
 
 export function buildClaudeSDKUserMessage(

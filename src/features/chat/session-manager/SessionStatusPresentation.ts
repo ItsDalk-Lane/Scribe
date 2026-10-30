@@ -1,4 +1,6 @@
 import type { TabAttention } from '@/features/chat/state/types';
+import { t } from '@/i18n/i18n';
+import type { TranslationKey } from '@/i18n/types';
 
 export type HistoryConversationOpenState = 'closed' | 'open' | 'current';
 
@@ -22,12 +24,12 @@ export interface SessionStatusDisplay {
 /** A null icon is drawn by the indicator's own styles. */
 const INDICATOR_PRESENTATION: Readonly<Record<SessionStatusIndicatorKind, {
   icon: string | null;
-  label: string;
+  label: TranslationKey;
 }>> = {
-  'action-required': { icon: 'alert-circle', label: 'Needs your input' },
-  error: { icon: 'x-circle', label: 'Stopped with an error' },
-  running: { icon: 'loader-2', label: 'Running' },
-  unread: { icon: null, label: 'Unread' },
+  'action-required': { icon: 'alert-circle', label: 'chat.sessionManager.needsYourInput' },
+  error: { icon: 'x-circle', label: 'chat.sessionManager.stoppedWithError' },
+  running: { icon: 'loader-2', label: 'chat.sessionManager.running' },
+  unread: { icon: null, label: 'chat.sessionManager.unread' },
 };
 
 /** Archived rows never present attention, even when their tab still carries it. */
@@ -77,7 +79,8 @@ export function indicatorPresentation(kind: SessionStatusIndicatorKind): {
   icon: string | null;
   label: string;
 } {
-  return INDICATOR_PRESENTATION[kind];
+  const { icon, label } = INDICATOR_PRESENTATION[kind];
+  return { icon, label: t(label) };
 }
 
 export function sessionItemIcon(
@@ -90,48 +93,49 @@ export function sessionItemIcon(
 }
 
 function tabLabel(status: HistoryConversationStatus): string {
-  if (typeof status.tabIndex === 'number') return `tab ${status.tabIndex}`;
-  if (status.openState === 'current') return 'current tab';
-  return 'tab';
+  if (typeof status.tabIndex === 'number') return t('chat.sessionManager.tabNumber', { number: status.tabIndex });
+  if (status.openState === 'current') return t('chat.sessionManager.currentTab');
+  return t('chat.sessionManager.tab');
 }
 
 export function sessionStatusText(
   status: HistoryConversationStatus,
   timestamp: number,
   showOpenStateLabels: boolean,
+  language?: string,
 ): string {
   const { openState, isRunning } = status;
   const location = status.location ?? 'current-view';
 
-  if (!showOpenStateLabels) return formatSessionDate(timestamp);
-  if (status.attention?.kind === 'action-required') return 'Needs input';
+  if (!showOpenStateLabels) return formatSessionDate(timestamp, undefined, language);
+  if (status.attention?.kind === 'action-required') return t('chat.sessionManager.needsInput');
 
   if (openState !== 'closed' && location === 'other-view') {
-    return isRunning ? 'Running in another pane' : 'Open in another pane';
+    return isRunning ? t('chat.sessionManager.runningOtherPane') : t('chat.sessionManager.openOtherPane');
   }
 
   if (isRunning) {
-    if (openState === 'closed') return 'Running';
-    return `Running in ${tabLabel(status)}`;
+    if (openState === 'closed') return t('chat.sessionManager.running');
+    return t('chat.sessionManager.runningIn', { tab: tabLabel(status) });
   }
 
   switch (openState) {
     case 'current':
       return typeof status.tabIndex === 'number'
-        ? `Current tab ${status.tabIndex}`
-        : 'Current session';
+        ? t('chat.sessionManager.currentTabNumber', { number: status.tabIndex })
+        : t('chat.sessionManager.currentSession');
     case 'open':
-      return `Open in ${tabLabel(status)}`;
+      return t('chat.sessionManager.openIn', { tab: tabLabel(status) });
     case 'closed':
-      return formatSessionDate(timestamp);
+      return formatSessionDate(timestamp, undefined, language);
   }
 }
 
 /** Today's sessions show their time; older sessions show their month and day. */
-export function formatSessionDate(timestamp: number, now: Date = new Date()): string {
+export function formatSessionDate(timestamp: number, now: Date = new Date(), language?: string): string {
   const date = new Date(timestamp);
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
   }
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString(language, { month: 'short', day: 'numeric' });
 }

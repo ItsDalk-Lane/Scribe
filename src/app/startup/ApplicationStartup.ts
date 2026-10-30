@@ -5,7 +5,7 @@ import { StartupProfiler } from '@/core/performance/StartupProfiler';
 import type { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import type { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { ProviderId, ProviderSessionArchive } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import { setLocale } from '@/i18n/i18n';
 import type { Locale } from '@/i18n/types';
 import { getVaultPath } from '@/utils/path';
@@ -43,14 +43,14 @@ export type StartupProviderSettings = Pick<
 export interface ApplicationStartupOptions {
   /** Plugin owner of the settings files and session storage. */
   readonly plugin: Plugin;
-  readonly defaultSettings: Readonly<ClaudianSettings>;
+  readonly defaultSettings: Readonly<ScribeSettings>;
   readonly providers: StartupProviderCatalog;
   readonly providerSettings: StartupProviderSettings;
   readonly executionLifecycle: Pick<ProviderExecutionLifecycleRegistry, 'markSessionsInvalidated'>;
   isUnloading(): boolean;
   publishCommittedSettings(
-    settings: Readonly<ClaudianSettings>,
-    previous: Readonly<ClaudianSettings>,
+    settings: Readonly<ScribeSettings>,
+    previous: Readonly<ScribeSettings>,
   ): Promise<void>;
   onConversationDeleted(conversationId: string): Promise<void>;
   onConversationListChanged(): void;
@@ -64,7 +64,7 @@ export interface ApplicationStartupOptions {
 /** Application domains loaded at startup; the composition root owns their wiring and teardown. */
 export interface ApplicationDomains {
   readonly storage: SharedStorageService;
-  readonly settings: SettingsCoordinator<ClaudianSettings>;
+  readonly settings: SettingsCoordinator<ScribeSettings>;
   readonly chatModelSelection: ChatModelSelectionCoordinator;
   readonly conversationRepository: ConversationRepository;
   readonly conversations: ConversationService;
@@ -84,22 +84,22 @@ export async function startApplication(options: ApplicationStartupOptions): Prom
   const workspace = plugin.app.workspace;
   const storage = new SharedStorageService(plugin, options.defaultSettings);
   // Projects load before any chat turn can resolve a member's project.
-  const [{ claudian }, loadedProjects] = await Promise.all([
+  const [{ scribe }, loadedProjects] = await Promise.all([
     storage.initialize(),
     storage.projects.load(),
   ]);
   StartupProfiler.recordCount('project-count', loadedProjects.records.length);
   StartupProfiler.recordCount('invalid-project-count', loadedProjects.invalidCount);
-  const settings: ClaudianSettings = {
+  const settings: ScribeSettings = {
     ...structuredClone(options.defaultSettings),
-    ...claudian,
+    ...scribe,
   };
   const settingsCoordinator = new SettingsCoordinator(
     settings,
     async (next) => {
       providerSettings.normalizeProviderSelection(next);
       providerSettings.persistProjectedProviderState(next);
-      await storage.saveClaudianSettings(next);
+      await storage.saveScribeSettings(next);
     },
     (next, previous) => options.publishCommittedSettings(next, previous),
   );

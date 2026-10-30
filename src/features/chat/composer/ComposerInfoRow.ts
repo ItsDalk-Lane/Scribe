@@ -27,11 +27,11 @@ export class ComposerInfoRow {
   private readonly projectSlotEl: HTMLElement;
 
   constructor(private readonly containerEl: HTMLElement) {
-    this.containerEl.addClass('claudian-input-info-row');
+    this.containerEl.addClass('scribe-input-info-row');
     this.projectSlotEl = this.containerEl.createDiv({
-      cls: 'claudian-input-info-linked claudian-input-info-project',
+      cls: 'scribe-input-info-linked scribe-input-info-project',
     });
-    this.linkedSlotEl = this.containerEl.createDiv({ cls: 'claudian-input-info-linked' });
+    this.linkedSlotEl = this.containerEl.createDiv({ cls: 'scribe-input-info-linked' });
   }
 
   setLinkedContent(item: ComposerInfoItem | null): void {
@@ -50,15 +50,15 @@ export class ComposerInfoRow {
   #renderSlot(slotEl: HTMLElement, item: ComposerInfoItem | null): void {
     const active = slotEl.ownerDocument.activeElement;
     const focusClass = active && slotEl.contains(active)
-      ? active.classList.contains('claudian-input-info-linked-remove')
-        ? 'claudian-input-info-linked-remove' : 'claudian-input-info-linked-main'
+      ? active.classList.contains('scribe-input-info-linked-remove')
+        ? 'scribe-input-info-linked-remove' : 'scribe-input-info-linked-main'
       : null;
     slotEl.empty();
-    slotEl.toggleClass('claudian-input-info-linked--missing', item?.missing === true);
+    slotEl.toggleClass('scribe-input-info-linked--missing', item?.missing === true);
     if (!item) return;
     const label = item.ariaLabel ?? item.label;
     const mainEl = slotEl.createEl('button', {
-      cls: 'claudian-input-info-linked-main',
+      cls: 'scribe-input-info-linked-main',
       attr: { type: 'button', 'aria-label': label, ...(item.hasPopup ? { 'aria-haspopup': item.hasPopup } : {}) },
     });
     mainEl.disabled = item.disabled === true;
@@ -66,15 +66,15 @@ export class ComposerInfoRow {
       if (!mainEl.disabled) item.onActivate(mainEl);
     });
     if (item.icon) {
-      const iconEl = mainEl.createSpan({ cls: 'claudian-input-info-linked-icon' });
+      const iconEl = mainEl.createSpan({ cls: 'scribe-input-info-linked-icon' });
       iconEl.setAttribute('aria-hidden', 'true');
       setIcon(iconEl, item.icon);
     }
-    mainEl.createSpan({ cls: 'claudian-input-info-linked-label', text: item.label });
+    mainEl.createSpan({ cls: 'scribe-input-info-linked-label', text: item.label });
 
     if (item.onRemove) {
       const removeEl = slotEl.createEl('button', {
-        cls: 'claudian-input-info-linked-remove',
+        cls: 'scribe-input-info-linked-remove',
         text: '×',
         attr: { type: 'button', 'aria-label': t('chat.removeItem', { item: label }) },
       });

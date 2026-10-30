@@ -4,7 +4,7 @@ import { defaultProjectMemoryPath, normalizeProjectMemoryPath } from '@/core/pat
 import { type ProjectCreateInput, ProjectMemoryPathTakenError, type ProjectRecord } from '@/core/types';
 import { t } from '@/i18n/i18n';
 
-const MEMORY_PATH_ERROR_ID = 'claudian-project-memory-path-error';
+const MEMORY_PATH_ERROR_ID = 'scribe-project-memory-path-error';
 
 export interface ProjectEditorOptions {
   /** The project being edited; null creates one. */
@@ -35,7 +35,7 @@ export class ProjectEditorModal extends Modal {
   onOpen(): void {
     const { project } = this.options;
     this.setTitle(project ? t('chat.projects.editor.titleEdit') : t('chat.projects.editor.titleNew'));
-    this.modalEl.addClass('claudian-project-modal');
+    this.modalEl.addClass('scribe-project-modal');
 
     new Setting(this.contentEl)
       .setName(t('chat.projects.editor.name'))
@@ -62,7 +62,7 @@ export class ProjectEditorModal extends Modal {
       .setName(t('chat.projects.editor.instructions'))
       .setDesc(t('chat.projects.editor.instructionsDesc'));
     this.instructionsArea = this.contentEl.createEl('textarea', {
-      cls: 'claudian-project-instructions',
+      cls: 'scribe-project-instructions',
       attr: { rows: '10', 'aria-label': t('chat.projects.editor.instructions') },
     });
     this.instructionsArea.value = project?.instructions ?? '';
@@ -86,11 +86,11 @@ export class ProjectEditorModal extends Modal {
           void this.save();
         });
       });
-    memoryPathSetting.settingEl.addClass('claudian-project-memory-setting');
+    memoryPathSetting.settingEl.addClass('scribe-project-memory-setting');
     const { openMemory } = this.options;
     if (project && openMemory) {
       const openButton = memoryPathSetting.controlEl.createEl('button', {
-        cls: 'claudian-project-memory-open',
+        cls: 'scribe-project-memory-open',
         text: t('chat.projects.editor.openMemory'),
         attr: { type: 'button' },
       });
@@ -100,19 +100,19 @@ export class ProjectEditorModal extends Modal {
       });
     }
     this.memoryPathError = memoryPathSetting.controlEl.createDiv({
-      cls: 'claudian-setting-validation claudian-setting-validation-error claudian-hidden',
+      cls: 'scribe-setting-validation scribe-setting-validation-error scribe-hidden',
       attr: { id: MEMORY_PATH_ERROR_ID },
     });
 
-    const actions = this.contentEl.createDiv({ cls: 'claudian-project-modal-actions' });
+    const actions = this.contentEl.createDiv({ cls: 'scribe-project-modal-actions' });
     const cancelButton = actions.createEl('button', {
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
       text: t('common.cancel'),
       attr: { type: 'button' },
     });
     cancelButton.addEventListener('click', () => this.close());
     this.saveButton = actions.createEl('button', {
-      cls: 'claudian-save-btn mod-cta',
+      cls: 'scribe-save-btn mod-cta',
       text: t('common.save'),
       attr: { type: 'button' },
     });
@@ -156,7 +156,7 @@ export class ProjectEditorModal extends Modal {
 
   /** Shows the message on the memory path field, or clears it with null. */
   private showMemoryPathError(message: string | null): void {
-    this.memoryPathError.toggleClass('claudian-hidden', message === null);
+    this.memoryPathError.toggleClass('scribe-hidden', message === null);
     this.memoryPathError.setText(message ?? '');
     if (message !== null) {
       this.memoryPathError.setAttribute('role', 'alert');

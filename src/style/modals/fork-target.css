@@ -1,14 +1,14 @@
 /* Fork Target Modal */
-.claudian-fork-target-modal {
+.scribe-fork-target-modal {
   max-width: 340px;
 }
 
-.claudian-fork-target-list {
+.scribe-fork-target-list {
   display: flex;
   flex-direction: column;
 }
 
-.claudian-fork-target-option {
+.scribe-fork-target-option {
   padding: 10px 12px;
   border-radius: 6px;
   cursor: pointer;
@@ -16,7 +16,7 @@
   font-size: 14px;
 }
 
-button.claudian-fork-target-option {
+button.scribe-fork-target-option {
   appearance: none;
   width: 100%;
   min-width: 0;
@@ -33,25 +33,25 @@ button.claudian-fork-target-option {
   white-space: normal;
 }
 
-button.claudian-fork-target-option:hover,
-button.claudian-fork-target-option:focus-visible,
-button.claudian-fork-target-option:active {
+button.scribe-fork-target-option:hover,
+button.scribe-fork-target-option:focus-visible,
+button.scribe-fork-target-option:active {
   border: 0;
   box-shadow: none;
   color: var(--text-normal);
 }
 
-.claudian-fork-target-option:hover {
+.scribe-fork-target-option:hover {
   background: var(--background-modifier-hover);
 }
 
-button.claudian-fork-target-option:focus-visible {
+button.scribe-fork-target-option:focus-visible {
   background: transparent;
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
 }
 
-button.claudian-fork-target-option:disabled {
+button.scribe-fork-target-option:disabled {
   border: 0;
   background: transparent;
   box-shadow: none;

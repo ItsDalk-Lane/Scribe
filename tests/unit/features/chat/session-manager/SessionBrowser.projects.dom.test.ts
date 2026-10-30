@@ -156,8 +156,8 @@ it('lists projects above the sessions, with their members only under them', asyn
   expect(within(sessions).queryByText('alpha session')).toBeNull();
   expect(within(sessions).getByText('stale session')).toBeTruthy();
   expect(within(sessions).getByText('loose session')).toBeTruthy();
-  const alphaRow = view.getByText('alpha session').closest('.claudian-history-item') as HTMLElement;
-  expect(alphaRow.querySelector('.claudian-history-item-content')?.textContent).toBe('alpha session');
+  const alphaRow = view.getByText('alpha session').closest('.scribe-history-item') as HTMLElement;
+  expect(alphaRow.querySelector('.scribe-history-item-content')?.textContent).toBe('alpha session');
   expect((await axe(container)).violations).toEqual([]);
 });
 
@@ -368,7 +368,7 @@ it('moves and removes a multi-selection', async () => {
 it('opens keyboard-invoked menus under their anchor in the window that shows the list', () => {
   const popout = document.implementation.createHTMLDocument('popout');
   const { container, view } = setup({ doc: popout });
-  const row = view.getByText('alpha session').closest('.claudian-history-item') as HTMLElement;
+  const row = view.getByText('alpha session').closest('.scribe-history-item') as HTMLElement;
   vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ left: 40, bottom: 120 } as DOMRect);
 
   // Testing Library's fireEvent needs the node's window, which a detached popout document lacks.

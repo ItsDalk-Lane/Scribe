@@ -23,7 +23,7 @@ export interface ZenModePanelOptions {
   onPositionChange(position: ZenModePosition | null): void;
 }
 
-const HOST_CLASS = 'claudian-zen-host';
+const HOST_CLASS = 'scribe-zen-host';
 // Body-level surfaces that zen controls open; interacting with them is not leaving zen.
 const OWNED_OVERLAY_SELECTOR = '.menu, .modal-container, .suggestion-container';
 
@@ -64,26 +64,26 @@ export class ZenModePanel {
   ) {
     this.#keyScope = new Scope(options.parentScope);
     this.#historyExpanded = options.historyExpanded;
-    const historyId = `claudian-zen-history-${++panelSequence}`;
+    const historyId = `scribe-zen-history-${++panelSequence}`;
     hostEl.addClass(HOST_CLASS);
 
     this.#rootEl = hostEl.createDiv({
-      cls: 'claudian-container claudian-zen',
+      cls: 'scribe-container scribe-zen',
       attr: { role: 'region', 'aria-label': t('chat.zen.regionLabel') },
     });
     // The drawer groups the transcript and its preview line so expansion can open into the composer.
-    const drawerEl = this.#rootEl.createDiv({ cls: 'claudian-zen-drawer' });
+    const drawerEl = this.#rootEl.createDiv({ cls: 'scribe-zen-drawer' });
     this.#drawerEl = drawerEl;
     this.#historyEl = drawerEl.createDiv({
-      cls: 'claudian-zen-history', attr: { id: historyId, tabindex: '-1' },
+      cls: 'scribe-zen-history', attr: { id: historyId, tabindex: '-1' },
     });
 
-    const previewId = `claudian-zen-preview-${panelSequence}`;
-    const barEl = drawerEl.createDiv({ cls: 'claudian-zen-bar' });
+    const previewId = `scribe-zen-preview-${panelSequence}`;
+    const barEl = drawerEl.createDiv({ cls: 'scribe-zen-bar' });
     // The whole preview line opens the transcript; its label names the action, the preview describes it.
     // Expanded, the line steps aside; a click or focus move outside zen collapses it again.
     this.#disclosureEl = barEl.createEl('button', {
-      cls: 'claudian-zen-disclosure',
+      cls: 'scribe-zen-disclosure',
       attr: {
         type: 'button',
         'aria-controls': historyId,
@@ -94,23 +94,23 @@ export class ZenModePanel {
     this.#disclosureEl.addEventListener('click', () => this.toggleHistoryExpanded());
 
     this.#previewIconEl = this.#disclosureEl.createSpan({
-      cls: 'claudian-zen-preview-icon claudian-hidden',
+      cls: 'scribe-zen-preview-icon scribe-hidden',
       attr: { 'aria-hidden': 'true' },
     });
-    this.#previewEl = this.#disclosureEl.createSpan({ cls: 'claudian-zen-preview', attr: { id: previewId } });
+    this.#previewEl = this.#disclosureEl.createSpan({ cls: 'scribe-zen-preview', attr: { id: previewId } });
 
-    const composerEl = this.#rootEl.createDiv({ cls: 'claudian-zen-composer' });
+    const composerEl = this.#rootEl.createDiv({ cls: 'scribe-zen-composer' });
     // Shares the sidebar slot class so it collapses while empty.
     const sideChatChipEl = this.#rootEl.createDiv({
-      cls: 'claudian-zen-side-chat-chip-slot claudian-side-chat-chip-slot',
+      cls: 'scribe-zen-side-chat-chip-slot scribe-side-chat-chip-slot',
     });
     // Under the composer, shown on hover or keyboard focus, so the chat controls keep their own clicks.
     const gripEl = this.#rootEl.createEl('button', {
-      cls: 'claudian-zen-grip',
+      cls: 'scribe-zen-grip',
       attr: { type: 'button', tabindex: '-1', 'aria-label': t('chat.zen.move') },
     });
 
-    this.#statusEl = this.#rootEl.createDiv({ cls: 'claudian-zen-status', attr: { role: 'status' } });
+    this.#statusEl = this.#rootEl.createDiv({ cls: 'scribe-zen-status', attr: { role: 'status' } });
 
     this.#rootEl.addEventListener('focusin', () => this.#pushKeyScope());
     this.#rootEl.addEventListener('focusout', (event) => {
@@ -185,13 +185,13 @@ export class ZenModePanel {
   #applyHistoryExpanded(): void {
     const expanded = this.#historyExpanded;
     // A new conversation shows only the composer; the remembered choice waits for messages.
-    this.#drawerEl.toggleClass('claudian-hidden', !this.#hasHistory);
-    this.#historyEl.toggleClass('claudian-hidden', !expanded || !this.#hasHistory);
+    this.#drawerEl.toggleClass('scribe-hidden', !this.#hasHistory);
+    this.#historyEl.toggleClass('scribe-hidden', !expanded || !this.#hasHistory);
     // Transfer focus before CSS hides the disclosure, keeping the zen keyboard scope active.
     if (expanded && this.#hasHistory && this.hostEl.ownerDocument.activeElement === this.#disclosureEl) {
       this.#historyEl.focus({ preventScroll: true });
     }
-    this.#rootEl.toggleClass('claudian-zen--expanded', expanded);
+    this.#rootEl.toggleClass('scribe-zen--expanded', expanded);
     this.#disclosureEl.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     if (!expanded && this.#hasHistory && this.#historyEl.contains(this.hostEl.ownerDocument.activeElement)) {
       this.#disclosureEl.focus({ preventScroll: true });
@@ -244,7 +244,7 @@ export class ZenModePanel {
   }
 
   #renderPreviewIcon(toolName: string | null): void {
-    this.#previewIconEl.toggleClass('claudian-hidden', toolName === null);
+    this.#previewIconEl.toggleClass('scribe-hidden', toolName === null);
     if (toolName === null || toolName === this.#previewIconTool) return;
     this.#previewIconTool = toolName;
     this.#previewIconEl.empty();

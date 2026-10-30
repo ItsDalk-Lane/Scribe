@@ -44,7 +44,7 @@ export function nativeDefaults(options: NativeDefaultsOptions): { call: (...args
     }
     if (method === 'session/projections') {
       const sessionId = args.request.sessionId as string;
-      return { asOfSeq: options.seq(), values: { agentPreset: 'claudian', permissions: { currentValue: permission(sessionId) }, ...options.projections?.(sessionId) } };
+      return { asOfSeq: options.seq(), values: { agentPreset: 'scribe', permissions: { currentValue: permission(sessionId) }, ...options.projections?.(sessionId) } };
     }
     if (method === 'session/page') {
       const mode = permission(args.request.address.sessionId ?? args.request.address.childSessionId);

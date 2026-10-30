@@ -27,7 +27,7 @@ export function createDeepSeekSettingsTabRenderer(workspace: { cliResolver: Deep
     render(container, context) {
       const host = context.plugin;
       const settings = (): ReturnType<typeof getDeepSeekProviderSettings> => getDeepSeekProviderSettings(host.settings);
-      const installation = container.createDiv({ cls: 'claudian-deepseek-installation' });
+      const installation = container.createDiv({ cls: 'scribe-deepseek-installation' });
       const warning = renderLastEnabledProviderWarning(container);
       const modelWarning = renderProviderModelEnablementWarning(container, context, { providerId: 'deepseek', providerName: 'DeepSeek Harness',
         getHasEnabledModels: () => settings().visibleModels.length > 0, getIsEnabled: () => settings().enabled,
@@ -86,7 +86,7 @@ function renderPresetPlugins(container: HTMLElement, host: ProviderHost, setting
   let field!: HTMLTextAreaElement;
   let error: HTMLElement | undefined;
   const setting = new Setting(container).setName(name).setDesc(t('settings.deepseek.presetPlugins.desc'))
-    .setClass('claudian-settings-textarea').setClass('claudian-deepseek-preset-plugins')
+    .setClass('scribe-settings-textarea').setClass('scribe-deepseek-preset-plugins')
     .addTextArea(text => {
       text.setPlaceholder(PRESET_PLUGINS_EXAMPLE).setValue(settings().presetPlugins);
       field = text.inputEl;
@@ -94,10 +94,10 @@ function renderPresetPlugins(container: HTMLElement, host: ProviderHost, setting
       field.spellcheck = false;
       field.setAttribute('aria-label', name);
     });
-  const preview = container.createEl('details', { cls: 'claudian-deepseek-preset-preview' });
+  const preview = container.createEl('details', { cls: 'scribe-deepseek-preset-preview' });
   preview.createEl('summary', { text: t('settings.deepseek.presetPreview') });
   const code = preview.createEl('pre').createEl('code');
-  // A saved value that no longer parses fails at launch instead; the preview then shows Claudian's own rows.
+  // A saved value that no longer parses fails at launch instead; the preview then shows Scribe's own rows.
   const refresh = (): void => {
     let additional: DeepSeekPresetPlugin[] = [];
     try { additional = parseDeepSeekPresetPlugins(settings().presetPlugins); } catch { /* reported at launch */ }
@@ -108,7 +108,7 @@ function renderPresetPlugins(container: HTMLElement, host: ProviderHost, setting
     error?.remove();
     error = undefined;
     if (!message) { field.removeAttribute('aria-invalid'); field.removeAttribute('aria-describedby'); return; }
-    error = setting.controlEl.createDiv({ cls: 'claudian-deepseek-preset-plugins-error', text: message, attr: { role: 'alert', id: 'claudian-deepseek-preset-plugins-error' } });
+    error = setting.controlEl.createDiv({ cls: 'scribe-deepseek-preset-plugins-error', text: message, attr: { role: 'alert', id: 'scribe-deepseek-preset-plugins-error' } });
     field.setAttribute('aria-invalid', 'true');
     field.setAttribute('aria-describedby', error.id);
   };

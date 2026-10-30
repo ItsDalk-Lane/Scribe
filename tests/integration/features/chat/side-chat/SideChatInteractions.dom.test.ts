@@ -124,7 +124,7 @@ it('completing one approval leaves the other reachable for cancellation', async 
   const first = request('first');
   const second = request('second').catch(() => null);
   await waitFor(() => expect(screen.getAllByText('Allow once', { exact: true })).toHaveLength(2));
-  const prompt = screen.getByRole('region', { name: 'first approval details' }).closest<HTMLElement>('.claudian-ask-question-inline')!;
+  const prompt = screen.getByRole('region', { name: 'first approval details' }).closest<HTMLElement>('.scribe-ask-question-inline')!;
   expect(await axe(prompt)).toHaveNoViolations();
   fireEvent.click(screen.getAllByText('Allow once', { exact: true })[0]);
   await expect(first).resolves.toMatchObject({ decision: 'allow', interactionId: 'first' });
@@ -147,9 +147,9 @@ async function showAsyncQuestion() {
   native.emitOutput({ type: 'tool_completed', toolCallId: 'ask', toolScope: { kind: 'main' }, content: 'Question sent. Awaiting your reply.' });
   await waitFor(() => expect(screen.getByRole('button', { name: 'History' })).toBeTruthy());
   const question = screen.getByRole('region', { name: 'Question' });
-  expect(question.closest('.claudian-side-chat-prompts')).not.toBeNull();
-  expect(question.closest('.claudian-tool-call')).toBeNull();
-  expect(document.querySelector('.claudian-input-composer')?.classList.contains('claudian-side-chat-prompt')).toBe(true);
+  expect(question.closest('.scribe-side-chat-prompts')).not.toBeNull();
+  expect(question.closest('.scribe-tool-call')).toBeNull();
+  expect(document.querySelector('.scribe-input-composer')?.classList.contains('scribe-side-chat-prompt')).toBe(true);
   return { harness, native, started };
 }
 
@@ -164,7 +164,7 @@ async function queueQuestionReply() {
   submitAnswer();
   await waitFor(() => expect(screen.queryByRole('region', { name: 'Question' })).toBeNull());
   expect(harness.controller.runtime!.queuedCount).toBe(1);
-  await waitFor(() => expect(harness.composerEl.classList.contains('claudian-side-chat-prompt')).toBe(false));
+  await waitFor(() => expect(harness.composerEl.classList.contains('scribe-side-chat-prompt')).toBe(false));
   expect(native.requests).toHaveLength(1);
   return result;
 }
@@ -207,7 +207,7 @@ async function startLaterTurnUnderQuestion() {
   return { ...result, later };
 }
 
-const waitingIndicator = () => document.querySelector('.claudian-side-chat-messages .claudian-thinking');
+const waitingIndicator = () => document.querySelector('.scribe-side-chat-messages .scribe-thinking');
 
 it('shows the later side turn waiting indicator once the earlier turn question settles', async () => {
   const { native, later } = await startLaterTurnUnderQuestion();
@@ -305,9 +305,9 @@ it.each([['before', 'requested'], ['after', 'requested'], ['before', 'background
   const answerIndex = messages.indexOf(answers[0]);
   expect(messages.slice(0, answerIndex).some(message => message.contentBlocks?.some(block => block.type === 'text' && block.content === 'Before the answer.'))).toBe(true);
   expect(messages.slice(answerIndex + 1).some(message => message.contentBlocks?.some(block => block.type === 'text' && block.content === 'After the answer.'))).toBe(true);
-  const answerElement = screen.getByText('Before the answer.').closest('.claudian-message')!;
+  const answerElement = screen.getByText('Before the answer.').closest('.scribe-message')!;
   expect(harness.composerEl.querySelector(`[data-message-id="${answers[0].id}"]`)).toBeNull();
-  const responseElement = screen.getByText('After the answer.').closest('.claudian-message')!;
+  const responseElement = screen.getByText('After the answer.').closest('.scribe-message')!;
   expect(answerElement.compareDocumentPosition(responseElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(native.requests).toHaveLength(1);
   expect(await axe(harness.composerEl)).toHaveNoViolations();
@@ -389,21 +389,21 @@ it('discards a locally queued reply on cancellation without leaving Sending or d
 it('closes the panel on queue admission, delivers later, and keeps it closed after a response error', async () => {
   const { harness, native, started } = await queueQuestionReply();
   harness.controller.collapse();
-  expect(harness.composerEl.classList.contains('claudian-side-chat-prompt')).toBe(false);
+  expect(harness.composerEl.classList.contains('scribe-side-chat-prompt')).toBe(false);
   harness.controller.expand();
-  expect(harness.composerEl.classList.contains('claudian-side-chat-prompt')).toBe(false);
+  expect(harness.composerEl.classList.contains('scribe-side-chat-prompt')).toBe(false);
   native.complete();
   await waitFor(() => expect(native.requests).toHaveLength(2));
   expect(native.requests[1].input).toEqual([{ type: 'text', text: expect.stringContaining('<send_user_message_question_reply>') }]);
   const text = (native.requests[1].input[0] as { text: string }).text;
   expect(JSON.parse(text.split('\n')[1])).toEqual([{ questionItemId: '["request_user_input_async","ask",0]', question: 'Which check?', answer: 'History' }]);
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Sending...' })).toBeNull());
-  await waitFor(() => expect(harness.composerEl.classList.contains('claudian-side-chat-prompt')).toBe(false));
+  await waitFor(() => expect(harness.composerEl.classList.contains('scribe-side-chat-prompt')).toBe(false));
   native.fail('Response failed after acceptance');
   await started;
   expect(screen.queryByRole('button', { name: 'Submit answers' })).toBeNull();
   expect(native.requests).toHaveLength(2);
-  expect(document.querySelectorAll('.claudian-side-chat-messages .claudian-message-user')).toHaveLength(1);
+  expect(document.querySelectorAll('.scribe-side-chat-messages .scribe-message-user')).toHaveLength(1);
 });
 
 
@@ -429,13 +429,13 @@ it('keeps a pending main question out of the side destination and restores its a
       replyMode: 'user-message', questions: [{ question: 'Main question?', options: [{ label: 'Main answer' }] }],
     } });
     fireEvent.click(screen.getByRole('button', { name: 'Main answer' }));
-    expect(harness.inputContainerEl.classList.contains('claudian-hidden')).toBe(true);
+    expect(harness.inputContainerEl.classList.contains('scribe-hidden')).toBe(true);
     harness.controller.expand();
-    expect(harness.inputContainerEl.classList.contains('claudian-hidden')).toBe(false);
+    expect(harness.inputContainerEl.classList.contains('scribe-hidden')).toBe(false);
     expect(screen.queryByRole('region', { name: 'Question' })).toBeNull();
     expect(state.requiresAction).toBe(true);
     harness.controller.collapse();
-    expect(harness.inputContainerEl.classList.contains('claudian-hidden')).toBe(true);
+    expect(harness.inputContainerEl.classList.contains('scribe-hidden')).toBe(true);
     expect(screen.getByRole('button', { name: 'Submit answers' })).toBeDefined();
     expect(screen.getByText('Main answer')).toBeDefined();
   } finally {

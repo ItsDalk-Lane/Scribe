@@ -13,7 +13,7 @@ beforeEach(() => {
   document.body.replaceChildren();
   // Supply the host's class-based visibility contract; jsdom does not load plugin CSS.
   visibility = document.head.appendChild(document.createElement('style'));
-  visibility.textContent = '.claudian-hidden, .claudian-context-chip--overflow-hidden { display: none; }';
+  visibility.textContent = '.scribe-hidden, .scribe-context-chip--overflow-hidden { display: none; }';
   Object.assign(HTMLElement.prototype, {
     empty(this: HTMLElement) { this.replaceChildren(); },
     addClass(this: HTMLElement, ...names: string[]) { this.classList.add(...names); },
@@ -46,7 +46,7 @@ it('moves focus to the next remaining remove action after an image is removed', 
   fireEvent.click(remove);
   const remaining = within(host).getByRole('button', { name: 'Remove Second image' });
   expect(document.activeElement).toBe(remaining);
-  expect(remaining.closest('.claudian-context-chip--overflow-hidden')).toBeNull();
+  expect(remaining.closest('.scribe-context-chip--overflow-hidden')).toBeNull();
   expect(await axe(host)).toHaveNoViolations();
 });
 
@@ -86,7 +86,7 @@ it('expands before restoring a focused action that would otherwise be hidden', (
   within(host).getByRole('button', { name: 'Remove Second image' }).focus();
   tray.setItems('images', items);
   expect(document.activeElement).toBe(within(host).getByRole('button', { name: 'Remove Second image' }));
-  expect(document.activeElement?.closest('.claudian-context-chip--overflow-hidden')).toBeNull();
+  expect(document.activeElement?.closest('.scribe-context-chip--overflow-hidden')).toBeNull();
   expect(within(host).getByRole('button', { name: 'Show less' }).getAttribute('aria-expanded')).toBe('true');
 });
 
@@ -103,7 +103,7 @@ it('does not blur a focused overflow control while recomputing its layout', () =
   // jsdom omits native display:none focus loss; adapt that host behavior only.
   more.addClass = function (...names) {
     this.classList.add(...names);
-    if (names.includes('claudian-hidden') && document.activeElement === this) this.blur();
+    if (names.includes('scribe-hidden') && document.activeElement === this) this.blur();
   };
   tray.refreshLayout();
   expect(document.activeElement).toBe(more);

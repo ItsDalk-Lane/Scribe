@@ -21,7 +21,7 @@ import type { CodexSessionConnection } from './CodexSessionConnection';
 import { type CodexPolicy, sandboxModeOf } from './codexTurnConfig';
 
 const LEGACY_WORKSPACE_DEPENDENCY_INSTRUCTIONS =
-  'This thread predates Claudian client-hosted workspace dependency tools. Do not emulate load_workspace_dependencies or install replacement dependencies.';
+  'This thread predates Scribe client-hosted workspace dependency tools. Do not emulate load_workspace_dependencies or install replacement dependencies.';
 
 export type CodexForkSource = NonNullable<CodexProviderState['forkSource']>;
 

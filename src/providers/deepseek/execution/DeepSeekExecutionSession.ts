@@ -89,7 +89,7 @@ class AdmissionError extends Error {}
 
 // Bounds how long a native interaction waits for its owner and call details.
 const INTERACTION_DEADLINE_MS = 10_000;
-// Covers the graceful exit of a Host left by a reloaded Claudian instance.
+// Covers the graceful exit of a Host left by a reloaded Scribe instance.
 const WRITER_HANDOFF_MS = 5_000;
 const EPHEMERAL_ENDED = 'This temporary DeepSeek session ended when DeepSeek restarted. Start a new one to continue.';
 
@@ -324,7 +324,7 @@ export class DeepSeekExecutionSession implements ProviderExecutionSession {
   /** Binds this conversation to its native session in the shared Host; returns the session's literal prompt. */
   private async bind(requested: Request): Promise<string> {
     const input = requested.input;
-    const policy: DeepSeekPreset | undefined = input.toolPolicy.kind === 'passive' ? 'claudian-passive' : input.toolPolicy.kind === 'read-only' ? 'claudian-read-only' : undefined;
+    const policy: DeepSeekPreset | undefined = input.toolPolicy.kind === 'passive' ? 'scribe-passive' : input.toolPolicy.kind === 'read-only' ? 'scribe-read-only' : undefined;
     const prompt = input.configuration.systemInstructions.instructions;
     // A retained binding only serves Stop and closing; sending rebinds with fresh native baselines. Its conversation
     // state already ended with the failure, so releasing it leaves this request alone.
@@ -348,7 +348,7 @@ export class DeepSeekExecutionSession implements ProviderExecutionSession {
       this.assertRequest(requested);
       const saved = this.binding ?? decodeDeepSeekState(this.config.resumeSeed?.providerState);
       if (saved && !isSameDeepSeekHome(saved.home, lease.home)) throw new AdmissionError('DeepSeek native history belongs to a different store. Restore its native store or select the original DeepSeek environment before continuing.');
-      this.binding = saved ?? { schemaVersion: 1, home: lease.home, profile: lease.profile, preset: policy ?? 'claudian' };
+      this.binding = saved ?? { schemaVersion: 1, home: lease.home, profile: lease.profile, preset: policy ?? 'scribe' };
       if (this.ephemeralGeneration !== undefined && this.ephemeralGeneration !== lease.generation) throw new AdmissionError(EPHEMERAL_ENDED);
       // The Host retires a lost process, which ends all of its native work; a retained binding has nothing left to stop.
       this.offLease.push(lease.onLost((loss, error) => {
@@ -367,7 +367,7 @@ export class DeepSeekExecutionSession implements ProviderExecutionSession {
         if (policy ? nativePreset !== policy : isDeepSeekAuxiliaryPreset(nativePreset)) throw new Error('DeepSeek native tool policy differs from the requested conversation policy.');
         this.binding = { ...this.binding, preset: nativePreset };
         this.permission = await readDeepSeekPermission(lease.client, existingId);
-        // Claudian archive state is authoritative: a native archive left by a failed restore or dsh web would gate every turn.
+        // Scribe archive state is authoritative: a native archive left by a failed restore or dsh web would gate every turn.
         // A pending fork's source is another conversation, and its fork is an independent native root.
         // Native never archives an ephemeral session.
         if (this.nativeId && this.ephemeralGeneration === undefined) {
@@ -439,7 +439,7 @@ export class DeepSeekExecutionSession implements ProviderExecutionSession {
     }
   }
 
-  /** Creates or resumes the native session; a reloaded Claudian may still be releasing its writer. */
+  /** Creates or resumes the native session; a reloaded Scribe may still be releasing its writer. */
   private async createNative(lease: DeepSeekHostLease, signal: AbortSignal, ephemeralId?: string): Promise<string> {
     const resumed = this.nativeId;
     const request = { cwd: this.config.workingDirectory, agentPreset: this.binding!.preset, ...(ephemeralId ? { sessionId: ephemeralId } : {}) };
@@ -455,7 +455,7 @@ export class DeepSeekExecutionSession implements ProviderExecutionSession {
         if (!isRecord(created) || typeof created.sessionId !== 'string' || (ephemeralId && ephemeralId !== created.sessionId)) throw new Error('DeepSeek session identity changed during creation.');
         return created.sessionId;
       } catch (error) {
-        // Only chat presets carry the user's additional rows; anything else native cannot mount is Claudian's own fault.
+        // Only chat presets carry the user's additional rows; anything else native cannot mount is Scribe's own fault.
         if (error instanceof DeepSeekRemoteError && error.code === 'agent-preset/invalid' && !isDeepSeekAuxiliaryPreset(this.binding!.preset)
           && decodeDeepSeekConfig(this.host.config).presetPlugins.trim()) {
           throw new AdmissionError(`DeepSeek could not load its chat preset: ${error.message}. Check Additional preset plugins in the DeepSeek settings.`);

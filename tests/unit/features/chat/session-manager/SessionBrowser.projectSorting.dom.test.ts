@@ -26,10 +26,10 @@ const MEMBERS_HEIGHT = 40;
 const LIST_TOP = 100;
 
 function heightOf(el: Element): number {
-  if (el.classList.contains('claudian-live-sort-folded')) return 0;
-  if (el.classList.contains('claudian-live-sort-spacer')) return Number.parseFloat((el as HTMLElement).style.height);
-  if (el.classList.contains('claudian-session-group-header')) return ROW_HEIGHT;
-  return el.classList.contains('claudian-session-group-body') ? MEMBERS_HEIGHT : 0;
+  if (el.classList.contains('scribe-live-sort-folded')) return 0;
+  if (el.classList.contains('scribe-live-sort-spacer')) return Number.parseFloat((el as HTMLElement).style.height);
+  if (el.classList.contains('scribe-session-group-header')) return ROW_HEIGHT;
+  return el.classList.contains('scribe-session-group-body') ? MEMBERS_HEIGHT : 0;
 }
 
 /**
@@ -126,7 +126,7 @@ function setup(options: {
   surface.renderSidebar();
   const view = within(host);
   const toggle = (name: string) => view.getByRole('button', { name });
-  const projectRow = (name: string) => toggle(name).closest<HTMLElement>('.claudian-session-group-header')!;
+  const projectRow = (name: string) => toggle(name).closest<HTMLElement>('.scribe-session-group-header')!;
   const projectsRegion = () => view.getByRole('region', { name: t('chat.projects.header') });
   /** Project names in list order, without the section header's own toggle. */
   const order = () => within(projectsRegion())
@@ -164,11 +164,11 @@ it('lifts a project and slides the others aside while it moves, saving the order
   // Launch sits at 140–160; a small wobble is still a click, not a drag.
   press('Launch');
   moveTo(148);
-  expect(projectRow('Launch').classList.contains('claudian-live-sort-lifted')).toBe(false);
+  expect(projectRow('Launch').classList.contains('scribe-live-sort-lifted')).toBe(false);
 
   // Dragged 15px up, its top covers most of Website (120–140) but none of Empty (100–120).
   moveTo(135);
-  expect(projectRow('Launch').classList.contains('claudian-live-sort-lifted')).toBe(true);
+  expect(projectRow('Launch').classList.contains('scribe-live-sort-lifted')).toBe(true);
   expect(offsetOf(projectRow('Launch'))).toBe('translateY(-15px)');
   expect(offsetOf(projectRow('Website'))).toBe(`translateY(${ROW_HEIGHT}px)`);
   expect(offsetOf(projectRow('Empty'))).toBe('');
@@ -195,7 +195,7 @@ it('moves a neighbour away as soon as the dragged card starts covering it', () =
   press('Launch');
   moveTo(150 - 8);
   moveTo(150 - 8);
-  expect(projectRow('Launch').classList.contains('claudian-live-sort-lifted')).toBe(true);
+  expect(projectRow('Launch').classList.contains('scribe-live-sort-lifted')).toBe(true);
   expect(offsetOf(projectRow('Website'))).toBe(`translateY(${ROW_HEIGHT}px)`);
   expect(offsetOf(projectRow('Empty'))).toBe('');
 });
@@ -242,7 +242,7 @@ it('keeps a dragged expanded project under the pointer when folding it pulls a s
 
     // Cancelling unfolds it with the list still where it was scrolled.
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(list.querySelector('.claudian-live-sort-spacer')).toBeNull();
+    expect(list.querySelector('.scribe-live-sort-spacer')).toBeNull();
     expect(list.scrollTop).toBe(50);
   }
 });
@@ -250,19 +250,19 @@ it('keeps a dragged expanded project under the pointer when folding it pulls a s
 it('leaves the row actions to their own clicks in a popout window', () => {
   const popout = createPopoutDocument();
   const { host } = setup({ doc: popout });
-  const rowOf = (name: string) => [...host.querySelectorAll<HTMLElement>('.claudian-session-group-header')]
+  const rowOf = (name: string) => [...host.querySelectorAll<HTMLElement>('.scribe-session-group-header')]
     .find(row => row.textContent?.includes(name))!;
-  const actions = rowOf('Website').querySelector<HTMLElement>('.claudian-session-group-menu-action')!;
+  const actions = rowOf('Website').querySelector<HTMLElement>('.scribe-session-group-menu-action')!;
 
   firePointer('pointerDown', actions, 130);
   firePointer('pointerMove', popout, 160);
-  expect(rowOf('Website').classList.contains('claudian-live-sort-lifted')).toBe(false);
+  expect(rowOf('Website').classList.contains('scribe-live-sort-lifted')).toBe(false);
   firePointer('pointerUp', popout, 160);
 
   // Pressing the row itself still sorts there.
-  firePointer('pointerDown', rowOf('Website').querySelector('.claudian-session-group-toggle')!, 130);
+  firePointer('pointerDown', rowOf('Website').querySelector('.scribe-session-group-toggle')!, 130);
   firePointer('pointerMove', popout, 160);
-  expect(rowOf('Website').classList.contains('claudian-live-sort-lifted')).toBe(true);
+  expect(rowOf('Website').classList.contains('scribe-live-sort-lifted')).toBe(true);
   fireEvent.keyDown(popout, { key: 'Escape' });
 });
 
@@ -273,7 +273,7 @@ it('cancels with Escape, restoring every project in place', async () => {
   expect(offsetOf(projectRow('Website'))).toBe(`translateY(-${ROW_HEIGHT}px)`);
 
   fireEvent.keyDown(document, { key: 'Escape' });
-  expect(projectRow('Empty').classList.contains('claudian-live-sort-lifted')).toBe(false);
+  expect(projectRow('Empty').classList.contains('scribe-live-sort-lifted')).toBe(false);
   expect([projectRow('Empty'), projectRow('Website')].map(offsetOf)).toEqual(['', '']);
   // The button is still held; its release ends the cancelled drag rather than toggling the project.
   release(110);
@@ -299,7 +299,7 @@ it('folds a dragged expanded project and moves expanded neighbours as a whole', 
   // Empty (100–120, members to 160) folds to its row; Launch (140–160 after the fold) has members to 200.
   press('Empty');
   moveTo(185);
-  expect(emptyMembers.classList.contains('claudian-live-sort-folded')).toBe(true);
+  expect(emptyMembers.classList.contains('scribe-live-sort-folded')).toBe(true);
   expect(offsetOf(projectRow('Launch'))).toBe(`translateY(-${ROW_HEIGHT}px)`);
   expect(offsetOf(launchMembers)).toBe(`translateY(-${ROW_HEIGHT}px)`);
   release(185);
@@ -338,7 +338,7 @@ it('discards a held render when the surface is disposed mid-drag', () => {
   surface.dispose();
   // Teardown does not render the sidebar again.
   expect(lifted.isConnected).toBe(true);
-  expect(lifted.classList.contains('claudian-live-sort-lifted')).toBe(false);
+  expect(lifted.classList.contains('scribe-live-sort-lifted')).toBe(false);
   expect(plugin.mutateSettings).not.toHaveBeenCalled();
 });
 
@@ -350,7 +350,7 @@ it('restores the list and reports a reorder that fails to save', async () => {
   failNextSave();
   press('Empty');
   moveTo(150);
-  expect(members.classList.contains('claudian-live-sort-folded')).toBe(true);
+  expect(members.classList.contains('scribe-live-sort-folded')).toBe(true);
   release(150);
   await settle();
 
@@ -360,8 +360,8 @@ it('restores the list and reports a reorder that fails to save', async () => {
   // Nothing else re-rendered the list, so the sorter itself puts every row back.
   expect([projectRow('Empty'), members, projectRow('Website'), projectRow('Launch')].map(offsetOf))
     .toEqual(['', '', '', '']);
-  expect(members.classList.contains('claudian-live-sort-folded')).toBe(false);
-  expect(projectRow('Empty').parentElement!.classList.contains('claudian-live-sorting')).toBe(false);
+  expect(members.classList.contains('scribe-live-sort-folded')).toBe(false);
+  expect(projectRow('Empty').parentElement!.classList.contains('scribe-live-sorting')).toBe(false);
 });
 
 it('sorts a project only among projects of its pin state', () => {

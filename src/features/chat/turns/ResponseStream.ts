@@ -46,7 +46,7 @@ export class ResponseStream {
     this.#active = message;
     state.response.messageId = message.id;
     const element = renderer?.addMessage(message);
-    const contentEl = element?.querySelector<HTMLElement>('.claudian-message-content') ?? null;
+    const contentEl = element?.querySelector<HTMLElement>('.scribe-message-content') ?? null;
     state.currentContentEl = contentEl;
     state.currentTextEl = null;
     state.currentTextContent = '';

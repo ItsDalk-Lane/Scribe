@@ -1,5 +1,7 @@
 import { Notice } from 'obsidian';
 
+import { t } from '@/i18n/i18n';
+
 export interface InlineRenameRequest {
   currentTitle: string;
   /** Persists a changed, non-empty title. */
@@ -16,13 +18,13 @@ export class SessionInlineRename {
   #active: { cancel: () => boolean; input: HTMLInputElement } | null = null;
 
   begin(item: HTMLElement, request: InlineRenameRequest): void {
-    const titleEl = item.querySelector<HTMLElement>('.claudian-history-item-title');
+    const titleEl = item.querySelector<HTMLElement>('.scribe-history-item-title');
     if (!titleEl) return;
 
     const { currentTitle } = request;
     const input = item.createEl('input', {
-      cls: 'claudian-rename-input',
-      attr: { type: 'text', value: currentTitle, 'aria-label': 'Conversation title' },
+      cls: 'scribe-rename-input',
+      attr: { type: 'text', value: currentTitle, 'aria-label': t('chat.sessionManager.conversationTitle') },
     });
 
     titleEl.replaceWith(input);
@@ -55,7 +57,7 @@ export class SessionInlineRename {
 
     const requestFinish = (): void => {
       void finish().catch(() => {
-        new Notice('Failed to rename conversation');
+        new Notice(t('chat.sessionManager.renameFailed'));
       });
     };
     input.addEventListener('blur', requestFinish);

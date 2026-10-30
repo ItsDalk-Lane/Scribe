@@ -12,6 +12,7 @@ export interface TabRuntimePorts {
   readonly placement: TabPlacementPort;
   readonly zenPresentation: ZenPresentationPort;
   refreshProviderControls(): void;
+  refreshLocale(): void;
   refreshMessageTimestamps(): void;
 }
 
@@ -43,6 +44,7 @@ export function buildTabRuntimePorts(
       ui.permissionToggle.updateDisplay();
       ui.serviceTierToggle.updateDisplay();
     },
+    refreshLocale: () => { controllers.sideChatController.refreshLocale(); },
     refreshMessageTimestamps: () => {
       renderer.refreshMessageTimestamps();
       controllers.sideChatController.runtime?.renderer?.refreshMessageTimestamps();
@@ -117,7 +119,7 @@ export function createTabPlacementPort(
       contentEl.appendChild(composerEl);
     },
     placeTranscript: (hostEl): TabTranscriptPlacement => {
-      const anchorEl = transcriptEl.ownerDocument.createComment('claudian-zen-transcript');
+      const anchorEl = transcriptEl.ownerDocument.createComment('scribe-zen-transcript');
       transcriptEl.replaceWith(anchorEl);
       hostEl.appendChild(transcriptEl);
       return {

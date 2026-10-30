@@ -20,7 +20,7 @@ describe('Long conversation message styles', () => {
 
     document.body.classList.add(platformClass);
     const assistantMessage = document.createElement('div');
-    assistantMessage.className = 'claudian-message-assistant';
+    assistantMessage.className = 'scribe-message-assistant';
     document.body.appendChild(assistantMessage);
 
     return window.getComputedStyle(assistantMessage);
@@ -52,9 +52,9 @@ describe('User message list containment', () => {
     document.head.appendChild(style);
 
     const message = document.createElement('div');
-    message.className = 'claudian-message claudian-message-user';
+    message.className = 'scribe-message scribe-message-user';
     message.innerHTML = `
-      <div class="claudian-message-content">
+      <div class="scribe-message-content">
         <ol start="9"><li></li><li></li></ol>
       </div>
     `;
@@ -78,7 +78,7 @@ describe('Message table overflow', () => {
       + readFileSync(path.resolve('src/style/components/messages.css'), 'utf8');
     document.head.appendChild(style);
     const message = document.createElement('div');
-    message.className = 'claudian-message-content';
+    message.className = 'scribe-message-content';
     message.innerHTML = '<table><tr><th>Long header</th><td>Long value</td></tr></table>';
     document.body.appendChild(message);
 
@@ -106,7 +106,7 @@ describe('Message action row visibility', () => {
       return rules
         .filter(rule => rule.style?.getPropertyValue('opacity') === '1')
         .flatMap(rule => rule.selectorText.split(',').map(selector => selector.trim()))
-        .filter(selector => /\.claudian-message-actions(:[\w-]+)?$/.test(selector));
+        .filter(selector => /\.scribe-message-actions(:[\w-]+)?$/.test(selector));
     } finally {
       style.remove();
     }
@@ -115,12 +115,12 @@ describe('Message action row visibility', () => {
   it('reveals the row on hover, and on focus only from its own controls', () => {
     const selectors = revealSelectors();
 
-    expect(selectors).toContain('.claudian-message:hover > .claudian-message-actions');
-    expect(selectors).toContain('.claudian-message-images:hover > .claudian-message-actions');
-    expect(selectors).toContain('.claudian-message-actions:focus-within');
+    expect(selectors).toContain('.scribe-message:hover > .scribe-message-actions');
+    expect(selectors).toContain('.scribe-message-images:hover > .scribe-message-actions');
+    expect(selectors).toContain('.scribe-message-actions:focus-within');
     // Focus on a collapsible header elsewhere in the turn must not reveal the row.
     expect(selectors.filter(selector => /:focus/.test(selector)
-      && !selector.startsWith('.claudian-message-actions:focus'))).toEqual([]);
+      && !selector.startsWith('.scribe-message-actions:focus'))).toEqual([]);
     expect(selectors.filter(selector => !/:hover|:focus/.test(selector))).toEqual([]);
   });
 
@@ -129,9 +129,9 @@ describe('Message action row visibility', () => {
     style.textContent = readFileSync(path.resolve('src/style/components/messages.css'), 'utf8');
     document.head.appendChild(style);
     const message = document.createElement('div');
-    message.className = kind === 'images' ? 'claudian-message-images' : `claudian-message claudian-message-${kind}`;
+    message.className = kind === 'images' ? 'scribe-message-images' : `scribe-message scribe-message-${kind}`;
     const actions = document.createElement('div');
-    actions.className = 'claudian-message-actions claudian-user-msg-actions';
+    actions.className = 'scribe-message-actions scribe-user-msg-actions';
     actions.innerHTML = '<button type="button">Copy message</button>';
     message.appendChild(actions);
     document.body.appendChild(message);

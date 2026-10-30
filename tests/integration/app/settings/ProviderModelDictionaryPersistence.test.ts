@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { build } from 'esbuild';
 
 it('retains accepted prototype-named metadata in the production ES2022 configuration artifact', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'claudian-model-dictionaries-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'scribe-model-dictionaries-'));
   try {
     const bundled = await build({ entryPoints: ['tests/fixtures/providers/models/ProviderModelDictionaryProjection.ts'],
       bundle: true, platform: 'node', target: 'es2022', format: 'cjs', write: false,

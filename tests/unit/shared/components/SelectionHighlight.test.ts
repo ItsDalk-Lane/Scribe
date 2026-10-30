@@ -12,7 +12,7 @@ function createEditorView(doc = 'hello world'): EditorView {
 }
 
 function highlightCount(editorView: EditorView): number {
-  return editorView.dom.querySelectorAll('.claudian-selection-highlight').length;
+  return editorView.dom.querySelectorAll('.scribe-selection-highlight').length;
 }
 
 describe('SelectionHighlight', () => {

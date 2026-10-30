@@ -1,52 +1,52 @@
 /* Fast mode: an indicator on the model chip and a switch row at the foot of the model popover's last column. */
 
 /* The indicator only shows while fast mode is on, so it reads at full strength rather than muted. */
-.claudian-service-tier-indicator {
+.scribe-service-tier-indicator {
   display: flex;
   align-items: center;
   color: var(--text-normal);
 }
 
-.claudian-service-tier-indicator svg {
+.scribe-service-tier-indicator svg {
   width: 11px;
   height: 11px;
 }
 
-.claudian-model-popover {
-  --claudian-fast-mode: #eab308;
+.scribe-model-popover {
+  --scribe-fast-mode: #eab308;
 }
 
 /* The switch sits at the column's foot, below the levels. */
-.claudian-model-parts > .claudian-toolbar-popover-section.claudian-service-tier-toggle {
+.scribe-model-parts > .scribe-toolbar-popover-section.scribe-service-tier-toggle {
   margin-top: auto;
   padding-top: 4px;
 }
 
-.claudian-toolbar-popover button.claudian-toolbar-popover-switch-row {
+.scribe-toolbar-popover button.scribe-toolbar-popover-switch-row {
   min-height: 26px;
   color: var(--text-muted);
 }
 
-.claudian-toolbar-popover button.claudian-toolbar-popover-switch-row:is(:hover, :focus-visible) {
+.scribe-toolbar-popover button.scribe-toolbar-popover-switch-row:is(:hover, :focus-visible) {
   color: var(--text-normal);
 }
 
-.claudian-toolbar-popover-switch-row .claudian-toolbar-popover-option-icon {
+.scribe-toolbar-popover-switch-row .scribe-toolbar-popover-option-icon {
   color: var(--text-faint);
 }
 
 /* On, the row takes a faint amber wash and the zap lights up: amber is fast mode's own colour, never a provider's. */
-.claudian-toolbar-popover button.claudian-toolbar-popover-switch-row[aria-checked='true'],
-.claudian-toolbar-popover button.claudian-toolbar-popover-switch-row[aria-checked='true']:is(:hover, :focus, :focus-visible, :active) {
-  background: color-mix(in srgb, var(--claudian-fast-mode) 10%, transparent);
+.scribe-toolbar-popover button.scribe-toolbar-popover-switch-row[aria-checked='true'],
+.scribe-toolbar-popover button.scribe-toolbar-popover-switch-row[aria-checked='true']:is(:hover, :focus, :focus-visible, :active) {
+  background: color-mix(in srgb, var(--scribe-fast-mode) 10%, transparent);
   color: var(--text-normal);
 }
 
-.claudian-toolbar-popover-switch-row[aria-checked='true'] .claudian-toolbar-popover-option-icon {
-  color: var(--claudian-fast-mode);
+.scribe-toolbar-popover-switch-row[aria-checked='true'] .scribe-toolbar-popover-option-icon {
+  color: var(--scribe-fast-mode);
 }
 
-.claudian-toggle-switch {
+.scribe-toggle-switch {
   position: relative;
   flex-shrink: 0;
   width: 26px;
@@ -57,7 +57,7 @@
   transition: background 0.2s ease;
 }
 
-.claudian-toggle-switch::after {
+.scribe-toggle-switch::after {
   content: '';
   position: absolute;
   top: 2px;
@@ -70,10 +70,10 @@
   transition: transform 0.2s ease;
 }
 
-.claudian-toggle-switch.active {
-  background: var(--claudian-fast-mode);
+.scribe-toggle-switch.active {
+  background: var(--scribe-fast-mode);
 }
 
-.claudian-toggle-switch.active::after {
+.scribe-toggle-switch.active::after {
   transform: translateX(11px);
 }

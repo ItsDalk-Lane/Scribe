@@ -21,7 +21,7 @@ export class SessionTranscript {
     this.view = { renderer, messagesEl };
     try {
       const welcome = renderer.renderMessages(this.state.messages, getGreeting, this.stream.liveTranscriptOptions);
-      if (this.state.messages.length) welcome.addClass('claudian-hidden');
+      if (this.state.messages.length) welcome.addClass('scribe-hidden');
       this.stream.restorePresentation();
       return welcome;
     } catch (error) {

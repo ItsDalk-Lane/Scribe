@@ -26,7 +26,7 @@ vi.mock('obsidian', async () => ({
 }));
 
 const project: ProjectRecord = {
-  id: 'project-1', name: 'Launch', instructions: '', memoryPath: '.claudian/projects/launch/MEMORY.md',
+  id: 'project-1', name: 'Launch', instructions: '', memoryPath: '.scribe/projects/launch/MEMORY.md',
   isPinned: false, isArchived: false, createdAt: 1,
 };
 
@@ -108,7 +108,7 @@ function visibleButtons(dialog: HTMLElement): string[] {
 }
 
 function hasDirtyMark(dialog: HTMLElement): boolean {
-  const mark = dialog.querySelector('.claudian-project-memory-dirty') as HTMLElement;
+  const mark = dialog.querySelector('.scribe-project-memory-dirty') as HTMLElement;
   return !mark.hidden;
 }
 
@@ -160,7 +160,7 @@ it('opens to read the rendered memory with its path, last update, and only Edit'
   // Obsidian's close button ends the title row, with the panel's icon-button look.
   const close = dialog.querySelector('.modal-close-button')!;
   expect(controls.getByText(title).parentElement!.lastElementChild).toBe(close);
-  expect(close.classList.contains('claudian-project-memory-icon-btn')).toBe(true);
+  expect(close.classList.contains('scribe-project-memory-icon-btn')).toBe(true);
   // The mode switch is an icon in the display area it switches, alongside the rendered view and the editor.
   const toggle = controls.getByRole('button', { name: edit });
   expect(toggle.textContent).toBe('');

@@ -48,13 +48,13 @@ const messages: ChatMessage[] = [
     ] },
 ];
 
-const INTERRUPTED = 'Interrupted · What should Claudian do instead?';
+const INTERRUPTED = 'Interrupted · What should Scribe do instead?';
 
 /** The interrupted disclosure's header is the interrupt indicator itself, never repeated in its body. */
 function expectInterruptHeader(header: HTMLElement, history: HTMLElement): void {
-  expect([header.querySelector('.claudian-interrupted')?.textContent, header.querySelector('.claudian-interrupted-hint')?.textContent])
-    .toEqual(['Interrupted', '· What should Claudian do instead?']);
-  expect(history.querySelector('.claudian-interrupted, .claudian-interrupted-hint')).toBeNull();
+  expect([header.querySelector('.scribe-interrupted')?.textContent, header.querySelector('.scribe-interrupted-hint')?.textContent])
+    .toEqual(['Interrupted', '· What should Scribe do instead?']);
+  expect(history.querySelector('.scribe-interrupted, .scribe-interrupted-hint')).toBeNull();
 }
 
 beforeEach(() => {
@@ -101,7 +101,7 @@ it.each([false, true])('collapses completed history above the answer and puts co
   const answer = messagesEl.querySelector<HTMLElement>('[data-message-id="a2"]')!;
   const copy = within(answer).getByRole('button', { name: 'Copy message' });
   const forkButton = within(answer).getByRole('button', { name: 'Fork conversation' });
-  const time = copy.parentElement!.querySelector('.claudian-message-timestamp')!;
+  const time = copy.parentElement!.querySelector('.scribe-message-timestamp')!;
   expect(copy.parentElement).toBe(forkButton.parentElement);
   expect(copy.parentElement).toBe(time.parentElement);
   expect(Array.from(copy.parentElement!.children)).toEqual([copy, forkButton, time]);
@@ -112,7 +112,7 @@ it.each([false, true])('collapses completed history above the answer and puts co
   expect(fork).toHaveBeenCalledWith('a2');
   const user = messagesEl.querySelector<HTMLElement>('[data-message-id="u1"]')!;
   expect(within(user).getByRole('button', { name: 'Copy message' }).nextElementSibling)
-    .toBe(user.querySelector('.claudian-message-timestamp'));
+    .toBe(user.querySelector('.scribe-message-timestamp'));
   expect((await axe(answer)).violations).toEqual([]);
   renderer.dispose();
 });
@@ -136,8 +136,8 @@ it('keeps live output in place until completion, then preserves the same content
   const msg: ChatMessage = { id: 'live', role: 'assistant', content: 'Done.', timestamp: 4,
     contentBlocks: [{ type: 'thinking', content: 'Working' }, { type: 'text', content: 'Done.' }] };
   const el = renderer.addMessage(msg);
-  const content = el.querySelector<HTMLElement>('.claudian-message-content')!;
-  const work = content.createDiv({ cls: 'claudian-thinking-block', text: 'Working' });
+  const content = el.querySelector<HTMLElement>('.scribe-message-content')!;
+  const work = content.createDiv({ cls: 'scribe-thinking-block', text: 'Working' });
   const answer = createResponseTextBlock(content);
   answer.setText('Done.');
   expect(within(messagesEl).queryByRole('button', { name: /Worked/ })).toBeNull();
@@ -158,7 +158,7 @@ it('leaves unsuccessful output expanded', () => {
   const msg: ChatMessage = { id: 'failed', role: 'assistant', content: 'Partial', timestamp: 4,
     contentBlocks: [{ type: 'text', content: 'Partial' }] };
   const el = renderer.addMessage(msg);
-  el.querySelector('.claudian-message-content')!.createDiv({ cls: 'claudian-text-block', text: 'Partial' });
+  el.querySelector('.scribe-message-content')!.createDiv({ cls: 'scribe-text-block', text: 'Partial' });
   renderer.finalizeResponse(msg, [msg], false);
   expect(within(el).queryByRole('button', { name: /^(Worked|Interrupted)/ })).toBeNull();
   expect(within(el).getByText('Partial').closest('[hidden]')).toBeNull();
@@ -190,13 +190,13 @@ it('folds a partial-text interruption under a disclosure headed by the interrupt
 
 it('copies retired interruption markup as ordinary message text', async () => {
   const { renderer, messagesEl } = setup();
-  const marker = '<span class="claudian-interrupted">Interrupted</span> <span class="claudian-interrupted-hint">· What should Claudian do instead?</span>';
+  const marker = '<span class="scribe-interrupted">Interrupted</span> <span class="scribe-interrupted-hint">· What should Scribe do instead?</span>';
   renderer.renderStoredMessage({ id: 'legacy', role: 'assistant', timestamp: 5,
     content: `Partial answer\n\n${marker}` });
   fireEvent.click(within(messagesEl).getByRole('button', { name: 'Copy message' }));
   await Promise.resolve();
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`Partial answer\n\n${marker}`);
-  expect(messagesEl.querySelectorAll('.claudian-interrupted')).toHaveLength(0);
+  expect(messagesEl.querySelectorAll('.scribe-interrupted')).toHaveLength(0);
   expect(await axe(messagesEl)).toHaveNoViolations();
   renderer.dispose();
 });
@@ -211,11 +211,11 @@ it('keeps separate completed turns and refreshes timestamps in their own action 
   expect(headers.map(header => header.textContent)).toEqual(['Worked for 01:05', 'Worked for 01:30']);
   settings.showMessageTimestamps = false;
   renderer.refreshMessageTimestamps();
-  expect(messagesEl.querySelectorAll('.claudian-message-timestamp')).toHaveLength(0);
+  expect(messagesEl.querySelectorAll('.scribe-message-timestamp')).toHaveLength(0);
   settings.showMessageTimestamps = true;
   renderer.refreshMessageTimestamps();
   renderer.refreshMessageTimestamps();
-  const times = messagesEl.querySelectorAll('.claudian-message-timestamp');
+  const times = messagesEl.querySelectorAll('.scribe-message-timestamp');
   expect(times).toHaveLength(4);
   for (const time of times) expect(time.parentElement!.lastElementChild).toBe(time);
   renderer.dispose();
@@ -233,7 +233,7 @@ it.each([true, false])('keeps the final answer visible with fallback tools (cont
   const history = document.getElementById(header.getAttribute('aria-controls')!)!;
   expect(history.textContent).not.toContain('The final answer.');
   expect(within(messagesEl).getByText('The final answer.').closest('[hidden]')).toBeNull();
-  expect(history.querySelector('.claudian-tool-call')).not.toBeNull();
+  expect(history.querySelector('.scribe-tool-call')).not.toBeNull();
   fireEvent.click(within(messagesEl).getByRole('button', { name: 'Copy message' }));
   await Promise.resolve();
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith('The final answer.');
@@ -270,15 +270,15 @@ it.each(['claude', 'codex'])('folds a replayed %s interruption under one disclos
   expect(actions('interrupted')).toEqual([]);
   expect(actions('a3')).toEqual(['Copy message', 'Fork conversation']);
 
-  expect(Array.from(messagesEl.querySelectorAll<HTMLElement>('.claudian-message'), el => el.dataset.messageId))
+  expect(Array.from(messagesEl.querySelectorAll<HTMLElement>('.scribe-message'), el => el.dataset.messageId))
     .toEqual(['u1', 'interrupted', 'u2', 'a3']);
   const header = within(messagesEl).getByRole('button', { name: INTERRUPTED });
   expect(header.getAttribute('type')).toBe('button');
   expect(header.getAttribute('aria-expanded')).toBe('false');
   const history = document.getElementById(header.getAttribute('aria-controls')!)!;
-  const turn = messagesEl.querySelector<HTMLElement>('[data-message-id="interrupted"] .claudian-message-content')!;
+  const turn = messagesEl.querySelector<HTMLElement>('[data-message-id="interrupted"] .scribe-message-content')!;
   expect(Array.from(turn.querySelectorAll<HTMLElement>(':scope > * > :not([hidden])'))).toEqual([header]);
-  expect(messagesEl.querySelectorAll('.claudian-interrupted')).toHaveLength(1);
+  expect(messagesEl.querySelectorAll('.scribe-interrupted')).toHaveLength(1);
   expectInterruptHeader(header, history);
   expect(within(messagesEl).getByText('Partial answer').closest('[hidden]')).toBe(history);
   expect(history.lastElementChild!.contains(within(messagesEl).getByText('Partial answer'))).toBe(true);
@@ -315,7 +315,7 @@ it('offers fork on the final live response of a multi-message turn', async () =>
   for (const message of messages) {
     const el = renderer.addMessage(message);
     if (message.role === 'assistant') {
-      const text = el.querySelector('.claudian-message-content')!.createDiv({ cls: 'claudian-text-block' });
+      const text = el.querySelector('.scribe-message-content')!.createDiv({ cls: 'scribe-text-block' });
       await renderer.renderContent(text, message.content);
     }
   }
@@ -519,7 +519,7 @@ it('keeps time after throughput when timestamps are refreshed or toggled', () =>
   const copy = within(toolbar).getByRole('button', { name: 'Copy message' });
   const fork = within(toolbar).getByRole('button', { name: 'Fork conversation' });
   const expectOrder = () => {
-    expect(Array.from(toolbar.children)).toEqual([copy, fork, stat, toolbar.querySelector('.claudian-message-timestamp')]);
+    expect(Array.from(toolbar.children)).toEqual([copy, fork, stat, toolbar.querySelector('.scribe-message-timestamp')]);
   };
   expectOrder();
   renderer.refreshMessageTimestamps();
@@ -692,16 +692,16 @@ it('orders the Pi prompt toolbar as branches, tree, copy, time through live and 
   busy = false;
   renderer.refreshActionButtons(prompt, history, 1);
   const assertOrder = () => {
-    const toolbar = promptEl.querySelector('.claudian-message-actions')!;
-    const labels = Array.from(toolbar.children).map(child => child.classList.contains('claudian-message-timestamp')
+    const toolbar = promptEl.querySelector('.scribe-message-actions')!;
+    const labels = Array.from(toolbar.children).map(child => child.classList.contains('scribe-message-timestamp')
       ? 'time' : child.getAttribute('aria-label'));
     expect(labels).toEqual(['Previous branch', 'Branch 2 of 2', 'Next branch', 'Branch from this prompt', 'Copy message', 'time']);
     expect(within(toolbar as HTMLElement).queryByRole('button', { name: 'Fork conversation' })).toBeNull();
-    const markers = promptEl.querySelectorAll('.claudian-branch-marker');
+    const markers = promptEl.querySelectorAll('.scribe-branch-marker');
     expect(markers).toHaveLength(1);
-    expect(markers[0].parentElement).toBe(promptEl.querySelector('.claudian-message-content'));
+    expect(markers[0].parentElement).toBe(promptEl.querySelector('.scribe-message-content'));
     expect(markers[0].getAttribute('aria-hidden')).toBe('true');
-    expect(messagesEl.querySelector('[data-message-id="u1"] .claudian-branch-marker')).toBeNull();
+    expect(messagesEl.querySelector('[data-message-id="u1"] .scribe-branch-marker')).toBeNull();
   };
   assertOrder();
   renderer.refreshBranchButtons(history);
@@ -720,7 +720,7 @@ it('orders the Pi prompt toolbar as branches, tree, copy, time through live and 
   expect(await axe(promptEl)).toHaveNoViolations();
   prompt.treeBranches = ['native-b'];
   renderer.refreshBranchButtons(history);
-  expect(promptEl.querySelector('.claudian-branch-marker')).toBeNull();
+  expect(promptEl.querySelector('.scribe-branch-marker')).toBeNull();
   expect(within(promptEl).getByRole('button', { name: 'Branch from this prompt' })).toBeTruthy();
   renderer.dispose();
 });
@@ -815,7 +815,7 @@ it('reuses created message elements instead of searching the growing history for
   positionLookup.mockRestore();
   expect(historyLookups).toHaveLength(0);
   expect(query.mock.calls.filter(([selector]) => selector.includes('data-message-id') || selector.includes('data-work-message-id'))).toHaveLength(0);
-  expect(messagesEl.querySelectorAll('.claudian-message')).toHaveLength(100);
+  expect(messagesEl.querySelectorAll('.scribe-message')).toHaveLength(100);
   renderer.dispose();
 });
 

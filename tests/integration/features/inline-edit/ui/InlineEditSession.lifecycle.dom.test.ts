@@ -84,7 +84,7 @@ it('retains clarification when CodeMirror releases and later recreates the input
   submitInstruction();
   await waitFor(() => expect(h.backend.sessions[0]?.getStatus()).toBe('executing'));
   // WidgetType.destroy/toDOM are CodeMirror's viewport resource callbacks.
-  const oldContainer = input().closest<HTMLElement>('.claudian-inline-input-container')!;
+  const oldContainer = input().closest<HTMLElement>('.scribe-inline-input-container')!;
   session.destroyInputDOM(oldContainer);
   oldContainer.remove();
   h.backend.sessions[0].emitText('Which tone?');
@@ -174,7 +174,7 @@ it.each(['cursor', 'selection'] as const)('rejects changed %s context during pro
   // Establish the same modal still opens a usable editor when its source stays unchanged.
   const retry = h.createModal().openAndWait();
   const field = await screen.findByRole('textbox', { name: 'Edit instructions' });
-  expect(await axe(field.closest('.claudian-inline-input-container')!)).toHaveNoViolations();
+  expect(await axe(field.closest('.scribe-inline-input-container')!)).toHaveNoViolations();
   h.owner.dispose();
   await expect(retry).resolves.toEqual({ decision: 'reject' });
 });
@@ -235,9 +235,9 @@ it('opens the model menu outside the clipped editor widget, above its chip, and 
   fireEvent.click(chip);
   const menu = screen.getByRole('dialog', { name: 'Model options' });
   // Obsidian gives editor widgets paint containment, which clips anything inside them that overflows.
-  expect(input().closest('.claudian-inline-input-container')!.contains(menu)).toBe(false);
+  expect(input().closest('.scribe-inline-input-container')!.contains(menu)).toBe(false);
   // Fixed above the chip: the menu's bottom edge sits 8px over the chip's top.
-  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')).toBe(`${window.innerHeight - 200 + 8}px`);
+  expect(menu.style.getPropertyValue('--scribe-toolbar-popover-bottom')).toBe(`${window.innerHeight - 200 + 8}px`);
   expect(await axe(menu)).toHaveNoViolations();
   // The composer focuses its input shortly after mounting; that must not pull focus out of an open menu.
   await new Promise(resolve => window.setTimeout(resolve, 80));
@@ -262,7 +262,7 @@ it('opens the model menu outside the clipped editor widget, above its chip, and 
 it('saves the model and effort chosen on its composer chip as the inline edit default', async () => {
   const h = createHarness();
   h.createSession().show();
-  expect(await axe(input().closest('.claudian-inline-input-container')!)).toHaveNoViolations();
+  expect(await axe(input().closest('.scribe-inline-input-container')!)).toHaveNoViolations();
   fireEvent.click(screen.getByRole('button', { name: 'Model: Sonnet, effort High' }));
   fireEvent.click(screen.getByRole('option', { name: 'Opus' }));
   await screen.findByRole('button', { name: 'Model: Opus, effort High' });
@@ -272,7 +272,7 @@ it('saves the model and effort chosen on its composer chip as the inline edit de
   await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
   expect(h.backend.sessions[0].requests[0].configuration).toMatchObject({ model: 'opus', reasoning: 'low' });
   // A running request hides the chip, so its choices cannot change mid-request.
-  expect(screen.getByRole('button', { name: 'Model: Opus, effort Low' }).closest('.claudian-hidden')).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Model: Opus, effort Low' }).closest('.scribe-hidden')).not.toBeNull();
   // The chat's own selection is untouched.
   expect(h.plugin.settings).toEqual({
     model: 'sonnet',
@@ -344,7 +344,7 @@ it('continues provider execution when vault mentions cannot load and reports one
 });
 
 describe('Vault paths that resemble environment variables', () => {
-  const variable = 'CLAUDIAN_INLINE_MENTION_VAR';
+  const variable = 'SCRIBE_INLINE_MENTION_VAR';
   const percentPath = `notes/a%${variable}%b.md`;
   const dollarPath = `notes/$${variable}.md`;
   let previous: string | undefined;

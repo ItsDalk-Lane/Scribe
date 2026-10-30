@@ -73,66 +73,66 @@ describe('Zen mode styles', () => {
     document.head.appendChild(style);
 
     document.body.innerHTML = `
-      <div class="workspace-split mod-root claudian-zen-host">
+      <div class="workspace-split mod-root scribe-zen-host">
         <div class="view-content">
           <div class="markdown-source-view mod-cm6"><div class="cm-editor"><div class="cm-scroller"></div></div></div>
           <div class="markdown-preview-view"></div>
         </div>
-        <div class="claudian-container claudian-zen">
-          <div class="claudian-zen-drawer">
-            <div class="claudian-zen-history">
-              <div class="claudian-messages-wrapper"><div class="claudian-messages"></div></div>
+        <div class="scribe-container scribe-zen">
+          <div class="scribe-zen-drawer">
+            <div class="scribe-zen-history">
+              <div class="scribe-messages-wrapper"><div class="scribe-messages"></div></div>
             </div>
-            <div class="claudian-zen-bar">
-              <button type="button" class="claudian-zen-disclosure">
-                <span class="claudian-zen-preview-icon" aria-hidden="true"></span>
-                <span class="claudian-zen-preview"></span>
+            <div class="scribe-zen-bar">
+              <button type="button" class="scribe-zen-disclosure">
+                <span class="scribe-zen-preview-icon" aria-hidden="true"></span>
+                <span class="scribe-zen-preview"></span>
               </button>
             </div>
           </div>
-          <div class="claudian-zen-composer">
-            <div class="claudian-input-composer">
-              <div class="claudian-input-container">
-                <div class="claudian-input-nav-row"></div>
-                <div class="claudian-input-wrapper">
-                  <div class="claudian-input-queue-strip claudian-hidden"></div>
-                  <div class="claudian-context-row"></div>
-                  <div class="claudian-composer-editor">
+          <div class="scribe-zen-composer">
+            <div class="scribe-input-composer">
+              <div class="scribe-input-container">
+                <div class="scribe-input-nav-row"></div>
+                <div class="scribe-input-wrapper">
+                  <div class="scribe-input-queue-strip scribe-hidden"></div>
+                  <div class="scribe-context-row"></div>
+                  <div class="scribe-composer-editor">
                     <div class="cm-content"><div class="cm-line"><span class="cm-placeholder">Ask</span></div></div>
                   </div>
-                  <div class="claudian-input-toolbar"></div>
+                  <div class="scribe-input-toolbar"></div>
                 </div>
-                <div class="claudian-input-info-row">
-                  <div class="claudian-input-info-linked"></div>
+                <div class="scribe-input-info-row">
+                  <div class="scribe-input-info-linked"></div>
                 </div>
               </div>
             </div>
           </div>
-          <div class="claudian-zen-side-chat-chip-slot claudian-side-chat-chip-slot">
-            <div class="claudian-side-chat"><div class="claudian-side-chat-status">
-              <button type="button" class="claudian-side-chat-status-toggle">Side chat</button>
+          <div class="scribe-zen-side-chat-chip-slot scribe-side-chat-chip-slot">
+            <div class="scribe-side-chat"><div class="scribe-side-chat-status">
+              <button type="button" class="scribe-side-chat-status-toggle">Side chat</button>
             </div></div>
           </div>
-          <button type="button" class="claudian-zen-grip" aria-label="Move chat panel"></button>
+          <button type="button" class="scribe-zen-grip" aria-label="Move chat panel"></button>
         </div>
       </div>
     `;
-    mountToolbar(document.querySelector<HTMLElement>('.claudian-input-toolbar')!);
-    return document.querySelector('.claudian-zen') as HTMLElement;
+    mountToolbar(document.querySelector<HTMLElement>('.scribe-input-toolbar')!);
+    return document.querySelector('.scribe-zen') as HTMLElement;
   }
 
   it('hides the whole drawer, open action included, while it is hidden', () => {
-    const drawer = renderPanel().querySelector<HTMLElement>('.claudian-zen-drawer')!;
+    const drawer = renderPanel().querySelector<HTMLElement>('.scribe-zen-drawer')!;
     expect(window.getComputedStyle(drawer).display).toBe('flex');
 
-    drawer.classList.add('claudian-hidden');
+    drawer.classList.add('scribe-hidden');
     expect(window.getComputedStyle(drawer).display).toBe('none');
   });
 
   it.each([false, true])('opens the preview line and transcript into the composer border (expanded: %s)', (expanded) => {
     const panel = renderPanel();
-    const drawer = panel.querySelector<HTMLElement>('.claudian-zen-drawer')!;
-    panel.classList.toggle('claudian-zen--expanded', expanded);
+    const drawer = panel.querySelector<HTMLElement>('.scribe-zen-drawer')!;
+    panel.classList.toggle('scribe-zen--expanded', expanded);
     const style = window.getComputedStyle(drawer);
     expect({
       top: style.borderTop,
@@ -149,31 +149,31 @@ describe('Zen mode styles', () => {
     });
     // No gap, so the drawer's sides meet the composer's top border.
     expect(['', 'normal', '0']).toContain(window.getComputedStyle(panel).gap);
-    expect(window.getComputedStyle(panel.querySelector('.claudian-zen-history')!).borderStyle).toBe('');
+    expect(window.getComputedStyle(panel.querySelector('.scribe-zen-history')!).borderStyle).toBe('');
   });
 
   it('hides the info row, and keeps the context gauge beside the model control without its number', () => {
     const panel = renderPanel();
-    expect(window.getComputedStyle(panel.querySelector('.claudian-input-info-row')!).display).toBe('none');
+    expect(window.getComputedStyle(panel.querySelector('.scribe-input-info-row')!).display).toBe('none');
 
-    const toolbar = panel.querySelector<HTMLElement>('.claudian-input-toolbar')!;
-    const meter = toolbar.querySelector<HTMLElement>('.claudian-context-meter')!;
-    expect(meter.previousElementSibling?.classList.contains('claudian-model-selector')).toBe(true);
+    const toolbar = panel.querySelector<HTMLElement>('.scribe-input-toolbar')!;
+    const meter = toolbar.querySelector<HTMLElement>('.scribe-context-meter')!;
+    expect(meter.previousElementSibling?.classList.contains('scribe-model-selector')).toBe(true);
     expect(window.getComputedStyle(meter).display).toBe('none');
 
-    meter.classList.remove('claudian-hidden');
+    meter.classList.remove('scribe-hidden');
     expect(window.getComputedStyle(meter).display).toBe('flex');
-    expect(window.getComputedStyle(meter.querySelector('.claudian-context-meter-gauge')!).display).toBe('flex');
-    expect(window.getComputedStyle(meter.querySelector('.claudian-context-meter-percent')!).display).toBe('none');
+    expect(window.getComputedStyle(meter.querySelector('.scribe-context-meter-gauge')!).display).toBe('flex');
+    expect(window.getComputedStyle(meter.querySelector('.scribe-context-meter-percent')!).display).toBe('none');
   });
 
   it('caps the pill with the queued-message strip on its own row', () => {
-    const composer = renderPanel().querySelector<HTMLElement>('.claudian-zen-composer')!;
-    const strip = composer.querySelector<HTMLElement>('.claudian-input-queue-strip')!;
-    strip.classList.replace('claudian-hidden', 'claudian-visible-flex');
+    const composer = renderPanel().querySelector<HTMLElement>('.scribe-zen-composer')!;
+    const strip = composer.querySelector<HTMLElement>('.scribe-input-queue-strip')!;
+    strip.classList.replace('scribe-hidden', 'scribe-visible-flex');
     const style = window.getComputedStyle(strip);
     expect(style.display).toBe('flex');
-    const wrapper = composer.querySelector<HTMLElement>('.claudian-input-wrapper')!;
+    const wrapper = composer.querySelector<HTMLElement>('.scribe-input-wrapper')!;
     const inset = window.getComputedStyle(wrapper).getPropertyValue('padding-inline');
     expect(inset).not.toBe('');
     // jsdom retains var() expressions. Both offsets must derive from the wrapper's inset
@@ -184,11 +184,11 @@ describe('Zen mode styles', () => {
 
   it('drops the header line while expanded so the transcript meets the composer', () => {
     const panel = renderPanel();
-    const bar = panel.querySelector('.claudian-zen-bar')!;
+    const bar = panel.querySelector('.scribe-zen-bar')!;
     expect(window.getComputedStyle(bar).display).toBe('flex');
-    expect(window.getComputedStyle(panel.querySelector('.claudian-zen-preview-icon')!).display).toBe('flex');
+    expect(window.getComputedStyle(panel.querySelector('.scribe-zen-preview-icon')!).display).toBe('flex');
 
-    panel.classList.add('claudian-zen--expanded');
+    panel.classList.add('scribe-zen--expanded');
     expect(window.getComputedStyle(bar).display).toBe('none');
   });
 
@@ -198,13 +198,13 @@ describe('Zen mode styles', () => {
     // jsdom does not compute custom properties, so check the inherited declaration on the panel root.
     const sheet = document.head.querySelector<HTMLStyleElement>('[data-testid="zen-styles"]')!.sheet!;
     const root = Array.from(sheet.cssRules)
-      .find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText === '.claudian-container.claudian-zen');
+      .find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText === '.scribe-container.scribe-zen');
     expect(root?.style.getPropertyValue('--no-tooltip').trim()).toBe('true');
 
     // The context gauge keeps its usage tooltip; it has no visible number in zen.
     const gauge = Array.from(sheet.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
-      .filter(rule => rule.selectorText.split(',').some(selector => /\.claudian-context-meter\s*$/.test(selector.trim())))
+      .filter(rule => rule.selectorText.split(',').some(selector => /\.scribe-context-meter\s*$/.test(selector.trim())))
       .map(rule => rule.style.getPropertyValue('--no-tooltip').trim())
       .filter(Boolean);
     expect(gauge).toEqual(['false']);
@@ -219,16 +219,16 @@ describe('Zen mode styles', () => {
     const sheet = document.head.querySelector<HTMLStyleElement>('[data-testid="zen-styles"]')!.sheet!;
     const highlighted = Array.from(sheet.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
-      .filter(rule => rule.selectorText.split(',').some(selector => /claudian-zen-disclosure:hover/.test(selector)))
+      .filter(rule => rule.selectorText.split(',').some(selector => /scribe-zen-disclosure:hover/.test(selector)))
       .filter(rule => /--background-modifier-hover/.test(rule.style.cssText));
     expect(highlighted.map(rule => rule.selectorText)).toEqual([]);
   });
 
   it('shows only the model control, with its effort and fast mode, beside the input', () => {
-    const composer = renderPanel().querySelector<HTMLElement>('.claudian-zen-composer')!;
-    const wrapper = window.getComputedStyle(composer.querySelector('.claudian-input-wrapper')!);
+    const composer = renderPanel().querySelector<HTMLElement>('.scribe-zen-composer')!;
+    const wrapper = window.getComputedStyle(composer.querySelector('.scribe-input-wrapper')!);
     expect({ direction: wrapper.flexDirection, wrap: wrapper.flexWrap }).toEqual({ direction: 'row', wrap: 'wrap' });
-    const toolbarEl = composer.querySelector<HTMLElement>('.claudian-input-toolbar')!;
+    const toolbarEl = composer.querySelector<HTMLElement>('.scribe-input-toolbar')!;
     const toolbar = within(toolbarEl);
     const isShown = (el: Element): boolean => {
       for (let node: Element | null = el; node && node !== composer; node = node.parentElement) {
@@ -239,8 +239,8 @@ describe('Zen mode styles', () => {
 
     const model = toolbar.getByRole('button', { name: /^Model: Sonnet/, hidden: true });
     expect(isShown(model)).toBe(true);
-    expect(isShown(model.querySelector('.claudian-thinking-current')!)).toBe(true);
-    expect(isShown(model.querySelector('.claudian-service-tier-indicator')!)).toBe(true);
+    expect(isShown(model.querySelector('.scribe-thinking-current')!)).toBe(true);
+    expect(isShown(model.querySelector('.scribe-service-tier-indicator')!)).toBe(true);
     // Permission and provider mode chips keep their values; zen only hides them.
     for (const name of [/^Permission mode: Safe/, /^Mode: Build/]) {
       expect([String(name), isShown(toolbar.getByRole('button', { name, hidden: true }))]).toEqual([String(name), false]);
@@ -249,34 +249,34 @@ describe('Zen mode styles', () => {
   });
 
   it('gives the input the whole row when the controls stack below it', () => {
-    const composer = renderPanel().querySelector<HTMLElement>('.claudian-zen-composer')!;
-    const editor = composer.querySelector('.claudian-composer-editor')!;
+    const composer = renderPanel().querySelector<HTMLElement>('.scribe-zen-composer')!;
+    const editor = composer.querySelector('.scribe-composer-editor')!;
     expect(window.getComputedStyle(editor).flexBasis).not.toBe('100%');
 
-    composer.classList.add('claudian-zen-composer--stacked');
+    composer.classList.add('scribe-zen-composer--stacked');
     expect(window.getComputedStyle(editor).flexBasis).toBe('100%');
-    expect(window.getComputedStyle(composer.querySelector('.claudian-input-toolbar')!).marginLeft).toBe('auto');
+    expect(window.getComputedStyle(composer.querySelector('.scribe-input-toolbar')!).marginLeft).toBe('auto');
   });
 
   it('puts attachments on the controls row and raises the input above them', () => {
-    const composer = renderPanel().querySelector<HTMLElement>('.claudian-zen-composer')!;
-    const row = composer.querySelector<HTMLElement>('.claudian-context-row')!;
-    const editor = composer.querySelector('.claudian-composer-editor')!;
+    const composer = renderPanel().querySelector<HTMLElement>('.scribe-zen-composer')!;
+    const row = composer.querySelector<HTMLElement>('.scribe-context-row')!;
+    const editor = composer.querySelector('.scribe-composer-editor')!;
     const style = (el: Element) => window.getComputedStyle(el);
     // Nothing attached: the input keeps the controls beside it.
     expect(style(editor).flexBasis).not.toBe('100%');
 
-    row.createDiv({ cls: 'claudian-context-chip' }).dataset.contextSlot = 'images';
+    row.createDiv({ cls: 'scribe-context-chip' }).dataset.contextSlot = 'images';
     row.classList.add('has-content');
     row.dataset.contextSlots = 'images';
     expect(style(editor).flexBasis).toBe('100%');
-    const toolbar = composer.querySelector('.claudian-input-toolbar')!;
+    const toolbar = composer.querySelector('.scribe-input-toolbar')!;
     // Input first, then attachments on the left and controls on the right of the next row.
     expect(['', '0']).toContain(style(editor).order);
     expect([style(row).order, style(toolbar).order]).toEqual(['1', '2']);
 
     // Attachments and controls center on their shared row, each with even vertical padding.
-    expect(style(composer.querySelector('.claudian-input-wrapper')!).alignItems).toBe('center');
+    expect(style(composer.querySelector('.scribe-input-wrapper')!).alignItems).toBe('center');
     for (const el of [row, toolbar]) {
       expect({ align: style(el).alignItems, top: style(el).paddingTop, bottom: style(el).paddingBottom })
         .toEqual({ align: 'center', top: '4px', bottom: '4px' });
@@ -285,26 +285,26 @@ describe('Zen mode styles', () => {
   });
 
   it('aligns the controls with the first line of expanded attachments', () => {
-    const composer = renderPanel().querySelector<HTMLElement>('.claudian-zen-composer')!;
-    const row = composer.querySelector<HTMLElement>('.claudian-context-row')!;
-    const toolbar = composer.querySelector<HTMLElement>('.claudian-input-toolbar')!;
-    row.createDiv({ cls: 'claudian-context-chip' }).dataset.contextSlot = 'images';
+    const composer = renderPanel().querySelector<HTMLElement>('.scribe-zen-composer')!;
+    const row = composer.querySelector<HTMLElement>('.scribe-context-row')!;
+    const toolbar = composer.querySelector<HTMLElement>('.scribe-input-toolbar')!;
+    row.createDiv({ cls: 'scribe-context-chip' }).dataset.contextSlot = 'images';
     row.classList.add('has-content');
     row.dataset.contextSlots = 'images';
     const style = (el: Element) => window.getComputedStyle(el);
     expect(style(toolbar).alignSelf).not.toBe('flex-start');
 
-    row.classList.add('claudian-context-row--expanded');
+    row.classList.add('scribe-context-row--expanded');
     expect(style(toolbar).alignSelf).toBe('flex-start');
     // Same top edge and padding, and a control line as tall as one 24px chip line.
-    const chip = style(row.querySelector('.claudian-context-chip')!);
+    const chip = style(row.querySelector('.scribe-context-chip')!);
     expect(style(toolbar).paddingTop).toBe(style(row).paddingTop);
     expect({ sizing: style(toolbar).boxSizing, minHeight: style(toolbar).minHeight, chip: chip.height })
       .toEqual({ sizing: 'border-box', minHeight: '32px', chip: '24px' });
   });
 
   it('opens control menus end-aligned inside the pill and keeps the placeholder on one line', () => {
-    const composer = renderPanel().querySelector<HTMLElement>('.claudian-zen-composer')!;
+    const composer = renderPanel().querySelector<HTMLElement>('.scribe-zen-composer')!;
     // The controls sit at the pill's end; a start-anchored menu would run past the pill's edge.
     // The model popover is placed against its own button, so its end is the button's end.
     fireEvent.click(within(composer).getByRole('button', { name: /^Model:/ }));
@@ -319,7 +319,7 @@ describe('Zen mode styles', () => {
   });
 
   it('hides the side chip slot when it becomes empty', () => {
-    const slot = renderPanel().querySelector<HTMLElement>('.claudian-zen-side-chat-chip-slot')!;
+    const slot = renderPanel().querySelector<HTMLElement>('.scribe-zen-side-chat-chip-slot')!;
     expect(window.getComputedStyle(slot).display).not.toBe('none');
     slot.replaceChildren();
     expect(window.getComputedStyle(slot).display).toBe('none');
@@ -339,19 +339,19 @@ describe('Zen mode styles', () => {
     const pointerEvents = (el: Element) => window.getComputedStyle(el).pointerEvents;
     expect(pointerEvents(panel)).toBe('none');
     for (const selector of [
-      '.claudian-zen-composer',
-      '.claudian-zen-side-chat-chip-slot',
-      '.claudian-zen-side-chat-chip-slot .claudian-side-chat',
+      '.scribe-zen-composer',
+      '.scribe-zen-side-chat-chip-slot',
+      '.scribe-zen-side-chat-chip-slot .scribe-side-chat',
     ]) {
       expect([selector, pointerEvents(panel.querySelector(selector)!)]).toEqual([selector, 'none']);
     }
     for (const selector of [
-      '.claudian-zen-drawer',
-      '.claudian-zen-disclosure',
-      '.claudian-input-composer',
-      '.claudian-composer-editor',
-      '.claudian-side-chat-status',
-      '.claudian-zen-grip',
+      '.scribe-zen-drawer',
+      '.scribe-zen-disclosure',
+      '.scribe-input-composer',
+      '.scribe-composer-editor',
+      '.scribe-side-chat-status',
+      '.scribe-zen-grip',
     ]) {
       expect([selector, pointerEvents(panel.querySelector(selector)!)]).toEqual([selector, 'auto']);
     }
@@ -369,16 +369,16 @@ describe('Zen mode styles', () => {
 
   it('subtracts status-bar clearance from the available panel height', () => {
     // jsdom cannot lay out the history, but this guards the TS/CSS property contract used to shrink it.
-    expect(window.getComputedStyle(renderPanel()).maxHeight).toContain('var(--claudian-zen-bottom-clearance, 0px)');
+    expect(window.getComputedStyle(renderPanel()).maxHeight).toContain('var(--scribe-zen-bottom-clearance, 0px)');
   });
 
   // Notes render behind the floating surfaces, so translucent themes must not show through them.
   it('backs every floating surface with an opaque color', () => {
     const panel = renderPanel();
     for (const selector of [
-      '.claudian-zen-drawer',
-      '.claudian-zen-composer > .claudian-input-composer',
-      '.claudian-zen-side-chat-chip-slot .claudian-side-chat-status',
+      '.scribe-zen-drawer',
+      '.scribe-zen-composer > .scribe-input-composer',
+      '.scribe-zen-side-chat-chip-slot .scribe-side-chat-status',
     ]) {
       expect(window.getComputedStyle(panel.querySelector(selector)!).backgroundColor)
         .toBe('var(--background-secondary)');

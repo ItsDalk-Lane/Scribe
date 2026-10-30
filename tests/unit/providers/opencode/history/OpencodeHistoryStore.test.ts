@@ -49,7 +49,7 @@ describe('mapOpencodeNativeMessages', () => {
     });
   });
 
-  it('maps stored OpenCode messages into Claudian chat messages', () => {
+  it('maps stored OpenCode messages into Scribe chat messages', () => {
     const toolState = {
       input: { filePath: 'notes/today.md' },
       output: 'read ok',
@@ -419,10 +419,10 @@ it('decodes v2 session-message attribution before stripping prompt tags and pres
   const text = encodeSessionMessage({ from: 'Research', sessionId: 'source', text: 'The result' });
   const messages = mapOpencodeNativeMessages([
     { id: 'user', type: 'user', text: text + '\n\n<current_note>note.md</current_note>' },
-    { id: 'assistant', type: 'assistant', content: [{ type: 'tool', id: 'call', name: 'claudian_send_message', state: { status: 'completed', input: {text:'Hello'}, content: [{type:'text',text:'{}'}] } }] },
+    { id: 'assistant', type: 'assistant', content: [{ type: 'tool', id: 'call', name: 'scribe_send_message', state: { status: 'completed', input: {text:'Hello'}, content: [{type:'text',text:'{}'}] } }] },
   ]);
   expect(messages[0]).toMatchObject({content:'The result',sessionMessage:{from:'Research',sessionId:'source'}});
-  expect(messages[1].toolCalls?.[0]).toMatchObject({name:'claudian_send_message',providerPayload:{rawName:'claudian_send_message'}});
+  expect(messages[1].toolCalls?.[0]).toMatchObject({name:'scribe_send_message',providerPayload:{rawName:'scribe_send_message'}});
 });
 
 it('hides replayed history in user prompts', () => {

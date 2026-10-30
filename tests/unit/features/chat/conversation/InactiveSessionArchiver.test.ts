@@ -4,6 +4,7 @@ import type { Mock } from 'vitest';
 
 import type { ConversationMeta, SessionAutoArchiveAfter } from '@/core/types';
 import { InactiveSessionArchiver } from '@/features/chat/conversation/InactiveSessionArchiver';
+import { setLocale } from '@/i18n/i18n';
 
 
 
@@ -42,6 +43,13 @@ describe('InactiveSessionArchiver', () => {
   ];
 
   beforeEach(() => { (Notice as unknown as Mock).mockClear(); });
+  afterEach(() => setLocale('en'));
+
+  it('reports automatic archiving in the selected language', async () => {
+    setLocale('zh-CN');
+    await createArchiver('7d', [session('old', 8)]).archiver.run();
+    expect(Notice).toHaveBeenCalledWith('已自动归档 1 个不活跃会话');
+  });
 
   it.each<[SessionAutoArchiveAfter, string[]]>([
     ['7d', ['old', 'older']],

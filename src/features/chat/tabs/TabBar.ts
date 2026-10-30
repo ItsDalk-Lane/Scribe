@@ -3,6 +3,7 @@ import { Menu } from 'obsidian';
 import { normalizeTabLabel } from '@/core/bootstrap/tabManagerState';
 import type { TabBarItem, TabId } from '@/features/chat/tabs/ChatTab';
 import { scheduleAnimationFrame } from '@/features/chat/utils/animationFrame';
+import { t } from '@/i18n/i18n';
 
 const EXPANDED_TITLE_MAX_LENGTH = 32;
 const TRUNCATED_TITLE_SUFFIX = '...';
@@ -64,7 +65,7 @@ export class TabBar {
 
   /** Builds the tab bar UI. */
   private build(): void {
-    this.containerEl.addClass('claudian-tab-badges');
+    this.containerEl.addClass('scribe-tab-badges');
     this.containerEl.addEventListener('scroll', this.handleScroll);
   }
 
@@ -148,12 +149,12 @@ export class TabBar {
     const badgeEl = this.badgeEls.get(tabId);
     if (!badgeEl) return false;
 
-    const editorEl = this.containerEl.createDiv({ cls: 'claudian-tab-label-editor' });
+    const editorEl = this.containerEl.createDiv({ cls: 'scribe-tab-label-editor' });
     const inputEl = editorEl.createEl('input', {
-      cls: 'claudian-tab-label-input',
+      cls: 'scribe-tab-label-input',
       attr: {
         type: 'text',
-        'aria-label': 'Tab name',
+        'aria-label': t('chat.tabBar.name'),
         placeholder: item.title,
         spellcheck: 'false',
       },
@@ -235,20 +236,20 @@ export class TabBar {
   /** Applies a tab's state and display to its badge. */
   #applyBadgeState(badgeEl: HTMLElement, item: TabBarItem): void {
     // Determine state class (priority: active > action required > working > review > idle)
-    let stateClass = 'claudian-tab-badge-idle';
+    let stateClass = 'scribe-tab-badge-idle';
     if (item.isActive) {
-      stateClass = 'claudian-tab-badge-active';
+      stateClass = 'scribe-tab-badge-active';
     } else if (item.attention?.kind === 'action-required') {
-      stateClass = 'claudian-tab-badge-action-required';
+      stateClass = 'scribe-tab-badge-action-required';
     } else if (item.isWorking) {
-      stateClass = 'claudian-tab-badge-streaming';
+      stateClass = 'scribe-tab-badge-streaming';
     } else if (item.attention?.kind === 'review') {
       stateClass = item.attention.outcome === 'error'
-        ? 'claudian-tab-badge-review-error'
-        : 'claudian-tab-badge-review';
+        ? 'scribe-tab-badge-review-error'
+        : 'scribe-tab-badge-review';
     }
 
-    badgeEl.className = `claudian-tab-badge ${stateClass}`;
+    badgeEl.className = `scribe-tab-badge ${stateClass}`;
     this.#applyBadgeDisplay(badgeEl, item);
   }
 
@@ -259,7 +260,7 @@ export class TabBar {
     badgeEl.textContent = isTitleExpanded
       ? label ?? this.#truncateExpandedTitle(item.title)
       : String(item.index);
-    badgeEl.toggleClass('claudian-tab-badge-expanded', isTitleExpanded);
+    badgeEl.toggleClass('scribe-tab-badge-expanded', isTitleExpanded);
     badgeEl.setAttribute('data-title-expanded', isTitleExpanded ? 'true' : 'false');
     // Obsidian uses aria-label for hover tooltips here; adding title causes duplicate tooltip text.
     const name = label === undefined ? item.title : `${label} (${item.title})`;
@@ -270,25 +271,25 @@ export class TabBar {
     const hasLabel = item.label !== undefined;
     const menu = new Menu().setUseNativeMenu(false);
     menu.addItem(menuItem => menuItem
-      .setTitle('Rename tab…')
+      .setTitle(t('chat.tabBar.rename'))
       .setIcon('pencil')
       .onClick(() => {
         this.beginRename(item.id);
       }));
     if (hasLabel) {
       menu.addItem(menuItem => menuItem
-        .setTitle('Reset tab name')
+        .setTitle(t('chat.tabBar.reset'))
         .setIcon('rotate-ccw')
         .onClick(() => this.callbacks.onTabLabelChange(item.id, null)));
     }
     const isTitleExpanded = this.expandedTitleTabIds.has(item.id);
     menu.addItem(menuItem => menuItem
-      .setTitle(isTitleExpanded ? 'Show number' : hasLabel ? 'Show name' : 'Show title')
+      .setTitle(isTitleExpanded ? t('chat.tabBar.showNumber') : hasLabel ? t('chat.tabBar.showName') : t('chat.tabBar.showTitle'))
       .setIcon(isTitleExpanded ? 'hash' : 'type')
       .onClick(() => this.#toggleBadgeTitle(item.id)));
     if (item.canClose) {
       menu.addItem(menuItem => menuItem
-        .setTitle('Close tab')
+        .setTitle(t('chat.tabBar.close'))
         .setIcon('x')
         .onClick(() => this.callbacks.onTabClose(item.id)));
     }
@@ -393,7 +394,7 @@ export class TabBar {
     this.labelEditor?.listeners.abort();
     this.labelEditor = null;
     this.containerEl.empty();
-    this.containerEl.removeClass('claudian-tab-badges');
+    this.containerEl.removeClass('scribe-tab-badges');
     this.containerEl.removeEventListener('scroll', this.handleScroll);
     this.expandedTitleTabIds.clear();
     this.badgeEls.clear();
@@ -451,15 +452,15 @@ export class TabBar {
   }
 
   #getBadgeStatusLabel(item: TabBarItem): string {
-    if (item.isActive) return 'active';
-    if (item.attention?.kind === 'action-required') return 'needs your input';
-    if (item.isWorking) return 'working';
+    if (item.isActive) return t('chat.tabBar.active');
+    if (item.attention?.kind === 'action-required') return t('chat.tabBar.needsInput');
+    if (item.isWorking) return t('chat.tabBar.working');
     if (item.attention?.kind === 'review') {
       return item.attention.outcome === 'error'
-        ? 'stopped with an error, ready to review'
-        : 'finished, ready to review';
+        ? t('chat.tabBar.reviewError')
+        : t('chat.tabBar.review');
     }
-    return 'idle';
+    return t('chat.tabBar.idle');
   }
 
   #truncateExpandedTitle(title: string): string {

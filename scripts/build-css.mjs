@@ -57,7 +57,7 @@ function listCssFiles(dir, baseDir = dir) {
 
 function build() {
   const moduleOrder = getModuleOrder();
-  const parts = ['/* Claudian Plugin Styles */\n/* Built from src/style/ modules */\n'];
+  const parts = ['/* Scribe Plugin Styles */\n/* Built from src/style/ modules */\n'];
   const missingFiles = [];
   const invalidImports = [];
   const normalizedImports = [];

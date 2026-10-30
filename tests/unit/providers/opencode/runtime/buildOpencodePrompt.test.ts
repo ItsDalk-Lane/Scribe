@@ -2,7 +2,7 @@ import { decodeRecoveryPrompt } from '@/core/prompt/recoveryPrompt';
 import { buildOpencodePrompt } from '@/providers/opencode/runtime/buildOpencodePrompt';
 
 describe('buildOpencodePrompt text', () => {
-  it('appends Claudian XML context to the user query', () => {
+  it('appends Scribe XML context to the user query', () => {
     const result = buildOpencodePrompt({
       context: {
         linkedContent: { path: 'notes/"today" & draft.md' },

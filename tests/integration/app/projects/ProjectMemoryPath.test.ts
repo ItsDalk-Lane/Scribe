@@ -11,7 +11,7 @@ import { defaultProjectMemoryPath } from '@/core/path/ProjectMemoryPath';
 import { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 
 it.each([46, 47])('keeps generated Unicode memory paths identical to their native filenames at a %s-unit prefix', async prefixLength => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-project-unicode-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-project-unicode-'));
   const resolve = (relative: string) => path.join(root, ...relative.split('/'));
   const adapter = {
     getBasePath: () => root,

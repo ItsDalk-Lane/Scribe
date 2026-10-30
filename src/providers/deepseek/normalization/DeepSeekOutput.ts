@@ -10,13 +10,13 @@ export type DeepSeekOutputEvent = WithoutEventScope<ProviderBackgroundOutputEven
 
 export class DeepSeekReplayError extends Error {
   constructor() {
-    super('DeepSeek output changed during recovery. Reload Claudian or Obsidian, then reopen this conversation to load the native transcript.');
+    super('DeepSeek output changed during recovery. Reload Scribe or Obsidian, then reopen this conversation to load the native transcript.');
     this.name = 'DeepSeekReplayError';
   }
 }
 
 interface Block { kind: 'text' | 'reasoning'; text: string }
-/** A tool call as presented to Claudian: mapped name and normalized input. */
+/** A tool call as presented to Scribe: mapped name and normalized input. */
 export interface DeepSeekToolCall { readonly name: string; readonly input: Record<string, unknown> }
 interface Attempt {
   id: string;

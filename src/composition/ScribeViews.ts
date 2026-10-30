@@ -5,21 +5,21 @@ import {
   decodeTabWorkspaceViewState,
   TAB_WORKSPACE_VIEW_STATE_KEY,
 } from '@/core/bootstrap/tabManagerState';
-import { VIEW_TYPE_CLAUDIAN } from '@/core/types';
+import { VIEW_TYPE_SCRIBE } from '@/core/types';
 import type { ChatViewPlacement } from '@/core/types/settings';
-import type { ClaudianView } from '@/features/chat/ClaudianView';
+import type { ScribeView } from '@/features/chat/ScribeView';
 import type { ZenModeController } from '@/features/chat/zen/ZenModeController';
 import { revealWorkspaceLeaf } from '@/utils/obsidianCompat';
 
 /** Identifies a mounted chat view without relying on class identity across reloads. */
-export function isClaudianView(value: unknown): value is ClaudianView {
+export function isScribeView(value: unknown): value is ScribeView {
   return !!value
     && typeof value === 'object'
     && typeof (value as { getTabManager?: unknown }).getTabManager === 'function';
 }
 
 /** Locates and opens the chat views mounted in the Obsidian workspace. */
-export class ClaudianViews {
+export class ScribeViews {
   /** The chat the toggle last hid, restored by its next show; only a preference, never a guard. */
   #toggleHiddenLeaf: WorkspaceLeaf | null = null;
 
@@ -29,23 +29,23 @@ export class ClaudianViews {
   ) {}
 
   /** The focused chat view, else the first mounted one. */
-  getView(): ClaudianView | null {
-    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
-    return this.#getActiveView(leaves) ?? leaves.map(leaf => leaf.view).find(isClaudianView) ?? null;
+  getView(): ScribeView | null {
+    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE);
+    return this.#getActiveView(leaves) ?? leaves.map(leaf => leaf.view).find(isScribeView) ?? null;
   }
 
-  #getActiveView(leaves: readonly WorkspaceLeaf[]): ClaudianView | null {
+  #getActiveView(leaves: readonly WorkspaceLeaf[]): ScribeView | null {
     const activeView = this.workspace.getActiveViewOfType(ItemView);
-    return isClaudianView(activeView) && leaves.some(leaf => leaf.view === activeView) ? activeView : null;
+    return isScribeView(activeView) && leaves.some(leaf => leaf.view === activeView) ? activeView : null;
   }
 
-  getAllViews(): ClaudianView[] {
-    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
-    return leaves.map(leaf => leaf.view).filter(isClaudianView);
+  getAllViews(): ScribeView[] {
+    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE);
+    return leaves.map(leaf => leaf.view).filter(isScribeView);
   }
 
   /** Chooses a visible composer without opening or revealing a chat. */
-  getInputFocusView(zenLeaf: WorkspaceLeaf | null): ClaudianView | null {
+  getInputFocusView(zenLeaf: WorkspaceLeaf | null): ScribeView | null {
     const views = this.getAllViews().filter(view => view.getActiveTab()?.composer.isVisible());
     const preferred = this.getView();
     return views.find(view => view.getActiveTab()?.composer.isFocused())
@@ -55,7 +55,7 @@ export class ClaudianViews {
       ?? null;
   }
 
-  findConversationAcrossViews(conversationId: string): { view: ClaudianView; tabId: string } | null {
+  findConversationAcrossViews(conversationId: string): { view: ScribeView; tabId: string } | null {
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();
       if (!tabManager) continue;
@@ -73,8 +73,8 @@ export class ClaudianViews {
   /** Sessions held by any chat pane's tabs, including unloaded panes and pending restoration. */
   getWorkspaceConversationIds(): ReadonlySet<string> {
     const ids = new Set<string>();
-    for (const leaf of this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)) {
-      const liveTabs = isClaudianView(leaf.view) ? leaf.view.getTabManager()?.getTabIdentities() ?? [] : [];
+    for (const leaf of this.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE)) {
+      const liveTabs = isScribeView(leaf.view) ? leaf.view.getTabManager()?.getTabIdentities() ?? [] : [];
       // Deferred leaves keep their saved state; mounted views report pending restoration through getState().
       const savedTabs = decodeTabWorkspaceViewState(
         leaf.getViewState().state?.[TAB_WORKSPACE_VIEW_STATE_KEY],
@@ -93,13 +93,13 @@ export class ClaudianViews {
   async toggleView(zen: Pick<ZenModeController, 'toggleVisibility' | 'hide' | 'getActiveLeaf'>): Promise<void> {
     if (zen.toggleVisibility()) {
       const leaf = zen.getActiveLeaf();
-      if (leaf && isClaudianView(leaf.view)) leaf.view.focusActiveInput();
+      if (leaf && isScribeView(leaf.view)) leaf.view.focusActiveInput();
       return;
     }
-    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    const leaves = this.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE);
     // Main-area chats are revealed rather than closed, since closing shuts down their sessions.
     const shown = leaves.filter(candidate => (
-      isClaudianView(candidate.view) && candidate.view.containerEl.isShown() && this.#getExpandedSidebar(candidate)
+      isScribeView(candidate.view) && candidate.view.containerEl.isShown() && this.#getExpandedSidebar(candidate)
     ));
     const preferred = this.getView();
     const leaf = shown.find(candidate => candidate.view === preferred) ?? shown[0];
@@ -124,7 +124,7 @@ export class ClaudianViews {
   /** Reveals and focuses the preferred or active chat leaf, else the first one, else opens one. */
   async activateView(preferred?: WorkspaceLeaf): Promise<void> {
     const { workspace } = this;
-    const leaves = workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    const leaves = workspace.getLeavesOfType(VIEW_TYPE_SCRIBE);
     const existingLeaf = preferred ?? this.#getActiveView(leaves)?.leaf ?? leaves[0];
     const leaf = existingLeaf
       ?? this.#getLeafForPlacement(this.getPlacement());
@@ -140,13 +140,13 @@ export class ClaudianViews {
     try {
       if (!existingLeaf) {
         await leaf.setViewState({
-          type: VIEW_TYPE_CLAUDIAN,
+          type: VIEW_TYPE_SCRIBE,
           active: true,
         });
       }
 
       await revealWorkspaceLeaf(workspace, leaf);
-      if (!focusSuperseded && isClaudianView(leaf.view)) {
+      if (!focusSuperseded && isScribeView(leaf.view)) {
         leaf.view.focusActiveInput();
       }
     } finally {
@@ -165,7 +165,7 @@ export class ClaudianViews {
   #findMostRecentSibling(leaf: WorkspaceLeaf): WorkspaceLeaf | null {
     const siblings: WorkspaceLeaf[] = [];
     // The workspace identifies deferred chat leaves before their views are mounted.
-    const chatLeaves = this.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    const chatLeaves = this.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE);
     this.workspace.iterateAllLeaves((candidate) => {
       if (candidate !== leaf && candidate.parent === leaf.parent && !chatLeaves.includes(candidate)) siblings.push(candidate);
     });

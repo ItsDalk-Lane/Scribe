@@ -7,6 +7,7 @@ import { TEST_CODEX_CATALOG } from '@test/helpers/codexModels';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 
 import type { ToolbarCallbacks } from '@/features/chat/composer/toolbar/types';
+import { setLocale } from '@/i18n/i18n';
 import { claudeChatUIConfig } from '@/providers/claude/ui/ClaudeChatUIConfig';
 import { updateCodexProviderSettings } from '@/providers/codex/settings';
 import { codexChatUIConfig } from '@/providers/codex/ui/CodexChatUIConfig';
@@ -110,11 +111,11 @@ it('hides the parts column while none of its parts is shown', () => {
     getCapabilities: () => ({ reasoningControl }),
   } as unknown as ToolbarCallbacks;
   const effort = new EffortSelector(new ModelSelector(host, callbacks), callbacks);
-  const parts = host.querySelector('.claudian-model-parts')!;
-  expect(parts.classList.contains('claudian-hidden')).toBe(true);
+  const parts = host.querySelector('.scribe-model-parts')!;
+  expect(parts.classList.contains('scribe-hidden')).toBe(true);
   reasoningControl = 'effort';
   effort.updateDisplay();
-  expect(parts.classList.contains('claudian-hidden')).toBe(false);
+  expect(parts.classList.contains('scribe-hidden')).toBe(false);
 });
 
 it('lists a new session\'s providers in their own column and shows one provider\'s models at a time', async () => {
@@ -168,7 +169,7 @@ it('lists a new session\'s providers in their own column and shows one provider\
   const tab = (name: string) => within(providers).getByRole('tab', { name });
   const modelList = () => within(host).getByRole('listbox', { name: 'Model' });
   const shown = () => within(modelList()).getAllByRole('option')
-    .map(item => item.querySelector('.claudian-toolbar-popover-option-label')?.textContent);
+    .map(item => item.querySelector('.scribe-toolbar-popover-option-label')?.textContent);
   // Providers follow the settings tab order; the current model's provider is shown first, in saved model order.
   expect(within(providers).getAllByRole('tab').map(item => [item.getAttribute('aria-label'), item.getAttribute('aria-selected')]))
     .toEqual([['Claude Code', 'true'], ['Codex', 'false'], ['OpenCode', 'false'], ['Pi', 'false']]);
@@ -194,14 +195,14 @@ it('lists a new session\'s providers in their own column and shows one provider\
   // current model's levels cannot be changed from here.
   const levels = () => within(host).getAllByRole('option', { name: /^(Low|High)$/, hidden: true });
   expect(levels().map(level => level.getAttribute('aria-selected'))).toEqual(['false', 'false']);
-  expect(host.querySelector('.claudian-model-parts')?.hasAttribute('inert')).toBe(true);
+  expect(host.querySelector('.scribe-model-parts')?.hasAttribute('inert')).toBe(true);
   // Arrow keys skip the faded column: Down from the last model wraps to the first provider.
   fireEvent.keyDown(within(modelList()).getByRole('option', { name: 'GPT-5.5' }), { key: 'ArrowDown' });
   expect(document.activeElement).toBe(tab('Claude Code'));
   // Browsing back to the current model's provider restores its level.
   fireEvent.click(tab('Claude Code'));
   expect(levels().map(level => level.getAttribute('aria-selected'))).toEqual(['true', 'false']);
-  expect(host.querySelector('.claudian-model-parts')?.hasAttribute('inert')).toBe(false);
+  expect(host.querySelector('.scribe-model-parts')?.hasAttribute('inert')).toBe(false);
   fireEvent.click(tab('Codex'));
 
   fireEvent.click(within(modelList()).getByRole('option', { name: 'GPT-5.5' }));
@@ -209,13 +210,13 @@ it('lists a new session\'s providers in their own column and shows one provider\
   expect(onModelChange).toHaveBeenCalledWith(expect.stringContaining('gpt-5.5'));
   // Once a model of the browsed provider is chosen, its level is shown and editable again.
   expect(levels().map(level => level.getAttribute('aria-selected'))).toEqual(['true', 'false']);
-  expect(host.querySelector('.claudian-model-parts')?.hasAttribute('inert')).toBe(false);
+  expect(host.querySelector('.scribe-model-parts')?.hasAttribute('inert')).toBe(false);
 
   // A provider's upstream groups keep their headings in a new session, as in a started one.
   fireEvent.click(tab('Pi'));
   expect(within(modelList()).getAllByRole('group').map(group => [
     host.querySelector(`#${group.getAttribute('aria-labelledby')}`)?.textContent,
-    within(group).getAllByRole('option').map(item => item.querySelector('.claudian-toolbar-popover-option-label')?.textContent),
+    within(group).getAllByRole('option').map(item => item.querySelector('.scribe-toolbar-popover-option-label')?.textContent),
   ])).toEqual([['anthropic', ['Claude Sonnet 4']], ['openai', ['GPT-5']]]);
 
   // Reopening starts on the provider of the model now in use.
@@ -223,4 +224,44 @@ it('lists a new session\'s providers in their own column and shows one provider\
   fireEvent.click(button);
   expect(tab('Codex').getAttribute('aria-selected')).toBe('true');
   expect(within(modelList()).getByRole('option', { name: 'GPT-5.5', selected: true })).toBe(document.activeElement);
+});
+
+it('shows model controls in the selected language', () => {
+  setLocale('zh-CN');
+  try {
+    const host = document.body.createDiv();
+    new ModelSelector(host, {
+      getSettings: () => ({ model: null }),
+      getUIConfig: () => ({ getModelOptions: () => [] }),
+    } as unknown as ToolbarCallbacks);
+    const button = within(host).getByRole('button', { name: '设置模型' });
+    fireEvent.click(button);
+    expect(within(host).getByText('模型')).toBeTruthy();
+    expect(within(host).getByRole('status').textContent).toMatch(/没有可用/);
+  } finally {
+    setLocale('en');
+  }
+});
+
+it('translates standard reasoning labels but preserves custom provider labels', () => {
+  setLocale('zh-CN');
+  try {
+    const host = document.body.createDiv();
+    const callbacks = {
+      getSettings: () => ({ model: 'opus', reasoning: 'high' }),
+      getUIConfig: () => ({
+        getModelOptions: () => [{ value: 'opus', label: 'Opus' }],
+        getReasoningOptions: () => [{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Special' }, { value: 'high', label: 'High' }],
+        getDefaultReasoningValue: () => 'low',
+      }),
+      getCapabilities: () => ({ reasoningControl: 'effort' }),
+    } as unknown as ToolbarCallbacks;
+    new EffortSelector(new ModelSelector(host, callbacks), callbacks);
+    const button = within(host).getByRole('button', { name: '模型：Opus, 推理强度 高' });
+    fireEvent.click(button);
+    expect(within(host).getByRole('option', { name: '高' })).toBeTruthy();
+    expect(within(host).getByRole('option', { name: 'Special' })).toBeTruthy();
+  } finally {
+    setLocale('en');
+  }
 });

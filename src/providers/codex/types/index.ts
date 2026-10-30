@@ -77,7 +77,7 @@ function isSameSegment(left: CodexPreviousSegment, right: CodexPreviousSegment):
 
 /**
  * Ends the conversation's native binding without losing its history: the current segment
- * becomes a history-only previous segment, and the next send replays Claudian history into
+ * becomes a history-only previous segment, and the next send replays Scribe history into
  * a fresh thread. Returns whether there was a binding to clear.
  */
 export function clearCodexResumeState(

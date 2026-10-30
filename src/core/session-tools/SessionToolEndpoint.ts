@@ -5,7 +5,7 @@ import type {
 } from './sessionToolSpecs';
 
 /** Carries the route id, because some native clients persist server URLs but not headers. */
-export const SESSION_TOOL_ROUTE_HEADER = 'X-Claudian-Route';
+export const SESSION_TOOL_ROUTE_HEADER = 'X-Scribe-Route';
 
 export interface SessionToolRoute {
   /** Generic endpoint URL; it carries no route identity. */
@@ -27,7 +27,7 @@ export type SessionToolRoutedCallHandler = (request: SessionToolRoutedCallReques
 
 /**
  * Loopback endpoint through which provider processes reach session tools. It
- * serves Claudian's own provider processes only.
+ * serves Scribe's own provider processes only.
  */
 export interface SessionToolEndpoint {
   /** MCP Streamable HTTP route (JSON responses only) bound to one native session. */

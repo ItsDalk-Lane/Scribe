@@ -21,7 +21,7 @@ async function createNativePi(env: ForkTestEnvironment) {
   vi.mocked(spawn).mockImplementation((_command, args = [], options = {}) => realSpawn(
     process.execPath,
     [path.resolve('tests/fixtures/providers/pi/PiSessionProcess.mjs'), ...args],
-    { ...options, env: { ...options.env, CLAUDIAN_TEST_PI_ROOT: env.root, CLAUDIAN_TEST_PI_MISMATCH: mismatch ? '1' : '0' } },
+    { ...options, env: { ...options.env, SCRIBE_TEST_PI_ROOT: env.root, SCRIBE_TEST_PI_MISMATCH: mismatch ? '1' : '0' } },
   ));
   const backend = new PiExecutionBackend(env.host.getRuntimeHost('pi'));
   return {

@@ -8,7 +8,7 @@ import * as path from 'node:path';
 
 import { createFixture as createDraftFixture, deferred } from '@test/helpers/ChatInputHarness';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate } from '@test/helpers/testClock';
 
 import { ConversationRepository } from '@/app/conversations/ConversationRepository';
@@ -74,7 +74,7 @@ function conversation(id: string, projectId?: string): Conversation {
 async function fixture(options: { vault?: DesktopVault; conversations?: Conversation[] } = {}) {
   const vault = options.vault ?? await createVault();
   const files = vault.files;
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   const store = new ProjectStore(files);
   const loaded = await store.load();
   const persistence = {
@@ -131,11 +131,11 @@ describe('ProjectService', () => {
     projects.onChanged(changed);
 
     const record = await projects.create({
-      name: 'Q3 Launch: Plan!', instructions: 'Ship it.', memoryPath: '.claudian/projects/q3-launch-plan/MEMORY.md',
+      name: 'Q3 Launch: Plan!', instructions: 'Ship it.', memoryPath: '.scribe/projects/q3-launch-plan/MEMORY.md',
     });
 
-    expect(record.memoryPath).toBe('.claudian/projects/q3-launch-plan/MEMORY.md');
-    expect(await vault.isFolder('.claudian/projects/q3-launch-plan')).toBe(true);
+    expect(record.memoryPath).toBe('.scribe/projects/q3-launch-plan/MEMORY.md');
+    expect(await vault.isFolder('.scribe/projects/q3-launch-plan')).toBe(true);
     expect(await readFile(vault, record.memoryPath)).toBe(`# Q3 Launch: Plan!\n\n${TEMPLATE_SECTIONS}`);
     expect(JSON.parse((await readFile(vault, `${PROJECTS_PATH}/${record.id}.json`))!)).toEqual({
       id: record.id,
@@ -150,7 +150,7 @@ describe('ProjectService', () => {
     expect(projects.list()).toEqual([record]);
     expect(changed).toHaveBeenCalledTimes(1);
     // Only the memory file itself is left behind; the write leaves no temporary sibling.
-    expect([...(await vault.snapshot()).keys()].filter(path => path.startsWith('.claudian/projects/q3-launch-plan/')))
+    expect([...(await vault.snapshot()).keys()].filter(path => path.startsWith('.scribe/projects/q3-launch-plan/')))
       .toEqual([record.memoryPath]);
   });
 
@@ -239,13 +239,13 @@ describe('ProjectService', () => {
   });
 
   it.each([
-    ['renames it within its folder', '.claudian/projects/launch/PLAN.md'],
+    ['renames it within its folder', '.scribe/projects/launch/PLAN.md'],
     ['moves it into another, new folder', 'Work/Plans/Launch.md'],
     ['moves it into the vault root', '/Launch'],
   ])('%s with its edits and persists the new path', async (_label, memoryPath) => {
     const { vault, projects } = await fixture();
     const record = await projects.create({
-      name: 'Launch', instructions: '', memoryPath: '.claudian/projects/launch/MEMORY.md',
+      name: 'Launch', instructions: '', memoryPath: '.scribe/projects/launch/MEMORY.md',
     });
     const read = await projects.readMemory(record.id);
     if ('missing' in read) throw new Error('memory file should exist');

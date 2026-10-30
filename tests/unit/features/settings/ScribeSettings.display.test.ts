@@ -162,21 +162,21 @@ vi.mock('@/features/agent-skills/SkillsSettingsTab', () => ({
   },
 }));
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import type { Mock } from 'vitest';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
-import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
+import { ScribeSettingTab } from '@/features/settings/ScribeSettings';
 import { t } from '@/i18n/i18n';
 
 
 
 function createTab(enableDualPane: boolean): {
-  tab: ClaudianSettingTab;
+  tab: ScribeSettingTab;
   plugin: Record<string, any>;
 } {
-  const settings = { ...DEFAULT_CLAUDIAN_SETTINGS, enableDualPane };
+  const settings = { ...DEFAULT_SCRIBE_SETTINGS, enableDualPane };
   const plugin = {
     settings,
     mutateSettings: vi.fn(async (mutation: (value: typeof settings) => void) => {
@@ -195,7 +195,7 @@ function createTab(enableDualPane: boolean): {
   };
 
   return {
-    tab: new ClaudianSettingTab({} as any, {} as any, plugin as any),
+    tab: new ScribeSettingTab({} as any, {} as any, plugin as any),
     plugin,
   };
 }
@@ -262,7 +262,7 @@ function findContainer(root: MockContainer, text: string): MockContainer | null 
 
 
 function renderSettingsTab(
-  tab: ClaudianSettingTab,
+  tab: ScribeSettingTab,
   container = createContainer(),
 ): MockContainer {
   const [definition] = tab.getSettingDefinitions();
@@ -281,7 +281,7 @@ function renderSettingsTab(
   return container;
 }
 
-describe('ClaudianSettingTab display settings', () => {
+describe('ScribeSettingTab display settings', () => {
   beforeEach(() => {
     document.body.replaceChildren();
     mockSkillsSettingsTab.mockClear();
@@ -335,15 +335,15 @@ describe('ClaudianSettingTab display settings', () => {
     const [definition] = tab.getSettingDefinitions();
 
     expect(definition).toEqual(expect.objectContaining({
-      name: 'Claudian',
+      name: 'Scribe',
       searchable: false,
     }));
-    expect(Object.hasOwn(ClaudianSettingTab.prototype, 'display')).toBe(false);
+    expect(Object.hasOwn(ScribeSettingTab.prototype, 'display')).toBe(false);
 
     renderSettingsTab(tab, container);
 
     expect(container.empty).toHaveBeenCalledTimes(1);
-    expect(container.addClass).toHaveBeenCalledWith('claudian-settings');
+    expect(container.addClass).toHaveBeenCalledWith('scribe-settings');
     expect(findContainer(container, t('settings.tabs.general'))).not.toBeNull();
     expect(findContainer(container, t('settings.tabs.providers'))).not.toBeNull();
     expect(findContainer(container, t('settings.tabs.skills'))).not.toBeNull();
@@ -498,9 +498,9 @@ describe('ClaudianSettingTab display settings', () => {
 
     renderSettingsTab(tab, container);
     await waitFor(() => expect(notify).not.toBeNull());
-    const content = findByClass(container, 'claudian-settings-provider-content')!;
+    const content = findByClass(container, 'scribe-settings-provider-content')!;
     const collapsed = (): boolean | undefined => content.toggleClass.mock.calls
-      .filter(([name]: [string]) => name === 'claudian-settings-provider-content--disabled')
+      .filter(([name]: [string]) => name === 'scribe-settings-provider-content--disabled')
       .at(-1)?.[1];
     expect(collapsed()).toBe(true);
 
@@ -544,9 +544,9 @@ it('offers no Projects tab; the doc folder is chosen per project', () => {
   const container = createContainer();
   const cleanup = (tab as any).renderSettings(container);
   try {
-    expect(findByClass(container, 'claudian-settings-skills')).not.toBeNull();
+    expect(findByClass(container, 'scribe-settings-skills')).not.toBeNull();
     expect(findContainer(container, t('settings.tabs.skills'))).not.toBeNull();
-    expect(findByClass(container, 'claudian-settings-projects')).toBeNull();
+    expect(findByClass(container, 'scribe-settings-projects')).toBeNull();
     expect(findContainer(container, 'Projects')).toBeNull();
   } finally { cleanup(); }
 });

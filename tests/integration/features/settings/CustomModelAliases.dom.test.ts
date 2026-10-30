@@ -8,11 +8,11 @@ import { axe } from '@test/helpers/accessibility';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { Notice } from 'obsidian';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@/app/settings/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@/app/settings/defaultSettings';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
-import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
+import { ScribeSettingTab } from '@/features/settings/ScribeSettings';
 import { getClaudeProviderSettings, updateClaudeProviderSettings } from '@/providers/claude/settings';
 
 // Obsidian applies native input attributes supplied through createEl options.
@@ -41,7 +41,7 @@ it.each(['Enter', 'Escape'])('leaves composing %s to the custom model alias edit
     notifyProviderChatOptionsChanged: vi.fn(),
     storage: { getAdapter: () => ({}) },
   };
-  const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+  const tab = new ScribeSettingTab({} as any, {} as any, plugin as any);
   const container = document.body.appendChild(document.createElement('div'));
   try {
     tab['renderCustomContextLimits'](container, 'claude');
@@ -82,7 +82,7 @@ it('keeps the latest alias edit when it restores the committed value during a pe
     notifyProviderChatOptionsChanged: notify,
     storage: { getAdapter: () => ({}) },
   };
-  const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+  const tab = new ScribeSettingTab({} as any, {} as any, plugin as any);
   const container = document.body.appendChild(document.createElement('div'));
   tab['renderCustomContextLimits'](container, 'claude');
   const field = within(container).getByRole('textbox', { name: 'Alias for custom-model' }) as HTMLInputElement;
@@ -101,21 +101,21 @@ it('keeps the latest alias edit when it restores the committed value during a pe
 
 
 it('persists and clears prototype-named overrides through the general custom model editor', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   updateClaudeProviderSettings(settings, { visibleModels: ['__proto__', 'constructor'] });
   let serialized = '';
   const adapter = {
     exists: async () => serialized !== '', read: async () => serialized,
     write: async (_path: string, value: string) => { serialized = value; },
   } as unknown as VaultFileAdapter;
-  const storage = new ClaudianSettingsStorage(adapter, DEFAULT_CLAUDIAN_SETTINGS);
+  const storage = new ScribeSettingsStorage(adapter, DEFAULT_SCRIBE_SETTINGS);
   const coordinator = new SettingsCoordinator(settings, value => storage.save(value));
   const plugin = {
     settings, mutateSettings: coordinator.mutate.bind(coordinator),
     getActiveEnvironmentVariables: () => 'ANTHROPIC_MODEL=__proto__\nANTHROPIC_DEFAULT_SONNET_MODEL=constructor',
     notifyProviderChatOptionsChanged: vi.fn(), storage: { getAdapter: () => adapter },
   };
-  const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+  const tab = new ScribeSettingTab({} as any, {} as any, plugin as any);
   const container = document.body.appendChild(document.createElement('div'));
   tab['renderCustomContextLimits'](container, 'claude');
   const initial: string[][] = [];
@@ -171,7 +171,7 @@ it('retains a failed custom alias across rerender and allows retry', async () =>
     mutateSettings: coordinator.mutate.bind(coordinator),
     notifyProviderChatOptionsChanged: vi.fn(), storage: { getAdapter: () => ({}) },
   };
-  const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+  const tab = new ScribeSettingTab({} as any, {} as any, plugin as any);
   const container = document.body.appendChild(document.createElement('div'));
   const field = () => within(container).getByRole<HTMLInputElement>('textbox', { name: 'Alias for custom-model' });
   try {

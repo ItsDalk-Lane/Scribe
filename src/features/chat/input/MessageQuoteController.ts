@@ -1,6 +1,6 @@
 import type { ComposerInputElement } from '@/shared/composer-dropdown/types';
 
-const MESSAGE_SELECTOR = '.claudian-message';
+const MESSAGE_SELECTOR = '.scribe-message';
 const BUTTON_GAP_PX = 6;
 const EDGE_PADDING_PX = 8;
 
@@ -126,11 +126,11 @@ export class MessageQuoteController {
     if (this.#buttonEl?.parentElement === hostEl) return this.#buttonEl;
     this.#buttonEl?.remove();
     const button = hostEl.createEl('button', {
-      cls: 'claudian-message-quote-btn',
+      cls: 'scribe-message-quote-btn',
       attr: { type: 'button' },
     });
     const icon = button.createSvg('svg', {
-      cls: 'claudian-message-quote-btn-icon',
+      cls: 'scribe-message-quote-btn-icon',
       attr: { 'aria-hidden': 'true', viewBox: '0 0 24 24', fill: 'currentColor' },
     });
     icon.createSvg('path', {
@@ -166,8 +166,8 @@ export class MessageQuoteController {
     const maxLeft = Math.max(EDGE_PADDING_PX, hostRect.width - buttonWidth - EDGE_PADDING_PX);
     const left = Math.min(Math.max(anchor.right - hostRect.left - buttonWidth / 2, EDGE_PADDING_PX), maxLeft);
 
-    button.style.setProperty('--claudian-quote-btn-top', `${Math.round(Math.max(top, EDGE_PADDING_PX))}px`);
-    button.style.setProperty('--claudian-quote-btn-left', `${Math.round(left)}px`);
+    button.style.setProperty('--scribe-quote-btn-top', `${Math.round(Math.max(top, EDGE_PADDING_PX))}px`);
+    button.style.setProperty('--scribe-quote-btn-left', `${Math.round(left)}px`);
   }
 
   #quote(): void {

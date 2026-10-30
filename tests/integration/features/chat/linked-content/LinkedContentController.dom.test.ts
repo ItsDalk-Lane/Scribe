@@ -81,7 +81,7 @@ function createHarness(options: {
 }
 
 function labels(root: MockElement): string[] {
-  return root.querySelectorAll('.claudian-composer-dropdown-label')
+  return root.querySelectorAll('.scribe-composer-dropdown-label')
     .map(element => element.textContent);
 }
 
@@ -95,11 +95,11 @@ describe('LinkedContentController DOM', () => {
 
     harness.controller.mountWelcome(welcomeEl as unknown as HTMLElement);
 
-    expect(welcomeEl.children[1].hasClass('claudian-welcome-greeting')).toBe(true);
-    expect(welcomeEl.children[2].hasClass('claudian-welcome-linked-content')).toBe(true);
-    const selectorRow = welcomeEl.querySelector('.claudian-linked-content-selector-row')!;
-    const selector = welcomeEl.querySelector('.claudian-linked-content-selector')!;
-    expect(welcomeEl.querySelector('.claudian-linked-content-selector-prefix')?.textContent)
+    expect(welcomeEl.children[1].hasClass('scribe-welcome-greeting')).toBe(true);
+    expect(welcomeEl.children[2].hasClass('scribe-welcome-linked-content')).toBe(true);
+    const selectorRow = welcomeEl.querySelector('.scribe-linked-content-selector-row')!;
+    const selector = welcomeEl.querySelector('.scribe-linked-content-selector')!;
+    expect(welcomeEl.querySelector('.scribe-linked-content-selector-prefix')?.textContent)
       .toBe('Linked content:');
     expect(selector.textContent).toBe('None');
     expect(selector.getAttribute('aria-label')).toBeNull();
@@ -117,17 +117,17 @@ describe('LinkedContentController DOM', () => {
     const focus = vi.spyOn(selector, 'focus');
     selector.click();
 
-    const picker = welcomeEl.querySelector('.claudian-linked-content-picker')!;
+    const picker = welcomeEl.querySelector('.scribe-linked-content-picker')!;
     expect(selectorRow.hasClass('is-editing')).toBe(true);
-    expect(picker.hasClass('claudian-composer-dropdown')).toBe(true);
+    expect(picker.hasClass('scribe-composer-dropdown')).toBe(true);
     expect(picker.hasClass('is-visible')).toBe(false);
-    expect(picker.querySelector('.claudian-linked-content-picker-search')).toBeNull();
-    expect(welcomeEl.querySelector('.claudian-linked-content-picker-option')).toBeNull();
+    expect(picker.querySelector('.scribe-linked-content-picker-search')).toBeNull();
+    expect(welcomeEl.querySelector('.scribe-linked-content-picker-option')).toBeNull();
     expect(labels(welcomeEl)).toEqual([]);
-    const search = welcomeEl.querySelector('.claudian-linked-content-picker-search')!;
+    const search = welcomeEl.querySelector('.scribe-linked-content-picker-search')!;
     expect(search.getAttribute('aria-label')).toBeNull();
     expect(search.getAttribute('aria-labelledby')).toBe(
-      welcomeEl.querySelector('.claudian-linked-content-selector-prefix')?.getAttribute('id'),
+      welcomeEl.querySelector('.scribe-linked-content-selector-prefix')?.getAttribute('id'),
     );
     expect(search.style.width).toBe('38px');
     expect(search.style.height).toBe('17px');
@@ -135,8 +135,8 @@ describe('LinkedContentController DOM', () => {
     search.dispatchEvent({ type: 'input', target: search });
     expect(search.style.width).toBe('38px');
     expect(picker.hasClass('is-visible')).toBe(true);
-    expect(welcomeEl.querySelector('.claudian-linked-content-picker-option')
-      ?.hasClass('claudian-composer-dropdown-item')).toBe(true);
+    expect(welcomeEl.querySelector('.scribe-linked-content-picker-option')
+      ?.hasClass('scribe-composer-dropdown-item')).toBe(true);
     expect(labels(welcomeEl)).toEqual(['Projects']);
     search.dispatchEvent({
       type: 'keydown',
@@ -159,10 +159,10 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness({ entries: [createFolder('Projects')] });
     const welcome = createWelcomeElement(createMockEl(), 'Hello') as unknown as MockElement;
     harness.controller.mountWelcome(welcome as unknown as HTMLElement);
-    const selector = welcome.querySelector('.claudian-linked-content-selector')!;
+    const selector = welcome.querySelector('.scribe-linked-content-selector')!;
     const focus = vi.spyOn(selector, 'focus');
     selector.click();
-    const picker = welcome.querySelector('.claudian-linked-content-picker')!;
+    const picker = welcome.querySelector('.scribe-linked-content-picker')!;
     const preventDefault = vi.fn();
     const stopPropagation = vi.fn();
 
@@ -185,8 +185,8 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness({ entries: [createFolder('Projects')] });
     const welcome = createWelcomeElement(createMockEl(), 'Hello') as unknown as MockElement;
     harness.controller.mountWelcome(welcome as unknown as HTMLElement);
-    const mount = welcome.querySelector('.claudian-welcome-linked-content')!;
-    const selector = welcome.querySelector('.claudian-linked-content-selector')!;
+    const mount = welcome.querySelector('.scribe-welcome-linked-content')!;
+    const selector = welcome.querySelector('.scribe-linked-content-selector')!;
     let capturedKeydown: ((event: KeyboardEvent) => void) | null = null;
     mount.ownerDocument.defaultView.addEventListener = vi.fn((
       type: string,
@@ -222,9 +222,9 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness({ entries: [stale] });
     const firstWelcome = createWelcomeElement(createMockEl(), 'First') as unknown as MockElement;
     harness.controller.mountWelcome(firstWelcome as unknown as HTMLElement);
-    const firstSelector = firstWelcome.querySelector('.claudian-linked-content-selector')!;
+    const firstSelector = firstWelcome.querySelector('.scribe-linked-content-selector')!;
     firstSelector.click();
-    const firstSearch = firstWelcome.querySelector('.claudian-linked-content-picker-search')!;
+    const firstSearch = firstWelcome.querySelector('.scribe-linked-content-picker-search')!;
     firstSearch.value = 'Stale';
     firstSearch.dispatchEvent({ type: 'input', target: firstSearch });
     expect(labels(firstWelcome)).toEqual(['Stale']);
@@ -235,8 +235,8 @@ describe('LinkedContentController DOM', () => {
 
     const secondWelcome = createWelcomeElement(createMockEl(), 'Second') as unknown as MockElement;
     harness.controller.mountWelcome(secondWelcome as unknown as HTMLElement);
-    secondWelcome.querySelector('.claudian-linked-content-selector')?.click();
-    const secondSearch = secondWelcome.querySelector('.claudian-linked-content-picker-search')!;
+    secondWelcome.querySelector('.scribe-linked-content-selector')?.click();
+    const secondSearch = secondWelcome.querySelector('.scribe-linked-content-picker-search')!;
     secondSearch.value = 'Fresh';
     secondSearch.dispatchEvent({ type: 'input', target: secondSearch });
 
@@ -249,16 +249,16 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness({ entries: [createFolder('Projects')] });
     const welcome = createWelcomeElement(createMockEl(), 'Hello') as unknown as MockElement;
     harness.controller.mountWelcome(welcome as unknown as HTMLElement);
-    const selector = welcome.querySelector('.claudian-linked-content-selector')!;
+    const selector = welcome.querySelector('.scribe-linked-content-selector')!;
     const focus = vi.spyOn(selector, 'focus');
     selector.click();
-    const search = welcome.querySelector('.claudian-linked-content-picker-search')!;
-    const picker = welcome.querySelector('.claudian-linked-content-picker')!;
+    const search = welcome.querySelector('.scribe-linked-content-picker-search')!;
+    const picker = welcome.querySelector('.scribe-linked-content-picker')!;
     expect(picker.hasClass('is-visible')).toBe(false);
 
     search.value = 'Projects';
     search.dispatchEvent({ type: 'input', target: search });
-    welcome.querySelector('.claudian-linked-content-picker-option')?.click();
+    welcome.querySelector('.scribe-linked-content-picker-option')?.click();
 
     expect(harness.controller.getSnapshot()).toEqual({
       mode: 'explicit-draft',
@@ -271,14 +271,14 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness();
     const welcome = createWelcomeElement(createMockEl(), 'Hello') as unknown as MockElement;
     harness.controller.mountWelcome(welcome as unknown as HTMLElement);
-    expect(welcome.querySelector('.claudian-linked-content-selector')).not.toBeNull();
+    expect(welcome.querySelector('.scribe-linked-content-selector')).not.toBeNull();
 
     renderWelcomeContent(welcome as unknown as HTMLElement, 'Welcome back');
     harness.controller.mountWelcome(welcome as unknown as HTMLElement);
-    expect(welcome.querySelectorAll('.claudian-linked-content-selector')).toHaveLength(1);
+    expect(welcome.querySelectorAll('.scribe-linked-content-selector')).toHaveLength(1);
 
     harness.controller.lock(undefined);
-    expect(welcome.querySelector('.claudian-linked-content-selector')).toBeNull();
+    expect(welcome.querySelector('.scribe-linked-content-selector')).toBeNull();
   });
 
   it('renders Linked content in the info row and dispatches file, folder, and missing actions', async () => {
@@ -287,13 +287,13 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness({ entries: [note, folder] });
     const rowEl = createMockEl();
     harness.controller.mountInfoRow(new ComposerInfoRow(rowEl as unknown as HTMLElement));
-    const linkedSlot = () => Array.from(rowEl.querySelectorAll('.claudian-input-info-linked') as any[])
-      .find(el => !el.hasClass('claudian-input-info-project'));
+    const linkedSlot = () => Array.from(rowEl.querySelectorAll('.scribe-input-info-linked') as any[])
+      .find(el => !el.hasClass('scribe-input-info-project'));
 
     harness.controller.selectExplicit(note.path);
     let item = linkedSlot();
-    expect(item.querySelector('.claudian-input-info-linked-remove')).not.toBeNull();
-    const noteButton = item.querySelector('.claudian-input-info-linked-main');
+    expect(item.querySelector('.scribe-input-info-linked-remove')).not.toBeNull();
+    const noteButton = item.querySelector('.scribe-input-info-linked-main');
     expect(noteButton?.getAttribute('aria-label')).toBe('Linked content: Notes/Plan.md');
     expect(noteButton?.getAttribute('title')).toBeNull();
     noteButton?.click();
@@ -303,19 +303,19 @@ describe('LinkedContentController DOM', () => {
 
     harness.controller.selectExplicit(folder.path);
     item = linkedSlot();
-    item.querySelector('.claudian-input-info-linked-main')?.click();
+    item.querySelector('.scribe-input-info-linked-main')?.click();
     await flushPromises();
     expect(harness.app.workspace.revealLeaf).toHaveBeenCalledWith(harness.explorerLeaf);
     expect(harness.revealInFolder).toHaveBeenCalledWith(folder);
 
     harness.controller.selectExplicit('Missing/Plan.md');
     item = linkedSlot();
-    expect(item.hasClass('claudian-input-info-linked--missing')).toBe(true);
-    expect(item.querySelector('.claudian-input-info-linked-label')?.textContent)
+    expect(item.hasClass('scribe-input-info-linked--missing')).toBe(true);
+    expect(item.querySelector('.scribe-input-info-linked-label')?.textContent)
       .toContain('Missing content');
-    expect(item.querySelector('.claudian-input-info-linked-main')?.getAttribute('aria-label'))
+    expect(item.querySelector('.scribe-input-info-linked-main')?.getAttribute('aria-label'))
       .toBe('Linked content: Missing/Plan.md. Missing content');
-    item.querySelector('.claudian-input-info-linked-main')?.click();
+    item.querySelector('.scribe-input-info-linked-main')?.click();
     expect(Notice).toHaveBeenCalledWith('Linked content is missing: Missing/Plan.md');
   });
 
@@ -359,22 +359,22 @@ describe('LinkedContentController DOM', () => {
     harness.controller.mountInfoRow(new ComposerInfoRow(rowEl as unknown as HTMLElement));
 
     harness.controller.selectExplicit(note.path);
-    rowEl.querySelector('.claudian-input-info-linked-remove')?.click();
+    rowEl.querySelector('.scribe-input-info-linked-remove')?.click();
 
     expect(harness.controller.getSnapshot()).toEqual({
       mode: 'explicit-draft',
       path: null,
     });
-    expect(rowEl.querySelector('.claudian-input-info-linked-main')).toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-main')).toBeNull();
 
     harness.controller.selectExplicit(note.path);
     const submission = harness.controller.beginSubmission();
-    expect(rowEl.querySelector('.claudian-input-info-linked-main')).not.toBeNull();
-    expect(rowEl.querySelector('.claudian-input-info-linked-remove')).toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-main')).not.toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-remove')).toBeNull();
     harness.controller.commitSubmission(submission);
 
-    expect(rowEl.querySelector('.claudian-input-info-linked-main')).not.toBeNull();
-    expect(rowEl.querySelector('.claudian-input-info-linked-remove')).toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-main')).not.toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-remove')).toBeNull();
   });
 
   it('reconciles locked Linked content presentation when content disappears and returns', () => {
@@ -384,18 +384,18 @@ describe('LinkedContentController DOM', () => {
     harness.controller.mountInfoRow(new ComposerInfoRow(rowEl as unknown as HTMLElement));
     harness.controller.lock(note.path);
 
-    expect(rowEl.querySelector('.claudian-input-info-linked--missing')).toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked--missing')).toBeNull();
 
     harness.entries.delete(note.path);
     harness.controller.handleDeleted(note.path);
-    expect(rowEl.querySelector('.claudian-input-info-linked--missing')).not.toBeNull();
-    expect(rowEl.querySelector('.claudian-input-info-linked-label')?.textContent)
+    expect(rowEl.querySelector('.scribe-input-info-linked--missing')).not.toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-label')?.textContent)
       .toContain('Missing content');
 
     harness.entries.set(note.path, note);
     harness.controller.handleCreated(note.path);
-    expect(rowEl.querySelector('.claudian-input-info-linked--missing')).toBeNull();
-    expect(rowEl.querySelector('.claudian-input-info-linked-label')?.textContent).toBe('Plan');
+    expect(rowEl.querySelector('.scribe-input-info-linked--missing')).toBeNull();
+    expect(rowEl.querySelector('.scribe-input-info-linked-label')?.textContent).toBe('Plan');
   });
 
   it('opens the Files view before revealing a folder when no explorer leaf exists', async () => {
@@ -419,16 +419,16 @@ describe('LinkedContentController DOM', () => {
     const harness = createHarness({ entries: [createFolder('Projects')] });
     const welcome = createWelcomeElement(createMockEl(), 'Hello') as unknown as MockElement;
     harness.controller.mountWelcome(welcome as unknown as HTMLElement);
-    const selector = welcome.querySelector('.claudian-linked-content-selector')!;
+    const selector = welcome.querySelector('.scribe-linked-content-selector')!;
     selector.click();
-    const search = welcome.querySelector('.claudian-linked-content-picker-search')!;
+    const search = welcome.querySelector('.scribe-linked-content-picker-search')!;
     search.value = 'Projects';
     search.dispatchEvent({ type: 'input', target: search });
 
     harness.controller.destroy();
 
     expect(selector.getEventListenerCount('click')).toBe(0);
-    expect(welcome.querySelector('.claudian-linked-content-selector')).toBeNull();
-    expect(welcome.querySelector('.claudian-linked-content-picker')).toBeNull();
+    expect(welcome.querySelector('.scribe-linked-content-selector')).toBeNull();
+    expect(welcome.querySelector('.scribe-linked-content-picker')).toBeNull();
   });
 });

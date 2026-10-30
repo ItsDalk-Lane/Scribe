@@ -64,7 +64,7 @@ export function getOpencodeState(
 
 /**
  * Retires the live native binding into history-only state. The next send starts
- * a fresh native session and replays Claudian history into it.
+ * a fresh native session and replays Scribe history into it.
  */
 export function clearOpencodeResumeState(
   conversation: Pick<Conversation, 'sessionId' | 'providerState'>,

@@ -4,7 +4,7 @@ import type { SharedAppStorage } from '@/core/bootstrap/storage';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import type { ProviderId } from '@/core/providers/types';
 import type {
-  ClaudianSettings,
+  ScribeSettings,
   StoredChatModelSelection,
 } from '@/core/types';
 
@@ -12,13 +12,13 @@ import type {
 export interface FeatureHost {
   readonly app: App;
   readonly providerHost: ProviderHost;
-  readonly settings: Readonly<ClaudianSettings>;
+  readonly settings: Readonly<ScribeSettings>;
   readonly storage: SharedAppStorage;
 
-  getCommittedSettings(): Readonly<ClaudianSettings>;
+  getCommittedSettings(): Readonly<ScribeSettings>;
 
   mutateSettings(
-    mutation: (settings: ClaudianSettings) => void | Promise<void>,
+    mutation: (settings: ScribeSettings) => void | Promise<void>,
   ): Promise<void>;
   getActiveEnvironmentVariables(providerId?: ProviderId): string;
   getAgentSkillResourceGeneration(): number;

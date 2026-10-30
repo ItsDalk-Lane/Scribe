@@ -1,21 +1,21 @@
-.claudian-todo-list-container .claudian-todo-item {
+.scribe-todo-list-container .scribe-todo-item {
   display: flex;
   align-items: flex-start;
   padding: 1px 0;
 }
 
-.claudian-todo-list-container .claudian-todo-status-icon {
+.scribe-todo-list-container .scribe-todo-status-icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.claudian-todo-list-container .claudian-todo-status-icon svg {
+.scribe-todo-list-container .scribe-todo-status-icon svg {
   width: 12px;
   height: 12px;
 }
 
-.claudian-todo-list-container .claudian-todo-text {
+.scribe-todo-list-container .scribe-todo-text {
   font-family: var(--font-monospace);
   font-size: 12px;
   line-height: 1.4;
@@ -23,26 +23,26 @@
   padding-left: 12px;
 }
 
-.claudian-todo-list-container .claudian-todo-pending .claudian-todo-status-icon {
+.scribe-todo-list-container .scribe-todo-pending .scribe-todo-status-icon {
   color: var(--text-normal);
 }
 
-.claudian-todo-list-container .claudian-todo-in_progress .claudian-todo-status-icon {
+.scribe-todo-list-container .scribe-todo-in_progress .scribe-todo-status-icon {
   color: var(--interactive-accent);
 }
 
-.claudian-todo-list-container :is(.claudian-todo-pending, .claudian-todo-in_progress) .claudian-todo-status-icon svg {
+.scribe-todo-list-container :is(.scribe-todo-pending, .scribe-todo-in_progress) .scribe-todo-status-icon svg {
   transform: scale(2);
 }
 
-.claudian-todo-list-container :is(.claudian-todo-pending, .claudian-todo-in_progress) .claudian-todo-text {
+.scribe-todo-list-container :is(.scribe-todo-pending, .scribe-todo-in_progress) .scribe-todo-text {
   color: var(--text-normal);
 }
 
-.claudian-todo-list-container .claudian-todo-completed .claudian-todo-status-icon {
+.scribe-todo-list-container .scribe-todo-completed .scribe-todo-status-icon {
   color: var(--color-green);
 }
 
-.claudian-todo-list-container .claudian-todo-completed .claudian-todo-text {
+.scribe-todo-list-container .scribe-todo-completed .scribe-todo-text {
   color: var(--text-muted);
 }

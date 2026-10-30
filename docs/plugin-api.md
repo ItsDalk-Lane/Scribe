@@ -1,23 +1,23 @@
 # Plugin API (experimental)
 
-Other Obsidian plugins can send prompts to Claudian sessions, stop them, and read their replies. A voice companion, for example, sends the user's transcript, waits for the turn to end, and speaks the reply.
+Other Obsidian plugins can send prompts to Scribe sessions, stop them, and read their replies. A voice companion, for example, sends the user's transcript, waits for the turn to end, and speaks the reply.
 
 The API is experimental: its shape may change in minor releases while `version` is `1`. Check `version` before using it.
 
 ## Getting the API
 
 ```ts
-const claudian = this.app.plugins.getPlugin('realclaudian') as { api?: ClaudianAPI } | null;
-const api = claudian?.api;
-if (api?.version !== 1) return; // Claudian is missing, disabled, still loading, or incompatible
+const scribe = this.app.plugins.getPlugin('scribe') as { api?: ScribeAPI } | null;
+const api = scribe?.api;
+if (api?.version !== 1) return; // Scribe is missing, disabled, still loading, or incompatible
 ```
 
-Resolve the API when you need it rather than caching it across plugin reloads: disabling or updating Claudian replaces the plugin instance.
+Resolve the API when you need it rather than caching it across plugin reloads: disabling or updating Scribe replaces the plugin instance.
 
 ## Interface
 
 ```ts
-interface ClaudianAPI {
+interface ScribeAPI {
   readonly version: 1;
   /** The session shown in the focused chat view, or null. */
   getActiveSessionId(): string | null;
@@ -52,10 +52,10 @@ Returns the final answer of the last finished turn as Markdown: the text the age
 
 ## Turn-ended event
 
-Claudian fires a workspace event when a session finishes its turn and any work the turn left running:
+Scribe fires a workspace event when a session finishes its turn and any work the turn left running:
 
 ```ts
-this.registerEvent(this.app.workspace.on('claudian:turn-ended', async ({ sessionId }: { sessionId: string }) => {
+this.registerEvent(this.app.workspace.on('scribe:turn-ended', async ({ sessionId }: { sessionId: string }) => {
   if (sessionId !== mySessionId) return;
   const reply = await api.read(sessionId);
   // speak or display the reply
@@ -70,7 +70,7 @@ The event fires for every session and every turn, whether it was started from th
 const sessionId = api.getActiveSessionId();
 if (!sessionId) return;
 await api.send(sessionId, { text: transcript });
-// ...the 'claudian:turn-ended' listener reads and speaks the reply.
+// ...the 'scribe:turn-ended' listener reads and speaks the reply.
 
 // The user talks over the reply:
 await api.send(sessionId, { text: newTranscript, mode: 'interrupt' });

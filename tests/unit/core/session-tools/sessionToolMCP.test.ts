@@ -37,7 +37,7 @@ describe('session tool MCP server through the MCP SDK client', () => {
   it('initializes and lists always-loaded tools with the shared JSON Schemas', async () => {
     client = await connect(vi.fn());
 
-    expect(client.getServerVersion()).toMatchObject({ name: 'claudian_sessions' });
+    expect(client.getServerVersion()).toMatchObject({ name: 'scribe_sessions' });
     expect(client.getServerCapabilities()).toMatchObject({ tools: {} });
     const { tools } = await client.listTools();
     expect(tools).toEqual(SESSION_TOOL_SPECS.map(spec => ({
@@ -53,30 +53,30 @@ describe('session tool MCP server through the MCP SDK client', () => {
     const requests: SessionToolCallRequest[] = [];
     client = await connect(async request => {
       requests.push(request);
-      return request.name === 'claudian_send_message'
+      return request.name === 'scribe_send_message'
         ? { isError: true, text: 'A session cannot message itself.' }
         : { isError: false, text: '[]' };
     });
 
     const listed = await client.callTool({
-      name: 'claudian_list_destinations',
+      name: 'scribe_list_destinations',
       arguments: {},
       _meta: { 'claudecode/toolUseId': 'toolu_1' },
     });
-    const sent = await client.callTool({ name: 'claudian_send_message', arguments: { text: 'Hi' } });
+    const sent = await client.callTool({ name: 'scribe_send_message', arguments: { text: 'Hi' } });
 
     expect(listed).toEqual({ content: [{ type: 'text', text: '[]' }], isError: false });
     expect(sent).toEqual({ content: [{ type: 'text', text: 'A session cannot message itself.' }], isError: true });
     expect(requests.map(({ name, args, nativeToolUseId }) => ({ name, args, nativeToolUseId }))).toEqual([
-      { name: 'claudian_list_destinations', args: {}, nativeToolUseId: 'toolu_1' },
-      { name: 'claudian_send_message', args: { text: 'Hi' }, nativeToolUseId: undefined },
+      { name: 'scribe_list_destinations', args: {}, nativeToolUseId: 'toolu_1' },
+      { name: 'scribe_send_message', args: { text: 'Hi' }, nativeToolUseId: undefined },
     ]);
   });
 
   it('reports handler failures as tool errors and unknown tools as invalid params', async () => {
     client = await connect(async () => { throw new Error('Port released.'); });
 
-    await expect(client.callTool({ name: 'claudian_list_destinations', arguments: {} })).resolves.toEqual({
+    await expect(client.callTool({ name: 'scribe_list_destinations', arguments: {} })).resolves.toEqual({
       content: [{ type: 'text', text: 'Port released.' }],
       isError: true,
     });
@@ -88,7 +88,7 @@ describe('session tool MCP server through the MCP SDK client', () => {
   it('aborts only the cancelled call when the client sends notifications/cancelled', async () => {
     const started = deferred<AbortSignal>();
     client = await connect(async request => {
-      if (request.name === 'claudian_send_message') {
+      if (request.name === 'scribe_send_message') {
         started.resolve(request.signal);
         await new Promise(resolve => request.signal.addEventListener('abort', resolve));
       }
@@ -96,7 +96,7 @@ describe('session tool MCP server through the MCP SDK client', () => {
     });
     const controller = new AbortController();
 
-    const pending = client.callTool({ name: 'claudian_send_message', arguments: { text: 'Hi' } }, undefined, {
+    const pending = client.callTool({ name: 'scribe_send_message', arguments: { text: 'Hi' } }, undefined, {
       signal: controller.signal,
     });
     const signal = await started.promise;
@@ -106,7 +106,7 @@ describe('session tool MCP server through the MCP SDK client', () => {
     await expect(pending).rejects.toThrow();
     await new Promise(resolve => setImmediate(resolve));
     expect(signal.aborted).toBe(true);
-    await expect(client.callTool({ name: 'claudian_list_destinations', arguments: {} }))
+    await expect(client.callTool({ name: 'scribe_list_destinations', arguments: {} }))
       .resolves.toMatchObject({ isError: false });
   });
 
@@ -118,7 +118,7 @@ describe('session tool MCP server through the MCP SDK client', () => {
       return { isError: false, text: '[]' };
     });
 
-    const pending = client.callTool({ name: 'claudian_list_destinations', arguments: {} });
+    const pending = client.callTool({ name: 'scribe_list_destinations', arguments: {} });
     const signal = await started.promise;
     await client.close();
     client = undefined;
@@ -160,7 +160,7 @@ describe('session tool MCP dispatcher', () => {
     const disconnect = new AbortController();
 
     const response = local.handle(
-      { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'claudian_list_destinations', arguments: {} } },
+      { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'scribe_list_destinations', arguments: {} } },
       disconnect.signal,
     );
     const signal = await started.promise;

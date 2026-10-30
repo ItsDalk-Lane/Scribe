@@ -1,3 +1,5 @@
+import { t } from '@/i18n/i18n';
+
 import { StartupProfiler } from './core/performance/StartupProfiler';
 // Must run before any SDK imports to patch Electron/Node.js realm incompatibility
 import { patchSetMaxListenersForElectron } from './utils/electronCompat';
@@ -12,7 +14,7 @@ import { Notice, Plugin } from 'obsidian';
 import type { NativeSessionArchiveSync } from './app/conversations/NativeSessionArchiveSync';
 import type { SessionMetadataLoader } from './app/conversations/SessionMetadataLoader';
 import type { ProjectService } from './app/projects/ProjectService';
-import { createDefaultClaudianSettings } from './app/settings/defaultSettings';
+import { createDefaultScribeSettings } from './app/settings/defaultSettings';
 import { EnvironmentSettingsService } from './app/settings/EnvironmentSettingsService';
 import { ProviderChatOptionsReconciler } from './app/settings/ProviderChatOptionsReconciler';
 import { migrateSelectedModelMetadata } from './app/settings/SelectedModelMetadataMigration';
@@ -20,9 +22,9 @@ import type { SettingsCoordinator } from './app/settings/SettingsCoordinator';
 import { startApplication } from './app/startup/ApplicationStartup';
 import type { SharedStorageService } from './app/storage/SharedStorageService';
 import { AgentSkillResources } from './composition/AgentSkillResources';
-import { ClaudianChatFeatureHost, ClaudianFeatureHost } from './composition/ClaudianFeatureHosts';
-import { ClaudianProviderHost } from './composition/ClaudianProviderHost';
-import { ClaudianViews } from './composition/ClaudianViews';
+import { ScribeChatFeatureHost, ScribeFeatureHost } from './composition/ScribeFeatureHosts';
+import { ScribeProviderHost } from './composition/ScribeProviderHost';
+import { ScribeViews } from './composition/ScribeViews';
 import { ProviderExecutionLifecycleRegistry } from './core/execution';
 import { resolveLoginShellPath } from './core/process/loginShellPath';
 import { ProviderRegistry } from './core/providers/ProviderRegistry';
@@ -30,17 +32,17 @@ import { ProviderSettingsCoordinator } from './core/providers/ProviderSettingsCo
 import { ProviderWorkspaceRegistry } from './core/providers/ProviderWorkspaceRegistry';
 import type { ProviderId } from './core/providers/types';
 import { LoopbackSessionToolServer } from './core/session-tools/LoopbackSessionToolServer';
-import type { ClaudianSettings } from './core/types';
-import { VIEW_TYPE_CLAUDIAN } from './core/types';
-import { ClaudianView } from './features/chat/ClaudianView';
+import type { ScribeSettings } from './core/types';
+import { VIEW_TYPE_SCRIBE } from './core/types';
 import { ConversationLifecycle } from './features/chat/conversation/ConversationLifecycle';
 import { InactiveSessionArchiver } from './features/chat/conversation/InactiveSessionArchiver';
+import { ScribeView } from './features/chat/ScribeView';
 import {
-  CLAUDIAN_TURN_ENDED_EVENT,
-  type ClaudianAPI,
-  type ClaudianTurnEndedEvent,
-  createClaudianAPI,
-} from './features/chat/session-messaging/ClaudianAPI';
+  createScribeAPI,
+  SCRIBE_TURN_ENDED_EVENT,
+  type ScribeAPI,
+  type ScribeTurnEndedEvent,
+} from './features/chat/session-messaging/ScribeAPI';
 import { SessionMessagingService } from './features/chat/session-messaging/SessionMessagingService';
 import { createChatSessionRuntime } from './features/chat/sessions/createChatSessionRuntime';
 import { SessionRuntimePool } from './features/chat/sessions/SessionRuntimePool';
@@ -52,21 +54,21 @@ import { VaultContentEvents } from './features/chat/workspace/VaultContentEvents
 import { ZenModeController } from './features/chat/zen/ZenModeController';
 import { createInlineEditCommand } from './features/inline-edit/inlineEditCommand';
 import { InlineEditSessionOwner } from './features/inline-edit/InlineEditSessionOwner';
-import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
+import { ScribeSettingTab } from './features/settings/ScribeSettings';
 import { getBuiltInProviderDefaultConfigs } from './providers/defaultProviderConfigs';
 
-export default class ClaudianPlugin extends Plugin {
+export default class ScribePlugin extends Plugin {
   readonly executionLifecycleRegistry = new ProviderExecutionLifecycleRegistry();
-  providerHost!: ClaudianProviderHost;
-  private featureHost!: ClaudianFeatureHost;
-  private chatHost!: ClaudianChatFeatureHost;
+  providerHost!: ScribeProviderHost;
+  private featureHost!: ScribeFeatureHost;
+  private chatHost!: ScribeChatFeatureHost;
   private sessionRuntimes!: SessionRuntimePool;
   private sessionMessaging!: SessionMessagingService;
-  /** Experimental API for other plugins; see `ClaudianAPI`. */
-  api!: ClaudianAPI;
+  /** Experimental API for other plugins; see `ScribeAPI`. */
+  api!: ScribeAPI;
   /** Live committed settings, following Obsidian's plugin convention. */
-  settings!: Readonly<ClaudianSettings>;
-  private settingsCoordinator!: SettingsCoordinator<ClaudianSettings>;
+  settings!: Readonly<ScribeSettings>;
+  private settingsCoordinator!: SettingsCoordinator<ScribeSettings>;
   private storage!: SharedStorageService;
   private sessionMetadata!: SessionMetadataLoader;
   private nativeSessionArchives!: NativeSessionArchiveSync;
@@ -75,8 +77,8 @@ export default class ClaudianPlugin extends Plugin {
   private inactiveSessionArchiver!: InactiveSessionArchiver;
   private conversationLifecycle!: ConversationLifecycle;
   private vaultContentEvents!: VaultContentEvents;
-  private settingsTab: ClaudianSettingTab | null = null;
-  private readonly views = new ClaudianViews(
+  private settingsTab: ScribeSettingTab | null = null;
+  private readonly views = new ScribeViews(
     this.app.workspace,
     () => this.settings.chatViewPlacement,
   );
@@ -113,8 +115,8 @@ export default class ClaudianPlugin extends Plugin {
       // Provider workspace services are initialized lazily on first use.
 
       this.registerView(
-        VIEW_TYPE_CLAUDIAN,
-        (leaf) => new ClaudianView(leaf, this.chatHost)
+        VIEW_TYPE_SCRIBE,
+        (leaf) => new ScribeView(leaf, this.chatHost)
       );
       registerFileMenu({
         app: this.app,
@@ -124,13 +126,13 @@ export default class ClaudianPlugin extends Plugin {
       });
       this.vaultContentEvents.register(eventRef => this.registerEvent(eventRef));
 
-      this.addRibbonIcon('bot', 'Open Claudian', () => {
+      this.addRibbonIcon('bot', t('commands.openScribe'), () => {
         void this.views.activateView();
       });
 
       this.addCommand({
         id: 'open-view',
-        name: 'Toggle chat view',
+        name: t('commands.toggleChat'),
         callback: () => {
           void this.views.toggleView(this.zenMode);
         },
@@ -152,14 +154,14 @@ export default class ClaudianPlugin extends Plugin {
 
       this.addCommand({
         id: 'copy-startup-diagnostics',
-        name: 'Copy startup diagnostics',
+        name: t('commands.copyDiagnostics'),
         callback: async () => {
           const copied = await StartupProfiler.copyToClipboard();
           new Notice(copied ? 'Startup diagnostics copied to clipboard.' : 'Failed to copy startup diagnostics.');
         },
       });
 
-      this.settingsTab = new ClaudianSettingTab(this.app, this, this.featureHost);
+      this.settingsTab = new ScribeSettingTab(this.app, this, this.featureHost);
       this.addSettingTab(this.settingsTab);
       this.sessionMetadata.scheduleRemainingLoad();
       this.app.workspace.onLayoutReady(() => {
@@ -206,7 +208,7 @@ export default class ClaudianPlugin extends Plugin {
   private async loadApplication(): Promise<void> {
     const domains = await startApplication({
       plugin: this,
-      defaultSettings: createDefaultClaudianSettings(getBuiltInProviderDefaultConfigs()),
+      defaultSettings: createDefaultScribeSettings(getBuiltInProviderDefaultConfigs()),
       providers: ProviderRegistry,
       providerSettings: ProviderSettingsCoordinator,
       executionLifecycle: this.executionLifecycleRegistry,
@@ -254,7 +256,7 @@ export default class ClaudianPlugin extends Plugin {
         await Promise.all(providerIds.map(notifyProviderChatOptionsChanged));
       },
     });
-    this.providerHost = new ClaudianProviderHost({
+    this.providerHost = new ScribeProviderHost({
       app: this.app,
       manifest: this.manifest,
       executionLifecycleRegistry: this.executionLifecycleRegistry,
@@ -275,7 +277,7 @@ export default class ClaudianPlugin extends Plugin {
       views: this.views,
       notifyProviderChatOptionsChanged,
     };
-    this.featureHost = new ClaudianFeatureHost(featureDomains);
+    this.featureHost = new ScribeFeatureHost(featureDomains);
     this.sessionRuntimes = new SessionRuntimePool({
       createRuntime: identity => createChatSessionRuntime(this.chatHost, identity),
       releaseHistory: (id, canRelease) => domains.conversationRepository.releaseHistory(id, canRelease),
@@ -283,7 +285,7 @@ export default class ClaudianPlugin extends Plugin {
       retainedDetachedSessions: 3,
       onChanged: () => this.chatViews.notifyConversationListChanged(),
       onSessionSettled: sessionId => {
-        this.app.workspace.trigger(CLAUDIAN_TURN_ENDED_EVENT, { sessionId } satisfies ClaudianTurnEndedEvent);
+        this.app.workspace.trigger(SCRIBE_TURN_ENDED_EVENT, { sessionId } satisfies ScribeTurnEndedEvent);
       },
       onError: () => { new Notice('Session state could not be saved. It remains in memory.'); },
     });
@@ -292,7 +294,7 @@ export default class ClaudianPlugin extends Plugin {
       getActiveConversationId: () => this.views.getInputFocusView(this.zenMode.getActiveLeaf())?.getActiveTab()?.conversationId ?? null,
       refreshModelControls: providerId => this.chatViews.refreshModelSelector(providerId),
     });
-    this.api = createClaudianAPI(this.sessionMessaging);
+    this.api = createScribeAPI(this.sessionMessaging);
     this.conversationLifecycle = new ConversationLifecycle({
       conversations: domains.conversations,
       projects: domains.projects,
@@ -305,7 +307,7 @@ export default class ClaudianPlugin extends Plugin {
       conversations: domains.conversations,
       notifyConversationListChanged: () => this.chatViews.notifyConversationListChanged(),
     });
-    this.chatHost = new ClaudianChatFeatureHost({
+    this.chatHost = new ScribeChatFeatureHost({
       ...featureDomains,
       sessionRuntimes: this.sessionRuntimes,
       sessionMessaging: this.sessionMessaging,

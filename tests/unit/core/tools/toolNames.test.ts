@@ -6,10 +6,10 @@ isReadOnlyTool,
 isSessionTool,
 isWriteEditTool,
 TOOL_BASH,
-TOOL_CLAUDIAN_LIST_DESTINATIONS,
-TOOL_CLAUDIAN_SEND_MESSAGE,
 TOOL_CLOSE_AGENT,
 TOOL_RESUME_AGENT,
+TOOL_SCRIBE_LIST_DESTINATIONS,
+TOOL_SCRIBE_SEND_MESSAGE,
 TOOL_SEND_INPUT,
 TOOL_SEND_MESSAGE,
 TOOL_SPAWN_AGENT,
@@ -32,14 +32,14 @@ describe('isAgentLifecycleTool', () => {
 });
 
 describe('isSessionTool', () => {
-  it('matches only the Claudian session tools, distinct from runtime agent messaging', () => {
-    expect(TOOL_CLAUDIAN_LIST_DESTINATIONS).toBe('claudian_list_destinations');
-    expect(TOOL_CLAUDIAN_SEND_MESSAGE).toBe('claudian_send_message');
-    expect(isSessionTool(TOOL_CLAUDIAN_LIST_DESTINATIONS)).toBe(true);
-    expect(isSessionTool(TOOL_CLAUDIAN_SEND_MESSAGE)).toBe(true);
+  it('matches only the Scribe session tools, distinct from runtime agent messaging', () => {
+    expect(TOOL_SCRIBE_LIST_DESTINATIONS).toBe('scribe_list_destinations');
+    expect(TOOL_SCRIBE_SEND_MESSAGE).toBe('scribe_send_message');
+    expect(isSessionTool(TOOL_SCRIBE_LIST_DESTINATIONS)).toBe(true);
+    expect(isSessionTool(TOOL_SCRIBE_SEND_MESSAGE)).toBe(true);
     expect(isSessionTool(TOOL_SEND_MESSAGE)).toBe(false);
-    expect(isAgentLifecycleTool(TOOL_CLAUDIAN_SEND_MESSAGE)).toBe(false);
-    expect(isSessionTool('mcp__claudian_sessions__claudian_send_message')).toBe(false);
+    expect(isAgentLifecycleTool(TOOL_SCRIBE_SEND_MESSAGE)).toBe(false);
+    expect(isSessionTool('mcp__scribe_sessions__scribe_send_message')).toBe(false);
   });
 });
 

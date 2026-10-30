@@ -1,9 +1,9 @@
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
+import { createProviderRuntimeHost } from '@/composition/ScribeProviderHost';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import type { ProviderRuntimeHost } from '@/core/providers/ProviderRuntimeHost';
 import type { ProviderCLIResolutionContext, ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 
 /** The application-host capabilities a provider runtime host reads; everything but `settings` is optional. */
 export interface RuntimeHostFixture {
@@ -18,7 +18,7 @@ export interface RuntimeHostFixture {
 
 interface RuntimeHostOptions {
   /** Receives each committed settings document; rejecting rolls the write back. */
-  persist?: (settings: ClaudianSettings) => Promise<void>;
+  persist?: (settings: ScribeSettings) => Promise<void>;
 }
 
 /**
@@ -30,7 +30,7 @@ export function runtimeHostFor(
   providerId: ProviderId,
   { persist = async () => undefined }: RuntimeHostOptions = {},
 ): ProviderRuntimeHost {
-  const coordinator = new SettingsCoordinator(host.settings as ClaudianSettings, persist);
+  const coordinator = new SettingsCoordinator(host.settings as ScribeSettings, persist);
   return createProviderRuntimeHost({
     get workingDirectory() { return host.workingDirectory ?? null; },
     get manifest() { return host.manifest; },

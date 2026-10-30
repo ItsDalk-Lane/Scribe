@@ -1,10 +1,10 @@
 /** Pointer travel before a press on a row becomes a drag, so clicks still reach the row. */
 const DRAG_THRESHOLD_PX = 4;
-const SORTING_CLASS = 'claudian-live-sorting';
-const ITEM_CLASS = 'claudian-live-sort-item';
-const LIFTED_CLASS = 'claudian-live-sort-lifted';
-const FOLDED_CLASS = 'claudian-live-sort-folded';
-const SPACER_CLASS = 'claudian-live-sort-spacer';
+const SORTING_CLASS = 'scribe-live-sorting';
+const ITEM_CLASS = 'scribe-live-sort-item';
+const LIFTED_CLASS = 'scribe-live-sort-lifted';
+const FOLDED_CLASS = 'scribe-live-sort-folded';
+const SPACER_CLASS = 'scribe-live-sort-spacer';
 /** How much of a neighbour the dragged card's leading edge covers before the neighbour moves away. */
 const DISPLACE_FRACTION = 0.3;
 

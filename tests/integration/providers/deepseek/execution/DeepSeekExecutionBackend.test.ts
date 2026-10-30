@@ -63,7 +63,7 @@ beforeEach(async () => {
   });
   peer.onCall = (method, args) => {
     // Native reuses a named session only while no turn has started; the saved root these tests resume has history.
-    if (method === 'session/create') return { sessionId: args.request.sessionId ? 'minted' : 'root', agentPreset: 'claudian' };
+    if (method === 'session/create') return { sessionId: args.request.sessionId ? 'minted' : 'root', agentPreset: 'scribe' };
     if (method === 'session/updateQueue') {
       inbox = inbox.filter((item: any) => item.id !== args.request.itemId);
       peer.send('session/control', { type: 'projection', sessionId: 'root', key: 'inbox', seq: ++seq, value: { 'next-turn': inbox } });
@@ -79,7 +79,7 @@ beforeEach(async () => {
 afterEach(async () => { await session?.dispose(); await deepseek.dispose(); await peer.close(); });
 
 function savedState(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'claudian', ...overrides };
+  return { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'scribe', ...overrides };
 }
 function create(resume: boolean | NonNullable<ProviderSessionConfig['resumeSeed']> = false, lifecycle: ProviderSessionConfig['lifecycle'] = 'persistent'): void {
   const resumeSeed = resume === true ? { providerSessionId: 'root', providerState: savedState() } : resume || undefined;
@@ -107,7 +107,7 @@ it.each([
   ({ deepseek, lifecycle } = peer.host({ profile: running }));
   create(saved ? { providerSessionId: 'root', providerState: savedState({ profile: saved }) } : false);
   await completeRequest();
-  expect(session.getSnapshot().providerState).toMatchObject({ profile: expected, home: getDeepSeekHome(process.env, process.cwd()), preset: 'claudian' });
+  expect(session.getSnapshot().providerState).toMatchObject({ profile: expected, home: getDeepSeekHome(process.env, process.cwd()), preset: 'scribe' });
 });
 /** Announces a native subagent of root through the catalog, its descriptor and the roster. */
 function announceChild(mode: 'continuable' | 'one-shot', running: boolean): void {
@@ -1154,7 +1154,7 @@ it('recovers the saved native preset before resuming an unbound conversation', a
   const ordinary = peer.onCall;
   peer.onCall = async (method, args) => {
     const value = await ordinary(method, args) as any;
-    return method === 'session/projections' ? { ...value, values: { ...value.values, agentPreset: 'claudian-code' } } : value;
+    return method === 'session/projections' ? { ...value, values: { ...value.values, agentPreset: 'scribe-code' } } : value;
   };
   session = new DeepSeekExecutionBackend(runtimeHostFor(host, 'deepseek'), () => deepseek).createSession({
     lifecycle: 'persistent', nativePersistence: 'enabled', workingDirectory: '/vault', interactionPort: port, resumeSeed: { providerSessionId: 'root' },
@@ -1162,12 +1162,12 @@ it('recovers the saved native preset before resuming an unbound conversation', a
   const run = session.execute(request()); const events: ProviderExecutionEvent[] = []; const done = collect(run.events, events);
   await until(() => peer.calls.some(c => c.method === 'session/prompt'));
   expect(peer.calls.find(c => c.method === 'session/prompt')?.args.request.sessionId).toBe('root');
-  // Claudian archive state is authoritative: a resumed conversation is never left gated by a native archive.
+  // Scribe archive state is authoritative: a resumed conversation is never left gated by a native archive.
   const methods = peer.calls.map(c => c.method);
   expect(peer.calls.filter(c => c.method === 'workspace/unarchiveSession')).toEqual([{ method: 'workspace/unarchiveSession', args: { request: { sessionId: 'root' } } }]);
   expect(methods.indexOf('workspace/unarchiveSession')).toBeLessThan(methods.indexOf('session/prompt'));
   begin(run.executionId); answer('resumed'); await done;
-  expect(session.getSnapshot().providerState).toMatchObject({ preset: 'claudian-code' });
+  expect(session.getSnapshot().providerState).toMatchObject({ preset: 'scribe-code' });
   // The legacy code-mode preset is an alias of the chat preset: it follows the live preference like any conversation.
   expect(lifecycle.codeModes).toEqual([{ enabled: false, promptsSent: 0 }]);
 });
@@ -1692,10 +1692,10 @@ it.each<AdmissionCase>([
   { name: 'a resumed session without a native preset', resume: { providerSessionId: 'root', providerState: savedState() }, input: input => input,
     native: { 'session/projections': resumedProjection({ agentPreset: undefined }) },
     error: { category: 'configuration', message: expect.stringContaining('preset is missing') }, sends: 0, status: 'invalidated' },
-  { name: 'a native preset that differs from the saved binding', resume: { providerSessionId: 'root', providerState: savedState({ preset: 'claudian-code' }) }, input: input => input,
+  { name: 'a native preset that differs from the saved binding', resume: { providerSessionId: 'root', providerState: savedState({ preset: 'scribe-code' }) }, input: input => input,
     error: { category: 'configuration', message: expect.stringContaining('differs from the saved conversation binding') }, sends: 0, status: 'invalidated' },
-  { name: 'a native tool policy that differs from the request', resume: { providerSessionId: 'root', providerState: savedState({ preset: 'claudian-passive' }) }, input: input => input,
-    native: { 'session/projections': resumedProjection({ agentPreset: 'claudian-passive' }) },
+  { name: 'a native tool policy that differs from the request', resume: { providerSessionId: 'root', providerState: savedState({ preset: 'scribe-passive' }) }, input: input => input,
+    native: { 'session/projections': resumedProjection({ agentPreset: 'scribe-passive' }) },
     error: { category: 'configuration', message: expect.stringContaining('tool policy differs') }, sends: 0, status: 'invalidated' },
   { name: 'a resumed native session that no longer exists', resume: { providerSessionId: 'root', providerState: savedState() }, input: input => input,
     native: { 'session/projections': () => null },
@@ -1791,11 +1791,11 @@ it.each([
   const ordinary = peer.onCall;
   peer.onCall = (method, args) => {
     if (method === 'session/fork') return { sessionId: 'fork' };
-    if (method === 'session/projections') return resumedProjection({ agentPreset: 'claudian-code' })(args, () => ordinary(method, args));
+    if (method === 'session/projections') return resumedProjection({ agentPreset: 'scribe-code' })(args, () => ordinary(method, args));
     if (method === 'session/list') return { items: [{ sessionId: 'root', agentAvailable: true, running: false }, { sessionId: 'fork', agentAvailable: true, running: false }] };
     return ordinary(method, args);
   };
-  create({ providerState: savedState({ preset: 'claudian-code', pendingFork: { sessionId: 'root', atSeq: 2 } }) }, lifecycleKind);
+  create({ providerState: savedState({ preset: 'scribe-code', pendingFork: { sessionId: 'root', atSeq: 2 } }) }, lifecycleKind);
   followed = 'fork';
   const run = session.execute(request()); const events: ProviderExecutionEvent[] = []; const done = collect(run.events, events);
   await until(() => peer.calls.some(c => c.method === 'session/prompt'));
@@ -1810,7 +1810,7 @@ it.each([
   expect(peer.calls.some(c => c.method === 'workspace/unarchiveSession')).toBe(false);
   expect(peer.calls.find(c => c.method === 'session/prompt')?.args.request.sessionId).toBe('fork');
   const snapshot = session.getSnapshot();
-  expect(snapshot).toMatchObject({ providerSessionId: 'fork', providerState: { preset: 'claudian-code' } });
+  expect(snapshot).toMatchObject({ providerSessionId: 'fork', providerState: { preset: 'scribe-code' } });
   expect(snapshot.providerState).not.toHaveProperty('pendingFork');
 });
 

@@ -18,7 +18,7 @@ export function useClaudeSessionFiles(): (records: readonly unknown[] | string, 
     directory = undefined;
   });
   return (records, name = 'session.jsonl') => {
-    directory ??= fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-claude-history-'));
+    directory ??= fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-claude-history-'));
     const filePath = path.join(directory, name);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, typeof records === 'string'

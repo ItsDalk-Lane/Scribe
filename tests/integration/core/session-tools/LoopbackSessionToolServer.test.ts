@@ -65,7 +65,7 @@ function waitForAbort(signal: AbortSignal): Promise<void> {
   });
 }
 
-const listCall = JSON.stringify({ tool: 'claudian_list_destinations', args: {}, callerNativeId: 'native-1' });
+const listCall = JSON.stringify({ tool: 'scribe_list_destinations', args: {}, callerNativeId: 'native-1' });
 
 describe('LoopbackSessionToolServer', () => {
   let server: LoopbackSessionToolServer;
@@ -89,12 +89,12 @@ describe('LoopbackSessionToolServer', () => {
 
     expect(route.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/call$/);
     expect(route.url).not.toContain(route.routeId);
-    expect(route.headers).toEqual({ 'X-Claudian-Route': route.routeId });
+    expect(route.headers).toEqual({ 'X-Scribe-Route': route.routeId });
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toBe('application/json');
     expect(JSON.parse(response.body)).toEqual({ isError: false, text: '[]' });
     expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ name: 'claudian_list_destinations', args: {}, callerNativeId: 'native-1' });
+    expect(requests[0]).toMatchObject({ name: 'scribe_list_destinations', args: {}, callerNativeId: 'native-1' });
   });
 
   it('issues distinct unguessable route ids', async () => {
@@ -114,18 +114,18 @@ describe('LoopbackSessionToolServer', () => {
     ['a same-origin Origin', route => ({ headers: { origin: new URL(route.url).origin } }), 403],
     ['GET', () => ({ method: 'GET', body: undefined }), 405],
     ['a CORS preflight', () => ({ method: 'OPTIONS', body: undefined }), 405],
-    ['a missing route header', () => ({ headers: { 'X-Claudian-Route': undefined } }), 404],
-    ['an unknown route id', () => ({ headers: { 'X-Claudian-Route': 'A'.repeat(43) } }), 404],
+    ['a missing route header', () => ({ headers: { 'X-Scribe-Route': undefined } }), 404],
+    ['an unknown route id', () => ({ headers: { 'X-Scribe-Route': 'A'.repeat(43) } }), 404],
     ['the route id on another route shape path', () => ({ path: '/mcp' }), 404],
     ['a form content type', () => ({ headers: { 'content-type': 'text/plain' } }), 415],
     ['a missing content type', () => ({ headers: { 'content-type': undefined } }), 415],
-    ['an oversized declared body', () => ({ body: JSON.stringify({ tool: 'claudian_list_destinations', args: { pad: 'x'.repeat(300) }, callerNativeId: 'n' }) }), 413],
+    ['an oversized declared body', () => ({ body: JSON.stringify({ tool: 'scribe_list_destinations', args: { pad: 'x'.repeat(300) }, callerNativeId: 'n' }) }), 413],
     ['an oversized chunked body', () => ({
       headers: { 'transfer-encoding': 'chunked' },
-      body: JSON.stringify({ tool: 'claudian_list_destinations', args: { pad: 'x'.repeat(300) }, callerNativeId: 'n' }),
+      body: JSON.stringify({ tool: 'scribe_list_destinations', args: { pad: 'x'.repeat(300) }, callerNativeId: 'n' }),
     }), 413],
     ['invalid JSON', () => ({ body: '{' }), 400],
-    ['a call without caller identity', () => ({ body: JSON.stringify({ tool: 'claudian_list_destinations', args: {} }) }), 400],
+    ['a call without caller identity', () => ({ body: JSON.stringify({ tool: 'scribe_list_destinations', args: {} }) }), 400],
   ])('rejects %s before reaching the handler', async (_label, build, status) => {
     const handler = vi.fn(async () => ({ isError: false, text: '[]' }));
     const route = await server.registerCallRoute(handler);
@@ -318,7 +318,7 @@ describe('LoopbackSessionToolServer MCP route through the MCP SDK Streamable HTT
     client = await connect(route);
 
     const { tools } = await client.listTools();
-    const result = await client.callTool({ name: 'claudian_send_message', arguments: { sessionId: 'conv-2', text: 'Hi' } });
+    const result = await client.callTool({ name: 'scribe_send_message', arguments: { sessionId: 'conv-2', text: 'Hi' } });
 
     expect(route.url).toMatch(/\/mcp$/);
     expect(tools.map(tool => tool.name)).toEqual(SESSION_TOOL_SPECS.map(spec => spec.name));
@@ -327,7 +327,7 @@ describe('LoopbackSessionToolServer MCP route through the MCP SDK Streamable HTT
       isError: false,
     });
     expect(requests.map(({ name, args }) => ({ name, args }))).toEqual([
-      { name: 'claudian_send_message', args: { sessionId: 'conv-2', text: 'Hi' } },
+      { name: 'scribe_send_message', args: { sessionId: 'conv-2', text: 'Hi' } },
     ]);
   });
 
@@ -341,7 +341,7 @@ describe('LoopbackSessionToolServer MCP route through the MCP SDK Streamable HTT
     client = await connect(route);
     const controller = new AbortController();
 
-    const pending = client.callTool({ name: 'claudian_list_destinations', arguments: {} }, undefined, {
+    const pending = client.callTool({ name: 'scribe_list_destinations', arguments: {} }, undefined, {
       signal: controller.signal,
     });
     const signal = await started.promise;

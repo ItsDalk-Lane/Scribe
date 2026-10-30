@@ -373,8 +373,8 @@ describe('VaultFileAdapter', () => {
       ['package', '.agents/skills/portable-skill', 'folder'],
       ['SKILL.md', '.agents/skills/portable-skill/SKILL.md', 'file'],
     ] as const)('rejects a symlinked %s on desktop adapters', async (_label, relative, type) => {
-      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-'));
-      const externalPath = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-external-'));
+      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-'));
+      const externalPath = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-external-'));
       try {
         if (relative !== '.agents') {
           await fs.mkdir(path.join(vaultPath, '.agents/skills/portable-skill'), { recursive: true });
@@ -415,7 +415,7 @@ describe('VaultFileAdapter', () => {
     });
 
     it('moves a complete package without requiring hard-link support', async () => {
-      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-'));
+      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-'));
       const link = vi.mocked(fs.link).mockRejectedValue(Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }));
       try {
         await fs.mkdir(path.join(vaultPath, '.agents/skills/old/assets'), { recursive: true });
@@ -438,7 +438,7 @@ describe('VaultFileAdapter', () => {
     });
 
     it('leaves the whole source in place when the directory move fails', async () => {
-      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-'));
+      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-'));
       const rename = vi.mocked(fs.rename).mockRejectedValue(
         Object.assign(new Error('denied at /private/vault'), { code: 'EPERM' }),
       );
@@ -466,7 +466,7 @@ describe('VaultFileAdapter', () => {
     });
 
     it.each(['empty', 'nonempty', 'racing-nonempty', 'racing-nonempty-EPERM'])('preserves a %s destination', async kind => {
-      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-'));
+      const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-'));
       const renameDirectory = actualModule2.rename;
       const rename = vi.mocked(fs.rename);
       try {
@@ -537,7 +537,7 @@ describe('VaultFileAdapter', () => {
     let files: VaultFileAdapter;
 
     beforeEach(async () => {
-      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-')));
+      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-')));
       files = new VaultFileAdapter({
         vault: { adapter: createDesktopFsAdapter(vaultPath) },
       } as unknown as App);
@@ -626,7 +626,7 @@ describe('VaultFileAdapter', () => {
     let files: VaultFileAdapter;
 
     beforeEach(async () => {
-      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-')));
+      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-')));
       files = new VaultFileAdapter({
         vault: { adapter: createDesktopFsAdapter(vaultPath) },
       } as unknown as App);
@@ -665,7 +665,7 @@ describe('VaultFileAdapter', () => {
     let files: VaultFileAdapter;
 
     beforeEach(async () => {
-      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-')));
+      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-')));
       files = new VaultFileAdapter({
         vault: { adapter: createDesktopFsAdapter(vaultPath) },
       } as unknown as App);
@@ -713,7 +713,7 @@ describe('VaultFileAdapter', () => {
     let files: VaultFileAdapter;
 
     beforeEach(async () => {
-      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-vault-')));
+      vaultPath = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-vault-')));
       files = new VaultFileAdapter({
         vault: { adapter: createDesktopFsAdapter(vaultPath) },
       } as unknown as App);

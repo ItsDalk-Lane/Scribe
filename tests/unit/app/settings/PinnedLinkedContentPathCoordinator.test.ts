@@ -1,6 +1,6 @@
 import { PinnedLinkedContentPathCoordinator } from '@/app/settings/PinnedLinkedContentPathCoordinator';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 
 function createFixture(
   initialPaths: string[] = [],
@@ -8,7 +8,7 @@ function createFixture(
 ) {
   const settings = {
     pinnedLinkedContentPaths: [...initialPaths],
-  } as ClaudianSettings;
+  } as ScribeSettings;
   const coordinator = new SettingsCoordinator(settings, persist);
   return {
     paths: new PinnedLinkedContentPathCoordinator(coordinator),

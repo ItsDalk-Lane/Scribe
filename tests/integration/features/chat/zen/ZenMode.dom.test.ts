@@ -4,7 +4,7 @@ import '@/providers';
 import { deserialize, serialize } from 'node:v8';
 
 import { axe } from '@test/helpers/accessibility';
-import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
+import { createScribeView } from '@test/helpers/features/chat/ScribeViewHarness';
 import { installSessionRuntimePool } from '@test/helpers/features/chat/SessionRuntimePoolHarness';
 import { createHarness, releaseSideChatHarnesses } from '@test/helpers/features/chat/SideChatDOMHarness';
 import { FakeSideSession } from '@test/helpers/features/chat/SideChatSessionHarness';
@@ -15,15 +15,15 @@ import { fireEvent, screen, waitFor as waitForDOM, within } from '@testing-libra
 import { App, Component, Scope, setIcon } from 'obsidian';
 
 import { ChatModelSelectionCoordinator } from '@/app/settings/ChatModelSelectionCoordinator';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@/app/settings/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@/app/settings/defaultSettings';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { ClaudianViews } from '@/composition/ClaudianViews';
+import { ScribeViews } from '@/composition/ScribeViews';
 import { BUILT_IN_COMMANDS } from '@/core/commands/builtInCommands';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import type { ProviderCapabilities } from '@/core/providers/types';
 import { getToolIcon } from '@/core/tools/toolIcons';
-import type { ClaudianSettings, Conversation, StreamChunk } from '@/core/types';
+import type { Conversation, ScribeSettings, StreamChunk } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { ChatState } from '@/features/chat/state/ChatState';
 import { destroyTab } from '@/features/chat/tabs/TabLifecycle';
@@ -125,9 +125,9 @@ function createWorkspace() {
   return { workspace, keymap, scopes, rootEl, rootSplit, leftSplit, rightSplit, noteEditor, leaves, otherLeaves, setCollapsed };
 }
 
-function createSettings(enabled: boolean): ClaudianSettings {
+function createSettings(enabled: boolean): ScribeSettings {
   const entry = modelCatalogCases.find(candidate => candidate.id === 'claude')!;
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as ClaudianSettings;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as ScribeSettings;
   entry.populate(settings);
   settings.enableZenMode = enabled;
   return settings;
@@ -160,7 +160,7 @@ async function createZenFixture(options: { enabled?: boolean; ready?: boolean } 
       void settingsCoordinator.mutate((draft) => { draft.zenModePosition = position; });
     },
   });
-  const settingsCoordinator: SettingsCoordinator<ClaudianSettings> = new SettingsCoordinator(
+  const settingsCoordinator: SettingsCoordinator<ScribeSettings> = new SettingsCoordinator(
     settings,
     async () => undefined,
     () => zen.reconcile(),
@@ -210,13 +210,13 @@ async function createZenFixture(options: { enabled?: boolean; ready?: boolean } 
     } as unknown as Conversation;
     conversations.push(conversation);
     const split = placement === 'left' ? layout.leftSplit : placement === 'right' ? layout.rightSplit : null;
-    const viewContainerEl = (split?.containerEl ?? layout.rootEl).createDiv({ cls: 'claudian-container' });
+    const viewContainerEl = (split?.containerEl ?? layout.rootEl).createDiv({ cls: 'scribe-container' });
     const parent = tabGroups[placement];
     const leaf: Leaf = { getRoot: () => split ?? layout.rootSplit, parent, view: null };
     parent.selected ??= leaf;
     // Obsidian hides unselected tabs of a group.
     viewContainerEl.isShown = () => parent.selected === leaf;
-    const view = createClaudianView({
+    const view = createScribeView({
       host: plugin,
       app,
       leaf,
@@ -226,8 +226,8 @@ async function createZenFixture(options: { enabled?: boolean; ready?: boolean } 
     // The view-owned footer and tab container that onOpen builds.
     view.viewContainerEl = viewContainerEl;
     view.buildViewLayout(viewContainerEl);
-    const activeInputSlotEl = viewContainerEl.querySelector<HTMLElement>('.claudian-active-input-slot')!;
-    const sideChatChipHostEl = viewContainerEl.querySelector<HTMLElement>('.claudian-side-chat-chip-slot')!;
+    const activeInputSlotEl = viewContainerEl.querySelector<HTMLElement>('.scribe-active-input-slot')!;
+    const sideChatChipHostEl = viewContainerEl.querySelector<HTMLElement>('.scribe-side-chat-chip-slot')!;
     const tab: AssembledTabRuntime = await createTabRuntime({
       plugin,
       component: Object.assign(new Component(), { registerDomEvent: () => undefined, registerEvent: () => undefined }) as never,
@@ -247,7 +247,7 @@ async function createZenFixture(options: { enabled?: boolean; ready?: boolean } 
       }
       return true;
     };
-    tab.dom.contentEl.removeClass('claudian-hidden');
+    tab.dom.contentEl.removeClass('scribe-hidden');
     cleanups.push(() => destroyTab(tab));
     view.tabManager = {
       getActiveTab: () => tab,
@@ -270,7 +270,7 @@ async function createZenFixture(options: { enabled?: boolean; ready?: boolean } 
   zen.start();
   cleanups.push(() => zen.dispose());
   const primary = await addView('right', options.ready ?? true);
-  const views = new ClaudianViews(app.workspace, () => 'right-sidebar');
+  const views = new ScribeViews(app.workspace, () => 'right-sidebar');
   const focusCommand = createChatFocusCommand(
     () => views.getInputFocusView(zen.getActiveLeaf())?.getActiveTab()?.composer ?? null,
   );
@@ -281,11 +281,11 @@ async function createZenFixture(options: { enabled?: boolean; ready?: boolean } 
 }
 
 function zenPanel(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('.claudian-zen');
+  return document.querySelector<HTMLElement>('.scribe-zen');
 }
 
 function preview(): string {
-  return zenPanel()?.querySelector('.claudian-zen-preview')?.textContent ?? '';
+  return zenPanel()?.querySelector('.scribe-zen-preview')?.textContent ?? '';
 }
 
 function seedHistory(tab: AssembledTabRuntime): void {
@@ -314,12 +314,12 @@ it('moves the existing composer and transcript into the central workspace while 
   expect(panel?.parentElement).toBe(rootEl);
   expect(panel!.contains(composer)).toBe(true);
   expect(panel!.contains(transcript)).toBe(true);
-  expect(rootEl.classList.contains('claudian-zen-host')).toBe(true);
+  expect(rootEl.classList.contains('scribe-zen-host')).toBe(true);
 
   setCollapsed(rightSplit, false);
 
   expect(zenPanel()).toBeNull();
-  expect(rootEl.classList.contains('claudian-zen-host')).toBe(false);
+  expect(rootEl.classList.contains('scribe-zen-host')).toBe(false);
   expect(composer.parentElement).toBe(activeInputSlotEl);
   expect(transcript.parentElement).toBe(tab.dom.contentEl);
   expect(tab.dom.contentEl.firstElementChild).toBe(transcript);
@@ -450,10 +450,10 @@ it.each([
   session.emitText(input);
   await waitFor(() => expect(preview()).toBe(expected));
 
-  const panel = screen.getByRole('region', { name: 'Claudian chat' });
+  const panel = screen.getByRole('region', { name: 'Scribe chat' });
   const show = within(panel).getByRole('button', { name: 'Show conversation', description: expected });
   expect(document.getElementById(show.getAttribute('aria-describedby')!)?.textContent).toBe(expected);
-  expect(await axe(panel.querySelector<HTMLElement>('.claudian-zen-bar')!)).toHaveNoViolations();
+  expect(await axe(panel.querySelector<HTMLElement>('.scribe-zen-bar')!)).toHaveNoViolations();
 });
 
 it('keeps one live turn, draft and node identity across repeated presentation changes', async () => {
@@ -492,7 +492,7 @@ it('keeps one live turn, draft and node identity across repeated presentation ch
 
 /** Text of the transcript's visible waiting indicator, or null when none is shown. */
 function waitingIndicatorText(tab: AssembledTabRuntime): string | null {
-  const indicator = tab.dom.messagesEl.querySelector('.claudian-thinking');
+  const indicator = tab.dom.messagesEl.querySelector('.scribe-thinking');
   return indicator?.firstElementChild?.textContent ?? null;
 }
 
@@ -530,7 +530,7 @@ it.each([
 
   // Empty provider output must not replace the visible waiting surface or create empty reasoning.
   expect(waitingIndicatorText(tab)).toBe(flavor);
-  expect(tab.dom.messagesEl.querySelector('.claudian-thinking-block')).toBeNull();
+  expect(tab.dom.messagesEl.querySelector('.scribe-thinking-block')).toBeNull();
   await waitFor(() => expectZenPreview(flavor));
   session.complete();
   await waitFor(() => expect(tab.state.isStreaming).toBe(false));
@@ -562,7 +562,7 @@ it('shares one status across waiting, thinking, tools, text and silent pauses, t
   session.emitText('Here is the answer.');
   await waitFor(() => expect(preview()).toBe('Here is the answer.'));
   expect(waitingIndicatorText(tab)).toBeNull();
-  expect(tab.dom.messagesEl.querySelector('.claudian-tool-call')).not.toBeNull();
+  expect(tab.dom.messagesEl.querySelector('.scribe-tool-call')).not.toBeNull();
 
   // Execution continues silently after intermediate text.
   const paused = await waitForFlavor(tab, 3_000);
@@ -575,7 +575,7 @@ it('shares one status across waiting, thinking, tools, text and silent pauses, t
   // The accessibility engine runs on real timers after the clock-dependent assertions.
   vi.useRealTimers();
   // The drawer holds the moved transcript, its navigation and the preview line.
-  expect(await axe(zenPanel()!.querySelector<HTMLElement>('.claudian-zen-drawer')!)).toHaveNoViolations();
+  expect(await axe(zenPanel()!.querySelector<HTMLElement>('.scribe-zen-drawer')!)).toHaveNoViolations();
 });
 
 it('gives a pending approval priority over the waiting status and resumes it afterwards', async () => {
@@ -719,38 +719,38 @@ it('offers no history for a new conversation until it has messages', async () =>
   const { tab, sessions, rightSplit, setCollapsed } = await createZenFixture();
   setCollapsed(rightSplit, true);
   const panel = zenPanel()!;
-  const disclosure = panel.querySelector<HTMLButtonElement>('.claudian-zen-disclosure')!;
-  const history = panel.querySelector<HTMLElement>('.claudian-zen-history')!;
+  const disclosure = panel.querySelector<HTMLButtonElement>('.scribe-zen-disclosure')!;
+  const history = panel.querySelector<HTMLElement>('.scribe-zen-history')!;
   // The whole drawer waits for the first message.
-  const drawer = panel.querySelector<HTMLElement>('.claudian-zen-drawer')!;
-  expect(drawer.classList.contains('claudian-hidden')).toBe(true);
-  expect(history.classList.contains('claudian-hidden')).toBe(true);
+  const drawer = panel.querySelector<HTMLElement>('.scribe-zen-drawer')!;
+  expect(drawer.classList.contains('scribe-hidden')).toBe(true);
+  expect(history.classList.contains('scribe-hidden')).toBe(true);
 
   const session = await sendFromZen(tab, sessions, 'First question');
-  await waitFor(() => expect(drawer.classList.contains('claudian-hidden')).toBe(false));
-  expect(disclosure.classList.contains('claudian-hidden')).toBe(false);
+  await waitFor(() => expect(drawer.classList.contains('scribe-hidden')).toBe(false));
+  expect(disclosure.classList.contains('scribe-hidden')).toBe(false);
   // The whole preview line is the disclosure control, and the drawer holds nothing else.
-  expect(disclosure.contains(panel.querySelector('.claudian-zen-preview'))).toBe(true);
-  expect(panel.querySelector('.claudian-zen-bar')!.children).toHaveLength(1);
-  fireEvent.click(panel.querySelector('.claudian-zen-preview')!);
+  expect(disclosure.contains(panel.querySelector('.scribe-zen-preview'))).toBe(true);
+  expect(panel.querySelector('.scribe-zen-bar')!.children).toHaveLength(1);
+  fireEvent.click(panel.querySelector('.scribe-zen-preview')!);
   expect(disclosure.getAttribute('aria-expanded')).toBe('true');
-  expect(history.classList.contains('claudian-hidden')).toBe(false);
-  expect(panel.classList.contains('claudian-zen--expanded')).toBe(true);
+  expect(history.classList.contains('scribe-hidden')).toBe(false);
+  expect(panel.classList.contains('scribe-zen--expanded')).toBe(true);
   session.complete();
   await waitFor(() => expect(tab.state.isStreaming).toBe(false));
 
   // A new chat hides the remembered expansion until its first message.
   tab.state.clearMessages();
-  await waitFor(() => expect(drawer.classList.contains('claudian-hidden')).toBe(true));
-  expect(history.classList.contains('claudian-hidden')).toBe(true);
+  await waitFor(() => expect(drawer.classList.contains('scribe-hidden')).toBe(true));
+  expect(history.classList.contains('scribe-hidden')).toBe(true);
   expect(disclosure.getAttribute('aria-expanded')).toBe('true');
 });
 
 it('moves the composer controls to their own row only once the typed text would reach them', async () => {
   const { tab, rightSplit, setCollapsed } = await createZenFixture();
   setCollapsed(rightSplit, true);
-  const slot = zenPanel()!.querySelector<HTMLElement>('.claudian-zen-composer')!;
-  const toolbar = tab.dom.inputWrapper.querySelector<HTMLElement>(':scope > .claudian-input-toolbar')!;
+  const slot = zenPanel()!.querySelector<HTMLElement>('.scribe-zen-composer')!;
+  const toolbar = tab.dom.inputWrapper.querySelector<HTMLElement>(':scope > .scribe-input-toolbar')!;
   expect(slot.contains(toolbar)).toBe(true);
 
   // jsdom has no layout: a 400px input row, a 180px control group, and 8px per typed character.
@@ -764,7 +764,7 @@ it('moves the composer controls to their own row only once the typed text would 
     },
   });
   cleanups.push(() => { delete (Range.prototype as Partial<Range>).getBoundingClientRect; });
-  const stacked = () => slot.classList.contains('claudian-zen-composer--stacked');
+  const stacked = () => slot.classList.contains('scribe-zen-composer--stacked');
 
   tab.dom.inputEl.value = 'Short question';
   await waitFor(() => expect(tab.dom.inputEl.textContent).toBe('Short question'));
@@ -794,7 +794,7 @@ it('moves the composer controls to their own row only once the typed text would 
   expect(stacked()).toBe(false);
   toolbarWidth = 390;
   // The chip's label is replaced the way ModelSelector.updateDisplay sets it.
-  const modelLabel = within(toolbar).getByRole('button', { name: /^Model:/ }).querySelector<HTMLElement>('.claudian-model-label')!;
+  const modelLabel = within(toolbar).getByRole('button', { name: /^Model:/ }).querySelector<HTMLElement>('.scribe-model-label')!;
   modelLabel.setText(`${modelLabel.textContent} (long alias)`);
   await waitFor(() => expect(stacked()).toBe(true));
 });
@@ -810,9 +810,9 @@ it('follows chat state while transcript rendering is suspended', async () => {
   ];
   setCollapsed(rightSplit, true);
   expect(preview()).toBe('Loaded answer');
-  const toolIcon = zenPanel()!.querySelector<HTMLElement>('.claudian-zen-preview-icon')!;
+  const toolIcon = zenPanel()!.querySelector<HTMLElement>('.scribe-zen-preview-icon')!;
   expect(toolIcon.getAttribute('aria-hidden')).toBe('true');
-  expect(toolIcon.classList.contains('claudian-hidden')).toBe(true);
+  expect(toolIcon.classList.contains('scribe-hidden')).toBe(true);
 
   tab.controllers.streamController.setViewportVisible(false);
   const session = await sendFromZen(tab, sessions, 'Check the vault');
@@ -826,7 +826,7 @@ it('follows chat state while transcript rendering is suspended', async () => {
   } as never);
   await waitFor(() => expect(preview()).toBe('Read · running'));
   // The same icon the transcript's tool renderer shows.
-  expect(toolIcon.classList.contains('claudian-hidden')).toBe(false);
+  expect(toolIcon.classList.contains('scribe-hidden')).toBe(false);
   expect(setIcon).toHaveBeenLastCalledWith(toolIcon, getToolIcon('Read'));
   session.complete();
   await waitFor(() => expect(tab.state.isStreaming).toBe(false));
@@ -921,7 +921,7 @@ it('toggles focus between the attached zen composer and the previous control wit
   expect(command.checkCallback!(true)).toBe(true);
   expect(document.activeElement).toBe(noteEditor);
   expect(command.checkCallback!(false)).toBe(true);
-  const input = within(screen.getByRole('region', { name: 'Claudian chat' })).getByRole('textbox', { name: 'Message' });
+  const input = within(screen.getByRole('region', { name: 'Scribe chat' })).getByRole('textbox', { name: 'Message' });
   expect(document.activeElement).toBe(input);
   expect(scopes).toHaveLength(1);
   expect(tab.dom.inputEl.value).toBe('Unsent draft');
@@ -957,7 +957,7 @@ it('ignores removed focus targets and retains the return target across normal an
   setCollapsed(rightSplit, true);
   noteEditor.focus();
   command.checkCallback!(false);
-  const input = within(screen.getByRole('region', { name: 'Claudian chat' })).getByRole('textbox', { name: 'Message' });
+  const input = within(screen.getByRole('region', { name: 'Scribe chat' })).getByRole('textbox', { name: 'Message' });
   noteEditor.remove();
   command.checkCallback!(false);
   expect(document.activeElement).toBe(input);
@@ -1057,7 +1057,7 @@ it('toggles history through its hotkey command while preserving focus and the ac
   setCollapsed(rightSplit, false);
   seedHistory(tab);
   setCollapsed(rightSplit, true);
-  const panel = screen.getByRole('region', { name: 'Claudian chat' });
+  const panel = screen.getByRole('region', { name: 'Scribe chat' });
   const show = within(panel).getByRole('button', { name: 'Show conversation' });
   const history = document.getElementById(show.getAttribute('aria-controls')!)!;
   tab.dom.inputEl.value = 'Unsent draft';
@@ -1065,16 +1065,16 @@ it('toggles history through its hotkey command while preserving focus and the ac
   expect(command.checkCallback!(true)).toBe(true);
   expect(show.getAttribute('aria-expanded')).toBe('false');
   expect(command.checkCallback!(false)).toBe(true);
-  expect(history.classList.contains('claudian-hidden')).toBe(false);
+  expect(history.classList.contains('scribe-hidden')).toBe(false);
   expect(document.activeElement).toBe(noteEditor);
 
   focusCommand.checkCallback!(false);
   const input = within(panel).getByRole('textbox', { name: 'Message' });
   expect(command.checkCallback!(false)).toBe(true);
-  expect(history.classList.contains('claudian-hidden')).toBe(true);
+  expect(history.classList.contains('scribe-hidden')).toBe(true);
   expect(document.activeElement).toBe(input);
   expect(command.checkCallback!(false)).toBe(true);
-  expect(history.classList.contains('claudian-hidden')).toBe(false);
+  expect(history.classList.contains('scribe-hidden')).toBe(false);
   history.focus();
   expect(command.checkCallback!(false)).toBe(true);
   expect(document.activeElement).toBe(show);
@@ -1096,18 +1096,18 @@ it('discloses the existing transcript accessibly and remembers the choice for th
   const show = within(panel).getByRole('button', { name: 'Show conversation' });
   const history = document.getElementById(show.getAttribute('aria-controls')!)!;
   expect(show.getAttribute('aria-expanded')).toBe('false');
-  expect(history.classList.contains('claudian-hidden')).toBe(true);
+  expect(history.classList.contains('scribe-hidden')).toBe(true);
   expect(history.contains(tab.dom.messagesWrapperEl)).toBe(true);
-  expect(screen.getByRole('region', { name: 'Claudian chat' })).toBe(panel);
+  expect(screen.getByRole('region', { name: 'Scribe chat' })).toBe(panel);
 
   // Moved chat nodes keep their own coverage; this checks the zen chrome.
-  expect(await axe(panel.querySelector<HTMLElement>('.claudian-zen-bar')!)).toHaveNoViolations();
+  expect(await axe(panel.querySelector<HTMLElement>('.scribe-zen-bar')!)).toHaveNoViolations();
 
   show.focus();
   expect(scopes).toHaveLength(1);
   fireEvent.click(show);
   expect(show.getAttribute('aria-expanded')).toBe('true');
-  expect(history.classList.contains('claudian-hidden')).toBe(false);
+  expect(history.classList.contains('scribe-hidden')).toBe(false);
   expect(document.activeElement).toBe(history);
   expect(scopes).toHaveLength(1);
   expect(tab.controllers.sideChatController.destination).toBe('main');
@@ -1115,7 +1115,7 @@ it('discloses the existing transcript accessibly and remembers the choice for th
   setCollapsed(rightSplit, false);
   noteEditor.focus();
   setCollapsed(rightSplit, true);
-  const reopened = zenPanel()!.querySelector('.claudian-zen-disclosure')!;
+  const reopened = zenPanel()!.querySelector('.scribe-zen-disclosure')!;
   expect(reopened.getAttribute('aria-expanded')).toBe('true');
   expect(document.activeElement).toBe(noteEditor);
   expect(scopes).toHaveLength(0);
@@ -1142,7 +1142,7 @@ it('collapses the expanded transcript on a click or focus move elsewhere in Obsi
 
   fireEvent.pointerDown(noteEditor);
   expect(hide.getAttribute('aria-expanded')).toBe('false');
-  expect(history.classList.contains('claudian-hidden')).toBe(true);
+  expect(history.classList.contains('scribe-hidden')).toBe(true);
 
   // A collapsed transcript ignores outside clicks entirely.
   fireEvent.pointerDown(noteEditor);
@@ -1151,7 +1151,7 @@ it('collapses the expanded transcript on a click or focus move elsewhere in Obsi
   // Keyboard users leave the same way: focus moving from zen into the note collapses it.
   fireEvent.click(hide);
   const inputEl = tab.dom.inputEl as unknown as HTMLElement;
-  fireEvent.focusOut(inputEl, { relatedTarget: panel.querySelector('.claudian-zen-disclosure') });
+  fireEvent.focusOut(inputEl, { relatedTarget: panel.querySelector('.scribe-zen-disclosure') });
   expect(hide.getAttribute('aria-expanded')).toBe('true');
   fireEvent.focusOut(inputEl, { relatedTarget: null });
   expect(hide.getAttribute('aria-expanded')).toBe('true');
@@ -1196,14 +1196,14 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   let panelHeight = 100;
   let drawerHeight = 0;
   const stubPanel = (panel: HTMLElement) => {
-    const composerBottom = () => 800 - Number.parseFloat(panel.style.getPropertyValue('--claudian-zen-offset-y') || '0');
+    const composerBottom = () => 800 - Number.parseFloat(panel.style.getPropertyValue('--scribe-zen-offset-y') || '0');
     vi.spyOn(panel, 'getBoundingClientRect').mockImplementation(() => ({
       left: 200, right: 800, top: composerBottom() + 8 - panelHeight, bottom: composerBottom() + 8,
       width: 600, height: panelHeight,
     } as DOMRect));
-    vi.spyOn(panel.querySelector<HTMLElement>('.claudian-zen-composer')!, 'getBoundingClientRect')
+    vi.spyOn(panel.querySelector<HTMLElement>('.scribe-zen-composer')!, 'getBoundingClientRect')
       .mockImplementation(() => ({ left: 208, right: 792, top: composerBottom() - 60, bottom: composerBottom() } as DOMRect));
-    vi.spyOn(panel.querySelector<HTMLElement>('.claudian-zen-drawer')!, 'getBoundingClientRect')
+    vi.spyOn(panel.querySelector<HTMLElement>('.scribe-zen-drawer')!, 'getBoundingClientRect')
       .mockImplementation(() => ({
         left: 237, right: 763, top: composerBottom() - 60 - drawerHeight, bottom: composerBottom() - 60,
         height: drawerHeight,
@@ -1211,15 +1211,15 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   };
   // Corner points of the hint outline, relative to the panel box; zen styles add no gap or radii here.
   const outlinePoints = () => {
-    const d = rootEl.querySelector('.claudian-zen-dock-hint-outline')?.getAttribute('d') ?? '';
+    const d = rootEl.querySelector('.scribe-zen-dock-hint-outline')?.getAttribute('d') ?? '';
     return (d.match(/[MLA][^MLAZ]*/g) ?? []).map((command) => {
       const values = command.slice(1).trim().split(/[\s,]+/).map(Number);
       return values.slice(-2);
     });
   };
   const offset = (panel: HTMLElement) => [
-    panel.style.getPropertyValue('--claudian-zen-offset-x'),
-    panel.style.getPropertyValue('--claudian-zen-offset-y'),
+    panel.style.getPropertyValue('--scribe-zen-offset-x'),
+    panel.style.getPropertyValue('--scribe-zen-offset-y'),
   ];
   const savedPosition = () => settingsCoordinator.getCommittedSettings().zenModePosition;
   const drag = (grip: HTMLElement, from: [number, number], to: [number, number]) => {
@@ -1240,12 +1240,12 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   drag(grip, [500, 700], [100, 400]);
   expect(offset(panel)).toEqual(['-200px', '300px']);
   await waitFor(() => expect(savedPosition()).toEqual({ x: -0.2, y: 0.375 }));
-  expect(panel.classList.contains('claudian-zen--opens-below')).toBe(false);
+  expect(panel.classList.contains('scribe-zen--opens-below')).toBe(false);
 
   // Near the top, composer menus open downward instead of past the workspace edge.
   drag(grip, [0, 0], [0, -500]);
   expect(offset(panel)).toEqual(['-200px', '700px']);
-  expect(panel.classList.contains('claudian-zen--opens-below')).toBe(true);
+  expect(panel.classList.contains('scribe-zen--opens-below')).toBe(true);
   await waitFor(() => expect(savedPosition()).toEqual({ x: -0.2, y: 0.875 }));
 
   // A taller panel slides down to stay inside the workspace, then returns to the remembered spot.
@@ -1267,7 +1267,7 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
 
   // While dragging, a hint marks the dock and lights up once the panel is close enough to snap.
   const reopenedGrip = within(panel).getByRole('button', { name: 'Move chat panel' });
-  const hint = () => rootEl.querySelector<HTMLElement>('.claudian-zen-dock-hint');
+  const hint = () => rootEl.querySelector<HTMLElement>('.scribe-zen-dock-hint');
   expect(hint()).toBeNull();
   fireEvent.pointerDown(reopenedGrip, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
   fireEvent.pointerMove(document, { pointerId: 1, clientX: 100, clientY: 300 });
@@ -1275,17 +1275,17 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   expect([hint()!.style.width, hint()!.style.height]).toEqual(['600px', '100px']);
   // Without a drawer, the outline is the composer alone.
   expect(Math.min(...outlinePoints().map(([, y]) => y))).toBe(32);
-  expect(hint()!.classList.contains('claudian-zen-dock-hint--active')).toBe(false);
-  expect(panel.classList.contains('claudian-zen--snapped')).toBe(false);
+  expect(hint()!.classList.contains('scribe-zen-dock-hint--active')).toBe(false);
+  expect(panel.classList.contains('scribe-zen--snapped')).toBe(false);
 
   // Released close to its dock, the panel snaps into it and forgets the free position.
   fireEvent.pointerMove(document, { pointerId: 1, clientX: 190, clientY: 690 });
   expect(offset(panel)).toEqual(['0px', '0px']);
-  expect(hint()!.classList.contains('claudian-zen-dock-hint--active')).toBe(true);
-  expect(panel.classList.contains('claudian-zen--snapped')).toBe(true);
+  expect(hint()!.classList.contains('scribe-zen-dock-hint--active')).toBe(true);
+  expect(panel.classList.contains('scribe-zen--snapped')).toBe(true);
   fireEvent.pointerUp(document, { pointerId: 1, clientX: 190, clientY: 690 });
   expect(hint()).toBeNull();
-  expect(panel.classList.contains('claudian-zen--snapped')).toBe(false);
+  expect(panel.classList.contains('scribe-zen--snapped')).toBe(false);
   expect(offset(panel)).toEqual(['0px', '0px']);
   await waitFor(() => expect(savedPosition()).toBeNull());
 
@@ -1303,7 +1303,7 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   panelHeight = 400;
   drag(reopenedGrip, [0, 0], [0, -250]);
   expect(offset(panel)).toEqual(['0px', '250px']);
-  expect(panel.classList.contains('claudian-zen--opens-below')).toBe(false);
+  expect(panel.classList.contains('scribe-zen--opens-below')).toBe(false);
 
   // Growth during a drag is rechecked on release, so the panel never stays past the top edge.
   panelHeight = 100;
@@ -1328,7 +1328,7 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   expect(points).toEqual(expect.arrayContaining([[37, 32], [563, 32], [8, 92], [592, 92]]));
   // The drawer can grow while a shrinking composer keeps the root's total height unchanged.
   drawerHeight = 32;
-  resize(panel.querySelector('.claudian-zen-drawer')!);
+  resize(panel.querySelector('.scribe-zen-drawer')!);
   expect(Math.min(...outlinePoints().map(([, y]) => y))).toBe(0);
   fireEvent.pointerUp(document, { pointerId: 1, clientX: 0, clientY: 0 });
 
@@ -1346,7 +1346,7 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   workspace.trigger('layout-change');
   fireEvent.keyDown(reopenedGrip, { key: 'Home' });
   expect(offset(panel)).toEqual(['0px', '30px']);
-  expect(panel.style.getPropertyValue('--claudian-zen-bottom-clearance')).toBe('30px');
+  expect(panel.style.getPropertyValue('--scribe-zen-bottom-clearance')).toBe('30px');
   await waitFor(() => expect(savedPosition()).toBeNull());
   fireEvent.keyDown(reopenedGrip, { key: 'ArrowDown', shiftKey: true });
   expect(offset(panel)).toEqual(['0px', '30px']);
@@ -1359,7 +1359,7 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   expect(hint()!.style.bottom).toBe('30px');
   fireEvent.pointerMove(document, { pointerId: 2, clientX: 10, clientY: -10 });
   expect(offset(panel)).toEqual(['0px', '30px']);
-  expect(hint()!.classList.contains('claudian-zen-dock-hint--active')).toBe(true);
+  expect(hint()!.classList.contains('scribe-zen-dock-hint--active')).toBe(true);
   fireEvent.pointerUp(document, { pointerId: 2 });
   await waitFor(() => expect(savedPosition()).toBeNull());
 
@@ -1390,13 +1390,13 @@ it('moves the panel by its grip, docks it magnetically, and remembers where it w
   statusBottom = statusHeight;
   workspace.trigger('css-change');
   expect(offset(panel)).toEqual(['-200px', '0px']);
-  expect(panel.style.getPropertyValue('--claudian-zen-bottom-clearance')).toBe('0px');
+  expect(panel.style.getPropertyValue('--scribe-zen-bottom-clearance')).toBe('0px');
   // A full-height side strip also must not collapse the panel's available height.
   statusHeight = 800;
   statusBottom = 800;
   workspace.trigger('css-change');
   expect(offset(panel)).toEqual(['-200px', '0px']);
-  expect(panel.style.getPropertyValue('--claudian-zen-bottom-clearance')).toBe('0px');
+  expect(panel.style.getPropertyValue('--scribe-zen-bottom-clearance')).toBe('0px');
   statusBar.remove();
   workspace.trigger('layout-change');
   expect(offset(panel)).toEqual(['-200px', '0px']);
@@ -1422,8 +1422,8 @@ it('keeps the preview line on the main chat while a side chat is selected', asyn
   expect(sideChat.destination).toBe('side');
   // Releasing the submit key is what lets zen notice the new destination.
   fireEvent.keyUp(tab.dom.inputEl as unknown as HTMLElement, { key: 'Enter' });
-  const sidePanel = panel.querySelector('.claudian-side-chat-panel')!;
-  expect(sidePanel.classList.contains('claudian-hidden')).toBe(false);
+  const sidePanel = panel.querySelector('.scribe-side-chat-panel')!;
+  expect(sidePanel.classList.contains('scribe-hidden')).toBe(false);
   expect(within(sidePanel as HTMLElement).getByRole('heading')).toBeDefined();
 
   // Side activity stays in the side panel; the drawer never switches to it.
@@ -1431,7 +1431,7 @@ it('keeps the preview line on the main chat while a side chat is selected', asyn
   await waitFor(() => expect(sideChat.runtime!.state.currentTextContent).toContain('Side progress'));
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   expect(preview()).toBe(mainPreview);
-  expect(panel.querySelector('.claudian-zen-destination')).toBeNull();
+  expect(panel.querySelector('.scribe-zen-destination')).toBeNull();
 
   const disclosure = within(panel).getByRole('button', { name: 'Show conversation' });
   fireEvent.click(disclosure);
@@ -1447,9 +1447,9 @@ it('keeps the preview line on the main chat while a side chat is selected', asyn
 
   // Collapsed, the side chip sits below the composer rather than between it and the drawer.
   sideChat.collapse();
-  const chip = panel.querySelector('.claudian-side-chat')!;
-  expect(chip.parentElement!.classList.contains('claudian-zen-side-chat-chip-slot')).toBe(true);
-  expect(panel.querySelector('.claudian-zen-composer')!.nextElementSibling).toBe(chip.parentElement);
+  const chip = panel.querySelector('.scribe-side-chat')!;
+  expect(chip.parentElement!.classList.contains('scribe-zen-side-chat-chip-slot')).toBe(true);
+  expect(panel.querySelector('.scribe-zen-composer')!.nextElementSibling).toBe(chip.parentElement);
 
   setCollapsed(rightSplit, false);
   expect(chip.parentElement).toBe(sideChatChipHostEl);
@@ -1526,7 +1526,7 @@ it('presents one source across multiple views and hands over when it reopens', a
   fixture.setCollapsed(fixture.rightSplit, true);
   fixture.setCollapsed(fixture.leftSplit, true);
 
-  expect(document.querySelectorAll('.claudian-zen')).toHaveLength(1);
+  expect(document.querySelectorAll('.scribe-zen')).toHaveLength(1);
   expect(zenPanel()!.contains(fixture.tab.dom.inputComposerEl)).toBe(true);
   expect(zenPanel()!.contains(left.tab.dom.messagesWrapperEl)).toBe(false);
 
@@ -1685,7 +1685,7 @@ it('releases every moved node and subscription on close and disposal', async () 
 
   view.stopZenModeSource();
   expect(zenPanel()).toBeNull();
-  expect(rootEl.classList.contains('claudian-zen-host')).toBe(false);
+  expect(rootEl.classList.contains('scribe-zen-host')).toBe(false);
   expect(tab.dom.inputComposerEl.parentElement).toBe(fixture.activeInputSlotEl);
   expect(tab.dom.contentEl.firstElementChild).toBe(tab.dom.messagesWrapperEl);
 
@@ -1695,7 +1695,7 @@ it('releases every moved node and subscription on close and disposal', async () 
   expect(zenPanel()).toBeNull();
   view.sessions.dispose();
   expect(workspace.listenerCount()).toBe(0);
-  expect(screen.queryByRole('region', { name: 'Claudian chat' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Scribe chat' })).toBeNull();
 });
 
 it('announces the current error when the same zen panel binds another failed session', async () => {
@@ -1734,7 +1734,7 @@ it('announces the current error when the same zen panel binds another failed ses
   }
 });
 
-it('keeps Open Claudian on the active chat view before applying an explicit destination', async () => {
+it('keeps Open Scribe on the active chat view before applying an explicit destination', async () => {
   const fixture = await createZenFixture();
   const second = await fixture.addView('main');
   fixture.tab.controllers.drafts.restore('main', { content: 'First session draft' });

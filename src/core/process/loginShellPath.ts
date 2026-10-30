@@ -6,7 +6,7 @@ import { setLoginShellPathEntries } from './env';
 import { runProcessProbe } from './ProcessProbe';
 
 const LOGIN_SHELL_TIMEOUT_MS = 10_000;
-const PATH_MARKER = '__CLAUDIAN_LOGIN_PATH__';
+const PATH_MARKER = '__SCRIBE_LOGIN_PATH__';
 
 let resolution: Promise<void> | null = null;
 
@@ -29,7 +29,7 @@ async function readLoginShellPath(): Promise<string[]> {
     args: ['-i', '-l', '-c', script],
     command: shell,
     cwd: os.homedir(),
-    env: { ...process.env, CLAUDIAN_RESOLVING_ENVIRONMENT: '1' },
+    env: { ...process.env, SCRIBE_RESOLVING_ENVIRONMENT: '1' },
     killProcessTree: true,
   }, LOGIN_SHELL_TIMEOUT_MS);
   const value = output?.split(PATH_MARKER)[1];

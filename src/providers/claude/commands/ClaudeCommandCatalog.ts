@@ -10,7 +10,7 @@ import type { SlashCommand } from '../../../core/types';
 
 function slashCommandToEntry(cmd: SlashCommand): ProviderCommandEntry {
   const skill = isSkill(cmd);
-  // Claude Code owns every command it reports; only Claudian-authored vault commands are editable.
+  // Claude Code owns every command it reports; only Scribe-authored vault commands are editable.
   const native = cmd.source === 'sdk' || cmd.source === 'builtin';
   return {
     id: cmd.id,
@@ -36,7 +36,7 @@ function slashCommandToEntry(cmd: SlashCommand): ProviderCommandEntry {
   };
 }
 
-// SDK built-in skills that have no meaning inside Claudian
+// SDK built-in skills that have no meaning inside Scribe
 const BUILTIN_HIDDEN_COMMANDS = new Set([
   'context', 'cost', 'debug', 'extra-usage', 'heapdump', 'init',
   'insights', 'loop', 'schedule', 'security-review', 'simplify', 'update-config',

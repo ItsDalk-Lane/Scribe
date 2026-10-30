@@ -67,7 +67,7 @@ describe('TabBar', () => {
       badge.dispatchEvent('dblclick', event);
 
       expect(badge.textContent).toBe('My Conversation');
-      expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(true);
+      expect(badge.hasClass('scribe-tab-badge-expanded')).toBe(true);
       expect(badge.getAttribute('data-title-expanded')).toBe('true');
       expect(event.preventDefault).toHaveBeenCalled();
       expect(event.stopPropagation).toHaveBeenCalled();
@@ -77,7 +77,7 @@ describe('TabBar', () => {
       badge.dispatchEvent('dblclick', { preventDefault: vi.fn(), stopPropagation: vi.fn() });
 
       expect(badge.textContent).toBe('5');
-      expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(false);
+      expect(badge.hasClass('scribe-tab-badge-expanded')).toBe(false);
       expect(badge.getAttribute('data-title-expanded')).toBe('false');
       expect(callbacks.onDisplayStateChanged).toHaveBeenCalledTimes(2);
       expect(tabBar.getExpandedTitleTabIds()).toEqual([]);
@@ -125,7 +125,7 @@ describe('TabBar', () => {
       tabBar.update([createTabBarItem({ id: 'tab-1', index: 1, title: 'Renamed Title' })]);
 
       expect(containerEl._children[0].textContent).toBe('Renamed Title');
-      expect(containerEl._children[0].hasClass('claudian-tab-badge-expanded')).toBe(true);
+      expect(containerEl._children[0].hasClass('scribe-tab-badge-expanded')).toBe(true);
     });
 
     it('should preserve horizontal scroll position across tab bar updates', () => {
@@ -180,7 +180,7 @@ describe('TabBar', () => {
 
       tabBar.update([createTabBarItem({ isActive: true })]);
 
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-active')).toBe(true);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-active')).toBe(true);
     });
 
     it('should prioritize active over attention states', () => {
@@ -193,8 +193,8 @@ describe('TabBar', () => {
         attention: { kind: 'action-required', since: 1 },
       })]);
 
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-active')).toBe(true);
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-action-required')).toBe(false);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-active')).toBe(true);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-action-required')).toBe(false);
     });
 
     it('should prioritize action-required attention over ongoing work', () => {
@@ -207,8 +207,8 @@ describe('TabBar', () => {
         attention: { kind: 'action-required', since: 1 },
       })]);
 
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-action-required')).toBe(true);
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-streaming')).toBe(false);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-action-required')).toBe(true);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-streaming')).toBe(false);
     });
 
     it.each(['completed', 'error'] as const)(
@@ -223,9 +223,9 @@ describe('TabBar', () => {
           attention: { kind: 'review', outcome, since: 1 },
         })]);
 
-        expect(containerEl._children[0]._classList.has('claudian-tab-badge-streaming')).toBe(true);
-        expect(containerEl._children[0]._classList.has('claudian-tab-badge-review')).toBe(false);
-        expect(containerEl._children[0]._classList.has('claudian-tab-badge-review-error')).toBe(false);
+        expect(containerEl._children[0]._classList.has('scribe-tab-badge-streaming')).toBe(true);
+        expect(containerEl._children[0]._classList.has('scribe-tab-badge-review')).toBe(false);
+        expect(containerEl._children[0]._classList.has('scribe-tab-badge-review-error')).toBe(false);
       },
     );
 
@@ -236,16 +236,16 @@ describe('TabBar', () => {
 
       tabBar.update([createTabBarItem({ isActive: true, isWorking: true })]);
 
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-active')).toBe(true);
-      expect(containerEl._children[0]._classList.has('claudian-tab-badge-streaming')).toBe(false);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-active')).toBe(true);
+      expect(containerEl._children[0]._classList.has('scribe-tab-badge-streaming')).toBe(false);
     });
 
     it.each([
-      [createTabBarItem(), 'idle', 'claudian-tab-badge-idle', []],
-      [createTabBarItem({ isWorking: true }), 'working', 'claudian-tab-badge-streaming', []],
-      [createTabBarItem({ attention: { kind: 'review', outcome: 'completed', since: 1 } }), 'finished, ready to review', 'claudian-tab-badge-review', ['claudian-tab-badge-action-required']],
-      [createTabBarItem({ attention: { kind: 'review', outcome: 'error', since: 1 } }), 'stopped with an error, ready to review', 'claudian-tab-badge-review-error', ['claudian-tab-badge-review']],
-      [createTabBarItem({ attention: { kind: 'action-required', since: 1 } }), 'needs your input', 'claudian-tab-badge-action-required', ['claudian-tab-badge-review']],
+      [createTabBarItem(), 'idle', 'scribe-tab-badge-idle', []],
+      [createTabBarItem({ isWorking: true }), 'working', 'scribe-tab-badge-streaming', []],
+      [createTabBarItem({ attention: { kind: 'review', outcome: 'completed', since: 1 } }), 'finished, ready to review', 'scribe-tab-badge-review', ['scribe-tab-badge-action-required']],
+      [createTabBarItem({ attention: { kind: 'review', outcome: 'error', since: 1 } }), 'stopped with an error, ready to review', 'scribe-tab-badge-review-error', ['scribe-tab-badge-review']],
+      [createTabBarItem({ attention: { kind: 'action-required', since: 1 } }), 'needs your input', 'scribe-tab-badge-action-required', ['scribe-tab-badge-review']],
     ] as const)('should expose the color state in the accessible label', (item, status, expectedClass, forbiddenClasses) => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();

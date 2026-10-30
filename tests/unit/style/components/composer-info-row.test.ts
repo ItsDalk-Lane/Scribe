@@ -12,7 +12,7 @@ describe('Composer info row styles', () => {
     // jsdom does not compute custom properties, so check the inherited declaration on the chip root.
     const declared = Array.from(style.sheet!.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
-      .filter(rule => rule.selectorText === '.claudian-input-info-linked')
+      .filter(rule => rule.selectorText === '.scribe-input-info-linked')
       .map(rule => rule.style.getPropertyValue('--no-tooltip').trim())
       .filter(Boolean);
     expect(declared).toEqual(['true']);

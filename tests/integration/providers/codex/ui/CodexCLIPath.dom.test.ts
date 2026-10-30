@@ -67,7 +67,7 @@ it('preserves spaces typed into the real Codex WSL CLI path until the final comm
     await waitFor(() => expect(getCodexProviderSettings(settings).cliPathsByHost['host-a']).toBe(path));
     expect(getCodexProviderSettings(JSON.parse(saved)).cliPathsByHost['host-a']).toBe(path);
     expect(input.value).toBe(path);
-    expect((await axe(input.closest('.claudian-cli-installation')!)).violations).toEqual([]);
+    expect((await axe(input.closest('.scribe-cli-installation')!)).violations).toEqual([]);
   } finally {
     Object.defineProperty(process, 'platform', platform);
     container.remove();

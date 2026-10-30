@@ -268,7 +268,7 @@ it.each([true, false])('settles an active-turn answer without consuming the draf
   expect(fixture.state.isStreaming).toBe(true);
   expect(fixture.coordinator.cancel).not.toHaveBeenCalled();
   expect(fixture.input.value).toBe('Keep this draft');
-  expect(composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(composer.classList.contains('scribe-hidden')).toBe(false);
 });
 
 function createSurface() {
@@ -295,7 +295,7 @@ function createSurface() {
   const delivery = vi.spyOn(input, 'answerQuestion').mockResolvedValue(undefined);
   const response: ChatMessage = { id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [] };
   state.addMessage(response);
-  state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
   const ask = async (id = 'ask') => {
     await stream.handleStreamChunk({ type: 'tool_use', id, name: 'AskUserQuestion', input: {
       replyMode: 'user-message', questions: [{ id: '0', question: 'Which check?', options: [{ label: 'History' }] }],
@@ -321,7 +321,7 @@ it('renders the own question-text answer in the live review when the id entry is
   tool.resolvedAnswers = JSON.parse('{"Color?":"Blue","1":"History"}');
   h.renderer.updateQuestionTool(tool);
 
-  const reviewTexts = Array.from(h.messages.querySelectorAll('.claudian-ask-review-a-text'), el => el.textContent);
+  const reviewTexts = Array.from(h.messages.querySelectorAll('.scribe-ask-review-a-text'), el => el.textContent);
   expect(reviewTexts).toEqual(['Blue', 'History']);
 });
 
@@ -341,8 +341,8 @@ it('keeps a partial user-message batch on the visible prompt', async () => {
   h.renderer.updateQuestionTool(tool);
 
   expect(within(h.messages).queryByText('Answer in the question panel below.')).not.toBeNull();
-  expect(h.messages.querySelectorAll('.claudian-ask-review-a-text')).toHaveLength(0);
-  expect(Array.from(h.messages.querySelectorAll('.claudian-ask-item-label'), el => el.textContent))
+  expect(h.messages.querySelectorAll('.scribe-ask-review-a-text')).toHaveLength(0);
+  expect(Array.from(h.messages.querySelectorAll('.scribe-ask-item-label'), el => el.textContent))
     .toEqual(expect.arrayContaining(['Blue', 'History']));
 });
 
@@ -351,7 +351,7 @@ it('replaces the composer immediately and stays visible when the response histor
   await h.ask();
   const question = within(h.composerHost).getByRole('region', { name: 'Question' });
   expect(within(h.messages).queryByRole('region', { name: 'Question' })).toBeNull();
-  expect(h.composer.classList.contains('claudian-hidden')).toBe(true);
+  expect(h.composer.classList.contains('scribe-hidden')).toBe(true);
   expect(h.state.requiresAction).toBe(true);
   h.response.durationSeconds = 18;
   await h.stream.handleStreamChunk({ type: 'text', content: 'Please choose a check.' }, h.response);
@@ -363,11 +363,11 @@ it('replaces the composer immediately and stays visible when the response histor
   h.delivery.mockReturnValue(new Promise(resolve => { accepted = resolve; }));
   fireEvent.click(within(question).getByRole('button', { name: 'History' }));
   fireEvent.click(within(question).getByRole('button', { name: 'Submit answers' }));
-  expect(h.composer.classList.contains('claudian-hidden')).toBe(true);
+  expect(h.composer.classList.contains('scribe-hidden')).toBe(true);
   expect(h.delivery).toHaveBeenCalledWith(h.response.toolCalls![0], { '0': 'History' }, 'conversation', expect.any(AbortSignal));
   accepted();
   await waitFor(() => expect(within(h.composerHost).queryByRole('region', { name: 'Question' })).toBeNull());
-  expect(h.composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(h.composer.classList.contains('scribe-hidden')).toBe(false);
   await waitFor(() => expect(h.state.requiresAction).toBe(false));
   expect(h.draft.value).toBe('Unsent draft');
   fireEvent.click(within(h.messages).getByRole('button', { name: 'Worked for 00:18' }));
@@ -383,7 +383,7 @@ it.each(['error', 'blocked'] as const)('expires a %s question and restores the c
     ...(status === 'error' ? { isError: true } : { isBlocked: true }),
   }, h.response);
   expect(within(h.composerHost).queryByRole('region', { name: 'Question' })).toBeNull();
-  expect(h.composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(h.composer.classList.contains('scribe-hidden')).toBe(false);
   await waitFor(() => expect(h.state.requiresAction).toBe(false));
   expect(h.draft.value).toBe('Unsent draft');
   expect(h.delivery).not.toHaveBeenCalled();
@@ -401,7 +401,7 @@ it('expires pending delivery on conversation teardown without affecting the next
   fireEvent.click(within(question).getByRole('button', { name: 'Submit answers' }));
   const old = h.response.toolCalls![0];
   h.input.dismissPendingApproval();
-  expect(h.composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(h.composer.classList.contains('scribe-hidden')).toBe(false);
   const next = { ...old, questionStatus: undefined, status: 'running' as const };
   h.input.updateAsyncQuestion(next);
   accepted();
@@ -409,6 +409,6 @@ it('expires pending delivery on conversation teardown without affecting the next
   await Promise.resolve();
   expect(old.resolvedAnswers).toBeUndefined();
   expect(within(h.composerHost).getByRole('region', { name: 'Question' })).toBeDefined();
-  expect(h.composer.classList.contains('claudian-hidden')).toBe(true);
+  expect(h.composer.classList.contains('scribe-hidden')).toBe(true);
   expect(h.state.requiresAction).toBe(true);
 });

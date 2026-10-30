@@ -1,5 +1,6 @@
 import type { ChatState } from '@/features/chat/state/ChatState';
 import { FLAVOR_TEXTS } from '@/features/chat/turns/flavorTexts';
+import { getLocale, t } from '@/i18n/i18n';
 import { formatDurationMmSs } from '@/utils/date';
 
 export interface ThinkingIndicatorDeps {
@@ -136,14 +137,16 @@ export class ThinkingIndicator {
       this.#blockedGeneration = null;
 
       const cls = overrideCls
-        ? `claudian-thinking ${overrideCls}`
-        : 'claudian-thinking';
+        ? `scribe-thinking ${overrideCls}`
+        : 'scribe-thinking';
       state.thinkingEl = state.currentContentEl.createDiv({ cls });
-      const text = overrideText || FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
+      const text = overrideText || (getLocale() === 'en'
+        ? FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)]
+        : t('chat.zen.thinking'));
       state.thinkingEl.createSpan({ text });
       state.waitingStatus = text;
 
-      const timerSpan = state.thinkingEl.createSpan({ cls: 'claudian-thinking-hint' });
+      const timerSpan = state.thinkingEl.createSpan({ cls: 'scribe-thinking-hint' });
       const updateTimer = () => {
         if (!state.responseStartTime) return;
         // A disconnected span means the indicator was replaced; stop its orphaned interval.
@@ -154,7 +157,7 @@ export class ThinkingIndicator {
           return;
         }
         const elapsedSeconds = Math.floor((performance.now() - state.responseStartTime) / 1000);
-        timerSpan.setText(` (esc to interrupt · ${formatDurationMmSs(elapsedSeconds)})`);
+        timerSpan.setText(t('chat.thinking.waitHint', { duration: formatDurationMmSs(elapsedSeconds) }));
       };
       updateTimer();
 

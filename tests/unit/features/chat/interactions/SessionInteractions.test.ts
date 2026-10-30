@@ -19,7 +19,7 @@ describe('SessionInteractions approval details', () => {
       {},
       'A long command description',
     );
-    const descriptionEl = parentEl.querySelector('.claudian-ask-approval-desc');
+    const descriptionEl = parentEl.querySelector('.scribe-ask-approval-desc');
 
     expect(descriptionEl?.getAttribute('tabindex')).toBe('0');
     expect(descriptionEl?.getAttribute('role')).toBe('region');

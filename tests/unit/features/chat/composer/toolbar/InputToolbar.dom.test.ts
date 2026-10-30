@@ -25,7 +25,7 @@ HTMLElement.prototype.toggleClass = function (classes, value) {
 
 // The visibility utility from styles, so role queries skip controls the toolbar hides.
 const hiddenStyle = document.head.appendChild(document.createElement('style'));
-hiddenStyle.textContent = '.claudian-hidden { display: none; }';
+hiddenStyle.textContent = '.scribe-hidden { display: none; }';
 
 const EFFORT_OPTIONS = [
   { value: 'low', label: 'Low' },
@@ -98,7 +98,7 @@ function renderToolbar(fixture: FixtureOptions = {}) {
     getCapabilities: () => ({ reasoningControl: fixture.reasoningControl ?? 'effort' }),
   } as unknown as ToolbarCallbacks & Record<string, Mock>;
   const host = document.body.createDiv();
-  const toolbarEl = host.createDiv({ cls: 'claudian-input-toolbar' });
+  const toolbarEl = host.createDiv({ cls: 'scribe-input-toolbar' });
   const outsideEl = host.createEl('button', { text: 'Outside', attr: { type: 'button' } });
   const toolbar = createInputToolbar(toolbarEl, callbacks);
   const ui = within(toolbarEl);
@@ -141,7 +141,7 @@ describe('model button', () => {
     const effort = within(dialog).getByRole('listbox', { name: 'Thinking' });
     const levels = within(effort).getAllByRole('option');
     expect(levels.map(level => [
-      level.querySelector('.claudian-toolbar-popover-option-label')?.textContent,
+      level.querySelector('.scribe-toolbar-popover-option-label')?.textContent,
       level.getAttribute('aria-selected'),
       level.tabIndex,
     ])).toEqual([['Max', 'false', -1], ['High', 'true', 0], ['Med', 'false', -1], ['Low', 'false', -1]]);
@@ -282,7 +282,7 @@ describe('model button', () => {
     await flush();
     expect(callbacks.onEffortLevelChange).toHaveBeenCalledWith('low');
     expect(button.getAttribute('aria-label')).toBe('Model: Sonnet, effort Low');
-    expect(button.querySelector('.claudian-thinking-current')?.textContent).toBe('Low');
+    expect(button.querySelector('.scribe-thinking-current')?.textContent).toBe('Low');
     const chosen = within(ui.getByRole('listbox', { name: 'Thinking' })).getByRole('option', { name: 'Low', selected: true });
     expect(document.activeElement).toBe(chosen);
     expect(chosen.tabIndex).toBe(0);
@@ -338,7 +338,7 @@ describe('model button', () => {
   it('shows fast mode on the button and switches it from the model menu', async () => {
     const { callbacks, toolbar, ui, settings } = renderToolbar({ serviceTier: true });
     const button = ui.getByRole('button', { name: 'Model: Sonnet, effort High' });
-    expect(button.querySelector('.claudian-service-tier-indicator')?.classList.contains('claudian-hidden')).toBe(true);
+    expect(button.querySelector('.scribe-service-tier-indicator')?.classList.contains('scribe-hidden')).toBe(true);
     fireEvent.click(button);
     const fastMode = ui.getByRole('switch', { name: 'Fast' });
     expect(fastMode.getAttribute('aria-checked')).toBe('false');
@@ -348,7 +348,7 @@ describe('model button', () => {
     expect(callbacks.onServiceTierChange).toHaveBeenCalledWith('fast');
     expect(ui.getByRole('switch', { name: 'Fast' }).getAttribute('aria-checked')).toBe('true');
     expect(ui.getByRole('button', { name: 'Model: Sonnet, effort High, fast mode on' })).toBe(button);
-    expect(button.querySelector('.claudian-service-tier-indicator')?.classList.contains('claudian-hidden')).toBe(false);
+    expect(button.querySelector('.scribe-service-tier-indicator')?.classList.contains('scribe-hidden')).toBe(false);
     fireEvent.click(ui.getByRole('switch', { name: 'Fast' }));
     await flush();
     expect(callbacks.onServiceTierChange).toHaveBeenLastCalledWith('default');
@@ -391,16 +391,16 @@ describe('model button', () => {
     const modelIcon = { kind: 'path', viewBox: '0 0 24 24', path: 'M2 2h20v20H2z' };
     const { ui } = renderToolbar({ providerIcon });
     const button = ui.getByRole('button', { name: /^Model: Sonnet/ });
-    const icon = button.querySelector('svg.claudian-model-provider-icon')!;
+    const icon = button.querySelector('svg.scribe-model-provider-icon')!;
     expect([icon.getAttribute('viewBox'), icon.getAttribute('width'), icon.getAttribute('height')])
       .toEqual(['0 0 16 16', '12', '12']);
-    expect(icon.compareDocumentPosition(button.querySelector('.claudian-model-label')!) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(icon.compareDocumentPosition(button.querySelector('.scribe-model-label')!) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
 
     // In a mixed-provider picker the selected model's own icon wins over the provider default.
     const mixed = renderToolbar({ providerIcon, models: [{ value: 'sonnet', label: 'Sonnet', providerIcon: modelIcon }] });
     const mixedButton = mixed.ui.getByRole('button', { name: /^Model: Sonnet/ });
-    expect(mixedButton.querySelector('svg.claudian-model-provider-icon')?.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(mixedButton.querySelector('svg.scribe-model-provider-icon')?.getAttribute('viewBox')).toBe('0 0 24 24');
   });
 
   it('keeps unavailable and empty model states', () => {
@@ -444,7 +444,7 @@ describe('permission button', () => {
     uiConfig.getPermissionModeOptions = () => codexChatUIConfig.getPermissionModeOptions!()!;
     toolbar.permissionToggle.updateDisplay();
     const button = ui.getByRole('button', { name: 'Permission mode: Approve for me' });
-    const icon = button.querySelector<HTMLElement>('.claudian-toolbar-chip-icon')!;
+    const icon = button.querySelector<HTMLElement>('.scribe-toolbar-chip-icon')!;
     expect(getComputedStyle(icon).display).toBe('none');
     fireEvent.keyDown(button, { key: 'ArrowDown' });
     const items = ui.getAllByRole('menuitemradio');
@@ -462,7 +462,7 @@ describe('permission button', () => {
     fireEvent.click(fullAccess);
     await flush();
     expect(callbacks.onPermissionModeChange).toHaveBeenLastCalledWith('yolo');
-    expect(button.classList.contains('claudian-toolbar-chip--alert')).toBe(true);
+    expect(button.classList.contains('scribe-toolbar-chip--alert')).toBe(true);
     expect(getComputedStyle(icon).display).not.toBe('none');
     fireEvent.click(button);
     fireEvent.click(ui.getByRole('menuitemradio', { name: /^Ask for approval/ }));
@@ -502,16 +502,16 @@ describe('permission button', () => {
     expect(ui.queryByRole('menu')).toBeNull();
     expect(document.activeElement).toBe(button);
     expect(ui.getByRole('button', { name: 'Permission mode: YOLO' })).toBe(button);
-    expect(button.classList.contains('claudian-toolbar-chip--alert')).toBe(true);
+    expect(button.classList.contains('scribe-toolbar-chip--alert')).toBe(true);
     expect(chipIcons()).toEqual(['shield-alert']);
     fireEvent.click(button);
     vi.mocked(setIcon).mockClear();
-    const iconSlot = button.querySelector('.claudian-toolbar-chip-icon')!;
+    const iconSlot = button.querySelector('.scribe-toolbar-chip-icon')!;
     iconSlot.appendChild(document.createElement('svg'));
     fireEvent.click(ui.getByRole('menuitemradio', { name: 'Safe' }));
     await flush();
     expect(callbacks.onPermissionModeChange).toHaveBeenLastCalledWith('normal');
-    expect(button.classList.contains('claudian-toolbar-chip--alert')).toBe(false);
+    expect(button.classList.contains('scribe-toolbar-chip--alert')).toBe(false);
     expect(chipIcons()).toEqual([]);
     expect(iconSlot.childElementCount).toBe(0);
     fireEvent.click(button);
@@ -530,7 +530,7 @@ describe('permission button', () => {
       permissionModes: claudeChatUIConfig.getPermissionModeOptions?.() ?? undefined,
     });
     const button = ui.getByRole('button', { name: 'Permission mode: Auto' });
-    expect(button.classList.contains('claudian-toolbar-chip--alert')).toBe(false);
+    expect(button.classList.contains('scribe-toolbar-chip--alert')).toBe(false);
     fireEvent.click(button);
     const items = within(ui.getByRole('menu', { name: 'Permission mode' })).getAllByRole('menuitemradio');
     expect(items.map(item => [item.textContent, item.getAttribute('aria-checked')])).toEqual([
@@ -549,7 +549,7 @@ describe('permission button', () => {
       await flush();
       expect(callbacks.onPermissionModeChange).toHaveBeenLastCalledWith(value);
       expect(ui.getByRole('button', { name: `Permission mode: ${name}` })).toBe(button);
-      expect(button.classList.contains('claudian-toolbar-chip--alert')).toBe(alert);
+      expect(button.classList.contains('scribe-toolbar-chip--alert')).toBe(alert);
     }
   });
 
@@ -568,7 +568,7 @@ describe('provider mode button', () => {
     expect(buttons.map(button => button.getAttribute('aria-label')))
       .toEqual(['Model: Sonnet, effort High', 'Mode: Build', 'Permission mode: Safe']);
     // The provider's active option keeps its accent.
-    expect(buttons[1].classList.contains('claudian-toolbar-chip--accent')).toBe(true);
+    expect(buttons[1].classList.contains('scribe-toolbar-chip--accent')).toBe(true);
     fireEvent.click(buttons[1]);
     const plan = within(ui.getByRole('menu', { name: 'Mode' })).getByRole('menuitemradio', { name: /^Plan/ });
     expect(plan.textContent).toBe('PlanPlanning-first agent');
@@ -576,7 +576,7 @@ describe('provider mode button', () => {
     await flush();
     expect(callbacks.onModeChange).toHaveBeenCalledWith('plan');
     expect(ui.getByRole('button', { name: 'Mode: Plan' })).toBe(buttons[1]);
-    expect(buttons[1].classList.contains('claudian-toolbar-chip--accent')).toBe(false);
+    expect(buttons[1].classList.contains('scribe-toolbar-chip--accent')).toBe(false);
   });
 });
 

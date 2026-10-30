@@ -5,7 +5,7 @@ it('scopes a history path context to the provider configuration and its environm
     sharedEnvironmentVariables: 'SHARED=1',
     providerConfigs: {
       opencode: { cliPath: '/bin/opencode', environmentVariables: 'OPENCODE_DB=/tmp/native.db' },
-      codex: { cliPath: '/bin/codex', environmentVariables: 'CODEX_HOME=/tmp/claudian-test-codex-home' },
+      codex: { cliPath: '/bin/codex', environmentVariables: 'CODEX_HOME=/tmp/scribe-test-codex-home' },
     },
   };
 

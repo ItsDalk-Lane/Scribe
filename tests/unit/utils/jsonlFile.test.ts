@@ -15,7 +15,7 @@ describe('forEachJSONLLine', () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-jsonl-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-jsonl-'));
   });
 
   afterEach(() => {

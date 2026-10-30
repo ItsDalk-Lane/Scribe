@@ -15,10 +15,10 @@ describe('Settings styles', () => {
       .filter(rule => rule.style.getPropertyValue('--no-tooltip').trim() === 'true')
       .flatMap(rule => rule.selectorText.split(',').map(selector => selector.trim()));
     expect(suppressed).toEqual(expect.arrayContaining([
-      '.claudian-settings',
-      '.claudian-skill-sync-modal',
-      '.claudian-agent-skill-modal',
-      '.claudian-env-snippet-modal',
+      '.scribe-settings',
+      '.scribe-skill-sync-modal',
+      '.scribe-agent-skill-modal',
+      '.scribe-env-snippet-modal',
     ]));
   });
 });

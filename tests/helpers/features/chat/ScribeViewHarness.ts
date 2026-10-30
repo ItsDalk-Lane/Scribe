@@ -3,13 +3,13 @@ import { createObsidianWorkspace } from '@test/helpers/ObsidianWorkspace';
 import { ItemView, Scope } from 'obsidian';
 
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
-import { ClaudianView } from '@/features/chat/ClaudianView';
+import { ScribeView } from '@/features/chat/ScribeView';
 
 // The Obsidian mock's ItemView omits Component's `load`, which the view's Hover Editor guard binds.
 const itemViewPrototype = ItemView.prototype as unknown as { load?: () => void };
 itemViewPrototype.load ??= () => undefined;
 
-export interface ClaudianViewHarnessOptions {
+export interface ScribeViewHarnessOptions {
   /** Merged over a minimal feature host; read by every view collaborator at construction. */
   plugin?: Record<string, unknown>;
   /** A complete feature host used as is, for integration tests that share it with other owners. */
@@ -25,10 +25,10 @@ export interface ClaudianViewHarnessOptions {
 }
 
 /**
- * Constructs a real `ClaudianView` with its real collaborators. Returned untyped so tests
+ * Constructs a real `ScribeView` with its real collaborators. Returned untyped so tests
  * can drive the lifecycle seams (`tabManager`, `tabWorkspace`, `scope`) that Obsidian owns.
  */
-export function createClaudianView(options: ClaudianViewHarnessOptions = {}): any {
+export function createScribeView(options: ScribeViewHarnessOptions = {}): any {
   const plugin = options.host ?? {
     app: {
       vault: {
@@ -52,7 +52,7 @@ export function createClaudianView(options: ClaudianViewHarnessOptions = {}): an
     settings: {},
     ...options.plugin,
   };
-  const view = new ClaudianView(
+  const view = new ScribeView(
     (options.leaf ?? {}) as never,
     plugin as unknown as ChatFeatureHost,
   ) as any;

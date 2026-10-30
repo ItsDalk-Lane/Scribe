@@ -49,19 +49,19 @@ describe('applyPatchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const header = toolEl.querySelector('.claudian-tool-header');
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const header = toolEl.querySelector('.scribe-tool-header');
+      const content = toolEl.querySelector('.scribe-tool-content');
       expect(toolEl.hasClass('expanded')).toBe(false);
-      expect(content?.hasClass('claudian-hidden')).toBe(true);
+      expect(content?.hasClass('scribe-hidden')).toBe(true);
       expect(header?.getAttribute('aria-expanded')).toBe('false');
 
       (header as HTMLElement).click();
-      const headers = Array.from(toolEl.querySelectorAll('.claudian-tool-patch-header')).map(el => el.textContent);
-      const statusEl = toolEl.querySelector('.claudian-tool-status');
-      const diffTexts = Array.from(toolEl.querySelectorAll('.claudian-diff-text')).map(el => el.textContent);
+      const headers = Array.from(toolEl.querySelectorAll('.scribe-tool-patch-header')).map(el => el.textContent);
+      const statusEl = toolEl.querySelector('.scribe-tool-status');
+      const diffTexts = Array.from(toolEl.querySelectorAll('.scribe-diff-text')).map(el => el.textContent);
 
       expect(headers).toHaveLength(0);
-      expect(statusEl?.hasClass('claudian-write-edit-stats')).toBe(true);
+      expect(statusEl?.hasClass('scribe-write-edit-stats')).toBe(true);
       expect(statusEl?.querySelector('.added')?.textContent).toBe('+1');
       expect(statusEl?.querySelector('.removed')?.textContent).toBe('-1');
       expect(statusEl?.getAttribute('aria-label')).toBe('Changes: +1 -1');
@@ -89,11 +89,11 @@ describe('applyPatchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall, { initiallyExpanded: true });
-      const header = toolEl.querySelector('.claudian-tool-header');
-      const content = toolEl.querySelector('.claudian-tool-content');
+      const header = toolEl.querySelector('.scribe-tool-header');
+      const content = toolEl.querySelector('.scribe-tool-content');
 
       expect(toolEl.hasClass('expanded')).toBe(true);
-      expect(content?.hasClass('claudian-hidden')).toBe(false);
+      expect(content?.hasClass('scribe-hidden')).toBe(false);
       expect(header?.getAttribute('aria-expanded')).toBe('true');
     });
 
@@ -115,13 +115,13 @@ describe('applyPatchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
-      const headers = Array.from(toolEl.querySelectorAll('.claudian-tool-patch-header')).map(el => el.textContent);
-      const statusEl = toolEl.querySelector('.claudian-tool-status');
-      const diffTexts = Array.from(toolEl.querySelectorAll('.claudian-diff-text')).map(el => el.textContent);
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
+      const headers = Array.from(toolEl.querySelectorAll('.scribe-tool-patch-header')).map(el => el.textContent);
+      const statusEl = toolEl.querySelector('.scribe-tool-status');
+      const diffTexts = Array.from(toolEl.querySelectorAll('.scribe-diff-text')).map(el => el.textContent);
 
       expect(headers).toHaveLength(0);
-      expect(statusEl?.hasClass('claudian-write-edit-stats')).toBe(true);
+      expect(statusEl?.hasClass('scribe-write-edit-stats')).toBe(true);
       expect(statusEl?.querySelector('.added')?.textContent).toBe('+1');
       expect(statusEl?.querySelector('.removed')?.textContent).toBe('-1');
       expect(setIcon).not.toHaveBeenCalledWith(expect.anything(), 'check');
@@ -152,7 +152,7 @@ describe('applyPatchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const statusEl = toolEl.querySelector('.claudian-tool-status');
+      const statusEl = toolEl.querySelector('.scribe-tool-status');
 
       expect(statusEl?.querySelector('.added')?.textContent).toBe('+3');
       expect(statusEl?.querySelector('.removed')?.textContent).toBe('-2');
@@ -177,10 +177,10 @@ describe('applyPatchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      const statusEl = toolEl.querySelector('.claudian-tool-status');
+      const statusEl = toolEl.querySelector('.scribe-tool-status');
 
       expect(statusEl?.hasClass('status-error')).toBe(true);
-      expect(statusEl?.hasClass('claudian-write-edit-stats')).toBe(false);
+      expect(statusEl?.hasClass('scribe-write-edit-stats')).toBe(false);
       expect(setIcon).toHaveBeenCalledWith(expect.anything(), 'x');
     });
 
@@ -210,12 +210,12 @@ describe('applyPatchContent', () => {
       };
 
       updateToolCallResult(toolEl, toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
 
-      const statusEl = toolEl.querySelector('.claudian-tool-status');
-      const diffTexts = Array.from(toolEl.querySelectorAll('.claudian-diff-text')).map(el => el.textContent);
+      const statusEl = toolEl.querySelector('.scribe-tool-status');
+      const diffTexts = Array.from(toolEl.querySelectorAll('.scribe-diff-text')).map(el => el.textContent);
 
-      expect(statusEl?.hasClass('claudian-write-edit-stats')).toBe(true);
+      expect(statusEl?.hasClass('scribe-write-edit-stats')).toBe(true);
       expect(statusEl?.querySelector('.added')?.textContent).toBe('+1');
       expect(statusEl?.querySelector('.removed')?.textContent).toBe('-1');
       expect(setIcon).not.toHaveBeenCalledWith(expect.anything(), 'check');
@@ -235,8 +235,8 @@ describe('applyPatchContent', () => {
       });
 
       const toolEl = renderStoredToolCall(parentEl, toolCall);
-      (toolEl.querySelector('.claudian-tool-header') as HTMLElement).click();
-      const lines = Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(el => el.textContent);
+      (toolEl.querySelector('.scribe-tool-header') as HTMLElement).click();
+      const lines = Array.from(toolEl.querySelectorAll('.scribe-tool-line')).map(el => el.textContent);
 
       expect(lines).toContain('src/main.ts');
       expect(lines).not.toContain('update: src/main.ts');

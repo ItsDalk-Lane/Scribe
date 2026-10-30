@@ -234,7 +234,7 @@ export class SubagentStreamRouter {
 
   #getMessageContentEl(message: ChatMessage, inCurrentReply = true): HTMLElement | null {
     return this.deps.getMessagesEl()?.querySelector<HTMLElement>(
-      `[data-message-id="${message.id}"] .claudian-message-content`,
+      `[data-message-id="${message.id}"] .scribe-message-content`,
     ) ?? (inCurrentReply ? this.deps.state.currentContentEl : null);
   }
 

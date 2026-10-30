@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import { parse, type ParseError } from 'jsonc-parser';
 
-import { CLAUDIAN_STORAGE_PATH } from '../../../core/bootstrap/storagePaths';
+import { SCRIBE_STORAGE_PATH } from '../../../core/bootstrap/storagePaths';
 import { expandHomePath } from '../../../utils/path';
 import { buildAgentConfig, OPENCODE_BUILD_AGENT_ID } from './OpencodeExecutionAgents';
 import { resolveOpencodeDatabasePath } from './OpencodePaths';
@@ -36,7 +36,7 @@ export interface PrepareOpencodeLaunchArtifactsParams {
 export async function prepareOpencodeLaunchArtifacts(
   params: PrepareOpencodeLaunchArtifactsParams,
 ): Promise<OpencodeLaunchArtifacts> {
-  const artifactsDir = path.join(params.workspaceRoot, CLAUDIAN_STORAGE_PATH, 'opencode');
+  const artifactsDir = path.join(params.workspaceRoot, SCRIBE_STORAGE_PATH, 'opencode');
   const inlineConfig = params.runtimeEnv.OPENCODE_CONFIG_CONTENT?.trim();
   const managedBase = inlineConfig
     ? await parseOpencodeConfig(inlineConfig, 'OPENCODE_CONFIG_CONTENT', params.runtimeEnv, params.workspaceRoot)

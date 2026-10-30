@@ -7,14 +7,14 @@ import { deserialize, serialize } from 'node:v8';
 import { axe } from '@test/helpers/accessibility';
 import { beginExecution, createHarness, createSubmission, requestedScope } from '@test/helpers/ChatExecutionHarness';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate } from '@test/helpers/testClock';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { Notice } from 'obsidian';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
+import { ScribeSettingTab } from '@/features/settings/ScribeSettings';
 import { t } from '@/i18n/i18n';
 
 vi.mock('@/shared/settings/EnvironmentSettingsSection', () => ({ renderEnvironmentSettingsSection() {} }));
@@ -39,7 +39,7 @@ afterEach(() => { document.body.replaceChildren(); vi.clearAllMocks(); });
 
 it('retries an unchanged user-name draft on the next blur after a rejected save', async () => {
   globalThis.structuredClone ??= value => deserialize(serialize(value));
-  const settings = { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), userName: 'Before', enableAutoTitleGeneration: false };
+  const settings = { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), userName: 'Before', enableAutoTitleGeneration: false };
   let saved = JSON.stringify(settings);
   const persist = vi.fn().mockRejectedValueOnce(new Error('Disk unavailable')).mockImplementation(async draft => {
     saved = JSON.stringify(draft);
@@ -47,7 +47,7 @@ it('retries an unchanged user-name draft on the next blur after a rejected save'
   const coordinator = new SettingsCoordinator(settings, persist);
   const runProviderExecutionTransition = vi.fn(async () => undefined);
   const host = { settings, mutateSettings: coordinator.mutate.bind(coordinator), providerHost: { runProviderExecutionTransition } };
-  const tab = new ClaudianSettingTab({} as never, {} as never, host as never);
+  const tab = new ScribeSettingTab({} as never, {} as never, host as never);
   const container = document.body.createDiv();
   tab['renderGeneralTab'](container);
   const row = within(container).getByText(t('settings.userName.name')).parentElement!;
@@ -74,8 +74,8 @@ it('retries an unchanged user-name draft on the next blur after a rejected save'
 
 it.each([false, true])('shows the newest text draft when settings reopen before a successful save finishes (newer edit: %s)', async newerEdit => {
   const vault = await DesktopVault.create();
-  const settings = { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), userName: 'Before', enableAutoTitleGeneration: false };
-  const storage = new ClaudianSettingsStorage(vault.files, DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), userName: 'Before', enableAutoTitleGeneration: false };
+  const storage = new ScribeSettingsStorage(vault.files, DEFAULT_SCRIBE_SETTINGS);
   await storage.save(settings);
   let started!: () => void;
   let finish!: () => void;
@@ -90,7 +90,7 @@ it.each([false, true])('shows the newest text draft when settings reopen before 
     settings, mutateSettings: coordinator.mutate.bind(coordinator), storage: { getAdapter: () => vault.files },
     providerHost: { runProviderExecutionTransition: async () => undefined },
   };
-  const tab = new ClaudianSettingTab({} as never, {} as never, host as never);
+  const tab = new ScribeSettingTab({} as never, {} as never, host as never);
   const first = document.body.createDiv();
   let cleanup = tab['renderSettings'](first);
   const userName = (container: HTMLElement) => within(within(container).getByText(t('settings.userName.name')).parentElement!).getByRole<HTMLInputElement>('textbox');
@@ -132,7 +132,7 @@ it.each([
   { key: 'systemPrompt' as const, label: 'settings.systemPrompt.name' as const, next: 'Updated instructions' },
   { key: 'mediaFolder' as const, label: 'settings.mediaFolder.name' as const, next: 'New Attachments' },
 ])('keeps a running reply when unchanged $key loses focus and restarts only after a real edit', async ({ key, label, next }) => {
-  const settings = { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), userName: 'Before', systemPrompt: 'Initial instructions', mediaFolder: 'Attachments', enableAutoTitleGeneration: false };
+  const settings = { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), userName: 'Before', systemPrompt: 'Initial instructions', mediaFolder: 'Attachments', enableAutoTitleGeneration: false };
   let saved = JSON.stringify(settings);
   const coordinator = new SettingsCoordinator(settings, async draft => { saved = JSON.stringify(draft); });
   const execution = createHarness();
@@ -141,7 +141,7 @@ it.each([
     settings, mutateSettings: coordinator.mutate.bind(coordinator),
     providerHost: { runProviderExecutionTransition: execution.registry.runTransition.bind(execution.registry) },
   };
-  const tab = new ClaudianSettingTab({} as never, {} as never, host as never);
+  const tab = new ScribeSettingTab({} as never, {} as never, host as never);
   const container = document.body.createDiv();
   tab['renderGeneralTab'](container);
   const row = within(container).getByText(t(label)).parentElement!;
@@ -211,14 +211,14 @@ it.each([
 
 
 it('does not restart or replay a prompt edit after publication of its durable commit fails', async () => {
-  const settings = { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), userName: 'Before', enableAutoTitleGeneration: false };
+  const settings = { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), userName: 'Before', enableAutoTitleGeneration: false };
   let saved = '';
   const persist = vi.fn(async (draft: typeof settings) => { saved = JSON.stringify(draft); });
   const coordinator = new SettingsCoordinator(settings, persist, () => { throw new Error('View unavailable'); });
   const execution = createHarness();
   const transition = vi.spyOn(execution.registry, 'runTransition');
   const host = { settings, mutateSettings: coordinator.mutate.bind(coordinator), providerHost: { runProviderExecutionTransition: execution.registry.runTransition.bind(execution.registry) } };
-  const tab = new ClaudianSettingTab({} as never, {} as never, host as never);
+  const tab = new ScribeSettingTab({} as never, {} as never, host as never);
   const container = document.body.createDiv();
   tab['renderGeneralTab'](container);
   const input = within(within(container).getByText(t('settings.userName.name')).parentElement!).getByRole('textbox');

@@ -12,7 +12,7 @@ export function isInstallationKey(value: unknown): value is InstallationKey {
   return typeof value === 'string' && INSTALLATION_KEY_PATTERN.test(value);
 }
 
-const DEVICE_SETTINGS_STORAGE_KEY = 'claudian.deviceSettingsKey';
+const DEVICE_SETTINGS_STORAGE_KEY = 'scribe.deviceSettingsKey';
 let cachedDeviceSettingsSeed: string | null = null;
 let cachedDeviceSettingsKey: InstallationKey | null = null;
 

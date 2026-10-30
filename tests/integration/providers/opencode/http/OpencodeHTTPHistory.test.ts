@@ -12,7 +12,7 @@ import { opencodeProviderRegistration } from '@/providers/opencode/registration'
 
 it.each(['standalone', 'registered before workspace initialization'])('loads V2 history, recovers its model, and forks using %s history', async kind => {
   expect(ProviderWorkspaceRegistry.getServices('opencode')).toBeNull();
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-http-history-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-http-history-')));
   const cliPath = path.join(root, 'opencode.cjs');
   const databasePath = path.join(root, 'data', 'opencode', 'native.db');
   // A recorded database is opened only while it exists in a trusted data root.

@@ -1,13 +1,13 @@
 import '@/providers';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { modelCatalogCases as cases } from '@test/helpers/providerModelCatalogs';
 import { writeGrokCatalog } from '@test/helpers/providers/grokSettings';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import { migrateSelectedModelMetadata } from '@/app/settings/SelectedModelMetadataMigration';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
+import { createProviderRuntimeHost } from '@/composition/ScribeProviderHost';
 import { findProviderModelOption, resolveConversationModel, resolveNewConversationModel } from '@/core/providers/conversationModel';
 import {
   ProviderModelCatalogController,
@@ -48,13 +48,13 @@ function documentStore(
 }
 
 function makeHost() {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   for (const id of ProviderRegistry.getRegisteredProviderIds()) ProviderRegistry.setEnabled(id, settings, false);
   let content = '';
-  const storage = new ClaudianSettingsStorage({
+  const storage = new ScribeSettingsStorage({
     exists: async () => Boolean(content), read: async () => content,
     write: async (_path: string, value: string) => { content = value; }, delete: async () => undefined,
-  } as unknown as VaultFileAdapter, DEFAULT_CLAUDIAN_SETTINGS);
+  } as unknown as VaultFileAdapter, DEFAULT_SCRIBE_SETTINGS);
   const coordinator = new SettingsCoordinator(settings, value => storage.save(value));
   const host = {
     settings, mutateSettings: coordinator.mutate.bind(coordinator),

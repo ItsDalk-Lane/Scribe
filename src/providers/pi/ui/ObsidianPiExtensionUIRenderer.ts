@@ -130,7 +130,7 @@ abstract class PiExtensionModal<TResult extends Record<string, unknown>> extends
 
   override onOpen(): void {
     this.contentEl.empty();
-    this.contentEl.addClass('claudian-pi-extension-modal');
+    this.contentEl.addClass('scribe-pi-extension-modal');
     this.render();
   }
 
@@ -167,7 +167,7 @@ class PiSelectModal extends PiExtensionModal<{ cancelled?: boolean; value?: stri
   protected render(): void {
     this.renderHeader(t('chat.pi.extension'));
     const options = getSelectOptions(this.request);
-    const listEl = this.contentEl.createDiv({ cls: 'claudian-pi-extension-options' });
+    const listEl = this.contentEl.createDiv({ cls: 'scribe-pi-extension-options' });
     for (const option of options) {
       const button = listEl.createEl('button', { text: option.label, attr: { type: 'button' } });
       button.addEventListener('click', () => {
@@ -194,7 +194,7 @@ class PiConfirmModal extends PiExtensionModal<{ cancelled?: boolean; confirmed?:
 
   protected render(): void {
     this.renderHeader(t('chat.pi.extension'));
-    const actionsEl = this.contentEl.createDiv({ cls: 'claudian-pi-extension-actions' });
+    const actionsEl = this.contentEl.createDiv({ cls: 'scribe-pi-extension-actions' });
     const confirmButton = actionsEl.createEl('button', { text: t('common.confirm'), attr: { type: 'button' } });
     confirmButton.addEventListener('click', () => {
       this.finish({ confirmed: true });
@@ -240,7 +240,7 @@ class PiTextModal extends PiExtensionModal<{ cancelled?: boolean; value?: string
       (input as HTMLTextAreaElement).rows = 8;
     }
 
-    const actionsEl = this.contentEl.createDiv({ cls: 'claudian-pi-extension-actions' });
+    const actionsEl = this.contentEl.createDiv({ cls: 'scribe-pi-extension-actions' });
     const submitButton = actionsEl.createEl('button', { text: t('chat.questions.submit'), attr: { type: 'button' } });
     submitButton.addEventListener('click', () => {
       this.finish({ value: input.value });

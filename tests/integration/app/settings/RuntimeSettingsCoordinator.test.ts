@@ -1,6 +1,6 @@
 import '@/providers';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate } from '@test/helpers/testClock';
 
 import { RuntimeSettingsCoordinator } from '@/app/settings/RuntimeSettingsCoordinator';
@@ -10,7 +10,7 @@ it.each(['persistence', 'publication'] as const)(
   'keeps invalidation completion consistent with durable settings after %s fails',
   async failurePhase => {
     const generation = testDate().getTime();
-    const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+    const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
     settings.pendingProviderSessionInvalidations = { claude: generation };
     let durablePending = { ...settings.pendingProviderSessionInvalidations };
     const coordinator = new SettingsCoordinator(settings, async draft => {

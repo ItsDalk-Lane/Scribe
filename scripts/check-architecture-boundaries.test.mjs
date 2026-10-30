@@ -279,8 +279,8 @@ const SETTINGS_DOCUMENT_ACCESS = new Map([
   ['core/providers/ProviderHost', null],
   ['core/providers/ProviderSettingsCoordinator', null],
   ['core/providers/historyPathContext', null],
-  ['core/types/index', new Set(['ClaudianSettings'])],
-  ['core/types/settings', new Set(['ClaudianSettings'])],
+  ['core/types/index', new Set(['ScribeSettings'])],
+  ['core/types/settings', new Set(['ScribeSettings'])],
   ['core/providers/providerConfig', new Set([
     'getProviderConfig', 'setProviderConfig', 'getProviderSavedSelection', 'getProviderSelectionDefaults',
     'getProviderSelectionInputs',
@@ -475,7 +475,7 @@ test('the settings document boundary detects direct and type-only access', () =>
   const file = path.join(providersRoot, 'pi', 'runtime', 'BoundaryFixture.ts');
   for (const source of [
     "import type { ProviderHost } from '@/core/providers/ProviderHost';\nexport type Host = ProviderHost;",
-    "import type { ClaudianSettings } from '@/core/types';\nexport type Settings = ClaudianSettings;",
+    "import type { ScribeSettings } from '@/core/types';\nexport type Settings = ScribeSettings;",
     "import { getProviderConfig } from '../../../core/providers/providerConfig';\nexport const read = getProviderConfig;",
     "import { getRuntimeEnvironmentText as env } from '@/core/providers/providerEnvironment';\nexport const read = env;",
     "import * as environment from '@/core/providers/providerEnvironment';\nexport const read = environment;",
@@ -845,7 +845,7 @@ test('Bun lock parsing accepts the repository JSONC shape without weakening JSON
 });
 
 test('production artifact entry rejects dependency drift before emitting main.js', () => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-build-parity-'));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-build-parity-'));
   try {
     fs.writeFileSync(path.join(fixtureRoot, 'package.json'), JSON.stringify({
       dependencies: {
@@ -955,13 +955,13 @@ test('runtime source imports are acyclic', () => {
   assert.deepEqual(cycles, []);
 });
 
-test('Claudian is independent from the standalone collaboration plugin', () => {
+test('Scribe is independent from the standalone collaboration plugin', () => {
   const sources = listTypeScriptFiles(sourceRoot);
   const dependencies = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')).dependencies;
-  assert.equal(dependencies['@claudian-collab/protocol'], undefined);
+  assert.equal(dependencies['@scribe-collab/protocol'], undefined);
   for (const file of sources) {
     const source = fs.readFileSync(file, 'utf8');
-    assert.doesNotMatch(source, /(?:from\s*|import\s*\()['"][^'"]*(?:\/collab(?:\/|['"])|\/agent-runtime(?:\/|['"])|@claudian-collab\/protocol)/, file);
+    assert.doesNotMatch(source, /(?:from\s*|import\s*\()['"][^'"]*(?:\/collab(?:\/|['"])|\/agent-runtime(?:\/|['"])|@scribe-collab\/protocol)/, file);
   }
 });
 

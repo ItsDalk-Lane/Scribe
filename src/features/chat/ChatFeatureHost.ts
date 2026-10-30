@@ -28,6 +28,7 @@ export interface ChatModelSelectionPort {
 }
 
 export interface ChatViewRefreshHost {
+  refreshLocale(): void;
   notifyConversationListChanged(): void;
   refreshModelSelector(providerId?: ProviderId): void;
   refreshTabControls(): void;

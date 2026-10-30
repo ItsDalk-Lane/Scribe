@@ -29,7 +29,7 @@ it.each([false, true])('edits, switches and resumes native branches without losi
     createKernel: (spec, callbacks) => {
       kernel = new PiRPCSessionKernel({ ...spec, command: process.execPath,
         args: [path.resolve('tests/fixtures/providers/pi/PiSessionProcess.mjs'), ...spec.args],
-        env: { ...spec.env, CLAUDIAN_TEST_PI_ROOT: root },
+        env: { ...spec.env, SCRIBE_TEST_PI_ROOT: root },
       }, callbacks, null);
       return kernel;
     },
@@ -80,7 +80,7 @@ it.each([false, true])('edits, switches and resumes native branches without losi
     const requestBeforeLoss = kernel.request.bind(kernel);
     const lostReply = vi.spyOn(kernel, 'request').mockImplementation((async (type, payload, timeout, signal) => {
       const reply = await requestBeforeLoss(type, payload, timeout, signal);
-      if (type === 'claudian_tree' && payload?.operation === 'restore' && payload.leafId === 'pi-assistant-1') {
+      if (type === 'scribe_tree' && payload?.operation === 'restore' && payload.leafId === 'pi-assistant-1') {
         throw new Error('Reply lost after native navigation');
       }
       return reply;

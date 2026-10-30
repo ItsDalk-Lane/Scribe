@@ -14,9 +14,79 @@
     "none": "Keine"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "Schnell",
+      "fastOn": "Schnellmodus aktiviert",
+      "fastTitle": "Schnellmodus: {state}",
+      "fastFailure": "Dienststufe konnte nicht geändert werden",
+      "standard": "Standard",
+      "context": "Kontextauslastung",
+      "contextDetails": "Kontextauslastung: {usage}",
+      "contextWarning": " (Grenze fast erreicht, `/compact` ausführen, um fortzufahren)",
+      "branchBusy": "Warten Sie, bis die aktuelle Antwort abgeschlossen ist.",
+      "previousBranch": "Vorheriger Zweig",
+      "noPrevious": "Kein vorheriger Zweig.",
+      "branchPosition": "Zweig {current} von {total}",
+      "nextBranch": "Nächster Zweig",
+      "noNext": "Kein nächster Zweig.",
+      "branchFrom": "Ab dieser Nachricht verzweigen",
+      "previewImage": "Vorschau: {name}",
+      "mermaidDiagram": "Mermaid-Diagramm",
+      "mermaidSource": "Diagrammquelle anzeigen"
+    },
+    "conversationFeedback": {
+      "collapseSide": "Seitenchat vor dem Wechsel des Gesprächszweigs einklappen.",
+      "savePrompt": "Ein Zweig ist nach dem Speichern dieser Nachricht verfügbar.",
+      "clearDraft": "Entwurf vor dem Wechsel des Gesprächszweigs speichern oder löschen.",
+      "branchInProgress": "Der Zweig wird gewechselt.",
+      "conversationChanged": "Das Gespräch wurde geändert.",
+      "conversationMissing": "Das Gespräch fehlt.",
+      "executionUnavailable": "Ausführung ist nicht verfügbar.",
+      "recoveryCancelled": "Die Zweigwiederherstellung wurde abgebrochen.",
+      "reconcileFailed": "Gesprächszweig konnte nicht wiederhergestellt werden: {error}",
+      "cannotArchive": "Laufende Sitzungen können nicht archiviert werden",
+      "skippedOpenOne": "{count} offene oder laufende Sitzung übersprungen",
+      "skippedOpenMany": "{count} offene oder laufende Sitzungen übersprungen",
+      "cannotDelete": "Laufende Sitzungen können nicht gelöscht werden",
+      "skippedRunningOne": "{count} laufende Sitzung übersprungen",
+      "skippedRunningMany": "{count} laufende Sitzungen übersprungen",
+      "closeDeletedFailed": "Gelöschte Sitzung konnte nicht geschlossen werden",
+      "closeBeforeArchiveFailed": "Sitzung konnte vor dem Archivieren nicht geschlossen werden",
+      "autoArchiveFailed": "Inaktive Sitzungen konnten nicht automatisch archiviert werden",
+      "autoArchiveOne": "{count} inaktive Sitzung automatisch archiviert",
+      "autoArchiveMany": "{count} inaktive Sitzungen automatisch archiviert"
+    },
+    "tabBar": {
+      "name": "Tabname",
+      "rename": "Tab umbenennen…",
+      "reset": "Tabnamen zurücksetzen",
+      "showNumber": "Nummer anzeigen",
+      "showName": "Namen anzeigen",
+      "showTitle": "Titel anzeigen",
+      "close": "Tab schließen",
+      "active": "aktiv",
+      "needsInput": "Eingabe erforderlich",
+      "working": "in Bearbeitung",
+      "reviewError": "wegen eines Fehlers gestoppt, bereit zur Überprüfung",
+      "review": "abgeschlossen, bereit zur Überprüfung",
+      "idle": "inaktiv"
+    },
+    "fileMenu": {
+      "add": "Zu Scribe hinzufügen",
+      "notReady": "Scribe-Chat ist noch nicht bereit.",
+      "failed": "Datei konnte nicht zu Scribe hinzugefügt werden."
+    },
+    "queue": {
+      "steering": "Wird gesteuert",
+      "queued": "In Warteschlange",
+      "steerNow": "Jetzt steuern",
+      "edit": "Nachricht in Warteschlange bearbeiten",
+      "discard": "Nachricht in Warteschlange verwerfen",
+      "images": "[Bilder]"
+    },
     "promptSuggestionHint": "Mit Tab übernehmen",
     "selectAvailableModel": "Wähle vor dem Senden ein verfügbares Modell aus.",
-    "selectAvailableTitleModel": "Wähle in den Claudian-Einstellungen ein verfügbares Titelmodell aus.",
+    "selectAvailableTitleModel": "Wähle in den Scribe-Einstellungen ein verfügbares Titelmodell aus.",
     "rewind": {
       "confirmMessage": "Zu diesem Punkt zurückspulen? Dateiänderungen nach dieser Nachricht können überschrieben oder entfernt werden. Dies kann nicht rückgängig gemacht werden.",
       "confirmMessageConflicts": "Zu diesem Punkt zurückspulen? {count} außerhalb des Agenten geänderte Datei(en) werden überschrieben:\n{files}",
@@ -33,7 +103,14 @@
       "failed": "Zurückspulen fehlgeschlagen: {error}",
       "cannot": "Zurückspulen nicht möglich: {error}",
       "unavailableStreaming": "Zurückspulen während des Streamings nicht möglich",
-      "unavailableNoUuid": "Zurückspulen nicht möglich: Nachrichtenkennungen fehlen"
+      "unavailableNoUuid": "Zurückspulen nicht möglich: Nachrichtenkennungen fehlen",
+      "messageNotFound": "Nachricht nicht gefunden",
+      "initializationFailed": "Agentendienst konnte nicht initialisiert werden",
+      "serviceUnavailable": "Agentendienst nicht verfügbar",
+      "executionUnavailable": "Agent nicht verfügbar",
+      "conversationChanged": "Das Gespräch wurde während des Zurücksetzens geändert.",
+      "moreFiles": "+{count} weitere",
+      "saveFailed": "Speichern fehlgeschlagen"
     },
     "fork": {
       "ariaLabel": "Konversation verzweigen",
@@ -81,7 +158,7 @@
       "busySide": "Der Nebenchat antwortet noch. Warte, bis er fertig ist."
     },
     "zen": {
-      "regionLabel": "Claudian-Chat",
+      "regionLabel": "Scribe-Chat",
       "showHistory": "Unterhaltung anzeigen",
       "move": "Chat-Bereich verschieben",
       "working": "Arbeitet…",
@@ -109,7 +186,7 @@
     "copyMessage": "Nachricht kopieren",
     "showEarlierMessages": "Frühere Nachrichten anzeigen",
     "renderFailed": "Nachrichteninhalt konnte nicht angezeigt werden.",
-    "interruptedHint": "· Was soll Claudian stattdessen tun?",
+    "interruptedHint": "· Was soll Scribe stattdessen tun?",
     "sessions": {
       "empty": "Keine Unterhaltungen",
       "noMatch": "Keine passenden Sitzungen",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "Denke seit {seconds}s…",
       "completed": "{seconds}s nachgedacht",
-      "label": "Gedanken"
+      "label": "Gedanken",
+      "waitHint": " (Esc zum Unterbrechen · {duration})",
+      "compacting": "Wird komprimiert..."
     },
     "suggestions": {
       "loading": "Wird geladen…",
@@ -426,9 +505,205 @@
         "discard": "Verwerfen",
         "emptyHint": "Agenten füllen dies im Laufe des Projekts aus."
       }
+    },
+    "welcome": {
+      "happySunday": "Schönen Sonntag",
+      "sundaySession": "Eine Sitzung am Sonntag?",
+      "weekend": "Willkommen im Wochenende",
+      "happyMonday": "Schönen Montag",
+      "backAtIt": "Weiter geht’s",
+      "backAtItExclamation": "Weiter geht’s!",
+      "happyTuesday": "Schönen Dienstag",
+      "happyWednesday": "Schönen Mittwoch",
+      "happyThursday": "Schönen Donnerstag",
+      "happyFriday": "Schönen Freitag",
+      "fridayFeeling": "Freitagsstimmung",
+      "happySaturday": "Schönen Samstag",
+      "happySaturdayExclamation": "Schönen Samstag!",
+      "morning": "Guten Morgen",
+      "coffee": "Zeit für Kaffee und Scribe?",
+      "afternoon": "Guten Nachmittag",
+      "hey": "Hallo",
+      "howGoing": "Wie geht es dir",
+      "evening": "Guten Abend",
+      "eveningShort": "Abend",
+      "howWasDay": "Wie war dein Tag",
+      "nightOwl": "Hallo, Nachteule",
+      "hiHow": "Hallo, wie geht es dir?",
+      "hiHowNamed": "Hallo {name}, wie geht es dir?",
+      "welcomeBack": "Willkommen zurück",
+      "whatsNew": "Was gibt es Neues",
+      "returns": "{name} ist zurück!",
+      "absolutelyRight": "Du hast vollkommen recht!",
+      "personalized": "{greeting}, {name}"
+    },
+    "newTab": "Neuer Tab",
+    "newConversation": "Neue Unterhaltung",
+    "sessionManager": {
+      "new": "Neu",
+      "search": "Suchen",
+      "archive": "Archiv",
+      "sessions": "Sitzungen",
+      "archived": "Archiviert",
+      "pinned": "Angeheftet",
+      "missing": "Fehlt",
+      "unlinked": "Nicht verknüpft",
+      "pastWeek": "Letzte Woche",
+      "pastTwoWeeks": "Letzte 2 Wochen",
+      "pastMonth": "Letzter Monat",
+      "older": "Älter",
+      "sessionOptions": "Sitzungsoptionen",
+      "expandGroups": "Alle Gruppen erweitern",
+      "collapseGroups": "Alle Gruppen einklappen",
+      "searchArchived": "Archivierte Sitzungen suchen",
+      "searchSessions": "Sitzungen suchen",
+      "organize": "Sitzungen organisieren",
+      "oneList": "In einer Liste",
+      "byLinked": "Nach verknüpftem Inhalt",
+      "sortBy": "Sitzungen sortieren nach",
+      "lastActivity": "Letzte Aktivität",
+      "created": "Erstellt",
+      "lastActive": "Zuletzt aktiv",
+      "organizationFailed": "Sitzungsorganisation konnte nicht aktualisiert werden",
+      "sortFailed": "Sitzungssortierung konnte nicht aktualisiert werden",
+      "history": "Chatverlauf",
+      "loadMore": "Mehr laden ({count} verbleibend)",
+      "newForContent": "Neuer Chat für {name}",
+      "startContentFailed": "Chat für diesen verknüpften Inhalt konnte nicht gestartet werden",
+      "generatingTitle": "Titel wird generiert...",
+      "regenerateTitle": "Titel erneut generieren",
+      "generateTitle": "Titel generieren",
+      "generateTitleFailed": "Titel konnte nicht generiert werden",
+      "actionsFor": "Aktionen für {name}",
+      "conversationTitle": "Gesprächstitel",
+      "renameFailed": "Gespräch konnte nicht umbenannt werden",
+      "collapseSaveFailed": "Projektordnerzustand konnte nicht gespeichert werden",
+      "selected": "Ausgewählt",
+      "openNewTab": "In neuem Tab öffnen",
+      "openBackgroundTab": "Im Hintergrundtab öffnen",
+      "switchOpen": "Zu geöffneter Sitzung wechseln",
+      "assignDevice": "Diesem Gerät zuweisen",
+      "pin": "Anheften",
+      "unpin": "Lösen",
+      "markUnread": "Als ungelesen markieren",
+      "markRead": "Als gelesen markieren",
+      "rename": "Umbenennen",
+      "copyId": "Sitzungs-ID kopieren",
+      "restore": "Wiederherstellen",
+      "delete": "Löschen",
+      "loadFailed": "Gespräch konnte nicht geladen werden",
+      "copyIdFailed": "Sitzungs-ID konnte nicht kopiert werden",
+      "assignFailed": "Sitzung konnte diesem Gerät nicht zugewiesen werden",
+      "pinFailed": "Sitzung konnte nicht angeheftet werden",
+      "unpinFailed": "Sitzung konnte nicht gelöst werden",
+      "archiveFailed": "Sitzung konnte nicht archiviert werden",
+      "restoreFailed": "Sitzung konnte nicht wiederhergestellt werden",
+      "deleteFailed": "Gespräch konnte nicht gelöscht werden",
+      "cannotArchiveRunning": "Laufende Sitzung kann nicht archiviert werden",
+      "needsYourInput": "Eingabe erforderlich",
+      "stoppedWithError": "Mit Fehler beendet",
+      "running": "Läuft",
+      "unread": "Ungelesen",
+      "needsInput": "Eingabe erforderlich",
+      "runningOtherPane": "Läuft in einem anderen Bereich",
+      "openOtherPane": "In einem anderen Bereich geöffnet",
+      "tabNumber": "Tab {number}",
+      "currentTab": "aktueller Tab",
+      "tab": "Tab",
+      "runningIn": "Läuft in {tab}",
+      "currentTabNumber": "Aktueller Tab {number}",
+      "currentSession": "Aktuelle Sitzung",
+      "openIn": "Geöffnet in {tab}",
+      "restoreCount": "{count} Sitzung(en) wiederherstellen",
+      "deleteCount": "{count} Sitzung(en) löschen",
+      "pinCount": "{count} Sitzung(en) anheften",
+      "unpinCount": "{count} Sitzung(en) lösen",
+      "archiveCount": "{count} Sitzung(en) archivieren",
+      "permanentDeleteCount": "{count} Sitzung(en) dauerhaft löschen?",
+      "restoreManyFailed": "Sitzungen konnten nicht wiederhergestellt werden",
+      "deleteManyFailed": "Sitzungen konnten nicht gelöscht werden",
+      "pinManyFailed": "Sitzungen konnten nicht angeheftet werden",
+      "unpinManyFailed": "Sitzungen konnten nicht gelöst werden",
+      "archiveManyFailed": "Sitzungen konnten nicht archiviert werden",
+      "moveManyFailed": "Sitzungen konnten nicht verschoben werden",
+      "pinLinked": "Verknüpften Inhalt anheften",
+      "unpinLinked": "Verknüpften Inhalt lösen",
+      "pinLinkedFailed": "Verknüpfter Inhalt konnte nicht angeheftet werden",
+      "unpinLinkedFailed": "Verknüpfter Inhalt konnte nicht gelöst werden",
+      "archiveAll": "Alle Sitzungen archivieren",
+      "restoreAll": "Alle Sitzungen wiederherstellen",
+      "deleteAll": "Alle Sitzungen löschen",
+      "archiveLinkedFailed": "Sitzungen des verknüpften Inhalts konnten nicht archiviert werden",
+      "idCopied": "Sitzungs-ID kopiert"
+    },
+    "compacted": "Unterhaltung komprimiert",
+    "subagent": {
+      "prompt": "Prompt",
+      "result": "Ergebnis",
+      "tokens": "{count} Token",
+      "toolUse": "{count} Werkzeugaufruf",
+      "toolUses": "{count} Werkzeugaufrufe",
+      "lastTool": "Letztes Werkzeug: {tool}",
+      "taskAria": "Unteraufgabe: {description} - {status} - zum Erweitern klicken",
+      "initializing": "Initialisierung",
+      "error": "Fehler",
+      "orphaned": "Verwaist",
+      "completed": "Abgeschlossen",
+      "backgroundRunning": "Im Hintergrund aktiv",
+      "backgroundAria": "Hintergrundaufgabe: {description} - {status} - zum Erweitern klicken",
+      "statusAria": "Status: {status}",
+      "orphanedResult": "Unterhaltung endete vor Abschluss der Aufgabe"
+    },
+    "notices": {
+      "showWideFailed": "Sitzung konnte nicht in der breiten Ansicht angezeigt werden",
+      "createTabFailed": "Tab konnte nicht erstellt werden",
+      "createConversationFailed": "Gespräch konnte nicht erstellt werden",
+      "startConversationFailed": "Neues Gespräch konnte nicht gestartet werden",
+      "switchTabFailed": "Tab konnte nicht gewechselt werden",
+      "closeTabFailed": "Tab konnte nicht geschlossen werden",
+      "resizeSessions": "Breite der Sitzungsliste ändern",
+      "closePreviewFailed": "Vorläufige Sitzungsvorschau konnte nicht geschlossen werden",
+      "linkedPathsFailed": "Pfade verknüpfter Inhalte konnten nicht aktualisiert werden",
+      "pinnedContentFailed": "Angeheftete verknüpfte Inhalte konnten nicht aktualisiert werden",
+      "sideProviderSwitch": "Der Anbieter kann im Nebenchat nicht gewechselt werden.",
+      "selectAvailableModel": "Wählen Sie in den Scribe-Einstellungen ein verfügbares Modell.",
+      "boundProviderSwitch": "Der Anbieter einer gebundenen Sitzung kann nicht gewechselt werden. Beginnen Sie ein neues Gespräch.",
+      "mainChatMode": "Die Modusauswahl gilt für den Hauptchat.",
+      "initializeExecutionFailed": "Agent konnte nicht initialisiert werden. Bitte versuchen Sie es erneut.",
+      "executionUnavailable": "Agent ist nicht verfügbar. Bitte laden Sie das Plugin neu.",
+      "sessionDeleted": "Die Anbietersitzung existiert nicht mehr. Ihr Scribe-Eintrag wurde entfernt; senden Sie erneut, um eine neue Sitzung zu beginnen.",
+      "sessionReset": "Die Anbietersitzung existiert nicht mehr. Scribe hat den wiederherstellbaren Verlauf bewahrt; senden Sie erneut, um die Sitzung neu aufzubauen.",
+      "sessionPreserved": "Die Anbietersitzung existiert nicht mehr. Scribe hat den Eintrag bewahrt, da der verbleibende Verlauf nicht überprüft werden konnte.",
+      "sessionMissing": "Die Anbietersitzung existiert nicht mehr. Senden Sie erneut, um eine neue Sitzung zu beginnen.",
+      "messageNotSent": "Nachricht wurde nicht gesendet. Bitte versuchen Sie es erneut.",
+      "unknownError": "Unbekannter Fehler",
+      "unsupportedCommand": "/{command} wird von diesem Anbieter nicht unterstützt.",
+      "fastUnavailable": "Der Schnellmodus ist für dieses Modell nicht verfügbar.",
+      "fastToggleFailed": "Schnellmodus konnte nicht umgeschaltet werden.",
+      "unknownCommand": "Unbekannter Befehl: {command}",
+      "openConversationFailed": "Gespräch konnte nicht geöffnet werden: {error}",
+      "tabsUnavailable": "Chat-Tabs sind nicht verfügbar",
+      "forkUnsupported": "Dieser Anbieter unterstützt keine Abzweigung."
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "Einstellungen konnten nicht gespeichert werden",
+      "loading": "{provider}-Einstellungen werden geladen…",
+      "unknownError": "Unbekannter Fehler",
+      "unavailable": "Nicht verfügbar: {model}",
+      "aliasSaveFailed": "Modellalias konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "contextLabel": "Kontextfenster für {model}",
+      "modelSaveFailed": "Modellauswahl konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "snippetRefreshFailed": "Umgebungsvorlage wurde gespeichert, aber die Einstellungen konnten nicht aktualisiert werden.",
+      "snippetUpdateFailed": "Umgebungsvorlage konnte nicht aktualisiert werden",
+      "snippetSaveFailed": "Umgebungsvorlage konnte nicht gespeichert werden",
+      "snippetSaved": "Umgebungsvorlage „{name}“ gespeichert",
+      "snippetUpdated": "Umgebungsvorlage „{name}“ aktualisiert",
+      "snippetDeleted": "Umgebungsvorlage „{name}“ gelöscht",
+      "environmentReview": "Zuständigkeit für Umgebungsvariablen prüfen: {keys}",
+      "environmentUpdateFailed": "Umgebungsvariablen konnten nicht aktualisiert werden."
+    },
     "tabs": {
       "general": "Allgemein",
       "providers": "Anbieter",
@@ -446,7 +721,7 @@
     "responses": "Antworten",
     "experimental": "Experimentell",
     "userName": {
-      "name": "Wie soll Claudian dich nennen?",
+      "name": "Wie soll Scribe dich nennen?",
       "desc": "Dein Name für personalisierte Begrüßungen (leer lassen für allgemeine Begrüßungen)"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Write- und Edit-Diffs beim ersten Erscheinen ausgeklappt anzeigen."
     },
     "chatViewPlacement": {
-      "name": "Claudian öffnen in",
+      "name": "Scribe öffnen in",
       "desc": "Wählen Sie, wo das Chat-Panel beim Erstellen geöffnet wird",
       "rightSidebar": "Rechte Seitenleiste",
       "leftSidebar": "Linke Seitenleiste",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "{provider} aktivieren",
-      "lastProviderWarning": "Damit Claudian funktioniert, muss mindestens ein Anbieter aktiviert bleiben.",
+      "lastProviderWarning": "Damit Scribe funktioniert, muss mindestens ein Anbieter aktiviert bleiben.",
       "noModelsWarning": "Keine {provider}-Modelle sind aktiviert. Aktivieren Sie unten unter „Modelle“ mindestens ein Modell."
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "Installationsmethode",
-        "desc": "Wie Claudian Codex unter Windows starten soll. Native Windows verwendet einen Windows-Programmpfad. WSL startet die Linux-CLI in einer ausgewählten Distribution.",
+        "desc": "Wie Scribe Codex unter Windows starten soll. Native Windows verwendet einen Windows-Programmpfad. WSL startet die Linux-CLI in einer ausgewählten Distribution.",
         "nativeWindows": "Natives Windows",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "Zusätzliche Umgebungsvariablen, die an OpenCode übergeben werden."
       },
       "migrationNotice": {
-        "text": "OpenCode v1 wird nicht mehr unterstützt. Aktualisieren Sie auf OpenCode v2, um es in Claudian zu verwenden.",
+        "text": "OpenCode v1 wird nicht mehr unterstützt. Aktualisieren Sie auf OpenCode v2, um es in Scribe zu verwenden.",
         "link": "Zu OpenCode v2 migrieren"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "Umgebungsvariablen, die nur an Pi übergeben werden."
       },
       "models": {
-        "desc": "Claudian führt eine eigene Modellliste, getrennt von Pis enabledModels. „Discover“ listet alle Modelle, die Pi in seiner aktuellen Umgebung authentifizieren kann, gruppiert nach der Provider-Route, die Pi aufruft. Die Route bestimmt Zugangsdaten und Abrechnung."
+        "desc": "Scribe führt eine eigene Modellliste, getrennt von Pis enabledModels. „Discover“ listet alle Modelle, die Pi in seiner aktuellen Umgebung authentifizieren kann, gruppiert nach der Provider-Route, die Pi aufruft. Die Route bestimmt Zugangsdaten und Abrechnung."
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "Zusätzliche Preset-Plugins",
-        "desc": "Erweitert. Eine YAML-Liste (dsh-Format) nativer dsh-Plugin-Zeilen, die an Claudians Chat-Preset angehängt werden, jeweils mit eigener \"id\" und eigenem \"name\". Zeilen können Claudians eigene nicht ersetzen. Speichern startet DeepSeek Harness neu und beendet laufende Züge. Plugins ohne Claudian-Oberfläche, etwa der Planmodus, funktionieren möglicherweise nicht."
+        "desc": "Erweitert. Eine YAML-Liste (dsh-Format) nativer dsh-Plugin-Zeilen, die an Scribes Chat-Preset angehängt werden, jeweils mit eigener \"id\" und eigenem \"name\". Zeilen können Scribes eigene nicht ersetzen. Speichern startet DeepSeek Harness neu und beendet laufende Züge. Plugins ohne Scribe-Oberfläche, etwa der Planmodus, funktionieren möglicherweise nicht."
       },
       "presetPreview": "Preset-Vorschau",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "Verschoben {moved}, umgewandelt {converted}, im Papierkorb {trashed}, {unlinked} Link(s) entfernt."
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "Modelloptionen",
+      "provider": "Anbieter",
+      "unavailable": "Modell nicht verfügbar",
+      "setup": "Modelle einrichten",
+      "label": "Modell: {model}",
+      "choose": "Wähle in den Anbietereinstellungen ein aktiviertes Modell. Aktualisiere bei fehlgeschlagener Suche die Modellliste.",
+      "heading": "Modell",
+      "empty": "Keine Modelle verfügbar. Prüfe die Anbietereinstellungen und aktualisiere bei Bedarf die Modellliste.",
+      "changeFailed": "Modell konnte nicht geändert werden"
+    },
+    "effort": {
+      "default": "Standard",
+      "description": "Aufwand {level}",
+      "heading": "Denken",
+      "changeFailed": "Aufwand konnte nicht geändert werden"
+    }
+  },
+  "inlineEdit": {
+    "command": "Inline-Bearbeitung",
+    "unavailableView": "Inline-Bearbeitung nicht verfügbar: Die aktive Markdown-Ansicht ist nicht erreichbar.",
+    "inserted": "Eingefügt",
+    "applied": "Bearbeitung angewendet",
+    "unavailableEditor": "Inline-Bearbeitung nicht verfügbar: Der Editor ist nicht erreichbar. Öffne die Notiz erneut.",
+    "sourceChanged": "Die Bearbeitung wurde nicht angewendet, weil sich Dokument oder Auswahl geändert hat.",
+    "providerStartFailed": "Anbieter {provider} konnte nicht gestartet werden.",
+    "vaultLoadFailed": "Vault-Dateien konnten nicht geladen werden. @Erwähnungen sind möglicherweise nicht verfügbar.",
+    "insertInstructions": "Einfügeanweisung",
+    "editInstructions": "Bearbeitungsanweisung",
+    "insertPlaceholder": "Einfügeanweisung eingeben...",
+    "editPlaceholder": "Bearbeitungsanweisung eingeben...",
+    "modelRequired": "Wähle ein verfügbares Modell in den Scribe-Einstellungen.",
+    "actions": "Inline-Bearbeitungsaktionen",
+    "line": "Zeile",
+    "lines": "Zeilen",
+    "reject": "Ablehnen",
+    "accept": "Annehmen",
+    "rejectAria": "Inline-Bearbeitung ablehnen",
+    "acceptAria": "Inline-Bearbeitung annehmen",
+    "retryError": "Fehler – erneut versuchen",
+    "replyPlaceholder": "Antworten, um fortzufahren...",
+    "noResponse": "Keine Antwort vom Agenten"
+  },
+  "commands": {
+    "openScribe": "Scribe öffnen",
+    "toggleChat": "Chatansicht umschalten",
+    "copyDiagnostics": "Startdiagnose kopieren",
+    "new": "Neu",
+    "replaceConversation": "Aktuelle Unterhaltung ersetzen",
+    "closeTab": "Aktuellen Tab schließen",
+    "renameTab": "Aktuellen Tab umbenennen",
+    "focusChat": "Chat-Eingabefokus umschalten",
+    "toggleZenHistory": "Zen-Modus-Verlauf umschalten"
   }
 }

@@ -20,6 +20,7 @@ import { ChatState } from '@/features/chat/state/ChatState';
 import { SubagentManager } from '@/features/chat/subagents/SubagentManager';
 import { createAsyncSubagentBlock, createSubagentBlock, updateAsyncSubagentBlock, updateSubagentBlock } from '@/features/chat/subagents/SubagentRenderer';
 import { StreamController } from '@/features/chat/turns/StreamController';
+import { setLocale } from '@/i18n/i18n';
 import { ClaudeTaskResultInterpreter } from '@/providers/claude/runtime/ClaudeTaskResultInterpreter';
 import { CodexSubagentTracker } from '@/providers/codex/execution/CodexSubagentTracker';
 import { codexSubagentLifecycleAdapter } from '@/providers/codex/normalization/codexSubagentNormalization';
@@ -32,8 +33,16 @@ HTMLElement.prototype.removeClass = function (...classes) { this.classList.remov
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
+  setLocale('en');
   cleanups.splice(0).forEach(cleanup => cleanup());
   document.body.replaceChildren();
+});
+
+it('renders the running subagent status in the selected language', () => {
+  setLocale('zh-CN');
+  const parent = document.body.createDiv();
+  const state = createSubagentBlock(parent, { id: 'task', description: 'Task', status: 'running', toolCalls: [], isExpanded: false });
+  expect(state.statusEl.getAttribute('aria-label')).toBe('状态：运行中');
 });
 
 function expandButton(parent: HTMLElement, name: RegExp): void {
@@ -56,7 +65,7 @@ function createCodexLifecycleView() {
     id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [], toolCalls: tools,
   };
   state.addMessage(message);
-  state.currentContentEl = renderer.addMessage(message).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(message).querySelector('.scribe-message-content');
   let pending = Promise.resolve();
   const router = new CodexNotificationRouter(chunk => {
     pending = pending.then(() => stream.handleStreamChunk(chunk, message));
@@ -339,7 +348,7 @@ it('normalizes a completed synchronous answer containing not-ready prose', () =>
     expect.objectContaining({ input: { file_path: 'note.md', limit: 10 }, status: 'completed', result: 'The note.' }),
   ]);
   expandButton(parent, /Subagent task: Deployment check/);
-  expect(parent.querySelectorAll('.claudian-subagent-tool-item')).toHaveLength(1);
+  expect(parent.querySelectorAll('.scribe-subagent-tool-item')).toHaveLength(1);
   const answer = 'Deployment is not ready.';
   const metadata = 'agentId: agent-sync\n<usage>total_tokens: 500</usage>';
 
@@ -353,7 +362,7 @@ it('normalizes a completed synchronous answer containing not-ready prose', () =>
 });
 
 it.each(['unrelated', 'running'] as const)('defers output-file recovery for %s results until an owned task completes', (state) => {
-  const directory = fs.mkdtempSync(join(tmpdir(), 'claudian-managed-output-'));
+  const directory = fs.mkdtempSync(join(tmpdir(), 'scribe-managed-output-'));
   const outputPath = join(directory, 'task.output');
   fs.writeFileSync(outputPath, JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: 'Recovered task answer' }] } }));
   const read = vi.spyOn(fs, 'readFileSync');
@@ -458,10 +467,10 @@ it('reconciles a large expanded child list with linear identity lookups and remo
   const parent = document.body.createDiv();
   const view = createSubagentBlock(parent, info);
   fireEvent.click(within(parent).getByRole('button', { name: /Subagent task: Many tools/ }));
-  expect(parent.querySelectorAll('.claudian-subagent-tool-item')).toHaveLength(100);
+  expect(parent.querySelectorAll('.scribe-subagent-tool-item')).toHaveLength(100);
   identityReads = 0;
   updateSubagentBlock(view, { ...info, toolCalls: tools.slice(1) });
-  expect(parent.querySelectorAll('.claudian-subagent-tool-item')).toHaveLength(99);
+  expect(parent.querySelectorAll('.scribe-subagent-tool-item')).toHaveLength(99);
   expect(parent.querySelector('[data-tool-id="child-0"]')).toBeNull();
   expect(parent.querySelector('[data-tool-id="child-99"]')).not.toBeNull();
   expect(identityReads).toBeLessThanOrEqual(400);
@@ -518,7 +527,7 @@ it.each(['before spawn', 'after spawn', 'native only'])('keeps the native Codex 
   if (timing !== 'before spawn') tracker.activity(started, 'parent-turn');
   view.router.handleNotification('item/completed', { threadId: 'parent', turnId: 'parent-turn', item: started });
   await view.flush();
-  expect(view.parent.querySelectorAll('.claudian-subagent-list')).toHaveLength(1);
+  expect(view.parent.querySelectorAll('.scribe-subagent-list')).toHaveLength(1);
   expect(view.parent.textContent).not.toContain('gAAAAA');
   expect(within(view.parent).queryByRole('button', { name: /^Prompt/ })).toBeNull();
   expect(view.parent.textContent).not.toContain('No prompt provided');
@@ -537,7 +546,7 @@ it.each(['before spawn', 'after spawn', 'native only'])('keeps the native Codex 
   expect(view.parent.textContent).toContain('Ready.');
   expandButton(view.parent, /^Subagent task:/);
   expandButton(view.parent, /^clock__curr_time/);
-  expect(view.parent.querySelectorAll('.claudian-subagent-tool-item')).toHaveLength(1);
+  expect(view.parent.querySelectorAll('.scribe-subagent-tool-item')).toHaveLength(1);
   expect(view.parent.textContent).toContain('clock__curr_time');
   expect(view.parent.textContent).toContain('Clock result');
   // A reopened conversation already has raw-only child tools from history.
@@ -551,11 +560,11 @@ it.each(['before spawn', 'after spawn', 'native only'])('keeps the native Codex 
   }] } as Thread);
   tracker.activity({ ...started, id: 'idle-message', kind: 'interacted' }, 'later-parent-turn');
   await Promise.resolve();
-  expect(view.parent.querySelectorAll('.claudian-subagent-tool-item')).toHaveLength(1);
+  expect(view.parent.querySelectorAll('.scribe-subagent-tool-item')).toHaveLength(1);
   expect(view.parent.textContent).toContain('Ready.');
   const laterMessage: ChatMessage = { id: 'later', role: 'assistant', content: '', timestamp: testDate().getTime(), toolCalls: [] };
   view.state.addMessage(laterMessage);
-  view.state.currentContentEl = view.renderer.addMessage(laterMessage).querySelector('.claudian-message-content');
+  view.state.currentContentEl = view.renderer.addMessage(laterMessage).querySelector('.scribe-message-content');
   const followup = { type: 'tool_use' as const, id: 'followup', name: 'followup_task', input: { target: 'helper', message: 'Run bash date' } };
   let followupWork = Promise.resolve();
   const followupRouter = new CodexNotificationRouter(chunk => {
@@ -609,7 +618,7 @@ it.each(['before spawn', 'after spawn', 'native only'])('keeps the native Codex 
   await view.stream.handleStreamChunk({ type: 'tool_result', id: 'wait', content: 'aborted by user', isError: true }, laterMessage);
   const finalMessage: ChatMessage = { id: 'final-run', role: 'assistant', content: '', timestamp: testDate().getTime(), toolCalls: [] };
   view.state.addMessage(finalMessage);
-  view.state.currentContentEl = view.renderer.addMessage(finalMessage).querySelector('.claudian-message-content');
+  view.state.currentContentEl = view.renderer.addMessage(finalMessage).querySelector('.scribe-message-content');
   await view.stream.handleStreamChunk({ type: 'tool_use', id: 'followup-2', name: 'followup_task', input: { target: 'helper', message: 'One more run' } }, finalMessage);
   tracker.activity({ ...started, id: 'followup-2', kind: 'interacted' }, 'final-parent-turn');
   tracker.turnStarted('child', 'child-turn-3');
@@ -625,11 +634,11 @@ it.each(['before spawn', 'after spawn', 'native only'])('keeps the native Codex 
     expandButton(original, /^clock__curr_time/);
     expandButton(later, /^Subagent task:/);
     expandButton(later, /^Bash/);
-    expect(original.querySelectorAll('.claudian-subagent-list')).toHaveLength(1);
+    expect(original.querySelectorAll('.scribe-subagent-list')).toHaveLength(1);
     expect(original.textContent).toContain('Ready.');
     expect(original.textContent).toContain('Clock result');
     expect(original.textContent).not.toContain('Date result');
-    expect(later.querySelectorAll('.claudian-subagent-list')).toHaveLength(1);
+    expect(later.querySelectorAll('.scribe-subagent-list')).toHaveLength(1);
     expect(later.textContent).toContain('Two.');
     expect(later.textContent).toContain('Date result');
     expect(later.textContent).not.toContain('Clock result');
@@ -689,7 +698,7 @@ it('shows previous runs after completed-turn regrouping without navigation or ot
   fireEvent.click(within(view.parent).getByRole('button', { name: 'Worked for 00:02' }));
   fireEvent.click(within(view.parent).getByRole('button', { name: 'Previous runs (1)' }));
   fireEvent.click(within(view.parent).getByRole('button', { name: 'Run 1 · Completed' }));
-  const history = view.parent.querySelector<HTMLElement>('.claudian-subagent-history')!;
+  const history = view.parent.querySelector<HTMLElement>('.scribe-subagent-history')!;
   expect(history.textContent).toContain('first prompt');
   expect(history.textContent).toContain('first result');
   expect(history.textContent).not.toContain('other result');
@@ -725,7 +734,7 @@ function createOpencodeView() {
   const addMessage = (id: string): ChatMessage => {
     const message: ChatMessage = { id, role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [], toolCalls: [] };
     state.addMessage(message);
-    state.currentContentEl = renderer.addMessage(message).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(message).querySelector('.scribe-message-content');
     return message;
   };
   cleanups.push(() => { stream.dispose(); manager.clear(); renderer.dispose(); });
@@ -757,7 +766,7 @@ it('shows previous runs of reused OpenCode subagents live and after reload', asy
     const [syncRun, backgroundRun] = within(second).getAllByRole('button', { name: /^Run 1 · / });
     fireEvent.click(syncRun);
     fireEvent.click(backgroundRun);
-    const histories = second.querySelectorAll<HTMLElement>('.claudian-subagent-history');
+    const histories = second.querySelectorAll<HTMLElement>('.scribe-subagent-history');
     expect(histories[0].textContent).toContain('Answer A');
     expect(histories[0].textContent).not.toContain('Answer B');
     expect(histories[1].textContent).toContain('Survey 0');

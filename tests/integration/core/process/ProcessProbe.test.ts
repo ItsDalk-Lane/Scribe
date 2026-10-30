@@ -36,7 +36,7 @@ describe('process probe subprocess integration', () => {
   });
 
   it('returns null when the executable cannot be spawned', async () => {
-    const directory = mkdtempSync(path.join(tmpdir(), 'claudian-process-probe-'));
+    const directory = mkdtempSync(path.join(tmpdir(), 'scribe-process-probe-'));
     try {
       await expect(runProcessProbe({
         command: path.join(directory, 'missing-executable'),
@@ -51,7 +51,7 @@ describe('process probe subprocess integration', () => {
 
   describePosix('POSIX node candidate admission', () => {
     it('skips a non-executable node file ahead of a runnable Node when probing a JS CLI', async () => {
-      const root = mkdtempSync(path.join(tmpdir(), 'claudian-node-admission-'));
+      const root = mkdtempSync(path.join(tmpdir(), 'scribe-node-admission-'));
       try {
         const badDir = path.join(root, 'bad');
         const goodDir = path.join(root, 'good');

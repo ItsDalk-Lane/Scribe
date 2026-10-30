@@ -3,6 +3,7 @@ import { setIcon } from 'obsidian';
 import type { ProviderServiceTierToggleConfig } from '@/core/providers/types';
 import { toggleServiceTier } from '@/features/chat/composer/toggleServiceTier';
 import type { ToolbarCallbacks } from '@/features/chat/composer/toolbar/types';
+import { t } from '@/i18n/i18n';
 import type { ModelMenuPart, ModelSelector } from '@/shared/toolbar/ModelSelector';
 import { runToolbarAction } from '@/shared/toolbar/ToolbarMenu';
 
@@ -15,11 +16,11 @@ export class ServiceTierToggle {
     this.callbacks = callbacks;
     this.part = modelSelector.attachPart(
       'serviceTier',
-      'claudian-toolbar-chip-secondary claudian-service-tier-indicator',
+      'scribe-toolbar-chip-secondary scribe-service-tier-indicator',
       () => this.updateDisplay(),
     );
     setIcon(this.part.chipEl, 'zap');
-    this.part.sectionEl.addClass('claudian-service-tier-toggle');
+    this.part.sectionEl.addClass('scribe-service-tier-toggle');
     this.updateDisplay();
   }
 
@@ -32,8 +33,8 @@ export class ServiceTierToggle {
     const toggleConfig = this.#getToggleConfig();
     const sectionEl = this.part.sectionEl;
     sectionEl.empty();
-    this.part.chipEl.toggleClass('claudian-hidden', !toggleConfig?.isActive);
-    this.part.describe(toggleConfig?.isActive ? 'fast mode on' : null);
+    this.part.chipEl.toggleClass('scribe-hidden', !toggleConfig?.isActive);
+    this.part.describe(toggleConfig?.isActive ? t('chat.displayFeedback.fastOn') : null);
     // While the menu browses another provider no model is chosen there, so, as for a model
     // without fast mode, the switch is not offered. The button still shows the current model's state.
     if (!toggleConfig || !this.part.showsCurrentModel()) {
@@ -42,22 +43,24 @@ export class ServiceTierToggle {
     }
 
     this.part.showSection(true);
-    const currentLabel = toggleConfig.isActive ? toggleConfig.activeLabel : toggleConfig.inactiveLabel;
+    const rawLabel = toggleConfig.isActive ? toggleConfig.activeLabel : toggleConfig.inactiveLabel;
+    const currentLabel = rawLabel.toLowerCase() === 'standard' ? t('chat.displayFeedback.standard')
+      : rawLabel.toLowerCase() === 'fast' ? t('chat.displayFeedback.fast') : rawLabel;
     const itemEl = this.part.menu.createItem(sectionEl, {
       role: 'switch',
       checked: toggleConfig.isActive,
       tabbable: true,
-      label: 'Fast',
-      cls: 'claudian-toolbar-popover-switch-row',
-      title: [`Fast mode: ${currentLabel}`, toggleConfig.description].filter(Boolean).join('\n'),
+      label: t('chat.displayFeedback.fast'),
+      cls: 'scribe-toolbar-popover-switch-row',
+      title: [t('chat.displayFeedback.fastTitle', { state: currentLabel }), toggleConfig.description].filter(Boolean).join('\n'),
       leadingIcon: 'zap',
       onSelect: () => {
         runToolbarAction(async () => {
           await this.toggle();
-        }, 'Failed to change service tier');
+        }, t('chat.displayFeedback.fastFailure'));
       },
     });
-    itemEl.createSpan({ cls: `claudian-toggle-switch${toggleConfig.isActive ? ' active' : ''}` });
+    itemEl.createSpan({ cls: `scribe-toggle-switch${toggleConfig.isActive ? ' active' : ''}` });
     this.part.menu.restoreFocus();
   }
 

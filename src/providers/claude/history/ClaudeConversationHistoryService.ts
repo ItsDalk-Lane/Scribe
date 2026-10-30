@@ -280,7 +280,7 @@ function dedupeMessages(messages: ChatMessage[]): ChatMessage[] {
 }
 
 /**
- * Cached messages are the tab's live projection under Claudian-local ids. Native history supersedes
+ * Cached messages are the tab's live projection under Scribe-local ids. Native history supersedes
  * every cached message it reflects by id or native identity. Complete history also supersedes every
  * unmatched one before the last reflected message; later messages are the unconfirmed tail. A live
  * task notification that native never consumed keeps its place. Incomplete history keeps every
@@ -404,7 +404,7 @@ async function enrichAsyncSubagents(
       if (toolCalls) subagent.toolCalls = toolCalls.map(toolCall => ({ ...toolCall, input: { ...toolCall.input } }));
     }
 
-    // A completion Claudian observed that never reached the transcript keeps its result in the sidecar.
+    // A completion Scribe observed that never reached the transcript keeps its result in the sidecar.
     const cachedIsTerminal = isTerminalAsyncStatus(normalizeAsyncStatus(subagent));
     const nativeIsTerminal = isTerminalAsyncStatus(normalizeAsyncStatus(native));
     if (subagent.result === undefined && cachedIsTerminal && !nativeIsTerminal) {
@@ -534,7 +534,7 @@ function stripSubagentImageData(subagent: SubagentInfo): SubagentInfo {
 
 /**
  * Persists only what native history cannot rebuild. A subagent whose sidecar exists is rebuilt from
- * its transcript tool call and sidecar on hydration; async runs keep the lifecycle state Claudian
+ * its transcript tool call and sidecar on hydration; async runs keep the lifecycle state Scribe
  * observed, because the transcript can lack the completion notice.
  */
 function buildPersistedSubagent(

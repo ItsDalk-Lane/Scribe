@@ -8,6 +8,7 @@ import {
   type SessionSurfaceNavigation,
   type SessionSurfaceShared,
 } from '@/features/chat/session-manager/SessionSurfaceShared';
+import { t } from '@/i18n/i18n';
 
 const VIEW_HEIGHT_SHARE = 0.6;
 
@@ -36,18 +37,18 @@ export class HistoryDropdown {
   /** Builds the history button and its drop-up menu inside `parentEl`. */
   mount(parentEl: HTMLElement): void {
     const historyContainer = parentEl.createDiv({
-      cls: 'claudian-history-container claudian-nav-dropup-container',
+      cls: 'scribe-history-container scribe-nav-dropup-container',
     });
     this.containerEl = historyContainer;
     const historyBtn = historyContainer.createEl('button', {
-      cls: 'claudian-input-nav-btn',
+      cls: 'scribe-input-nav-btn',
       attr: { type: 'button' },
     });
     setIcon(historyBtn, 'history');
-    historyBtn.setAttribute('aria-label', 'Chat history');
+    historyBtn.setAttribute('aria-label', t('chat.sessionManager.history'));
 
     this.menuEl = historyContainer.createDiv({
-      cls: 'claudian-history-menu claudian-nav-dropup-menu',
+      cls: 'scribe-history-menu scribe-nav-dropup-menu',
     });
 
     historyBtn.addEventListener('click', (e) => {
@@ -58,6 +59,10 @@ export class HistoryDropdown {
 
   markDirty(): void {
     this.dirty = true;
+  }
+
+  refreshLocale(): void {
+    this.containerEl?.querySelector('.scribe-input-nav-btn')?.setAttribute('aria-label', t('chat.sessionManager.history'));
   }
 
   /** Renders a stale list only while the menu is open; a hidden menu renders when opened. */
@@ -79,11 +84,11 @@ export class HistoryDropdown {
 
   /** Caps the drop-up at 60% of the chat view's height, measured as it opens. */
   private fitToView(menuEl: HTMLElement): void {
-    const viewEl = menuEl.closest<HTMLElement>('.claudian-container');
+    const viewEl = menuEl.closest<HTMLElement>('.scribe-container');
     const height = viewEl?.clientHeight ?? 0;
     // An unmeasured view keeps the stylesheet's fallback cap.
     menuEl.setCssProps({
-      '--claudian-history-menu-max-height': height > 0 ? `${Math.round(height * VIEW_HEIGHT_SHARE)}px` : '',
+      '--scribe-history-menu-max-height': height > 0 ? `${Math.round(height * VIEW_HEIGHT_SHARE)}px` : '',
     });
   }
 
@@ -168,19 +173,19 @@ export class HistoryDropdown {
   }
 
   private buildArchiveNavigation(container: HTMLElement): void {
-    const list = container.querySelector<HTMLElement>('.claudian-history-list');
+    const list = container.querySelector<HTMLElement>('.scribe-history-list');
     if (!list) return;
 
     const { shared } = this.deps;
     const isArchiveView = shared.isArchiveView();
-    const label = isArchiveView ? 'Sessions' : 'Archive';
-    const control = list.createDiv({ cls: 'claudian-history-archive-control' });
+    const label = isArchiveView ? t('chat.sessionManager.sessions') : t('chat.sessionManager.archive');
+    const control = list.createDiv({ cls: 'scribe-history-archive-control' });
     control.setAttribute('role', 'button');
     control.setAttribute('tabindex', '0');
     control.setAttribute('aria-label', label);
-    const icon = control.createSpan({ cls: 'claudian-session-nav-icon' });
+    const icon = control.createSpan({ cls: 'scribe-session-nav-icon' });
     setIcon(icon, isArchiveView ? 'arrow-left' : 'archive');
-    control.createSpan({ cls: 'claudian-session-nav-label', text: label });
+    control.createSpan({ cls: 'scribe-session-nav-label', text: label });
     const toggleArchiveView = (): void => shared.setArchiveView(!shared.isArchiveView());
     control.addEventListener('click', (event) => {
       event.stopPropagation();

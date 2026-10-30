@@ -14,9 +14,79 @@
     "none": "无"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "快速",
+      "fastOn": "快速模式已开启",
+      "fastTitle": "快速模式：{state}",
+      "fastFailure": "切换服务等级失败",
+      "standard": "标准",
+      "context": "上下文使用量",
+      "contextDetails": "上下文使用量：{usage}",
+      "contextWarning": "（接近上限，运行 `/compact` 以继续）",
+      "branchBusy": "请等待当前回复完成。",
+      "previousBranch": "上一分支",
+      "noPrevious": "没有上一分支。",
+      "branchPosition": "分支 {current} / {total}",
+      "nextBranch": "下一分支",
+      "noNext": "没有下一分支。",
+      "branchFrom": "从此消息创建分支",
+      "previewImage": "预览 {name}",
+      "mermaidDiagram": "Mermaid 图表",
+      "mermaidSource": "显示图表源码"
+    },
+    "conversationFeedback": {
+      "collapseSide": "请先收起侧边对话，再切换对话分支。",
+      "savePrompt": "此消息保存后才能切换分支。",
+      "clearDraft": "请先保存或清空草稿，再切换对话分支。",
+      "branchInProgress": "正在切换分支。",
+      "conversationChanged": "对话已发生变化。",
+      "conversationMissing": "找不到对话。",
+      "executionUnavailable": "当前无法运行。",
+      "recoveryCancelled": "已取消恢复分支。",
+      "reconcileFailed": "无法恢复对话分支：{error}",
+      "cannotArchive": "无法归档正在运行的会话",
+      "skippedOpenOne": "已跳过 {count} 个打开或运行中的会话",
+      "skippedOpenMany": "已跳过 {count} 个打开或运行中的会话",
+      "cannotDelete": "无法删除正在运行的会话",
+      "skippedRunningOne": "已跳过 {count} 个运行中的会话",
+      "skippedRunningMany": "已跳过 {count} 个运行中的会话",
+      "closeDeletedFailed": "无法关闭已删除的会话",
+      "closeBeforeArchiveFailed": "归档前无法关闭会话",
+      "autoArchiveFailed": "自动归档不活跃会话失败",
+      "autoArchiveOne": "已自动归档 {count} 个不活跃会话",
+      "autoArchiveMany": "已自动归档 {count} 个不活跃会话"
+    },
+    "tabBar": {
+      "name": "标签页名称",
+      "rename": "重命名标签页…",
+      "reset": "重置标签页名称",
+      "showNumber": "显示数字",
+      "showName": "显示名称",
+      "showTitle": "显示标题",
+      "close": "关闭标签页",
+      "active": "当前标签页",
+      "needsInput": "需要你的输入",
+      "working": "处理中",
+      "reviewError": "因错误停止，等待检查",
+      "review": "已完成，等待检查",
+      "idle": "空闲"
+    },
+    "fileMenu": {
+      "add": "添加到 Scribe",
+      "notReady": "Scribe 聊天尚未准备好。",
+      "failed": "无法将文件添加到 Scribe。"
+    },
+    "queue": {
+      "steering": "正在引导",
+      "queued": "已排队",
+      "steerNow": "立即引导",
+      "edit": "编辑排队消息",
+      "discard": "丢弃排队消息",
+      "images": "[图片]"
+    },
     "promptSuggestionHint": "按 Tab 接受",
     "selectAvailableModel": "请先选择可用的模型再发送。",
-    "selectAvailableTitleModel": "请在 Claudian 设置中选择可用的标题生成模型。",
+    "selectAvailableTitleModel": "请在 Scribe 设置中选择可用的标题生成模型。",
     "rewind": {
       "confirmMessage": "回退到此处？此消息之后的文件更改可能被覆盖或删除。此操作无法撤销。",
       "confirmMessageConflicts": "回退到此处？检测到 {count} 个文件在代理之外被修改，继续操作将覆盖这些更改：\n{files}",
@@ -33,7 +103,14 @@
       "failed": "回退失败：{error}",
       "cannot": "无法回退：{error}",
       "unavailableStreaming": "流式响应中无法回退",
-      "unavailableNoUuid": "无法回退：缺少消息标识符"
+      "unavailableNoUuid": "无法回退：缺少消息标识符",
+      "messageNotFound": "未找到消息",
+      "initializationFailed": "无法初始化智能体服务",
+      "serviceUnavailable": "智能体服务不可用",
+      "executionUnavailable": "智能体不可用",
+      "conversationChanged": "回退期间对话发生了变化。",
+      "moreFiles": "另有 {count} 项",
+      "saveFailed": "无法保存"
     },
     "fork": {
       "ariaLabel": "分叉对话",
@@ -81,7 +158,7 @@
       "busySide": "侧边对话仍在回复，请等待其完成。"
     },
     "zen": {
-      "regionLabel": "Claudian 聊天",
+      "regionLabel": "Scribe 聊天",
       "showHistory": "显示对话",
       "move": "移动聊天面板",
       "working": "处理中…",
@@ -109,7 +186,7 @@
     "copyMessage": "复制消息",
     "showEarlierMessages": "显示更早的消息",
     "renderFailed": "消息内容渲染失败。",
-    "interruptedHint": "· 你希望 Claudian 改做什么？",
+    "interruptedHint": "· 你希望 Scribe 改做什么？",
     "sessions": {
       "empty": "暂无对话",
       "noMatch": "没有匹配的会话",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "思考中，已用时 {seconds} 秒…",
       "completed": "思考了 {seconds} 秒",
-      "label": "思考过程"
+      "label": "思考过程",
+      "waitHint": "（按 Esc 中断 · {duration}）",
+      "compacting": "正在压缩..."
     },
     "suggestions": {
       "loading": "正在加载…",
@@ -426,9 +505,205 @@
         "discard": "放弃",
         "emptyHint": "代理会随着项目推进填写这里。"
       }
+    },
+    "welcome": {
+      "happySunday": "周日愉快",
+      "sundaySession": "周日来聊聊？",
+      "weekend": "周末愉快",
+      "happyMonday": "周一愉快",
+      "backAtIt": "继续加油",
+      "backAtItExclamation": "继续加油！",
+      "happyTuesday": "周二愉快",
+      "happyWednesday": "周三愉快",
+      "happyThursday": "周四愉快",
+      "happyFriday": "周五愉快",
+      "fridayFeeling": "周五的感觉",
+      "happySaturday": "周六愉快",
+      "happySaturdayExclamation": "周六愉快！",
+      "morning": "早上好",
+      "coffee": "喝杯咖啡，开始使用 Scribe？",
+      "afternoon": "下午好",
+      "hey": "你好",
+      "howGoing": "最近怎么样",
+      "evening": "晚上好",
+      "eveningShort": "晚上好",
+      "howWasDay": "今天过得怎么样",
+      "nightOwl": "夜猫子，你好",
+      "hiHow": "你好，最近怎么样？",
+      "hiHowNamed": "你好，{name}，最近怎么样？",
+      "welcomeBack": "欢迎回来",
+      "whatsNew": "有什么新鲜事",
+      "returns": "{name} 回来了！",
+      "absolutelyRight": "你说得太对了！",
+      "personalized": "{name}，{greeting}"
+    },
+    "newTab": "新建标签页",
+    "newConversation": "新建对话",
+    "sessionManager": {
+      "new": "新建",
+      "search": "搜索",
+      "archive": "归档",
+      "sessions": "会话",
+      "archived": "已归档",
+      "pinned": "已置顶",
+      "missing": "已丢失",
+      "unlinked": "未关联",
+      "pastWeek": "最近一周",
+      "pastTwoWeeks": "最近两周",
+      "pastMonth": "最近一个月",
+      "older": "更早",
+      "sessionOptions": "会话选项",
+      "expandGroups": "展开所有分组",
+      "collapseGroups": "折叠所有分组",
+      "searchArchived": "搜索已归档会话",
+      "searchSessions": "搜索会话",
+      "organize": "整理会话",
+      "oneList": "显示为单个列表",
+      "byLinked": "按关联内容",
+      "sortBy": "会话排序方式",
+      "lastActivity": "最近活动",
+      "created": "创建时间",
+      "lastActive": "最近活动",
+      "organizationFailed": "无法更新会话整理方式",
+      "sortFailed": "无法更新会话排序",
+      "history": "聊天记录",
+      "loadMore": "加载更多（剩余 {count} 项）",
+      "newForContent": "为 {name} 新建对话",
+      "startContentFailed": "无法为此关联内容新建对话",
+      "generatingTitle": "正在生成标题...",
+      "regenerateTitle": "重新生成标题",
+      "generateTitle": "生成标题",
+      "generateTitleFailed": "无法生成标题",
+      "actionsFor": "{name} 的操作",
+      "conversationTitle": "对话标题",
+      "renameFailed": "无法重命名对话",
+      "collapseSaveFailed": "无法保存项目文件夹展开状态",
+      "selected": "已选择",
+      "openNewTab": "在新标签页中打开",
+      "openBackgroundTab": "在后台标签页中打开",
+      "switchOpen": "切换到已打开的会话",
+      "assignDevice": "分配到此设备",
+      "pin": "置顶",
+      "unpin": "取消置顶",
+      "markUnread": "标记为未读",
+      "markRead": "标记为已读",
+      "rename": "重命名",
+      "copyId": "复制会话 ID",
+      "restore": "恢复",
+      "delete": "删除",
+      "loadFailed": "无法加载对话",
+      "copyIdFailed": "无法复制会话 ID",
+      "assignFailed": "无法将会话分配到此设备",
+      "pinFailed": "无法置顶会话",
+      "unpinFailed": "无法取消置顶会话",
+      "archiveFailed": "无法归档会话",
+      "restoreFailed": "无法恢复会话",
+      "deleteFailed": "无法删除对话",
+      "cannotArchiveRunning": "无法归档正在运行的会话",
+      "needsYourInput": "需要你的输入",
+      "stoppedWithError": "因错误停止",
+      "running": "正在运行",
+      "unread": "未读",
+      "needsInput": "需要输入",
+      "runningOtherPane": "正在其他面板中运行",
+      "openOtherPane": "已在其他面板中打开",
+      "tabNumber": "标签页 {number}",
+      "currentTab": "当前标签页",
+      "tab": "标签页",
+      "runningIn": "正在 {tab} 中运行",
+      "currentTabNumber": "当前标签页 {number}",
+      "currentSession": "当前会话",
+      "openIn": "已在 {tab} 中打开",
+      "restoreCount": "恢复 {count} 个会话",
+      "deleteCount": "删除 {count} 个会话",
+      "pinCount": "置顶 {count} 个会话",
+      "unpinCount": "取消置顶 {count} 个会话",
+      "archiveCount": "归档 {count} 个会话",
+      "permanentDeleteCount": "永久删除 {count} 个会话？",
+      "restoreManyFailed": "无法恢复会话",
+      "deleteManyFailed": "无法删除会话",
+      "pinManyFailed": "无法置顶会话",
+      "unpinManyFailed": "无法取消置顶会话",
+      "archiveManyFailed": "无法归档会话",
+      "moveManyFailed": "无法移动会话",
+      "pinLinked": "置顶关联内容",
+      "unpinLinked": "取消置顶关联内容",
+      "pinLinkedFailed": "无法置顶关联内容",
+      "unpinLinkedFailed": "无法取消置顶关联内容",
+      "archiveAll": "归档所有会话",
+      "restoreAll": "恢复所有会话",
+      "deleteAll": "删除所有会话",
+      "archiveLinkedFailed": "无法归档关联内容中的会话",
+      "idCopied": "已复制会话 ID"
+    },
+    "compacted": "对话已压缩",
+    "subagent": {
+      "prompt": "提示词",
+      "result": "结果",
+      "tokens": "{count} 个词元",
+      "toolUse": "使用工具 {count} 次",
+      "toolUses": "使用工具 {count} 次",
+      "lastTool": "最近使用的工具：{tool}",
+      "taskAria": "子代理任务：{description} - {status} - 点击展开",
+      "initializing": "正在初始化",
+      "error": "错误",
+      "orphaned": "已失去连接",
+      "completed": "已完成",
+      "backgroundRunning": "正在后台运行",
+      "backgroundAria": "后台任务：{description} - {status} - 点击展开",
+      "statusAria": "状态：{status}",
+      "orphanedResult": "任务完成前对话已结束"
+    },
+    "notices": {
+      "showWideFailed": "无法在宽布局中显示会话",
+      "createTabFailed": "无法创建标签页",
+      "createConversationFailed": "无法创建对话",
+      "startConversationFailed": "无法开始新对话",
+      "switchTabFailed": "无法切换标签页",
+      "closeTabFailed": "无法关闭标签页",
+      "resizeSessions": "调整会话栏宽度",
+      "closePreviewFailed": "无法关闭临时会话预览",
+      "linkedPathsFailed": "无法更新关联内容路径",
+      "pinnedContentFailed": "无法更新已置顶的关联内容",
+      "sideProviderSwitch": "无法在侧边对话中切换服务商。",
+      "selectAvailableModel": "请在 Scribe 设置中选择可用模型。",
+      "boundProviderSwitch": "无法切换已绑定会话的服务商，请创建新对话。",
+      "mainChatMode": "模式选择仅适用于主对话。",
+      "initializeExecutionFailed": "无法初始化智能体，请重试。",
+      "executionUnavailable": "智能体暂不可用，请重新加载插件。",
+      "sessionDeleted": "服务商会话已不存在，Scribe 中的记录已移除；再次发送即可开始新会话。",
+      "sessionReset": "服务商会话已不存在。Scribe 已保留可恢复的历史记录；再次发送即可重建会话。",
+      "sessionPreserved": "服务商会话已不存在。由于无法验证剩余历史记录，Scribe 保留了该会话记录。",
+      "sessionMissing": "服务商会话已不存在，再次发送即可开始新会话。",
+      "messageNotSent": "消息未发送，请重试。",
+      "unknownError": "未知错误",
+      "unsupportedCommand": "此服务商不支持 /{command} 命令。",
+      "fastUnavailable": "此模型不支持快速模式。",
+      "fastToggleFailed": "无法切换快速模式。",
+      "unknownCommand": "未知命令：{command}",
+      "openConversationFailed": "无法打开对话：{error}",
+      "tabsUnavailable": "聊天标签页不可用",
+      "forkUnsupported": "此服务商不支持分支对话。"
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "保存设置失败",
+      "loading": "正在加载 {provider} 设置…",
+      "unknownError": "未知错误",
+      "unavailable": "不可用：{model}",
+      "aliasSaveFailed": "无法保存模型别名，请重试。",
+      "contextLabel": "{model} 的上下文窗口",
+      "modelSaveFailed": "无法保存模型选择，请重试。",
+      "snippetRefreshFailed": "环境片段已保存，但设置刷新失败。",
+      "snippetUpdateFailed": "无法完成环境片段更新",
+      "snippetSaveFailed": "无法完成环境片段保存",
+      "snippetSaved": "环境片段“{name}”已保存",
+      "snippetUpdated": "环境片段“{name}”已更新",
+      "snippetDeleted": "环境片段“{name}”已删除",
+      "environmentReview": "请检查这些环境变量的归属：{keys}",
+      "environmentUpdateFailed": "无法完成环境变量更新。"
+    },
     "tabs": {
       "general": "通用",
       "providers": "提供商",
@@ -446,7 +721,7 @@
     "responses": "回复",
     "experimental": "实验性功能",
     "userName": {
-      "name": "Claudian 应该如何称呼你？",
+      "name": "Scribe 应该如何称呼你？",
       "desc": "用于个性化问候的用户名（留空使用通用问候）"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Write 和 Edit diff 首次出现时以展开状态显示。"
     },
     "chatViewPlacement": {
-      "name": "Claudian 打开位置",
+      "name": "Scribe 打开位置",
       "desc": "选择新建聊天面板时的打开位置",
       "rightSidebar": "右侧边栏",
       "leftSidebar": "左侧边栏",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "启用 {provider}",
-      "lastProviderWarning": "至少需要启用一个提供商，Claudian 才能正常工作。",
+      "lastProviderWarning": "至少需要启用一个提供商，Scribe 才能正常工作。",
       "noModelsWarning": "未启用任何 {provider} 模型。请前往下方的“模型”部分并至少启用一个模型。"
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "安装方式",
-        "desc": "Claudian 在 Windows 上启动 Codex 的方式。原生 Windows 使用 Windows 可执行文件路径；WSL 会在所选发行版内启动 Linux CLI。",
+        "desc": "Scribe 在 Windows 上启动 Codex 的方式。原生 Windows 使用 Windows 可执行文件路径；WSL 会在所选发行版内启动 Linux CLI。",
         "nativeWindows": "原生 Windows",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "传递给 OpenCode 的额外环境变量。"
       },
       "migrationNotice": {
-        "text": "OpenCode v1 已不再受支持。请更新到 OpenCode v2 以在 Claudian 中使用。",
+        "text": "OpenCode v1 已不再受支持。请更新到 OpenCode v2 以在 Scribe 中使用。",
         "link": "迁移到 OpenCode v2"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "仅传递给 Pi 的环境变量。"
       },
       "models": {
-        "desc": "Claudian 维护独立于 Pi enabledModels 的模型列表。Discover 会列出 Pi 在当前环境中可认证的所有模型，并按 Pi 实际调用的提供商路由分组。路由决定凭据和计费。"
+        "desc": "Scribe 维护独立于 Pi enabledModels 的模型列表。Discover 会列出 Pi 在当前环境中可认证的所有模型，并按 Pi 实际调用的提供商路由分组。路由决定凭据和计费。"
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "附加预设插件",
-        "desc": "高级。追加到 Claudian 聊天预设的原生 dsh 插件行 YAML 列表（dsh 格式），每行需有自己的 \"id\" 和 \"name\"。这些行不能替换 Claudian 自己的行。保存会重启 DeepSeek Harness，并停止正在进行的轮次。Claudian 没有界面支持的插件（如计划模式）可能无法正常工作。"
+        "desc": "高级。追加到 Scribe 聊天预设的原生 dsh 插件行 YAML 列表（dsh 格式），每行需有自己的 \"id\" 和 \"name\"。这些行不能替换 Scribe 自己的行。保存会重启 DeepSeek Harness，并停止正在进行的轮次。Scribe 没有界面支持的插件（如计划模式）可能无法正常工作。"
       },
       "presetPreview": "预设预览",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "已移动 {moved},已转换 {converted},已移到回收站 {trashed},已移除 {unlinked} 个链接。"
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "模型选项",
+      "provider": "服务商",
+      "unavailable": "模型不可用",
+      "setup": "设置模型",
+      "label": "模型：{model}",
+      "choose": "请在服务商设置中选择已启用的模型。如果发现失败，请刷新模型列表。",
+      "heading": "模型",
+      "empty": "没有可用的模型。请检查服务商设置，发现失败时请刷新模型列表。",
+      "changeFailed": "更改模型失败"
+    },
+    "effort": {
+      "default": "默认",
+      "description": "推理强度 {level}",
+      "heading": "思考",
+      "changeFailed": "更改推理强度失败"
+    }
+  },
+  "inlineEdit": {
+    "command": "行内编辑",
+    "unavailableView": "无法使用行内编辑：无法访问当前 Markdown 视图。",
+    "inserted": "已插入",
+    "applied": "已应用编辑",
+    "unavailableEditor": "无法使用行内编辑：无法访问当前编辑器。请尝试重新打开笔记。",
+    "sourceChanged": "原文档或选区已更改，未应用行内编辑。",
+    "providerStartFailed": "启动 {provider} 服务商失败。",
+    "vaultLoadFailed": "加载库文件失败，库文件 @提及 可能不可用。",
+    "insertInstructions": "插入指令",
+    "editInstructions": "编辑指令",
+    "insertPlaceholder": "输入插入指令...",
+    "editPlaceholder": "输入编辑指令...",
+    "modelRequired": "请在 Scribe 设置中选择可用模型。",
+    "actions": "行内编辑操作",
+    "line": "行",
+    "lines": "行",
+    "reject": "拒绝",
+    "accept": "接受",
+    "rejectAria": "拒绝行内编辑",
+    "acceptAria": "接受行内编辑",
+    "retryError": "发生错误，请重试",
+    "replyPlaceholder": "回复以继续...",
+    "noResponse": "代理没有回复"
+  },
+  "commands": {
+    "openScribe": "打开 Scribe",
+    "toggleChat": "切换聊天视图",
+    "copyDiagnostics": "复制启动诊断信息",
+    "new": "新建",
+    "replaceConversation": "替换当前对话",
+    "closeTab": "关闭当前标签页",
+    "renameTab": "重命名当前标签页",
+    "focusChat": "切换聊天输入焦点",
+    "toggleZenHistory": "切换禅模式历史记录"
   }
 }

@@ -31,10 +31,10 @@ export function renderProviderModelPicker(
   const visibleModelsSetting = new Setting(options.container)
     .setName(t('settings.modelPicker.name'))
     .setDesc(t('settings.modelPicker.desc'));
-  visibleModelsSetting.settingEl.addClass('claudian-provider-model-picker-setting');
+  visibleModelsSetting.settingEl.addClass('scribe-provider-model-picker-setting');
 
   const pickerEl = options.container.createDiv({
-    cls: `claudian-provider-model-picker claudian-provider-model-picker--${options.modifier}`,
+    cls: `scribe-provider-model-picker scribe-provider-model-picker--${options.modifier}`,
   });
   let searchQuery = '';
   let providerFilter = ALL_PROVIDERS_KEY;
@@ -43,29 +43,29 @@ export function renderProviderModelPicker(
   let renderingSelected = false;
   const aliasDrafts = new Map<string, string>();
   const sorter = new LiveListSorter({
-    ignoreSelector: '.claudian-provider-model-picker-selected-controls',
+    ignoreSelector: '.scribe-provider-model-picker-selected-controls',
     onDrop: (modelId, target, placement) => persistSelection({ type: 'move', modelId, target, placement }),
   });
 
-  const summaryEl = pickerEl.createDiv({ cls: 'claudian-provider-model-picker-summary' });
-  const selectedEl = pickerEl.createDiv({ cls: 'claudian-provider-model-picker-selected' });
-  const catalogEl = pickerEl.createEl('details', { cls: 'claudian-provider-model-picker-catalog' });
+  const summaryEl = pickerEl.createDiv({ cls: 'scribe-provider-model-picker-summary' });
+  const selectedEl = pickerEl.createDiv({ cls: 'scribe-provider-model-picker-selected' });
+  const catalogEl = pickerEl.createEl('details', { cls: 'scribe-provider-model-picker-catalog' });
   catalogEl.open = options.initiallyOpen ?? options.getState().selectedIds.length === 0;
 
   const catalogSummaryEl = catalogEl.createEl('summary', {
-    cls: 'claudian-provider-model-picker-catalog-summary',
+    cls: 'scribe-provider-model-picker-catalog-summary',
   });
   catalogSummaryEl.createSpan({
-    cls: 'claudian-provider-model-picker-catalog-title',
+    cls: 'scribe-provider-model-picker-catalog-title',
     text: t('settings.modelPicker.browse'),
   });
   const catalogSummaryCountEl = catalogSummaryEl.createSpan({
-    cls: 'claudian-provider-model-picker-catalog-count',
+    cls: 'scribe-provider-model-picker-catalog-count',
   });
 
-  const controlsEl = catalogEl.createDiv({ cls: 'claudian-provider-model-picker-controls' });
+  const controlsEl = catalogEl.createDiv({ cls: 'scribe-provider-model-picker-controls' });
   const searchInput = controlsEl.createEl('input', {
-    cls: 'claudian-provider-model-picker-search',
+    cls: 'scribe-provider-model-picker-search',
     type: 'search',
   });
   searchInput.setAttribute('aria-label', t('settings.modelPicker.filterLabel', { provider: options.providerName }));
@@ -76,7 +76,7 @@ export function renderProviderModelPicker(
   });
 
   const providerSelectEl = controlsEl.createEl('select', {
-    cls: 'claudian-provider-model-picker-provider',
+    cls: 'scribe-provider-model-picker-provider',
   });
   providerSelectEl.setAttribute('aria-label', t('settings.modelPicker.providerFilterLabel'));
   providerSelectEl.addEventListener('change', () => {
@@ -85,7 +85,7 @@ export function renderProviderModelPicker(
   });
 
   const catalogActionEl = controlsEl.createEl('button', {
-    cls: 'claudian-provider-model-picker-action',
+    cls: 'scribe-provider-model-picker-action',
     text: t('settings.modelPicker.discover'),
   });
   catalogActionEl.setAttribute('type', 'button');
@@ -93,7 +93,7 @@ export function renderProviderModelPicker(
     void loadCatalog(true);
   });
 
-  const listEl = catalogEl.createDiv({ cls: 'claudian-provider-model-picker-list' });
+  const listEl = catalogEl.createDiv({ cls: 'scribe-provider-model-picker-list' });
 
   const renderSummary = (): void => {
     summaryEl.empty();
@@ -104,7 +104,7 @@ export function renderProviderModelPicker(
 
     summaryEl.createSpan({ text: t('settings.modelPicker.visible') });
     summaryEl.createSpan({
-      cls: 'claudian-provider-model-picker-summary-value',
+      cls: 'scribe-provider-model-picker-summary-value',
       text: String(state.selectedIds.length),
     });
     summaryEl.createSpan({
@@ -140,7 +140,7 @@ export function renderProviderModelPicker(
       await options.onAliasChange(modelId, value);
       if (aliasDrafts.get(modelId) === value) aliasDrafts.delete(modelId);
     } catch {
-      new Notice('Could not save model alias. Try again.');
+      new Notice(t('settings.ui.aliasSaveFailed'));
     }
     renderSelected();
   };
@@ -150,20 +150,20 @@ export function renderProviderModelPicker(
     selectedEl.empty();
     const state = options.getState();
     if (state.selectedIds.length === 0) {
-      selectedEl.toggleClass('claudian-hidden', true);
+      selectedEl.toggleClass('scribe-hidden', true);
       return;
     }
 
-    selectedEl.toggleClass('claudian-hidden', false);
+    selectedEl.toggleClass('scribe-hidden', false);
     const modelsById = new Map(state.models.map(model => [model.id, model] as const));
     const defaultModelId = state.defaultModelId;
-    const headerEl = selectedEl.createDiv({ cls: 'claudian-provider-model-picker-selected-header' });
+    const headerEl = selectedEl.createDiv({ cls: 'scribe-provider-model-picker-selected-header' });
     headerEl.createSpan({
-      cls: 'claudian-provider-model-picker-selected-label',
+      cls: 'scribe-provider-model-picker-selected-label',
       text: t('settings.modelPicker.selected', { count: state.selectedIds.length }),
     });
     const clearAllButton = headerEl.createEl('button', {
-      cls: 'claudian-provider-model-picker-selected-clear',
+      cls: 'scribe-provider-model-picker-selected-clear',
       text: t('common.clearAll'),
     });
     clearAllButton.setAttribute('type', 'button');
@@ -172,7 +172,7 @@ export function renderProviderModelPicker(
       void persistSelection({ type: 'clear' });
     });
 
-    const rowsEl = selectedEl.createDiv({ cls: 'claudian-provider-model-picker-selected-rows' });
+    const rowsEl = selectedEl.createDiv({ cls: 'scribe-provider-model-picker-selected-rows' });
     for (const modelId of state.selectedIds) {
       const model = modelsById.get(modelId) ?? {
         id: modelId,
@@ -180,14 +180,14 @@ export function renderProviderModelPicker(
         name: modelId,
       };
       const defaultLabel = model.providerLabel ? `${model.providerLabel}/${model.name}` : model.name;
-      const rowEl = rowsEl.createDiv({ cls: 'claudian-provider-model-picker-selected-row' });
+      const rowEl = rowsEl.createDiv({ cls: 'scribe-provider-model-picker-selected-row' });
       rowEl.setAttribute('data-model-id', modelId);
       if (model.isAvailable === false) {
-        rowEl.classList.add('claudian-provider-model-picker-selected-row--unavailable');
+        rowEl.classList.add('scribe-provider-model-picker-selected-row--unavailable');
       }
 
       const dragHandle = rowEl.createEl('button', {
-        cls: 'claudian-provider-model-picker-selected-drag',
+        cls: 'scribe-provider-model-picker-selected-drag',
         text: '⋮⋮',
       });
       dragHandle.setAttribute('type', 'button');
@@ -211,45 +211,45 @@ export function renderProviderModelPicker(
         void persistSelection({ type: 'move', modelId, target: offset });
       });
 
-      const infoEl = rowEl.createDiv({ cls: 'claudian-provider-model-picker-selected-info' });
-      const titleEl = infoEl.createDiv({ cls: 'claudian-provider-model-picker-selected-title' });
+      const infoEl = rowEl.createDiv({ cls: 'scribe-provider-model-picker-selected-info' });
+      const titleEl = infoEl.createDiv({ cls: 'scribe-provider-model-picker-selected-title' });
       if (model.providerLabel) {
         titleEl.createSpan({
-          cls: 'claudian-provider-model-picker-selected-badge',
+          cls: 'scribe-provider-model-picker-selected-badge',
           text: model.providerLabel,
         });
       }
       titleEl.createSpan({
-        cls: 'claudian-provider-model-picker-selected-name',
+        cls: 'scribe-provider-model-picker-selected-name',
         text: model.name,
       });
       if (modelId === defaultModelId) {
         titleEl.createSpan({
-          cls: 'claudian-provider-model-picker-selected-default',
+          cls: 'scribe-provider-model-picker-selected-default',
           text: t('settings.modelPicker.default'),
         });
       }
       if (model.isAvailable === false && model.unavailableMessage) {
         infoEl.createDiv({
-          cls: 'claudian-provider-model-picker-selected-unavailable',
+          cls: 'scribe-provider-model-picker-selected-unavailable',
           text: model.unavailableMessage,
         });
       }
       infoEl.createDiv({
-        cls: 'claudian-provider-model-picker-selected-id',
+        cls: 'scribe-provider-model-picker-selected-id',
         text: model.id,
       });
 
-      const rowControlsEl = rowEl.createDiv({ cls: 'claudian-provider-model-picker-selected-controls' });
+      const rowControlsEl = rowEl.createDiv({ cls: 'scribe-provider-model-picker-selected-controls' });
       const aliasFieldEl = rowControlsEl.createEl('label', {
-        cls: 'claudian-provider-model-picker-selected-alias-field',
+        cls: 'scribe-provider-model-picker-selected-alias-field',
       });
       aliasFieldEl.createSpan({
-        cls: 'claudian-provider-model-picker-selected-alias-label',
+        cls: 'scribe-provider-model-picker-selected-alias-label',
         text: t('settings.modelPicker.aliasLabel'),
       });
       const aliasInput = aliasFieldEl.createEl('input', {
-        cls: 'claudian-provider-model-picker-selected-alias',
+        cls: 'scribe-provider-model-picker-selected-alias',
         type: 'text',
       });
       aliasInput.placeholder = defaultLabel;
@@ -278,7 +278,7 @@ export function renderProviderModelPicker(
       });
 
       const removeButton = rowControlsEl.createEl('button', {
-        cls: 'claudian-provider-model-picker-selected-remove',
+        cls: 'scribe-provider-model-picker-selected-remove',
         text: '×',
       });
       removeButton.setAttribute('type', 'button');
@@ -296,7 +296,7 @@ export function renderProviderModelPicker(
       ? selectedEl.ownerDocument.activeElement as HTMLElement : null;
     const modelId = active?.closest('[data-model-id]')?.getAttribute('data-model-id');
     const control = ['alias', 'drag', 'remove', 'clear'].find(kind =>
-      active?.classList.contains(`claudian-provider-model-picker-selected-${kind}`));
+      active?.classList.contains(`scribe-provider-model-picker-selected-${kind}`));
     const input = control === 'alias' ? active as HTMLInputElement : null;
     const selection = input ? [input.selectionStart, input.selectionEnd, input.selectionDirection] as const : null;
 
@@ -307,7 +307,7 @@ export function renderProviderModelPicker(
       const row = modelId ? [...selectedEl.querySelectorAll<HTMLElement>('[data-model-id]')]
         .find(element => element.getAttribute('data-model-id') === modelId) : selectedEl;
       const replacement = control
-        ? row?.querySelector<HTMLElement>(`.claudian-provider-model-picker-selected-${control}`) : null;
+        ? row?.querySelector<HTMLElement>(`.scribe-provider-model-picker-selected-${control}`) : null;
       if (replacement?.isConnected && !disposed) {
         if (control === 'alias' && selection) {
           const alias = replacement as HTMLInputElement;
@@ -335,7 +335,7 @@ export function renderProviderModelPicker(
       }
     }
 
-    providerSelectEl.toggleClass('claudian-hidden', providers.size === 0);
+    providerSelectEl.toggleClass('scribe-hidden', providers.size === 0);
     providerSelectEl.empty();
     providerSelectEl.createEl('option', {
       text: t('settings.modelPicker.allProviders', { count: models.length }),
@@ -371,7 +371,7 @@ export function renderProviderModelPicker(
     try {
       await options.onSelectionChange(change);
     } catch {
-      new Notice('Could not save model selection. Try again.');
+      new Notice(t('settings.ui.modelSaveFailed'));
     }
     renderAll();
   };
@@ -389,7 +389,7 @@ export function renderProviderModelPicker(
       // The status above owns failed discovery; an empty-catalog hint would imply success.
       if (state.status === 'failed' && state.models.length === 0) return;
       listEl.createDiv({
-        cls: 'claudian-provider-model-picker-empty',
+        cls: 'scribe-provider-model-picker-empty',
         text: isLoading()
           ? options.loadingCatalogText
           : state.models.length === 0
@@ -400,10 +400,10 @@ export function renderProviderModelPicker(
     }
 
     for (const model of models) {
-      const rowEl = listEl.createEl('label', { cls: 'claudian-provider-model-picker-row' });
+      const rowEl = listEl.createEl('label', { cls: 'scribe-provider-model-picker-row' });
       const isSelected = selectedIds.has(model.id);
       if (isSelected) {
-        rowEl.classList.add('claudian-provider-model-picker-row--selected');
+        rowEl.classList.add('scribe-provider-model-picker-row--selected');
       }
 
       const checkboxEl = rowEl.createEl('input', { type: 'checkbox' });
@@ -413,10 +413,10 @@ export function renderProviderModelPicker(
         void persistSelection({ type: 'set', modelId: model.id, selected: checkboxEl.checked });
       });
 
-      const textEl = rowEl.createDiv({ cls: 'claudian-provider-model-picker-row-text' });
-      const headerEl = textEl.createDiv({ cls: 'claudian-provider-model-picker-row-header' });
+      const textEl = rowEl.createDiv({ cls: 'scribe-provider-model-picker-row-text' });
+      const headerEl = textEl.createDiv({ cls: 'scribe-provider-model-picker-row-header' });
       headerEl.createSpan({
-        cls: 'claudian-provider-model-picker-row-name',
+        cls: 'scribe-provider-model-picker-row-name',
         text: model.name,
       });
       const badgeLabel = model.isAvailable === false
@@ -424,20 +424,20 @@ export function renderProviderModelPicker(
         : model.providerLabel;
       if (badgeLabel) {
         const badgeEl = headerEl.createSpan({
-          cls: 'claudian-provider-model-picker-row-badge',
+          cls: 'scribe-provider-model-picker-row-badge',
           text: badgeLabel,
         });
         if (model.isAvailable === false) {
-          badgeEl.classList.add('claudian-provider-model-picker-row-badge--unavailable');
+          badgeEl.classList.add('scribe-provider-model-picker-row-badge--unavailable');
         }
       }
       textEl.createDiv({
-        cls: 'claudian-provider-model-picker-row-meta',
+        cls: 'scribe-provider-model-picker-row-meta',
         text: model.id,
       });
       if (model.description) {
         textEl.createDiv({
-          cls: 'claudian-provider-model-picker-row-desc',
+          cls: 'scribe-provider-model-picker-row-desc',
           text: model.description,
         });
       }

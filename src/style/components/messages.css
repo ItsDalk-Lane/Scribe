@@ -1,5 +1,5 @@
 /* Messages wrapper (for scroll-to-bottom button positioning) */
-.claudian-messages-wrapper {
+.scribe-messages-wrapper {
   position: relative;
   flex: 1;
   min-height: 0;
@@ -8,7 +8,7 @@
   overflow: hidden;
 }
 
-.claudian-messages {
+.scribe-messages {
   flex: 1;
   overflow-y: auto;
   padding: 12px 0 0;
@@ -18,12 +18,12 @@
 }
 
 /* Focusable messages panel for vim-style navigation */
-.claudian-messages-focusable:focus {
+.scribe-messages-focusable:focus {
   outline: none;
 }
 
 /* Welcome message - claude.ai style */
-.claudian-welcome {
+.scribe-welcome {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -35,7 +35,7 @@
   min-height: 200px;
 }
 
-.claudian-welcome-text {
+.scribe-welcome-text {
   font-family: Copernicus, 'Tiempos Headline', Tiempos, Georgia, 'Times New Roman', serif;
   font-size: 28px;
   font-weight: 300;
@@ -43,7 +43,7 @@
   letter-spacing: -0.01em;
 }
 
-.claudian-welcome-linked-content {
+.scribe-welcome-linked-content {
   position: relative;
   min-width: 0;
   width: min(420px, 100%);
@@ -51,11 +51,11 @@
   box-sizing: border-box;
 }
 
-.claudian-welcome-linked-content:empty {
+.scribe-welcome-linked-content:empty {
   display: none;
 }
 
-.claudian-linked-content-selector-row {
+.scribe-linked-content-selector-row {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -69,7 +69,7 @@
   line-height: 1.4;
 }
 
-.claudian-linked-content-selector {
+.scribe-linked-content-selector {
   appearance: none;
   display: block;
   flex: 0 1 auto;
@@ -92,20 +92,20 @@
   cursor: pointer;
 }
 
-.claudian-linked-content-selector:hover,
-.claudian-linked-content-selector:focus-visible,
-.claudian-linked-content-selector:active {
+.scribe-linked-content-selector:hover,
+.scribe-linked-content-selector:focus-visible,
+.scribe-linked-content-selector:active {
   border: 0;
   background: transparent;
   box-shadow: none;
   color: var(--text-normal);
 }
 
-.claudian-linked-content-selector:focus-visible {
+.scribe-linked-content-selector:focus-visible {
   outline: none;
 }
 
-.claudian-linked-content-selector:disabled {
+.scribe-linked-content-selector:disabled {
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -113,10 +113,10 @@
   cursor: default;
 }
 
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > button.claudian-linked-content-selector,
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > button.claudian-linked-content-selector:hover,
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > button.claudian-linked-content-selector:focus-visible,
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > button.claudian-linked-content-selector:active {
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > button.scribe-linked-content-selector,
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > button.scribe-linked-content-selector:hover,
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > button.scribe-linked-content-selector:focus-visible,
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > button.scribe-linked-content-selector:active {
   appearance: none;
   min-width: 0;
   width: auto;
@@ -126,11 +126,11 @@
   outline: none;
 }
 
-.claudian-linked-content-selector-row.is-editing .claudian-linked-content-selector {
+.scribe-linked-content-selector-row.is-editing .scribe-linked-content-selector {
   display: none;
 }
 
-.claudian-linked-content-selector-icon {
+.scribe-linked-content-selector-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -139,17 +139,17 @@
   height: 14px;
 }
 
-.claudian-linked-content-selector-icon svg {
+.scribe-linked-content-selector-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-linked-content-selector-prefix {
+.scribe-linked-content-selector-prefix {
   flex: 0 0 auto;
   white-space: nowrap;
 }
 
-.claudian-linked-content-picker.claudian-composer-dropdown.is-visible {
+.scribe-linked-content-picker.scribe-composer-dropdown.is-visible {
   position: absolute;
   inset-block-start: calc(100% + 6px);
   inset-inline: 0;
@@ -168,7 +168,7 @@
   text-align: start;
 }
 
-.claudian-linked-content-picker-search {
+.scribe-linked-content-picker-search {
   min-width: 0;
   width: auto;
   max-width: 100%;
@@ -184,14 +184,14 @@
   font: inherit;
 }
 
-.claudian-linked-content-picker-search:hover {
+.scribe-linked-content-picker-search:hover {
   border: 0;
   border-bottom: 1px solid var(--interactive-accent);
   background: transparent;
   box-shadow: none;
 }
 
-.claudian-linked-content-picker-search:focus {
+.scribe-linked-content-picker-search:focus {
   outline: none;
   border: 0;
   border-bottom: 1px solid var(--interactive-accent);
@@ -199,10 +199,10 @@
   box-shadow: none;
 }
 
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > input[type='text'].claudian-linked-content-picker-search,
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > input[type='text'].claudian-linked-content-picker-search:hover,
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > input[type='text'].claudian-linked-content-picker-search:focus,
-.claudian-welcome-linked-content .claudian-linked-content-selector-row > input[type='text'].claudian-linked-content-picker-search:active {
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > input[type='text'].scribe-linked-content-picker-search,
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > input[type='text'].scribe-linked-content-picker-search:hover,
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > input[type='text'].scribe-linked-content-picker-search:focus,
+.scribe-welcome-linked-content .scribe-linked-content-selector-row > input[type='text'].scribe-linked-content-picker-search:active {
   appearance: none;
   min-height: 0;
   height: auto;
@@ -214,27 +214,27 @@
   box-shadow: none;
 }
 
-.claudian-linked-content-picker-search::placeholder {
+.scribe-linked-content-picker-search::placeholder {
   color: var(--text-muted);
 }
 
-.claudian-linked-content-picker-search:disabled {
+.scribe-linked-content-picker-search:disabled {
   color: var(--text-faint);
   cursor: default;
 }
 
-.claudian-linked-content-picker-list {
+.scribe-linked-content-picker-list {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
 }
 
-.claudian-linked-content-picker-option-path::before {
+.scribe-linked-content-picker-option-path::before {
   content: ' ';
 }
 
-.claudian-linked-content-picker button.claudian-linked-content-picker-option {
+.scribe-linked-content-picker button.scribe-linked-content-picker-option {
   appearance: none;
   width: 100%;
   min-width: 0;
@@ -246,24 +246,24 @@
   text-align: start;
 }
 
-.claudian-linked-content-picker button.claudian-linked-content-picker-option:focus-visible,
-.claudian-linked-content-picker button.claudian-linked-content-picker-option:active {
+.scribe-linked-content-picker button.scribe-linked-content-picker-option:focus-visible,
+.scribe-linked-content-picker button.scribe-linked-content-picker-option:active {
   border: 0;
   background: transparent;
   box-shadow: none;
 }
 
-.claudian-linked-content-picker button.claudian-linked-content-picker-option:focus-visible {
+.scribe-linked-content-picker button.scribe-linked-content-picker-option:focus-visible {
   outline: 1px solid var(--interactive-accent);
   outline-offset: -1px;
 }
 
-.claudian-linked-content-picker button.claudian-linked-content-picker-option:hover,
-.claudian-linked-content-picker button.claudian-linked-content-picker-option.is-selected {
+.scribe-linked-content-picker button.scribe-linked-content-picker-option:hover,
+.scribe-linked-content-picker button.scribe-linked-content-picker-option.is-selected {
   background: var(--background-modifier-hover);
 }
 
-.claudian-linked-content-picker button.claudian-linked-content-picker-option:disabled {
+.scribe-linked-content-picker button.scribe-linked-content-picker-option:disabled {
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -271,18 +271,18 @@
   cursor: default;
 }
 
-.claudian-linked-content-picker-empty {
+.scribe-linked-content-picker-empty {
   color: var(--text-muted);
   font-size: 11px;
   padding: 8px;
   text-align: center;
 }
 
-.claudian-message {
+.scribe-message {
   overflow-wrap: break-word;
 }
 
-.claudian-message-user {
+.scribe-message-user {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -291,7 +291,7 @@
   max-width: 95%;
 }
 
-.claudian-message-user > .claudian-message-content {
+.scribe-message-user > .scribe-message-content {
   position: relative;
   max-width: 100%;
   box-sizing: border-box;
@@ -301,21 +301,21 @@
   border-end-end-radius: 4px;
 }
 
-.claudian-message-user ol {
+.scribe-message-user ol {
   list-style-position: inside;
 }
 
-.claudian-message-user ol > li::marker {
+.scribe-message-user ol > li::marker {
   color: inherit;
 }
 
 /* Text selection in user messages - visible highlight */
-.claudian-message-user ::selection {
+.scribe-message-user ::selection {
   background: rgb(255 255 255 / 35%);
   color: inherit;
 }
 
-.claudian-message-assistant {
+.scribe-message-assistant {
   flex-shrink: 0;
   align-self: stretch;
   width: 100%;
@@ -323,7 +323,7 @@
   text-align: start;
 }
 
-.claudian-message-content {
+.scribe-message-content {
   line-height: 1.5;
   overflow-x: auto;
   user-select: text;
@@ -331,19 +331,19 @@
   unicode-bidi: plaintext; /* Proper BiDi text handling for mixed RTL/LTR */
 }
 
-.claudian-interrupted {
+.scribe-interrupted {
   color: #d45d5d;
 }
 
-.claudian-interrupted-hint {
+.scribe-interrupted-hint {
   color: var(--text-muted);
 }
 
-.claudian-text-block {
+.scribe-text-block {
   position: relative;
 }
 
-button.claudian-text-copy-btn {
+button.scribe-text-copy-btn {
   appearance: none;
   position: absolute;
   bottom: 0;
@@ -367,18 +367,18 @@ button.claudian-text-copy-btn {
   gap: 4px;
 }
 
-button.claudian-text-copy-btn svg {
+button.scribe-text-copy-btn svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-text-block:hover button.claudian-text-copy-btn {
+.scribe-text-block:hover button.scribe-text-copy-btn {
   opacity: 1;
 }
 
-button.claudian-text-copy-btn:hover,
-button.claudian-text-copy-btn:focus-visible,
-button.claudian-text-copy-btn:active {
+button.scribe-text-copy-btn:hover,
+button.scribe-text-copy-btn:focus-visible,
+button.scribe-text-copy-btn:active {
   padding: 0;
   border: 0;
   background: transparent;
@@ -386,13 +386,13 @@ button.claudian-text-copy-btn:active {
   color: var(--text-normal);
 }
 
-button.claudian-text-copy-btn:focus-visible {
+button.scribe-text-copy-btn:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
   opacity: 1;
 }
 
-button.claudian-text-copy-btn:disabled {
+button.scribe-text-copy-btn:disabled {
   padding: 0;
   border: 0;
   background: transparent;
@@ -401,35 +401,35 @@ button.claudian-text-copy-btn:disabled {
   cursor: default;
 }
 
-button.claudian-text-copy-btn.copied {
+button.scribe-text-copy-btn.copied {
   color: var(--text-accent);
   font-size: 11px;
   font-family: var(--font-monospace);
 }
 
-.claudian-message-content p {
+.scribe-message-content p {
   margin: 0 0 8px;
 }
 
-.claudian-message-content p:last-child {
+.scribe-message-content p:last-child {
   margin-bottom: 0;
 }
 
-.claudian-message-content ul,
-.claudian-message-content ol {
+.scribe-message-content ul,
+.scribe-message-content ol {
   margin: 8px 0;
   padding-inline-start: 20px;
 }
 
 /* Full-width tables */
-.claudian-message-content table {
+.scribe-message-content table {
   width: 100%;
   border-collapse: collapse;
   margin: 8px 0;
 }
 
-.claudian-message-content th,
-.claudian-message-content td {
+.scribe-message-content th,
+.scribe-message-content td {
   border: 1px solid var(--background-modifier-border);
   padding: 6px 10px;
   text-align: start;
@@ -437,54 +437,54 @@ button.claudian-text-copy-btn.copied {
   white-space: normal;
 }
 
-.claudian-message-content th {
+.scribe-message-content th {
   background: var(--background-secondary);
   font-weight: 600;
 }
 
-.claudian-message-content tr:hover {
+.scribe-message-content tr:hover {
   background: var(--background-secondary-alt);
 }
 
-.claudian-messages::-webkit-scrollbar {
+.scribe-messages::-webkit-scrollbar {
   width: 6px;
 }
 
-.claudian-messages::-webkit-scrollbar-track {
+.scribe-messages::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.claudian-messages::-webkit-scrollbar-thumb {
+.scribe-messages::-webkit-scrollbar-thumb {
   background: var(--background-modifier-border);
   border-radius: 3px;
 }
 
-.claudian-messages::-webkit-scrollbar-thumb:hover {
+.scribe-messages::-webkit-scrollbar-thumb:hover {
   background: var(--background-modifier-border-hover);
 }
 
-.claudian-message-timestamp {
+.scribe-message-timestamp {
   color: var(--text-faint);
   user-select: none;
   -webkit-user-select: none;
 }
 
-.claudian-message-user .claudian-message-timestamp {
+.scribe-message-user .scribe-message-timestamp {
   text-align: end;
 }
 
-.claudian-message-images .claudian-message-timestamp {
+.scribe-message-images .scribe-message-timestamp {
   flex-basis: 100%;
   text-align: end;
 }
 
 /* Completed turn history and message actions */
-.claudian-work,
-.claudian-task-notification {
+.scribe-work,
+.scribe-task-notification {
   margin-bottom: 10px;
 }
 
-button.claudian-work-header {
+button.scribe-work-header {
   display: inline-flex;
   align-items: center;
   padding: 2px 0;
@@ -496,21 +496,21 @@ button.claudian-work-header {
   cursor: pointer;
 }
 
-button.claudian-work-header:hover,
-button.claudian-work-header:focus-visible,
-button.claudian-work-header:active {
+button.scribe-work-header:hover,
+button.scribe-work-header:focus-visible,
+button.scribe-work-header:active {
   border: 0;
   background: transparent;
   box-shadow: none;
   color: var(--text-normal);
 }
 
-button.claudian-work-header:focus-visible {
+button.scribe-work-header:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
 
-button.claudian-work-header:disabled {
+button.scribe-work-header:disabled {
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -518,21 +518,21 @@ button.claudian-work-header:disabled {
   cursor: default;
 }
 
-.claudian-work-history {
+.scribe-work-history {
   margin-top: 8px;
   padding-inline-start: 12px;
   border-inline-start: 1px solid var(--background-modifier-border);
 }
 
-.claudian-work-history[hidden] {
+.scribe-work-history[hidden] {
   display: none;
 }
 
-.claudian-work-history > .claudian-message {
+.scribe-work-history > .scribe-message {
   padding: 0 0 8px;
 }
 
-.claudian-user-msg-actions {
+.scribe-user-msg-actions {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -542,39 +542,39 @@ button.claudian-work-header:disabled {
   pointer-events: none;
 }
 
-.claudian-message-user > .claudian-user-msg-actions {
+.scribe-message-user > .scribe-user-msg-actions {
   justify-content: flex-end;
 }
 
 /* Focus reveals the row only from its own buttons: collapsible headers elsewhere in
    the turn keep DOM focus after a click and would otherwise pin the row open. */
-.claudian-message:hover > .claudian-message-actions,
-.claudian-message-images:hover > .claudian-message-actions,
-.claudian-message-actions:focus-within {
+.scribe-message:hover > .scribe-message-actions,
+.scribe-message-images:hover > .scribe-message-actions,
+.scribe-message-actions:focus-within {
   opacity: 1;
   pointer-events: auto;
 }
 
-.claudian-branch-position {
+.scribe-branch-position {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
 }
 
-.claudian-message-user.claudian-message-branched {
+.scribe-message-user.scribe-message-branched {
   max-width: min(95%, calc(100% - 26px));
 }
 
 /* Keep the marker outside the bubble visible while long prompt content scrolls. */
-.claudian-message-branched > .claudian-message-content {
+.scribe-message-branched > .scribe-message-content {
   overflow: visible;
 }
 
-.claudian-message-branched > .claudian-message-content > .claudian-text-block {
+.scribe-message-branched > .scribe-message-content > .scribe-text-block {
   overflow-x: auto;
 }
 
-.claudian-branch-marker {
+.scribe-branch-marker {
   position: absolute;
   left: -22px;
   top: 50%;
@@ -585,33 +585,33 @@ button.claudian-work-header:disabled {
   pointer-events: none;
 }
 
-.claudian-branch-marker svg {
+.scribe-branch-marker svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-message-user:hover .claudian-branch-marker,
-.claudian-message-user:focus-within .claudian-branch-marker {
+.scribe-message-user:hover .scribe-branch-marker,
+.scribe-message-user:focus-within .scribe-branch-marker {
   opacity: 0;
 }
 
 /* Toolbar text sits in the same 16px box as the action icons. */
-.claudian-message-actions .claudian-message-timestamp,
-.claudian-message-actions .claudian-response-throughput {
+.scribe-message-actions .scribe-message-timestamp,
+.scribe-message-actions .scribe-response-throughput {
   font-size: var(--font-ui-small);
   line-height: 16px;
 }
 
-.claudian-message-assistant > .claudian-message-actions .claudian-message-timestamp {
+.scribe-message-assistant > .scribe-message-actions .scribe-message-timestamp {
   margin-inline-start: auto;
 }
 
-.claudian-message-actions button.claudian-text-copy-btn {
+.scribe-message-actions button.scribe-text-copy-btn {
   position: static;
   opacity: 1;
 }
 
-.claudian-user-msg-actions button {
+.scribe-user-msg-actions button {
   appearance: none;
   width: auto;
   min-width: 0;
@@ -630,14 +630,14 @@ button.claudian-work-header:disabled {
   transition: color 0.15s;
 }
 
-.claudian-user-msg-actions button svg {
+.scribe-user-msg-actions button svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-user-msg-actions button:hover,
-.claudian-user-msg-actions button:focus-visible,
-.claudian-user-msg-actions button:active {
+.scribe-user-msg-actions button:hover,
+.scribe-user-msg-actions button:focus-visible,
+.scribe-user-msg-actions button:active {
   padding: 0;
   border: 0;
   background: transparent;
@@ -645,12 +645,12 @@ button.claudian-work-header:disabled {
   color: var(--text-normal);
 }
 
-.claudian-user-msg-actions button:focus-visible {
+.scribe-user-msg-actions button:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
 
-.claudian-user-msg-actions button:disabled {
+.scribe-user-msg-actions button:disabled {
   padding: 0;
   border: 0;
   background: transparent;
@@ -659,44 +659,44 @@ button.claudian-work-header:disabled {
   cursor: default;
 }
 
-.claudian-user-msg-actions button.copied {
+.scribe-user-msg-actions button.copied {
   color: var(--text-accent);
   font-size: 11px;
   font-family: var(--font-monospace);
 }
 
 /* Compact boundary indicator */
-.claudian-compact-boundary {
+.scribe-compact-boundary {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 12px 0;
 }
 
-.claudian-compact-boundary::before,
-.claudian-compact-boundary::after {
+.scribe-compact-boundary::before,
+.scribe-compact-boundary::after {
   content: '';
   flex: 1;
   height: 1px;
   background: var(--background-modifier-border);
 }
 
-.claudian-compact-boundary-label {
+.scribe-compact-boundary-label {
   color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
 }
 
-.claudian-earlier-messages {
+.scribe-earlier-messages {
   display: flex;
   justify-content: center;
   margin: 4px 0 12px;
 }
 
-.claudian-earlier-messages > button.claudian-earlier-messages-btn,
-.claudian-earlier-messages > button.claudian-earlier-messages-btn:hover,
-.claudian-earlier-messages > button.claudian-earlier-messages-btn:focus-visible,
-.claudian-earlier-messages > button.claudian-earlier-messages-btn:active {
+.scribe-earlier-messages > button.scribe-earlier-messages-btn,
+.scribe-earlier-messages > button.scribe-earlier-messages-btn:hover,
+.scribe-earlier-messages > button.scribe-earlier-messages-btn:focus-visible,
+.scribe-earlier-messages > button.scribe-earlier-messages-btn:active {
   appearance: none;
   width: auto;
   height: auto;
@@ -710,17 +710,17 @@ button.claudian-work-header:disabled {
   cursor: pointer;
 }
 
-.claudian-earlier-messages > button.claudian-earlier-messages-btn:hover {
+.scribe-earlier-messages > button.scribe-earlier-messages-btn:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
 }
 
-.claudian-earlier-messages > button.claudian-earlier-messages-btn:focus-visible {
+.scribe-earlier-messages > button.scribe-earlier-messages-btn:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 1px;
 }
 
-.claudian-tab-hydration {
+.scribe-tab-hydration {
   min-height: 160px;
   display: flex;
   flex-direction: column;
@@ -731,7 +731,7 @@ button.claudian-work-header:disabled {
   text-align: center;
 }
 
-.claudian-tab-hydration-loading::before {
+.scribe-tab-hydration-loading::before {
   content: '';
   display: inline-block;
   width: 12px;
@@ -740,38 +740,38 @@ button.claudian-work-header:disabled {
   border: 2px solid var(--background-modifier-border);
   border-top-color: var(--interactive-accent);
   border-radius: 50%;
-  animation: claudian-spin 0.8s linear infinite;
+  animation: scribe-spin 0.8s linear infinite;
   vertical-align: -2px;
 }
 
-.claudian-tab-hydration-error {
+.scribe-tab-hydration-error {
   max-width: 420px;
-  color: var(--text-error, var(--claudian-error));
+  color: var(--text-error, var(--scribe-error));
 }
 
-.claudian-message-actions:empty {
+.scribe-message-actions:empty {
   display: none;
 }
 
-.claudian-message-images > .claudian-message-actions {
+.scribe-message-images > .scribe-message-actions {
   flex-basis: 100%;
   justify-content: flex-end;
 }
 
-.claudian-response-throughput {
+.scribe-response-throughput {
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 /* Floating Quote action over text selected in a message */
-.claudian-messages-wrapper button.claudian-message-quote-btn,
-.claudian-messages-wrapper button.claudian-message-quote-btn:hover,
-.claudian-messages-wrapper button.claudian-message-quote-btn:focus-visible,
-.claudian-messages-wrapper button.claudian-message-quote-btn:active {
+.scribe-messages-wrapper button.scribe-message-quote-btn,
+.scribe-messages-wrapper button.scribe-message-quote-btn:hover,
+.scribe-messages-wrapper button.scribe-message-quote-btn:focus-visible,
+.scribe-messages-wrapper button.scribe-message-quote-btn:active {
   appearance: none;
   position: absolute;
-  top: var(--claudian-quote-btn-top, 0);
-  left: var(--claudian-quote-btn-left, 0);
+  top: var(--scribe-quote-btn-top, 0);
+  left: var(--scribe-quote-btn-left, 0);
   z-index: 20;
   display: flex;
   align-items: center;
@@ -791,30 +791,30 @@ button.claudian-work-header:disabled {
   font-size: var(--font-ui-small);
 }
 
-.claudian-messages-wrapper button.claudian-message-quote-btn:hover {
+.scribe-messages-wrapper button.scribe-message-quote-btn:hover {
   background: var(--background-secondary-alt);
 }
 
-.claudian-messages-wrapper button.claudian-message-quote-btn:focus-visible {
+.scribe-messages-wrapper button.scribe-message-quote-btn:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
 
-.claudian-messages-wrapper button.claudian-message-quote-btn[hidden] {
+.scribe-messages-wrapper button.scribe-message-quote-btn[hidden] {
   display: none;
 }
 
-.claudian-message-quote-btn-icon {
+.scribe-message-quote-btn-icon {
   display: block;
   width: 1em;
   height: 1em;
 }
 
 /* Session links: text-styled native buttons that open another session from the transcript. */
-button.claudian-session-link,
-button.claudian-session-link:hover,
-button.claudian-session-link:focus-visible,
-button.claudian-session-link:active {
+button.scribe-session-link,
+button.scribe-session-link:hover,
+button.scribe-session-link:focus-visible,
+button.scribe-session-link:active {
   appearance: none;
   display: inline;
   height: auto;
@@ -832,18 +832,18 @@ button.claudian-session-link:active {
   cursor: pointer;
 }
 
-button.claudian-session-link:hover {
+button.scribe-session-link:hover {
   color: var(--link-color-hover);
   text-decoration: underline;
 }
 
-button.claudian-session-link:focus-visible {
+button.scribe-session-link:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
 
 /* Sender of a message delivered from another session, above the message body. */
-.claudian-session-message-sender {
+.scribe-session-message-sender {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;

@@ -123,7 +123,7 @@ describe('TabBar tab labels', () => {
     ]);
     expect(ui.getByRole('button', { name: /^Second/ })).toBe(second);
     expect(ui.getByRole('button', { name: /^Refactor/ })).toBe(first);
-    expect(second.className).toBe('claudian-tab-badge claudian-tab-badge-active');
+    expect(second.className).toBe('scribe-tab-badge scribe-tab-badge-active');
     expect(first.textContent).toBe('3');
 
     tabBar.update([item({ index: 1 })]);
@@ -135,7 +135,7 @@ describe('TabBar tab labels', () => {
     tabBar.update([item()]);
     tabBar.destroy();
     expect(container.children).toHaveLength(0);
-    expect(container.classList.contains('claudian-tab-badges')).toBe(false);
+    expect(container.classList.contains('scribe-tab-badges')).toBe(false);
   });
 
   it('renames a tab inline without changing its session title', async () => {

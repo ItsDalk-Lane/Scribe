@@ -67,7 +67,7 @@ export interface SideChatSubmission {
 
 /**
  * One temporary side conversation: its own messages, rendering, settings
- * projection and execution owner. Nothing here writes a Claudian conversation,
+ * projection and execution owner. Nothing here writes a Scribe conversation,
  * accepted-input record, or tab shell.
  */
 export class SideChatRuntime {

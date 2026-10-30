@@ -18,7 +18,7 @@ describe('Pi execution kernel with an external protocol process', () => {
   let closed: Promise<Error | undefined>;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(tmpdir(), 'claudian-pi-kernel-'));
+    root = await fs.mkdtemp(path.join(tmpdir(), 'scribe-pi-kernel-'));
     await fs.writeFile(path.join(root, 'source.jsonl'), JSON.stringify({ type: 'session', version: 3, id: 'pi-source', cwd: root }) + '\n');
     events = [];
     let resolveClose!: (error?: Error) => void;
@@ -27,7 +27,7 @@ describe('Pi execution kernel with an external protocol process', () => {
       command: process.execPath,
       args: [path.resolve('tests/fixtures/providers/pi/PiSessionProcess.mjs')],
       cwd: root,
-      env: { ...process.env, CLAUDIAN_TEST_PI_ROOT: root },
+      env: { ...process.env, SCRIBE_TEST_PI_ROOT: root },
       processKey: 'fixture', sessionTarget: null,
     }, {
       onClose: error => resolveClose(error),
@@ -93,7 +93,7 @@ describe('Pi session tools through the generated extension', () => {
   const configuration = { model: 'pi:anthropic/claude-sonnet-4', reasoning: null, systemInstructions: { kind: 'main-agent' as const, instructions: 'Main Agent prompt.' } };
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(tmpdir(), 'claudian-pi-session-tools-'));
+    root = await fs.mkdtemp(path.join(tmpdir(), 'scribe-pi-session-tools-'));
     sessionFile = path.join(root, '.pi', 'agent', 'sessions', 'source.jsonl');
     await fs.mkdir(path.dirname(sessionFile), { recursive: true });
     await fs.writeFile(sessionFile, JSON.stringify({ type: 'session', version: 3, id: 'pi-source', cwd: root }) + '\n');
@@ -116,7 +116,7 @@ describe('Pi session tools through the generated extension', () => {
       createKernel: (spec, callbacks) => {
         kernel = new PiRPCSessionKernel({ ...spec, command: process.execPath,
           args: [path.resolve('tests/fixtures/providers/pi/PiSessionProcess.mjs'), ...spec.args],
-          env: { ...spec.env, CLAUDIAN_TEST_PI_ROOT: root, ...(startupTool ? { CLAUDIAN_TEST_PI_STARTUP_TOOL: '1' } : {}), ...(mismatch ? { CLAUDIAN_TEST_PI_MISMATCH: '1' } : {}) },
+          env: { ...spec.env, SCRIBE_TEST_PI_ROOT: root, ...(startupTool ? { SCRIBE_TEST_PI_STARTUP_TOOL: '1' } : {}), ...(mismatch ? { SCRIBE_TEST_PI_MISMATCH: '1' } : {}) },
         }, callbacks, null);
         return kernel;
       },
@@ -147,8 +147,8 @@ describe('Pi session tools through the generated extension', () => {
     await createSession(false);
     expect(await kernel.request('fixture_tools')).toEqual({ tools: [] });
     const unbound = await openRun();
-    await kernel.request('fixture_emit', { event: { type: 'tool_execution_start', toolCallId: 'unbound', toolName: 'claudian_send_message' } });
-    const denied = await kernel.request<{ value: string }>('fixture_private_input', { dialogId: 'unbound-dialog', payload: { name: 'claudian_send_message', toolCallId: 'unbound', args: { text: 'No' } } });
+    await kernel.request('fixture_emit', { event: { type: 'tool_execution_start', toolCallId: 'unbound', toolName: 'scribe_send_message' } });
+    const denied = await kernel.request<{ value: string }>('fixture_private_input', { dialogId: 'unbound-dialog', payload: { name: 'scribe_send_message', toolCallId: 'unbound', args: { text: 'No' } } });
     expect(JSON.parse(denied.value)).toMatchObject({ isError: true, text: expect.stringMatching(/main chat/) });
     expect(port.send).not.toHaveBeenCalled();
     unbound.run.cancel();
@@ -156,14 +156,14 @@ describe('Pi session tools through the generated extension', () => {
     await session.dispose();
     await createSession();
     expect(await kernel.request('fixture_tools')).toMatchObject({ tools: [
-      { name: 'claudian_list_destinations', parameters: { type: 'object', properties: {} } },
-      { name: 'claudian_send_message', parameters: { properties: expect.objectContaining({ text: expect.anything(), mode: expect.anything() }) } },
-      { name: 'claudian_read_session', parameters: { required: ['sessionId'] } },
+      { name: 'scribe_list_destinations', parameters: { type: 'object', properties: {} } },
+      { name: 'scribe_send_message', parameters: { properties: expect.objectContaining({ text: expect.anything(), mode: expect.anything() }) } },
+      { name: 'scribe_read_session', parameters: { required: ['sessionId'] } },
     ] });
     const { drained } = await openRun();
-    expect(await kernel.request('fixture_tool', { name: 'claudian_list_destinations', toolCallId: 'list', args: {} }))
+    expect(await kernel.request('fixture_tool', { name: 'scribe_list_destinations', toolCallId: 'list', args: {} }))
       .toMatchObject({ isError: false, content: [{ text: '{"sessions":[]}' }] });
-    expect(await kernel.request('fixture_tool', { name: 'claudian_send_message', toolCallId: 'send', args: { text: 'Hello', sessionId: 'recipient' } }))
+    expect(await kernel.request('fixture_tool', { name: 'scribe_send_message', toolCallId: 'send', args: { text: 'Hello', sessionId: 'recipient' } }))
       .toMatchObject({ isError: false, content: [{ text: JSON.stringify({ sessionId: 'recipient', title: 'Review', provider: 'codex', status: 'queued' }) }] });
     expect(port.send).toHaveBeenCalledWith({ text: 'Hello', sessionId: 'recipient' }, expect.any(AbortSignal));
     await kernel.request('fixture_emit', { event: { type: 'agent_settled' } });
@@ -174,22 +174,22 @@ describe('Pi session tools through the generated extension', () => {
     await createSession(true, false, false);
     expect(kernel.launchSpec.enableTreeBridge).toBeUndefined();
     const { run, drained } = await openRun();
-    expect(await kernel.request('fixture_tool', { name: 'claudian_list_destinations', toolCallId: 'ephemeral', args: {} }))
+    expect(await kernel.request('fixture_tool', { name: 'scribe_list_destinations', toolCallId: 'ephemeral', args: {} }))
       .toMatchObject({ isError: false, content: [{ text: '{"sessions":[]}' }] });
     run.cancel();
     await drained;
   });
 
-  it.each<ProviderToolPolicy>([{ kind: 'read-only' }, { kind: 'passive' }, { kind: 'allow-list', names: ['claudian_send_message'] }])('denies calls under $kind even when the tool is named', async toolPolicy => {
+  it.each<ProviderToolPolicy>([{ kind: 'read-only' }, { kind: 'passive' }, { kind: 'allow-list', names: ['scribe_send_message'] }])('denies calls under $kind even when the tool is named', async toolPolicy => {
     await createSession();
     // The fixture can call registered tools despite native filtering, exercising the call-time guard.
     const { run, drained } = await openRun(toolPolicy);
-    const result = await kernel.request('fixture_tool', { name: 'claudian_send_message', toolCallId: 'denied', args: { text: 'No' } });
+    const result = await kernel.request('fixture_tool', { name: 'scribe_send_message', toolCallId: 'denied', args: { text: 'No' } });
     expect(result).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/default tool policy/) }] });
     expect(port.send).not.toHaveBeenCalled();
     const index = kernel.launchSpec.args.indexOf('--tools');
     const namedTools = index < 0 ? [] : kernel.launchSpec.args[index + 1].split(',');
-    expect(namedTools).toEqual(expect.arrayContaining(toolPolicy.kind === 'passive' ? [] : ['claudian_list_destinations', 'claudian_send_message']));
+    expect(namedTools).toEqual(expect.arrayContaining(toolPolicy.kind === 'passive' ? [] : ['scribe_list_destinations', 'scribe_send_message']));
     run.cancel();
     await drained;
   });
@@ -206,7 +206,7 @@ describe('Pi session tools through the generated extension', () => {
     });
     await createSession();
     const { run, drained } = await openRun();
-    const result = kernel.request('fixture_tool', { name: 'claudian_send_message', toolCallId: 'pending', args: { text: 'Wait' } }).catch(() => undefined);
+    const result = kernel.request('fixture_tool', { name: 'scribe_send_message', toolCallId: 'pending', args: { text: 'Wait' } }).catch(() => undefined);
     await called;
     expect(callSignal.aborted).toBe(false);
     if (action === 'tool end') await kernel.request('fixture_tool_end', { toolCallId: 'pending' });
@@ -223,11 +223,11 @@ describe('Pi session tools through the generated extension', () => {
   it('cannot attach a delayed callback from a settled run to the next run', async () => {
     await createSession();
     const first = await openRun();
-    await kernel.request('fixture_emit', { event: { type: 'tool_execution_start', toolCallId: 'old', toolName: 'claudian_send_message' } });
+    await kernel.request('fixture_emit', { event: { type: 'tool_execution_start', toolCallId: 'old', toolName: 'scribe_send_message' } });
     await kernel.request('fixture_emit', { event: { type: 'agent_settled' } });
     await first.drained;
     const next = await openRun();
-    const late = await kernel.request('fixture_private_input', { dialogId: 'late', payload: { name: 'claudian_send_message', toolCallId: 'old', args: { text: 'Late' } } });
+    const late = await kernel.request('fixture_private_input', { dialogId: 'late', payload: { name: 'scribe_send_message', toolCallId: 'old', args: { text: 'Late' } } });
     expect(late).toMatchObject({ cancelled: true });
     expect(port.send).not.toHaveBeenCalled();
     next.run.cancel();

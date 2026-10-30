@@ -2,17 +2,17 @@ import type { ProviderExecutionLifecycleRegistry } from '@/core/execution/Provid
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator, type SettingsReconciliationResult } from '@/core/providers/ProviderSettingsCoordinator';
 import type { ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 
 import type { ConversationRepository } from '../conversations/ConversationRepository';
 import { type SettingsCoordinator, type SettingsMutation, SettingsPostCommitError } from './SettingsCoordinator';
 
 interface RuntimeSettingsCoordinatorOptions {
-  readonly settings: SettingsCoordinator<ClaudianSettings>;
+  readonly settings: SettingsCoordinator<ScribeSettings>;
   readonly conversations: Pick<ConversationRepository, 'invalidateProviderSessions' | 'persistProviderSessionInvalidations'>;
   /** Learns which providers' sessions a transition's change invalidated, so preserved sessions follow their bindings. */
   readonly executionLifecycle: Pick<ProviderExecutionLifecycleRegistry, 'markSessionsInvalidated'>;
-  readonly getSettings: () => ClaudianSettings;
+  readonly getSettings: () => ScribeSettings;
   readonly canCompleteInvalidations: () => boolean;
 }
 
@@ -92,7 +92,7 @@ export class RuntimeSettingsCoordinator {
   }
 
   markPendingSessionInvalidations(
-    settings: ClaudianSettings,
+    settings: ScribeSettings,
     providerIds: ProviderId[],
   ): Map<ProviderId, number> {
     const marked = this.stagePendingSessionInvalidations(settings, providerIds);
@@ -101,7 +101,7 @@ export class RuntimeSettingsCoordinator {
   }
 
   private stagePendingSessionInvalidations(
-    settings: ClaudianSettings,
+    settings: ScribeSettings,
     providerIds: ProviderId[],
   ): Map<ProviderId, number> {
     const pending = readPendingProviderSessionInvalidations(settings);
@@ -159,7 +159,7 @@ export class RuntimeSettingsCoordinator {
 
   async commit(
     providerIds: ProviderId[],
-    mutation: SettingsMutation<ClaudianSettings>,
+    mutation: SettingsMutation<ScribeSettings>,
     options: {
       failureMessage: string;
       onInvalidationsPersisted?: (

@@ -16,25 +16,25 @@ export function renderCitationGroup(
   parentEl: HTMLElement,
   citations: CitationGroup,
 ): HTMLElement {
-  const wrapperEl = markResponseElement(parentEl.createDiv({ cls: 'claudian-citations' }), 'citations');
-  const headerEl = wrapperEl.createDiv({ cls: 'claudian-citations-header' });
+  const wrapperEl = markResponseElement(parentEl.createDiv({ cls: 'scribe-citations' }), 'citations');
+  const headerEl = wrapperEl.createDiv({ cls: 'scribe-citations-header' });
 
-  headerEl.createSpan({ cls: 'claudian-citations-chevron', text: '\u203a' });
-  headerEl.createSpan({ cls: 'claudian-citations-label', text: t('chat.citations.memoryUsed') });
+  headerEl.createSpan({ cls: 'scribe-citations-chevron', text: '\u203a' });
+  headerEl.createSpan({ cls: 'scribe-citations-label', text: t('chat.citations.memoryUsed') });
   headerEl.createSpan({
-    cls: 'claudian-citations-count',
+    cls: 'scribe-citations-count',
     text: t(citations.entries.length === 1 ? 'chat.citations.source' : 'chat.citations.sources', { count: citations.entries.length }),
   });
 
-  const contentEl = wrapperEl.createDiv({ cls: 'claudian-citations-content' });
+  const contentEl = wrapperEl.createDiv({ cls: 'scribe-citations-content' });
   for (const entry of citations.entries) {
-    const entryEl = contentEl.createDiv({ cls: 'claudian-citation-entry' });
+    const entryEl = contentEl.createDiv({ cls: 'scribe-citation-entry' });
     entryEl.createDiv({
-      cls: 'claudian-citation-location',
+      cls: 'scribe-citation-location',
       text: formatCitationLocation(entry),
     });
     if (entry.note) {
-      entryEl.createDiv({ cls: 'claudian-citation-note', text: entry.note });
+      entryEl.createDiv({ cls: 'scribe-citation-note', text: entry.note });
     }
   }
 

@@ -410,9 +410,9 @@ export class ConversationController {
     if (!welcomeEl) return;
 
     if (this.deps.state.messages.length === 0) {
-      welcomeEl.removeClass('claudian-hidden');
+      welcomeEl.removeClass('scribe-hidden');
     } else {
-      welcomeEl.addClass('claudian-hidden');
+      welcomeEl.addClass('scribe-hidden');
     }
   }
 
@@ -425,7 +425,7 @@ export class ConversationController {
     if (!welcomeEl) return;
 
     // Only add greeting if not already present
-    if (!welcomeEl.querySelector('.claudian-welcome-greeting')) {
+    if (!welcomeEl.querySelector('.scribe-welcome-greeting')) {
       renderWelcomeContent(welcomeEl, this.#greeting());
       this.deps.setWelcomeEl(welcomeEl);
     }

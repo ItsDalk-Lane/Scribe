@@ -11,6 +11,7 @@ import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import type { ImageAttachment } from '@/core/types';
 import { ChatExecutionPreHandoffError, type ChatTurnSubmission } from '@/features/chat/execution/ChatExecutionCoordinator';
 import { createQueuedMessage } from '@/features/chat/state/chatTurnRequest';
+import { setLocale } from '@/i18n/i18n';
 
 
 
@@ -28,6 +29,21 @@ vi.mock('@/core/providers/ProviderRegistry', () => ({
 }));
 
 describe('MainTurnExecution', () => {
+  it('shows the missing-session recovery notice in the selected language', async () => {
+    setLocale('zh-CN');
+    try {
+      const fixture = createFixture();
+      fixture.coordinator.execute.mockResolvedValueOnce({
+        accepted: true,
+        missingSessionResolution: 'reset',
+        status: 'missing-session',
+      });
+      await fixture.controller.sendMessage({ content: 'test' });
+      expect(Notice).toHaveBeenCalledWith('服务商会话已不存在。Scribe 已保留可恢复的历史记录；再次发送即可重建会话。');
+    } finally {
+      setLocale('en');
+    }
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ProviderRegistry.getCapabilities).mockReturnValue({
@@ -633,7 +649,7 @@ describe('MainTurnExecution', () => {
     expect(fixture.deps.renderer.removeMessage).not.toHaveBeenCalled();
     expect(fixture.deps.conversationController.save).not.toHaveBeenCalled();
     expect(Notice).toHaveBeenCalledWith(
-      'The provider session no longer exists. Claudian preserved the recoverable history; send again to rebuild the session.',
+      'The provider session no longer exists. Scribe preserved the recoverable history; send again to rebuild the session.',
     );
   });
 
@@ -652,7 +668,7 @@ describe('MainTurnExecution', () => {
     expect(fixture.deps.renderer.removeMessage).not.toHaveBeenCalled();
     expect(fixture.deps.conversationController.save).not.toHaveBeenCalled();
     expect(Notice).toHaveBeenCalledWith(
-      'The provider session no longer exists. Its Claudian record was removed; send again to start a new session.',
+      'The provider session no longer exists. Its Scribe record was removed; send again to start a new session.',
     );
   });
 

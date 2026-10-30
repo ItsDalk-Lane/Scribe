@@ -65,7 +65,7 @@ describe('DeepSeekSettingsReconciler', () => {
   it('declares reload and preserves every conversation binding', () => {
     const conversation = {
       messages: [], providerId: 'deepseek', sessionId: 'session-1',
-      providerState: { schemaVersion: 1, home: '/home', profile: 'web', preset: 'claudian' },
+      providerState: { schemaVersion: 1, home: '/home', profile: 'web', preset: 'scribe' },
     } as unknown as Conversation;
     const settings: Record<string, unknown> = {
       providerConfigs: { deepseek: { environmentHash: 'stale', environmentVariables: 'DSH_HOME=/home' } },
@@ -75,7 +75,7 @@ describe('DeepSeekSettingsReconciler', () => {
     expect(deepseekSettingsReconciler.reconcileModelWithEnvironment(settings)).toEqual(changed);
     expect(conversation).toEqual(expect.objectContaining({
       sessionId: 'session-1',
-      providerState: { schemaVersion: 1, home: '/home', profile: 'web', preset: 'claudian' },
+      providerState: { schemaVersion: 1, home: '/home', profile: 'web', preset: 'scribe' },
     }));
   });
 });

@@ -17,7 +17,7 @@ describePosix('native Codex paths containing literal backslashes', () => {
   let home: string;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(tmpdir(), 'claudian-codex-posix-'));
+    root = await fs.mkdtemp(path.join(tmpdir(), 'scribe-codex-posix-'));
     vault = path.join(root, 'vault\\name');
     home = path.join(root, 'home\\name');
     await Promise.all([fs.mkdir(vault), fs.mkdir(home)]);

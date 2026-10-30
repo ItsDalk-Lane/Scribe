@@ -495,7 +495,7 @@ describe('SelectionController', () => {
 
       expect(showSelectionHighlight).not.toHaveBeenCalled();
       expect(mockHighlights.set).toHaveBeenCalledWith(
-        'claudian-selection',
+        'scribe-selection',
         expect.any(Object),
       );
     });
@@ -519,7 +519,7 @@ describe('SelectionController', () => {
       controller.showHighlight();
 
       expect(mockHighlights.set).toHaveBeenCalledWith(
-        'claudian-selection',
+        'scribe-selection',
         expect.any(Object),
       );
     });
@@ -545,7 +545,7 @@ describe('SelectionController', () => {
       );
       vi.advanceTimersByTime(250);
 
-      expect(mockHighlights.delete).toHaveBeenCalledWith('claudian-selection');
+      expect(mockHighlights.delete).toHaveBeenCalledWith('scribe-selection');
       expect(controller.hasSelection()).toBe(false);
       expect(contextTray.clearItems).toHaveBeenCalledWith('editor-selection');
     });
@@ -612,7 +612,7 @@ describe('SelectionController', () => {
       (global as any).document.activeElement = inputEl;
       controller.showHighlight();
       expect(mockHighlights.set).toHaveBeenCalledWith(
-        'claudian-selection',
+        'scribe-selection',
         { ranges: [mockSel._range] },
       );
       mockHighlights.set.mockClear();
@@ -655,7 +655,7 @@ describe('SelectionController', () => {
       controller.showHighlight();
 
       expect(mockHighlights.set).toHaveBeenCalledWith(
-        'claudian-selection',
+        'scribe-selection',
         { ranges: [secondRange] },
       );
     });

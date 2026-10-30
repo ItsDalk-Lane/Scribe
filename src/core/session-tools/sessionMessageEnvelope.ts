@@ -1,7 +1,7 @@
 import { escapePromptXMLAttribute, formatPromptXMLCdata } from '@/core/prompt/promptXML';
-import { TOOL_CLAUDIAN_SEND_MESSAGE } from '@/core/tools/toolNames';
+import { TOOL_SCRIBE_SEND_MESSAGE } from '@/core/tools/toolNames';
 
-/** A message delivered from another Claudian session, as carried in the recipient's native prompt. */
+/** A message delivered from another Scribe session, as carried in the recipient's native prompt. */
 export interface SessionMessage {
   /** Sender session title. */
   readonly from: string;
@@ -10,7 +10,7 @@ export interface SessionMessage {
   readonly text: string;
 }
 
-/** Text from a client outside Claudian's sessions, delivered as the user's own prompt without an envelope. */
+/** Text from a client outside Scribe's sessions, delivered as the user's own prompt without an envelope. */
 export interface ClientMessage {
   readonly text: string;
   readonly from?: undefined;
@@ -19,7 +19,7 @@ export interface ClientMessage {
 
 export type MailboxMessage = SessionMessage | ClientMessage;
 
-const REPLY_HINT = `Replying is optional. If a response is needed, call ${TOOL_CLAUDIAN_SEND_MESSAGE} with this session_id.`;
+const REPLY_HINT = `Replying is optional. If a response is needed, call ${TOOL_SCRIBE_SEND_MESSAGE} with this session_id.`;
 
 /**
  * The body is CDATA-wrapped, so a body containing `]]>` cannot end it early; every

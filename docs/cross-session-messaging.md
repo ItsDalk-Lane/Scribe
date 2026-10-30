@@ -1,6 +1,6 @@
 # Cross-session messaging
 
-Agents in one Claudian session can find other sessions, read them, send them messages, steer or interrupt their work, and start new sessions on any enabled provider. An agent can hand off a task, consult a session that already has the right context, or delegate work to a different model.
+Agents in one Scribe session can find other sessions, read them, send them messages, steer or interrupt their work, and start new sessions on any enabled provider. An agent can hand off a task, consult a session that already has the right context, or delegate work to a different model.
 
 Agents use three tools for this. You don't call them yourself: ask the agent, for example "ask the Review session what it found" or "start a Codex session to write the tests".
 
@@ -10,13 +10,13 @@ For other Obsidian plugins that want to send prompts to sessions, see the [Plugi
 
 | Tool | What it does |
 |---|---|
-| `claudian_list_destinations` | Lists the sessions an agent can message, and optionally the providers, models and reasoning levels it can start a new session with. |
-| `claudian_send_message` | Sends a message to an existing session, or starts a new session with it. |
-| `claudian_read_session` | Reads another session's prompts and final replies. |
+| `scribe_list_destinations` | Lists the sessions an agent can message, and optionally the providers, models and reasoning levels it can start a new session with. |
+| `scribe_send_message` | Sends a message to an existing session, or starts a new session with it. |
+| `scribe_read_session` | Reads another session's prompts and final replies. |
 
 ### Listing sessions
 
-`claudian_list_destinations` returns non-archived sessions, most recently active first. Each entry has the session's id, title, provider and status:
+`scribe_list_destinations` returns non-archived sessions, most recently active first. Each entry has the session's id, title, provider and status:
 
 | Status | Meaning |
 |---|---|
@@ -31,7 +31,7 @@ For other Obsidian plugins that want to send prompts to sessions, see the [Plugi
 
 ### Sending a message
 
-`claudian_send_message` returns as soon as the message is accepted, with the recipient's id, title, provider and a status. It does not wait for the recipient's turn or a reply.
+`scribe_send_message` returns as soon as the message is accepted, with the recipient's id, title, provider and a status. It does not wait for the recipient's turn or a reply.
 
 | `mode` | Behavior | Status |
 |---|---|---|
@@ -56,7 +56,7 @@ A reasoning level chosen by an agent applies to that session only and does not c
 
 ### Reading a session
 
-`claudian_read_session` returns a session's transcript as Markdown: each turn's prompt and final reply, without tool calls, thinking, or a turn still running. Turns are numbered from 1.
+`scribe_read_session` returns a session's transcript as Markdown: each turn's prompt and final reply, without tool calls, thinking, or a turn still running. Turns are numbered from 1.
 
 - A read holds the latest turns that fit in about 40,000 characters. When `fromTurn` is greater than 1, the agent passes it as `beforeTurn` to page back. A single turn that is too long is truncated.
 - A loaded session, in a tab or in the background, is read live; any other session is read from its stored history.
@@ -68,7 +68,7 @@ Each session has its own mailbox. A queued message waits until the recipient is 
 
 - Messages are delivered one per turn, in arrival order, and are never merged with each other or put into the composer. Interrupts go ahead of ordinary messages, the newest first.
 - A recipient that isn't open in a tab is loaded in the background without opening one.
-- Stopping a session, or archiving or deleting it, drops its pending messages. Claudian shows a notice naming the senders whose messages could not be delivered.
+- Stopping a session, or archiving or deleting it, drops its pending messages. Scribe shows a notice naming the senders whose messages could not be delivered.
 - A message from another session does not clear the recipient's unread mark.
 - If the recipient asks for a permission or a question during the turn, the turn waits until you answer on screen.
 
@@ -88,7 +88,7 @@ The agent sees the message wrapped in `<session_message from="â€¦" session_id="â
 
 ## Pointing an agent at a session
 
-- **@ mentions:** type `@` in the composer and pick a Claudian session. The agent receives the session's title, id, provider and last update, and reads it with `claudian_read_session` when it needs the content.
+- **@ mentions:** type `@` in the composer and pick a Scribe session. The agent receives the session's title, id, provider and last update, and reads it with `scribe_read_session` when it needs the content.
 - **Copy session ID:** in a session's menu in the session list, choose **Copy session ID** and paste it into your prompt. It is offered for non-archived sessions.
 
 ## Availability
@@ -105,6 +105,6 @@ The tools are available in main chat and side chat sessions on these providers:
 | Pi | |
 
 - On providers or threads without the read tool, an @ mention still carries the session id, but the agent cannot read the session.
-- Calls that Claudian cannot tie to a running chat session are rejected with "Session tools are only available in Claudian main chat sessions with the default tool policy." For example, a Codex fork or a session on a shared OpenCode or DeepSeek Harness process may see the tools listed without being bound to a Claudian chat; its calls fail.
+- Calls that Scribe cannot tie to a running chat session are rejected with "Session tools are only available in Scribe main chat sessions with the default tool policy." For example, a Codex fork or a session on a shared OpenCode or DeepSeek Harness process may see the tools listed without being bound to a Scribe chat; its calls fail.
 - A side chat acts as its parent session: its `self` entry and the sender of its messages are the parent, so it cannot message its own parent. A side chat on a draft that hasn't been sent yet has no session tools.
 - OpenCode, DeepSeek Harness and Grok Build sessions reach the tools through a listener that accepts connections from 127.0.0.1 only.

@@ -85,8 +85,8 @@ it.each([
 
   await renderer.renderContent(host, `\`\`\`${language}\nconst x = 1;\n\`\`\``);
 
-  expect(host.querySelector('.claudian-render-error')).toBeNull();
-  const wrappers = host.querySelectorAll('.claudian-code-wrapper');
+  expect(host.querySelector('.scribe-render-error')).toBeNull();
+  const wrappers = host.querySelectorAll('.scribe-code-wrapper');
   expect(wrappers).toHaveLength(1);
   const wrapper = wrappers[0];
   expect(pre.parentElement).toBe(wrapper);
@@ -102,7 +102,7 @@ it.each([
   expect(pre.contains(copyButton)).toBe(false);
   expect(code.className).toBe(expectedClass);
   expect(wrapper.classList.contains('has-language')).toBe(hasLanguage);
-  expect(wrapper.querySelector('.claudian-code-lang-label')?.textContent ?? null).toBe(expectedLabel);
+  expect(wrapper.querySelector('.scribe-code-lang-label')?.textContent ?? null).toBe(expectedLabel);
   expect((await axe(host)).violations).toEqual([]);
 });
 
@@ -182,7 +182,7 @@ it.each([
 
   await renderer.renderContent(host, `${before}\n\n${after}\n<iframe src="https://example.invalid/"></iframe>`);
 
-  expect(host.querySelector('.claudian-render-error')).toBeNull();
+  expect(host.querySelector('.scribe-render-error')).toBeNull();
   expect(vi.mocked(MarkdownRenderer.render)).toHaveBeenCalled();
   expect(processExecutableCode).not.toHaveBeenCalled();
   expect(forwarded).toContain('&lt;iframe');
@@ -193,15 +193,15 @@ it('preserves an existing wrapper without nesting a second wrapper', async () =>
   let wrapper!: HTMLElement;
   let pre!: HTMLPreElement;
   vi.mocked(MarkdownRenderer.render).mockImplementationOnce(async (_app, _markdown, target) => {
-    wrapper = (target as HTMLElement).createDiv({ cls: 'claudian-code-wrapper' });
+    wrapper = (target as HTMLElement).createDiv({ cls: 'scribe-code-wrapper' });
     pre = wrapper.createEl('pre');
     pre.createEl('code', { text: 'already wrapped' });
   });
 
   await renderer.renderContent(host, '```\nalready wrapped\n```');
 
-  expect(host.querySelector('.claudian-render-error')).toBeNull();
-  expect(host.querySelectorAll('.claudian-code-wrapper')).toHaveLength(1);
+  expect(host.querySelector('.scribe-render-error')).toBeNull();
+  expect(host.querySelectorAll('.scribe-code-wrapper')).toHaveLength(1);
   expect(host.firstElementChild).toBe(wrapper);
   expect(pre.parentElement).toBe(wrapper);
   expect(pre.textContent).toBe('already wrapped');
@@ -228,10 +228,10 @@ it.each([
 
     await renderer.renderContent(host, source);
 
-    expect(host.querySelector('.claudian-render-error')).toBeNull();
+    expect(host.querySelector('.scribe-render-error')).toBeNull();
     expect(vi.mocked(MarkdownRenderer.render)).toHaveBeenCalled();
     expect(processExecutableCode).not.toHaveBeenCalled();
-    expect(forwarded).toContain('claudian-display-only-fence-');
+    expect(forwarded).toContain('scribe-display-only-fence-');
   },
 );
 
@@ -264,8 +264,8 @@ describe('plugin-rendered fence languages', () => {
 
     await renderer.renderContent(host, source);
 
-    expect(dispatched).toEqual(['Vega-Lite', expect.stringMatching(/^claudian-display-only-fence-/)]);
-    expect(host.querySelector('.claudian-render-error')).toBeNull();
+    expect(dispatched).toEqual(['Vega-Lite', expect.stringMatching(/^scribe-display-only-fence-/)]);
+    expect(host.querySelector('.scribe-render-error')).toBeNull();
     expect(host.querySelector('.block-language-Vega-Lite')?.textContent).toBe('chart');
   });
 
@@ -278,6 +278,6 @@ describe('plugin-rendered fence languages', () => {
     await renderer.renderContent(host, source, { deferDiagrams: true });
 
     expect(dispatched).toHaveLength(2);
-    expect(dispatched.every(language => language.startsWith('claudian-display-only-fence-'))).toBe(true);
+    expect(dispatched.every(language => language.startsWith('scribe-display-only-fence-'))).toBe(true);
   });
 });

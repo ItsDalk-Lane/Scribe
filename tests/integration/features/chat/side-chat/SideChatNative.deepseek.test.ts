@@ -45,7 +45,7 @@ it('runs the side child on an ephemeral native fork of the checkpoint that ends 
     if (method === 'session/projections') {
       const sessionId = args.request.sessionId as string;
       if (!cursors.has(sessionId)) throw Object.assign(new Error('missing'), { code: 'session/missing' });
-      return { asOfSeq: cursors.get(sessionId), values: { agentPreset: 'claudian', permissions: { currentValue: permissions.get(sessionId) ?? 'workspace-write' } } };
+      return { asOfSeq: cursors.get(sessionId), values: { agentPreset: 'scribe', permissions: { currentValue: permissions.get(sessionId) ?? 'workspace-write' } } };
     }
     if (method === 'session/prompt') {
       const { sessionId, requestId, content } = args.request;

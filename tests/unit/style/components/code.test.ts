@@ -23,8 +23,8 @@ describe('Chat code styles', () => {
     document.head.appendChild(style);
 
     document.body.innerHTML = `
-      <div class="claudian-container">
-        <div class="claudian-message-content">
+      <div class="scribe-container">
+        <div class="scribe-message-content">
           <p>Use <code data-testid="inline-code">test</code></p>
           <pre><code data-testid="block-code">block</code></pre>
         </div>
@@ -85,7 +85,7 @@ describe('Chat code styles', () => {
   });
   it('keeps Mermaid readable when the app switches to dark mode', () => {
     renderCodeSamples();
-    const diagram = document.querySelector('.claudian-message-content')!.createDiv({ cls: 'claudian-mermaid' });
+    const diagram = document.querySelector('.scribe-message-content')!.createDiv({ cls: 'scribe-mermaid' });
     const image = diagram.createEl('img', { attr: { alt: 'Mermaid diagram' } });
     expect(window.getComputedStyle(image).filter).toBe('');
     document.body.classList.add('theme-dark');

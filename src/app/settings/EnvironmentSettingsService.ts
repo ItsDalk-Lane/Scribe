@@ -9,7 +9,7 @@ import {
 import type { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import type { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import type { EnvironmentScope } from '@/core/types/settings';
 
 import type { RuntimeSettingsCoordinator } from './RuntimeSettingsCoordinator';
@@ -21,7 +21,7 @@ export interface EnvironmentUpdate {
 }
 
 export interface EnvironmentSettingsServiceDeps {
-  getSettings(): Readonly<ClaudianSettings>;
+  getSettings(): Readonly<ScribeSettings>;
   readonly runtimeSettings: Pick<RuntimeSettingsCoordinator, 'commit'>;
   readonly executionLifecycle: Pick<ProviderExecutionLifecycleRegistry, 'runTransition'>;
   readonly providers: Pick<typeof ProviderRegistry, 'getRegisteredProviderIds' | 'resolveSettingsProviderId'>;
@@ -73,7 +73,7 @@ export class EnvironmentSettingsService {
 
   async applyProviderRuntimeSettings(
     providerIds: ProviderId[],
-    mutation: SettingsMutation<ClaudianSettings>,
+    mutation: SettingsMutation<ScribeSettings>,
     onApplied?: () => void | Promise<void>,
   ): Promise<void> {
     const uniqueProviderIds = Array.from(new Set(providerIds));
@@ -129,7 +129,7 @@ export class EnvironmentSettingsService {
   }
 
   #getChangedScopes(
-    settings: Readonly<ClaudianSettings>,
+    settings: Readonly<ScribeSettings>,
     nextEnvironmentByScope: ReadonlyMap<EnvironmentScope, string>,
   ): EnvironmentScope[] {
     return [...nextEnvironmentByScope].flatMap(([scope, envText]) => (

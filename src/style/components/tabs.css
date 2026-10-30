@@ -1,4 +1,4 @@
-.claudian-tab-bar-container {
+.scribe-tab-bar-container {
   display: flex;
   align-items: center;
   flex: 1 1 auto;
@@ -7,7 +7,7 @@
   max-width: 100%;
 }
 
-.claudian-tab-badges {
+.scribe-tab-badges {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -21,12 +21,12 @@
   -ms-overflow-style: none;
 }
 
-.claudian-tab-badges::-webkit-scrollbar {
+.scribe-tab-badges::-webkit-scrollbar {
   display: none;
 }
 
 /* Retain button specificity to override Obsidian's native control chrome. */
-button.claudian-tab-badge {
+button.scribe-tab-badge {
   appearance: none;
   display: flex;
   align-items: center;
@@ -55,57 +55,57 @@ button.claudian-tab-badge {
   transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
-button.claudian-tab-badge-expanded {
+button.scribe-tab-badge-expanded {
   flex: 0 0 auto;
   justify-content: flex-start;
   width: auto;
   padding: 0 8px;
 }
 
-button.claudian-tab-badge:hover,
-button.claudian-tab-badge:active {
+button.scribe-tab-badge:hover,
+button.scribe-tab-badge:active {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
   box-shadow: none;
 }
 
-button.claudian-tab-badge:focus-visible {
+button.scribe-tab-badge:focus-visible {
   box-shadow: none;
   outline: 2px solid var(--interactive-accent);
   outline-offset: 1px;
 }
 
-button.claudian-tab-badge-active {
+button.scribe-tab-badge-active {
   border-color: var(--interactive-accent);
   color: var(--text-normal);
 }
 
-button.claudian-tab-badge-streaming {
+button.scribe-tab-badge-streaming {
   border-color: var(--text-normal);
 }
 
-body.theme-light button.claudian-tab-badge-streaming {
+body.theme-light button.scribe-tab-badge-streaming {
   border-color: #000;
 }
 
-body.theme-dark button.claudian-tab-badge-streaming {
+body.theme-dark button.scribe-tab-badge-streaming {
   border-color: #fff;
 }
 
-button.claudian-tab-badge-review {
+button.scribe-tab-badge-review {
   border-color: var(--color-green);
 }
 
-button.claudian-tab-badge-review-error {
+button.scribe-tab-badge-review-error {
   border-color: var(--text-error);
 }
 
-button.claudian-tab-badge-action-required {
+button.scribe-tab-badge-action-required {
   border-color: var(--color-orange);
 }
 
 /* The rename wrapper owns the surface; its embedded input stays transparent and borderless. */
-.claudian-tab-label-editor {
+.scribe-tab-label-editor {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
@@ -117,10 +117,10 @@ button.claudian-tab-badge-action-required {
   background: var(--background-primary);
 }
 
-.claudian-tab-label-editor input.claudian-tab-label-input,
-.claudian-tab-label-editor input.claudian-tab-label-input:hover,
-.claudian-tab-label-editor input.claudian-tab-label-input:focus,
-.claudian-tab-label-editor input.claudian-tab-label-input:focus-visible {
+.scribe-tab-label-editor input.scribe-tab-label-input,
+.scribe-tab-label-editor input.scribe-tab-label-input:hover,
+.scribe-tab-label-editor input.scribe-tab-label-input:focus,
+.scribe-tab-label-editor input.scribe-tab-label-input:focus-visible {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
@@ -137,7 +137,7 @@ button.claudian-tab-badge-action-required {
   outline: none;
 }
 
-.claudian-tab-content-container {
+.scribe-tab-content-container {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -145,7 +145,7 @@ button.claudian-tab-badge-action-required {
   overflow: hidden;
 }
 
-.claudian-tab-content {
+.scribe-tab-content {
   position: relative; /* For scroll-to-bottom button positioning */
   display: flex;
   flex-direction: column;

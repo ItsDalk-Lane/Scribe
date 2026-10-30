@@ -25,7 +25,7 @@ test('recognizes open resources and termination failures without rejecting pendi
 
 test('real Vitest detects native leaks after owned DOM timers and transient work settle', () => {
   // Vite resolves files canonically; Windows TEMP may contain an 8.3 alias.
-  const root = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'claudian-vitest-leaks-')));
+  const root = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'scribe-vitest-leaks-')));
   try {
     const config = path.join(root, 'vitest.config.mjs');
     const runner = path.join(root, 'openHandleTestRunner.mjs');

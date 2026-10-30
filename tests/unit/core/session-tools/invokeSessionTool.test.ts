@@ -33,7 +33,7 @@ describe('invokeSessionTool', () => {
     const port = createPort();
     const signal = new AbortController().signal;
 
-    const result = await invokeSessionTool('claudian_list_destinations', { includeProviders: true, limit: null }, {
+    const result = await invokeSessionTool('scribe_list_destinations', { includeProviders: true, limit: null }, {
       port, toolPolicy: allowed, signal,
     });
 
@@ -49,7 +49,7 @@ describe('invokeSessionTool', () => {
     const signal = new AbortController().signal;
 
     const result = await invokeSessionTool(
-      'claudian_send_message',
+      'scribe_send_message',
       { sessionId: 'conv-2', text: 'Hi', model: null },
       { port, toolPolicy: { kind: 'unrestricted' }, signal },
     );
@@ -61,7 +61,7 @@ describe('invokeSessionTool', () => {
   it.each<[string, ProviderToolPolicy | undefined, boolean]>([
     ['passive', { kind: 'passive' }, true],
     ['read-only', { kind: 'read-only' }, true],
-    ['an allow-list naming the tool', { kind: 'allow-list', names: ['claudian_send_message', 'claudian_list_destinations'] }, true],
+    ['an allow-list naming the tool', { kind: 'allow-list', names: ['scribe_send_message', 'scribe_list_destinations'] }, true],
     ['no owning run', undefined, true],
     ['an unbound port', allowed, false],
   ])('denies calls under %s without reaching the port', async (_label, toolPolicy, bound) => {
@@ -69,14 +69,14 @@ describe('invokeSessionTool', () => {
     const signal = new AbortController().signal;
 
     const results = await Promise.all([
-      invokeSessionTool('claudian_list_destinations', {}, { port: bound ? port : undefined, toolPolicy, signal }),
-      invokeSessionTool('claudian_send_message', { text: 'Hi' }, { port: bound ? port : undefined, toolPolicy, signal }),
-      invokeSessionTool('claudian_read_session', { sessionId: 'conv-2' }, { port: bound ? port : undefined, toolPolicy, signal }),
+      invokeSessionTool('scribe_list_destinations', {}, { port: bound ? port : undefined, toolPolicy, signal }),
+      invokeSessionTool('scribe_send_message', { text: 'Hi' }, { port: bound ? port : undefined, toolPolicy, signal }),
+      invokeSessionTool('scribe_read_session', { sessionId: 'conv-2' }, { port: bound ? port : undefined, toolPolicy, signal }),
     ]);
 
     for (const result of results) {
       expect(result.isError).toBe(true);
-      expect(result.text).toMatch(/only available in Claudian main chat sessions/);
+      expect(result.text).toMatch(/only available in Scribe main chat sessions/);
     }
     expect(port.list).not.toHaveBeenCalled();
     expect(port.send).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('invokeSessionTool', () => {
     const port = createPort();
     const signal = new AbortController().signal;
 
-    const result = await invokeSessionTool('claudian_read_session', { sessionId: 'conv-2', beforeTurn: null }, { port, toolPolicy: allowed, signal });
+    const result = await invokeSessionTool('scribe_read_session', { sessionId: 'conv-2', beforeTurn: null }, { port, toolPolicy: allowed, signal });
 
     expect(result.isError).toBe(false);
     expect(JSON.parse(result.text)).toEqual(expect.objectContaining({ sessionId: 'conv-2', content: '# Review' }));
@@ -98,10 +98,10 @@ describe('invokeSessionTool', () => {
     const aborted = new AbortController();
     aborted.abort();
 
-    const invalid = await invokeSessionTool('claudian_send_message', { text: '' }, {
+    const invalid = await invokeSessionTool('scribe_send_message', { text: '' }, {
       port, toolPolicy: allowed, signal: new AbortController().signal,
     });
-    const cancelled = await invokeSessionTool('claudian_list_destinations', {}, {
+    const cancelled = await invokeSessionTool('scribe_list_destinations', {}, {
       port, toolPolicy: allowed, signal: aborted.signal,
     });
 
@@ -115,7 +115,7 @@ describe('invokeSessionTool', () => {
     const port = createPort();
     port.send.mockRejectedValueOnce(new Error('A session cannot message itself.'));
 
-    const result = await invokeSessionTool('claudian_send_message', { sessionId: 'conv-1', text: 'Hi' }, {
+    const result = await invokeSessionTool('scribe_send_message', { sessionId: 'conv-1', text: 'Hi' }, {
       port, toolPolicy: allowed, signal: new AbortController().signal,
     });
 

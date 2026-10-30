@@ -59,8 +59,8 @@ describe('DeepSeek saved configuration contracts', () => {
   });
 
   it('decodes only the owned store, preset and fork binding', () => {
-    const initial = { schemaVersion: 1, home: '/original', profile: 'web', preset: 'claudian' } as const;
-    const pending = { ...initial, preset: 'claudian-code' as const, pendingFork: { sessionId: 'source', atSeq: 19 } };
+    const initial = { schemaVersion: 1, home: '/original', profile: 'web', preset: 'scribe' } as const;
+    const pending = { ...initial, preset: 'scribe-code' as const, pendingFork: { sessionId: 'source', atSeq: 19 } };
     expect(decodeDeepSeekState({ ...pending, token: 'must-not-persist' })).toEqual(pending);
     expect(() => decodeDeepSeekState({ ...initial, preset: 'standard' })).toThrow(/preset/i);
     expect(() => decodeDeepSeekState({ ...initial, schemaVersion: 2 })).toThrow(/version/i);
@@ -68,7 +68,7 @@ describe('DeepSeek saved configuration contracts', () => {
   });
 
   it('decodes Desktop provenance and rejects an unknown profile', () => {
-    const desktop = { schemaVersion: 1, home: '/native', profile: 'desktop', preset: 'claudian' };
+    const desktop = { schemaVersion: 1, home: '/native', profile: 'desktop', preset: 'scribe' };
     expect(decodeDeepSeekState(desktop)).toEqual(desktop);
     expect(() => decodeDeepSeekState({ ...desktop, profile: 'unknown' })).toThrow(/binding/);
   });

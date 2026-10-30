@@ -3,7 +3,7 @@ const mockGetHostnameKey = vi.fn(() => 'device:current');
 import { grokEnvironmentHash, readGrokCatalog } from '@test/helpers/providers/grokSettings';
 import type { Mock } from 'vitest';
 
-import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
+import { createProviderRuntimeHost } from '@/composition/ScribeProviderHost';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import type { ProviderRuntimeHost } from '@/core/providers/ProviderRuntimeHost';
 import { DEFAULT_GROK_PROVIDER_SETTINGS } from '@/providers/grok/config';

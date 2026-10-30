@@ -28,7 +28,7 @@ export function enqueueTabSessionEvent(
     captureReviewableSettlement: tab.captureReviewableSettlement,
     updatePermissionMode: mode => updateTabPermissionMode(tab, plugin, mode),
     receiveSuggestion: (turnId, suggestion) => {
-      if (!tab.dom.contentEl.hasClass('claudian-hidden')) tab.ui.promptSuggestion.receive(turnId, suggestion);
+      if (!tab.dom.contentEl.hasClass('scribe-hidden')) tab.ui.promptSuggestion.receive(turnId, suggestion);
     },
     discardSuggestion: () => tab.ui.promptSuggestion.discard(),
     canAcceptBackgroundWork: () => canAcceptTabBackgroundWork(tab),

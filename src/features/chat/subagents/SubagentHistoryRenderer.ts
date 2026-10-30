@@ -21,10 +21,10 @@ function previousRuns(messages: ChatMessage[], info: SubagentInfo): ToolCallInfo
 }
 
 function createDisclosure(parent: HTMLElement, label: string, render: (body: HTMLElement) => void): void {
-  const section = parent.createDiv({ cls: 'claudian-subagent-section' });
-  const id = `claudian-subagent-history-${nextHistoryId++}`;
-  const toggle = section.createEl('button', { cls: 'claudian-subagent-history-toggle', text: label });
-  const body = section.createDiv({ cls: 'claudian-subagent-section-body', attr: { id } });
+  const section = parent.createDiv({ cls: 'scribe-subagent-section' });
+  const id = `scribe-subagent-history-${nextHistoryId++}`;
+  const toggle = section.createEl('button', { cls: 'scribe-subagent-history-toggle', text: label });
+  const body = section.createDiv({ cls: 'scribe-subagent-section-body', attr: { id } });
   setupDisclosureButton(toggle, body, { onFirstExpand: () => render(body) });
 }
 
@@ -32,9 +32,9 @@ function createDisclosure(parent: HTMLElement, label: string, render: (body: HTM
 export function renderSubagentHistory(
   card: HTMLElement, info: SubagentInfo, messages: ChatMessage[],
 ): void {
-  const content = card.querySelector<HTMLElement>('.claudian-subagent-content');
+  const content = card.querySelector<HTMLElement>('.scribe-subagent-content');
   if (!content) return;
-  const existing = content.querySelector<HTMLElement>(':scope > .claudian-subagent-history');
+  const existing = content.querySelector<HTMLElement>(':scope > .scribe-subagent-history');
   if (existing) {
     // Move new current-run content before history without detaching its focused controls.
     while (existing.nextElementSibling) content.insertBefore(existing.nextElementSibling, existing);
@@ -42,7 +42,7 @@ export function renderSubagentHistory(
   }
   const runs = previousRuns(messages, info);
   if (!runs.length) return;
-  const history = content.createDiv({ cls: 'claudian-subagent-history' });
+  const history = content.createDiv({ cls: 'scribe-subagent-history' });
   createDisclosure(history, `Previous runs (${runs.length})`, body => {
     runs.forEach((run, index) => {
       const status = run.subagent!.status;
@@ -54,7 +54,7 @@ export function renderSubagentHistory(
         view.headerEl.click();
         view.headerEl.remove();
         for (const section of [view.promptSectionEl, view.resultSectionEl]) {
-          if (section && !section.hidden) section.querySelector<HTMLElement>('.claudian-subagent-section-header')?.click();
+          if (section && !section.hidden) section.querySelector<HTMLElement>('.scribe-subagent-section-header')?.click();
         }
       });
     });

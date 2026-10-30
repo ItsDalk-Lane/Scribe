@@ -16,6 +16,7 @@ import {
   setControlAvailability,
   showMenuAt,
 } from '@/features/chat/session-manager/SessionSurfaceShared';
+import { t } from '@/i18n/i18n';
 
 type SessionSearchScrollState = {
   pinnedScrollTop: number;
@@ -74,8 +75,8 @@ export class SessionSidebar {
   /** Builds the sidebar surface inside `sidebarEl`. */
   mount(sidebarEl: HTMLElement): void {
     this.sidebarEl = sidebarEl;
-    const trackEl = sidebarEl.createDiv({ cls: 'claudian-sidebar-surface-track' });
-    this.surfaceEl = trackEl.createDiv({ cls: 'claudian-session-surface' });
+    const trackEl = sidebarEl.createDiv({ cls: 'scribe-sidebar-surface-track' });
+    this.surfaceEl = trackEl.createDiv({ cls: 'scribe-session-surface' });
     this.syncThemeBackground();
     this.themeEvent = this.deps.plugin.app.workspace.on('css-change', () => this.syncThemeBackground());
   }
@@ -165,7 +166,7 @@ export class SessionSidebar {
     );
     const background = navigation?.ownerDocument.defaultView?.getComputedStyle(navigation)
       .getPropertyValue('--nav-item-background-active').trim() ?? '';
-    this.sidebarEl?.setCssProps({ '--claudian-session-background-active': background });
+    this.sidebarEl?.setCssProps({ '--scribe-session-background-active': background });
   }
 
   private renderList(container: HTMLElement, signal: AbortSignal): void {
@@ -238,18 +239,18 @@ export class SessionSidebar {
   }
 
   private buildHeaderActions(container: HTMLElement): void {
-    const header = container.querySelector<HTMLElement>('.claudian-session-list-header');
-    const list = container.querySelector<HTMLElement>('.claudian-history-list');
+    const header = container.querySelector<HTMLElement>('.scribe-session-list-header');
+    const list = container.querySelector<HTMLElement>('.scribe-history-list');
     if (!header || !list) return;
 
     const { shared } = this.deps;
     const isArchiveView = shared.isArchiveView();
-    const newControl = container.createDiv({ cls: 'claudian-session-new-control' });
+    const newControl = container.createDiv({ cls: 'scribe-session-new-control' });
     newControl.setAttribute('role', 'button');
     newControl.setAttribute('tabindex', '0');
-    const newIcon = newControl.createSpan({ cls: 'claudian-session-new-icon' });
+    const newIcon = newControl.createSpan({ cls: 'scribe-session-new-icon' });
     setIcon(newIcon, 'square-pen');
-    newControl.createSpan({ cls: 'claudian-session-new-label', text: 'New' });
+    newControl.createSpan({ cls: 'scribe-session-new-label', text: t('chat.sessionManager.new') });
     const requestNew = (): void => {
       shared.setArchiveView(false);
       this.deps.requestNew();
@@ -266,12 +267,12 @@ export class SessionSidebar {
     if (this.isSearchActive) {
       this.buildSearchField(container, list);
     } else {
-      const searchControl = container.createDiv({ cls: 'claudian-session-search-control' });
+      const searchControl = container.createDiv({ cls: 'scribe-session-search-control' });
       searchControl.setAttribute('role', 'button');
       searchControl.setAttribute('tabindex', '0');
-      const searchIcon = searchControl.createSpan({ cls: 'claudian-session-nav-icon' });
+      const searchIcon = searchControl.createSpan({ cls: 'scribe-session-nav-icon' });
       setIcon(searchIcon, 'search');
-      searchControl.createSpan({ cls: 'claudian-session-nav-label', text: 'Search' });
+      searchControl.createSpan({ cls: 'scribe-session-nav-label', text: t('chat.sessionManager.search') });
       const activateSearch = (): void => this.activateSearch();
       searchControl.addEventListener('click', activateSearch);
       searchControl.addEventListener('keydown', (event) => {
@@ -282,14 +283,14 @@ export class SessionSidebar {
       container.insertBefore(searchControl, list);
     }
 
-    const archiveControl = container.createDiv({ cls: 'claudian-session-archive-control' });
+    const archiveControl = container.createDiv({ cls: 'scribe-session-archive-control' });
     archiveControl.setAttribute('role', 'button');
     archiveControl.setAttribute('tabindex', '0');
-    const archiveIcon = archiveControl.createSpan({ cls: 'claudian-session-nav-icon' });
+    const archiveIcon = archiveControl.createSpan({ cls: 'scribe-session-nav-icon' });
     setIcon(archiveIcon, isArchiveView ? 'arrow-left' : 'archive');
     archiveControl.createSpan({
-      cls: 'claudian-session-nav-label',
-      text: isArchiveView ? 'Sessions' : 'Archive',
+      cls: 'scribe-session-nav-label',
+      text: isArchiveView ? t('chat.sessionManager.sessions') : t('chat.sessionManager.archive'),
     });
     const toggleArchiveView = (): void => shared.setArchiveView(!shared.isArchiveView());
     archiveControl.addEventListener('click', toggleArchiveView);
@@ -301,11 +302,11 @@ export class SessionSidebar {
     container.insertBefore(archiveControl, list);
 
     this.groupToggleButtonEl = null;
-    const actions = header.createDiv({ cls: 'claudian-session-header-actions' });
+    const actions = header.createDiv({ cls: 'scribe-session-header-actions' });
     createSessionHeaderMenuAction(
       actions,
       'ellipsis',
-      'Session options',
+      t('chat.sessionManager.sessionOptions'),
       (anchor, event) => this.showOptionsMenu(anchor, event),
     );
     if (this.getOrganization() === 'linked-content' && this.groupKeys.size > 0) {
@@ -313,7 +314,7 @@ export class SessionSidebar {
       this.groupToggleButtonEl = createSessionHeaderAction(
         actions,
         icon => renderSessionGroupToggleIcon(icon, allCollapsed ? 'expand' : 'collapse'),
-        allCollapsed ? 'Expand all groups' : 'Collapse all groups',
+        allCollapsed ? t('chat.sessionManager.expandGroups') : t('chat.sessionManager.collapseGroups'),
         () => this.toggleAllGroups(),
       );
     }
@@ -322,12 +323,12 @@ export class SessionSidebar {
   }
 
   private buildSearchField(container: HTMLElement, list: HTMLElement): void {
-    const searchField = container.createDiv({ cls: 'claudian-session-search-field' });
-    const searchIcon = searchField.createSpan({ cls: 'claudian-session-nav-icon' });
+    const searchField = container.createDiv({ cls: 'scribe-session-search-field' });
+    const searchIcon = searchField.createSpan({ cls: 'scribe-session-nav-icon' });
     setIcon(searchIcon, 'search');
-    const label = this.deps.shared.isArchiveView() ? 'Search archived sessions' : 'Search sessions';
+    const label = this.deps.shared.isArchiveView() ? t('chat.sessionManager.searchArchived') : t('chat.sessionManager.searchSessions');
     const searchInput = searchField.createEl('input', {
-      cls: 'claudian-session-search-input',
+      cls: 'scribe-session-search-input',
       attr: {
         type: 'search',
         autocomplete: 'off',
@@ -488,11 +489,11 @@ export class SessionSidebar {
   }
 
   private findScrollLists(): { pinnedList: HTMLElement | null; sessionList: HTMLElement | null } {
-    const list = this.sidebarEl?.querySelector<HTMLElement>('.claudian-history-list') ?? null;
-    const sessionList = list?.querySelector<HTMLElement>('.claudian-session-list-items') ?? list;
-    const pinnedSection = list?.querySelector<HTMLElement>('.claudian-history-section--pinned');
+    const list = this.sidebarEl?.querySelector<HTMLElement>('.scribe-history-list') ?? null;
+    const sessionList = list?.querySelector<HTMLElement>('.scribe-session-list-items') ?? list;
+    const pinnedSection = list?.querySelector<HTMLElement>('.scribe-history-section--pinned');
     const pinnedList = pinnedSection?.querySelector<HTMLElement>(
-      '.claudian-history-section-items',
+      '.scribe-history-section-items',
     ) ?? null;
     return { pinnedList, sessionList };
   }
@@ -566,8 +567,8 @@ export class SessionSidebar {
     if (!button) return;
 
     const allCollapsed = this.areAllGroupsCollapsed();
-    button.setAttribute('aria-label', allCollapsed ? 'Expand all groups' : 'Collapse all groups');
-    const icon = button.querySelector<HTMLElement>('.claudian-session-header-icon');
+    button.setAttribute('aria-label', allCollapsed ? t('chat.sessionManager.expandGroups') : t('chat.sessionManager.collapseGroups'));
+    const icon = button.querySelector<HTMLElement>('.scribe-session-header-icon');
     if (icon) {
       renderSessionGroupToggleIcon(icon, allCollapsed ? 'expand' : 'collapse');
     }
@@ -590,26 +591,26 @@ export class SessionSidebar {
     const sort = this.getSort();
 
     menu.addItem(item => item
-      .setTitle('Organize sessions')
+      .setTitle(t('chat.sessionManager.organize'))
       .setIsLabel(true));
     menu.addItem(item => item
-      .setTitle('In one list')
+      .setTitle(t('chat.sessionManager.oneList'))
       .setChecked(organization === 'list')
       .onClick(() => this.setOrganization('list')));
     menu.addItem(item => item
-      .setTitle('By linked content')
+      .setTitle(t('chat.sessionManager.byLinked'))
       .setChecked(organization === 'linked-content')
       .onClick(() => this.setOrganization('linked-content')));
     menu.addSeparator();
     menu.addItem(item => item
-      .setTitle('Sort sessions by')
+      .setTitle(t('chat.sessionManager.sortBy'))
       .setIsLabel(true));
     menu.addItem(item => item
-      .setTitle('Last activity')
+      .setTitle(t('chat.sessionManager.lastActivity'))
       .setChecked(sort === 'last-updated')
       .onClick(() => this.setSort('last-updated')));
     menu.addItem(item => item
-      .setTitle('Created')
+      .setTitle(t('chat.sessionManager.created'))
       .setChecked(sort === 'created')
       .onClick(() => this.setSort('created')));
 
@@ -621,14 +622,14 @@ export class SessionSidebar {
     void this.deps.plugin.mutateSettings((settings) => {
       settings.sessionManagerOrganization = organization;
     })
-      .catch(() => new Notice('Failed to update session organization'));
+      .catch(() => new Notice(t('chat.sessionManager.organizationFailed')));
   }
 
   private setSort(sort: SessionManagerSort): void {
     void this.deps.plugin.mutateSettings((settings) => {
       settings.sessionManagerSort = sort;
     })
-      .catch(() => new Notice('Failed to update session sorting'));
+      .catch(() => new Notice(t('chat.sessionManager.sortFailed')));
   }
 
   private refreshPresentation(): void {

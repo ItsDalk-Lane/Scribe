@@ -77,7 +77,7 @@ describe('Codex CLI installation', () => {
     expect(lookup[1]).toEqual([
       '--distribution', 'Ubuntu', '--cd', '/mnt/c/vault', 'sh', '-c',
       expect.stringMatching(/^'.*command -v.*'$/u),
-      'claudian-cli-probe', "'./my bin/codex'",
+      'scribe-cli-probe', "'./my bin/codex'",
     ]);
   });
 

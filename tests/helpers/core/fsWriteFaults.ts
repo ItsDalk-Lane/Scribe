@@ -9,15 +9,15 @@ interface WriteFault {
   partial?: string;
 }
 
-const state = globalThis as typeof globalThis & { __claudianWriteFaults?: WriteFault[] };
+const state = globalThis as typeof globalThis & { __scribeWriteFaults?: WriteFault[] };
 
 /** Makes every `fs.writeFile` under `absoluteFolder` fail until cleared. */
 export function failWritesUnder(absoluteFolder: string, partial?: string): void {
-  (state.__claudianWriteFaults ??= []).push({ folder: path.resolve(absoluteFolder), partial });
+  (state.__scribeWriteFaults ??= []).push({ folder: path.resolve(absoluteFolder), partial });
 }
 
 export function clearWriteFaults(): void {
-  state.__claudianWriteFaults = [];
+  state.__scribeWriteFaults = [];
 }
 
 /**
@@ -28,7 +28,7 @@ export function createFsPromisesWithWriteFaults(): typeof FsPromises {
   const actual = actualModule0;
   const writeFile: typeof actual.writeFile = async (file, data, options) => {
     const target = path.resolve(String(file));
-    const fault = state.__claudianWriteFaults?.find(candidate => target.startsWith(`${candidate.folder}${path.sep}`));
+    const fault = state.__scribeWriteFaults?.find(candidate => target.startsWith(`${candidate.folder}${path.sep}`));
     if (fault) {
       if (fault.partial !== undefined) await actual.writeFile(file, fault.partial);
       throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });

@@ -4,8 +4,9 @@ import { ItemView, Notice, Scope, setIcon } from 'obsidian';
 import { StartupProfiler } from '@/core/performance/StartupProfiler';
 import { getHiddenCommandSet } from '@/core/providers/commands/hiddenCommands';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '@/core/providers/types';
-import { VIEW_TYPE_CLAUDIAN } from '@/core/types';
+import { VIEW_TYPE_SCRIBE } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
+import { pickWelcomeGreeting } from '@/features/chat/rendering/WelcomeRenderer';
 import { SessionManagerSurface, setControlAvailability } from '@/features/chat/session-manager/SessionManagerSurface';
 import { SessionNavigation } from '@/features/chat/session-manager/SessionNavigation';
 import { getSessionProviderId } from '@/features/chat/sessions/sessionProvider';
@@ -28,6 +29,7 @@ import {
 import { ChatPresentationPlacement } from '@/features/chat/view/ChatPresentationPlacement';
 import { DualPaneLayout, type DualPaneLayoutElements } from '@/features/chat/view/DualPaneLayout';
 import type { ZenModeSlots, ZenModeSource, ZenPresentationPort } from '@/features/chat/zen/types';
+import { t } from '@/i18n/i18n';
 import { VaultMentionDataProvider } from '@/shared/mention/VaultMentionDataProvider';
 
 type LoadableView = {
@@ -35,7 +37,7 @@ type LoadableView = {
   load: () => Promise<void> | void;
 };
 
-export class ClaudianView extends ItemView implements ZenModeSource {
+export class ScribeView extends ItemView implements ZenModeSource {
   private plugin: ChatFeatureHost;
 
   // Tab management
@@ -81,12 +83,12 @@ export class ClaudianView extends ItemView implements ZenModeSource {
           await this.tabManager?.viewerSlot.show(id);
         },
         startLinkedContentConversation: async (contentPath) => {
-          if (!this.tabManager) throw new Error('Chat tabs are unavailable');
+          if (!this.tabManager) throw new Error(t('chat.notices.tabsUnavailable'));
           await this.tabManager.viewerSlot.startDraft({ linkedContentPath: contentPath });
         },
         startProjectConversation: async (projectId) => {
           const tabManager = this.tabManager;
-          if (!tabManager) throw new Error('Chat tabs are unavailable');
+          if (!tabManager) throw new Error(t('chat.notices.tabsUnavailable'));
           if (this.layout.isWide) {
             await tabManager.viewerSlot.startDraft({ projectId });
             return;
@@ -113,7 +115,7 @@ export class ClaudianView extends ItemView implements ZenModeSource {
         // Restore enters wide itself; afterwards entering wide unloads the narrow tabs.
         if (!this.tabWorkspace.isReady) return;
         void this.tabManager?.viewerSlot.enter()
-          .catch(() => new Notice('Failed to show the session in the wide layout'));
+          .catch(() => new Notice(t('chat.notices.showWideFailed')));
       },
       renderSidebar: () => this.sessions.renderSidebar(),
       onLeaveWideRequested: () => this.sessions.leaveWide(),
@@ -126,7 +128,7 @@ export class ClaudianView extends ItemView implements ZenModeSource {
     });
 
     // Hover Editor compatibility: Define load as an instance method that can't be
-    // overwritten by prototype patching. Hover Editor patches ClaudianView.prototype.load
+    // overwritten by prototype patching. Hover Editor patches ScribeView.prototype.load
     // after our class is defined, but instance methods take precedence over prototype methods.
     const prototype = Object.getPrototypeOf(this) as LoadableView;
     const originalLoad = prototype.load.bind(this);
@@ -149,11 +151,11 @@ export class ClaudianView extends ItemView implements ZenModeSource {
   }
 
   getViewType(): string {
-    return VIEW_TYPE_CLAUDIAN;
+    return VIEW_TYPE_SCRIBE;
   }
 
   getDisplayText(): string {
-    return 'Claudian';
+    return 'Scribe';
   }
 
   getIcon(): string {
@@ -197,6 +199,20 @@ export class ClaudianView extends ItemView implements ZenModeSource {
         continue;
       }
       tab.refreshProviderControls();
+    }
+  }
+
+  refreshLocale(): void {
+    this.newTabButtonEl?.setAttribute('aria-label', t('chat.newTab'));
+    this.containerEl.querySelector('.scribe-new-conversation-btn')?.setAttribute('aria-label', t('chat.newConversation'));
+    this.containerEl.querySelector('.scribe-session-resizer')?.setAttribute('aria-label', t('chat.notices.resizeSessions'));
+    this.sessions.refreshLocale();
+    for (const tab of this.tabManager?.getAllTabs() ?? []) {
+      tab.refreshProviderControls();
+      tab.refreshLocale();
+    }
+    for (const greeting of this.containerEl.querySelectorAll('.scribe-welcome-greeting')) {
+      greeting.textContent = pickWelcomeGreeting(this.plugin.settings.userName?.trim(), new Date(), Math.random());
     }
   }
 
@@ -248,7 +264,7 @@ export class ClaudianView extends ItemView implements ZenModeSource {
 
     this.viewContainerEl = container;
     this.viewContainerEl.empty();
-    this.viewContainerEl.addClass('claudian-container');
+    this.viewContainerEl.addClass('scribe-container');
 
     const layoutElements = this.buildViewLayout(this.viewContainerEl);
     if (!this.tabContentEl) return;
@@ -405,12 +421,12 @@ export class ClaudianView extends ItemView implements ZenModeSource {
   // ============================================
 
   private buildViewLayout(containerEl: HTMLElement): DualPaneLayoutElements {
-    const chatPanelEl = containerEl.createDiv({ cls: 'claudian-chat-panel' });
-    this.tabContentEl = chatPanelEl.createDiv({ cls: 'claudian-tab-content-container' });
+    const chatPanelEl = containerEl.createDiv({ cls: 'scribe-chat-panel' });
+    this.tabContentEl = chatPanelEl.createDiv({ cls: 'scribe-tab-content-container' });
     this.presentation.mount(chatPanelEl);
 
-    const resizerEl = containerEl.createDiv({ cls: 'claudian-session-resizer' });
-    const sidebarEl = containerEl.createDiv({ cls: 'claudian-session-sidebar' });
+    const resizerEl = containerEl.createDiv({ cls: 'scribe-session-resizer' });
+    const sidebarEl = containerEl.createDiv({ cls: 'scribe-session-sidebar' });
     this.sessions.mountSidebar(sidebarEl);
     return { containerEl, resizerEl, sidebarEl };
   }
@@ -420,9 +436,9 @@ export class ClaudianView extends ItemView implements ZenModeSource {
    * The wrapper is moved to the active tab's nav row on tab switches.
    */
   private buildNavRowContent(): HTMLElement {
-    const wrapper = this.containerEl.createDiv({ cls: 'claudian-input-nav-content' });
+    const wrapper = this.containerEl.createDiv({ cls: 'scribe-input-nav-content' });
 
-    this.tabBarContainerEl = wrapper.createDiv({ cls: 'claudian-tab-bar-container' });
+    this.tabBarContainerEl = wrapper.createDiv({ cls: 'scribe-tab-bar-container' });
     this.tabBar = new TabBar(this.tabBarContainerEl, {
       onTabClick: (tabId) => this.handleTabClick(tabId),
       onTabClose: (tabId) => {
@@ -432,22 +448,22 @@ export class ClaudianView extends ItemView implements ZenModeSource {
       onDisplayStateChanged: () => this.tabWorkspace.persist(),
     });
 
-    const navActionsEl = wrapper.createDiv({ cls: 'claudian-input-nav-actions' });
+    const navActionsEl = wrapper.createDiv({ cls: 'scribe-input-nav-actions' });
 
     this.newTabButtonEl = navActionsEl.createEl('button', {
-      cls: 'claudian-input-nav-btn claudian-new-tab-btn',
+      cls: 'scribe-input-nav-btn scribe-new-tab-btn',
       attr: { type: 'button' },
     });
     setIcon(this.newTabButtonEl, 'square-plus');
-    this.newTabButtonEl.setAttribute('aria-label', 'New tab');
+    this.newTabButtonEl.setAttribute('aria-label', t('chat.newTab'));
     this.newTabButtonEl.addEventListener('click', () => this.requestNewTab());
 
     const newBtn = navActionsEl.createEl('button', {
-      cls: 'claudian-input-nav-btn claudian-new-conversation-btn',
+      cls: 'scribe-input-nav-btn scribe-new-conversation-btn',
       attr: { type: 'button' },
     });
     setIcon(newBtn, 'square-pen');
-    newBtn.setAttribute('aria-label', 'New conversation');
+    newBtn.setAttribute('aria-label', t('chat.newConversation'));
     newBtn.addEventListener('click', () => this.requestNewConversation());
 
     this.sessions.mountHistoryControl(navActionsEl);
@@ -462,19 +478,19 @@ export class ClaudianView extends ItemView implements ZenModeSource {
   }
 
   private requestNewTab(): void {
-    void this.createNewTab().catch(() => new Notice('Failed to create tab'));
+    void this.createNewTab().catch(() => new Notice(t('chat.notices.createTabFailed')));
   }
 
   private requestNewConversation(): void {
     void (async () => {
       await this.tabManager?.createNewConversation();
       this.sessions.invalidate();
-    })().catch(() => new Notice('Failed to create conversation'));
+    })().catch(() => new Notice(t('chat.notices.createConversationFailed')));
   }
 
   private requestDualNew(): void {
     void this.startNewConversation()
-      .catch(() => new Notice('Failed to start a new conversation'));
+      .catch(() => new Notice(t('chat.notices.startConversationFailed')));
   }
 
   /** Wide: tab commands open sessions and start drafts in the viewer slot; compact: in the tab. */
@@ -541,7 +557,7 @@ export class ClaudianView extends ItemView implements ZenModeSource {
   private handleTabClick(tabId: TabId): void {
     const switched = this.tabManager?.switchToTab(tabId);
     if (switched) {
-      void switched.catch(() => new Notice('Failed to switch tab'));
+      void switched.catch(() => new Notice(t('chat.notices.switchTabFailed')));
     }
   }
 
@@ -550,7 +566,7 @@ export class ClaudianView extends ItemView implements ZenModeSource {
       await this.tabManager?.closeTab(tabId);
       this.updateTabBarVisibility();
     } catch {
-      new Notice('Failed to close tab');
+      new Notice(t('chat.notices.closeTabFailed'));
     }
   }
 
@@ -583,7 +599,7 @@ export class ClaudianView extends ItemView implements ZenModeSource {
   private updateTabBarVisibility(): void {
     if (!this.tabBarContainerEl || !this.tabManager) return;
 
-    this.tabBarContainerEl.toggleClass('claudian-hidden', !this.isTabBarVisible());
+    this.tabBarContainerEl.toggleClass('scribe-hidden', !this.isTabBarVisible());
     this.presentation.updateChip();
     this.updateNewTabButtonVisibility();
   }

@@ -1,8 +1,8 @@
 import '@/providers';
 
-import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
+import { ScribeSettingTab } from '@/features/settings/ScribeSettings';
 
-describe('ClaudianSettingTab model option updates', () => {
+describe('ScribeSettingTab model option updates', () => {
   it('refreshes provider-scoped chat selectors and the live title model menu together', () => {
     const refreshModelSelector = vi.fn();
     const notifyProviderChatOptionsChanged = vi.fn();
@@ -14,7 +14,7 @@ describe('ClaudianSettingTab model option updates', () => {
         getAdapter: vi.fn(() => ({})),
       },
     };
-    const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+    const tab = new ScribeSettingTab({} as any, {} as any, plugin as any);
     const refreshTitleModelOptions = vi.fn();
     (tab as any).refreshTitleModelOptions = refreshTitleModelOptions;
 
@@ -37,7 +37,7 @@ describe('ClaudianSettingTab model option updates', () => {
         getAdapter: vi.fn(() => ({})),
       },
     };
-    const tab = new ClaudianSettingTab({} as any, {} as any, plugin as any);
+    const tab = new ScribeSettingTab({} as any, {} as any, plugin as any);
 
     await (tab as any).restartServiceForPromptChange();
 

@@ -46,7 +46,7 @@ describe('ClaudeTaskResultInterpreter', () => {
   });
 
   it('recovers a truncated native output file through the provider', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'claudian-provider-output-'));
+    const directory = mkdtempSync(join(tmpdir(), 'scribe-provider-output-'));
     const outputPath = join(directory, 'task.output');
     writeFileSync(outputPath, JSON.stringify({ message: { role: 'assistant', content: [
       { type: 'text', text: 'Report heading' },
@@ -61,7 +61,7 @@ describe('ClaudeTaskResultInterpreter', () => {
   });
 
   it('does not read truncated output outside the trusted temporary roots', () => {
-    const directory = mkdtempSync(join(homedir(), '.claudian-provider-untrusted-'));
+    const directory = mkdtempSync(join(homedir(), '.scribe-provider-untrusted-'));
     const outputPath = join(directory, 'task.output');
     writeFileSync(outputPath, JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: 'Untrusted answer' }] } }));
     const marker = `[Truncated. Full output: ${outputPath}]`;

@@ -86,7 +86,7 @@ describe('registerFileLinkHandler', () => {
     const activate = operation === 'open' ? app.workspace.openLinkText : app.workspace.revealLeaf;
     activate.mockImplementationOnce(fail);
     const container = document.createElement('div');
-    container.innerHTML = '<a class="claudian-file-link" href="Notes/Plan.md" data-href="Notes/Plan.md#Heading"><span>Plan</span></a>';
+    container.innerHTML = '<a class="scribe-file-link" href="Notes/Plan.md" data-href="Notes/Plan.md#Heading"><span>Plan</span></a>';
     document.body.appendChild(container);
     const link = within(container).getByRole('link', { name: 'Plan' });
     const cleanup = registerFileLinkHandler(app as any, container);
@@ -146,10 +146,10 @@ describe('registerFileLinkHandler', () => {
 });
 
 it.each([
-  ['claudian-file-link', '', false],
+  ['scribe-file-link', '', false],
   ['internal-link', '', true],
   ['internal-link', '#Heading', false],
-  ['claudian-file-link', '#^block', true],
+  ['scribe-file-link', '#^block', true],
 ] as const)('focuses the existing tab for %s with subpath %s (deferred: %s)', async (className, subpath, isDeferred) => {
   const reveal = pendingOperation();
   const existingLeaf = {
@@ -205,7 +205,7 @@ it.each([
     },
   };
   const container = document.body.appendChild(document.createElement('div'));
-  container.innerHTML = '<a class="claudian-file-link" href="Target#Heading">Target</a>';
+  container.innerHTML = '<a class="scribe-file-link" href="Target#Heading">Target</a>';
   const link = within(container).getByRole('link', { name: 'Target' });
   const release = registerFileLinkHandler(app as any, container, 'Notes/Source.md');
   vi.mocked(Keymap.isModEvent).mockReturnValueOnce(pane);

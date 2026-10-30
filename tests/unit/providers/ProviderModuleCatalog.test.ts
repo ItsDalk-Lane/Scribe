@@ -105,7 +105,7 @@ describe('built-in ProviderModule catalog', () => {
     opencodeModule?.settingsStorage.normalizeStored(normalizedSettings, {
       providerConfigs: {
         opencode: {
-          selectedMode: 'claudian-yolo',
+          selectedMode: 'scribe-yolo',
         },
       },
     });

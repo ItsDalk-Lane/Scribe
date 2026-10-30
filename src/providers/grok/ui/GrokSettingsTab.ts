@@ -14,7 +14,7 @@ import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorks
 import type {
   ProviderSettingsTabRenderer
 } from '../../../core/providers/types';
-import type { ClaudianSettings } from '../../../core/types';
+import type { ScribeSettings } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import { renderEnvironmentSettingsSection } from '../../../shared/settings/EnvironmentSettingsSection';
 import type { ProviderEnablementSettingOptions } from '../../../shared/settings/ProviderEnablementSetting';
@@ -112,7 +112,7 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
         } else {
           delete cliPathsByHost[hostnameKey];
         }
-        const mutation = (settings: ClaudianSettings): void => {
+        const mutation = (settings: ScribeSettings): void => {
           updateGrokProviderSettings(settings, {
             cliPath: '',
             cliPathsByHost,
@@ -131,7 +131,7 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
       validate: validateCLIPath,
     });
 
-    new Setting(container).setName('Models').setHeading();
+    new Setting(container).setName(t('settings.models')).setHeading();
     const modelPicker = renderProviderModelsSection(container, 'grok', 'Grok Build', workspace.modelCatalog!, () => modelWarning.refresh());
 
     renderEnvironmentSettingsSection({

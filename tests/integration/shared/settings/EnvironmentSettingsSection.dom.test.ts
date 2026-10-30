@@ -48,7 +48,7 @@ it.each([
     applyEnvironmentVariablesBatch,
     mutateSettings,
   } as unknown as ProviderHost;
-  const root = document.body.createDiv({ cls: 'claudian-settings' });
+  const root = document.body.createDiv({ cls: 'scribe-settings' });
   const general = root.createDiv();
   const specific = root.createDiv();
   const sharedRefresh = vi.fn();
@@ -70,7 +70,7 @@ it.each([
   expect((within(general).getByRole('textbox', { name: 'Shared environment' }) as HTMLTextAreaElement).value).toBe(shared);
   const message = within(general).queryByText(/^Review environment ownership/);
   expect(message?.textContent ?? null).toBe(warning);
-  expect(message?.classList.contains('claudian-hidden') ?? false).toBe(false);
+  expect(message?.classList.contains('scribe-hidden') ?? false).toBe(false);
   expect(within(specific).queryByText(/^Review environment ownership/)).toBeNull();
   expect(await axe(root)).toHaveNoViolations();
 });
@@ -91,7 +91,7 @@ it('shows the generic environment update notice when the detached update fails',
     applyEnvironmentVariables,
   } as unknown as ProviderHost;
 
-  const root = document.body.createDiv({ cls: 'claudian-settings' });
+  const root = document.body.createDiv({ cls: 'scribe-settings' });
   const general = root.createDiv();
   renderEnvironmentSettingsSection({
     container: general,
@@ -133,7 +133,7 @@ it('refreshes the rendered CLI installation after a successful environment updat
     applyEnvironmentVariables,
   } as unknown as ProviderHost;
 
-  const root = document.body.createDiv({ cls: 'claudian-settings' });
+  const root = document.body.createDiv({ cls: 'scribe-settings' });
   const general = root.createDiv();
   renderEnvironmentSettingsSection({
     container: general,
@@ -187,7 +187,7 @@ it('recovers with a refreshed installation when a later environment update succe
     applyEnvironmentVariables,
   } as unknown as ProviderHost;
 
-  const root = document.body.createDiv({ cls: 'claudian-settings' });
+  const root = document.body.createDiv({ cls: 'scribe-settings' });
   const general = root.createDiv();
   renderEnvironmentSettingsSection({
     container: general,
@@ -267,7 +267,7 @@ it.each(applyFailureCases)('shows only generic feedback without leakage for a $l
     applyEnvironmentVariables,
   } as unknown as ProviderHost;
 
-  const root = document.body.createDiv({ cls: 'claudian-settings' });
+  const root = document.body.createDiv({ cls: 'scribe-settings' });
   const general = root.createDiv();
   renderEnvironmentSettingsSection({
     container: general,

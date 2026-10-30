@@ -1,7 +1,7 @@
 /* AskUserQuestion - inline widget rendered in chat panel */
 
-.claudian-ask-question-inline {
-  --claudian-ask-accent: var(--interactive-accent);
+.scribe-ask-question-inline {
+  --scribe-ask-accent: var(--interactive-accent);
   /* Inherited by question and permission controls; Obsidian then skips their aria-label hover tooltips. */
   --no-tooltip: true;
 
@@ -17,18 +17,18 @@
 }
 
 /* The flex display above would otherwise defeat the widget's hidden attribute. */
-.claudian-ask-question-inline[hidden] {
+.scribe-ask-question-inline[hidden] {
   display: none;
 }
 
-.claudian-ask-inline-title {
+.scribe-ask-inline-title {
   padding: 10px 12px 0;
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
 }
 
-:is(button.claudian-ask-tab, button.claudian-ask-item, button.claudian-ask-review-pair),
-:is(button.claudian-ask-tab, button.claudian-ask-item, button.claudian-ask-review-pair):is(:hover, :focus, :active, :disabled) {
+:is(button.scribe-ask-tab, button.scribe-ask-item, button.scribe-ask-review-pair),
+:is(button.scribe-ask-tab, button.scribe-ask-item, button.scribe-ask-review-pair):is(:hover, :focus, :active, :disabled) {
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -42,18 +42,18 @@
   text-align: start;
 }
 
-:is(button.claudian-ask-tab, button.claudian-ask-item, button.claudian-ask-review-pair):focus-visible {
-  outline: 1px solid var(--claudian-ask-accent);
+:is(button.scribe-ask-tab, button.scribe-ask-item, button.scribe-ask-review-pair):focus-visible {
+  outline: 1px solid var(--scribe-ask-accent);
   outline-offset: 1px;
 }
 
-button.claudian-ask-review-pair .claudian-ask-review-body > span {
+button.scribe-ask-review-pair .scribe-ask-review-body > span {
   display: block;
 }
 
 /* ── Tabs ────────────────────────────────────── */
 
-.claudian-ask-tab-bar {
+.scribe-ask-tab-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -61,7 +61,7 @@ button.claudian-ask-review-pair .claudian-ask-review-body > span {
   padding: 8px 12px 0;
 }
 
-button.claudian-ask-tab {
+button.scribe-ask-tab {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -75,30 +75,30 @@ button.claudian-ask-tab {
     color 0.15s ease;
 }
 
-button.claudian-ask-tab:hover {
+button.scribe-ask-tab:hover {
   color: var(--text-normal);
 }
 
-button.claudian-ask-tab.is-active,
-button.claudian-ask-tab.is-active:is(:hover, :focus, :active) {
+button.scribe-ask-tab.is-active,
+button.scribe-ask-tab.is-active:is(:hover, :focus, :active) {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-button.claudian-ask-tab--submit.is-ready {
-  color: var(--claudian-ask-accent);
+button.scribe-ask-tab--submit.is-ready {
+  color: var(--scribe-ask-accent);
 }
 
-.claudian-ask-tab-step {
+.scribe-ask-tab-step {
   font-size: 10px;
   color: var(--color-green);
 }
 
-.claudian-ask-tab-step:empty {
+.scribe-ask-tab-step:empty {
   display: none;
 }
 
-.claudian-ask-tab-label {
+.scribe-ask-tab-label {
   max-width: 14ch;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -107,30 +107,30 @@ button.claudian-ask-tab--submit.is-ready {
 
 /* ── Content area ────────────────────────────── */
 
-.claudian-ask-content {
+.scribe-ask-content {
   padding: 10px 12px;
 }
 
-.claudian-ask-question-text,
-.claudian-ask-review-title {
+.scribe-ask-question-text,
+.scribe-ask-review-title {
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 /* ── Options ─────────────────────────────────── */
 
-.claudian-ask-list {
+.scribe-ask-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin: 0 -8px 8px;
 }
 
-.claudian-ask-list:last-child {
+.scribe-ask-list:last-child {
   margin-bottom: 0;
 }
 
-.claudian-ask-item {
+.scribe-ask-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -144,42 +144,42 @@ button.claudian-ask-tab--submit.is-ready {
   color: var(--text-normal);
 }
 
-.claudian-ask-item:hover,
-.claudian-ask-item.is-focused,
-button.claudian-ask-item:is(:hover, .is-focused) {
+.scribe-ask-item:hover,
+.scribe-ask-item.is-focused,
+button.scribe-ask-item:is(:hover, .is-focused) {
   background: var(--background-modifier-hover);
 }
 
-.claudian-ask-item.is-disabled {
+.scribe-ask-item.is-disabled {
   cursor: default;
 }
 
-.claudian-ask-item.is-disabled .claudian-ask-item-label {
+.scribe-ask-item.is-disabled .scribe-ask-item-label {
   color: var(--text-faint);
 }
 
-.claudian-ask-item-content {
+.scribe-ask-item-content {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
 }
 
-.claudian-ask-label-row {
+.scribe-ask-label-row {
   display: flex;
   align-items: center;
   min-height: 20px;
 }
 
-.claudian-ask-item-label {
+.scribe-ask-item-label {
   overflow-wrap: anywhere;
 }
 
-.claudian-ask-item.is-selected .claudian-ask-item-label {
-  color: var(--claudian-ask-accent);
+.scribe-ask-item.is-selected .scribe-ask-item-label {
+  color: var(--scribe-ask-accent);
 }
 
-.claudian-ask-item-desc {
+.scribe-ask-item-desc {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   overflow-wrap: anywhere;
@@ -187,8 +187,8 @@ button.claudian-ask-item:is(:hover, .is-focused) {
 
 /* ── Leading indicators ──────────────────────── */
 
-.claudian-ask-radio,
-.claudian-ask-check {
+.scribe-ask-radio,
+.scribe-ask-check {
   position: relative;
   width: 14px;
   height: 14px;
@@ -199,38 +199,38 @@ button.claudian-ask-item:is(:hover, .is-focused) {
 }
 
 /* Single-select: radio. */
-.claudian-ask-radio {
+.scribe-ask-radio {
   border-radius: 50%;
   transition: border-color 0.15s ease;
 }
 
-.claudian-ask-radio.is-checked {
-  border-color: var(--claudian-ask-accent);
+.scribe-ask-radio.is-checked {
+  border-color: var(--scribe-ask-accent);
 }
 
-.claudian-ask-radio.is-checked::after {
+.scribe-ask-radio.is-checked::after {
   content: "";
   position: absolute;
   inset: 3px;
   border-radius: 50%;
-  background: var(--claudian-ask-accent);
+  background: var(--scribe-ask-accent);
 }
 
 /* Multi-select: hairline checkbox. */
-.claudian-ask-check {
+.scribe-ask-check {
   border-radius: 3px;
   transition:
     background 0.15s ease,
     border-color 0.15s ease;
 }
 
-.claudian-ask-check.is-checked {
-  background: var(--claudian-ask-accent);
-  border-color: var(--claudian-ask-accent);
+.scribe-ask-check.is-checked {
+  background: var(--scribe-ask-accent);
+  border-color: var(--scribe-ask-accent);
 }
 
 /* Drawn tick: a glyph's side bearings would sit it off-center. */
-.claudian-ask-check.is-checked::after {
+.scribe-ask-check.is-checked::after {
   content: "";
   position: absolute;
   top: 0.5px;
@@ -242,20 +242,20 @@ button.claudian-ask-item:is(:hover, .is-focused) {
   transform: rotate(45deg);
 }
 
-.claudian-ask-custom-item :is(.claudian-ask-check, .claudian-ask-radio) {
+.scribe-ask-custom-item :is(.scribe-ask-check, .scribe-ask-radio) {
   margin-top: 0;
 }
 
 /* ── Custom input ────────────────────────────── */
 
-.claudian-ask-custom-item {
+.scribe-ask-custom-item {
   align-items: center;
   cursor: text;
 }
 
-.claudian-ask-item input.claudian-ask-custom-text,
-.claudian-ask-item input.claudian-ask-custom-text:hover,
-.claudian-ask-item input.claudian-ask-custom-text:focus {
+.scribe-ask-item input.scribe-ask-custom-text,
+.scribe-ask-item input.scribe-ask-custom-text:hover,
+.scribe-ask-item input.scribe-ask-custom-text:focus {
   border: none;
   border-bottom: 1px solid var(--background-modifier-border);
   border-radius: 0;
@@ -274,36 +274,36 @@ button.claudian-ask-item:is(:hover, .is-focused) {
   min-width: 0;
 }
 
-.claudian-ask-item input.claudian-ask-custom-text:focus {
-  border-bottom-color: var(--claudian-ask-accent);
+.scribe-ask-item input.scribe-ask-custom-text:focus {
+  border-bottom-color: var(--scribe-ask-accent);
 }
 
-.claudian-ask-custom-text::placeholder {
+.scribe-ask-custom-text::placeholder {
   color: var(--text-faint);
 }
 
 /* ── Review & submit ─────────────────────────── */
 
-.claudian-ask-review {
+.scribe-ask-review {
   display: flex;
   flex-direction: column;
   gap: 1px;
   margin-bottom: 10px;
 }
 
-.claudian-ask-question-inline .claudian-ask-review {
+.scribe-ask-question-inline .scribe-ask-review {
   margin-inline: -8px;
 }
 
-.claudian-tool-content .claudian-ask-review {
+.scribe-tool-content .scribe-ask-review {
   font-size: var(--font-ui-small);
 }
 
-.claudian-ask-review:last-child {
+.scribe-ask-review:last-child {
   margin-bottom: 0;
 }
 
-.claudian-ask-review-pair {
+.scribe-ask-review-pair {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -311,53 +311,53 @@ button.claudian-ask-item:is(:hover, .is-focused) {
   border-radius: 6px;
 }
 
-button.claudian-ask-review-pair {
+button.scribe-ask-review-pair {
   box-sizing: border-box;
   width: 100%;
   cursor: pointer;
 }
 
-button.claudian-ask-review-pair:hover {
+button.scribe-ask-review-pair:hover {
   background: var(--background-modifier-hover);
 }
 
-.claudian-ask-review-body {
+.scribe-ask-review-body {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.claudian-ask-review-body .claudian-ask-list {
+.scribe-ask-review-body .scribe-ask-list {
   margin: 4px 0 0;
 }
 
-.claudian-ask-review-q-text {
+.scribe-ask-review-q-text {
   color: var(--text-muted);
 }
 
-.claudian-ask-review-a-text {
+.scribe-ask-review-a-text {
   color: var(--text-normal);
   overflow-wrap: anywhere;
 }
 
-.claudian-ask-review-empty {
+.scribe-ask-review-empty {
   color: var(--text-faint);
   font-style: italic;
 }
 
-.claudian-ask-review-prompt {
+.scribe-ask-review-prompt {
   color: var(--text-muted);
   margin-bottom: 8px;
 }
 
-.claudian-ask-actions {
+.scribe-ask-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
 }
 
-button.claudian-ask-item.claudian-ask-action,
-button.claudian-ask-item.claudian-ask-action:is(:hover, :focus, :active, .is-focused) {
+button.scribe-ask-item.scribe-ask-action,
+button.scribe-ask-item.scribe-ask-action:is(:hover, :focus, :active, .is-focused) {
   width: auto;
   align-items: center;
   padding: 4px 14px;
@@ -368,44 +368,44 @@ button.claudian-ask-item.claudian-ask-action:is(:hover, :focus, :active, .is-foc
 }
 
 /* Filled primary surface: explicit modifier per the control-reset rule. */
-button.claudian-ask-action.claudian-ask-action--primary,
-button.claudian-ask-action.claudian-ask-action--primary:is(:hover, :focus, :active, .is-focused) {
+button.scribe-ask-action.scribe-ask-action--primary,
+button.scribe-ask-action.scribe-ask-action--primary:is(:hover, :focus, :active, .is-focused) {
   order: 2;
   border-color: var(--interactive-accent);
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }
 
-button.claudian-ask-action.claudian-ask-action--primary:hover {
+button.scribe-ask-action.scribe-ask-action--primary:hover {
   background: var(--interactive-accent-hover);
 }
 
-button.claudian-ask-item.claudian-ask-action.is-focused {
-  outline: 1px solid var(--claudian-ask-accent);
+button.scribe-ask-item.scribe-ask-action.is-focused {
+  outline: 1px solid var(--scribe-ask-accent);
   outline-offset: 2px;
 }
 
-button.claudian-ask-action.claudian-ask-action--primary:is(.is-disabled, :disabled) {
+button.scribe-ask-action.scribe-ask-action--primary:is(.is-disabled, :disabled) {
   opacity: 0.4;
   cursor: default;
 }
 
-button.claudian-ask-action.claudian-ask-action--primary .claudian-ask-item-label {
+button.scribe-ask-action.scribe-ask-action--primary .scribe-ask-item-label {
   color: inherit;
 }
 
-.claudian-ask-error {
+.scribe-ask-error {
   margin-top: 8px;
   color: var(--text-error);
 }
 
 /* ── Approval header (inline permission request) ── */
 
-.claudian-ask-approval-info {
+.scribe-ask-approval-info {
   padding: 10px 12px 0;
 }
 
-.claudian-ask-approval-tool {
+.scribe-ask-approval-tool {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -415,21 +415,21 @@ button.claudian-ask-action.claudian-ask-action--primary .claudian-ask-item-label
   margin-bottom: 8px;
 }
 
-.claudian-ask-approval-icon {
-  color: var(--claudian-brand);
+.scribe-ask-approval-icon {
+  color: var(--scribe-brand);
 }
 
-.claudian-ask-approval-tool-name {
+.scribe-ask-approval-tool-name {
   font-weight: 600;
 }
 
-.claudian-ask-approval-reason {
+.scribe-ask-approval-reason {
   color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 6px;
 }
 
-.claudian-ask-approval-blocked-path {
+.scribe-ask-approval-blocked-path {
   font-family: var(--font-monospace);
   font-size: 11px;
   color: var(--text-muted);
@@ -440,13 +440,13 @@ button.claudian-ask-action.claudian-ask-action--primary .claudian-ask-item-label
   word-break: break-all;
 }
 
-.claudian-ask-approval-agent {
+.scribe-ask-approval-agent {
   color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 6px;
 }
 
-.claudian-ask-approval-desc {
+.scribe-ask-approval-desc {
   max-height: min(30vh, 240px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -458,7 +458,7 @@ button.claudian-ask-action.claudian-ask-action--primary .claudian-ask-item-label
   word-break: break-all;
 }
 
-.claudian-ask-approval-desc:focus-visible {
+.scribe-ask-approval-desc:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
 }

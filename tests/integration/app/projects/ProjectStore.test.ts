@@ -10,7 +10,7 @@ import { PROJECTS_PATH } from '@/core/bootstrap/storagePaths';
 import { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 
 it('loads valid projects beside dangling record links without following or deleting them', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-project-list-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-project-list-'));
   const resolve = (relative: string) => path.join(root, ...relative.split('/'));
   const adapter = {
     getBasePath: () => root,

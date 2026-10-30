@@ -1,26 +1,26 @@
-.claudian-tool-header,
-.claudian-write-edit-header {
+.scribe-tool-header,
+.scribe-write-edit-header {
   /* Suppress Obsidian hover tooltips while preserving accessible labels. */
   --no-tooltip: true;
 }
 
-.claudian-tool-header:hover {
+.scribe-tool-header:hover {
   opacity: 0.85;
 }
 
-.claudian-tool-icon {
+.scribe-tool-icon {
   display: flex;
   align-items: center;
   color: var(--text-accent);
   flex-shrink: 0;
 }
 
-.claudian-tool-icon svg {
+.scribe-tool-icon svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-tool-name {
+.scribe-tool-name {
   font-family: var(--font-monospace);
   font-size: 13px;
   font-weight: 400;
@@ -29,7 +29,7 @@
   flex-shrink: 0;
 }
 
-.claudian-tool-summary {
+.scribe-tool-summary {
   font-family: var(--font-monospace);
   font-size: 13px;
   color: var(--text-muted);
@@ -40,15 +40,15 @@
   min-width: 0;
 }
 
-.claudian-tool-summary:empty {
+.scribe-tool-summary:empty {
   display: none;
 }
 
-.claudian-tool-call-bash.expanded .claudian-tool-summary {
+.scribe-tool-call-bash.expanded .scribe-tool-summary {
   display: none;
 }
 
-.claudian-tool-bash-command {
+.scribe-tool-bash-command {
   font-family: var(--font-monospace);
   font-size: 12px;
   line-height: 1.4;
@@ -58,83 +58,83 @@
   padding: 2px 0 4px;
 }
 
-.claudian-tool-current {
+.scribe-tool-current {
   font-family: var(--font-monospace);
   font-size: 13px;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
-.claudian-tool-current:empty {
+.scribe-tool-current:empty {
   display: none;
 }
 
-.claudian-tool-status {
+.scribe-tool-status {
   display: flex;
   align-items: center;
   flex-shrink: 0;
   margin-left: auto;
 }
 
-.claudian-tool-status svg {
+.scribe-tool-status svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-tool-status.status-running {
+.scribe-tool-status.status-running {
   color: var(--text-accent);
 }
 
-.claudian-tool-status.status-completed {
+.scribe-tool-status.status-completed {
   color: var(--color-green);
 }
 
-.claudian-tool-status.status-error {
+.scribe-tool-status.status-error {
   color: var(--color-red);
 }
 
-.claudian-tool-status.status-blocked {
+.scribe-tool-status.status-blocked {
   color: var(--color-orange);
 }
 
-.claudian-tool-status.status-cancelled {
+.scribe-tool-status.status-cancelled {
   color: var(--text-muted);
 }
 
 /* Tool content variants that render inline widgets instead of bordered results */
-.claudian-tool-content-todo,
-.claudian-tool-content-ask {
+.scribe-tool-content-todo,
+.scribe-tool-content-ask {
   border-inline-start: none;
   margin-inline-start: 0;
   padding-inline-start: 0;
 }
 
 /* Expanded content: per-line rendering */
-.claudian-tool-lines {
+.scribe-tool-lines {
   font-family: var(--font-monospace);
   font-size: 12px;
   line-height: 1.4;
   overflow-x: auto;
 }
 
-.claudian-tool-line {
+.scribe-tool-line {
   padding: 1px 0;
   color: var(--text-muted);
   white-space: pre;
 }
 
-.claudian-tool-line-wrap {
+.scribe-tool-line-wrap {
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 /* Hover highlight for file search results */
-.claudian-tool-line.hoverable:hover {
+.scribe-tool-line.hoverable:hover {
   background: var(--background-modifier-hover);
 }
 
 /* Truncation indicator: "... N more lines" */
-.claudian-tool-truncated {
+.scribe-tool-truncated {
   color: var(--text-faint);
   font-style: italic;
   padding: 4px 0;
@@ -143,7 +143,7 @@
 }
 
 /* ToolSearch expanded: icon + tool name rows */
-.claudian-tool-search-item {
+.scribe-tool-search-item {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -153,7 +153,7 @@
   color: var(--text-muted);
 }
 
-.claudian-tool-search-icon {
+.scribe-tool-search-icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -162,13 +162,13 @@
   color: var(--text-faint);
 }
 
-.claudian-tool-search-icon svg {
+.scribe-tool-search-icon svg {
   width: 14px;
   height: 14px;
 }
 
 /* Web search links */
-.claudian-tool-link {
+.scribe-tool-link {
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -181,11 +181,11 @@
   line-height: 1.4;
 }
 
-.claudian-tool-link:hover {
+.scribe-tool-link:hover {
   color: var(--text-accent);
 }
 
-.claudian-tool-link-icon {
+.scribe-tool-link-icon {
   flex-shrink: 0;
   width: 12px;
   height: 12px;
@@ -193,26 +193,26 @@
   color: var(--text-faint);
 }
 
-.claudian-tool-link-icon svg {
+.scribe-tool-link-icon svg {
   width: 12px;
   height: 12px;
 }
 
-.claudian-tool-link-title {
+.scribe-tool-link-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /* Images produced by a tool */
-.claudian-tool-result-images {
+.scribe-tool-result-images {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding-top: 6px;
 }
 
-.claudian-tool-result-image {
+.scribe-tool-result-image {
   display: block;
   max-width: 100%;
   max-height: 320px;
@@ -222,7 +222,7 @@
 }
 
 /* Empty state for file search */
-.claudian-tool-empty {
+.scribe-tool-empty {
   color: var(--text-faint);
   font-style: italic;
   font-family: var(--font-monospace);
@@ -230,12 +230,12 @@
   padding: 4px 0;
 }
 
-.claudian-tool-result-row {
+.scribe-tool-result-row {
   display: flex;
   align-items: flex-start;
 }
 
-.claudian-tool-result-text {
+.scribe-tool-result-text {
   font-family: var(--font-monospace);
   font-size: 12px;
   color: var(--text-muted);
@@ -245,22 +245,22 @@
   flex: 1;
 }
 
-.claudian-tool-result-item {
+.scribe-tool-result-item {
   display: block;
 }
 
-.claudian-tool-patch-section + .claudian-tool-patch-section {
+.scribe-tool-patch-section + .scribe-tool-patch-section {
   margin-top: 10px;
 }
 
-.claudian-tool-script-label {
+.scribe-tool-script-label {
   color: var(--text-faint);
   font-size: 11px;
   padding: 4px 0;
 }
 
-.claudian-tool-content .claudian-tool-script-code,
-.claudian-tool-content .claudian-tool-script-output {
+.scribe-tool-content .scribe-tool-script-code,
+.scribe-tool-content .scribe-tool-script-output {
   font-family: var(--font-monospace);
   font-size: 12px;
   line-height: 1.4;
@@ -274,14 +274,14 @@
   border-radius: var(--radius-s);
 }
 
-.claudian-tool-content .claudian-tool-script-code code {
+.scribe-tool-content .scribe-tool-script-code code {
   font: inherit;
   white-space: inherit;
   background: none;
   padding: 0;
 }
 
-.claudian-tool-content .claudian-tool-script-calls {
+.scribe-tool-content .scribe-tool-script-calls {
   list-style: none;
   margin: 0 0 4px;
   padding: 0;
@@ -291,12 +291,12 @@
 }
 
 /* Keep the status icon in the padding so wrapped arguments align with the call name. */
-.claudian-tool-script-call {
+.scribe-tool-script-call {
   padding-left: 20px;
   overflow-wrap: anywhere;
 }
 
-.claudian-tool-script-call .claudian-tool-status {
+.scribe-tool-script-call .scribe-tool-status {
   display: inline-flex;
   vertical-align: middle;
   width: 14px;
@@ -304,28 +304,28 @@
   margin-right: 6px;
 }
 
-.claudian-tool-script-call-detail {
+.scribe-tool-script-call-detail {
   color: var(--text-muted);
 }
 
-.claudian-tool-script-call-error {
+.scribe-tool-script-call-error {
   color: var(--color-red);
   white-space: pre-wrap;
 }
 
 /* Session tool cards (list destinations, send message) */
-.claudian-session-tool {
+.scribe-session-tool {
   font-size: 12px;
   line-height: 1.5;
 }
 
-.claudian-session-tool-list {
+.scribe-session-tool-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.claudian-session-tool-row {
+.scribe-session-tool-row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -333,20 +333,20 @@
   padding: 1px 0;
 }
 
-.claudian-session-tool-title {
+.scribe-session-tool-title {
   min-width: 0;
 }
 
-.claudian-session-tool-note {
+.scribe-session-tool-note {
   color: var(--text-muted);
 }
 
-.claudian-session-tool-note {
+.scribe-session-tool-note {
   font-style: italic;
   padding: 2px 0;
 }
 
-.claudian-session-tool-badge {
+.scribe-session-tool-badge {
   padding: 0 6px;
   border-radius: var(--radius-s);
   background-color: var(--background-modifier-hover);
@@ -354,24 +354,24 @@
   font-size: 11px;
 }
 
-.claudian-session-tool-heading {
+.scribe-session-tool-heading {
   margin-top: 6px;
   color: var(--text-muted);
   font-weight: var(--font-semibold);
 }
 
-.claudian-session-tool-fields {
+.scribe-session-tool-fields {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 2px 12px;
   margin: 0;
 }
 
-.claudian-session-tool-fields dt {
+.scribe-session-tool-fields dt {
   color: var(--text-muted);
 }
 
-.claudian-session-tool-fields dd {
+.scribe-session-tool-fields dd {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -381,7 +381,7 @@
 }
 
 /* The delivered text is plain text; keep its line breaks. */
-.claudian-session-tool-message {
+.scribe-session-tool-message {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--text-normal);

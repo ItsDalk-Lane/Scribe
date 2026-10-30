@@ -8,8 +8,8 @@ import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceReg
 import type { ProviderId, ProviderSettingsTabRenderHandle } from '@/core/providers/types';
 import type {
   ChatViewPlacement,
-  ClaudianSettings,
   DualPaneSide,
+  ScribeSettings,
   SessionAutoArchiveAfter,
 } from '@/core/types/settings';
 import { SkillsSettingsTab } from '@/features/agent-skills/SkillsSettingsTab';
@@ -24,7 +24,7 @@ import { frameSettingsGroups } from '@/shared/settings/SettingsGroups';
 
 type SettingsTabId = 'general' | 'providers' | 'skills';
 
-export class ClaudianSettingTab extends PluginSettingTab {
+export class ScribeSettingTab extends PluginSettingTab {
   private readonly host: FeatureHost;
   private activeTab: SettingsTabId = 'general';
   private activeProviderTab: ProviderId | null = null;
@@ -33,7 +33,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
   private renderGeneration = 0;
   private readonly providerSettingsRenders = new Map<ProviderId, ProviderSettingsTabRenderHandle>();
   private skillsTab: SkillsSettingsTab | null = null;
-  private readonly textEdits: DebouncedSettingsWriter<ClaudianSettings>;
+  private readonly textEdits: DebouncedSettingsWriter<ScribeSettings>;
   private readonly customAliasDrafts = new Map<string, string>();
 
   constructor(app: App, plugin: Plugin, host: FeatureHost) {
@@ -50,12 +50,12 @@ export class ClaudianSettingTab extends PluginSettingTab {
           || settings.mediaFolder !== mediaFolder;
       });
       if (promptChanged) await this.restartServiceForPromptChange();
-    }, () => { new Notice('Failed to save settings'); });
+    }, () => { new Notice(t('settings.ui.saveFailed')); });
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [{
-      name: 'Claudian',
+      name: 'Scribe',
       searchable: false,
       render: setting => this.renderSettings(setting.settingEl),
     }];
@@ -67,10 +67,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
     this.disposeSkillsTab();
     const renderGeneration = ++this.renderGeneration;
     containerEl.empty();
-    containerEl.addClass('claudian-settings');
+    containerEl.addClass('scribe-settings');
     const settingItems = containerEl.parentElement;
     if (settingItems?.classList.contains('setting-items')) {
-      settingItems.classList.add('claudian-settings-items');
+      settingItems.classList.add('scribe-settings-items');
     }
     this.refreshTitleModelOptions = null;
     this.syncProviderEnablement = null;
@@ -86,18 +86,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
       this.activeProviderTab = preferredProvider;
     }
 
-    const tabBar = containerEl.createDiv({ cls: 'claudian-settings-tabs' });
+    const tabBar = containerEl.createDiv({ cls: 'scribe-settings-tabs' });
     const tabButtons = new Map<SettingsTabId, HTMLButtonElement>();
     const tabContents = new Map<SettingsTabId, HTMLDivElement>();
     const providersContent = containerEl.createDiv({
-      cls: `claudian-settings-tab-content${this.activeTab === 'providers' ? ' claudian-settings-tab-content--active' : ''}`,
+      cls: `scribe-settings-tab-content${this.activeTab === 'providers' ? ' scribe-settings-tab-content--active' : ''}`,
     });
     tabContents.set('providers', providersContent);
     const providerTabBar = providersContent.createDiv({
-      cls: 'claudian-settings-provider-tabs',
+      cls: 'scribe-settings-provider-tabs',
     });
     const providerContentHost = providersContent.createDiv({
-      cls: 'claudian-settings-provider-content-host',
+      cls: 'scribe-settings-provider-content-host',
     });
     const providerButtons = new Map<ProviderId, HTMLButtonElement>();
     const providerContents = new Map<ProviderId, HTMLDivElement>();
@@ -105,7 +105,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     // Disabled providers keep only their installation card; later sections collapse until enabled.
     const syncProviderEnablement = (providerId: ProviderId): void => {
       providerContents.get(providerId)?.toggleClass(
-        'claudian-settings-provider-content--disabled',
+        'scribe-settings-provider-content--disabled',
         !ProviderRegistry.isEnabled(providerId, this.host.settings),
       );
     };
@@ -118,8 +118,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       renderedProviderIds.add(providerId);
       providerContent.empty();
       providerContent.createDiv({
-        cls: 'claudian-settings-provider-loading',
-        text: `Loading ${ProviderRegistry.getProviderDisplayName(providerId)} settings...`,
+        cls: 'scribe-settings-provider-loading',
+        text: t('settings.ui.loading', { provider: ProviderRegistry.getProviderDisplayName(providerId) }),
       });
 
       try {
@@ -151,9 +151,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
         if (renderGeneration !== this.renderGeneration) return;
         renderedProviderIds.delete(providerId);
         providerContent.empty();
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const message = error instanceof Error ? error.message : t('settings.ui.unknownError');
         providerContent.createDiv({
-          cls: 'claudian-setting-validation claudian-setting-validation-error',
+          cls: 'scribe-setting-validation scribe-setting-validation-error',
           text: t('settings.providerSettings.loadFailed', { message }),
         });
       }
@@ -162,7 +162,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     for (const id of tabIds) {
       const label = t(`settings.tabs.${id}`);
       const button = tabBar.createEl('button', {
-        cls: `claudian-settings-tab${id === this.activeTab ? ' claudian-settings-tab--active' : ''}`,
+        cls: `scribe-settings-tab${id === this.activeTab ? ' scribe-settings-tab--active' : ''}`,
         text: label,
       });
       button.addEventListener('click', () => {
@@ -170,8 +170,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
         this.skillsTab?.flush();
         this.activeTab = id;
         for (const tabId of tabIds) {
-          tabButtons.get(tabId)?.toggleClass('claudian-settings-tab--active', tabId === id);
-          tabContents.get(tabId)?.toggleClass('claudian-settings-tab-content--active', tabId === id);
+          tabButtons.get(tabId)?.toggleClass('scribe-settings-tab--active', tabId === id);
+          tabContents.get(tabId)?.toggleClass('scribe-settings-tab-content--active', tabId === id);
         }
         if (id === 'providers' && this.activeProviderTab) {
           void renderProviderTab(this.activeProviderTab);
@@ -183,7 +183,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     for (const id of tabIds.filter(id => id !== 'providers')) {
       const content = containerEl.createDiv({
-        cls: `claudian-settings-tab-content claudian-settings-${id}${id === this.activeTab ? ' claudian-settings-tab-content--active' : ''}`,
+        cls: `scribe-settings-tab-content scribe-settings-${id}${id === this.activeTab ? ' scribe-settings-tab-content--active' : ''}`,
       });
       tabContents.set(id, content);
     }
@@ -205,22 +205,22 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     for (const providerId of providerTabs) {
       const content = providerContentHost.createDiv({
-        cls: `claudian-settings-provider-content${providerId === this.activeProviderTab ? ' claudian-settings-provider-content--active' : ''}`,
+        cls: `scribe-settings-provider-content${providerId === this.activeProviderTab ? ' scribe-settings-provider-content--active' : ''}`,
       });
       providerContents.set(providerId, content);
       const button = providerTabBar.createEl('button', {
-        cls: `claudian-settings-provider-tab${providerId === this.activeProviderTab ? ' claudian-settings-provider-tab--active' : ''}`,
+        cls: `scribe-settings-provider-tab${providerId === this.activeProviderTab ? ' scribe-settings-provider-tab--active' : ''}`,
         text: ProviderRegistry.getProviderDisplayName(providerId),
       });
       button.addEventListener('click', () => {
         this.activeProviderTab = providerId;
         for (const candidate of providerTabs) {
           providerButtons.get(candidate)?.toggleClass(
-            'claudian-settings-provider-tab--active',
+            'scribe-settings-provider-tab--active',
             candidate === providerId,
           );
           providerContents.get(candidate)?.toggleClass(
-            'claudian-settings-provider-content--active',
+            'scribe-settings-provider-content--active',
             candidate === providerId,
           );
         }
@@ -236,7 +236,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     return () => {
       if (renderGeneration !== this.renderGeneration) return;
       void this.textEdits.flush();
-      settingItems?.classList.remove('claudian-settings-items');
+      settingItems?.classList.remove('scribe-settings-items');
       this.renderGeneration += 1;
       this.disposeProviderSettingsRenders();
       this.disposeSkillsTab();
@@ -409,7 +409,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new Setting(container)
       .setName(t('settings.pluginRenderedFenceLanguages.name'))
       .setDesc(t('settings.pluginRenderedFenceLanguages.desc'))
-      .setClass('claudian-settings-textarea')
+      .setClass('scribe-settings-textarea')
       .addTextArea((text) => {
         text
           .setValue(textDraft.pluginRenderedFenceLanguages.join('\n'))
@@ -468,7 +468,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         .addDropdown((dropdown) => {
           dropdown.selectEl.setAttribute('aria-label', t('settings.titleModel.name'));
           const warning = dropdown.selectEl.parentElement!.createDiv();
-          warning.className = 'claudian-setting-validation claudian-setting-validation-warning';
+          warning.className = 'scribe-setting-validation scribe-setting-validation-warning';
           warning.setAttribute('role', 'status');
           warning.setAttribute('aria-live', 'polite');
           warning.textContent = t('settings.titleModel.unavailableWarning');
@@ -486,7 +486,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
             }
             const selected = this.host.settings.titleGenerationModel;
             if (selected && !Array.from(dropdown.selectEl.options).some(option => option.value === selected)) {
-              dropdown.addOption(selected, `Unavailable: ${selected}`);
+              dropdown.addOption(selected, t('settings.ui.unavailable', { model: selected }));
               dropdown.selectEl.options[dropdown.selectEl.options.length - 1].disabled = true;
             }
             dropdown.setValue(this.host.settings.titleGenerationModel || '');
@@ -550,7 +550,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new Setting(container)
       .setName(t('settings.systemPrompt.name'))
       .setDesc(t('settings.systemPrompt.desc'))
-      .setClass('claudian-settings-textarea')
+      .setClass('scribe-settings-textarea')
       .addTextArea((text) => {
         text
           .setPlaceholder(t('settings.systemPrompt.name'))
@@ -570,7 +570,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new Setting(container)
       .setName(t('settings.excludedTags.name'))
       .setDesc(t('settings.excludedTags.desc'))
-      .setClass('claudian-settings-textarea')
+      .setClass('scribe-settings-textarea')
       .addTextArea((text) => {
         text
           .setPlaceholder('System\nprivate\ndraft')
@@ -600,7 +600,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
               settings.mediaFolder = value.trim();
             });
           });
-        text.inputEl.addClass('claudian-settings-media-input');
+        text.inputEl.addClass('scribe-settings-media-input');
         text.inputEl.addEventListener('blur', () => {
           void this.textEdits.flush();
         });
@@ -626,7 +626,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new Setting(container)
       .setName(t('settings.navMappings.name'))
       .setDesc(t('settings.navMappings.desc'))
-      .setClass('claudian-settings-textarea')
+      .setClass('scribe-settings-textarea')
       .addTextArea((text) => {
         let pendingValue = buildNavMappingText(this.host.settings.keyboardNavigation);
         let saveTimeout: number | null = null;
@@ -731,16 +731,16 @@ export class ClaudianSettingTab extends PluginSettingTab {
       return;
     }
 
-    const headerEl = container.createDiv({ cls: 'claudian-context-limits-header' });
+    const headerEl = container.createDiv({ cls: 'scribe-context-limits-header' });
     headerEl.createSpan({
       text: t('settings.customModelOverrides.name'),
-      cls: 'claudian-context-limits-label',
+      cls: 'scribe-context-limits-label',
     });
 
-    const descEl = container.createDiv({ cls: 'claudian-context-limits-desc' });
+    const descEl = container.createDiv({ cls: 'scribe-context-limits-desc' });
     descEl.setText(t('settings.customModelOverrides.desc'));
 
-    const listEl = container.createDiv({ cls: 'claudian-context-limits-list' });
+    const listEl = container.createDiv({ cls: 'scribe-context-limits-list' });
 
     for (const modelId of uniqueModelIds) {
       const aliasDraftKey = JSON.stringify([providerId, modelId]);
@@ -749,15 +749,15 @@ export class ClaudianSettingTab extends PluginSettingTab {
       const currentAliases = modelAliases?.get(this.host.settings) ?? {};
       const currentAlias = Object.hasOwn(currentAliases, modelId) ? currentAliases[modelId] : '';
 
-      const itemEl = listEl.createDiv({ cls: 'claudian-context-limits-item' });
-      const nameEl = itemEl.createDiv({ cls: 'claudian-context-limits-model' });
+      const itemEl = listEl.createDiv({ cls: 'scribe-context-limits-item' });
+      const nameEl = itemEl.createDiv({ cls: 'scribe-context-limits-model' });
       nameEl.setText(modelId);
 
-      const inputWrapper = itemEl.createDiv({ cls: 'claudian-context-limits-input-wrapper' });
+      const inputWrapper = itemEl.createDiv({ cls: 'scribe-context-limits-input-wrapper' });
       const aliasInputEl = inputWrapper.createEl('input', {
         type: 'text',
         placeholder: t('settings.customModelAliases.placeholder'),
-        cls: 'claudian-context-alias-input',
+        cls: 'scribe-context-alias-input',
         value: this.customAliasDrafts.get(aliasDraftKey) ?? currentAlias,
       });
       aliasInputEl.setAttribute('aria-label', t('settings.customModelAliases.ariaLabel', { model: modelId }));
@@ -766,12 +766,12 @@ export class ClaudianSettingTab extends PluginSettingTab {
       const inputEl = inputWrapper.createEl('input', {
         type: 'text',
         placeholder: '200k',
-        cls: 'claudian-context-limits-input',
+        cls: 'scribe-context-limits-input',
         value: currentValue ? formatContextLimit(currentValue) : '',
       });
-      inputEl.setAttribute('aria-label', `Context window for ${modelId}`);
+      inputEl.setAttribute('aria-label', t('settings.ui.contextLabel', { model: modelId }));
 
-      const validationEl = inputWrapper.createDiv({ cls: 'claudian-context-limit-validation claudian-hidden' });
+      const validationEl = inputWrapper.createDiv({ cls: 'scribe-context-limit-validation scribe-hidden' });
 
       const saveAlias = async (): Promise<void> => {
         const draft = aliasInputEl.value;
@@ -791,7 +791,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           if (this.customAliasDrafts.get(aliasDraftKey) === draft) this.customAliasDrafts.delete(aliasDraftKey);
           this.notifyProviderModelOptionsChanged(providerId);
         } catch {
-          new Notice('Could not save model alias. Try again.');
+          new Notice(t('settings.ui.aliasSaveFailed'));
         }
       };
 
@@ -799,19 +799,19 @@ export class ClaudianSettingTab extends PluginSettingTab {
         const trimmed = inputEl.value.trim();
 
         if (!trimmed) {
-          validationEl.toggleClass('claudian-hidden', true);
-          inputEl.classList.remove('claudian-input-error');
+          validationEl.toggleClass('scribe-hidden', true);
+          inputEl.classList.remove('scribe-input-error');
         } else {
           const parsed = parseContextLimit(trimmed);
           if (parsed === null) {
             validationEl.setText(t('settings.customContextLimits.invalid'));
-            validationEl.toggleClass('claudian-hidden', false);
-            inputEl.classList.add('claudian-input-error');
+            validationEl.toggleClass('scribe-hidden', false);
+            inputEl.classList.add('scribe-input-error');
             return;
           }
 
-          validationEl.toggleClass('claudian-hidden', true);
-          inputEl.classList.remove('claudian-input-error');
+          validationEl.toggleClass('scribe-hidden', true);
+          inputEl.classList.remove('scribe-input-error');
         }
         await this.host.mutateSettings((settings) => {
           settings.customContextLimits ??= {};

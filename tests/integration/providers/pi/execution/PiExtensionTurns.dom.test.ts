@@ -9,7 +9,7 @@ import { App, Component, MarkdownRenderer } from 'obsidian';
 
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { activateTab, destroyTab } from '@/features/chat/tabs/TabLifecycle';
 import { createTabRuntime } from '@/features/chat/tabs/TabRuntimeFactory';
@@ -130,7 +130,7 @@ async function createPiView() {
       enabled: true,
       visibleModels: [MODEL],
     } },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const conversation = {
     id: 'conversation-1', providerId: 'pi', selectedModel: MODEL, messages: [],
   } as unknown as Conversation;
@@ -165,7 +165,7 @@ async function createPiView() {
     getConversationList: () => [conversation],
     renameConversation: async () => {},
     updateConversation: async () => {},
-    mutateSettings: async (mutate: (settings: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (settings: ScribeSettings) => void) => mutate(settings),
     chatModelSelection: { beginIntent: () => 1, commitIntent: async () => true },
   } as unknown as ChatFeatureHost;
   if (!plugin.sessionRuntimes) installSessionRuntimePool(plugin);
@@ -189,13 +189,13 @@ async function createPiView() {
 type PiView = Awaited<ReturnType<typeof createPiView>>;
 
 function responseElements(view: PiView): HTMLElement[] {
-  return Array.from(view.tab.dom.messagesEl.querySelectorAll<HTMLElement>('.claudian-message-assistant'))
+  return Array.from(view.tab.dom.messagesEl.querySelectorAll<HTMLElement>('.scribe-message-assistant'))
     .filter(element => !element.hidden);
 }
 
 function disclosures(element: HTMLElement): string[] {
   return within(element).queryAllByRole('button', { hidden: true })
-    .filter(button => button.classList.contains('claudian-work-header'))
+    .filter(button => button.classList.contains('scribe-work-header'))
     .map(button => button.textContent ?? '');
 }
 

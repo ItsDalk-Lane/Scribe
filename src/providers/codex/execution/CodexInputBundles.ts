@@ -65,7 +65,7 @@ export class CodexInputBundles {
         .map(block => block.image);
       if (images.length > 0) {
         tempDirectory = fs.mkdtempSync(
-          path.join(os.tmpdir(), 'claudian-codex-images-'),
+          path.join(os.tmpdir(), 'scribe-codex-images-'),
         );
         images.forEach((image, index) => {
           if (!image.mediaType.startsWith('image/')) return;

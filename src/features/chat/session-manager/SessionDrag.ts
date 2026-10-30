@@ -4,11 +4,11 @@ export type SessionDropTarget =
   | { kind: 'project'; projectId: string }
   | { kind: 'sessions' };
 
-/** Marks a drag as Claudian sessions so other drags (files, text) are never accepted. */
-const SESSION_DRAG_MIME = 'application/x-claudian-sessions';
+/** Marks a drag as Scribe sessions so other drags (files, text) are never accepted. */
+const SESSION_DRAG_MIME = 'application/x-scribe-sessions';
 const DROP_TARGET_ATTRIBUTE = 'data-session-drop-target';
-const ACTIVE_TARGET_CLASS = 'claudian-session-drop-target--active';
-const PINNED_DROP_ZONE_CLASS = 'claudian-session-pinned-drop-zone';
+const ACTIVE_TARGET_CLASS = 'scribe-session-drop-target--active';
+const PINNED_DROP_ZONE_CLASS = 'scribe-session-pinned-drop-zone';
 
 function targetKey(target: SessionDropTarget): string {
   return target.kind === 'project' ? `project:${target.projectId}` : target.kind;

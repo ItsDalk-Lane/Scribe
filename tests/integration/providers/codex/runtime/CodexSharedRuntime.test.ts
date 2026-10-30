@@ -300,10 +300,10 @@ describe('Codex shared runtime', () => {
     process.notify('turn/completed', { threadId, turn: { id: process.turns.get(threadId)?.id ?? `turn-${threadId}`, status: 'completed', items: [] } });
   }
 
-  async function sessionToolCall(process: FakeProcess, threadId: string, tool = 'claudian_list_destinations', args: unknown = {}, turnId = process.turns.get(threadId)!.id) {
+  async function sessionToolCall(process: FakeProcess, threadId: string, tool = 'scribe_list_destinations', args: unknown = {}, turnId = process.turns.get(threadId)!.id) {
     const id = `session-call-${process.requests.length}`;
     process.stdout.write(`${JSON.stringify({ id, method: 'item/tool/call', params: {
-      threadId, turnId, callId: id, namespace: 'claudian_sessions', tool, arguments: args,
+      threadId, turnId, callId: id, namespace: 'scribe_sessions', tool, arguments: args,
     } })}\n`);
     for (let count = 0; count < 1000; count++) {
       const response = process.requests.find(response => String(response.id) === id) as any;
@@ -320,8 +320,8 @@ describe('Codex shared runtime', () => {
     const output = collect(session.execute(request).events);
     const process = await waitForRequest('turn/start');
     const specs = process.requests.find(call => call.method === 'thread/start')!.params.dynamicTools ?? [];
-    expect(specs.filter((spec: any) => spec.namespace === 'claudian_sessions').map((spec: any) => spec.name))
-      .toEqual(ported ? ['claudian_list_destinations', 'claudian_send_message', 'claudian_read_session'] : []);
+    expect(specs.filter((spec: any) => spec.namespace === 'scribe_sessions').map((spec: any) => spec.name))
+      .toEqual(ported ? ['scribe_list_destinations', 'scribe_send_message', 'scribe_read_session'] : []);
     expect(specs.every((spec: any) => !('type' in spec))).toBe(true);
     expect(session.getSnapshot().providerState?.sessionToolVersion).toBe(ported ? 4 : undefined);
     expect(await sessionToolCall(process, 'thread-1')).toMatchObject({ result: { success: ported } });
@@ -341,7 +341,7 @@ describe('Codex shared runtime', () => {
     const process = await waitForRequest('turn/start');
     const resumed = process.requests.find(call => call.method === 'thread/resume')!;
     expect(resumed.params).not.toHaveProperty('dynamicTools');
-    expect(resumed.params.baseInstructions).not.toContain('claudian_send_message');
+    expect(resumed.params.baseInstructions).not.toContain('scribe_send_message');
     expect(session.getSnapshot().providerState?.sessionToolVersion).toBe(sessionToolVersion);
     complete(process, 'existing');
     await output;
@@ -363,7 +363,7 @@ describe('Codex shared runtime', () => {
       const threadId = resume ? 'persisted' : 'thread-1';
       for (let count = 0; count < 100 && !process.turns.has(threadId); count++) await Promise.resolve();
       expect(process.requests.find(call => call.method === 'thread/start')!.params.dynamicTools ?? [])
-        .not.toEqual(expect.arrayContaining([expect.objectContaining({ namespace: 'claudian_sessions' })]));
+        .not.toEqual(expect.arrayContaining([expect.objectContaining({ namespace: 'scribe_sessions' })]));
       expect(await sessionToolCall(process, threadId)).toMatchObject({ result: { success: false } });
       expect(port.list).not.toHaveBeenCalled();
       complete(process, threadId);
@@ -408,7 +408,7 @@ describe('Codex shared runtime', () => {
     const run = session.execute(request);
     const output = collect(run.events);
     const process = await waitForRequest('turn/start');
-    const response = sessionToolCall(process, 'thread-1', 'claudian_send_message', { text: 'hello' });
+    const response = sessionToolCall(process, 'thread-1', 'scribe_send_message', { text: 'hello' });
     for (let count = 0; count < 30 && !signal; count++) await Promise.resolve();
     expect(signal).toBeDefined();
     if (stop === 'interrupt') run.cancel();
@@ -436,14 +436,14 @@ describe('Codex shared runtime', () => {
     const output = collect(run.events);
     const process = await waitForRequest('turn/start');
     const oldTurn = process.turns.get('thread-1')!.id;
-    expect(await sessionToolCall(process, 'thread-1', 'claudian_send_message', { text: 'hello' })).toMatchObject({ result: { success: true } });
+    expect(await sessionToolCall(process, 'thread-1', 'scribe_send_message', { text: 'hello' })).toMatchObject({ result: { success: true } });
     run.cancel();
     await output;
     expect(signal?.aborted).toBe(true);
     expect(admitted).toEqual(['hello']);
     const nextOutput = collect(session.execute(request).events);
     for (let count = 0; count < 100 && process.turns.get('thread-1')?.id === oldTurn; count++) await Promise.resolve();
-    expect(await sessionToolCall(process, 'thread-1', 'claudian_list_destinations', {}, oldTurn)).toMatchObject({ error: expect.anything() });
+    expect(await sessionToolCall(process, 'thread-1', 'scribe_list_destinations', {}, oldTurn)).toMatchObject({ error: expect.anything() });
     expect(port.list).not.toHaveBeenCalled();
     expect(await sessionToolCall(process, 'thread-1')).toMatchObject({ result: { success: true } });
     complete(process, 'thread-1');
@@ -479,7 +479,7 @@ describe('Codex shared runtime', () => {
       const nextOutput = collect(nextRun.events);
       for (let count = 0; count < 100 && heldStart === undefined; count++) await Promise.resolve();
       expect(heldStart).toBeDefined();
-      const response = await sessionToolCall(process, 'thread-1', 'claudian_list_destinations', {}, oldTurn.id);
+      const response = await sessionToolCall(process, 'thread-1', 'scribe_list_destinations', {}, oldTurn.id);
       const nextTurn = { id: 'next-turn', status: 'inProgress', items: [] };
       process.turns.set('thread-1', nextTurn);
       process.respond(heldStart!, { turn: nextTurn });
@@ -517,7 +517,7 @@ describe('Codex shared runtime', () => {
     const nextOutput = collect(nextRun.events);
     for (let count = 0; count < 100 && heldStart === undefined; count++) await Promise.resolve();
     expect(heldStart).toBeDefined();
-    const response = await sessionToolCall(process, 'thread-1', 'claudian_list_destinations', {}, oldTurnId);
+    const response = await sessionToolCall(process, 'thread-1', 'scribe_list_destinations', {}, oldTurnId);
     process.respond(heldStart!, { turn: { id: 'next-turn', status: 'inProgress', items: [] } });
     nextRun.cancel();
     await nextOutput;

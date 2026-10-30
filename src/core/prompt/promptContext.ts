@@ -1,5 +1,5 @@
 /**
- * Claudian - Context Utilities
+ * Scribe - Context Utilities
  *
  * Note and context file formatting for prompts.
  */

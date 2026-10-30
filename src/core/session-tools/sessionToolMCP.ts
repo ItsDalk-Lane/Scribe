@@ -12,7 +12,7 @@ import {
   type SessionToolResult,
 } from './sessionToolSpecs';
 
-export const SESSION_TOOL_MCP_SERVER_NAME = 'claudian_sessions';
+export const SESSION_TOOL_MCP_SERVER_NAME = 'scribe_sessions';
 
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', '2024-10-07'];
 const SERVER_VERSION = '1.0.0';

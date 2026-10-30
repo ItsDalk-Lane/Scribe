@@ -61,7 +61,7 @@ const server = http.createServer(async (req, res) => {
  res.setHeader('Content-Type', 'application/json');
  const reply = data => res.end(JSON.stringify({data}));
  if (route === '/api/event') { feeds.add(res); res.on('close',()=>feeds.delete(res)); res.setHeader('Content-Type','text/event-stream'); res.write('data: ' + JSON.stringify({type:'server.connected',data:{}}) + '\\n\\n'); return; }
- if (route === '/fixture/config') return reply({ config:config(), path:process.env.OPENCODE_CONFIG, url:process.env.CLAUDIAN_SESSION_TOOLS_URL, routeId:process.env.CLAUDIAN_SESSION_TOOLS_ROUTE_ID });
+ if (route === '/fixture/config') return reply({ config:config(), path:process.env.OPENCODE_CONFIG, url:process.env.SCRIBE_SESSION_TOOLS_URL, routeId:process.env.SCRIBE_SESSION_TOOLS_ROUTE_ID });
  if (route === '/fixture/session-tool') {
    const entry = config().plugins?.find(p => p.package?.includes('/session-tools'));
    if (!entry) return reply({isError:true,text:'missing plugin'});
@@ -123,7 +123,7 @@ process.stdin.resume(); process.stdin.on('end',()=>{ for(const f of feeds) f.end
 // On a cold Windows runner the first Node launch alone can take seconds, so pay that cost once here,
 // without a deadline, before any test probes or starts the CLI.
 beforeAll(() => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-shared-v2-warmup-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-shared-v2-warmup-')));
   try {
     const cli = path.join(root, 'opencode.cjs');
     writeFileSync(cli, fixture, { mode: 0o700 });
@@ -139,7 +139,7 @@ const turn = (text: string): ProviderExecutionRequest => ({
 });
 
 async function createFixture(version = '2.0.14') {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'claudian-shared-v2-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'scribe-shared-v2-')));
   const cli = path.join(root, 'opencode.cjs'), log = path.join(root, 'processes');
   writeFileSync(cli, fixture.replace("console.log('2.0.14')", `console.log('${version}')`), { mode: 0o700 });
   writeFileSync(path.join(root, 'native.db'), '');
@@ -1309,19 +1309,19 @@ it('loads a module plugin folder once per shared server and forwards the native 
     expect(path.dirname(dir)).toBe(path.dirname(data.path));
     expect(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'))).toEqual({ type: 'module' });
     expect(existsSync(path.join(dir, 'index.js'))).toBe(true);
-    const call = (sessionID: string) => control.request<any>('/fixture/session-tool', { method: 'POST', body: { tool: 'claudian_list_destinations', args: {}, sessionID } });
+    const call = (sessionID: string) => control.request<any>('/fixture/session-tool', { method: 'POST', body: { tool: 'scribe_list_destinations', args: {}, sessionID } });
     expect((await call('ses_1')).data).toMatchObject({ specs: [
-      { name: 'claudian_list_destinations', options: { codemode: false } },
-      { name: 'claudian_send_message', options: { codemode: false } },
-      { name: 'claudian_read_session', options: { codemode: false } },
+      { name: 'scribe_list_destinations', options: { codemode: false } },
+      { name: 'scribe_send_message', options: { codemode: false } },
+      { name: 'scribe_read_session', options: { codemode: false } },
     ], result: { output: '{"sessions":[{"sessionId":"target"}]}' } });
     expect(list).toHaveBeenCalledTimes(1);
     expect((await call('unknown')).data.isError).toBe(true);
     expect(list).toHaveBeenCalledTimes(1);
-    const aborted = await control.request<any>('/fixture/session-tool', { method: 'POST', body: { tool: 'claudian_list_destinations', args: {}, sessionID: 'ses_1', aborted: true } });
+    const aborted = await control.request<any>('/fixture/session-tool', { method: 'POST', body: { tool: 'scribe_list_destinations', args: {}, sessionID: 'ses_1', aborted: true } });
     expect(aborted.data.isError).toBe(true);
     expect(list).toHaveBeenCalledTimes(1);
-    const sent = await control.request<any>('/fixture/session-tool', { method: 'POST', body: { tool: 'claudian_send_message', args: { sessionId: 'target', text: 'Hello' }, sessionID: 'ses_1' } });
+    const sent = await control.request<any>('/fixture/session-tool', { method: 'POST', body: { tool: 'scribe_send_message', args: { sessionId: 'target', text: 'Hello' }, sessionID: 'ses_1' } });
     expect(sent.data.result.output).toBe('{"sessionId":"target","title":"Review","provider":"codex","status":"queued"}');
     expect(send).toHaveBeenCalledWith({ sessionId: 'target', text: 'Hello' }, expect.any(AbortSignal));
     const peer = await f.workspace.serverService.acquire(f.cli, f.root, f.environment);
@@ -1335,7 +1335,7 @@ it('loads a module plugin folder once per shared server and forwards the native 
     await control.dispose();
     await f.workspace.dispose?.();
     expect(existsSync(path.dirname(configPath))).toBe(false);
-    const response = await fetch(data.url, {method:'POST',headers:{'Content-Type':'application/json','X-Claudian-Route':data.routeId},body:JSON.stringify({tool:'claudian_list_destinations',args:{},callerNativeId:'ses_1'})});
+    const response = await fetch(data.url, {method:'POST',headers:{'Content-Type':'application/json','X-Scribe-Route':data.routeId},body:JSON.stringify({tool:'scribe_list_destinations',args:{},callerNativeId:'ses_1'})});
     expect(response.status).toBe(404);
   } finally { await session.dispose(); await run; await control.dispose(); await f.dispose(); }
 });

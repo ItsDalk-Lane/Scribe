@@ -43,7 +43,7 @@ function mapStoredMessage(message: StoredMessage): ChatMessage | null {
 
   if (role === 'user') {
     const nativePrompt = getJoinedTextParts(message.parts);
-    // Replayed Claudian history is already shown from the sessions it came from.
+    // Replayed Scribe history is already shown from the sessions it came from.
     const recovery = decodeRecoveryPrompt(nativePrompt);
     const images = buildUserImages(message.parts, id);
     if (recovery?.currentInput === null && images.length === 0) return null;

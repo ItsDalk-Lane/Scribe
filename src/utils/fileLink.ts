@@ -1,5 +1,5 @@
 /**
- * Claudian - File Link Utilities
+ * Scribe - File Link Utilities
  *
  * Detects Obsidian wikilinks [[path/to/file]] in rendered content and makes
  * them clickable to open the file in Obsidian.
@@ -122,7 +122,7 @@ function createWikilink(
   displayText: string
 ): HTMLElement {
   return parent.createEl('a', {
-    cls: 'claudian-file-link internal-link',
+    cls: 'scribe-file-link internal-link',
     text: displayText,
     attr: {
       'data-href': linkTarget,
@@ -140,7 +140,7 @@ function repairEmptyInternalLink(app: App, link: HTMLAnchorElement, sourcePath: 
   const linkPath = extractLinkPathFromTarget(linkTarget);
   if (!linkPath || !fileExistsInVault(app, linkPath, sourcePath)) return;
 
-  link.classList.add('claudian-file-link');
+  link.classList.add('scribe-file-link');
   if (!link.dataset.href) {
     link.setAttribute('data-href', linkTarget);
   }
@@ -176,7 +176,7 @@ async function openFileLink(app: App, linkTarget: string, sourcePath: string, ne
 /**
  * Registers a delegated click handler for file links on a container.
  * Should be called once on the messages container.
- * Handles both our custom .claudian-file-link and Obsidian's .internal-link.
+ * Handles both our custom .scribe-file-link and Obsidian's .internal-link.
  */
 export function registerFileLinkHandler(
   app: App,
@@ -187,7 +187,7 @@ export function registerFileLinkHandler(
     if (event.type === 'auxclick' && event.button !== 1) return;
     const target = event.target as HTMLElement;
     // Handle both our links and Obsidian's internal links
-    const link = target.closest('.claudian-file-link, .internal-link') as HTMLAnchorElement;
+    const link = target.closest('.scribe-file-link, .internal-link') as HTMLAnchorElement;
 
     if (link) {
       event.preventDefault();
@@ -264,7 +264,7 @@ export function processFileLinks(app: App, container: HTMLElement, sourcePath = 
 
   // Wikilinks in inline code aren't rendered by Obsidian's MarkdownRenderer
   container.querySelectorAll('code').forEach((codeEl) => {
-    if (codeEl.closest('pre, a, .claudian-file-link, .internal-link')) return;
+    if (codeEl.closest('pre, a, .scribe-file-link, .internal-link')) return;
 
     const text = codeEl.textContent;
     if (!text || !text.includes('[[')) return;
@@ -289,7 +289,7 @@ export function processFileLinks(app: App, container: HTMLElement, sourcePath = 
           return NodeFilter.FILTER_REJECT;
         }
 
-        if (parent.closest('pre, code, a, .claudian-file-link, .internal-link')) {
+        if (parent.closest('pre, code, a, .scribe-file-link, .internal-link')) {
           return NodeFilter.FILTER_REJECT;
         }
 

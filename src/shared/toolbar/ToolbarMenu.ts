@@ -19,7 +19,7 @@ const LIST_SELECTOR = '[role="listbox"], [role="tablist"]';
 let toolbarElementSequence = 0;
 
 export function nextToolbarId(prefix: string): string {
-  return `claudian-toolbar-${prefix}-${++toolbarElementSequence}`;
+  return `scribe-toolbar-${prefix}-${++toolbarElementSequence}`;
 }
 
 type MenuFocusTarget = 'checked' | 'first' | 'last';
@@ -113,9 +113,9 @@ export class ToolbarMenu {
     this.#options = options;
     this.#popupRole = options.popupRole ?? 'menu';
     const menuId = nextToolbarId('menu');
-    this.anchorEl = parentEl.createDiv({ cls: `claudian-toolbar-chip-anchor ${options.anchorCls}` });
+    this.anchorEl = parentEl.createDiv({ cls: `scribe-toolbar-chip-anchor ${options.anchorCls}` });
     this.buttonEl = this.anchorEl.createEl('button', {
-      cls: `claudian-toolbar-chip${options.buttonCls ? ` ${options.buttonCls}` : ''}`,
+      cls: `scribe-toolbar-chip${options.buttonCls ? ` ${options.buttonCls}` : ''}`,
       attr: {
         type: 'button',
         'aria-haspopup': this.#popupRole,
@@ -123,10 +123,10 @@ export class ToolbarMenu {
         'aria-controls': menuId,
       },
     });
-    this.#chevronEl = this.buttonEl.createSpan({ cls: 'claudian-toolbar-chip-chevron' });
+    this.#chevronEl = this.buttonEl.createSpan({ cls: 'scribe-toolbar-chip-chevron' });
     setIcon(this.#chevronEl, 'chevron-down');
     this.menuEl = this.anchorEl.createDiv({
-      cls: 'claudian-toolbar-popover',
+      cls: 'scribe-toolbar-popover',
       attr: { id: menuId, role: this.#popupRole, 'aria-label': options.menuLabel, tabindex: '-1' },
     });
     this.menuEl.hidden = true;
@@ -153,7 +153,7 @@ export class ToolbarMenu {
 
   createItem(parentEl: HTMLElement, options: ToolbarMenuItemOptions): HTMLButtonElement {
     const itemEl = parentEl.createEl('button', {
-      cls: `claudian-toolbar-popover-option${options.cls ? ` ${options.cls}` : ''}`,
+      cls: `scribe-toolbar-popover-option${options.cls ? ` ${options.cls}` : ''}`,
       attr: {
         type: 'button',
         role: options.role,
@@ -163,19 +163,19 @@ export class ToolbarMenu {
       },
     });
     if (options.leadingIcon) {
-      setIcon(itemEl.createSpan({ cls: 'claudian-toolbar-popover-option-icon' }), options.leadingIcon);
+      setIcon(itemEl.createSpan({ cls: 'scribe-toolbar-popover-option-icon' }), options.leadingIcon);
     }
     // Labels stay direct children of the item unless a detail line needs a stacked copy block.
     const copyEl = options.detail
-      ? itemEl.createSpan({ cls: 'claudian-toolbar-popover-option-copy' })
+      ? itemEl.createSpan({ cls: 'scribe-toolbar-popover-option-copy' })
       : itemEl;
-    copyEl.createSpan({ cls: 'claudian-toolbar-popover-option-label', text: options.label });
+    copyEl.createSpan({ cls: 'scribe-toolbar-popover-option-label', text: options.label });
     if (options.detail) {
-      copyEl.createSpan({ cls: 'claudian-toolbar-popover-option-detail', text: options.detail });
+      copyEl.createSpan({ cls: 'scribe-toolbar-popover-option-detail', text: options.detail });
     }
     if (options.title) itemEl.setAttribute('title', options.title);
     if (options.showCheck && options.checked) {
-      setIcon(itemEl.createSpan({ cls: 'claudian-toolbar-popover-option-check' }), 'check');
+      setIcon(itemEl.createSpan({ cls: 'scribe-toolbar-popover-option-check' }), 'check');
     }
     itemEl.addEventListener('click', () => {
       if (this.#options.closeOnSelect) this.close(true);
@@ -188,7 +188,7 @@ export class ToolbarMenu {
     if (!this.isOpen) {
       this.#options.group?.activate(this);
       this.#options.onOpen();
-      if (this.anchorEl.classList.contains('claudian-hidden')) {
+      if (this.anchorEl.classList.contains('scribe-hidden')) {
         this.#options.group?.release(this);
         return;
       }
@@ -235,7 +235,7 @@ export class ToolbarMenu {
     const layer = this.#options.floatingLayer;
     if (!layer) return;
     layer.appendChild(this.menuEl);
-    this.menuEl.addClass('claudian-toolbar-popover--floating');
+    this.menuEl.addClass('scribe-toolbar-popover--floating');
     this.#floatingWindow = this.anchorEl.ownerDocument.defaultView;
     this.#floatingWindow?.addEventListener('scroll', this.#placeFloating, true);
     this.#floatingWindow?.addEventListener('resize', this.#placeFloating);
@@ -247,7 +247,7 @@ export class ToolbarMenu {
     this.#floatingWindow?.removeEventListener('scroll', this.#placeFloating, true);
     this.#floatingWindow?.removeEventListener('resize', this.#placeFloating);
     this.#floatingWindow = null;
-    this.menuEl.removeClass('claudian-toolbar-popover--floating');
+    this.menuEl.removeClass('scribe-toolbar-popover--floating');
     this.buttonEl.removeAttribute('data-menu-placement');
     this.anchorEl.appendChild(this.menuEl);
   }
@@ -260,7 +260,7 @@ export class ToolbarMenu {
     if (!view) return;
     const button = this.buttonEl.getBoundingClientRect();
     // Measure its preferred CSS height again after a previously constrained placement.
-    this.menuEl.style.removeProperty('--claudian-toolbar-popover-max-height');
+    this.menuEl.style.removeProperty('--scribe-toolbar-popover-max-height');
     const height = this.menuEl.getBoundingClientRect().height;
     const margin = FLOATING_MENU_VIEWPORT_MARGIN;
     const aboveEdge = Math.max(margin, Math.min(view.innerHeight - margin, button.top - FLOATING_MENU_GAP));
@@ -272,11 +272,11 @@ export class ToolbarMenu {
     if (opensBelow) this.buttonEl.setAttribute('data-menu-placement', 'below');
     else this.buttonEl.removeAttribute('data-menu-placement');
     this.menuEl.setCssProps({
-      '--claudian-toolbar-popover-top': opensBelow ? `${belowEdge}px` : 'auto',
-      '--claudian-toolbar-popover-max-height': `${Math.max(0, opensBelow ? below : above)}px`,
-      '--claudian-toolbar-popover-right': `${view.innerWidth - button.right}px`,
-      '--claudian-toolbar-popover-bottom': opensBelow ? 'auto' : `${view.innerHeight - aboveEdge}px`,
-      '--claudian-toolbar-popover-min-width': `${Math.max(button.width, FLOATING_MENU_MIN_WIDTH)}px`,
+      '--scribe-toolbar-popover-top': opensBelow ? `${belowEdge}px` : 'auto',
+      '--scribe-toolbar-popover-max-height': `${Math.max(0, opensBelow ? below : above)}px`,
+      '--scribe-toolbar-popover-right': `${view.innerWidth - button.right}px`,
+      '--scribe-toolbar-popover-bottom': opensBelow ? 'auto' : `${view.innerHeight - aboveEdge}px`,
+      '--scribe-toolbar-popover-min-width': `${Math.max(button.width, FLOATING_MENU_MIN_WIDTH)}px`,
     });
   };
 
@@ -286,7 +286,7 @@ export class ToolbarMenu {
 
   #items(scopeEl: Element = this.menuEl): HTMLElement[] {
     return Array.from(scopeEl.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR))
-      .filter(item => !(item as HTMLButtonElement).disabled && !item.closest('.claudian-hidden, [inert]'));
+      .filter(item => !(item as HTMLButtonElement).disabled && !item.closest('.scribe-hidden, [inert]'));
   }
 
   #focusItem(target: MenuFocusTarget): void {

@@ -62,7 +62,7 @@ describe('ACPClientConnection', () => {
   it('initializes with client info and dispatches session notifications to the delegate', async () => {
     const notifications: ACPSessionNotification[] = [];
     const harness = createConnectionHarness((transport) => new ACPClientConnection({
-      clientInfo: { name: 'claudian', version: '0.0.0-test' },
+      clientInfo: { name: 'scribe', version: '0.0.0-test' },
       delegate: {
         onSessionNotification: async (notification) => {
           notifications.push(notification);
@@ -77,7 +77,7 @@ describe('ACPClientConnection', () => {
 
       expect(outbound.method).toBe('initialize');
       expect(outbound.params).toEqual({
-        clientInfo: { name: 'claudian', version: '0.0.0-test' },
+        clientInfo: { name: 'scribe', version: '0.0.0-test' },
         protocolVersion: 1,
       });
 

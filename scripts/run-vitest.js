@@ -13,7 +13,7 @@ if (args[0] !== 'list' && args.some(arg => arg === '--outputFile' || arg.startsW
   }
   args.push(`--reporter=${path.join(__dirname, 'vitestMetadataReporter.mjs')}`);
 }
-const localStorageFile = path.join(os.tmpdir(), 'claudian-localstorage');
+const localStorageFile = path.join(os.tmpdir(), 'scribe-localstorage');
 const result = spawnSync(process.execPath, [
   `--localstorage-file=${localStorageFile}`, vitestPath, ...args,
 ], { stdio: 'inherit' });

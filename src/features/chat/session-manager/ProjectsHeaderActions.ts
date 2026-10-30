@@ -5,6 +5,6 @@ import { t } from '@/i18n/i18n';
 
 /** Renders the Projects section header's New project button. */
 export function renderProjectsHeaderActions(header: HTMLElement, host: Pick<ChatFeatureHost, 'app' | 'projects'>): void {
-  const actions = header.createDiv({ cls: 'claudian-session-header-actions' });
+  const actions = header.createDiv({ cls: 'scribe-session-header-actions' });
   createSessionHeaderAction(actions, 'plus', t('chat.projects.newProjectAction'), () => createProject(host));
 }

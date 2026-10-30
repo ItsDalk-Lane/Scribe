@@ -20,7 +20,7 @@ HTMLElement.prototype.toggleClass = function (classes, value) {
   for (const name of [classes].flat()) this.classList.toggle(name, value);
 };
 
-const ACTIVE_TARGET = 'claudian-session-drop-target--active';
+const ACTIVE_TARGET = 'scribe-session-drop-target--active';
 
 function conversation(id: string, overrides: Partial<ConversationMeta> = {}): ConversationMeta {
   const at = testDate({ hours: -1 }).getTime();
@@ -94,7 +94,7 @@ function setup(conversations: ConversationMeta[] = [
   surface.mountSidebar(host);
   surface.renderSidebar();
   const view = within(host);
-  const row = (title: string) => view.getByText(title).closest<HTMLElement>('.claudian-history-item')!;
+  const row = (title: string) => view.getByText(title).closest<HTMLElement>('.scribe-history-item')!;
   const projectToggle = (name: string) => view.getByRole('button', { name });
   const region = (name: string) => view.getByRole('region', { name });
 
@@ -135,7 +135,7 @@ it('moves a loose session into a project by dropping it on the project row, high
   fireEvent.mouseEnter(row('pinned session'));
   expect(within(document.body).queryByRole('tooltip')).toBeNull();
 
-  const projectRow = projectToggle('Launch').closest<HTMLElement>('.claudian-session-group-header')!;
+  const projectRow = projectToggle('Launch').closest<HTMLElement>('.scribe-session-group-header')!;
   expect(hover(projectToggle('Launch'))).toBe(true);
   expect(projectRow.classList.contains(ACTIVE_TARGET)).toBe(true);
   fireEvent.drop(projectToggle('Launch'), { dataTransfer });
@@ -152,7 +152,7 @@ it('drops on a pinned project listed under Pinned, highlighting the project rath
   });
   await startDrag('loose session');
 
-  const projectRow = projectToggle('Launch').closest<HTMLElement>('.claudian-session-group-header')!;
+  const projectRow = projectToggle('Launch').closest<HTMLElement>('.scribe-session-group-header')!;
   expect(region('Pinned').contains(projectRow)).toBe(true);
   expect(hover(projectToggle('Launch'))).toBe(true);
   expect(projectRow.classList.contains(ACTIVE_TARGET)).toBe(true);
@@ -258,8 +258,8 @@ it('shows a temporary Pinned drop zone while dragging when nothing is pinned', a
 
 it('drags the whole multi-selection when the dragged row is selected', async () => {
   const { drop, lifecycle, projectToggle, row, settle, startDrag } = setup();
-  fireEvent.click(row('loose session').querySelector('.claudian-history-item-content')!, { altKey: true });
-  fireEvent.click(row('pinned session').querySelector('.claudian-history-item-content')!, { altKey: true });
+  fireEvent.click(row('loose session').querySelector('.scribe-history-item-content')!, { altKey: true });
+  fireEvent.click(row('pinned session').querySelector('.scribe-history-item-content')!, { altKey: true });
   await startDrag('loose session');
   drop(projectToggle('Empty'));
   await settle();
@@ -267,13 +267,13 @@ it('drags the whole multi-selection when the dragged row is selected', async () 
   expect(lifecycle.setPlacement).toHaveBeenCalledTimes(1);
   expect([...lifecycle.setPlacement.mock.calls[0][0]].sort()).toEqual(['loose', 'pinned']);
   // The drop ends the selection it moved.
-  expect(row('loose session').classList.contains('claudian-history-item--selected')).toBe(false);
+  expect(row('loose session').classList.contains('scribe-history-item--selected')).toBe(false);
 });
 
 it('drags only the row when it is outside the selection', async () => {
   const { drop, lifecycle, projectToggle, row, settle, startDrag } = setup();
-  fireEvent.click(row('pinned session').querySelector('.claudian-history-item-content')!, { altKey: true });
-  fireEvent.click(row('pinned-member session').querySelector('.claudian-history-item-content')!, { altKey: true });
+  fireEvent.click(row('pinned session').querySelector('.scribe-history-item-content')!, { altKey: true });
+  fireEvent.click(row('pinned-member session').querySelector('.scribe-history-item-content')!, { altKey: true });
   await startDrag('loose session');
   drop(projectToggle('Empty'));
   await settle();
@@ -305,7 +305,7 @@ it('clears the highlight when the drag ends or leaves, and ignores foreign drags
 it('does not make archived rows draggable', () => {
   const { host, row, view } = setup([conversation('active'), conversation('old', { isArchived: true })]);
   expect(row('active session').getAttribute('draggable')).toBe('true');
-  fireEvent.click(host.querySelector('.claudian-session-archive-control')!);
+  fireEvent.click(host.querySelector('.scribe-session-archive-control')!);
   expect(within(view.getByRole('region', { name: 'Archived' })).getByText('old session')).toBeTruthy();
   expect(row('old session').getAttribute('draggable')).not.toBe('true');
 });

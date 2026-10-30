@@ -208,7 +208,7 @@ describe('extractUserQuery', () => {
 });
 
 describe('session message envelope in history display', () => {
-  const hint = 'Replying is optional. If a response is needed, call claudian_send_message with this session_id.';
+  const hint = 'Replying is optional. If a response is needed, call scribe_send_message with this session_id.';
   const envelope = (body: string) => '<session_message from="Planner &quot;A&quot;" session_id="conv-1">\n'
     + `<![CDATA[${body}]]>\n</session_message>\n${hint}`;
 

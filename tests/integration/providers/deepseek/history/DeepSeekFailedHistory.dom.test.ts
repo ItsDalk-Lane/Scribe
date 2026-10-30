@@ -43,7 +43,7 @@ beforeEach(async () => {
   peer = new NativePeer();
   const native = nativeDefaults({ seq: () => 3, roster: () => ['root'] });
   peer.onCall = (method, args) => method === 'session/create'
-    ? { sessionId: 'root', agentPreset: 'claudian' } : native.call(method, args);
+    ? { sessionId: 'root', agentPreset: 'scribe' } : native.call(method, args);
   peer.onOpen = native.open;
   await peer.open();
   ({ deepseek } = peer.host());
@@ -92,7 +92,7 @@ it.each([
 
   const ordinary = peer.onCall;
   peer.onCall = (method, args) => {
-    if (method === 'session/projections') return { asOfSeq: 7, values: { agentPreset: 'claudian' } };
+    if (method === 'session/projections') return { asOfSeq: 7, values: { agentPreset: 'scribe' } };
     if (method === 'session/page') return { records, hasMore: false };
     return ordinary(method, args);
   };

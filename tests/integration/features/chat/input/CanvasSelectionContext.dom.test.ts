@@ -22,7 +22,7 @@ Object.assign(HTMLElement.prototype, {
 let visibility: HTMLStyleElement;
 beforeEach(() => {
   visibility = document.head.appendChild(document.createElement('style'));
-  visibility.textContent = '.claudian-hidden { display: none; }';
+  visibility.textContent = '.scribe-hidden { display: none; }';
   const execute = FakeSession.prototype.execute;
   vi.spyOn(FakeSession.prototype, 'execute').mockImplementation(function (this: FakeSession, request) {
     const result = execute.call(this, request);
@@ -44,7 +44,7 @@ it.each([
   const sourceLeaf = { view: sourceView };
   const composer = document.body.createDiv();
   const input = composer.createEl('textarea', { attr: { 'aria-label': 'Message' } });
-  const ownLeaf = { view: { containerEl: composer, getViewType: () => 'claudian-view' } };
+  const ownLeaf = { view: { containerEl: composer, getViewType: () => 'scribe-view' } };
   const editorLeaf = { view: { containerEl: document.body.createDiv(), getViewType: () => 'markdown' } };
   let activeLeaf: { view: { containerEl: HTMLElement; getViewType(): string } } = action === 'background canvas' ? editorLeaf : sourceLeaf;
   let sourceOpen = true;
@@ -66,7 +66,7 @@ it.each([
       sourceView.canvas.selection.clear();
     }
     if (action === 'own composer unfocused') input.blur();
-    if (action === 'other composer') activeLeaf = { view: { containerEl: document.body.createDiv(), getViewType: () => 'claudian-view' } };
+    if (action === 'other composer') activeLeaf = { view: { containerEl: document.body.createDiv(), getViewType: () => 'scribe-view' } };
     if (action === 'other canvas') activeLeaf = { view: { containerEl: document.body.createDiv(), getViewType: () => 'canvas', file: { path: 'Empty.canvas' }, canvas: { selection: new Set() } } } as typeof sourceLeaf;
     if (action === 'source closed') sourceOpen = false;
     if (action === 'source navigated') sourceView.file.path = 'Other.canvas';

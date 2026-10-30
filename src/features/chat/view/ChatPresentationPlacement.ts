@@ -33,12 +33,12 @@ export class ChatPresentationPlacement {
   /** Builds the view-owned footer: chip slot, navigation row host, and composer slot. */
   mount(chatPanelEl: HTMLElement): void {
     this.chatPanelEl = chatPanelEl;
-    this.inputFooterEl = chatPanelEl.createDiv({ cls: 'claudian-input-footer' });
-    this.sideChatChipHostEl = this.inputFooterEl.createDiv({ cls: 'claudian-side-chat-chip-slot' });
+    this.inputFooterEl = chatPanelEl.createDiv({ cls: 'scribe-input-footer' });
+    this.sideChatChipHostEl = this.inputFooterEl.createDiv({ cls: 'scribe-side-chat-chip-slot' });
     this.inputNavRowHostEl = this.inputFooterEl.createDiv({
-      cls: 'claudian-input-nav-row claudian-view-input-nav-row',
+      cls: 'scribe-input-nav-row scribe-view-input-nav-row',
     });
-    this.activeInputSlotEl = this.inputFooterEl.createDiv({ cls: 'claudian-active-input-slot' });
+    this.activeInputSlotEl = this.inputFooterEl.createDiv({ cls: 'scribe-active-input-slot' });
     this.navRowContentEl = null;
   }
 

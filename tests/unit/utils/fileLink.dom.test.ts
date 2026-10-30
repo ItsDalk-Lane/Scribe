@@ -71,7 +71,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
+      const link = container.querySelector('a.scribe-file-link');
       expect(link).not.toBeNull();
       expect(link!.textContent).toBe('note.md');
       expect(link!.getAttribute('data-href')).toBe('note.md');
@@ -86,7 +86,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
+      const link = container.querySelector('a.scribe-file-link');
       expect(link).toBeNull();
     });
 
@@ -111,7 +111,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const links = container.querySelectorAll('a.claudian-file-link');
+      const links = container.querySelectorAll('a.scribe-file-link');
       expect(links.length).toBe(2);
     });
 
@@ -148,7 +148,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
+      const link = container.querySelector('a.scribe-file-link');
       expect(link).not.toBeNull();
     });
   });
@@ -163,7 +163,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = code.querySelector('a.claudian-file-link');
+      const link = code.querySelector('a.scribe-file-link');
       expect(link).not.toBeNull();
       expect(link!.textContent).toBe('note.md');
     });
@@ -213,7 +213,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
+      const link = container.querySelector('a.scribe-file-link');
       expect(link).toBeNull();
       expect(code.textContent).toBe('[[note.md]]');
     });
@@ -229,7 +229,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
+      const link = container.querySelector('a.scribe-file-link');
       expect(link).toBeNull();
     });
 
@@ -242,22 +242,22 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const links = container.querySelectorAll('a.claudian-file-link');
+      const links = container.querySelectorAll('a.scribe-file-link');
       expect(links.length).toBe(0);
     });
 
-    it('skips text nodes inside elements with .claudian-file-link class', () => {
+    it('skips text nodes inside elements with .scribe-file-link class', () => {
       const app = createMockApp(['note.md']);
       const container = document.createElement('div');
       const span = document.createElement('span');
-      span.className = 'claudian-file-link';
+      span.className = 'scribe-file-link';
       span.textContent = '[[note.md]]';
       container.appendChild(span);
 
       processFileLinks(app, container);
 
       // Should not create nested links
-      const links = container.querySelectorAll('a.claudian-file-link');
+      const links = container.querySelectorAll('a.scribe-file-link');
       expect(links.length).toBe(0);
     });
 
@@ -271,7 +271,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const links = container.querySelectorAll('a.claudian-file-link');
+      const links = container.querySelectorAll('a.scribe-file-link');
       expect(links.length).toBe(0);
     });
 
@@ -285,7 +285,7 @@ describe('processFileLinks', () => {
       const internalLink = container.querySelector('a.internal-link');
       expect(internalLink).not.toBeNull();
       expect(internalLink!.textContent).toBe('note');
-      expect(internalLink!.classList.contains('claudian-file-link')).toBe(true);
+      expect(internalLink!.classList.contains('scribe-file-link')).toBe(true);
       expect(container.textContent).toBe('note and [[missing.md]]');
     });
 
@@ -298,7 +298,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const link = container.querySelector('a.claudian-file-link');
+      const link = container.querySelector('a.scribe-file-link');
       expect(link).not.toBeNull();
     });
   });
@@ -313,7 +313,7 @@ describe('processFileLinks', () => {
 
       processFileLinks(app, container);
 
-      const links = container.querySelectorAll('a.claudian-file-link');
+      const links = container.querySelectorAll('a.scribe-file-link');
       expect(links.length).toBe(1);
       expect(links[0].textContent).toBe('note.md');
     });

@@ -153,7 +153,7 @@ function readLaunchURL(child: ManagedStdioProcess, signal: AbortSignal): Promise
     offExit = child.onExit(() => finish(new Error('DeepSeek exited before becoming ready. Check the selected native profile and MCP configuration.')));
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) { abort(); return; }
-    // stdin stays open: the bundled lifecycle plugin exits the Host when Claudian's end of the pipe closes.
+    // stdin stays open: the bundled lifecycle plugin exits the Host when Scribe's end of the pipe closes.
     // A synchronous spawn failure reaches onError before start() throws, so that rejection is already settled.
     child.start();
     // Removing these listeners leaves the streams flowing, draining later output without retaining tokens or diagnostics.

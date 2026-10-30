@@ -229,7 +229,7 @@ export class LinkedContentController {
   mountWelcome(welcomeEl: HTMLElement): void {
     this.#assertLive();
     this.selector?.destroy();
-    const mountEl = welcomeEl.querySelector<HTMLElement>('.claudian-welcome-linked-content');
+    const mountEl = welcomeEl.querySelector<HTMLElement>('.scribe-welcome-linked-content');
     if (!mountEl) {
       throw new Error('Welcome content does not expose a Linked content mount');
     }

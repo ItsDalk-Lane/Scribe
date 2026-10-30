@@ -54,7 +54,7 @@ let sectionLabelSequence = 0;
  * it as a hover tooltip over every row inside.
  */
 function labelSectionBy(section: HTMLElement, labelEl: HTMLElement): void {
-  const id = `claudian-session-section-label-${++sectionLabelSequence}`;
+  const id = `scribe-session-section-label-${++sectionLabelSequence}`;
   labelEl.setAttribute('id', id);
   section.setAttribute('aria-labelledby', id);
 }
@@ -123,7 +123,7 @@ export class SessionBrowser {
   });
   private readonly projectSorter = new LiveListSorter({
     // Row controls keep their own clicks.
-    ignoreSelector: '.claudian-session-group-menu-action, .claudian-session-group-new-action',
+    ignoreSelector: '.scribe-session-group-menu-action, .scribe-session-group-new-action',
     onDragStart: () => this.metadataPopover.close(),
     onDrop: (projectId, targetId, placement) => moveProject(this.deps.plugin, projectId, targetId, placement)
       .catch(() => {
@@ -140,6 +140,10 @@ export class SessionBrowser {
       onChanged: () => deps.onListChanged(),
     });
     this.actions = new SessionActions({ plugin: deps.plugin, selection: this.selection });
+  }
+
+  refreshLocale(): void {
+    this.metadataPopover.dispose();
   }
 
   dispose(): void {
@@ -225,26 +229,26 @@ export class SessionBrowser {
     let pinnedList: HTMLElement | null = null;
     let projectsList: HTMLElement | null = null;
     if (showSessionSections) {
-      list = container.createDiv({ cls: 'claudian-history-list' });
+      list = container.createDiv({ cls: 'scribe-history-list' });
       const hasPinned = model.pinnedProjectSections.length > 0
         || model.pinnedConversations.length > 0
         || pinnedContentSections.length > 0;
       // With nothing pinned, the header alone is a drop target that shows only while a drag is in progress.
       if (hasPinned || canDrag) {
         const pinnedSection = list.createDiv({
-          cls: ['claudian-history-section', hasPinned ? 'claudian-history-section--pinned' : ''].filter(Boolean).join(' '),
+          cls: ['scribe-history-section', hasPinned ? 'scribe-history-section--pinned' : ''].filter(Boolean).join(' '),
           attr: { role: 'region' },
         });
         const pinnedHeader = pinnedSection.createDiv({
-          cls: 'claudian-history-header claudian-session-section-header',
+          cls: 'scribe-history-header scribe-session-section-header',
         });
         labelSectionBy(pinnedSection, pinnedHeader.createSpan({
-          cls: 'claudian-history-section-label',
-          text: 'Pinned',
+          cls: 'scribe-history-section-label',
+          text: t('chat.sessionManager.pinned'),
         }));
         if (hasPinned) {
           pinnedList = pinnedSection.createDiv({
-            cls: 'claudian-history-section-items',
+            cls: 'scribe-history-section-items',
           });
           if (canDrag) this.drag.attachTarget(pinnedSection, { kind: 'pinned' });
           // Like the Projects section, pinned projects show even when no session matches.
@@ -259,25 +263,25 @@ export class SessionBrowser {
         projectsList = this.#renderProjectsSection(list, model.projectSections, options, model.conversationsByProject);
       }
 
-      const sessionsLabel = options.showArchivedSection ? 'Archived' : 'Sessions';
+      const sessionsLabel = options.showArchivedSection ? t('chat.sessionManager.archived') : t('chat.sessionManager.sessions');
       const sessionsSection = list.createDiv({
         cls: [
-          'claudian-history-section',
+          'scribe-history-section',
           options.showArchivedSection
-            ? 'claudian-history-section--archived'
-            : 'claudian-history-section--sessions',
+            ? 'scribe-history-section--archived'
+            : 'scribe-history-section--sessions',
         ].join(' '),
         attr: { role: 'region' },
       });
       const sessionsHeader = sessionsSection.createDiv({
         cls: [
-          'claudian-history-header',
-          'claudian-session-section-header',
-          'claudian-session-list-header',
+          'scribe-history-header',
+          'scribe-session-section-header',
+          'scribe-session-list-header',
         ].join(' '),
       });
       sessionList = sessionsSection.createDiv({
-        cls: 'claudian-history-section-items claudian-session-list-items',
+        cls: 'scribe-history-section-items scribe-session-list-items',
       });
       if (canDrag) this.drag.attachTarget(sessionsSection, { kind: 'sessions' });
       this.#renderSectionToggle(
@@ -289,9 +293,9 @@ export class SessionBrowser {
         options,
       );
     } else {
-      const dropdownHeader = container.createDiv({ cls: 'claudian-history-header' });
-      dropdownHeader.createSpan({ text: options.historyHeaderLabel ?? 'Sessions' });
-      list = container.createDiv({ cls: 'claudian-history-list' });
+      const dropdownHeader = container.createDiv({ cls: 'scribe-history-header' });
+      dropdownHeader.createSpan({ text: options.historyHeaderLabel ?? t('chat.sessionManager.sessions') });
+      list = container.createDiv({ cls: 'scribe-history-list' });
       sessionList = list;
     }
 
@@ -314,7 +318,7 @@ export class SessionBrowser {
     if (model.groupKeys) options.onGroupKeysChange?.(model.groupKeys);
     if (model.isEmpty) {
       sessionList.createDiv({
-        cls: 'claudian-history-empty',
+        cls: 'scribe-history-empty',
         text: model.hasSearchTerms ? t('chat.sessions.noMatch') : t('chat.sessions.empty'),
       });
       restorePosition();
@@ -388,8 +392,8 @@ export class SessionBrowser {
 
     if (renderedConversationCount < visibleConversationTotal && !options.signal?.aborted) {
       const loadMoreButton = sessionList.createEl('button', {
-        cls: 'claudian-history-load-more',
-        text: `Load more (${visibleConversationTotal - renderedConversationCount} remaining)`,
+        cls: 'scribe-history-load-more',
+        text: t('chat.sessionManager.loadMore', { count: visibleConversationTotal - renderedConversationCount }),
       });
       loadMoreButton.addEventListener('click', () => {
         if (options.signal?.aborted) return;
@@ -422,7 +426,7 @@ export class SessionBrowser {
       section,
       isCollapsed,
       options,
-      [`claudian-session-group-header--${section.kind}`],
+      [`scribe-session-group-header--${section.kind}`],
     );
     groupHeader.setAttribute('role', 'button');
     groupHeader.setAttribute('tabindex', '0');
@@ -431,23 +435,23 @@ export class SessionBrowser {
       groupHeader.setAttribute('data-content-path', section.contentPath);
       groupHeader.setAttribute('title', section.contentPath);
       const contentIcon = groupHeader.createSpan({
-        cls: 'claudian-session-group-icon',
+        cls: 'scribe-session-group-icon',
       });
       setIcon(contentIcon, section.kind === 'missing' ? 'file-question' : 'link');
     } else if (section.kind === 'ungrouped') {
       const ungroupedIcon = groupHeader.createSpan({
-        cls: 'claudian-session-group-icon',
+        cls: 'scribe-session-group-icon',
       });
       setIcon(ungroupedIcon, 'inbox');
     }
     groupHeader.createSpan({
-      cls: 'claudian-session-group-label',
+      cls: 'scribe-session-group-label',
       text: section.label ?? '',
     });
     if (section.kind === 'missing') {
       groupHeader.createSpan({
-        cls: 'claudian-session-group-status',
-        text: 'Missing',
+        cls: 'scribe-session-group-status',
+        text: t('chat.sessionManager.missing'),
       });
     }
     const groupStatusIndicator = groupStatusKind === null
@@ -467,19 +471,19 @@ export class SessionBrowser {
       const contentPath = section.contentPath;
       const startLinkedContentConversation = options.onStartLinkedContentConversation;
       const newConversationButton = groupHeader.createSpan({
-        cls: 'claudian-session-group-new-action',
+        cls: 'scribe-session-group-new-action',
       });
       newConversationButton.setAttribute('role', 'button');
       newConversationButton.setAttribute('tabindex', '0');
       setIcon(newConversationButton, 'square-pen');
       newConversationButton.setAttribute(
         'aria-label',
-        `New chat for ${section.label ?? contentPath}`,
+        t('chat.sessionManager.newForContent', { name: section.label ?? contentPath }),
       );
       const startConversation = (): void => {
         runSessionAction(
           () => startLinkedContentConversation(contentPath),
-          'Failed to start a chat for this Linked content',
+          t('chat.sessionManager.startContentFailed'),
         );
       };
       newConversationButton.addEventListener('click', (event) => {
@@ -496,8 +500,8 @@ export class SessionBrowser {
 
     const groupBody = list.createDiv({
       cls: [
-        'claudian-session-group-body',
-        isCollapsed ? 'claudian-session-group-body--collapsed' : '',
+        'scribe-session-group-body',
+        isCollapsed ? 'scribe-session-group-body--collapsed' : '',
       ].filter(Boolean).join(' '),
     });
     groupBody.setAttribute('data-group-key', section.key);
@@ -505,17 +509,17 @@ export class SessionBrowser {
     const toggleGroup = (): void => {
       const collapsed = groupHeader.getAttribute('aria-expanded') === 'true';
       groupHeader.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-      groupBody.toggleClass('claudian-session-group-body--collapsed', collapsed);
+      groupBody.toggleClass('scribe-session-group-body--collapsed', collapsed);
       if (groupStatusIndicator) {
         groupStatusIndicator.toggleClass(
           groupStatusKind === 'running'
-            ? 'claudian-session-group-running-indicator--visible'
-            : 'claudian-session-group-status-indicator--visible',
+            ? 'scribe-session-group-running-indicator--visible'
+            : 'scribe-session-group-status-indicator--visible',
           collapsed,
         );
       }
       if (showGroupReviewState) {
-        groupHeader.toggleClass('claudian-session-group-header--attention', collapsed);
+        groupHeader.toggleClass('scribe-session-group-header--attention', collapsed);
       }
       options.onGroupCollapseChange?.(section.key, collapsed);
       options.onRerender();
@@ -574,10 +578,10 @@ export class SessionBrowser {
       && hasReviewConversation;
     const groupHeader = list.createDiv({
       cls: [
-        'claudian-session-group-header',
+        'scribe-session-group-header',
         ...modifierClasses,
         showGroupReviewState && isCollapsed
-          ? 'claudian-session-group-header--attention'
+          ? 'scribe-session-group-header--attention'
           : '',
       ].filter(Boolean).join(' '),
     });
@@ -608,10 +612,10 @@ export class SessionBrowser {
   ): void {
     const isCollapsed = options.isGroupCollapsed?.(key) ?? false;
     const toggle = header.createEl('button', {
-      cls: 'claudian-history-section-toggle',
+      cls: 'scribe-history-section-toggle',
       attr: { type: 'button', 'aria-expanded': isCollapsed ? 'false' : 'true' },
     });
-    labelSectionBy(section, toggle.createSpan({ cls: 'claudian-history-section-label', text: label }));
+    labelSectionBy(section, toggle.createSpan({ cls: 'scribe-history-section-label', text: label }));
     items.hidden = isCollapsed;
     toggle.addEventListener('click', () => {
       const collapsed = !items.hidden;
@@ -633,13 +637,13 @@ export class SessionBrowser {
   ): HTMLElement {
     const label = t('chat.projects.header');
     const section = list.createDiv({
-      cls: 'claudian-history-section claudian-history-section--projects',
+      cls: 'scribe-history-section scribe-history-section--projects',
       attr: { role: 'region' },
     });
     const header = section.createDiv({
-      cls: 'claudian-history-header claudian-session-section-header claudian-session-projects-header',
+      cls: 'scribe-history-header scribe-session-section-header scribe-session-projects-header',
     });
-    const items = section.createDiv({ cls: 'claudian-history-section-items claudian-session-project-items' });
+    const items = section.createDiv({ cls: 'scribe-history-section-items scribe-session-project-items' });
     this.#renderSectionToggle(section, header, label, items, sessionManagerSectionKey('projects'), options);
     if (options.sessionScope !== 'archived') renderProjectsHeaderActions(header, this.deps.plugin);
     for (const projectSection of projectSections) {
@@ -666,7 +670,7 @@ export class SessionBrowser {
       section,
       isCollapsed,
       options,
-      ['claudian-session-group-header--project'],
+      ['scribe-session-group-header--project'],
     );
     groupHeader.setAttribute('data-project-id', project.id);
     const dropTarget = { kind: 'project', projectId: project.id } as const;
@@ -676,17 +680,17 @@ export class SessionBrowser {
 
     // Named by its visible label: an aria-label would show Obsidian's hover tooltip.
     const toggle = groupHeader.createEl('button', {
-      cls: 'claudian-session-group-toggle',
+      cls: 'scribe-session-group-toggle',
       attr: {
         type: 'button',
         'aria-expanded': isCollapsed ? 'false' : 'true',
       },
     });
-    const icon = toggle.createSpan({ cls: 'claudian-session-group-icon' });
+    const icon = toggle.createSpan({ cls: 'scribe-session-group-icon' });
     icon.setAttribute('aria-hidden', 'true');
     // Obsidian aliases the legacy `folder` id to an open folder; explicit Lucide ids keep the states distinct.
     setIcon(icon, isCollapsed ? 'lucide-folder' : 'lucide-folder-open');
-    toggle.createSpan({ cls: 'claudian-session-group-label', text: label });
+    toggle.createSpan({ cls: 'scribe-session-group-label', text: label });
 
     if (groupStatusKind !== null) {
       this.#createSessionStatusIndicator(groupHeader, groupStatusKind, true, isCollapsed);
@@ -698,7 +702,7 @@ export class SessionBrowser {
       conversation => this.#statusOf(conversation, options).isRunning,
     );
     const actionsButton = groupHeader.createEl('button', {
-      cls: 'claudian-session-group-menu-action',
+      cls: 'scribe-session-group-menu-action',
       attr: {
         type: 'button',
         'aria-label': t('chat.projects.actionsFor', { name: label }),
@@ -717,7 +721,7 @@ export class SessionBrowser {
     const startProjectConversation = options.onStartProjectConversation;
     if (startProjectConversation && !project.isArchived) {
       const newButton = groupHeader.createEl('button', {
-        cls: 'claudian-session-group-new-action',
+        cls: 'scribe-session-group-new-action',
         attr: { type: 'button', 'aria-label': t('chat.projects.newSessionIn', { name: label }) },
       });
       setIcon(newButton, 'square-pen');
@@ -739,14 +743,14 @@ export class SessionBrowser {
       if (canDrag) this.projectSorter.attach([groupHeader], projectSortRow);
       return;
     }
-    const groupBody = list.createDiv({ cls: 'claudian-session-group-body' });
+    const groupBody = list.createDiv({ cls: 'scribe-session-group-body' });
     groupBody.setAttribute('data-group-key', section.key);
     if (canDrag) {
       this.drag.attachTarget(groupBody, dropTarget);
       this.projectSorter.attach([groupHeader, groupBody], projectSortRow);
     }
     if (section.conversations.length === 0) {
-      groupBody.createDiv({ cls: 'claudian-session-project-empty', text: t('chat.projects.noSessions') });
+      groupBody.createDiv({ cls: 'scribe-session-project-empty', text: t('chat.projects.noSessions') });
       return;
     }
     for (const conversation of section.conversations) {
@@ -773,13 +777,13 @@ export class SessionBrowser {
     const isSelectable = !isCurrent && options.allowConversationSelection !== false;
     const item = list.createDiv({
       cls: [
-        'claudian-history-item',
+        'scribe-history-item',
         isCurrent ? 'active' : '',
         isOpen ? 'open' : '',
         showRunningPresentation ? 'running' : '',
-        showReviewState ? 'claudian-history-item--attention' : '',
+        showReviewState ? 'scribe-history-item--attention' : '',
         options.allowConversationSelection === false
-          ? 'claudian-history-item--noninteractive'
+          ? 'scribe-history-item--noninteractive'
           : '',
       ].filter(Boolean).join(' '),
     });
@@ -791,27 +795,28 @@ export class SessionBrowser {
       item.setAttribute('data-tab-index', String(conversationStatus.tabIndex));
     }
 
-    const iconEl = item.createDiv({ cls: 'claudian-history-item-icon' });
+    const iconEl = item.createDiv({ cls: 'scribe-history-item-icon' });
     setIcon(iconEl, sessionItemIcon(openState, showRunningPresentation));
 
-    const content = item.createDiv({ cls: 'claudian-history-item-content' });
+    const content = item.createDiv({ cls: 'scribe-history-item-content' });
     const titleEl = content.createDiv({
-      cls: 'claudian-history-item-title',
+      cls: 'scribe-history-item-title',
       text: conversation.title,
     });
     if (options.showMetadataPopover) {
       const focusTarget = isSelectable ? content : item;
       focusTarget.setAttribute('tabindex', '0');
-      this.metadataPopover.attach(item, focusTarget, conversation, options);
+      this.metadataPopover.attach(item, focusTarget, conversation, { ...options, displayLanguage: this.deps.plugin.settings.locale });
     } else {
       // Without the metadata popover, a native tooltip shows the full title.
       titleEl.setAttribute('title', conversation.title);
       content.createDiv({
-        cls: 'claudian-history-item-date',
+        cls: 'scribe-history-item-date',
         text: sessionStatusText(
           conversationStatus,
           options.sort === 'created' ? conversation.createdAt : conversation.lastActivityAt,
           options.showOpenStateLabels ?? true,
+          this.deps.plugin.settings.locale,
         ),
       });
     }
@@ -856,7 +861,7 @@ export class SessionBrowser {
       this.actions.rowMenu(row(menuStatus), options, item).showAtMouseEvent(event);
     });
 
-    const actionsEl = item.createDiv({ cls: 'claudian-history-item-actions' });
+    const actionsEl = item.createDiv({ cls: 'scribe-history-item-actions' });
     this.#renderTitleGenerationAction(actionsEl, conversation);
     this.actions.renderRowButtons(actionsEl, row(conversationStatus), options);
 
@@ -883,7 +888,7 @@ export class SessionBrowser {
     conversationId: string,
     options: HistoryRenderOptions,
   ): void {
-    const failureMessage = 'Failed to load conversation';
+    const failureMessage = t('chat.sessionManager.loadFailed');
     const selectConversation = (): void => {
       runSessionAction(() => options.onSelectConversation(conversationId), failureMessage);
     };
@@ -928,10 +933,10 @@ export class SessionBrowser {
   #renderTitleGenerationAction(actionsEl: HTMLElement, conversation: ConversationMeta): void {
     if (conversation.titleGenerationStatus === 'pending') {
       const loadingEl = actionsEl.createSpan({
-        cls: 'claudian-action-btn claudian-action-loading',
+        cls: 'scribe-action-btn scribe-action-loading',
       });
       setIcon(loadingEl, 'loader-2');
-      loadingEl.setAttribute('aria-label', 'Generating title...');
+      loadingEl.setAttribute('aria-label', t('chat.sessionManager.generatingTitle'));
       return;
     }
     if (
@@ -941,17 +946,17 @@ export class SessionBrowser {
       return;
     }
     const regenerateBtn = actionsEl.createEl('button', {
-      cls: 'claudian-action-btn',
+      cls: 'scribe-action-btn',
       attr: { type: 'button' },
     });
     setIcon(regenerateBtn, 'refresh-cw');
     regenerateBtn.setAttribute('aria-label', conversation.titleGenerationStatus === 'failed'
-      ? 'Regenerate title' : 'Generate title');
+      ? t('chat.sessionManager.regenerateTitle') : t('chat.sessionManager.generateTitle'));
     regenerateBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       runSessionAction(
         () => this.titles.regenerate(conversation.id),
-        'Failed to generate title',
+        t('chat.sessionManager.generateTitleFailed'),
       );
     });
   }
@@ -967,18 +972,18 @@ export class SessionBrowser {
       cls: isRunning
         ? [
             isGroup
-              ? 'claudian-session-group-running-indicator'
-              : 'claudian-session-running-indicator',
+              ? 'scribe-session-group-running-indicator'
+              : 'scribe-session-running-indicator',
             isGroup && isVisible
-              ? 'claudian-session-group-running-indicator--visible'
+              ? 'scribe-session-group-running-indicator--visible'
               : '',
           ].filter(Boolean).join(' ')
         : [
-            'claudian-session-status-indicator',
-            `claudian-session-status-indicator--${kind}`,
-            isGroup ? 'claudian-session-group-status-indicator' : '',
+            'scribe-session-status-indicator',
+            `scribe-session-status-indicator--${kind}`,
+            isGroup ? 'scribe-session-group-status-indicator' : '',
             isGroup && isVisible
-              ? 'claudian-session-group-status-indicator--visible'
+              ? 'scribe-session-group-status-indicator--visible'
               : '',
           ].filter(Boolean).join(' '),
     });
@@ -1015,8 +1020,8 @@ export class SessionBrowser {
     section: SessionListSection,
     options: HistoryRenderOptions,
   ): void {
-    const divider = list.createDiv({ cls: 'claudian-session-recency-divider' });
-    divider.createSpan({ cls: 'claudian-session-recency-divider-label', text: section.label });
+    const divider = list.createDiv({ cls: 'scribe-session-recency-divider' });
+    divider.createSpan({ cls: 'scribe-session-recency-divider-label', text: section.label });
     const buildMenu = this.actions.groupMenu(
       { conversations: section.conversations },
       options,
@@ -1026,8 +1031,8 @@ export class SessionBrowser {
 
     // A native button keeps the group actions reachable by keyboard; right-click stays a shortcut.
     const actionsButton = divider.createEl('button', {
-      cls: 'claudian-session-recency-divider-action',
-      attr: { type: 'button', 'aria-label': `Actions for ${section.label}`, 'aria-haspopup': 'menu' },
+      cls: 'scribe-session-recency-divider-action',
+      attr: { type: 'button', 'aria-label': t('chat.sessionManager.actionsFor', { name: section.label ?? '' }), 'aria-haspopup': 'menu' },
     });
     setIcon(actionsButton, 'more-horizontal');
     actionsButton.addEventListener('click', event => event.stopPropagation());

@@ -128,8 +128,8 @@ const strictObsidianRules = {
   'obsidianmd/ui/sentence-case': [
     obsidianRuleSeverity,
     {
-      ignoreWords: ['Claudian', 'Codex', 'Grok', 'OpenCode', 'Pi', 'WSL'],
-      brands: [...DEFAULT_BRANDS, 'Claude Code', 'Claudian', 'Codex', 'Grok Build', 'OpenCode', 'Pi'],
+      ignoreWords: ['Scribe', 'Codex', 'Grok', 'OpenCode', 'Pi', 'WSL'],
+      brands: [...DEFAULT_BRANDS, 'Claude Code', 'Scribe', 'Codex', 'Grok Build', 'OpenCode', 'Pi'],
       acronyms: [...DEFAULT_ACRONYMS, 'TOML', 'WSL'],
       ignoreRegex: ['\\.(?:claude|codex|opencode)/'],
       enforceCamelCaseLower: true,

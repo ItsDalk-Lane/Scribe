@@ -5,12 +5,12 @@ import '@test/helpers/ObsidianSettingsDOM';
 import { deserialize, serialize } from 'node:v8';
 
 import { axe } from '@test/helpers/accessibility';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { fireEvent, within } from '@testing-library/dom';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
 import { buildNavMappingText } from '@/features/settings/keyboardNavigation';
+import { ScribeSettingTab } from '@/features/settings/ScribeSettings';
 import { t } from '@/i18n/i18n';
 
 vi.mock('@/shared/settings/EnvironmentSettingsSection', () => ({ renderEnvironmentSettingsSection() {} }));
@@ -35,7 +35,7 @@ it('keeps and then persists the newer navigation draft when an older save comple
   globalThis.structuredClone ??= value => deserialize(serialize(value));
   vi.useFakeTimers();
   let usingFakeTimers = true;
-  const settings = { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), enableAutoTitleGeneration: false };
+  const settings = { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), enableAutoTitleGeneration: false };
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   const saved: string[] = [];
@@ -44,7 +44,7 @@ it('keeps and then persists the newer navigation draft when an older save comple
     if (saved.length === 1) await gate;
   });
   const host = { settings, mutateSettings: coordinator.mutate.bind(coordinator) };
-  const tab = new ClaudianSettingTab({} as never, {} as never, host as never);
+  const tab = new ScribeSettingTab({} as never, {} as never, host as never);
   const container = document.body.createDiv();
   try {
     tab['renderGeneralTab'](container);

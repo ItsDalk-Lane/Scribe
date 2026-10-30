@@ -93,21 +93,21 @@ function renderTabHydrationState(
   const messagesEl = tab.dom.messagesEl;
   messagesEl.empty();
 
-  const statusEl = messagesEl.createDiv({ cls: 'claudian-tab-hydration' });
+  const statusEl = messagesEl.createDiv({ cls: 'scribe-tab-hydration' });
   if (!error) {
     statusEl.createDiv({
-      cls: 'claudian-tab-hydration-loading',
+      cls: 'scribe-tab-hydration-loading',
       text: t('chat.sessions.loading'),
     });
     return;
   }
 
   statusEl.createDiv({
-    cls: 'claudian-tab-hydration-error',
+    cls: 'scribe-tab-hydration-error',
     text: error instanceof Error ? error.message : t('chat.sessions.loadFailed'),
   });
   const retryButton = statusEl.createEl('button', {
-    cls: 'mod-cta claudian-tab-hydration-retry',
+    cls: 'mod-cta scribe-tab-hydration-retry',
     text: t('common.retry'),
   });
   retryButton.addEventListener('click', () => {

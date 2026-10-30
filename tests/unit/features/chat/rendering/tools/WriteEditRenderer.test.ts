@@ -100,7 +100,7 @@ describe('WriteEditRenderer', () => {
 
       expect(state.isExpanded).toBe(false);
       expect(state.wrapperEl.hasClass('expanded')).toBe(false);
-      expect(state.contentEl.hasClass('claudian-hidden')).toBe(true);
+      expect(state.contentEl.hasClass('scribe-hidden')).toBe(true);
       expect(state.headerEl.getAttribute('aria-expanded')).toBe('false');
       expect(state.headerEl.getAttribute('aria-label')).toContain('click to expand');
     });
@@ -113,7 +113,7 @@ describe('WriteEditRenderer', () => {
 
       expect(state.isExpanded).toBe(true);
       expect(state.wrapperEl.hasClass('expanded')).toBe(true);
-      expect(state.contentEl.hasClass('claudian-hidden')).toBe(false);
+      expect(state.contentEl.hasClass('scribe-hidden')).toBe(false);
       expect(state.headerEl.getAttribute('aria-expanded')).toBe('true');
       expect(state.headerEl.getAttribute('aria-label')).toContain('click to collapse');
     });
@@ -248,10 +248,10 @@ describe('WriteEditRenderer', () => {
 
       const block = renderStoredWriteEdit(parentEl, toolCall);
 
-      expect(block.querySelector('.claudian-write-edit-stats')?.children).toHaveLength(0);
-      (block.querySelector('.claudian-write-edit-header') as HTMLElement).click();
-      expect(block.querySelector('.claudian-write-edit-done-text')?.textContent).toBe('DONE');
-      expect(block.querySelectorAll('.claudian-diff-text')).toHaveLength(0);
+      expect(block.querySelector('.scribe-write-edit-stats')?.children).toHaveLength(0);
+      (block.querySelector('.scribe-write-edit-header') as HTMLElement).click();
+      expect(block.querySelector('.scribe-write-edit-done-text')?.textContent).toBe('DONE');
+      expect(block.querySelectorAll('.scribe-diff-text')).toHaveLength(0);
     });
 
     it('should use correct icon for Edit tool', () => {
@@ -260,7 +260,7 @@ describe('WriteEditRenderer', () => {
 
       const block = renderStoredWriteEdit(parentEl, toolCall);
 
-      expect(setIcon).toHaveBeenCalledWith(block.querySelector('.claudian-write-edit-icon'), 'file-pen');
+      expect(setIcon).toHaveBeenCalledWith(block.querySelector('.scribe-write-edit-icon'), 'file-pen');
     });
 
     it('should start collapsed by default', () => {
@@ -268,11 +268,11 @@ describe('WriteEditRenderer', () => {
       const toolCall = createToolCall({ status: 'completed' });
 
       const block = renderStoredWriteEdit(parentEl, toolCall);
-      const headerEl = block.querySelector('.claudian-write-edit-header');
-      const contentEl = block.querySelector('.claudian-write-edit-content');
+      const headerEl = block.querySelector('.scribe-write-edit-header');
+      const contentEl = block.querySelector('.scribe-write-edit-content');
 
       expect(block.hasClass('expanded')).toBe(false);
-      expect(contentEl?.hasClass('claudian-hidden')).toBe(true);
+      expect(contentEl?.hasClass('scribe-hidden')).toBe(true);
       expect(headerEl?.getAttribute('aria-expanded')).toBe('false');
       expect(headerEl?.getAttribute('aria-label')).toContain('click to expand');
     });
@@ -282,11 +282,11 @@ describe('WriteEditRenderer', () => {
       const toolCall = createToolCall({ status: 'completed' });
 
       const block = renderStoredWriteEdit(parentEl, toolCall, { initiallyExpanded: true });
-      const headerEl = block.querySelector('.claudian-write-edit-header');
-      const contentEl = block.querySelector('.claudian-write-edit-content');
+      const headerEl = block.querySelector('.scribe-write-edit-header');
+      const contentEl = block.querySelector('.scribe-write-edit-content');
 
       expect(block.hasClass('expanded')).toBe(true);
-      expect(contentEl?.hasClass('claudian-hidden')).toBe(false);
+      expect(contentEl?.hasClass('scribe-hidden')).toBe(false);
       expect(headerEl?.getAttribute('aria-expanded')).toBe('true');
       expect(headerEl?.getAttribute('aria-label')).toContain('click to collapse');
     });
@@ -334,7 +334,7 @@ describe('WriteEditRenderer', () => {
 
       updateWriteEditWithDiff(state, diffData);
 
-      expect(Array.from(state.contentEl.querySelectorAll('.claudian-diff-text'), el => el.textContent))
+      expect(Array.from(state.contentEl.querySelectorAll('.scribe-diff-text'), el => el.textContent))
         .toEqual(['new content', 'line 2']);
 
       // Should show +2 for two new lines
@@ -357,7 +357,7 @@ describe('WriteEditRenderer', () => {
 
       updateWriteEditWithDiff(state, diffData);
 
-      expect(Array.from(state.contentEl.querySelectorAll('.claudian-diff-text'), el => el.textContent))
+      expect(Array.from(state.contentEl.querySelectorAll('.scribe-diff-text'), el => el.textContent))
         .toEqual(['content']);
 
       expect(state.diffLines).toBeDefined();
@@ -383,7 +383,7 @@ describe('WriteEditRenderer', () => {
 
       updateWriteEditWithDiff(state, diffData);
 
-      expect(Array.from(state.contentEl.querySelectorAll('.claudian-diff-text'), el => el.textContent))
+      expect(Array.from(state.contentEl.querySelectorAll('.scribe-diff-text'), el => el.textContent))
         .toEqual(['line1', 'old', 'new1', 'new2', 'line3']);
 
       expect(state.diffLines).toBeDefined();

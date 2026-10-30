@@ -1,13 +1,13 @@
 import '@/providers';
 
 import { TEST_CODEX_CATALOG } from '@test/helpers/codexModels';
-import { DEFAULT_CLAUDIAN_SETTINGS as DEFAULT_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS as DEFAULT_SETTINGS } from '@test/helpers/defaultSettings';
 import type { Mocked } from 'vitest';
 
 import {
-  CLAUDIAN_SETTINGS_PATH,
-  ClaudianSettingsStorage
-} from '@/app/settings/ClaudianSettingsStorage';
+  SCRIBE_SETTINGS_PATH,
+  ScribeSettingsStorage
+} from '@/app/settings/ScribeSettingsStorage';
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 import { getClaudeProviderSettings } from '@/providers/claude/settings';
 import {
@@ -37,8 +37,8 @@ vi.mock('@/core/device/InstallationKey', async () => ({
   getLegacyDeviceSettingsKey: () => mockGetLegacyDeviceSettingsKey(),
 }));
 
-describe('ClaudianSettingsStorage', () => {
-  let storage: ClaudianSettingsStorage;
+describe('ScribeSettingsStorage', () => {
+  let storage: ScribeSettingsStorage;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,7 +50,7 @@ describe('ClaudianSettingsStorage', () => {
     mockAdapter.delete.mockResolvedValue(undefined);
     mockGetHostnameKey.mockReturnValue('host-a');
     mockGetLegacyDeviceSettingsKey.mockReturnValue(null);
-    storage = new ClaudianSettingsStorage(mockAdapter, DEFAULT_SETTINGS);
+    storage = new ScribeSettingsStorage(mockAdapter, DEFAULT_SETTINGS);
   });
 
   afterEach(() => {
@@ -101,7 +101,7 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('ignores retired .claude settings without modifying them', async () => {
-      mockAdapter.exists.mockImplementation(async path => path === '.claude/claudian-settings.json');
+      mockAdapter.exists.mockImplementation(async path => path === '.claude/scribe-settings.json');
       mockAdapter.read.mockResolvedValue(JSON.stringify({ userName: 'Retired' }));
       expect((await storage.load()).userName).toBe(DEFAULT_SETTINGS.userName);
       expect(mockAdapter.read).not.toHaveBeenCalled();
@@ -892,7 +892,7 @@ describe('ClaudianSettingsStorage', () => {
       await storage.save(settings);
 
       expect(mockAdapter.write).toHaveBeenCalledWith(
-        CLAUDIAN_SETTINGS_PATH,
+        SCRIBE_SETTINGS_PATH,
         expect.any(String)
       );
       const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
@@ -975,7 +975,7 @@ function createAdapter(
 ): Mocked<VaultFileAdapter> {
   return {
     exists: vi.fn().mockImplementation(async (path: string) => (
-      path === CLAUDIAN_SETTINGS_PATH
+      path === SCRIBE_SETTINGS_PATH
     )),
     read: vi.fn().mockResolvedValue(JSON.stringify(stored)),
     write: vi.fn().mockResolvedValue(undefined),
@@ -983,7 +983,7 @@ function createAdapter(
   } as unknown as Mocked<VaultFileAdapter>;
 }
 
-describe('ClaudianSettingsStorage Linked content migration', () => {
+describe('ScribeSettingsStorage Linked content migration', () => {
   it('imports legacy organization and pinned paths before defaults and awaits canonical persistence', async () => {
     const adapter = createAdapter({
       sessionManagerOrganization: 'linked-note',
@@ -1003,7 +1003,7 @@ describe('ClaudianSettingsStorage Linked content migration', () => {
       signalWriteStarted();
       releaseWrite = resolve;
     }));
-    const storage = new ClaudianSettingsStorage(adapter, DEFAULT_SETTINGS);
+    const storage = new ScribeSettingsStorage(adapter, DEFAULT_SETTINGS);
 
     let resolved = false;
     const load = storage.load().then((settings) => {
@@ -1037,7 +1037,7 @@ describe('ClaudianSettingsStorage Linked content migration', () => {
       pinnedLinkedContentPaths: [],
       pinnedLinkedNotePaths: ['Notes/Legacy.md'],
     });
-    const storage = new ClaudianSettingsStorage(adapter, DEFAULT_SETTINGS);
+    const storage = new ScribeSettingsStorage(adapter, DEFAULT_SETTINGS);
 
     const settings = await storage.load();
 
@@ -1057,7 +1057,7 @@ describe('ClaudianSettingsStorage Linked content migration', () => {
       ],
       pinnedLinkedNotePaths: ['Notes/Legacy.md'],
     });
-    const storage = new ClaudianSettingsStorage(adapter, DEFAULT_SETTINGS);
+    const storage = new ScribeSettingsStorage(adapter, DEFAULT_SETTINGS);
 
     const settings = await storage.load();
 
@@ -1069,7 +1069,7 @@ describe('ClaudianSettingsStorage Linked content migration', () => {
 
   it('omits legacy pinned paths from future writes', async () => {
     const adapter = createAdapter({});
-    const storage = new ClaudianSettingsStorage(adapter, DEFAULT_SETTINGS);
+    const storage = new ScribeSettingsStorage(adapter, DEFAULT_SETTINGS);
 
     await storage.save({
       ...await storage.load(),
@@ -1083,11 +1083,11 @@ describe('ClaudianSettingsStorage Linked content migration', () => {
   });
 });
 
-describe('ClaudianSettingsStorage project settings', () => {
+describe('ScribeSettingsStorage project settings', () => {
   it('replaces the retired projects organization with the default', async () => {
     const adapter = createAdapter({ sessionManagerOrganization: 'projects' });
 
-    const settings = await new ClaudianSettingsStorage(adapter, DEFAULT_SETTINGS).load();
+    const settings = await new ScribeSettingsStorage(adapter, DEFAULT_SETTINGS).load();
 
     expect(settings.sessionManagerOrganization).toBe('list');
     const written = JSON.parse(adapter.write.mock.calls.at(-1)![1]);

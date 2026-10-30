@@ -378,11 +378,11 @@ class FakeNativeConnection implements GrokExecutionNativeConnection {
 describe('GrokExecutionBackend', () => {
   function sessionToolFixture() {
     const dispose = vi.fn();
-    const route = { url: 'http://127.0.0.1:1234/mcp', routeId: 'private-route', headers: { 'X-Claudian-Route': 'private-route' }, dispose };
+    const route = { url: 'http://127.0.0.1:1234/mcp', routeId: 'private-route', headers: { 'X-Scribe-Route': 'private-route' }, dispose };
     const registerMCPRoute = vi.fn(async (_handler: SessionToolCallHandler) => route);
     const host = { ...createGrokHost(), sessionToolEndpoint: { registerMCPRoute, registerCallRoute: vi.fn() } };
     const port = { list: vi.fn(async (_args: SessionToolListDestinationsArgs, _signal: AbortSignal) => ({ sessions: [] })), send: vi.fn(async () => ({ sessionId: 'recipient', title: 'Review', provider: 'codex', status: 'queued' as const })), read: vi.fn() };
-    const servers = [{ type: 'http', name: 'claudian_sessions', url: route.url, headers: [{ name: 'X-Claudian-Route', value: route.routeId }] }];
+    const servers = [{ type: 'http', name: 'scribe_sessions', url: route.url, headers: [{ name: 'X-Scribe-Route', value: route.routeId }] }];
     return { host, port, route, registerMCPRoute, servers };
   }
 
@@ -460,13 +460,13 @@ describe('GrokExecutionBackend', () => {
       while (native.promptRequests.length < 2) await Promise.resolve();
       expect(fixture.registerMCPRoute).toHaveBeenCalledTimes(1);
       const handler = fixture.registerMCPRoute.mock.calls[0][0];
-      const result = await handler({ name: 'claudian_send_message', args: { text: 'hello' }, signal: new AbortController().signal });
+      const result = await handler({ name: 'scribe_send_message', args: { text: 'hello' }, signal: new AbortController().signal });
       const allowed = kind === 'provider-default' || kind === 'unrestricted';
       expect(result.isError).toBe(!allowed);
       expect(fixture.port.send).toHaveBeenCalledTimes(allowed ? 1 : 0);
       expect(result.text).toEqual(allowed
         ? JSON.stringify({ sessionId: 'recipient', title: 'Review', provider: 'codex', status: 'queued' })
-        : 'Session tools are only available in Claudian main chat sessions with the default tool policy.');
+        : 'Session tools are only available in Scribe main chat sessions with the default tool policy.');
       await session.dispose();
       await collect(run.events);
     },
@@ -488,7 +488,7 @@ describe('GrokExecutionBackend', () => {
       fixture.port.list.mockImplementation((_args, signal) => new Promise((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
       }));
-      const call = handler({ name: 'claudian_list_destinations', args: {}, signal: nativeCancel.signal });
+      const call = handler({ name: 'scribe_list_destinations', args: {}, signal: nativeCancel.signal });
       const owningSignal = fixture.port.list.mock.calls[0][1];
       expect(owningSignal.aborted).toBe(false);
       if (ending === 'native-cancel') nativeCancel.abort();
@@ -503,7 +503,7 @@ describe('GrokExecutionBackend', () => {
         await session.dispose();
         await collect(run.events);
       }
-      expect((await handler({ name: 'claudian_list_destinations', args: {}, signal: new AbortController().signal })).isError).toBe(true);
+      expect((await handler({ name: 'scribe_list_destinations', args: {}, signal: new AbortController().signal })).isError).toBe(true);
       expect(fixture.port.list).toHaveBeenCalledTimes(1);
       if (ending === 'complete') {
         await collect(session.execute(executionRequest('next run')).events);
@@ -526,7 +526,7 @@ describe('GrokExecutionBackend', () => {
     const request = {
       sessionId: 'session-existing',
       options: [{ kind: 'allow_once' as const, name: 'Allow', optionId: 'allow-once' }],
-      toolCall: { toolCallId: 'session-tool', title: 'use_tool', rawInput: { tool_name: 'claudian_sessions__claudian_send_message', tool_input: { text: 'hello' } } },
+      toolCall: { toolCallId: 'session-tool', title: 'use_tool', rawInput: { tool_name: 'scribe_sessions__scribe_send_message', tool_input: { text: 'hello' } } },
     };
     await expect(options.requestPermission(request)).resolves.toEqual({ outcome: { outcome: 'selected', optionId: 'allow-once' } });
     expect(interactionPort.requestApproval).not.toHaveBeenCalled();
@@ -1949,9 +1949,9 @@ describe('GrokExecutionBackend', () => {
     },
     {
       rawName: 'use_tool',
-      rawInput: { tool_name: 'claudian_sessions__claudian_send_message', tool_input: { text: 'hello' } },
-      rawOutput: { type: 'MCP', server_name: 'claudian_sessions', tool_name: 'claudian_send_message', output: { OkayOutput: 'queued' } },
-      name: 'claudian_send_message', input: { text: 'hello' },
+      rawInput: { tool_name: 'scribe_sessions__scribe_send_message', tool_input: { text: 'hello' } },
+      rawOutput: { type: 'MCP', server_name: 'scribe_sessions', tool_name: 'scribe_send_message', output: { OkayOutput: 'queued' } },
+      name: 'scribe_send_message', input: { text: 'hello' },
     },
   ])('normalizes live $rawName names, inputs, results, and provider payloads like replay', async ({ rawName, rawInput, rawOutput, name, input }) => {
     const native = new FakeNativeConnection();
@@ -2979,7 +2979,7 @@ describe('GrokExecutionBackend', () => {
     await collect(run.events);
   });
 
-  it.each(['read_file', 'claudian_send_message'])('fails closed before native startup for allow-list containing %s', async name => {
+  it.each(['read_file', 'scribe_send_message'])('fails closed before native startup for allow-list containing %s', async name => {
     const fixture = sessionToolFixture();
     const nativeFactory: GrokExecutionNativeFactory = {
       create: vi.fn(() => new FakeNativeConnection()),

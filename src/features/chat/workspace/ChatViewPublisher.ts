@@ -1,6 +1,8 @@
 import type { ProviderId } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import type { ChatViewHost } from '@/features/chat/ChatFeatureHost';
+import { setLocale } from '@/i18n/i18n';
+import type { Locale } from '@/i18n/types';
 
 export interface ChatViewPublisherDeps {
   readonly views: { getAllViews(): readonly ChatViewHost[] };
@@ -17,7 +19,7 @@ export class ChatViewPublisher {
    * Refreshes chat presentation after a settings commit. Every refresh is attempted; failures
    * are reported together and never roll the committed settings back.
    */
-  publishSettings(settings: Readonly<ClaudianSettings>, previous: Readonly<ClaudianSettings>): void {
+  publishSettings(settings: Readonly<ScribeSettings>, previous: Readonly<ScribeSettings>): void {
     const errors: unknown[] = [];
     const publish = (refresh: () => void): void => {
       try { refresh(); } catch (error) { errors.push(error); }
@@ -26,13 +28,16 @@ export class ChatViewPublisher {
     const layoutChanged = settings.enableDualPane !== previous.enableDualPane || settings.dualPaneSide !== previous.dualPaneSide;
     const commandsChanged = JSON.stringify(settings.hiddenCommands) !== JSON.stringify(previous.hiddenCommands);
     const contextChanged = JSON.stringify(settings.customContextLimits) !== JSON.stringify(previous.customContextLimits);
+    const localeChanged = settings.locale !== previous.locale;
+    if (localeChanged) setLocale(settings.locale as Locale);
     const sessionsChanged = settings.enableAutoTitleGeneration !== previous.enableAutoTitleGeneration
       || settings.sessionManagerOrganization !== previous.sessionManagerOrganization
       || settings.sessionManagerSort !== previous.sessionManagerSort
       || JSON.stringify(settings.projectOrder) !== JSON.stringify(previous.projectOrder)
       || JSON.stringify(settings.expandedProjectIds) !== JSON.stringify(previous.expandedProjectIds);
-    if (timestampsChanged || layoutChanged || commandsChanged || contextChanged || sessionsChanged) {
+    if (timestampsChanged || layoutChanged || commandsChanged || contextChanged || sessionsChanged || localeChanged) {
       for (const view of this.deps.views.getAllViews()) {
+        if (localeChanged) publish(() => view.refreshLocale());
         if (timestampsChanged) publish(() => view.refreshMessageTimestamps());
         if (layoutChanged) publish(() => view.refreshDualPaneLayout());
         if (commandsChanged) publish(() => view.updateHiddenCommands());

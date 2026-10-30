@@ -32,32 +32,32 @@ export function getCurrentTaskText(input: Record<string, unknown>): string {
 export function setTodoWriteStatus(statusEl: HTMLElement, input: Record<string, unknown>): void {
   const isComplete = getTodos(input)?.every(t => t.status === 'completed') ?? false;
   if (isComplete) {
-    setToolStatus(statusEl, 'completed', 'claudian-tool-status');
+    setToolStatus(statusEl, 'completed', 'scribe-tool-status');
   } else {
-    setToolStatus(statusEl, 'running', 'claudian-tool-status', t('chat.tools.inProgress'));
+    setToolStatus(statusEl, 'running', 'scribe-tool-status', t('chat.tools.inProgress'));
   }
 }
 
 export function renderTodoWriteContent(container: HTMLElement, input: Record<string, unknown>): void {
   container.empty();
-  container.addClass('claudian-tool-content-todo');
-  container.addClass('claudian-todo-list-container');
+  container.addClass('scribe-tool-content-todo');
+  container.addClass('scribe-todo-list-container');
 
   const todos = getTodos(input);
   if (!todos) {
-    const item = container.createSpan({ cls: 'claudian-tool-result-item' });
+    const item = container.createSpan({ cls: 'scribe-tool-result-item' });
     item.setText(t('chat.tools.tasksUpdated'));
     return;
   }
 
   for (const todo of todos) {
-    const item = container.createDiv({ cls: `claudian-todo-item claudian-todo-${todo.status}` });
+    const item = container.createDiv({ cls: `scribe-todo-item scribe-todo-${todo.status}` });
 
-    const icon = item.createSpan({ cls: 'claudian-todo-status-icon' });
+    const icon = item.createSpan({ cls: 'scribe-todo-status-icon' });
     icon.setAttribute('aria-hidden', 'true');
     setIcon(icon, todo.status === 'completed' ? 'check' : 'dot');
 
-    const text = item.createSpan({ cls: 'claudian-todo-text' });
+    const text = item.createSpan({ cls: 'scribe-todo-text' });
     text.setText(todo.status === 'in_progress' ? todo.activeForm : todo.content);
   }
 }

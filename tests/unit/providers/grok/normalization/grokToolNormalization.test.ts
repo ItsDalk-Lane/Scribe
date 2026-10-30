@@ -6,17 +6,17 @@ import {
 } from '@/providers/grok/normalization/grokToolNormalization';
 
 describe('grokToolNormalization', () => {
-  it.each(['claudian_list_destinations', 'claudian_send_message'])('normalizes session tool %s in live and replay shapes', name => {
-    const key = `claudian_sessions__${name}`;
+  it.each(['scribe_list_destinations', 'scribe_send_message'])('normalizes session tool %s in live and replay shapes', name => {
+    const key = `scribe_sessions__${name}`;
     const rawInput = { tool_name: key, tool_input: { text: 'hello' } };
     for (const title of ['use_tool', key]) {
       expect(normalizeGrokToolCall({ title, rawInput })).toMatchObject({
         name, input: { text: 'hello' }, rawName: title, rawInput,
       });
     }
-    expect(normalizeGrokToolName('other', undefined, { type: 'MCP', server_name: 'claudian_sessions', tool_name: name })).toBe(name);
+    expect(normalizeGrokToolName('other', undefined, { type: 'MCP', server_name: 'scribe_sessions', tool_name: name })).toBe(name);
     expect(normalizeGrokToolName('use_tool', { tool_name: `other__${name}` })).toBe(`mcp__other__${name}`);
-    expect(normalizeGrokToolName('use_tool', { tool_name: 'claudian_sessions__unknown' })).toBe('mcp__claudian_sessions__unknown');
+    expect(normalizeGrokToolName('use_tool', { tool_name: 'scribe_sessions__unknown' })).toBe('mcp__scribe_sessions__unknown');
   });
 
   it('keeps unknown tool results printable when they contain a circular record', () => {

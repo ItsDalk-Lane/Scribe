@@ -10,12 +10,12 @@ export interface ComposerSessionMention {
 
 export function formatComposerSessionMention(title: string, conversationId: string): string {
   const escaped = title.replace(/\r\n|[\r\n]/g, ' ').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
-  return `@[${escaped}](claudian-session:${conversationId}) `;
+  return `@[${escaped}](scribe-session:${conversationId}) `;
 }
 
 export function findComposerSessionMentions(text: string): ComposerSessionMention[] {
   if (!text.includes('@[')) return [];
-  const pattern = /@\[((?:\\[\\\]]|[^\]\\\r\n])*)\]\(claudian-session:([^)\r\n]+)\)/g;
+  const pattern = /@\[((?:\\[\\\]]|[^\]\\\r\n])*)\]\(scribe-session:([^)\r\n]+)\)/g;
   return filterMarkdownTextTokens(text, [...text.matchAll(pattern)]
     .filter(match => isValidSessionMetadataId(match[2]))
     .map(match => ({

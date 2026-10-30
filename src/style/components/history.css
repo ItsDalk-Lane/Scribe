@@ -1,5 +1,5 @@
-.claudian-history-container,
-.claudian-nav-dropup-container {
+.scribe-history-container,
+.scribe-nav-dropup-container {
   position: static;
 }
 
@@ -9,25 +9,25 @@
  * boxes whose inline end is the inset, so they line up with the section header buttons.
  * The compact drop-up shares it for its section headers and project rows.
  */
-.claudian-session-sidebar,
-.claudian-history-menu {
-  --claudian-session-icon-size: 14px;
-  --claudian-session-icon-gap: 8px;
-  --claudian-session-action-size: 24px;
-  --claudian-session-action-gap: 4px;
-  --claudian-session-inline-inset: 12px;
+.scribe-session-sidebar,
+.scribe-history-menu {
+  --scribe-session-icon-size: 14px;
+  --scribe-session-icon-gap: 8px;
+  --scribe-session-action-size: 24px;
+  --scribe-session-action-gap: 4px;
+  --scribe-session-inline-inset: 12px;
 }
 
-.claudian-session-sidebar {
+.scribe-session-sidebar {
   display: none;
-  flex: 0 0 var(--claudian-session-sidebar-width, 240px);
+  flex: 0 0 var(--scribe-session-sidebar-width, 240px);
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.claudian-session-resizer {
+.scribe-session-resizer {
   position: relative;
   display: none;
   flex: 0 0 5px;
@@ -35,7 +35,7 @@
   touch-action: none;
 }
 
-.claudian-session-resizer::after {
+.scribe-session-resizer::after {
   position: absolute;
   inset-block: 0;
   inset-inline-start: 2px;
@@ -45,31 +45,31 @@
   transition: background 0.15s ease;
 }
 
-.claudian-session-resizer:hover::after,
-.claudian-session-resizer:focus-visible::after,
-.claudian-resizing-session-sidebar .claudian-session-resizer::after {
+.scribe-session-resizer:hover::after,
+.scribe-session-resizer:focus-visible::after,
+.scribe-resizing-session-sidebar .scribe-session-resizer::after {
   background: var(--interactive-accent);
 }
 
-.claudian-resizing-session-sidebar,
-.claudian-resizing-session-sidebar * {
+.scribe-resizing-session-sidebar,
+.scribe-resizing-session-sidebar * {
   cursor: col-resize;
   user-select: none;
 }
 
-.claudian-wide-session-layout .claudian-session-sidebar {
+.scribe-wide-session-layout .scribe-session-sidebar {
   display: flex;
 }
 
-.claudian-wide-session-layout .claudian-session-resizer {
+.scribe-wide-session-layout .scribe-session-resizer {
   display: block;
 }
 
-.claudian-wide-session-layout .claudian-view-input-nav-row {
+.scribe-wide-session-layout .scribe-view-input-nav-row {
   display: none;
 }
 
-.claudian-sidebar-surface-track {
+.scribe-sidebar-surface-track {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -78,7 +78,7 @@
   scrollbar-width: none;
 }
 
-.claudian-session-surface {
+.scribe-session-surface {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -87,15 +87,15 @@
   overflow: hidden;
 }
 
-.claudian-session-new-control,
-.claudian-session-search-control,
-.claudian-session-archive-control {
+.scribe-session-new-control,
+.scribe-session-search-control,
+.scribe-session-archive-control {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
   margin: 1px 0;
-  padding: 8px var(--claudian-session-inline-inset);
+  padding: 8px var(--scribe-session-inline-inset);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 500;
@@ -104,32 +104,32 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.claudian-session-new-control:hover,
-.claudian-session-new-control:focus-visible,
-.claudian-session-search-control:hover,
-.claudian-session-search-control:focus-visible,
-.claudian-session-archive-control:hover,
-.claudian-session-archive-control:focus-visible {
+.scribe-session-new-control:hover,
+.scribe-session-new-control:focus-visible,
+.scribe-session-search-control:hover,
+.scribe-session-search-control:focus-visible,
+.scribe-session-archive-control:hover,
+.scribe-session-archive-control:focus-visible {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.claudian-session-search-field {
+.scribe-session-search-field {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
   margin: 1px 0;
-  padding: 6px var(--claudian-session-inline-inset);
+  padding: 6px var(--scribe-session-inline-inset);
   border-radius: 6px;
   color: var(--text-muted);
 }
 
-.claudian-session-archive-control {
+.scribe-session-archive-control {
   margin-bottom: 12px;
 }
 
-.claudian-session-search-input {
+.scribe-session-search-input {
   flex: 1 1 auto;
   min-width: 0;
   padding: 0;
@@ -141,53 +141,53 @@
   box-shadow: none;
 }
 
-.claudian-session-search-input:hover,
-.claudian-session-search-input:focus {
+.scribe-session-search-input:hover,
+.scribe-session-search-input:focus {
   border: 0;
   background: transparent;
   box-shadow: none;
   outline: none;
 }
 
-.claudian-session-search-input::-webkit-search-cancel-button {
+.scribe-session-search-input::-webkit-search-cancel-button {
   display: none;
 }
 
-.claudian-session-new-icon,
-.claudian-session-nav-icon {
+.scribe-session-new-icon,
+.scribe-session-nav-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 var(--claudian-session-icon-size, 16px);
+  flex: 0 0 var(--scribe-session-icon-size, 16px);
 }
 
-.claudian-session-new-icon svg,
-.claudian-session-nav-icon svg {
-  width: var(--claudian-session-icon-size, 16px);
-  height: var(--claudian-session-icon-size, 16px);
+.scribe-session-new-icon svg,
+.scribe-session-nav-icon svg {
+  width: var(--scribe-session-icon-size, 16px);
+  height: var(--scribe-session-icon-size, 16px);
 }
 
-.claudian-session-sidebar .claudian-history-header,
-.claudian-history-menu .claudian-session-section-header {
+.scribe-session-sidebar .scribe-history-header,
+.scribe-history-menu .scribe-session-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
-  padding-inline: var(--claudian-session-inline-inset);
+  padding-inline: var(--scribe-session-inline-inset);
   border-bottom: none;
 }
 
-.claudian-session-sidebar .claudian-history-section--sessions:not(:first-child) {
+.scribe-session-sidebar .scribe-history-section--sessions:not(:first-child) {
   margin-top: 4px;
 }
 
-.claudian-session-sidebar .claudian-session-section-header {
+.scribe-session-sidebar .scribe-session-section-header {
   flex-shrink: 0;
   min-height: 40px;
 }
 
-.claudian-history-menu .claudian-session-section-header {
+.scribe-history-menu .scribe-session-section-header {
   min-height: 32px;
   padding-block: 0;
 }
@@ -197,19 +197,19 @@
  * restores button chrome on these states, so the reset covers them; each control sets its
  * own box below.
  */
-:is(.claudian-session-sidebar, .claudian-history-menu) :is(
-  .claudian-history-section-toggle,
-  .claudian-session-header-btn,
-  .claudian-session-group-toggle,
-  .claudian-session-group-menu-action,
-  .claudian-session-group-new-action
+:is(.scribe-session-sidebar, .scribe-history-menu) :is(
+  .scribe-history-section-toggle,
+  .scribe-session-header-btn,
+  .scribe-session-group-toggle,
+  .scribe-session-group-menu-action,
+  .scribe-session-group-new-action
 ),
-:is(.claudian-session-sidebar, .claudian-history-menu) :is(
-  .claudian-history-section-toggle,
-  .claudian-session-header-btn,
-  .claudian-session-group-toggle,
-  .claudian-session-group-menu-action,
-  .claudian-session-group-new-action
+:is(.scribe-session-sidebar, .scribe-history-menu) :is(
+  .scribe-history-section-toggle,
+  .scribe-session-header-btn,
+  .scribe-session-group-toggle,
+  .scribe-session-group-menu-action,
+  .scribe-session-group-new-action
 ):is(:hover, :focus, :focus-visible, :active, .mobile-tap) {
   appearance: none;
   border: 0;
@@ -218,19 +218,19 @@
   cursor: pointer;
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) :is(
-  .claudian-history-section-toggle,
-  .claudian-session-header-btn,
-  .claudian-session-group-toggle,
-  .claudian-session-group-menu-action,
-  .claudian-session-group-new-action
+:is(.scribe-session-sidebar, .scribe-history-menu) :is(
+  .scribe-history-section-toggle,
+  .scribe-session-header-btn,
+  .scribe-session-group-toggle,
+  .scribe-session-group-menu-action,
+  .scribe-session-group-new-action
 ):focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 1px;
 }
 
 /* A section header's label is a native toggle that collapses the section. */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-history-section-toggle {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-history-section-toggle {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
@@ -248,45 +248,45 @@
   text-transform: inherit;
 }
 
-.claudian-session-header-actions {
+.scribe-session-header-actions {
   display: flex;
   align-items: center;
-  gap: var(--claudian-session-action-gap);
+  gap: var(--scribe-session-action-gap);
   margin-inline-start: auto;
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-header-btn {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-header-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--claudian-session-action-size);
-  height: var(--claudian-session-action-size);
+  width: var(--scribe-session-action-size);
+  height: var(--scribe-session-action-size);
   margin: 0;
   padding: 0;
   border-radius: 4px;
 }
 
-.claudian-session-header-icon {
+.scribe-session-header-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--claudian-session-action-size);
-  height: var(--claudian-session-action-size);
+  width: var(--scribe-session-action-size);
+  height: var(--scribe-session-action-size);
   color: var(--text-faint);
   transition: color 0.15s ease;
 }
 
-.claudian-session-header-btn:hover .claudian-session-header-icon,
-.claudian-session-header-btn:focus-visible .claudian-session-header-icon {
+.scribe-session-header-btn:hover .scribe-session-header-icon,
+.scribe-session-header-btn:focus-visible .scribe-session-header-icon {
   color: var(--text-normal);
 }
 
-.claudian-session-header-icon svg {
-  width: var(--claudian-session-icon-size);
-  height: var(--claudian-session-icon-size);
+.scribe-session-header-icon svg {
+  width: var(--scribe-session-icon-size);
+  height: var(--scribe-session-icon-size);
 }
 
-.claudian-session-sidebar .claudian-history-list {
+.scribe-session-sidebar .scribe-history-list {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -295,7 +295,7 @@
   overflow: hidden;
 }
 
-.claudian-session-sidebar .claudian-history-section--pinned {
+.scribe-session-sidebar .scribe-history-section--pinned {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
@@ -303,8 +303,8 @@
   min-height: 0;
 }
 
-.claudian-session-sidebar .claudian-history-section--pinned
-  .claudian-history-section-items {
+.scribe-session-sidebar .scribe-history-section--pinned
+  .scribe-history-section-items {
   min-height: 0;
   overflow-y: auto;
   overflow-anchor: none;
@@ -315,43 +315,43 @@
  * drop target. The highlight paints only background and an inset ring, so hovering never
  * changes layout.
  */
-.claudian-session-sidebar .claudian-session-pinned-drop-zone {
+.scribe-session-sidebar .scribe-session-pinned-drop-zone {
   flex: 0 0 auto;
 }
 
-.claudian-session-sidebar .claudian-session-pinned-drop-zone[hidden] {
+.scribe-session-sidebar .scribe-session-pinned-drop-zone[hidden] {
   display: none;
 }
 
 /* One ring per destination, on its header: a project's row, or the Pinned/Sessions header. */
-.claudian-session-sidebar .claudian-session-group-header.claudian-session-drop-target--active,
-.claudian-session-sidebar .claudian-session-drop-target--active > .claudian-session-section-header {
+.scribe-session-sidebar .scribe-session-group-header.scribe-session-drop-target--active,
+.scribe-session-sidebar .scribe-session-drop-target--active > .scribe-session-section-header {
   border-radius: var(--radius-s);
   background: var(--background-modifier-hover);
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
 /* A lifted project keeps its own hovered look. */
-.claudian-session-sidebar .claudian-live-sorting > .claudian-session-group-header.claudian-live-sort-lifted {
+.scribe-session-sidebar .scribe-live-sorting > .scribe-session-group-header.scribe-live-sort-lifted {
   background: var(--background-modifier-hover);
 }
 
-.claudian-session-sidebar .claudian-history-section--sessions,
-.claudian-session-sidebar .claudian-history-section--archived {
+.scribe-session-sidebar .scribe-history-section--sessions,
+.scribe-session-sidebar .scribe-history-section--archived {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
 }
 
-.claudian-session-sidebar .claudian-session-list-items {
+.scribe-session-sidebar .scribe-session-list-items {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-anchor: none;
 }
 
-.claudian-session-group-header {
+.scribe-session-group-header {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -364,24 +364,24 @@
   border-radius: 6px;
 }
 
-.claudian-session-group-header:hover,
-.claudian-session-group-header:focus-visible {
+.scribe-session-group-header:hover,
+.scribe-session-group-header:focus-visible {
   background: var(--background-modifier-hover);
 }
 
-.claudian-session-group-icon {
+.scribe-session-group-icon {
   display: flex;
   flex: 0 0 14px;
   align-items: center;
   justify-content: center;
 }
 
-.claudian-session-group-icon svg {
+.scribe-session-group-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-session-group-label {
+.scribe-session-group-label {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -389,19 +389,19 @@
   white-space: nowrap;
 }
 
-.claudian-session-group-header--attention .claudian-session-group-label {
+.scribe-session-group-header--attention .scribe-session-group-label {
   color: var(--text-normal);
   animation: attention-title-pulse 1.6s ease-in-out infinite;
 }
 
-.claudian-session-group-status {
+.scribe-session-group-status {
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 400;
 }
 
-.claudian-session-group-running-indicator,
-.claudian-session-running-indicator {
+.scribe-session-group-running-indicator,
+.scribe-session-running-indicator {
   display: none;
   flex: 0 0 14px;
   align-items: center;
@@ -409,20 +409,20 @@
   color: var(--interactive-accent);
 }
 
-.claudian-session-group-running-indicator--visible,
-.claudian-session-running-indicator {
+.scribe-session-group-running-indicator--visible,
+.scribe-session-running-indicator {
   display: flex;
 }
 
-.claudian-session-group-running-indicator svg,
-.claudian-session-running-indicator svg {
+.scribe-session-group-running-indicator svg,
+.scribe-session-running-indicator svg {
   width: 14px;
   height: 14px;
-  animation: claudian-spin 1s linear infinite;
+  animation: scribe-spin 1s linear infinite;
   stroke-width: 2.5;
 }
 
-.claudian-session-status-indicator {
+.scribe-session-status-indicator {
   display: flex;
   flex: 0 0 14px;
   width: 14px;
@@ -431,35 +431,35 @@
   justify-content: center;
 }
 
-.claudian-session-group-status-indicator {
+.scribe-session-group-status-indicator {
   display: none;
 }
 
-.claudian-session-group-status-indicator--visible {
+.scribe-session-group-status-indicator--visible {
   display: flex;
 }
 
-.claudian-session-status-indicator svg {
+.scribe-session-status-indicator svg {
   width: 14px;
   height: 14px;
   stroke-width: 2.5;
 }
 
-.claudian-session-status-indicator--action-required {
+.scribe-session-status-indicator--action-required {
   color: var(--color-orange);
 }
 
-.claudian-session-status-indicator--error {
+.scribe-session-status-indicator--error {
   color: var(--text-error);
 }
 
 /* Pulses with the title it marks, in the same color. */
-.claudian-session-status-indicator--unread {
+.scribe-session-status-indicator--unread {
   color: var(--text-normal);
   animation: attention-title-pulse 1.6s ease-in-out infinite;
 }
 
-.claudian-session-status-indicator--unread::before {
+.scribe-session-status-indicator--unread::before {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -467,13 +467,13 @@
   content: "";
 }
 
-.claudian-session-group-body--collapsed {
+.scribe-session-group-body--collapsed {
   display: none;
 }
 
-.claudian-session-group-header--missing .claudian-session-group-icon,
-.claudian-session-group-header--missing .claudian-session-group-label,
-.claudian-session-group-header--missing .claudian-session-group-status {
+.scribe-session-group-header--missing .scribe-session-group-icon,
+.scribe-session-group-header--missing .scribe-session-group-label,
+.scribe-session-group-header--missing .scribe-session-group-status {
   color: var(--text-error);
 }
 
@@ -481,22 +481,22 @@
  * Sidebar and drop-up group rows (projects, linked content, unlinked, missing). Leading icons take
  * the icon slot; the gap between trailing controls matches the section header actions.
  */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header {
-  gap: var(--claudian-session-action-gap);
-  padding-inline: var(--claudian-session-inline-inset);
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header {
+  gap: var(--scribe-session-action-gap);
+  padding-inline: var(--scribe-session-inline-inset);
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-icon {
-  flex-basis: var(--claudian-session-icon-size);
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-icon {
+  flex-basis: var(--scribe-session-icon-size);
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header > .claudian-session-group-icon {
-  margin-inline-end: calc(var(--claudian-session-icon-gap) - var(--claudian-session-action-gap));
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header > .scribe-session-group-icon {
+  margin-inline-end: calc(var(--scribe-session-icon-gap) - var(--scribe-session-action-gap));
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-icon svg {
-  width: var(--claudian-session-icon-size);
-  height: var(--claudian-session-icon-size);
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-icon svg {
+  width: var(--scribe-session-icon-size);
+  height: var(--scribe-session-icon-size);
 }
 
 /*
@@ -504,13 +504,13 @@
  * stay focusable, so revealing them never reflows the row; the negative block margin
  * keeps a 24px box from growing a 17px-line row.
  */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header :is(.claudian-session-group-menu-action, .claudian-session-group-new-action) {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header :is(.scribe-session-group-menu-action, .scribe-session-group-new-action) {
   display: flex;
-  flex: 0 0 var(--claudian-session-action-size);
+  flex: 0 0 var(--scribe-session-action-size);
   align-items: center;
   justify-content: center;
-  width: var(--claudian-session-action-size);
-  height: var(--claudian-session-action-size);
+  width: var(--scribe-session-action-size);
+  height: var(--scribe-session-action-size);
   margin: -4px 0;
   padding: 0;
   border-radius: 4px;
@@ -519,61 +519,61 @@
   transition: color 0.15s ease;
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header:is(:hover, :focus-within) :is(.claudian-session-group-menu-action, .claudian-session-group-new-action) {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header:is(:hover, :focus-within) :is(.scribe-session-group-menu-action, .scribe-session-group-new-action) {
   opacity: 1;
 }
 
 /* A collapsed group's status indicator holds the far end; its row's actions reveal to its left. */
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header > :is(.claudian-session-group-running-indicator, .claudian-session-group-status-indicator) {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header > :is(.scribe-session-group-running-indicator, .scribe-session-group-status-indicator) {
   order: 1;
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header :is(.claudian-session-group-menu-action, .claudian-session-group-new-action):is(:hover, :focus-visible) {
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header :is(.scribe-session-group-menu-action, .scribe-session-group-new-action):is(:hover, :focus-visible) {
   color: var(--text-normal);
 }
 
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header :is(.claudian-session-group-menu-action, .claudian-session-group-new-action) svg {
-  width: var(--claudian-session-icon-size);
-  height: var(--claudian-session-icon-size);
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header :is(.scribe-session-group-menu-action, .scribe-session-group-new-action) svg {
+  width: var(--scribe-session-icon-size);
+  height: var(--scribe-session-icon-size);
   color: inherit;
   transition: none;
 }
 
 /* Status indicators take a trailing action slot, so they share the header button column. */
-.claudian-session-sidebar :is(
-  .claudian-session-status-indicator,
-  .claudian-session-running-indicator,
-  .claudian-session-group-running-indicator
+.scribe-session-sidebar :is(
+  .scribe-session-status-indicator,
+  .scribe-session-running-indicator,
+  .scribe-session-group-running-indicator
 ) {
-  flex: 0 0 var(--claudian-session-action-size);
-  width: var(--claudian-session-action-size);
-  height: var(--claudian-session-action-size);
+  flex: 0 0 var(--scribe-session-action-size);
+  width: var(--scribe-session-action-size);
+  height: var(--scribe-session-action-size);
   margin: -4px 0;
 }
 
-.claudian-session-sidebar :is(
-  .claudian-session-status-indicator,
-  .claudian-session-running-indicator,
-  .claudian-session-group-running-indicator
+.scribe-session-sidebar :is(
+  .scribe-session-status-indicator,
+  .scribe-session-running-indicator,
+  .scribe-session-group-running-indicator
 ) svg {
-  width: var(--claudian-session-icon-size);
-  height: var(--claudian-session-icon-size);
+  width: var(--scribe-session-icon-size);
+  height: var(--scribe-session-icon-size);
   stroke-width: 2;
 }
 
-.claudian-session-sidebar .claudian-history-item {
+.scribe-session-sidebar .scribe-history-item {
   position: relative;
-  gap: var(--claudian-session-action-gap);
-  padding-inline: var(--claudian-session-inline-inset);
+  gap: var(--scribe-session-action-gap);
+  padding-inline: var(--scribe-session-inline-inset);
   border-bottom: none;
   border-radius: 6px;
 }
 
-.claudian-session-sidebar .claudian-history-item-icon {
+.scribe-session-sidebar .scribe-history-item-icon {
   display: none;
 }
 
-.claudian-session-sidebar .claudian-history-item-title {
+.scribe-session-sidebar .scribe-history-item-title {
   color: var(--text-muted);
 }
 
@@ -582,42 +582,42 @@
  * Obsidian's 1.3 line height) make hover backgrounds and the gaps between them shift by a
  * pixel from row to row.
  */
-.claudian-session-sidebar .claudian-history-item-title,
-:is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-label {
+.scribe-session-sidebar .scribe-history-item-title,
+:is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-label {
   line-height: 17px;
 }
 
-.claudian-session-sidebar .claudian-history-item.active,
-.claudian-session-sidebar .claudian-history-item.open {
+.scribe-session-sidebar .scribe-history-item.active,
+.scribe-session-sidebar .scribe-history-item.open {
   padding-inline-start: 12px;
   background: transparent;
   border-inline-start: none;
 }
 
-.claudian-session-sidebar .claudian-history-item.active {
-  background: var(--claudian-session-background-active, var(--nav-item-background-active));
+.scribe-session-sidebar .scribe-history-item.active {
+  background: var(--scribe-session-background-active, var(--nav-item-background-active));
 }
 
-.claudian-session-sidebar .claudian-session-recency-divider {
+.scribe-session-sidebar .scribe-session-recency-divider {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--claudian-session-action-gap);
-  padding: 8px var(--claudian-session-inline-inset) 2px;
+  gap: var(--scribe-session-action-gap);
+  padding: 8px var(--scribe-session-inline-inset) 2px;
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
 }
 
 /* Stays focusable while visually quiet; Obsidian restores native chrome on interaction states. */
-.claudian-session-recency-divider-action,
-.claudian-session-recency-divider-action:hover,
-.claudian-session-recency-divider-action:active,
-.claudian-session-recency-divider-action:focus,
-.claudian-session-recency-divider-action:focus-visible {
+.scribe-session-recency-divider-action,
+.scribe-session-recency-divider-action:hover,
+.scribe-session-recency-divider-action:active,
+.scribe-session-recency-divider-action:focus,
+.scribe-session-recency-divider-action:focus-visible {
   display: flex;
-  flex: 0 0 var(--claudian-session-action-size);
-  width: var(--claudian-session-action-size);
-  height: var(--claudian-session-action-size);
+  flex: 0 0 var(--scribe-session-action-size);
+  width: var(--scribe-session-action-size);
+  height: var(--scribe-session-action-size);
   align-items: center;
   justify-content: center;
   /* Keeps the divider's height: the box overhangs its padding instead of growing it. */
@@ -629,61 +629,61 @@
   box-shadow: none;
 }
 
-.claudian-session-recency-divider-action {
+.scribe-session-recency-divider-action {
   opacity: 0;
 }
 
-.claudian-session-recency-divider:hover .claudian-session-recency-divider-action,
-.claudian-session-recency-divider-action:focus-visible {
+.scribe-session-recency-divider:hover .scribe-session-recency-divider-action,
+.scribe-session-recency-divider-action:focus-visible {
   opacity: 1;
 }
 
-.claudian-session-recency-divider-action:hover,
-.claudian-session-recency-divider-action:focus-visible {
+.scribe-session-recency-divider-action:hover,
+.scribe-session-recency-divider-action:focus-visible {
   color: var(--text-normal);
 }
 
-.claudian-session-recency-divider-action:focus-visible {
+.scribe-session-recency-divider-action:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 1px;
 }
 
-.claudian-session-recency-divider-action svg {
-  width: var(--claudian-session-icon-size);
-  height: var(--claudian-session-icon-size);
+.scribe-session-recency-divider-action svg {
+  width: var(--scribe-session-icon-size);
+  height: var(--scribe-session-icon-size);
 }
 
 /* Grouped sessions start at their group's label. */
-.claudian-session-sidebar .claudian-session-group-body .claudian-history-item {
+.scribe-session-sidebar .scribe-session-group-body .scribe-history-item {
   padding-inline-start: calc(
-    var(--claudian-session-inline-inset) + var(--claudian-session-icon-size) + var(--claudian-session-icon-gap)
+    var(--scribe-session-inline-inset) + var(--scribe-session-icon-size) + var(--scribe-session-icon-gap)
   );
 }
 
-.claudian-session-sidebar .claudian-history-item.active:hover,
-.claudian-session-sidebar .claudian-history-item.open:hover {
+.scribe-session-sidebar .scribe-history-item.active:hover,
+.scribe-session-sidebar .scribe-history-item.open:hover {
   background: var(--background-modifier-hover);
 }
 
-.claudian-session-sidebar .claudian-history-item.active .claudian-history-item-title {
+.scribe-session-sidebar .scribe-history-item.active .scribe-history-item-title {
   color: var(--text-normal);
 }
 
-.claudian-session-sidebar
-  .claudian-history-item.claudian-history-item--attention
-  .claudian-history-item-title {
+.scribe-session-sidebar
+  .scribe-history-item.scribe-history-item--attention
+  .scribe-history-item-title {
   color: var(--text-normal);
   animation: attention-title-pulse 1.6s ease-in-out infinite;
 }
 
-.claudian-session-sidebar .claudian-history-item-actions {
+.scribe-session-sidebar .scribe-history-item-actions {
   display: none;
   flex-shrink: 0;
-  gap: var(--claudian-session-action-gap);
+  gap: var(--scribe-session-action-gap);
   margin: -4px 0;
 }
 
-.claudian-session-metadata-popover {
+.scribe-session-metadata-popover {
   position: fixed;
   z-index: 1000;
   box-sizing: border-box;
@@ -696,11 +696,11 @@
   box-shadow: var(--shadow-s);
 }
 
-body.theme-dark .claudian-session-metadata-popover {
+body.theme-dark .scribe-session-metadata-popover {
   background-color: #1e1e1e;
 }
 
-.claudian-session-metadata-row {
+.scribe-session-metadata-row {
   display: grid;
   grid-template-columns: 16px max-content minmax(0, 1fr);
   align-items: center;
@@ -710,70 +710,70 @@ body.theme-dark .claudian-session-metadata-popover {
   font-size: var(--font-ui-small);
 }
 
-.claudian-session-metadata-row--provider {
+.scribe-session-metadata-row--provider {
   grid-template-columns: 16px minmax(0, 1fr);
 }
 
-.claudian-session-metadata-row--unlabeled {
+.scribe-session-metadata-row--unlabeled {
   grid-template-columns: 16px minmax(0, 1fr);
 }
 
-.claudian-session-metadata-row--provider-no-icon {
+.scribe-session-metadata-row--provider-no-icon {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.claudian-session-metadata-provider-icon {
+.scribe-session-metadata-provider-icon {
   color: var(--text-muted);
 }
 
-.claudian-session-metadata-icon {
+.scribe-session-metadata-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
 }
 
-.claudian-session-metadata-icon svg {
+.scribe-session-metadata-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-session-metadata-label {
+.scribe-session-metadata-label {
   color: var(--text-muted);
   white-space: nowrap;
 }
 
-.claudian-session-metadata-value {
+.scribe-session-metadata-value {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.claudian-session-metadata-value--content {
+.scribe-session-metadata-value--content {
   overflow-x: auto;
   overflow-y: hidden;
   text-overflow: clip;
   scrollbar-width: none;
 }
 
-.claudian-session-metadata-value--content::-webkit-scrollbar {
+.scribe-session-metadata-value--content::-webkit-scrollbar {
   display: none;
 }
 
-.claudian-session-sidebar .claudian-history-item:hover .claudian-history-item-actions,
-.claudian-session-sidebar .claudian-history-item:focus-within .claudian-history-item-actions {
+.scribe-session-sidebar .scribe-history-item:hover .scribe-history-item-actions,
+.scribe-session-sidebar .scribe-history-item:focus-within .scribe-history-item-actions {
   display: flex;
 }
 
-.claudian-session-sidebar .claudian-history-item-actions .claudian-action-btn {
+.scribe-session-sidebar .scribe-history-item-actions .scribe-action-btn {
   display: flex;
-  flex: 0 0 var(--claudian-session-action-size);
+  flex: 0 0 var(--scribe-session-action-size);
   align-items: center;
   justify-content: center;
-  width: var(--claudian-session-action-size);
+  width: var(--scribe-session-action-size);
   min-width: 0;
-  height: var(--claudian-session-action-size);
+  height: var(--scribe-session-action-size);
   margin: 0;
   padding: 0;
   border: 0;
@@ -783,39 +783,39 @@ body.theme-dark .claudian-session-metadata-popover {
   color: var(--text-muted);
 }
 
-.claudian-session-sidebar .claudian-history-item-actions .claudian-action-btn svg {
-  width: var(--claudian-session-icon-size);
-  height: var(--claudian-session-icon-size);
+.scribe-session-sidebar .scribe-history-item-actions .scribe-action-btn svg {
+  width: var(--scribe-session-icon-size);
+  height: var(--scribe-session-icon-size);
 }
 
-.claudian-session-sidebar .claudian-history-item-actions .claudian-action-btn:focus-visible {
+.scribe-session-sidebar .scribe-history-item-actions .scribe-action-btn:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 1px;
 }
 
-.claudian-session-sidebar .claudian-history-item-actions .claudian-action-btn:hover,
-.claudian-session-sidebar .claudian-history-item-actions .claudian-action-btn:focus-visible {
+.scribe-session-sidebar .scribe-history-item-actions .scribe-action-btn:hover,
+.scribe-session-sidebar .scribe-history-item-actions .scribe-action-btn:focus-visible {
   background: transparent;
   box-shadow: none;
   color: var(--text-normal);
 }
 
-.claudian-session-sidebar .claudian-history-item-actions .claudian-delete-btn:hover,
-.claudian-session-sidebar .claudian-history-item-actions .claudian-delete-btn:focus-visible {
+.scribe-session-sidebar .scribe-history-item-actions .scribe-delete-btn:hover,
+.scribe-session-sidebar .scribe-history-item-actions .scribe-delete-btn:focus-visible {
   color: var(--color-red);
 }
 
-.claudian-session-sidebar .claudian-archive-btn:disabled {
+.scribe-session-sidebar .scribe-archive-btn:disabled {
   color: var(--text-faint);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.claudian-history-item--noninteractive .claudian-history-item-content {
+.scribe-history-item--noninteractive .scribe-history-item-content {
   cursor: default;
 }
 
-.claudian-history-archive-control {
+.scribe-history-archive-control {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -832,14 +832,14 @@ body.theme-dark .claudian-session-metadata-popover {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.claudian-history-archive-control:hover,
-.claudian-history-archive-control:focus-visible {
+.scribe-history-archive-control:hover,
+.scribe-history-archive-control:focus-visible {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
 /* Single-pane dropup shell (opens upward since it's at bottom of view) */
-.claudian-nav-dropup-menu {
+.scribe-nav-dropup-menu {
   display: none;
   position: absolute;
   bottom: 100%;
@@ -856,11 +856,11 @@ body.theme-dark .claudian-session-metadata-popover {
   inset-inline-end: 0;
 }
 
-body.theme-dark .claudian-nav-dropup-menu {
+body.theme-dark .scribe-nav-dropup-menu {
   background-color: #1e1e1e;
 }
 
-.claudian-nav-dropup-menu.visible {
+.scribe-nav-dropup-menu.visible {
   display: block;
 }
 
@@ -868,13 +868,13 @@ body.theme-dark .claudian-nav-dropup-menu {
  * The history drop-up grows to 60% of the view (measured when it opens) and scrolls its
  * projects and sessions as one list.
  */
-.claudian-history-menu.visible {
+.scribe-history-menu.visible {
   display: flex;
   flex-direction: column;
-  max-height: var(--claudian-history-menu-max-height, 400px);
+  max-height: var(--scribe-history-menu-max-height, 400px);
 }
 
-.claudian-history-menu .claudian-history-list {
+.scribe-history-menu .scribe-history-list {
   flex: 1 1 auto;
   max-height: none;
   min-height: 0;
@@ -885,11 +885,11 @@ body.theme-dark .claudian-nav-dropup-menu {
  * divider), so its list reads as one design; the sidebar keeps its compact rows. Members keep
  * the session row inset, and the empty hint starts at the project label, where titles do.
  */
-.claudian-history-menu {
-  --claudian-history-menu-label-start: calc(12px + 16px + 10px);
+.scribe-history-menu {
+  --scribe-history-menu-label-start: calc(12px + 16px + 10px);
 }
 
-.claudian-history-menu .claudian-session-group-header.claudian-session-group-header--project {
+.scribe-history-menu .scribe-session-group-header.scribe-session-group-header--project {
   padding-block: 8px;
   border-bottom: 1px solid var(--background-modifier-border);
   border-radius: 0;
@@ -898,35 +898,35 @@ body.theme-dark .claudian-nav-dropup-menu {
   font-weight: 500;
 }
 
-.claudian-history-menu .claudian-session-group-header--project .claudian-session-group-toggle {
+.scribe-history-menu .scribe-session-group-header--project .scribe-session-group-toggle {
   gap: 10px;
 }
 
-.claudian-history-menu .claudian-session-group-header--project .claudian-session-group-icon {
+.scribe-history-menu .scribe-session-group-header--project .scribe-session-group-icon {
   flex-basis: 16px;
   color: var(--text-muted);
 }
 
-.claudian-history-menu .claudian-session-group-header--project .claudian-session-group-icon svg {
+.scribe-history-menu .scribe-session-group-header--project .scribe-session-group-icon svg {
   width: 16px;
   height: 16px;
 }
 
 /* A project's last member still divides it from the next project row. */
-.claudian-history-menu .claudian-session-group-body .claudian-history-item:last-child {
+.scribe-history-menu .scribe-session-group-body .scribe-history-item:last-child {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.claudian-history-menu .claudian-session-project-empty.claudian-session-project-empty {
-  padding-inline-start: var(--claudian-history-menu-label-start);
+.scribe-history-menu .scribe-session-project-empty.scribe-session-project-empty {
+  padding-inline-start: var(--scribe-history-menu-label-start);
 }
 
-.claudian-history-menu .claudian-history-section--sessions:not(:first-child),
-.claudian-history-menu .claudian-history-archive-control + .claudian-history-section--sessions {
+.scribe-history-menu .scribe-history-section--sessions:not(:first-child),
+.scribe-history-menu .scribe-history-archive-control + .scribe-history-section--sessions {
   margin-top: 4px;
 }
 
-.claudian-history-header {
+.scribe-history-header {
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -936,20 +936,20 @@ body.theme-dark .claudian-nav-dropup-menu {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.claudian-history-list {
+.scribe-history-list {
   max-height: 350px;
   overflow-y: auto;
   overflow-anchor: none;
 }
 
-.claudian-history-empty {
+.scribe-history-empty {
   padding: 16px;
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.claudian-history-item {
+.scribe-history-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -958,33 +958,33 @@ body.theme-dark .claudian-nav-dropup-menu {
   transition: background 0.15s ease;
 }
 
-.claudian-history-item-icon {
+.scribe-history-item-icon {
   display: flex;
   align-items: center;
   color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.claudian-history-item-icon svg {
+.scribe-history-item-icon svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-history-item:last-child {
+.scribe-history-item:last-child {
   border-bottom: none;
 }
 
-.claudian-history-item:hover {
+.scribe-history-item:hover {
   background: var(--background-modifier-hover);
 }
 
-.claudian-history-item.claudian-history-item--selected,
-.claudian-session-sidebar .claudian-history-item.claudian-history-item--selected {
+.scribe-history-item.scribe-history-item--selected,
+.scribe-session-sidebar .scribe-history-item.scribe-history-item--selected {
   background: var(--background-modifier-active-hover, var(--background-modifier-hover));
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
-.claudian-history-item-selected-label {
+.scribe-history-item-selected-label {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -996,51 +996,51 @@ body.theme-dark .claudian-nav-dropup-menu {
   border: 0;
 }
 
-.claudian-history-item.active,
-.claudian-history-item.open {
+.scribe-history-item.active,
+.scribe-history-item.open {
   background: var(--background-modifier-hover);
   border-inline-start: 2px solid var(--interactive-accent);
   padding-inline-start: 10px;
 }
 
-.claudian-history-item.active:hover,
-.claudian-history-item.open:hover {
+.scribe-history-item.active:hover,
+.scribe-history-item.open:hover {
   background: var(--background-modifier-active-hover, var(--background-modifier-hover));
 }
 
-.claudian-history-item.active .claudian-history-item-icon,
-.claudian-history-item.open .claudian-history-item-icon {
+.scribe-history-item.active .scribe-history-item-icon,
+.scribe-history-item.open .scribe-history-item-icon {
   color: var(--interactive-accent);
 }
 
-.claudian-history-item.active .claudian-history-item-content {
+.scribe-history-item.active .scribe-history-item-content {
   cursor: default;
 }
 
-.claudian-history-item.open .claudian-history-item-date {
+.scribe-history-item.open .scribe-history-item-date {
   color: var(--text-muted);
 }
 
-.claudian-history-item.running .claudian-history-item-icon {
+.scribe-history-item.running .scribe-history-item-icon {
   color: var(--interactive-accent);
 }
 
-.claudian-history-item.running .claudian-history-item-icon svg {
-  animation: claudian-spin 1s linear infinite;
+.scribe-history-item.running .scribe-history-item-icon svg {
+  animation: scribe-spin 1s linear infinite;
 }
 
-.claudian-history-item.running .claudian-history-item-date {
+.scribe-history-item.running .scribe-history-item-date {
   color: var(--interactive-accent);
   font-weight: 500;
 }
 
-.claudian-history-item-content {
+.scribe-history-item-content {
   flex: 1;
   min-width: 0;
   cursor: pointer;
 }
 
-.claudian-history-item-title {
+.scribe-history-item-title {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-normal);
@@ -1049,13 +1049,13 @@ body.theme-dark .claudian-nav-dropup-menu {
   text-overflow: ellipsis;
 }
 
-.claudian-history-item-date {
+.scribe-history-item-date {
   font-size: 11px;
   color: var(--text-faint);
   margin-top: 2px;
 }
 
-.claudian-history-item-actions {
+.scribe-history-item-actions {
   display: flex;
   gap: 4px;
   margin-inline-start: 8px;
@@ -1063,12 +1063,12 @@ body.theme-dark .claudian-nav-dropup-menu {
   transition: opacity 0.15s ease;
 }
 
-.claudian-history-item:hover .claudian-history-item-actions,
-.claudian-history-item:focus-within .claudian-history-item-actions {
+.scribe-history-item:hover .scribe-history-item-actions,
+.scribe-history-item:focus-within .scribe-history-item-actions {
   opacity: 1;
 }
 
-.claudian-action-btn {
+.scribe-action-btn {
   background: transparent;
   border: none;
   cursor: pointer;
@@ -1078,25 +1078,25 @@ body.theme-dark .claudian-nav-dropup-menu {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.claudian-action-btn:hover {
+.scribe-action-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.claudian-action-btn svg {
+.scribe-action-btn svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-delete-btn:hover {
+.scribe-delete-btn:hover {
   color: var(--color-red);
 }
 
-.claudian-open-new-tab-btn:hover {
+.scribe-open-new-tab-btn:hover {
   color: var(--interactive-accent);
 }
 
-.claudian-history-menu .claudian-history-item-actions .claudian-action-btn {
+.scribe-history-menu .scribe-history-item-actions .scribe-action-btn {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -1104,15 +1104,15 @@ body.theme-dark .claudian-nav-dropup-menu {
   transition: color 0.15s ease;
 }
 
-.claudian-history-menu .claudian-history-item-actions .claudian-action-btn:hover,
-.claudian-history-menu .claudian-history-item-actions .claudian-action-btn:focus-visible {
+.scribe-history-menu .scribe-history-item-actions .scribe-action-btn:hover,
+.scribe-history-menu .scribe-history-item-actions .scribe-action-btn:focus-visible {
   background: transparent;
   border: none;
   box-shadow: none;
   color: var(--text-normal);
 }
 
-.claudian-rename-input {
+.scribe-rename-input {
   width: 100%;
   padding: 2px 4px;
   font-size: 13px;
@@ -1123,22 +1123,22 @@ body.theme-dark .claudian-nav-dropup-menu {
   color: var(--text-normal);
 }
 
-.claudian-rename-input:focus {
+.scribe-rename-input:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--interactive-accent-hover);
 }
 
 /* Loading indicator for title generation */
-.claudian-action-loading {
+.scribe-action-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: claudian-spin 1s linear infinite;
+  animation: scribe-spin 1s linear infinite;
   opacity: 0.6;
   cursor: default;
 }
 
-.claudian-history-load-more {
+.scribe-history-load-more {
   width: calc(100% - 16px);
   margin: 8px;
   padding: 8px 12px;
@@ -1149,7 +1149,7 @@ body.theme-dark .claudian-nav-dropup-menu {
   cursor: pointer;
 }
 
-.claudian-history-load-more:hover {
+.scribe-history-load-more:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
@@ -1158,12 +1158,12 @@ body.theme-dark .claudian-nav-dropup-menu {
  * Touch has no hover: row, group, and divider actions that reveal on hover stay visible on
  * mobile, in the sidebar and the drop-up.
  */
-body.is-mobile .claudian-history-item-actions,
-body.is-mobile .claudian-session-recency-divider-action,
-body.is-mobile :is(.claudian-session-sidebar, .claudian-history-menu) .claudian-session-group-header :is(.claudian-session-group-menu-action, .claudian-session-group-new-action) {
+body.is-mobile .scribe-history-item-actions,
+body.is-mobile .scribe-session-recency-divider-action,
+body.is-mobile :is(.scribe-session-sidebar, .scribe-history-menu) .scribe-session-group-header :is(.scribe-session-group-menu-action, .scribe-session-group-new-action) {
   opacity: 1;
 }
 
-body.is-mobile .claudian-session-sidebar .claudian-history-item-actions {
+body.is-mobile .scribe-session-sidebar .scribe-history-item-actions {
   display: flex;
 }

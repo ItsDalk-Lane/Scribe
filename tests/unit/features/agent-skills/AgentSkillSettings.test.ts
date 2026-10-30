@@ -186,7 +186,7 @@ describe('AgentSkillSettings', () => {
     await vault.write('.agents/skills/shared-skill/scripts/run.py', 'example');
     await settings.refresh();
     expect(screen.getByText('.agents/skills/broken')).toBeTruthy();
-    const skillRow = screen.getByText('shared-skill').closest('.claudian-sp-item') as HTMLElement;
+    const skillRow = screen.getByText('shared-skill').closest('.scribe-sp-item') as HTMLElement;
     fireEvent.click(within(skillRow).getByRole('button', { name: t('common.delete') }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('The entire skill folder, including scripts, references, and assets, will be moved to trash.')).toBeTruthy();
@@ -204,7 +204,7 @@ describe('AgentSkillSettings repair of flagged packages', () => {
     await vault.write('.agents/skills/no-description/SKILL.md', '---\nname: no-description\n---\nExisting instructions\n');
     await settings.refresh();
 
-    const row = screen.getByText('.agents/skills/no-description').closest('.claudian-agent-skills-diagnostic') as HTMLElement;
+    const row = screen.getByText('.agents/skills/no-description').closest('.scribe-agent-skills-diagnostic') as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: t('settings.agentSkills.fix') }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog.getAttribute('aria-label')).toBe(t('settings.agentSkills.modal.titleFix'));
@@ -246,7 +246,7 @@ describe('AgentSkillSettings repair of flagged packages', () => {
     await vault.write('.agents/skills/broken/SKILL.md', '---\nname: broken\n---\nBody\n');
     await settings.refresh();
 
-    const row = screen.getByText('.agents/skills/broken').closest('.claudian-agent-skills-diagnostic') as HTMLElement;
+    const row = screen.getByText('.agents/skills/broken').closest('.scribe-agent-skills-diagnostic') as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: t('common.delete') }));
     const dialog = screen.getByRole('dialog');
     await vault.write('.agents/skills/broken/SKILL.md', '---\nname: broken\ndescription: Repaired externally\n---\nNew instructions\n');
@@ -264,7 +264,7 @@ describe('AgentSkillSettings repair of flagged packages', () => {
     await vault.write('.agents/skills/broken/SKILL.md', '---\nname: broken\n---\nBody\n');
     await settings.refresh();
 
-    const row = screen.getByText('.agents/skills/broken').closest('.claudian-agent-skills-diagnostic') as HTMLElement;
+    const row = screen.getByText('.agents/skills/broken').closest('.scribe-agent-skills-diagnostic') as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: t('common.delete') }));
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: t('settings.agentSkills.delete.confirm') }));

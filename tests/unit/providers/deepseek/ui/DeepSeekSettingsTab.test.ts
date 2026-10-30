@@ -171,7 +171,7 @@ describe('DeepSeekSettingsTab', () => {
     expect(input.value).toBe(app);
     const instructions = ui.getByText(/Auto prefers dsh/);
     expect(input.compareDocumentPosition(instructions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(input.closest('.claudian-cli-installation-body')?.contains(instructions)).toBe(true);
+    expect(input.closest('.scribe-cli-installation-body')?.contains(instructions)).toBe(true);
     expect(await ui.findByText('Custom path')).toBeTruthy();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -268,7 +268,7 @@ describe('DeepSeekSettingsTab', () => {
 
   it('previews the effective chat preset and applies valid additional plugin rows as a provider runtime change', async () => {
     const { host, transitions, mutationsInsideTransition, container, ui } = render();
-    const preview = () => ui.getByText(/id: claudian-compatibility/).textContent ?? '';
+    const preview = () => ui.getByText(/id: scribe-compatibility/).textContent ?? '';
     expect(ui.getByText('Preset preview', { selector: 'summary' })).toBeTruthy();
     await waitFor(() => expect(preview()).toContain('id: tool-ask-user'));
     expect(preview()).not.toContain('tool-todo');

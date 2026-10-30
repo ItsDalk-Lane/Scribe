@@ -34,7 +34,7 @@ export function commitProvisionalTab(tab: AssembledTabRuntime): void {
 }
 
 export function activateTab(tab: AssembledTabRuntime): void {
-  tab.dom.contentEl.removeClass('claudian-hidden');
+  tab.dom.contentEl.removeClass('scribe-hidden');
   tab.controllers.streamController.setTabActive(true);
   tab.controllers.sideChatController.setTabActive(true);
   tab.controllers.composerSelections.start();
@@ -46,7 +46,7 @@ export function deactivateTab(tab: AssembledTabRuntime): void {
   tab.ui.promptSuggestion.discard();
   tab.controllers.streamController.setTabActive(false);
   tab.controllers.sideChatController.setTabActive(false);
-  tab.dom.contentEl.addClass('claudian-hidden');
+  tab.dom.contentEl.addClass('scribe-hidden');
   tab.controllers.composerSelections.stop();
 }
 

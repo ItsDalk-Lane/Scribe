@@ -14,9 +14,79 @@
     "none": "없음"
   },
   "chat": {
+    "displayFeedback": {
+      "fast": "빠르게",
+      "fastOn": "빠른 모드 켜짐",
+      "fastTitle": "빠른 모드: {state}",
+      "fastFailure": "서비스 등급을 변경하지 못했습니다",
+      "standard": "표준",
+      "context": "컨텍스트 사용량",
+      "contextDetails": "컨텍스트 사용량: {usage}",
+      "contextWarning": " (한도에 가까워졌습니다. 계속하려면 `/compact`를 실행하세요)",
+      "branchBusy": "현재 응답이 끝날 때까지 기다리세요.",
+      "previousBranch": "이전 분기",
+      "noPrevious": "이전 분기가 없습니다.",
+      "branchPosition": "분기 {current} / {total}",
+      "nextBranch": "다음 분기",
+      "noNext": "다음 분기가 없습니다.",
+      "branchFrom": "이 메시지에서 분기",
+      "previewImage": "{name} 미리보기",
+      "mermaidDiagram": "Mermaid 다이어그램",
+      "mermaidSource": "다이어그램 소스 표시"
+    },
+    "conversationFeedback": {
+      "collapseSide": "대화 분기를 변경하기 전에 사이드 채팅을 접으세요.",
+      "savePrompt": "이 메시지가 저장된 후 분기할 수 있습니다.",
+      "clearDraft": "대화 분기를 변경하기 전에 초안을 저장하거나 지우세요.",
+      "branchInProgress": "분기를 전환하는 중입니다.",
+      "conversationChanged": "대화가 변경되었습니다.",
+      "conversationMissing": "대화를 찾을 수 없습니다.",
+      "executionUnavailable": "실행할 수 없습니다.",
+      "recoveryCancelled": "분기 복구가 취소되었습니다.",
+      "reconcileFailed": "대화 분기를 복구하지 못했습니다: {error}",
+      "cannotArchive": "실행 중인 세션은 보관할 수 없습니다",
+      "skippedOpenOne": "열려 있거나 실행 중인 세션 {count}개를 건너뛰었습니다",
+      "skippedOpenMany": "열려 있거나 실행 중인 세션 {count}개를 건너뛰었습니다",
+      "cannotDelete": "실행 중인 세션은 삭제할 수 없습니다",
+      "skippedRunningOne": "실행 중인 세션 {count}개를 건너뛰었습니다",
+      "skippedRunningMany": "실행 중인 세션 {count}개를 건너뛰었습니다",
+      "closeDeletedFailed": "삭제된 세션을 닫지 못했습니다",
+      "closeBeforeArchiveFailed": "보관 전에 세션을 닫지 못했습니다",
+      "autoArchiveFailed": "비활성 세션 자동 보관에 실패했습니다",
+      "autoArchiveOne": "비활성 세션 {count}개를 자동 보관했습니다",
+      "autoArchiveMany": "비활성 세션 {count}개를 자동 보관했습니다"
+    },
+    "tabBar": {
+      "name": "탭 이름",
+      "rename": "탭 이름 바꾸기…",
+      "reset": "탭 이름 초기화",
+      "showNumber": "번호 표시",
+      "showName": "이름 표시",
+      "showTitle": "제목 표시",
+      "close": "탭 닫기",
+      "active": "활성",
+      "needsInput": "입력 필요",
+      "working": "작업 중",
+      "reviewError": "오류로 중단됨, 검토 준비됨",
+      "review": "완료됨, 검토 준비됨",
+      "idle": "대기"
+    },
+    "fileMenu": {
+      "add": "Scribe에 추가",
+      "notReady": "Scribe 채팅이 준비되지 않았습니다.",
+      "failed": "파일을 Scribe에 추가하지 못했습니다."
+    },
+    "queue": {
+      "steering": "방향 조정 중",
+      "queued": "대기 중",
+      "steerNow": "지금 방향 조정",
+      "edit": "대기 중인 메시지 편집",
+      "discard": "대기 중인 메시지 버리기",
+      "images": "[이미지]"
+    },
     "promptSuggestionHint": "Tab으로 수락",
     "selectAvailableModel": "전송하기 전에 사용 가능한 모델을 선택하세요.",
-    "selectAvailableTitleModel": "Claudian 설정에서 사용 가능한 제목 생성 모델을 선택하세요.",
+    "selectAvailableTitleModel": "Scribe 설정에서 사용 가능한 제목 생성 모델을 선택하세요.",
     "rewind": {
       "confirmMessage": "이 시점으로 되감으시겠습니까? 이 메시지 이후의 파일 변경 사항이 덮어쓰이거나 삭제될 수 있습니다. 이 작업은 실행 취소할 수 없습니다.",
       "confirmMessageConflicts": "이 시점으로 되감으시겠습니까? 에이전트 외부에서 수정된 파일 {count}개를 덮어씁니다:\n{files}",
@@ -33,7 +103,14 @@
       "failed": "되감기 실패: {error}",
       "cannot": "되감기 불가: {error}",
       "unavailableStreaming": "스트리밍 중에는 되감기할 수 없습니다",
-      "unavailableNoUuid": "되감기 불가: 메시지 식별자 누락"
+      "unavailableNoUuid": "되감기 불가: 메시지 식별자 누락",
+      "messageNotFound": "메시지를 찾을 수 없습니다",
+      "initializationFailed": "에이전트 서비스를 초기화하지 못했습니다",
+      "serviceUnavailable": "에이전트 서비스를 사용할 수 없습니다",
+      "executionUnavailable": "에이전트를 실행할 수 없습니다",
+      "conversationChanged": "되돌리는 동안 대화가 변경되었습니다.",
+      "moreFiles": "외 {count}개",
+      "saveFailed": "저장하지 못했습니다"
     },
     "fork": {
       "ariaLabel": "대화 분기",
@@ -81,7 +158,7 @@
       "busySide": "사이드 채팅이 아직 응답 중입니다. 완료될 때까지 기다려 주세요."
     },
     "zen": {
-      "regionLabel": "Claudian 채팅",
+      "regionLabel": "Scribe 채팅",
       "showHistory": "대화 표시",
       "move": "채팅 패널 이동",
       "working": "작업 중…",
@@ -109,7 +186,7 @@
     "copyMessage": "메시지 복사",
     "showEarlierMessages": "이전 메시지 표시",
     "renderFailed": "메시지 내용을 표시하지 못했습니다.",
-    "interruptedHint": "· Claudian이 대신 무엇을 해야 하나요?",
+    "interruptedHint": "· Scribe이 대신 무엇을 해야 하나요?",
     "sessions": {
       "empty": "대화 없음",
       "noMatch": "일치하는 세션 없음",
@@ -249,7 +326,9 @@
     "thinking": {
       "active": "생각 중 {seconds}초…",
       "completed": "{seconds}초 동안 생각함",
-      "label": "생각"
+      "label": "생각",
+      "waitHint": " (Esc로 중단 · {duration})",
+      "compacting": "압축 중..."
     },
     "suggestions": {
       "loading": "불러오는 중…",
@@ -426,9 +505,205 @@
         "discard": "버리기",
         "emptyHint": "프로젝트가 진행되면서 에이전트가 채워 넣습니다."
       }
+    },
+    "welcome": {
+      "happySunday": "즐거운 일요일",
+      "sundaySession": "일요일에도 시작할까요?",
+      "weekend": "즐거운 주말 보내세요",
+      "happyMonday": "즐거운 월요일",
+      "backAtIt": "다시 시작해요",
+      "backAtItExclamation": "다시 시작해요!",
+      "happyTuesday": "즐거운 화요일",
+      "happyWednesday": "즐거운 수요일",
+      "happyThursday": "즐거운 목요일",
+      "happyFriday": "즐거운 금요일",
+      "fridayFeeling": "기분 좋은 금요일",
+      "happySaturday": "즐거운 토요일",
+      "happySaturdayExclamation": "즐거운 토요일!",
+      "morning": "좋은 아침이에요",
+      "coffee": "커피와 함께 Scribe를 시작할까요?",
+      "afternoon": "좋은 오후예요",
+      "hey": "안녕하세요",
+      "howGoing": "어떻게 지내세요",
+      "evening": "좋은 저녁이에요",
+      "eveningShort": "안녕하세요",
+      "howWasDay": "오늘 하루는 어땠나요",
+      "nightOwl": "올빼미님, 안녕하세요",
+      "hiHow": "안녕하세요, 잘 지내세요?",
+      "hiHowNamed": "안녕하세요, {name}님, 잘 지내세요?",
+      "welcomeBack": "다시 오신 것을 환영해요",
+      "whatsNew": "새로운 소식이 있나요",
+      "returns": "{name}님이 돌아왔어요!",
+      "absolutelyRight": "정말 맞는 말이에요!",
+      "personalized": "{name}님, {greeting}"
+    },
+    "newTab": "새 탭",
+    "newConversation": "새 대화",
+    "sessionManager": {
+      "new": "새로 만들기",
+      "search": "검색",
+      "archive": "보관",
+      "sessions": "대화",
+      "archived": "보관됨",
+      "pinned": "고정됨",
+      "missing": "없음",
+      "unlinked": "연결 안 됨",
+      "pastWeek": "지난주",
+      "pastTwoWeeks": "지난 2주",
+      "pastMonth": "지난달",
+      "older": "이전",
+      "sessionOptions": "대화 옵션",
+      "expandGroups": "모든 그룹 펼치기",
+      "collapseGroups": "모든 그룹 접기",
+      "searchArchived": "보관된 대화 검색",
+      "searchSessions": "대화 검색",
+      "organize": "대화 정리",
+      "oneList": "하나의 목록으로",
+      "byLinked": "연결된 콘텐츠별",
+      "sortBy": "대화 정렬 기준",
+      "lastActivity": "최근 활동",
+      "created": "생성됨",
+      "lastActive": "최근 활동",
+      "organizationFailed": "대화 정리를 변경하지 못했습니다",
+      "sortFailed": "대화 정렬을 변경하지 못했습니다",
+      "history": "채팅 기록",
+      "loadMore": "더 불러오기 ({count}개 남음)",
+      "newForContent": "{name}의 새 대화",
+      "startContentFailed": "연결된 콘텐츠의 대화를 시작하지 못했습니다",
+      "generatingTitle": "제목 생성 중...",
+      "regenerateTitle": "제목 다시 생성",
+      "generateTitle": "제목 생성",
+      "generateTitleFailed": "제목을 생성하지 못했습니다",
+      "actionsFor": "{name} 작업",
+      "conversationTitle": "대화 제목",
+      "renameFailed": "대화 이름을 변경하지 못했습니다",
+      "collapseSaveFailed": "프로젝트 폴더 펼침 상태를 저장하지 못했습니다",
+      "selected": "선택됨",
+      "openNewTab": "새 탭에서 열기",
+      "openBackgroundTab": "백그라운드 탭에서 열기",
+      "switchOpen": "열린 대화로 전환",
+      "assignDevice": "이 기기에 할당",
+      "pin": "고정",
+      "unpin": "고정 해제",
+      "markUnread": "읽지 않음으로 표시",
+      "markRead": "읽음으로 표시",
+      "rename": "이름 변경",
+      "copyId": "대화 ID 복사",
+      "restore": "복원",
+      "delete": "삭제",
+      "loadFailed": "대화를 불러오지 못했습니다",
+      "copyIdFailed": "대화 ID를 복사하지 못했습니다",
+      "assignFailed": "이 기기에 대화를 할당하지 못했습니다",
+      "pinFailed": "대화를 고정하지 못했습니다",
+      "unpinFailed": "대화 고정을 해제하지 못했습니다",
+      "archiveFailed": "대화를 보관하지 못했습니다",
+      "restoreFailed": "대화를 복원하지 못했습니다",
+      "deleteFailed": "대화를 삭제하지 못했습니다",
+      "cannotArchiveRunning": "실행 중인 대화는 보관할 수 없습니다",
+      "needsYourInput": "입력이 필요합니다",
+      "stoppedWithError": "오류로 중지됨",
+      "running": "실행 중",
+      "unread": "읽지 않음",
+      "needsInput": "입력 필요",
+      "runningOtherPane": "다른 창에서 실행 중",
+      "openOtherPane": "다른 창에서 열기",
+      "tabNumber": "탭 {number}",
+      "currentTab": "현재 탭",
+      "tab": "탭",
+      "runningIn": "{tab}에서 실행 중",
+      "currentTabNumber": "현재 탭 {number}",
+      "currentSession": "현재 대화",
+      "openIn": "{tab}에서 열기",
+      "restoreCount": "대화 {count}개 복원",
+      "deleteCount": "대화 {count}개 삭제",
+      "pinCount": "대화 {count}개 고정",
+      "unpinCount": "대화 {count}개 고정 해제",
+      "archiveCount": "대화 {count}개 보관",
+      "permanentDeleteCount": "대화 {count}개를 영구 삭제할까요?",
+      "restoreManyFailed": "대화를 복원하지 못했습니다",
+      "deleteManyFailed": "대화를 삭제하지 못했습니다",
+      "pinManyFailed": "대화를 고정하지 못했습니다",
+      "unpinManyFailed": "대화 고정을 해제하지 못했습니다",
+      "archiveManyFailed": "대화를 보관하지 못했습니다",
+      "moveManyFailed": "대화를 이동하지 못했습니다",
+      "pinLinked": "연결된 콘텐츠 고정",
+      "unpinLinked": "연결된 콘텐츠 고정 해제",
+      "pinLinkedFailed": "연결된 콘텐츠를 고정하지 못했습니다",
+      "unpinLinkedFailed": "연결된 콘텐츠 고정을 해제하지 못했습니다",
+      "archiveAll": "모든 대화 보관",
+      "restoreAll": "모든 대화 복원",
+      "deleteAll": "모든 대화 삭제",
+      "archiveLinkedFailed": "연결된 대화를 보관하지 못했습니다",
+      "idCopied": "대화 ID를 복사했습니다"
+    },
+    "compacted": "대화가 압축되었습니다",
+    "subagent": {
+      "prompt": "프롬프트",
+      "result": "결과",
+      "tokens": "토큰 {count}개",
+      "toolUse": "도구 사용 {count}회",
+      "toolUses": "도구 사용 {count}회",
+      "lastTool": "마지막 도구: {tool}",
+      "taskAria": "하위 에이전트 작업: {description} - {status} - 클릭하여 펼치기",
+      "initializing": "초기화 중",
+      "error": "오류",
+      "orphaned": "연결 끊김",
+      "completed": "완료",
+      "backgroundRunning": "백그라운드에서 실행 중",
+      "backgroundAria": "백그라운드 작업: {description} - {status} - 클릭하여 펼치기",
+      "statusAria": "상태: {status}",
+      "orphanedResult": "작업이 완료되기 전에 대화가 종료되었습니다"
+    },
+    "notices": {
+      "showWideFailed": "넓은 레이아웃에 대화를 표시하지 못했습니다",
+      "createTabFailed": "탭을 만들지 못했습니다",
+      "createConversationFailed": "대화를 만들지 못했습니다",
+      "startConversationFailed": "새 대화를 시작하지 못했습니다",
+      "switchTabFailed": "탭을 전환하지 못했습니다",
+      "closeTabFailed": "탭을 닫지 못했습니다",
+      "resizeSessions": "대화 영역 크기 조절",
+      "closePreviewFailed": "임시 대화 미리보기를 닫지 못했습니다",
+      "linkedPathsFailed": "연결된 콘텐츠 경로를 업데이트하지 못했습니다",
+      "pinnedContentFailed": "고정된 연결 콘텐츠를 업데이트하지 못했습니다",
+      "sideProviderSwitch": "사이드 대화에서는 서비스 제공자를 전환할 수 없습니다.",
+      "selectAvailableModel": "Scribe 설정에서 사용 가능한 모델을 선택하세요.",
+      "boundProviderSwitch": "연결된 대화에서는 서비스 제공자를 전환할 수 없습니다. 새 대화를 시작하세요.",
+      "mainChatMode": "모드 선택은 기본 대화에 적용됩니다.",
+      "initializeExecutionFailed": "에이전트 실행을 초기화하지 못했습니다. 다시 시도하세요.",
+      "executionUnavailable": "에이전트를 실행할 수 없습니다. 플러그인을 다시 불러오세요.",
+      "sessionDeleted": "서비스 제공자의 대화가 더 이상 없습니다. Scribe 기록을 삭제했습니다. 다시 전송하여 새 대화를 시작하세요.",
+      "sessionReset": "서비스 제공자의 대화가 더 이상 없습니다. 복구 가능한 기록을 보존했습니다. 다시 전송하여 대화를 재구성하세요.",
+      "sessionPreserved": "서비스 제공자의 대화가 더 이상 없습니다. 남은 기록을 확인할 수 없어 기록을 보존했습니다.",
+      "sessionMissing": "서비스 제공자의 대화가 더 이상 없습니다. 다시 전송하여 새 대화를 시작하세요.",
+      "messageNotSent": "메시지를 보내지 못했습니다. 다시 시도하세요.",
+      "unknownError": "알 수 없는 오류",
+      "unsupportedCommand": "이 서비스 제공자는 /{command} 명령을 지원하지 않습니다.",
+      "fastUnavailable": "이 모델은 빠른 모드를 지원하지 않습니다.",
+      "fastToggleFailed": "빠른 모드를 전환하지 못했습니다.",
+      "unknownCommand": "알 수 없는 명령: {command}",
+      "openConversationFailed": "대화를 열지 못했습니다: {error}",
+      "tabsUnavailable": "채팅 탭을 사용할 수 없습니다",
+      "forkUnsupported": "이 서비스 제공자는 대화 분기를 지원하지 않습니다."
     }
   },
   "settings": {
+    "ui": {
+      "saveFailed": "설정을 저장하지 못했습니다",
+      "loading": "{provider} 설정을 불러오는 중…",
+      "unknownError": "알 수 없는 오류",
+      "unavailable": "사용 불가: {model}",
+      "aliasSaveFailed": "모델 별칭을 저장하지 못했습니다. 다시 시도하세요.",
+      "contextLabel": "{model}의 컨텍스트 창",
+      "modelSaveFailed": "모델 선택을 저장하지 못했습니다. 다시 시도하세요.",
+      "snippetRefreshFailed": "환경 스니펫은 저장했지만 설정을 새로 고치지 못했습니다.",
+      "snippetUpdateFailed": "환경 스니펫을 업데이트하지 못했습니다",
+      "snippetSaveFailed": "환경 스니펫을 저장하지 못했습니다",
+      "snippetSaved": "환경 스니펫 \"{name}\" 저장됨",
+      "snippetUpdated": "환경 스니펫 \"{name}\" 업데이트됨",
+      "snippetDeleted": "환경 스니펫 \"{name}\" 삭제됨",
+      "environmentReview": "환경 변수 관리 대상을 확인하세요: {keys}",
+      "environmentUpdateFailed": "환경 변수를 업데이트하지 못했습니다."
+    },
     "tabs": {
       "general": "일반",
       "providers": "제공자",
@@ -446,7 +721,7 @@
     "responses": "응답",
     "experimental": "실험적 기능",
     "userName": {
-      "name": "Claudian이 당신을 어떻게 불러야 합니까?",
+      "name": "Scribe이 당신을 어떻게 불러야 합니까?",
       "desc": "개인화된 인사에 사용할 이름 (비워두면 일반 인사)"
     },
     "excludedTags": {
@@ -585,7 +860,7 @@
       "desc": "Write 및 Edit diff가 처음 표시될 때 펼친 상태로 보여줍니다."
     },
     "chatViewPlacement": {
-      "name": "Claudian 열 위치",
+      "name": "Scribe 열 위치",
       "desc": "채팅 패널이 생성될 때 열릴 위치를 선택합니다",
       "rightSidebar": "오른쪽 사이드바",
       "leftSidebar": "왼쪽 사이드바",
@@ -624,7 +899,7 @@
     },
     "providerEnablement": {
       "name": "{provider} 활성화",
-      "lastProviderWarning": "Claudian을 사용하려면 하나 이상의 제공자를 활성화해야 합니다.",
+      "lastProviderWarning": "Scribe을 사용하려면 하나 이상의 제공자를 활성화해야 합니다.",
       "noModelsWarning": "활성화된 {provider} 모델이 없습니다. 아래 모델 섹션에서 하나 이상의 모델을 활성화하세요."
     },
     "modelPicker": {
@@ -672,7 +947,7 @@
     "codex": {
       "installationMethod": {
         "name": "설치 방식",
-        "desc": "Windows에서 Claudian이 Codex를 실행하는 방식입니다. 네이티브 Windows는 Windows 실행 파일 경로를 사용하고, WSL은 선택한 배포판 안에서 Linux CLI를 실행합니다.",
+        "desc": "Windows에서 Scribe이 Codex를 실행하는 방식입니다. 네이티브 Windows는 Windows 실행 파일 경로를 사용하고, WSL은 선택한 배포판 안에서 Linux CLI를 실행합니다.",
         "nativeWindows": "네이티브 Windows",
         "wsl": "WSL"
       },
@@ -766,7 +1041,7 @@
         "desc": "OpenCode에 전달되는 추가 환경 변수입니다."
       },
       "migrationNotice": {
-        "text": "OpenCode v1은 더 이상 지원되지 않습니다. Claudian에서 사용하려면 OpenCode v2로 업데이트하세요.",
+        "text": "OpenCode v1은 더 이상 지원되지 않습니다. Scribe에서 사용하려면 OpenCode v2로 업데이트하세요.",
         "link": "OpenCode v2로 마이그레이션"
       }
     },
@@ -776,7 +1051,7 @@
         "desc": "Pi에만 전달되는 환경 변수입니다."
       },
       "models": {
-        "desc": "Claudian은 Pi의 enabledModels와 별도로 자체 모델 목록을 유지합니다. Discover는 Pi가 현재 환경에서 인증할 수 있는 모든 모델을 Pi가 호출할 제공자 경로별로 표시합니다. 경로에 따라 자격 증명과 청구가 결정됩니다."
+        "desc": "Scribe은 Pi의 enabledModels와 별도로 자체 모델 목록을 유지합니다. Discover는 Pi가 현재 환경에서 인증할 수 있는 모든 모델을 Pi가 호출할 제공자 경로별로 표시합니다. 경로에 따라 자격 증명과 청구가 결정됩니다."
       }
     },
     "grok": {
@@ -796,7 +1071,7 @@
       },
       "presetPlugins": {
         "name": "추가 프리셋 플러그인",
-        "desc": "고급. Claudian 채팅 프리셋 뒤에 추가되는 네이티브 dsh 플러그인 행의 YAML 목록(dsh 형식)이며, 각 행에는 고유한 \"id\"와 \"name\"이 있어야 합니다. Claudian 자체 행은 대체할 수 없습니다. 저장하면 DeepSeek Harness가 다시 시작되어 진행 중인 턴이 중지됩니다. 계획 모드처럼 Claudian에 UI가 없는 플러그인은 작동하지 않을 수 있습니다."
+        "desc": "고급. Scribe 채팅 프리셋 뒤에 추가되는 네이티브 dsh 플러그인 행의 YAML 목록(dsh 형식)이며, 각 행에는 고유한 \"id\"와 \"name\"이 있어야 합니다. Scribe 자체 행은 대체할 수 없습니다. 저장하면 DeepSeek Harness가 다시 시작되어 진행 중인 턴이 중지됩니다. 계획 모드처럼 Scribe에 UI가 없는 플러그인은 작동하지 않을 수 있습니다."
       },
       "presetPreview": "프리셋 미리보기",
       "environment": {
@@ -887,5 +1162,60 @@
         "summary": "이동 {moved}, 변환 {converted}, 휴지통 {trashed}, 링크 제거 {unlinked}."
       }
     }
+  },
+  "toolbar": {
+    "model": {
+      "options": "모델 옵션",
+      "provider": "서비스 제공자",
+      "unavailable": "모델을 사용할 수 없음",
+      "setup": "모델 설정",
+      "label": "모델: {model}",
+      "choose": "서비스 제공자 설정에서 활성화된 모델을 선택하세요. 검색에 실패했다면 모델 목록을 새로고침하세요.",
+      "heading": "모델",
+      "empty": "사용 가능한 모델이 없습니다. 서비스 제공자 설정을 확인하고 검색에 실패했다면 목록을 새로고침하세요.",
+      "changeFailed": "모델을 변경하지 못했습니다"
+    },
+    "effort": {
+      "default": "기본값",
+      "description": "추론 강도 {level}",
+      "heading": "생각",
+      "changeFailed": "추론 강도를 변경하지 못했습니다"
+    }
+  },
+  "inlineEdit": {
+    "command": "인라인 편집",
+    "unavailableView": "인라인 편집을 사용할 수 없습니다. 현재 Markdown 보기에 접근할 수 없습니다.",
+    "inserted": "삽입됨",
+    "applied": "편집 적용됨",
+    "unavailableEditor": "인라인 편집을 사용할 수 없습니다. 편집기에 접근할 수 없습니다. 노트를 다시 여세요.",
+    "sourceChanged": "원본 문서 또는 선택 영역이 변경되어 편집을 적용하지 않았습니다.",
+    "providerStartFailed": "{provider} 서비스 제공자를 시작하지 못했습니다.",
+    "vaultLoadFailed": "보관함 파일을 불러오지 못했습니다. @멘션을 사용할 수 없을 수 있습니다.",
+    "insertInstructions": "삽입 지시",
+    "editInstructions": "편집 지시",
+    "insertPlaceholder": "삽입 지시 입력...",
+    "editPlaceholder": "편집 지시 입력...",
+    "modelRequired": "Scribe 설정에서 사용 가능한 모델을 선택하세요.",
+    "actions": "인라인 편집 작업",
+    "line": "줄",
+    "lines": "줄",
+    "reject": "거부",
+    "accept": "수락",
+    "rejectAria": "인라인 편집 거부",
+    "acceptAria": "인라인 편집 수락",
+    "retryError": "오류가 발생했습니다. 다시 시도하세요",
+    "replyPlaceholder": "답변하여 계속...",
+    "noResponse": "에이전트의 응답이 없습니다"
+  },
+  "commands": {
+    "openScribe": "Scribe 열기",
+    "toggleChat": "채팅 보기 전환",
+    "copyDiagnostics": "시작 진단 복사",
+    "new": "새로 만들기",
+    "replaceConversation": "현재 대화 바꾸기",
+    "closeTab": "현재 탭 닫기",
+    "renameTab": "현재 탭 이름 변경",
+    "focusChat": "채팅 입력 포커스 전환",
+    "toggleZenHistory": "젠 모드 기록 전환"
   }
 }

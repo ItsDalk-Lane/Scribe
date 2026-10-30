@@ -7,9 +7,9 @@ import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { Notice } from 'obsidian';
 import type { Mock } from 'vitest';
 
-import { ClaudianSettingsStorage } from '@/app/settings/ClaudianSettingsStorage';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@/app/settings/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@/app/settings/defaultSettings';
 import { ProviderChatOptionsReconciler } from '@/app/settings/ProviderChatOptionsReconciler';
+import { ScribeSettingsStorage } from '@/app/settings/ScribeSettingsStorage';
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
@@ -78,7 +78,7 @@ function notifyCalls(notice: Mock): string[] {
 const aliasCases: Array<Record<string, string> | undefined> = [undefined, {}, { custom: ' Snippet name ' }];
 
 it('preserves own context-limit keys when inserting a snippet with production object-spread semantics', async () => {
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   settings.customContextLimits = { sibling: 256000 };
   settings.envSnippets = [{
     id: 'snippet', name: 'Custom limits', description: '', scope: 'provider:claude',
@@ -108,7 +108,7 @@ it('preserves own context-limit keys when inserting a snippet with production ob
 });
 
 it.each(aliasCases)('applies snippet aliases through provider settings while preserving unrelated aliases (%o)', async modelAliases => {
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   updateClaudeProviderSettings(settings, { modelAliases: { custom: 'Old name', other: 'Keep name' }, loadUserSettings: false });
   settings.envSnippets = [{
     id: 'snippet', name: 'Custom endpoint', description: '', scope: 'provider:claude',
@@ -140,7 +140,7 @@ it.each(aliasCases)('applies snippet aliases through provider settings while pre
 });
 
 it('offers saving the current environment from the empty snippet state', async () => {
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   settings.envSnippets = [];
   const host = {
     notifyProviderChatOptionsChanged: vi.fn(),
@@ -184,7 +184,7 @@ it.each([
   { alias: 'New alias', context: '64k', modelAliases: { custom: 'New alias' }, contextLimits: { custom: 64000 } },
   { alias: '', context: '', modelAliases: {}, contextLimits: undefined },
 ])('preserves override drafts across environment edits (%j)', async ({ alias, context, modelAliases, contextLimits }) => {
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   const snippet = {
     id: 'snippet', name: 'Custom endpoint', description: '', scope: 'provider:claude' as const,
     envVars: 'ANTHROPIC_MODEL=custom', modelAliases: { custom: 'Old alias' }, contextLimits: { custom: 200000 },
@@ -217,7 +217,7 @@ it.each(['de-DE', 'fr-FR', 'ar-EG', 'en-US'])(
       return originalToLocaleString.call(this, locales ?? numberLocale, options);
     };
     try {
-      const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+      const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
       const snippet = {
         id: 'snippet', name: 'Custom endpoint', description: '', scope: 'provider:claude' as const,
         envVars: 'ANTHROPIC_MODEL=custom',
@@ -249,7 +249,7 @@ it.each((['Update', 'name Enter', 'Save'] as const).flatMap(action =>
   async ({ action, invalidContext }) => {
     const notice = Notice as unknown as Mock;
     notice.mockClear();
-    const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+    const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
     const envVars = 'ANTHROPIC_MODEL=sibling\nANTHROPIC_DEFAULT_SONNET_MODEL=custom';
     const originalSnippet = {
       id: 'snippet', name: 'Existing snippet name', description: 'Original description',
@@ -366,7 +366,7 @@ it.each((['Update', 'name Enter', 'Save'] as const).flatMap(action =>
 it.each(['Save', 'Update'] as const)('retains every %s draft after persistence fails and retries from that same modal', async action => {
   const notice = Notice as unknown as Mock;
   notice.mockClear();
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.envSnippets = action === 'Save' ? [] : [{
     id: 'snippet', name: 'Existing snippet name', description: '', scope: 'provider:claude',
     envVars: 'ANTHROPIC_MODEL=custom',
@@ -434,7 +434,7 @@ it.each(['Save', 'Update'] as const)('retains every %s draft after persistence f
 it.each(['Save', 'Update'] as const)('does not offer another %s after persistence committed but publication failed', async action => {
   const notice = Notice as unknown as Mock;
   notice.mockClear();
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.envSnippets = action === 'Save' ? [] : [{
     id: 'snippet', name: 'Existing snippet name', description: '', scope: 'provider:claude',
     envVars: 'ANTHROPIC_MODEL=custom',
@@ -471,7 +471,7 @@ it.each(['Save', 'Update'] as const)('does not offer another %s after persistenc
 it('saves a snippet through the coordinator and renders it when persistence succeeds', async () => {
   const notice = Notice as unknown as Mock;
   notice.mockClear();
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   settings.envSnippets = [];
   const persist = vi.fn<(...args: [typeof settings]) => Promise<void>>().mockResolvedValue(undefined);
   const coordinator = new SettingsCoordinator(settings, persist);
@@ -514,7 +514,7 @@ it('saves a snippet through the coordinator and renders it when persistence succ
 it.each(['', '   '])('clears a context override (%o) through the coordinator while saving valid sibling drafts', async blank => {
   const notice = Notice as unknown as Mock;
   notice.mockClear();
-  const settings = JSON.parse(JSON.stringify(DEFAULT_CLAUDIAN_SETTINGS)) as typeof DEFAULT_CLAUDIAN_SETTINGS;
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SCRIBE_SETTINGS)) as typeof DEFAULT_SCRIBE_SETTINGS;
   settings.envSnippets = [{
     id: 'snippet', name: 'Existing snippet name', description: '', scope: 'provider:claude',
     envVars: 'ANTHROPIC_MODEL=custom\nANTHROPIC_DEFAULT_SONNET_MODEL=sibling',
@@ -572,7 +572,7 @@ it.each(['', '   '])('clears a context override (%o) through the coordinator whi
 
 
 it('saves, reloads and inserts snippet overrides for prototype-named custom models', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.envSnippets = [];
   const envVars = 'ANTHROPIC_MODEL=__proto__\nANTHROPIC_DEFAULT_SONNET_MODEL=constructor';
   let persisted = '';
@@ -581,7 +581,7 @@ it('saves, reloads and inserts snippet overrides for prototype-named custom mode
     read: async () => persisted,
     write: async (_path: string, content: string) => { persisted = content; },
   } as unknown as VaultFileAdapter;
-  const storage = new ClaudianSettingsStorage(adapter, DEFAULT_CLAUDIAN_SETTINGS);
+  const storage = new ScribeSettingsStorage(adapter, DEFAULT_SCRIBE_SETTINGS);
   const coordinator = new SettingsCoordinator(settings, value => storage.save(value));
   const onChanged = vi.fn();
   const host = {
@@ -649,7 +649,7 @@ it('saves, reloads and inserts snippet overrides for prototype-named custom mode
 
 
 it('publishes inserted aliases to every mounted model selector', async () => {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.model = 'claude-code/custom';
   updateClaudeProviderSettings(settings, {
     discoveredModels: [{ value: 'custom', label: 'Native custom', description: '' }],

@@ -15,7 +15,7 @@ import type { Mock } from 'vitest';
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
-import type { ClaudianSettings, Conversation, ConversationMutablePatch } from '@/core/types';
+import type { Conversation, ConversationMutablePatch,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { getChatSettingsSnapshot } from '@/features/chat/ChatSettings';
 import { getSessionSettingsSnapshot, updateSessionProviderSettings, updateSessionReasoning } from '@/features/chat/sessions/sessionSettings';
@@ -57,7 +57,7 @@ function setup() {
   const settings = {
     model: 'claude-sonnet-4-5', permissionMode: 'normal', effortLevel: 'high', excludedTags: [],
     providerConfigs: { claude: claudeCatalogFixture(['claude-sonnet-4-5'], ['low', 'high']) },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const conversation = {
     id: 'conversation', providerId: 'claude', selectedModel: settings.model, sessionId: 'native',
     title: 'Conversation', messages: [], createdAt: testDate().getTime(), lastActivityAt: testDate().getTime(),
@@ -74,7 +74,7 @@ function setup() {
     getConversationList: () => [conversation], renameConversation: async () => undefined,
     findConversationAcrossViews: () => null,
     updateConversation: async (_id: string, patch: ConversationMutablePatch) => { saves.push(structuredClone(patch)); },
-    mutateSettings: async (mutate: (settings: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (settings: ScribeSettings) => void) => mutate(settings),
     executionPersistence: {
       registerExecutionBinding() {}, releaseExecutionBinding() {},
       assertConversationExecutionAuthority: async () => undefined,
@@ -159,7 +159,7 @@ it('continues a requested response with no tab, then restores a pending approval
 it('opens a reattached conversation at its latest message after rendering it in a hidden presentation', async () => {
   // Browser geometry: a transcript inside a hidden tab has no box and ignores scroll writes.
   const scrollTops = new WeakMap<Element, number>();
-  const isLaidOut = (el: Element) => !el.closest('.claudian-hidden');
+  const isLaidOut = (el: Element) => !el.closest('.scribe-hidden');
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
     return isLaidOut(this) ? 400 : 0;
   });
@@ -207,7 +207,7 @@ it('lists every prompt of a long transcript in the directory, including prompts 
   expect(view.getByRole('button', { name: 'Show earlier messages' })).toBeTruthy();
 
   fireEvent.click(view.getByRole('button', { name: 'Conversation directory' }));
-  const entries = view.getAllByRole('button').filter(button => button.classList.contains('claudian-nav-toc-item'));
+  const entries = view.getAllByRole('button').filter(button => button.classList.contains('scribe-nav-toc-item'));
   expect(entries.map(entry => entry.textContent)).toEqual(Array.from({ length: 30 }, (_, index) => `${index + 1}. Prompt ${index}`));
   expect(view.getByRole('button', { name: 'Show earlier messages' })).toBeTruthy();
   expect(within(tab.dom.messagesEl).queryByText('Prompt 0')).toBeNull();
@@ -314,7 +314,7 @@ it('retains failed queued reference preparation as session recovery after its ta
   await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
   const reference = deferred<Conversation | null>();
   vi.mocked(h.plugin.getConversationById).mockImplementationOnce(() => reference.promise);
-  const original = '@[Reference](claudian-session:conv-1-source)';
+  const original = '@[Reference](scribe-session:conv-1-source)';
   first.controllers.drafts.restore('main', { content: original });
   const preparing = first.controllers.inputController.sendMessage();
   await waitFor(() => expect(h.plugin.getConversationById).toHaveBeenCalledWith('conv-1-source'));
@@ -345,11 +345,11 @@ it('preserves raw drafts when multiple reference preparations recover after deta
   vi.mocked(h.plugin.getConversationById)
     .mockImplementationOnce(() => reference.promise)
     .mockResolvedValueOnce(null);
-  const firstDraft = '    keepIndented()\n\n@[First](claudian-session:conv-1-source)  \n';
+  const firstDraft = '    keepIndented()\n\n@[First](scribe-session:conv-1-source)  \n';
   first.controllers.drafts.restore('main', { content: firstDraft });
   const preparingFirst = first.controllers.inputController.sendMessage();
   await waitFor(() => expect(h.plugin.getConversationById).toHaveBeenCalledWith('conv-1-source'));
-  const secondDraft = '@[Second](claudian-session:conv-2-source)';
+  const secondDraft = '@[Second](scribe-session:conv-2-source)';
   first.controllers.drafts.restore('main', { content: secondDraft });
   const preparingSecond = first.controllers.inputController.sendMessage();
   await destroyTab(first);
@@ -458,7 +458,7 @@ it.each([false, true])('keeps completed detached work unread until its transcrip
       messages: [{ id: 'reference', role: 'user', content: 'Reference text', timestamp: testDate().getTime() }],
     } as Conversation);
   }
-  first.controllers.drafts.restore('main', { content: hasReference ? 'Read @[Reference](claudian-session:conv-1-source)' : 'Read later' });
+  first.controllers.drafts.restore('main', { content: hasReference ? 'Read @[Reference](scribe-session:conv-1-source)' : 'Read later' });
   const sending = first.controllers.inputController.sendMessage();
   await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
   const runtime = first.session.runtime;

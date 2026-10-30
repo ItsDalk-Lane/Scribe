@@ -34,7 +34,7 @@ describe('textareaSizing', () => {
 
     installTextareaSizing(textarea);
 
-    expect(textarea.style.getPropertyValue('--claudian-textarea-max-height')).toBe('550px');
+    expect(textarea.style.getPropertyValue('--scribe-textarea-max-height')).toBe('550px');
     expect(observe).toHaveBeenCalledWith(container);
   });
 
@@ -43,7 +43,7 @@ describe('textareaSizing', () => {
 
     installTextareaSizing(textarea);
 
-    expect(textarea.style.getPropertyValue('--claudian-textarea-max-height')).toBe('150px');
+    expect(textarea.style.getPropertyValue('--scribe-textarea-max-height')).toBe('150px');
   });
 
   it('updates from resize observer data without rereading layout', () => {
@@ -58,7 +58,7 @@ describe('textareaSizing', () => {
       } as unknown as ResizeObserverEntry,
     ], {} as ResizeObserver);
 
-    expect(textarea.style.getPropertyValue('--claudian-textarea-max-height')).toBe('330px');
+    expect(textarea.style.getPropertyValue('--scribe-textarea-max-height')).toBe('330px');
     expect(readContainerHeight).not.toHaveBeenCalled();
   });
 
@@ -93,7 +93,7 @@ function createComposer(height: number): {
   setCssProps: Mock;
 } {
   const container = document.createElement('div');
-  container.className = 'claudian-container';
+  container.className = 'scribe-container';
   const textarea = document.createElement('textarea');
   const setCssProps = vi.fn((properties: Record<string, string>) => {
     for (const [name, value] of Object.entries(properties)) {

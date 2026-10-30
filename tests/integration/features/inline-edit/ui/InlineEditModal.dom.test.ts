@@ -14,6 +14,7 @@ import { Component, MarkdownRenderer, Notice, TFolder } from 'obsidian';
 
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import { InlineEditSession } from '@/features/inline-edit/ui/InlineEditModal';
+import { setLocale } from '@/i18n/i18n';
 
 afterEach(async () => {
   await disposeInlineEditHarnesses();
@@ -239,7 +240,7 @@ it('keeps the provider when a picked model is not uniquely owned by one enabled 
   fireEvent.click(within(screen.getByRole('tablist', { name: 'Provider' })).getByRole('tab', { name: 'codex' }));
   fireEvent.click(screen.getByRole('option', { name: 'Opus' }));
   // Like a new chat, a model both providers own resolves to neither.
-  await waitFor(() => expect(Notice).toHaveBeenCalledWith('Select an available model in Claudian settings.'));
+  await waitFor(() => expect(Notice).toHaveBeenCalledWith('Select an available model in Scribe settings.'));
   expect(screen.getByRole('button', { name: 'Model: Sonnet, effort High' })).toBeDefined();
   expect(h.plugin.settings.inlineEditModel).toBeUndefined();
   submitInstruction();
@@ -271,7 +272,7 @@ it('keeps open inline suggestions anchored after note scroll and viewport resize
   typeInstruction('@s');
   const option = await screen.findByRole('option', { name: /src\// });
   const list = screen.getByRole('listbox', { name: 'Input suggestions' });
-  expect(list.style.getPropertyValue('--claudian-fixed-dropdown-bottom')).toBe(`${window.innerHeight - top + 4}px`);
+  expect(list.style.getPropertyValue('--scribe-fixed-dropdown-bottom')).toBe(`${window.innerHeight - top + 4}px`);
   const active = input().getAttribute('aria-activedescendant');
   measure.mockClear();
   list.scrollTop = 25;
@@ -280,10 +281,10 @@ it('keeps open inline suggestions anchored after note scroll and viewport resize
   expect(list.scrollTop).toBe(25);
   top = 210;
   fireEvent.scroll(h.editorView.scrollDOM);
-  expect(list.style.getPropertyValue('--claudian-fixed-dropdown-bottom')).toBe(`${window.innerHeight - top + 4}px`);
+  expect(list.style.getPropertyValue('--scribe-fixed-dropdown-bottom')).toBe(`${window.innerHeight - top + 4}px`);
   left = 160;
   fireEvent.resize(window);
-  expect(list.style.getPropertyValue('--claudian-fixed-dropdown-left')).toBe('160px');
+  expect(list.style.getPropertyValue('--scribe-fixed-dropdown-left')).toBe('160px');
   expect(input().getAttribute('aria-activedescendant')).toBe(active);
   expect(within(list).getByRole('option', { name: /src\// })).toBe(option);
   expect(await axe(list)).toHaveNoViolations();
@@ -324,7 +325,7 @@ it('shows only the newest clarification when an older render finishes last', asy
     h.app, 'Second question?', expect.any(HTMLElement), h.notePath, expect.any(Component),
   );
 
-  const container = input().closest('.claudian-inline-input-container') as HTMLElement;
+  const container = input().closest('.scribe-inline-input-container') as HTMLElement;
   renders[1]();
   await within(container).findByText('Second question?');
   renders[0]();
@@ -341,8 +342,8 @@ it('previews the selected source as deleted and the replacement as inserted Mark
   h.createSession().show();
   await showReplacementPreview(h, 'Hi');
   const preview = screen.getByRole('toolbar', { name: 'Inline edit actions' }).parentElement!;
-  await waitFor(() => expect(Array.from(preview.querySelectorAll('.claudian-diff-block'), block => [
-    block.classList.contains('claudian-diff-del') ? 'delete' : block.classList.contains('claudian-diff-ins') ? 'insert' : 'equal',
+  await waitFor(() => expect(Array.from(preview.querySelectorAll('.scribe-diff-block'), block => [
+    block.classList.contains('scribe-diff-del') ? 'delete' : block.classList.contains('scribe-diff-ins') ? 'insert' : 'equal',
     block.textContent,
   ])).toEqual([['delete', 'hello'], ['insert', 'Hi']]));
   // The previewed source is hidden from the editor until the edit settles.
@@ -423,14 +424,14 @@ it('keeps the floating model menu inside the viewport near the top and after scr
   const h = createHarness();
   h.createSession().show();
   const chip = screen.getByRole('button', { name: 'Model: Sonnet, effort High' });
-  const menu = document.querySelector<HTMLElement>('.claudian-model-popover')!;
+  const menu = document.querySelector<HTMLElement>('.scribe-model-popover')!;
   let chipTop = 24;
   const bounds = () => {
-    const cap = Number.parseFloat(menu.style.getPropertyValue('--claudian-toolbar-popover-max-height')) || 196;
+    const cap = Number.parseFloat(menu.style.getPropertyValue('--scribe-toolbar-popover-max-height')) || 196;
     const height = Math.min(196, cap);
-    const topValue = menu.style.getPropertyValue('--claudian-toolbar-popover-top');
+    const topValue = menu.style.getPropertyValue('--scribe-toolbar-popover-top');
     const top = topValue && topValue !== 'auto' ? Number.parseFloat(topValue)
-      : window.innerHeight - Number.parseFloat(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')) - height;
+      : window.innerHeight - Number.parseFloat(menu.style.getPropertyValue('--scribe-toolbar-popover-bottom')) - height;
     return { top, bottom: top + height };
   };
   const rect = (top: number, height: number) => ({ top, bottom: top + height, left: 100, right: 200, width: 100, height } as DOMRect);
@@ -440,12 +441,12 @@ it('keeps the floating model menu inside the viewport near the top and after scr
   expect(screen.getByRole('dialog', { name: 'Model options' })).toBe(menu);
   expect(bounds().top).toBeGreaterThanOrEqual(8);
   expect(bounds().bottom).toBeLessThanOrEqual(window.innerHeight - 8);
-  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-top')).toBe('60px');
-  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')).toBe('auto');
+  expect(menu.style.getPropertyValue('--scribe-toolbar-popover-top')).toBe('60px');
+  expect(menu.style.getPropertyValue('--scribe-toolbar-popover-bottom')).toBe('auto');
   // The chip's chevron points toward the side the menu opened on.
   expect(chip.getAttribute('data-menu-placement')).toBe('below');
   const limitBelow = window.innerHeight - 52 - 8 - 8;
-  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-max-height')).toBe(`${limitBelow}px`);
+  expect(menu.style.getPropertyValue('--scribe-toolbar-popover-max-height')).toBe(`${limitBelow}px`);
   expect((await axe(menu)).violations).toEqual([]);
   fireEvent.click(within(menu).getByRole('option', { name: 'Opus' }));
   await waitFor(() => expect(h.plugin.settings.inlineEditModel?.model).toBe('opus'));
@@ -457,15 +458,15 @@ it('keeps the floating model menu inside the viewport near the top and after scr
   chipTop = window.innerHeight - 60;
   fireEvent.scroll(window);
   expect(measureMenu).toHaveBeenCalledTimes(1);
-  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-top')).toBe('auto');
-  expect(menu.style.getPropertyValue('--claudian-toolbar-popover-bottom')).toBe('68px');
+  expect(menu.style.getPropertyValue('--scribe-toolbar-popover-top')).toBe('auto');
+  expect(menu.style.getPropertyValue('--scribe-toolbar-popover-bottom')).toBe('68px');
   expect(chip.hasAttribute('data-menu-placement')).toBe(false);
   const viewport = window.innerHeight;
   window.innerHeight = 120;
   try {
     chipTop = 24;
     fireEvent.resize(window);
-    expect(menu.style.getPropertyValue('--claudian-toolbar-popover-max-height')).toBe('52px');
+    expect(menu.style.getPropertyValue('--scribe-toolbar-popover-max-height')).toBe('52px');
     expect(bounds().top).toBeGreaterThanOrEqual(8);
     expect(bounds().bottom).toBeLessThanOrEqual(window.innerHeight - 8);
   } finally {
@@ -539,4 +540,17 @@ it.each([false, true].flatMap(alreadyOpen => [
     fireEvent.click(link);
     expect(alreadyOpen ? h.app.workspace.revealLeaf : h.app.workspace.openLinkText).toHaveBeenCalledTimes(1);
   } finally { session.close(); }
+});
+
+it('shows inline edit instructions in the selected language', async () => {
+  setLocale('zh-CN');
+  try {
+    const h = createHarness();
+    const result = h.createModal().openAndWait();
+    expect(await screen.findByRole('textbox', { name: '编辑指令' })).toBeDefined();
+    fireEvent.keyDown(h.editorView.contentDOM, { key: 'Escape' });
+    await expect(result).resolves.toEqual({ decision: 'reject' });
+  } finally {
+    setLocale('en');
+  }
 });

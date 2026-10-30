@@ -188,7 +188,7 @@ export class LoopbackSessionToolServer implements SessionToolEndpoint {
 
     const controller = new AbortController();
     route.inFlight.add(controller);
-    // Bridge disconnects into a Claudian-owned controller; no signal is passed into Node APIs.
+    // Bridge disconnects into a Scribe-owned controller; no signal is passed into Node APIs.
     res.on('close', () => {
       route.inFlight.delete(controller);
       if (!res.writableEnded) controller.abort();

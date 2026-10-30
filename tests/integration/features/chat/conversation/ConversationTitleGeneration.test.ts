@@ -9,7 +9,7 @@ import type { ConversationPersistence } from '@/app/storage/ConversationPersiste
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { TitleGenerationResult, TitleGenerationService } from '@/core/providers/types';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import { ConversationTitleGeneration } from '@/features/chat/conversation/ConversationTitleGeneration';
 
 function createFixture(result: TitleGenerationResult = { success: true, title: 'Generated title' }) {
@@ -17,7 +17,7 @@ function createFixture(result: TitleGenerationResult = { success: true, title: '
     enableAutoTitleGeneration: true,
     titleGenerationModel: 'haiku',
     providerConfigs: { claude: claudeCatalogFixture(['haiku']) },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const at = testDate().getTime();
   const conversation: Conversation = {
     id: 'conversation-1', providerId: 'claude', title: 'Original title', selectedModel: 'haiku',

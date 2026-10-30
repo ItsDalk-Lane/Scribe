@@ -1,5 +1,5 @@
 /**
- * Claudian - Image Embed Utilities
+ * Scribe - Image Embed Utilities
  *
  * Replaces Obsidian image embeds ![[image.png]] with HTML <img> tags
  * before MarkdownRenderer processes the content.
@@ -90,11 +90,11 @@ function createImageHTML(
   const alt = escapeHTML(altText || file.basename);
   const style = buildStyleAttribute(altText);
 
-  return `<span class="claudian-embedded-image"><img src="${escapeHTML(src)}" alt="${alt}" loading="lazy"${style}></span>`;
+  return `<span class="scribe-embedded-image"><img src="${escapeHTML(src)}" alt="${alt}" loading="lazy"${style}></span>`;
 }
 
 function createFallbackHTML(wikilink: string): string {
-  return `<span class="claudian-embedded-image-fallback">${escapeHTML(wikilink)}</span>`;
+  return `<span class="scribe-embedded-image-fallback">${escapeHTML(wikilink)}</span>`;
 }
 
 function normalizeOptions(options?: string | ReplaceImageEmbedsOptions): Required<ReplaceImageEmbedsOptions> {

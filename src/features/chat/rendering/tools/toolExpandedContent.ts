@@ -22,7 +22,7 @@ export function renderBashContent(
 ): void {
   const command = (input.command as string) || '';
   if (command) {
-    const cmdEl = container.createDiv({ cls: 'claudian-tool-bash-command' });
+    const cmdEl = container.createDiv({ cls: 'scribe-tool-bash-command' });
     cmdEl.setText(`$ ${command}`);
   }
   if (pendingText) {
@@ -81,8 +81,8 @@ export function renderToolSearchExpanded(container: HTMLElement, result: string)
   }
 
   for (const name of toolNames) {
-    const lineEl = container.createDiv({ cls: 'claudian-tool-search-item' });
-    const iconEl = lineEl.createSpan({ cls: 'claudian-tool-search-icon' });
+    const lineEl = container.createDiv({ cls: 'scribe-tool-search-item' });
+    const iconEl = lineEl.createSpan({ cls: 'scribe-tool-search-icon' });
     setToolIcon(iconEl, name);
     lineEl.createSpan({ text: name });
   }
@@ -90,13 +90,13 @@ export function renderToolSearchExpanded(container: HTMLElement, result: string)
 
 export function renderWebFetchExpanded(container: HTMLElement, result: string): void {
   const maxChars = 500;
-  const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
-  const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line claudian-tool-line-wrap' });
+  const linesEl = container.createDiv({ cls: 'scribe-tool-lines' });
+  const lineEl = linesEl.createDiv({ cls: 'scribe-tool-line scribe-tool-line-wrap' });
 
   if (result.length > maxChars) {
     lineEl.setText(result.slice(0, maxChars));
     linesEl.createDiv({
-      cls: 'claudian-tool-truncated',
+      cls: 'scribe-tool-truncated',
       text: t('chat.tools.moreCharacters', { count: result.length - maxChars }),
     });
   } else {
@@ -113,9 +113,9 @@ export function renderAgentLifecycleExpanded(
   const target = getInputText(input, 'target');
   const message = getInputText(input, 'message');
   if (target || message) {
-    const inputEl = container.createDiv({ cls: 'claudian-tool-lines' });
-    if (target) inputEl.createDiv({ cls: 'claudian-tool-line', text: t('chat.agent', { agent: target }) });
-    if (message) inputEl.createDiv({ cls: 'claudian-tool-line claudian-tool-line-wrap', text: message });
+    const inputEl = container.createDiv({ cls: 'scribe-tool-lines' });
+    if (target) inputEl.createDiv({ cls: 'scribe-tool-line', text: t('chat.agent', { agent: target }) });
+    if (message) inputEl.createDiv({ cls: 'scribe-tool-line scribe-tool-line-wrap', text: message });
   }
   if (!result) {
     contentFallback(container, pendingText ?? t('chat.tools.noOutput'));
@@ -126,9 +126,9 @@ export function renderAgentLifecycleExpanded(
   if (trimmed.startsWith('{')) {
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-      const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
+      const linesEl = container.createDiv({ cls: 'scribe-tool-lines' });
       for (const [key, value] of Object.entries(parsed)) {
-        const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
+        const lineEl = linesEl.createDiv({ cls: 'scribe-tool-line' });
         lineEl.setText(`${key}: ${formatToolDisplayValue(value)}`);
       }
       return;
@@ -147,9 +147,9 @@ function getResultImageSource(image: ToolResultImage): string {
 }
 
 export function renderResultImages(container: HTMLElement, images: ToolResultImage[]): void {
-  const imagesEl = container.createDiv({ cls: 'claudian-tool-result-images' });
+  const imagesEl = container.createDiv({ cls: 'scribe-tool-result-images' });
   for (const image of images) {
     const alt = image.alt ?? (image.kind === 'file' ? fileNameOnly(image.path) : image.mediaType);
-    imagesEl.createEl('img', { cls: 'claudian-tool-result-image', attr: { alt, loading: 'lazy', src: getResultImageSource(image) } });
+    imagesEl.createEl('img', { cls: 'scribe-tool-result-image', attr: { alt, loading: 'lazy', src: getResultImageSource(image) } });
   }
 }

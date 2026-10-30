@@ -38,7 +38,7 @@ function buildRewindConflictConfirmation(conflicts: readonly ChatRewindConflict[
     .slice(0, MAX_REWIND_CONFLICT_PATHS)
     .map(conflict => `- ${conflict.path}`);
   const omitted = conflicts.length - visiblePaths.length;
-  if (omitted > 0) visiblePaths.push(`- +${omitted} more`);
+  if (omitted > 0) visiblePaths.push(`- ${t('chat.rewind.moreFiles', { count: omitted })}`);
   return t('chat.rewind.confirmMessageConflicts', {
     count: conflicts.length,
     files: visiblePaths.join('\n'),
@@ -75,7 +75,7 @@ export class ConversationRewind {
     const msgs = state.messages;
     const userIdx = msgs.findIndex(m => m.id === userMessageId);
     if (userIdx === -1) {
-      failed('Message not found');
+      failed(t('chat.rewind.messageNotFound'));
       return;
     }
     const userMsg = msgs[userIdx];
@@ -112,23 +112,23 @@ export class ConversationRewind {
         try {
           initialized = await this.deps.ensureExecutionInitialized();
         } catch (e) {
-          failed(e instanceof Error ? e.message : 'Failed to initialize agent service');
+          failed(e instanceof Error ? e.message : t('chat.rewind.initializationFailed'));
           return;
         }
         if (this.deps.isClosing?.()) return;
         if (!initialized) {
-          failed('Agent service not available');
+          failed(t('chat.rewind.serviceUnavailable'));
           return;
         }
       }
 
       const coordinator = this.deps.getExecutionCoordinator();
       if (!coordinator) {
-        failed('Agent execution not available');
+        failed(t('chat.rewind.executionUnavailable'));
         return;
       }
       if (!isTargetCurrent()) {
-        failed('Conversation changed while rewinding.');
+        failed(t('chat.rewind.conversationChanged'));
         return;
       }
       /** True while the tab is idle and both the target and its execution are unchanged. */
@@ -138,7 +138,7 @@ export class ConversationRewind {
           return false;
         }
         if (!isTargetCurrent() || this.deps.getExecutionCoordinator() !== coordinator) {
-          failed('Conversation changed while rewinding.');
+          failed(t('chat.rewind.conversationChanged'));
           return false;
         }
         return true;
@@ -152,11 +152,11 @@ export class ConversationRewind {
         try {
           preview = await coordinator.previewRewind(nativeUserMessageId, prevAssistantUuid, mode);
         } catch (e) {
-          failed(e instanceof Error ? e.message : 'Unknown error');
+          failed(e instanceof Error ? e.message : t('chat.notices.unknownError'));
           return;
         }
         if (!preview.canRewind) {
-          new Notice(t('chat.rewind.cannot', { error: preview.error ?? 'Unknown error' }));
+          new Notice(t('chat.rewind.cannot', { error: preview.error ?? t('chat.notices.unknownError') }));
           return;
         }
         if (preview.conflicts && preview.conflicts.length > 0) {
@@ -177,15 +177,15 @@ export class ConversationRewind {
       try {
         result = await coordinator.rewind(nativeUserMessageId, prevAssistantUuid, mode);
       } catch (e) {
-        failed(e instanceof Error ? e.message : 'Unknown error');
+        failed(e instanceof Error ? e.message : t('chat.notices.unknownError'));
         return;
       }
       if (!result.canRewind) {
-        new Notice(t('chat.rewind.cannot', { error: result.error ?? 'Unknown error' }));
+        new Notice(t('chat.rewind.cannot', { error: result.error ?? t('chat.notices.unknownError') }));
         return;
       }
       if (!isTargetCurrent() || this.deps.getExecutionCoordinator() !== coordinator) {
-        failed('Conversation changed while rewinding.');
+        failed(t('chat.rewind.conversationChanged'));
         return;
       }
 
@@ -212,7 +212,7 @@ export class ConversationRewind {
             },
         );
       } catch (e) {
-        saveError = e instanceof Error ? e.message : 'Failed to save';
+        saveError = e instanceof Error ? e.message : t('chat.rewind.saveFailed');
       }
 
       if (saveError) {

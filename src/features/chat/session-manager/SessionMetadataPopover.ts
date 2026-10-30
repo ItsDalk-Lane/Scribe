@@ -3,11 +3,13 @@ import { setIcon } from 'obsidian';
 import type { ProviderIconSvg } from '@/core/providers/types';
 import type { ConversationMeta } from '@/core/types';
 import { getLinkedContentTitle, isLegacyProvisionalLinkedContent } from '@/features/chat/session-manager/SessionListOrganizer';
+import { t } from '@/i18n/i18n';
 import { createProviderIconSvg } from '@/shared/icons';
 
 /** Presentation inputs the popover reads from the current list render. */
 export interface SessionMetadataOptions {
   language?: string;
+  displayLanguage?: string;
   contentExists?: (contentPath: string) => boolean;
   contentIsNote?: (contentPath: string) => boolean;
   getProviderIcon?: (conversation: ConversationMeta) => ProviderIconSvg | null | undefined;
@@ -26,16 +28,16 @@ interface SessionMetadataView {
   providerIconKey: string;
 }
 
-export function formatSessionCreatedDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString(undefined, {
+export function formatSessionCreatedDate(timestamp: number, language?: string): string {
+  return new Date(timestamp).toLocaleDateString(language, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
 }
 
-export function formatSessionLastActive(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
+export function formatSessionLastActive(timestamp: number, language?: string): string {
+  return new Date(timestamp).toLocaleString(language, {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
@@ -119,7 +121,7 @@ export class SessionMetadataPopover {
     this.popoverEl = hoverEl;
     this.target = item;
 
-    const popoverId = `claudian-session-metadata-${++this.sequence}`;
+    const popoverId = `scribe-session-metadata-${++this.sequence}`;
     hoverEl.setAttribute('id', popoverId);
     descriptionTarget.setAttribute('aria-describedby', popoverId);
 
@@ -131,27 +133,27 @@ export class SessionMetadataPopover {
         contentIsNote: options.contentIsNote,
         language,
       });
-    view.linkedContent.parentElement!.classList.toggle('claudian-hidden', !hasLinkedContent);
+    view.linkedContent.parentElement!.classList.toggle('scribe-hidden', !hasLinkedContent);
     view.linkedContent.textContent = hasLinkedContent ? getLinkedContentTitle(linkedContentPath) : '';
     view.linkedContent.title = hasLinkedContent ? linkedContentPath : '';
     view.provider.textContent = options.getModelLabel?.(conversation) ?? conversation.selectedModel ?? '';
-    view.created.textContent = formatSessionCreatedDate(conversation.createdAt);
-    view.lastActive.textContent = formatSessionLastActive(conversation.lastActivityAt);
+    view.created.textContent = formatSessionCreatedDate(conversation.createdAt, options.displayLanguage);
+    view.lastActive.textContent = formatSessionLastActive(conversation.lastActivityAt, options.displayLanguage);
 
     const icon = options.getProviderIcon?.(conversation);
     const iconKey = JSON.stringify([conversation.providerId, icon ?? null]);
     if (view.providerIconKey !== iconKey) {
       view.providerIcon?.remove();
       const row = view.provider.parentElement!;
-      row.classList.toggle('claudian-session-metadata-row--provider-no-icon', !icon);
+      row.classList.toggle('scribe-session-metadata-row--provider-no-icon', !icon);
       view.providerIcon = icon ? createProviderIconSvg(icon, {
-        className: 'claudian-session-metadata-provider-icon', dataProvider: conversation.providerId,
+        className: 'scribe-session-metadata-provider-icon', dataProvider: conversation.providerId,
         height: 14, width: 14, parent: row,
       }) : null;
       if (view.providerIcon) row.prepend(view.providerIcon);
       view.providerIconKey = iconKey;
     }
-    hoverEl.removeClass('claudian-hidden');
+    hoverEl.removeClass('scribe-hidden');
     document.body.appendChild(hoverEl);
     this.#position(targetRect, hoverEl);
     const cancelClose = (): void => this.#cancelClose();
@@ -248,18 +250,18 @@ export class SessionMetadataPopover {
   ): HTMLElement {
     const row = parent.createDiv({
       cls: [
-        'claudian-session-metadata-row',
-        label ? '' : 'claudian-session-metadata-row--unlabeled',
+        'scribe-session-metadata-row',
+        label ? '' : 'scribe-session-metadata-row--unlabeled',
       ].filter(Boolean).join(' '),
     });
-    const iconEl = row.createSpan({ cls: 'claudian-session-metadata-icon' });
+    const iconEl = row.createSpan({ cls: 'scribe-session-metadata-icon' });
     setIcon(iconEl, icon);
     if (label) {
-      row.createSpan({ cls: 'claudian-session-metadata-label', text: label });
+      row.createSpan({ cls: 'scribe-session-metadata-label', text: label });
     }
     const valueEl = row.createSpan({
       cls: [
-        'claudian-session-metadata-value',
+        'scribe-session-metadata-value',
         options.className ?? '',
       ].filter(Boolean).join(' '),
       text: value,
@@ -270,17 +272,17 @@ export class SessionMetadataPopover {
 
   #getView(document: Document) {
     if (this.view?.el.ownerDocument === document) return this.view;
-    const el = document.body.createDiv({ cls: 'claudian-session-metadata-popover' });
+    const el = document.body.createDiv({ cls: 'scribe-session-metadata-popover' });
     el.setAttribute('role', 'tooltip');
     const linkedContent = this.#renderRow(el, 'file-text', null, '', {
-      className: 'claudian-session-metadata-value--content',
+      className: 'scribe-session-metadata-value--content',
     });
-    const providerRow = el.createDiv({ cls: 'claudian-session-metadata-row claudian-session-metadata-row--provider' });
-    const provider = providerRow.createSpan({ cls: 'claudian-session-metadata-value claudian-session-metadata-value--provider' });
+    const providerRow = el.createDiv({ cls: 'scribe-session-metadata-row scribe-session-metadata-row--provider' });
+    const provider = providerRow.createSpan({ cls: 'scribe-session-metadata-value scribe-session-metadata-value--provider' });
     this.view = {
       el, linkedContent, provider,
-      created: this.#renderRow(el, 'calendar-days', 'Created', ''),
-      lastActive: this.#renderRow(el, 'clock-3', 'Last active', ''),
+      created: this.#renderRow(el, 'calendar-days', t('chat.sessionManager.created'), ''),
+      lastActive: this.#renderRow(el, 'clock-3', t('chat.sessionManager.lastActive'), ''),
       providerIcon: null, providerIconKey: '',
     };
     return this.view;
@@ -293,7 +295,7 @@ export class SessionMetadataPopover {
     this.cleanup = null;
     this.popoverEl = null;
     this.target = null;
-    popover?.addClass('claudian-hidden');
+    popover?.addClass('scribe-hidden');
     popover?.remove();
   }
 }

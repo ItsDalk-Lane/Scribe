@@ -34,7 +34,7 @@ describe('todoContent', () => {
       ];
       expected.forEach(({ status, icon, text }, index) => {
         const item = container._children[index];
-        expect(item.hasClass(`claudian-todo-${status}`)).toBe(true);
+        expect(item.hasClass(`scribe-todo-${status}`)).toBe(true);
         expect(setIcon).toHaveBeenNthCalledWith(index + 1, item._children[0], icon);
         expect(item._children[1].textContent).toBe(text);
       });

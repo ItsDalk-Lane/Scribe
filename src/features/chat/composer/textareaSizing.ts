@@ -6,7 +6,7 @@ function calculateTextareaMaxHeight(viewHeight: number): number {
 }
 
 export function installTextareaSizing(textarea: HTMLElement): () => void {
-  const container = textarea.closest<HTMLElement>('.claudian-container');
+  const container = textarea.closest<HTMLElement>('.scribe-container');
   const ownerWindow = textarea.ownerDocument.defaultView;
   let currentMaxHeight = '';
 
@@ -14,7 +14,7 @@ export function installTextareaSizing(textarea: HTMLElement): () => void {
     const maxHeight = `${calculateTextareaMaxHeight(viewHeight)}px`;
     if (maxHeight === currentMaxHeight) return;
     currentMaxHeight = maxHeight;
-    textarea.setCssProps({ '--claudian-textarea-max-height': maxHeight });
+    textarea.setCssProps({ '--scribe-textarea-max-height': maxHeight });
   };
 
   updateMaxHeight(container?.clientHeight || ownerWindow?.innerHeight || TEXTAREA_MIN_MAX_HEIGHT);

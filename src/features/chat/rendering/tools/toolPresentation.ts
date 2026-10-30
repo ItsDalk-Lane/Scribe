@@ -5,9 +5,6 @@ import {
   TOOL_ASK_USER_QUESTION,
   TOOL_BASH,
   TOOL_BASH_OUTPUT,
-  TOOL_CLAUDIAN_LIST_DESTINATIONS,
-  TOOL_CLAUDIAN_READ_SESSION,
-  TOOL_CLAUDIAN_SEND_MESSAGE,
   TOOL_EDIT,
   TOOL_EDIT_IMAGE,
   TOOL_ENTER_PLAN_MODE,
@@ -21,6 +18,9 @@ import {
   TOOL_LIST_AGENTS,
   TOOL_LS,
   TOOL_READ,
+  TOOL_SCRIBE_LIST_DESTINATIONS,
+  TOOL_SCRIBE_READ_SESSION,
+  TOOL_SCRIBE_SEND_MESSAGE,
   TOOL_SEND_INPUT,
   TOOL_SEND_MESSAGE,
   TOOL_SKILL,
@@ -240,7 +240,7 @@ const TOOL_PRESENTATIONS: ReadonlyMap<string, ToolPresentation> = new Map<string
     headerDetail: getCurrentTaskText,
     // A live card shows its run status until the first result settles the task list.
     status: (statusEl, tool, pending) => pending
-      ? setToolStatus(statusEl, tool.status, 'claudian-tool-status')
+      ? setToolStatus(statusEl, tool.status, 'scribe-tool-status')
       : setTodoWriteStatus(statusEl, tool.input),
     cardBody: (container, tool) => renderTodoWriteContent(container, tool.input),
   }],
@@ -257,17 +257,17 @@ const TOOL_PRESENTATIONS: ReadonlyMap<string, ToolPresentation> = new Map<string
   }],
   [TOOL_WRITE_STDIN, { summary: getWriteStdinSummary }],
   [TOOL_WORKFLOW, scriptPresentation('Workflow')],
-  [TOOL_CLAUDIAN_LIST_DESTINATIONS, {
+  [TOOL_SCRIBE_LIST_DESTINATIONS, {
     name: () => t('chat.tools.listDestinations'),
     body: renderListDestinationsContent,
   }],
-  [TOOL_CLAUDIAN_SEND_MESSAGE, {
+  [TOOL_SCRIBE_SEND_MESSAGE, {
     // An interrupt without a message only stops the recipient.
     name: input => (getInputText(input, 'mode') === 'interrupt' && !getInputText(input, 'text')
       ? t('chat.tools.stopSession') : t('chat.tools.messageSession')),
     body: renderSendMessageContent,
   }],
-  [TOOL_CLAUDIAN_READ_SESSION, {
+  [TOOL_SCRIBE_READ_SESSION, {
     name: () => t('chat.tools.readSession'),
     body: renderReadSessionContent,
     handlesMissingResult: true,

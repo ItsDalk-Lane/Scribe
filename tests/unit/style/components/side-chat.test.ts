@@ -34,39 +34,39 @@ describe('Side chat full height styles', () => {
   });
 
   /** Mounts a real panel in the view footer's composer slot, as the presentation placement does. */
-  function renderView(composerParentSelector = '.claudian-active-input-slot') {
+  function renderView(composerParentSelector = '.scribe-active-input-slot') {
     const style = document.createElement('style');
     style.textContent = css;
     document.head.appendChild(style);
     document.body.innerHTML = `
-      <div class="claudian-container">
-        <div class="claudian-chat-panel">
-          <div class="claudian-tab-content-container">
-            <div class="claudian-tab-content"><div class="claudian-messages-wrapper"></div></div>
+      <div class="scribe-container">
+        <div class="scribe-chat-panel">
+          <div class="scribe-tab-content-container">
+            <div class="scribe-tab-content"><div class="scribe-messages-wrapper"></div></div>
           </div>
-          <div class="claudian-input-footer">
-            <div class="claudian-side-chat-chip-slot"></div>
-            <div class="claudian-input-nav-row claudian-view-input-nav-row"><div class="claudian-input-nav-content"></div></div>
-            <div class="claudian-active-input-slot"></div>
+          <div class="scribe-input-footer">
+            <div class="scribe-side-chat-chip-slot"></div>
+            <div class="scribe-input-nav-row scribe-view-input-nav-row"><div class="scribe-input-nav-content"></div></div>
+            <div class="scribe-active-input-slot"></div>
           </div>
         </div>
-        <div class="claudian-zen"><div class="claudian-zen-composer"></div></div>
+        <div class="scribe-zen"><div class="scribe-zen-composer"></div></div>
       </div>
     `;
     const composerEl = document.querySelector(composerParentSelector)!
       .appendChild(document.createElement('div'));
-    composerEl.className = 'claudian-input-composer claudian-side-chat-expanded';
+    composerEl.className = 'scribe-input-composer scribe-side-chat-expanded';
     const panel = new SideChatPanel(composerEl, { onCollapse: () => {}, onDiscard: () => {}, onExpand: () => {} });
     // The view lends its chat panel only while the composer sits in its footer slot.
-    if (composerParentSelector === '.claudian-active-input-slot') {
-      panel.setFullHeightHost(document.querySelector<HTMLElement>('.claudian-chat-panel'));
+    if (composerParentSelector === '.scribe-active-input-slot') {
+      panel.setFullHeightHost(document.querySelector<HTMLElement>('.scribe-chat-panel'));
     }
     return {
       panel,
-      panelEl: panel.rootEl.querySelector<HTMLElement>('.claudian-side-chat-panel')!,
-      transcriptEl: document.querySelector<HTMLElement>('.claudian-tab-content-container')!,
-      navRowEl: document.querySelector<HTMLElement>('.claudian-view-input-nav-row')!,
-      footerEl: document.querySelector<HTMLElement>('.claudian-input-footer')!,
+      panelEl: panel.rootEl.querySelector<HTMLElement>('.scribe-side-chat-panel')!,
+      transcriptEl: document.querySelector<HTMLElement>('.scribe-tab-content-container')!,
+      navRowEl: document.querySelector<HTMLElement>('.scribe-view-input-nav-row')!,
+      footerEl: document.querySelector<HTMLElement>('.scribe-input-footer')!,
     };
   }
 
@@ -92,11 +92,11 @@ describe('Side chat full height styles', () => {
 
   it('restores the main transcript while collapsed and full height again on expansion', () => {
     const { panel, panelEl, transcriptEl } = renderView();
-    panel.setCollapsedHost(document.querySelector<HTMLElement>('.claudian-side-chat-chip-slot'));
+    panel.setCollapsedHost(document.querySelector<HTMLElement>('.scribe-side-chat-chip-slot'));
     fireEvent.click(within(panel.rootEl).getByRole('button', { name: 'Full height' }));
     panel.setExpanded(false);
     // The collapsed chip lives in the same footer as the composer.
-    expect(panel.rootEl.closest('.claudian-input-footer')).not.toBeNull();
+    expect(panel.rootEl.closest('.scribe-input-footer')).not.toBeNull();
     expect(window.getComputedStyle(transcriptEl).display).toBe('flex');
 
     panel.setExpanded(true);
@@ -105,7 +105,7 @@ describe('Side chat full height styles', () => {
   });
 
   it('offers no full height control in the floating zen composer', () => {
-    const { panel } = renderView('.claudian-zen-composer');
+    const { panel } = renderView('.scribe-zen-composer');
     const button = within(panel.rootEl).getByLabelText('Full height');
     expect(window.getComputedStyle(button).display).toBe('none');
     expect(window.getComputedStyle(within(panel.rootEl).getByRole('button', { name: 'Collapse' })).display)

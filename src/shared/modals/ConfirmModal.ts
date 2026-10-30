@@ -34,7 +34,7 @@ class ConfirmModal extends Modal {
 
   onOpen() {
     this.setTitle(t('common.confirm'));
-    this.modalEl.addClass('claudian-confirm-modal');
+    this.modalEl.addClass('scribe-confirm-modal');
     if (this.modalClass) this.modalEl.addClass(this.modalClass);
 
     this.contentEl.createEl('p', { text: this.message });

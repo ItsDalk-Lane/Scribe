@@ -35,7 +35,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-const INTERRUPTED = 'Interrupted · What should Claudian do instead?';
+const INTERRUPTED = 'Interrupted · What should Scribe do instead?';
 /** Native turn steps after its first output: a reply cut off by `max_tokens` and resumed work continue the same turn. */
 type Boundary = 'notification' | 'compaction' | 'max-tokens' | 'tool' | 'text';
 interface Turn {
@@ -57,7 +57,7 @@ function visibleText(element: HTMLElement): string {
 /** What a reader sees: the transcript collapsed, and the interrupted body expanded. */
 function inspect(root: HTMLElement) {
   const headers = within(root).queryAllByRole('button', { name: INTERRUPTED });
-  const collapsed = Array.from(root.querySelectorAll<HTMLElement>('.claudian-message'), visibleText).filter(Boolean).join(' ');
+  const collapsed = Array.from(root.querySelectorAll<HTMLElement>('.scribe-message'), visibleText).filter(Boolean).join(' ');
   const header = headers[0];
   if (!header) return { headers: 0, collapsed, body: null };
   const history = document.getElementById(header.getAttribute('aria-controls')!)!;

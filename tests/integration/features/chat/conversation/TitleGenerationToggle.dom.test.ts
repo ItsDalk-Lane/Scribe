@@ -4,7 +4,7 @@ import '@/providers';
 
 import { claudeCatalogFixture } from '@test/helpers/claudeModels';
 import { DesktopVault } from '@test/helpers/core/DesktopVault';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate } from '@test/helpers/testClock';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import type { MockedFunction } from 'vitest';
@@ -30,7 +30,7 @@ afterEach(() => { document.body.replaceChildren(); });
 
 it('hides failed-title retry while title generation is disabled and restores working retry when enabled', async () => {
   const vault = await DesktopVault.create();
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS);
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
   settings.enableAutoTitleGeneration = false;
   settings.titleGenerationModel = 'haiku';
   settings.providerConfigs.claude = claudeCatalogFixture(['haiku']);

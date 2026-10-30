@@ -2,8 +2,8 @@ import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
 
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
-import type { ClaudianSettings } from '@/core/types';
-type MutableTestHost = ProviderHost & { settings: ClaudianSettings };
+import type { ScribeSettings } from '@/core/types';
+type MutableTestHost = ProviderHost & { settings: ScribeSettings };
 import type { Mock } from 'vitest';
 
 import type { SlashCommand } from '@/core/types';

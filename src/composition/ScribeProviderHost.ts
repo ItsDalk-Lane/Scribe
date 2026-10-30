@@ -26,18 +26,18 @@ import type {
   ProviderSessionArchive,
 } from '@/core/providers/types';
 import type { SessionToolEndpoint } from '@/core/session-tools/SessionToolEndpoint';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import type { EnvironmentScope } from '@/core/types/settings';
 import { getVaultPath } from '@/utils/path';
 
-export interface ClaudianProviderHostDeps {
+export interface ScribeProviderHostDeps {
   readonly app: App;
   readonly manifest?: { version?: string };
   readonly executionLifecycleRegistry: ProviderExecutionLifecycleRegistry;
   readonly storage: ProviderHostStorage;
   readonly sessionToolEndpoint: SessionToolEndpoint;
   readonly settings: Pick<
-    SettingsCoordinator<ClaudianSettings>,
+    SettingsCoordinator<ScribeSettings>,
     'getCommittedSettings' | 'mutate' | 'mutateConditionally'
   >;
   readonly environment: Pick<
@@ -55,7 +55,7 @@ export interface ClaudianProviderHostDeps {
  * Provider-facing capabilities assembled from application domains. Providers see
  * only this narrow host, never plugin lifecycle, views, or conversation ownership.
  */
-export class ClaudianProviderHost implements ProviderHost {
+export class ScribeProviderHost implements ProviderHost {
   readonly app: App;
   readonly manifest?: { version?: string };
   readonly executionLifecycleRegistry: ProviderExecutionLifecycleRegistry;
@@ -63,7 +63,7 @@ export class ClaudianProviderHost implements ProviderHost {
   readonly sessionToolEndpoint: SessionToolEndpoint;
   readonly #runtimeHosts = new Map<ProviderId, ProviderRuntimeHost>();
 
-  constructor(private readonly deps: ClaudianProviderHostDeps) {
+  constructor(private readonly deps: ScribeProviderHostDeps) {
     this.app = deps.app;
     this.manifest = deps.manifest;
     this.executionLifecycleRegistry = deps.executionLifecycleRegistry;
@@ -75,18 +75,18 @@ export class ClaudianProviderHost implements ProviderHost {
     return getVaultPath(this.app);
   }
 
-  get settings(): Readonly<ClaudianSettings> {
+  get settings(): Readonly<ScribeSettings> {
     return this.deps.settings.getCommittedSettings();
   }
 
   mutateSettings(
-    mutation: (settings: ClaudianSettings) => void | Promise<void>,
+    mutation: (settings: ScribeSettings) => void | Promise<void>,
   ): Promise<void> {
     return this.deps.settings.mutate(mutation);
   }
 
   mutateSettingsConditionally(
-    mutation: (settings: ClaudianSettings) => boolean | Promise<boolean>,
+    mutation: (settings: ScribeSettings) => boolean | Promise<boolean>,
   ): Promise<void> {
     return this.deps.settings.mutateConditionally(mutation);
   }
@@ -109,7 +109,7 @@ export class ClaudianProviderHost implements ProviderHost {
 
   applyProviderRuntimeSettings(
     providerIds: ProviderId[],
-    mutation: (settings: ClaudianSettings) => void | Promise<void>,
+    mutation: (settings: ScribeSettings) => void | Promise<void>,
     onApplied?: () => void | Promise<void>,
   ): Promise<void> {
     return this.deps.environment.applyProviderRuntimeSettings(providerIds, mutation, onApplied);

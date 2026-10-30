@@ -47,13 +47,13 @@ it('checks the multi-select custom answer as soon as text is typed', () => {
   }, vi.fn());
   panel.render();
   const input = within(document.body).getByRole('textbox', { name: 'Which checks?' });
-  const customRow = input.closest('.claudian-ask-custom-item')!;
+  const customRow = input.closest('.scribe-ask-custom-item')!;
 
   fireEvent.input(input, { target: { value: 'Typecheck' } });
-  expect(customRow.querySelector('.claudian-ask-check')?.classList.contains('is-checked')).toBe(true);
+  expect(customRow.querySelector('.scribe-ask-check')?.classList.contains('is-checked')).toBe(true);
 
   fireEvent.input(input, { target: { value: '' } });
-  expect(customRow.querySelector('.claudian-ask-check')?.classList.contains('is-checked')).toBe(false);
+  expect(customRow.querySelector('.scribe-ask-check')?.classList.contains('is-checked')).toBe(false);
 });
 
 it('submits a __proto__ question id as an own answer key with exact JSON', async () => {

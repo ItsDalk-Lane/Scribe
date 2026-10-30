@@ -3,6 +3,7 @@ import { type Menu, Notice, setIcon } from 'obsidian';
 import type { SessionBrowser } from '@/features/chat/session-manager/SessionBrowser';
 import type { HistoryConversationStatus } from '@/features/chat/session-manager/SessionStatusPresentation';
 import { scheduleAnimationFrame } from '@/features/chat/utils/animationFrame';
+import { t } from '@/i18n/i18n';
 
 /** The session-opening policy the session manager presentations delegate to. */
 export interface SessionSurfaceNavigation {
@@ -96,10 +97,10 @@ function createSessionHeaderButton(
   label: string,
 ): HTMLElement {
   const control = parent.createEl('button', {
-    cls: 'claudian-session-header-btn',
+    cls: 'scribe-session-header-btn',
     attr: { type: 'button', 'aria-label': label },
   });
-  const iconEl = control.createDiv({ cls: 'claudian-session-header-icon' });
+  const iconEl = control.createDiv({ cls: 'scribe-session-header-icon' });
   if (typeof icon === 'string') {
     setIcon(iconEl, icon);
   } else {
@@ -154,7 +155,7 @@ export function bindMenuToggle(button: HTMLElement, show: (event?: MouseEvent) =
 export function setControlAvailability(button: HTMLElement | null, isAvailable: boolean): void {
   if (!button) return;
 
-  button.toggleClass('claudian-hidden', !isAvailable);
+  button.toggleClass('scribe-hidden', !isAvailable);
   if (isAvailable) {
     button.removeAttribute('aria-disabled');
     button.removeAttribute('aria-hidden');
@@ -170,7 +171,7 @@ export function archiveScopeOptions(isArchiveView: boolean) {
   return {
     sessionScope: isArchiveView ? 'archived' : 'active',
     sessionActionMode: isArchiveView ? 'archived' : 'active',
-    historyHeaderLabel: isArchiveView ? 'Archived' : 'Sessions',
+    historyHeaderLabel: isArchiveView ? t('chat.sessionManager.archived') : t('chat.sessionManager.sessions'),
     allowConversationSelection: !isArchiveView,
   } as const;
 }
@@ -187,7 +188,7 @@ export function beginInlineRenameNextFrame(
   scheduleAnimationFrame(() => {
     if (options.isCurrent && !options.isCurrent()) return;
     const targetItem = Array.from(
-      container.querySelectorAll<HTMLElement>('.claudian-history-item'),
+      container.querySelectorAll<HTMLElement>('.scribe-history-item'),
     ).find(item => item.getAttribute('data-conversation-id') === conversationId);
     if (!targetItem) return;
 

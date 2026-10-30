@@ -1,7 +1,7 @@
 // Retired-binding migration (#1647): delete this file after 2027-01-16.
 import '@/providers';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { testDate, testTime } from '@test/helpers/testClock';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -10,7 +10,7 @@ import * as path from 'path';
 import { ConversationRepository } from '@/app/conversations/ConversationRepository';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import { clearPiResumeState } from '@/providers/pi/types';
 
 let root: string;
@@ -46,7 +46,7 @@ function retiredByEarlierVersion(conversation: Conversation): Conversation {
 }
 
 function fixture(conversations: Conversation[]) {
-  const settings = structuredClone(DEFAULT_CLAUDIAN_SETTINGS) as ClaudianSettings & Record<string, any>;
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS) as ScribeSettings & Record<string, any>;
   settings.providerConfigs = {
     ...settings.providerConfigs,
     pi: { enabled: true, environmentVariables: `PI_CODING_AGENT_SESSION_DIR=${sessionDir}\nHOME=${root}` },
@@ -83,7 +83,7 @@ async function treeBranchesOfEditedPrompt(repository: ConversationRepository, id
 
 describe('Pi bindings retired by an earlier version', () => {
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-pi-restore-'));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'scribe-pi-restore-'));
     vault = path.join(root, 'vault');
     sessionDir = path.join(root, 'sessions');
     fs.mkdirSync(vault);

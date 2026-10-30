@@ -1,18 +1,18 @@
 import type { SessionToolSendStatus } from '@/core/session-tools/sessionToolSpecs';
 import type { ClientSendOptions, SessionMessagingService } from '@/features/chat/session-messaging/SessionMessagingService';
 
-/** Workspace event fired with `ClaudianTurnEndedEvent` when a session finishes its turn and any work it left running. */
-export const CLAUDIAN_TURN_ENDED_EVENT = 'claudian:turn-ended';
+/** Workspace event fired with `ScribeTurnEndedEvent` when a session finishes its turn and any work it left running. */
+export const SCRIBE_TURN_ENDED_EVENT = 'scribe:turn-ended';
 
-export interface ClaudianTurnEndedEvent {
+export interface ScribeTurnEndedEvent {
   readonly sessionId: string;
 }
 
 /**
- * Experimental API for other plugins, reached as `app.plugins.getPlugin('realclaudian').api`.
+ * Experimental API for other plugins, reached as `app.plugins.getPlugin('scribe').api`.
  * Its shape may change in minor releases while `version` is 1.
  */
-export interface ClaudianAPI {
+export interface ScribeAPI {
   readonly version: 1;
   /** The session shown in the focused chat view. */
   getActiveSessionId(): string | null;
@@ -22,7 +22,7 @@ export interface ClaudianAPI {
   read(sessionId: string): Promise<string>;
 }
 
-export function createClaudianAPI(messaging: SessionMessagingService): ClaudianAPI {
+export function createScribeAPI(messaging: SessionMessagingService): ScribeAPI {
   return Object.freeze({
     version: 1 as const,
     getActiveSessionId: () => messaging.getActiveSessionId(),

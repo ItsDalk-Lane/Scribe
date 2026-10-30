@@ -11,6 +11,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/dom';
 
 import { createTabPlacementPort } from '@/features/chat/tabs/runtime/TabRuntimePorts';
 import { ChatPresentationPlacement } from '@/features/chat/view/ChatPresentationPlacement';
+import { setLocale } from '@/i18n/i18n';
 
 afterEach(releaseSideChatHarnesses);
 
@@ -19,20 +20,20 @@ it('previews the side colour for a complete command token only', () => {
   for (const partial of ['/sid', '/sideways ask', 'please use /side later']) {
     harness.inputEl.value = partial;
     harness.controller.handleComposerInput();
-    expect(harness.inputWrapperEl.classList.contains('claudian-input-side-chat-preview')).toBe(false);
+    expect(harness.inputWrapperEl.classList.contains('scribe-input-side-chat-preview')).toBe(false);
   }
 
   for (const complete of ['/side', '/btw', '/SIDE explore this', '/side line one\nline two']) {
     harness.inputEl.value = complete;
     harness.controller.handleComposerInput();
-    expect(harness.inputWrapperEl.classList.contains('claudian-input-side-chat-preview')).toBe(true);
+    expect(harness.inputWrapperEl.classList.contains('scribe-input-side-chat-preview')).toBe(true);
   }
 
   harness.inputEl.value = '/side';
   harness.controller.handleComposerInput();
   harness.inputEl.value = '';
   harness.controller.handleComposerInput();
-  expect(harness.inputWrapperEl.classList.contains('claudian-input-side-chat-preview')).toBe(false);
+  expect(harness.inputWrapperEl.classList.contains('scribe-input-side-chat-preview')).toBe(false);
   expect(harness.backend.sessions).toHaveLength(0);
 });
 
@@ -45,8 +46,8 @@ it('opens expanded with a joined border, then collapses to an idle chip over the
   await started;
 
   expect(harness.destinationChanges).toEqual(['side']);
-  const panel = screen.getByRole('heading', { name: 'Side chat' }).closest('.claudian-side-chat-panel')!;
-  expect(harness.composerEl.classList.contains('claudian-side-chat-expanded')).toBe(true);
+  const panel = screen.getByRole('heading', { name: 'Side chat' }).closest('.scribe-side-chat-panel')!;
+  expect(harness.composerEl.classList.contains('scribe-side-chat-expanded')).toBe(true);
   expect(harness.controller.destination).toBe('side');
   expect(harness.inputEl.placeholder).toBe('Ask a follow-up in the side chat');
   expect(harness.inputEl.getAttribute('aria-label')).toBe('Side chat message');
@@ -61,13 +62,13 @@ it('opens expanded with a joined border, then collapses to an idle chip over the
   fireEvent.click(collapse);
 
   expect(harness.controller.destination).toBe('main');
-  expect(harness.composerEl.classList.contains('claudian-side-chat-expanded')).toBe(false);
+  expect(harness.composerEl.classList.contains('scribe-side-chat-expanded')).toBe(false);
   expect(harness.inputEl.placeholder).toBe('Ask to make changes');
   expect(harness.inputEl.hasAttribute('aria-label')).toBe(false);
   expect(harness.destinationChanges).toEqual(['side', 'main']);
   const statusToggle = screen.getByRole('button', { name: 'Side chat' });
   expect(statusToggle.getAttribute('aria-expanded')).toBe('false');
-  expect(statusToggle.closest('.claudian-side-chat-status')!.classList.contains('claudian-hidden')).toBe(false);
+  expect(statusToggle.closest('.scribe-side-chat-status')!.classList.contains('scribe-hidden')).toBe(false);
   expect(await axe(harness.composerEl)).toHaveNoViolations();
 
   fireEvent.keyDown(statusToggle, { key: 'Enter' });
@@ -82,7 +83,7 @@ it('toggles full height without changing the destination, and keeps it across co
   harness.backend.latest.complete();
   await started;
 
-  const panel = screen.getByRole('heading', { name: 'Side chat' }).closest<HTMLElement>('.claudian-side-chat-panel')!;
+  const panel = screen.getByRole('heading', { name: 'Side chat' }).closest<HTMLElement>('.scribe-side-chat-panel')!;
   const fullHeight = within(panel).getByRole('button', { name: 'Full height' });
   expect(fullHeight.getAttribute('aria-pressed')).toBe('false');
   fireEvent.click(fullHeight);
@@ -156,7 +157,7 @@ it('discards the side chat, releases its session and restores the main composer'
   expect(screen.queryByRole('heading', { name: 'Side chat' })).toBeNull();
   expect(harness.controller.destination).toBe('main');
   expect(harness.controller.runtime).toBeNull();
-  expect(harness.composerEl.classList.contains('claudian-side-chat-expanded')).toBe(false);
+  expect(harness.composerEl.classList.contains('scribe-side-chat-expanded')).toBe(false);
 });
 
 it('rejects a nested side command and an empty prompt without creating anything', async () => {
@@ -225,10 +226,10 @@ it('places the collapsed active chip before navigation in single pane and restor
     isWide: () => isWide,
     getTabCount: () => 1,
   });
-  const host = footer.querySelector<HTMLElement>('.claudian-side-chat-chip-slot')!;
+  const host = footer.querySelector<HTMLElement>('.scribe-side-chat-chip-slot')!;
   const nav = navHost.appendChild(document.createElement('button'));
   nav.textContent = 'Tab 1';
-  footer.querySelector('.claudian-active-input-slot')!.appendChild(harness.composerEl);
+  footer.querySelector('.scribe-active-input-slot')!.appendChild(harness.composerEl);
   placement.updateChip();
   const { started } = await startSideChat(harness);
   harness.backend.latest.establishChild('child-session');
@@ -269,7 +270,7 @@ it('uses the navigation row for a single-tab chip and moves it above navigation 
     isWide: () => false,
     getTabCount: () => tabCount,
   });
-  const host = footer.querySelector<HTMLElement>('.claudian-side-chat-chip-slot')!;
+  const host = footer.querySelector<HTMLElement>('.scribe-side-chat-chip-slot')!;
   const navContent = document.createElement('div');
   navContent.appendChild(document.createElement('div'));
   const newTab = navContent.appendChild(document.createElement('button'));
@@ -313,7 +314,7 @@ it('applies full height to the view only for the active tab expanded in the foot
   harness.backend.latest.establishChild('child-session');
   harness.backend.latest.complete();
   await started;
-  const isFullHeight = () => chatPanelEl.classList.contains('claudian-chat-panel--side-chat-full-height');
+  const isFullHeight = () => chatPanelEl.classList.contains('scribe-chat-panel--side-chat-full-height');
   expect(isFullHeight()).toBe(false);
 
   fireEvent.click(screen.getByRole('button', { name: 'Full height' }));
@@ -348,8 +349,8 @@ function mountChipPlacement(context: {
     getTabCount: () => context.getTabCount(),
   });
   placement.mount(chatPanelEl);
-  const footer = chatPanelEl.querySelector<HTMLElement>('.claudian-input-footer')!;
-  const navHost = footer.querySelector<HTMLElement>('.claudian-view-input-nav-row')!;
+  const footer = chatPanelEl.querySelector<HTMLElement>('.scribe-input-footer')!;
+  const navHost = footer.querySelector<HTMLElement>('.scribe-view-input-nav-row')!;
   return { placement, chatPanelEl, footer, navHost };
 }
 
@@ -371,3 +372,20 @@ function chipTabFor(controller: {
   }
   return tab;
 }
+
+it('updates composer language in side chat without changing the draft', async () => {
+  const harness = createHarness();
+  const { started } = await startSideChat(harness);
+  harness.backend.latest.establishChild('child-session');
+  harness.backend.latest.complete();
+  await started;
+  harness.inputEl.value = 'my draft';
+  setLocale('zh-CN');
+  try {
+    harness.controller.refreshLocale();
+    expect(harness.inputEl.value).toBe('my draft');
+    expect(harness.inputEl.placeholder).toBe('在侧边对话中继续提问');
+    harness.controller.collapse();
+    expect(harness.inputEl.placeholder).toBe('请求修改、@提及文件、运行 /命令');
+  } finally { setLocale('en'); }
+});

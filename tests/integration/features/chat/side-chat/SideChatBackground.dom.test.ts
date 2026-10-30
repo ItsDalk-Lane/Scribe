@@ -134,7 +134,7 @@ it('shows live progress on a foreground subagent card until its result arrives',
   await waitFor(() => expect(screen.getByText('Reading the auth module')).toBeDefined());
   expect(screen.queryByText('Last tool: Grep')).toBeNull();
   expect(screen.getByText('3 tool uses · 12.3k tokens · 1m 4s')).toBeDefined();
-  const card = screen.getByRole('button', { name: /Subagent task: Audit auth/ }).closest('.claudian-subagent-list')!;
+  const card = screen.getByRole('button', { name: /Subagent task: Audit auth/ }).closest('.scribe-subagent-list')!;
   expect(await axe(card)).toHaveNoViolations();
   native.emitSessionEvent({ type: 'subagent_progress', progress: { toolCallId: 'task-1', lastToolName: 'Read', toolUses: 4 } });
   await waitFor(() => expect(screen.getByText('4 tool uses · 12.3k tokens · 1m 4s')).toBeDefined());

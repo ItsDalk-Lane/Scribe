@@ -5,7 +5,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { runtimeHostFor } from '@test/helpers/providerRuntimeHost';
 import { testDate, testTime } from '@test/helpers/testClock';
 import { App, Notice, type Plugin } from 'obsidian';
@@ -15,7 +15,7 @@ import { SessionMetadataLoader } from '@/app/conversations/SessionMetadataLoader
 import { ConversationPersistenceStore } from '@/app/storage/ConversationPersistenceStore';
 import { migrateSessionSidecars } from '@/app/storage/migrateSessionSidecars';
 import { SharedStorageService } from '@/app/storage/SharedStorageService';
-import { CLAUDIAN_SETTINGS_PATH, getDeviceSessionsPath, SESSIONS_PATH } from '@/core/bootstrap/storagePaths';
+import { getDeviceSessionsPath, SCRIBE_SETTINGS_PATH, SESSIONS_PATH } from '@/core/bootstrap/storagePaths';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
@@ -36,7 +36,7 @@ let adapter: VaultFileAdapter;
 let store: ConversationPersistenceStore;
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-metadata-'));
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-metadata-'));
   app = new App();
   app.vault.adapter = {
     exists: async (file: string) => fs.access(path.join(root, file)).then(() => true, () => false),
@@ -238,7 +238,7 @@ test('persists only subagent state that native history cannot rebuild and restor
     completed('task-sync', 'agent-sync'),
     completed('task-local', 'agent-local'),
     completed('task-legacy', 'agent-legacy'),
-    // The completion notice never reached the transcript; Claudian observed it live.
+    // The completion notice never reached the transcript; Scribe observed it live.
     taskResult('task-bg', 'Async agent launched', { status: 'async_launched', isAsync: true, agentId: 'agent-bg' }),
     // Older results identify the agent only in the hand-back text.
     taskResult('task-old', '[Subagent hand-back] The text below is the final report of a subagent. The report follows:\n'
@@ -593,9 +593,9 @@ test('assignment recovery retains its valid source until the existing device tar
   await store.saveMetadata(metadata, 'unscoped');
   await adapter.write(target, '{');
   await adapter.write(marker, JSON.stringify({ schemaVersion: 1, conversationId: metadata.id, deviceKey: DEVICE_KEY }));
-  await adapter.write(CLAUDIAN_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
+  await adapter.write(SCRIBE_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
 
-  await new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS).initialize();
+  await new SharedStorageService({ app } as Plugin, DEFAULT_SCRIBE_SETTINGS).initialize();
 
   expect(await adapter.read(source)).toBe(JSON.stringify(metadata));
   expect(await adapter.read(target)).toBe('{');
@@ -603,7 +603,7 @@ test('assignment recovery retains its valid source until the existing device tar
 
   const repaired = { ...metadata, title: 'Repaired device record' };
   await adapter.write(target, JSON.stringify(repaired));
-  await new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS).initialize();
+  await new SharedStorageService({ app } as Plugin, DEFAULT_SCRIBE_SETTINGS).initialize();
   expect(await adapter.exists(source)).toBe(false);
   expect(await adapter.exists(marker)).toBe(false);
   expect(await store.metadataReader.load(metadata.id)).toMatchObject({ source: 'device', metadata: repaired });
@@ -674,7 +674,7 @@ test('initialization loads settings while sidecar discovery is pending and waits
   await adapter.write(`${SESSIONS_PATH}/${metadata.id}.assigned.json`, JSON.stringify({
     schemaVersion: 1, conversationId: metadata.id, deviceKey: DEVICE_KEY,
   }));
-  await adapter.write(CLAUDIAN_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
+  await adapter.write(SCRIBE_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
   const list = app.vault.adapter.list.bind(app.vault.adapter);
   let entered!: () => void;
   const listingStarted = new Promise<void>(resolve => { entered = resolve; });
@@ -686,12 +686,12 @@ test('initialization loads settings while sidecar discovery is pending and waits
     return list(folder);
   });
   const exists = vi.spyOn(app.vault.adapter, 'exists');
-  const storage = new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS);
+  const storage = new SharedStorageService({ app } as Plugin, DEFAULT_SCRIBE_SETTINGS);
   let finished = false;
   const initializing = storage.initialize().then(result => { finished = true; return result; });
   try {
     await listingStarted;
-    expect(exists).toHaveBeenCalledWith(CLAUDIAN_SETTINGS_PATH);
+    expect(exists).toHaveBeenCalledWith(SCRIBE_SETTINGS_PATH);
     expect(finished).toBe(false);
   } finally {
     release();
@@ -706,14 +706,14 @@ test('initialization joins recovery before reporting a settings failure', async 
   await adapter.write(`${SESSIONS_PATH}/${metadata.id}.assigned.json`, JSON.stringify({
     schemaVersion: 1, conversationId: metadata.id, deviceKey: DEVICE_KEY,
   }));
-  await adapter.write(CLAUDIAN_SETTINGS_PATH, '{}');
+  await adapter.write(SCRIBE_SETTINGS_PATH, '{}');
   const failure = new Error('Settings unavailable');
   const read = app.vault.adapter.read.bind(app.vault.adapter);
   vi.spyOn(app.vault.adapter, 'read').mockImplementation(file => {
-    if (file === CLAUDIAN_SETTINGS_PATH) return Promise.reject(failure);
+    if (file === SCRIBE_SETTINGS_PATH) return Promise.reject(failure);
     return read(file);
   });
-  const storage = new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS);
+  const storage = new SharedStorageService({ app } as Plugin, DEFAULT_SCRIBE_SETTINGS);
   await expect(storage.initialize()).rejects.toBe(failure);
   expect(JSON.parse(await adapter.read(`${DEVICE_PATH}/${metadata.id}.meta.json`))).toEqual(metadata);
   expect(await adapter.exists(`${SESSIONS_PATH}/${metadata.id}.assigned.json`)).toBe(false);
@@ -726,8 +726,8 @@ test.each(['list', 'read', 'rename'] as const)(
     await adapter.write(`${SESSIONS_PATH}/${metadata.id}.assigned.json`, JSON.stringify({
       schemaVersion: 1, conversationId: metadata.id, deviceKey: DEVICE_KEY,
     }));
-    await adapter.write(CLAUDIAN_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
-    const storage = new SharedStorageService({ app } as Plugin, DEFAULT_CLAUDIAN_SETTINGS);
+    await adapter.write(SCRIBE_SETTINGS_PATH, JSON.stringify({ userName: 'Example' }));
+    const storage = new SharedStorageService({ app } as Plugin, DEFAULT_SCRIBE_SETTINGS);
     const original = app.vault.adapter[operation].bind(app.vault.adapter) as (...args: string[]) => ReturnType<App['vault']['adapter'][typeof operation]>;
     let failed = false;
     (vi.spyOn(app.vault.adapter, operation) as import('vitest').MockInstance<(...args: string[]) => ReturnType<App['vault']['adapter'][typeof operation]>>).mockImplementation((...args: string[]): ReturnType<App['vault']['adapter'][typeof operation]> => {
@@ -739,7 +739,7 @@ test.each(['list', 'read', 'rename'] as const)(
     });
     vi.mocked(Notice).mockClear();
 
-    await expect(storage.initialize()).resolves.toMatchObject({ claudian: { userName: 'Example' } });
+    await expect(storage.initialize()).resolves.toMatchObject({ scribe: { userName: 'Example' } });
     expect(Notice).toHaveBeenCalledWith('Failed to clean up obsolete session files; will retry next launch');
 
     await storage.initialize();

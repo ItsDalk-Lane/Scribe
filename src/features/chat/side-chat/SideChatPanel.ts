@@ -9,7 +9,7 @@ export interface SideChatPanelCallbacks {
   onDiscard(): void;
 }
 
-const FULL_HEIGHT_HOST_CLASS = 'claudian-chat-panel--side-chat-full-height';
+const FULL_HEIGHT_HOST_CLASS = 'scribe-chat-panel--side-chat-full-height';
 
 let panelSequence = 0;
 
@@ -40,38 +40,38 @@ export class SideChatPanel {
     private readonly callbacks: SideChatPanelCallbacks,
   ) {
     panelSequence += 1;
-    const panelId = `claudian-side-chat-panel-${panelSequence}`;
+    const panelId = `scribe-side-chat-panel-${panelSequence}`;
 
-    this.rootEl = hostEl.createDiv({ cls: 'claudian-side-chat' });
+    this.rootEl = hostEl.createDiv({ cls: 'scribe-side-chat' });
 
-    this.#statusEl = this.rootEl.createDiv({ cls: 'claudian-side-chat-status' });
+    this.#statusEl = this.rootEl.createDiv({ cls: 'scribe-side-chat-status' });
     this.#statusToggleEl = this.#statusEl.createEl('button', {
       attr: { 'aria-controls': panelId, 'aria-expanded': 'false', type: 'button' },
-      cls: 'claudian-side-chat-status-toggle',
+      cls: 'scribe-side-chat-status-toggle',
     });
-    this.#statusIconEl = this.#statusToggleEl.createSpan({ cls: 'claudian-side-chat-status-icon' });
+    this.#statusIconEl = this.#statusToggleEl.createSpan({ cls: 'scribe-side-chat-status-icon' });
     this.#statusIconEl.setAttribute('aria-hidden', 'true');
     setIcon(this.#statusIconEl, 'chevron-right');
-    this.#statusTextEl = this.#statusToggleEl.createSpan({ cls: 'claudian-side-chat-status-text' });
+    this.#statusTextEl = this.#statusToggleEl.createSpan({ cls: 'scribe-side-chat-status-text' });
     this.#statusToggleEl.addEventListener('click', () => this.callbacks.onExpand());
 
     this.#panelEl = this.rootEl.createDiv({
       attr: { id: panelId },
-      cls: 'claudian-side-chat-panel',
+      cls: 'scribe-side-chat-panel',
     });
-    const headerEl = this.#panelEl.createDiv({ cls: 'claudian-side-chat-header' });
+    const headerEl = this.#panelEl.createDiv({ cls: 'scribe-side-chat-header' });
     this.#titleEl = headerEl.createEl('h3', {
-      cls: 'claudian-side-chat-title',
+      cls: 'scribe-side-chat-title',
       text: t('chat.sideChat.title'),
     });
-    const actionsEl = headerEl.createDiv({ cls: 'claudian-side-chat-actions' });
+    const actionsEl = headerEl.createDiv({ cls: 'scribe-side-chat-actions' });
 
     this.#fullHeightEl = actionsEl.createEl('button', {
       attr: {
         'aria-controls': panelId, 'aria-pressed': 'false', type: 'button',
         'aria-label': t('chat.sideChat.fullHeight'),
       },
-      cls: 'claudian-side-chat-icon-button claudian-side-chat-full-height',
+      cls: 'scribe-side-chat-icon-button scribe-side-chat-full-height',
     });
     this.#fullHeightEl.addEventListener('click', () => this.#setFullHeight(!this.#fullHeight));
 
@@ -80,7 +80,7 @@ export class SideChatPanel {
         'aria-controls': panelId, 'aria-expanded': 'true', type: 'button',
         'aria-label': t('chat.sideChat.collapse'),
       },
-      cls: 'claudian-side-chat-icon-button',
+      cls: 'scribe-side-chat-icon-button',
     });
     setIcon(this.#collapseEl, 'minimize-2');
     this.#collapseEl.addEventListener('click', () => this.callbacks.onCollapse());
@@ -89,13 +89,13 @@ export class SideChatPanel {
       attr: {
         type: 'button', 'aria-label': t('chat.sideChat.discard'),
       },
-      cls: 'claudian-side-chat-icon-button',
+      cls: 'scribe-side-chat-icon-button',
     });
     setIcon(discardEl, 'x');
     discardEl.addEventListener('click', () => this.callbacks.onDiscard());
 
-    this.messagesEl = this.#panelEl.createDiv({ cls: 'claudian-side-chat-messages' });
-    this.promptsEl = this.#panelEl.createDiv({ cls: 'claudian-side-chat-prompts' });
+    this.messagesEl = this.#panelEl.createDiv({ cls: 'scribe-side-chat-messages' });
+    this.promptsEl = this.#panelEl.createDiv({ cls: 'scribe-side-chat-prompts' });
 
     setIcon(this.#fullHeightEl, 'unfold-vertical');
     this.setExpanded(true);
@@ -122,9 +122,9 @@ export class SideChatPanel {
   setExpanded(expanded: boolean): void {
     const hadFocus = this.rootEl.contains(this.rootEl.ownerDocument.activeElement);
     this.#expanded = expanded;
-    this.rootEl.toggleClass('claudian-side-chat--expanded', expanded);
-    this.#panelEl.toggleClass('claudian-hidden', !expanded);
-    this.#statusEl.toggleClass('claudian-hidden', expanded);
+    this.rootEl.toggleClass('scribe-side-chat--expanded', expanded);
+    this.#panelEl.toggleClass('scribe-hidden', !expanded);
+    this.#statusEl.toggleClass('scribe-hidden', expanded);
     this.#statusToggleEl.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     this.#collapseEl.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     this.#setFullHeight(this.#fullHeight);
@@ -171,7 +171,7 @@ export class SideChatPanel {
       setIcon(this.#fullHeightEl, fullHeight ? 'fold-vertical' : 'unfold-vertical');
     }
     const applied = fullHeight && this.#expanded;
-    this.rootEl.toggleClass('claudian-side-chat--full-height', applied);
+    this.rootEl.toggleClass('scribe-side-chat--full-height', applied);
     this.#fullHeightHost?.toggleClass(FULL_HEIGHT_HOST_CLASS, applied);
   }
 

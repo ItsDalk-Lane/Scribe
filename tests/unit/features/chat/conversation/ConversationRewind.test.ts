@@ -4,6 +4,7 @@ import { Notice } from 'obsidian';
 import type { Mock } from 'vitest';
 
 import { ConversationController } from '@/features/chat/conversation/ConversationController';
+import { setLocale } from '@/i18n/i18n';
 import { confirm } from '@/shared/modals/ConfirmModal';
 
 
@@ -29,6 +30,16 @@ describe('ConversationRewind', () => {
       getExecutionCoordinator: () => mockCoordinator,
     });
     controller = new ConversationController(deps);
+  });
+
+  it('localizes a missing message inside the rewind failure notice', async () => {
+    setLocale('zh-CN');
+    try {
+      await controller.rewind('missing');
+      expect(mockNotice).toHaveBeenCalledWith('回退失败：未找到消息');
+    } finally {
+      setLocale('en');
+    }
   });
 
   it('should find prev/response assistants with bounded scan (skipping non-uuid messages)', async () => {

@@ -36,7 +36,7 @@ class WikilinkWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const ownerWindow = view.dom.ownerDocument.win as Window & { createSpan: typeof createSpan };
     const el = ownerWindow.createSpan();
-    el.className = 'claudian-composer-wikilink markdown-rendered';
+    el.className = 'scribe-composer-wikilink markdown-rendered';
     el.contentEditable = 'false';
     const scope = this.component.addChild(new MarkdownRenderScope());
     scope.load();
@@ -59,11 +59,11 @@ class WikilinkWidget extends WidgetType {
 function createChip(view: EditorView, cls: string, label: string, icon: string | null, text: string): HTMLElement {
   const ownerWindow = view.dom.ownerDocument.win as Window & { createSpan: typeof createSpan };
   const el = ownerWindow.createSpan();
-  el.className = `claudian-composer-chip ${cls}`;
+  el.className = `scribe-composer-chip ${cls}`;
   el.contentEditable = 'false';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', label);
-  if (icon) setIcon(el.createSpan({ cls: 'claudian-composer-chip-icon' }), icon);
+  if (icon) setIcon(el.createSpan({ cls: 'scribe-composer-chip-icon' }), icon);
   el.append(view.dom.ownerDocument.createTextNode(text));
   return el;
 }
@@ -76,7 +76,7 @@ class SessionMentionWidget extends WidgetType {
   }
 
   toDOM(view: EditorView): HTMLElement {
-    return createChip(view, 'claudian-composer-session', `Session: ${this.title}`, 'message-circle-more', this.title);
+    return createChip(view, 'scribe-composer-session', `Session: ${this.title}`, 'message-circle-more', this.title);
   }
 }
 
@@ -90,10 +90,10 @@ class CommandWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     if (this.kind === 'skill') {
       const name = this.token.slice(1);
-      return createChip(view, 'claudian-composer-skill', `Skill: ${name}`, 'zap', name);
+      return createChip(view, 'scribe-composer-skill', `Skill: ${name}`, 'zap', name);
     }
-    const el = createChip(view, 'claudian-composer-command', `Command: ${this.token}`, null, this.token.slice(1));
-    el.prepend(el.createSpan({ cls: 'claudian-composer-command-prefix', text: this.token[0] }));
+    const el = createChip(view, 'scribe-composer-command', `Command: ${this.token}`, null, this.token.slice(1));
+    el.prepend(el.createSpan({ cls: 'scribe-composer-command-prefix', text: this.token[0] }));
     return el;
   }
 }
@@ -136,6 +136,7 @@ export class ComposerEditor {
   private view: EditorView | null = null;
   private readonly historyConfig = new Compartment();
   private readonly placeholderConfig = new Compartment();
+  private readonly labelConfig = new Compartment();
   private placeholderText = t('chat.composer.placeholder');
   private ghostText: string | null = null;
   private destroyed = false;
@@ -148,7 +149,7 @@ export class ComposerEditor {
 
   constructor(parent: HTMLElement, private readonly app: App, private readonly component: Component) {
     const host = parent.createDiv({
-      cls: 'claudian-input claudian-composer-editor',
+      cls: 'scribe-input scribe-composer-editor',
       attr: { role: 'textbox', 'aria-label': t('chat.composer.message'), 'aria-multiline': 'true', tabindex: '0', dir: 'auto' },
     });
     this.element = host as unknown as ComposerInputElement;
@@ -184,9 +185,9 @@ export class ComposerEditor {
         EditorView.lineWrapping,
         this.placeholderConfig.of(placeholder(this.placeholderText)),
         // CodeMirror turns off native spellcheck and autocorrect, which also disables macOS text replacements.
-        EditorView.contentAttributes.of({
+        this.labelConfig.of(EditorView.contentAttributes.of({
           'aria-label': t('chat.composer.message'), 'aria-multiline': 'true', role: 'textbox', spellcheck: 'true', autocorrect: 'on',
-        }),
+        })),
         EditorView.contentAttributes.of(view => {
           const description = this.ghostDescription(view.state.doc.length);
           return description ? { 'aria-description': description } : null;
@@ -250,6 +251,12 @@ export class ComposerEditor {
     };
     this.element.isChipRange = (from, to) => isChipRange(this.state.field(decorations), from, to);
     this.element.getAccessibleTextbox = () => this.textbox;
+    this.element.setAccessibleLabel = label => {
+      this.textbox.setAttribute('aria-label', label);
+      this.apply(this.state.update({ effects: this.labelConfig.reconfigure(EditorView.contentAttributes.of({
+        'aria-label': label, 'aria-multiline': 'true', role: 'textbox', spellcheck: 'true', autocorrect: 'on',
+      })) }));
+    };
     this.element.isCaretOnEdgeRow = direction => {
       const view = this.view;
       if (!view) return null;
@@ -293,7 +300,7 @@ export class ComposerEditor {
     const content = createSpan();
     content.createSpan({ text });
     content.append(' ');
-    content.createSpan({ cls: 'claudian-prompt-suggestion-hint', text: `(${t('chat.promptSuggestionHint')})` });
+    content.createSpan({ cls: 'scribe-prompt-suggestion-hint', text: `(${t('chat.promptSuggestionHint')})` });
     return content;
   }
 

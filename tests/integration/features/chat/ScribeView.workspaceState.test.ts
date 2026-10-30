@@ -1,4 +1,4 @@
-import { createClaudianView } from '@test/helpers/features/chat/ClaudianViewHarness';
+import { createScribeView } from '@test/helpers/features/chat/ScribeViewHarness';
 
 import type { AppTabManagerState } from '@/core/bootstrap/tabManagerState';
 
@@ -8,7 +8,7 @@ test('a later delivered view snapshot supersedes a restore still loading metadat
   let finishLoad!: () => void;
   let markLoading!: () => void;
   const loading = new Promise<void>(resolve => { markLoading = resolve; });
-  const view = createClaudianView();
+  const view = createScribeView();
   let restored: AppTabManagerState | null = null;
   view.tabManager = {
     getActiveTab: () => null,

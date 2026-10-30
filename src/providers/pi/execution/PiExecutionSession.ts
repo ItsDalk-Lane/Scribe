@@ -413,7 +413,7 @@ implements ProviderExecutionSession, SteerableExecutionSession {
   async #treeRequest(payload: Record<string, unknown>, signal?: AbortSignal): Promise<{ cancelled: boolean; leafId: string | null }> {
     if (!this.kernel || signal?.aborted) throw new Error('Pi navigation is unavailable.');
     const state = getPiState(this.state.providerState);
-    const result = await this.kernel.request<Record<string, unknown>>('claudian_tree', {
+    const result = await this.kernel.request<Record<string, unknown>>('scribe_tree', {
       ...payload, sessionFile: state.sessionFile, sessionId: state.sessionId,
     }, 10_000, signal).catch(async (error: unknown) => {
       // A timed-out extension may still be awaiting a native hook. Fence it before accepting more input.
@@ -431,7 +431,7 @@ implements ProviderExecutionSession, SteerableExecutionSession {
     if (payload.operation === 'restore' && result.leafId !== payload.leafId) {
       const parsed = await readPiSessionEntries(state.sessionFile!);
       const anchor = parsed.entries.find(entry => entry.id === result.leafId);
-      if (anchor?.type !== 'custom' || anchor.raw.customType !== 'claudian-tree-anchor' || anchor.parentId !== payload.leafId) {
+      if (anchor?.type !== 'custom' || anchor.raw.customType !== 'scribe-tree-anchor' || anchor.parentId !== payload.leafId) {
         throw new Error('Pi navigation did not reach the selected branch.');
       }
     }
@@ -943,7 +943,7 @@ implements ProviderExecutionSession, SteerableExecutionSession {
       if (!(error instanceof PiRPCResponseError)) throw error;
       throw new PiConfigurationError(
         `Pi cannot use ${modelPayload.provider}/${modelPayload.modelId} in its current environment (${error.message}). `
-        + 'Open Claudian settings → Pi, click Discover, and choose an available model.',
+        + 'Open Scribe settings → Pi, click Discover, and choose an available model.',
       );
     }
     this.#kernelModel = encoded.model;
@@ -1880,7 +1880,7 @@ function resolveSelectedModel(
     || !settings.visibleModels.includes(model)
   ) {
     throw new PiConfigurationError(
-      'No Pi model is selected. Enable a discovered model in Claudian settings.',
+      'No Pi model is selected. Enable a discovered model in Scribe settings.',
     );
   }
   return model;

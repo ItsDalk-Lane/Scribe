@@ -10,11 +10,11 @@ import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { Notice } from 'obsidian';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { createProviderRuntimeHost } from '@/composition/ClaudianProviderHost';
+import { createProviderRuntimeHost } from '@/composition/ScribeProviderHost';
 import { ProviderModelCatalogController } from '@/core/providers/models/ProviderModelCatalog';
 import type { ProviderHost } from '@/core/providers/ProviderHost';
 import type { ProviderSettingsTabRendererContext } from '@/core/providers/types';
-import type { ClaudianSettings } from '@/core/types';
+import type { ScribeSettings } from '@/core/types';
 import type { ToolbarCallbacks } from '@/features/chat/composer/toolbar/types';
 import type { ClaudeModelDiscovery } from '@/providers/claude/runtime/ClaudeModels';
 import { createClaudeModels } from '@/providers/claude/runtime/ClaudeModels';
@@ -133,7 +133,7 @@ describe('Claude model picker', () => {
     const selector = new ModelSelector(toolbar, {
       getSettings: () => h.settings, getUIConfig: () => claudeChatUIConfig,
     } as unknown as ToolbarCallbacks);
-    const chatLabels = () => [...toolbar.querySelectorAll('.claudian-model-option')].map(el => el.textContent);
+    const chatLabels = () => [...toolbar.querySelectorAll('.scribe-model-option')].map(el => el.textContent);
     const handle = (name: string) => within(container).getByRole('button', {
       name: `Reorder ${name}; drag or use the Up and Down Arrow keys`,
     });
@@ -279,8 +279,8 @@ it.each(['selections', 'aliases'] as const)(
     const notify = vi.fn();
     const host = {
       settings,
-      mutateSettings: (mutation: (draft: ClaudianSettings) => void | Promise<void>) =>
-        coordinator.mutate(draft => mutation(draft as unknown as ClaudianSettings)),
+      mutateSettings: (mutation: (draft: ScribeSettings) => void | Promise<void>) =>
+        coordinator.mutate(draft => mutation(draft as unknown as ScribeSettings)),
       notifyProviderChatOptionsChanged: notify,
     } as unknown as ProviderHost;
     const catalog = createClaudeModels(createProviderRuntimeHost(host, coordinator, 'claude'), async () => ({ changed: false }));
@@ -341,7 +341,7 @@ it('restores committed model checkboxes after a failed selection save and allows
   }
 });
 
-function continuityHarness(persist: (draft: ClaudianSettings) => Promise<void>) {
+function continuityHarness(persist: (draft: ScribeSettings) => Promise<void>) {
   const settings = { model: 'opus', providerConfigs: { claude: {
     visibleModels: ['sonnet', 'opus', 'gateway-model'], modelAliases: {},
     discoveredModels: [
@@ -349,12 +349,12 @@ function continuityHarness(persist: (draft: ClaudianSettings) => Promise<void>) 
       { value: 'sonnet', label: 'Sonnet' },
     ],
   } } };
-  const coordinator = new SettingsCoordinator(settings, draft => persist(draft as unknown as ClaudianSettings));
+  const coordinator = new SettingsCoordinator(settings, draft => persist(draft as unknown as ScribeSettings));
   const notify = vi.fn();
   const host = {
     settings,
-    mutateSettings: (mutation: (draft: ClaudianSettings) => void | Promise<void>) =>
-      coordinator.mutate(draft => mutation(draft as unknown as ClaudianSettings)),
+    mutateSettings: (mutation: (draft: ScribeSettings) => void | Promise<void>) =>
+      coordinator.mutate(draft => mutation(draft as unknown as ScribeSettings)),
     notifyProviderChatOptionsChanged: notify,
   } as unknown as ProviderHost;
   return { settings, coordinator, notify, catalog: createClaudeModels(createProviderRuntimeHost(host, coordinator, 'claude'), async () => ({ changed: false })) };

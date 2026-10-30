@@ -17,9 +17,9 @@ import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import { decodeSessionMessage } from '@/core/session-tools/sessionMessageEnvelope';
-import type { ClaudianSettings, Conversation, ConversationMutablePatch, ProjectReader } from '@/core/types';
+import type { Conversation, ConversationMutablePatch, ProjectReader,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
-import { createClaudianAPI } from '@/features/chat/session-messaging/ClaudianAPI';
+import { createScribeAPI } from '@/features/chat/session-messaging/ScribeAPI';
 import { SessionMessagingService } from '@/features/chat/session-messaging/SessionMessagingService';
 import { getSessionSettingsSnapshot } from '@/features/chat/sessions/sessionSettings';
 
@@ -36,7 +36,7 @@ function setup(options: { projects?: ProjectReader; members?: Record<string, str
     model: 'claude-sonnet-4-5', permissionMode: 'normal', effortLevel: 'high', excludedTags: [],
     lastSelectedChatModel: { providerId: 'claude', model: 'claude-sonnet-4-5' },
     providerConfigs: { claude: catalog },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const record = (id: string, activityOffset = 0): Conversation => ({
     id, sessionId: null, providerId: 'claude', selectedModel: settings.model, title: id === 'sender' ? 'Research' : id,
     messages: [], createdAt: testDate().getTime(), lastActivityAt: testDate({ minutes: activityOffset }).getTime(),
@@ -74,7 +74,7 @@ function setup(options: { projects?: ProjectReader; members?: Record<string, str
       await repository.update(id, patch);
     },
     createConversation: vi.fn(async () => { const created = record('created'); records.set(created.id, created); return created; }),
-    mutateSettings: async (mutate: (settings: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (settings: ScribeSettings) => void) => mutate(settings),
     executionPersistence: {
       registerExecutionBinding() {}, releaseExecutionBinding() {},
       assertConversationExecutionAuthority: async () => undefined,
@@ -560,7 +560,7 @@ describe('outside-client API', () => {
     { label: 'notification after final text', finalText: 'The note is up to date.', isError: false, interrupted: false, trailingNotification: true, expected: 'The note is up to date.' },
   ])('reads the final answer after notification-split work: $label', async ({ finalText, isError, interrupted, trailingNotification, expected }) => {
     const h = setup();
-    const api = createClaudianAPI(h.service);
+    const api = createScribeAPI(h.service);
     await api.send('recipient', { text: 'Inspect the note' });
     await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
     const native = h.backend.latest;
@@ -585,7 +585,7 @@ describe('outside-client API', () => {
 
   it('delivers client text as the user\'s own prompt, reports the active session, and reads the finished reply', async () => {
     const h = setup();
-    const api = createClaudianAPI(h.service);
+    const api = createScribeAPI(h.service);
     expect(api.version).toBe(1);
     expect(api.getActiveSessionId()).toBe('sender');
     expect(await api.send('recipient', { text: 'What is next?' })).toBe('started');
@@ -609,7 +609,7 @@ describe('outside-client API', () => {
 
   it('reads no reply from a first turn that is still running after a steer', async () => {
     const h = setup();
-    const api = createClaudianAPI(h.service);
+    const api = createScribeAPI(h.service);
     await api.send('recipient', { text: 'Inspect the note' });
     await waitFor(() => expect(h.backend.sessions[0]?.requests).toHaveLength(1));
     const native = h.backend.latest;
@@ -630,7 +630,7 @@ describe('outside-client API', () => {
 
   it('stops a running session through send without text, and requires text otherwise', async () => {
     const h = setup();
-    const api = createClaudianAPI(h.service);
+    const api = createScribeAPI(h.service);
     await expect(api.send('recipient', {})).rejects.toThrow('"text" is required unless mode is "interrupt"');
     await expect(api.send('recipient', { mode: 'steer' })).rejects.toThrow('"text" is required unless mode is "interrupt"');
     await api.send('recipient', { text: 'Long task' });

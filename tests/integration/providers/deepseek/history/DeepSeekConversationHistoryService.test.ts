@@ -11,7 +11,7 @@ let peer: NativePeer;
 let deepseek: DeepSeekHost;
 let history: DeepSeekConversationHistoryService;
 const time = testDate().getTime();
-const state = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'claudian-code' };
+const state = { schemaVersion: 1, home: getDeepSeekHome(process.env, process.cwd()), profile: 'web', preset: 'scribe-code' };
 const input = { sessionId: 'root', providerState: state, messages: [] };
 const wire = (seq: number, type: string, data: unknown, surfaceOp: unknown = 'append') => ({ type: 'event', event: { seq, type, time: time + seq, data, surfaceOp } });
 let records: ReturnType<typeof wire>[];
@@ -29,7 +29,7 @@ beforeEach(async () => {
   ];
   peer = new NativePeer();
   peer.onCall = (method, args) => {
-    if (method === 'session/projections') return { asOfSeq: 8, values: { agentPreset: 'claudian-code', modelSelection: { lastUsed: { provider: 'native', model: 'old-model' }, next: { provider: 'native', model: 'new-model' } } } };
+    if (method === 'session/projections') return { asOfSeq: 8, values: { agentPreset: 'scribe-code', modelSelection: { lastUsed: { provider: 'native', model: 'old-model' }, next: { provider: 'native', model: 'new-model' } } } };
     if (method === 'session/page') {
       const visible = records.filter(row => row.event.seq <= args.request.throughSeq && (args.request.beforeSeq === undefined || row.event.seq < args.request.beforeSeq));
       return { records: visible.slice(-4), hasMore: visible.length > 4 };
@@ -72,7 +72,7 @@ it('hydrates a prototype-named custom tool with its original input, payload and 
 
 it('defers native forks to first execution and reads only the selected source prefix', async () => {
   const fork = history.buildForkProviderState('root', 'deepseek:seq:7', state);
-  expect(fork).toMatchObject({ preset: 'claudian-code', pendingFork: { sessionId: 'root', atSeq: 7 } });
+  expect(fork).toMatchObject({ preset: 'scribe-code', pendingFork: { sessionId: 'root', atSeq: 7 } });
   const result = await history.hydrateConversationHistory({ ...input, sessionId: null, providerState: fork }, '/vault');
   expect(result.messages?.at(-1)?.assistantMessageId).toBe('deepseek:seq:7');
   expect(peer.calls.filter(c => c.method === 'session/page').every(c => c.args.request.throughSeq === 7)).toBe(true);
@@ -320,8 +320,8 @@ it('hydrates a session-message sender and preserves neutral tool names without c
   records = [
     wire(0, 'turn/start', { turn: 0 }),
     wire(1, 'user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: encodeSessionMessage({ from: 'Planner', sessionId: 'sender', text: 'Please review' }) }] }),
-    wire(2, 'tool/call', { callId: 'list', name: 'claudian_list_destinations', arguments: '{}' }),
-    wire(3, 'tool/call', { callId: 'send', name: 'claudian_send_message', arguments: '{"sessionId":"sender","text":"Reviewed"}' }),
+    wire(2, 'tool/call', { callId: 'list', name: 'scribe_list_destinations', arguments: '{}' }),
+    wire(3, 'tool/call', { callId: 'send', name: 'scribe_send_message', arguments: '{"sessionId":"sender","text":"Reviewed"}' }),
     wire(4, 'tool/call', { callId: 'native', name: 'send_message', arguments: '{"agent_id":"child","text":"Continue"}' }),
     wire(5, 'turn/end', { turn: 0, reason: { kind: 'completed' } }),
   ];
@@ -329,8 +329,8 @@ it('hydrates a session-message sender and preserves neutral tool names without c
   expect(result.messages?.[0].sessionMessage).toEqual({ from: 'Planner', sessionId: 'sender' });
   expect(extractUserDisplayContent(result.messages![0].content)).toBe('Please review');
   expect(result.messages?.[1].toolCalls).toMatchObject([
-    { name: 'claudian_list_destinations', providerPayload: { rawName: 'claudian_list_destinations' } },
-    { name: 'claudian_send_message', input: { sessionId: 'sender', text: 'Reviewed' }, providerPayload: { rawName: 'claudian_send_message' } },
+    { name: 'scribe_list_destinations', providerPayload: { rawName: 'scribe_list_destinations' } },
+    { name: 'scribe_send_message', input: { sessionId: 'sender', text: 'Reviewed' }, providerPayload: { rawName: 'scribe_send_message' } },
     { name: 'send_message', input: { target: 'child', text: 'Continue' } },
   ]);
 });

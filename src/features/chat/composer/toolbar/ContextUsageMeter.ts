@@ -1,4 +1,5 @@
 import type { UsageInfo } from '@/core/types';
+import { t } from '@/i18n/i18n';
 
 export class ContextUsageMeter {
   private container: HTMLElement;
@@ -7,18 +8,18 @@ export class ContextUsageMeter {
   private circumference: number = 0;
 
   constructor(parentEl: HTMLElement) {
-    this.container = parentEl.createDiv({ cls: 'claudian-context-meter' });
+    this.container = parentEl.createDiv({ cls: 'scribe-context-meter' });
     this.container.setAttribute('role', 'progressbar');
-    this.container.setAttribute('aria-label', 'Context usage');
+    this.container.setAttribute('aria-label', t('chat.displayFeedback.context'));
     this.container.setAttribute('aria-valuemin', '0');
     this.container.setAttribute('aria-valuemax', '100');
     this.render();
     // Initially hidden
-    this.container.addClass('claudian-hidden');
+    this.container.addClass('scribe-hidden');
   }
 
   setVisible(visible: boolean): void {
-    this.container.toggleClass('claudian-hidden', !visible);
+    this.container.toggleClass('scribe-hidden', !visible);
   }
 
   private render() {
@@ -42,7 +43,7 @@ export class ContextUsageMeter {
     const x2 = cx + radius * Math.cos(endRad);
     const y2 = cy + radius * Math.sin(endRad);
 
-    const gaugeEl = this.container.createDiv({ cls: 'claudian-context-meter-gauge' });
+    const gaugeEl = this.container.createDiv({ cls: 'scribe-context-meter-gauge' });
     const svg = gaugeEl.createSvg('svg');
     svg.setAttribute('width', String(size));
     svg.setAttribute('height', String(size));
@@ -50,14 +51,14 @@ export class ContextUsageMeter {
 
     const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 1 1 ${x2} ${y2}`;
     const backgroundPath = svg.createSvg('path');
-    backgroundPath.classList.add('claudian-meter-bg');
+    backgroundPath.classList.add('scribe-meter-bg');
     backgroundPath.setAttribute('d', pathData);
     backgroundPath.setAttribute('fill', 'none');
     backgroundPath.setAttribute('stroke-width', String(strokeWidth));
     backgroundPath.setAttribute('stroke-linecap', 'round');
 
     const fillPath = svg.createSvg('path');
-    fillPath.classList.add('claudian-meter-fill');
+    fillPath.classList.add('scribe-meter-fill');
     fillPath.setAttribute('d', pathData);
     fillPath.setAttribute('fill', 'none');
     fillPath.setAttribute('stroke-width', String(strokeWidth));
@@ -70,15 +71,15 @@ export class ContextUsageMeter {
     gaugeEl.appendChild(svg);
     this.fillPath = fillPath;
 
-    this.percentEl = this.container.createSpan({ cls: 'claudian-context-meter-percent' });
+    this.percentEl = this.container.createSpan({ cls: 'scribe-context-meter-percent' });
   }
 
   update(usage: UsageInfo | null): void {
     if (!usage || usage.contextTokens <= 0) {
-      this.container.addClass('claudian-hidden');
+      this.container.addClass('scribe-hidden');
       return;
     }
-    this.container.removeClass('claudian-hidden');
+    this.container.removeClass('scribe-hidden');
     const fillLength = (usage.percentage / 100) * this.circumference;
     if (this.fillPath) {
       this.fillPath.setAttribute('stroke-dashoffset', String(this.circumference - fillLength));
@@ -95,9 +96,9 @@ export class ContextUsageMeter {
     // The percentage leads because zen shows the gauge without its number.
     let tooltip = `${usage.percentage}% · ${usageText}`;
     if (usage.percentage > 80) {
-      tooltip += ' (Approaching limit, run `/compact` to continue)';
+      tooltip += t('chat.displayFeedback.contextWarning');
     }
-    this.container.setAttribute('aria-label', `Context usage: ${tooltip}`);
+    this.container.setAttribute('aria-label', t('chat.displayFeedback.contextDetails', { usage: tooltip }));
     this.container.setAttribute('aria-valuenow', String(usage.percentage));
     this.container.setAttribute('aria-valuetext', usageText);
   }

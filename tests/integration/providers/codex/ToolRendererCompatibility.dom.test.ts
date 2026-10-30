@@ -244,7 +244,7 @@ describe.each(['live', 'history'] as const)('%s Codex tool presentation', mode =
     expect(header.textContent).toContain('Script');
     fireEvent.keyDown(header, { key: 'Enter' });
     expect(block.querySelector('code')?.textContent).toBe(source);
-    expect(block.querySelector('.claudian-tool-script-output')?.textContent).toBe(output);
+    expect(block.querySelector('.scribe-tool-script-output')?.textContent).toBe(output);
     expect((await axe(block)).violations).toEqual([]);
   });
 
@@ -373,7 +373,7 @@ it('submits a selected option and a free-text answer once, then restores both an
     await new Promise<void>(resolve => { finish = resolve; });
   });
   const { block, panelHost, composer, input: draft, prompts } = showQuestion(tool, onAnswer);
-  expect(composer.classList.contains('claudian-hidden')).toBe(true);
+  expect(composer.classList.contains('scribe-hidden')).toBe(true);
   expect(within(block).queryByRole('region', { name: 'Question' })).toBeNull();
   fireEvent.click(within(panelHost).getByRole('button', { name: 'History' }));
   fireEvent.input(within(panelHost).getByRole('textbox', { name: 'Any details?' }), { target: { value: 'Preserve my notes.' } });
@@ -392,7 +392,7 @@ it('submits a selected option and a free-text answer once, then restores both an
   expect((within(panelHost).getByRole('button', { name: 'Sending...' }) as HTMLButtonElement).disabled).toBe(true);
   finish();
   await waitFor(() => expect(within(panelHost).queryByRole('button', { name: 'Sending...' })).toBeNull());
-  expect(composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(composer.classList.contains('scribe-hidden')).toBe(false);
   expect(draft.value).toBe('Keep my draft');
   await waitFor(() => expect(within(block).getByText('Preserve my notes.')).toBeDefined());
   expect(within(block).queryByRole('button', { name: 'Submit answers' })).toBeNull();
@@ -416,12 +416,12 @@ it('submits a selected option and a free-text answer once, then restores both an
     { navigate: async () => undefined, isBusy: () => false },
   );
   renderer.addMessage(messages.find(message => message.role === 'user')!);
-  expect(transcript.querySelector('.claudian-message-user')).toBeNull();
+  expect(transcript.querySelector('.scribe-message-user')).toBeNull();
   renderer.renderMessages(messages, () => 'Welcome');
-  expect(transcript.querySelector('.claudian-message-user')).toBeNull();
+  expect(transcript.querySelector('.scribe-message-user')).toBeNull();
   expect(within(transcript).getByText('Preserve my notes.')).toBeDefined();
   renderer.addMessage({ id: 'ordinary', role: 'user', content: 'Keep this message', timestamp: Date.now() });
-  expect(transcript.querySelectorAll('.claudian-message-user')).toHaveLength(1);
+  expect(transcript.querySelectorAll('.scribe-message-user')).toHaveLength(1);
   renderer.dispose();
   const restoredBlock = renderStoredToolCall(document.body.createDiv(), restored, { initiallyExpanded: true });
   expect(within(restoredBlock).queryByRole('button', { name: 'Submit answers' })).toBeNull();
@@ -441,7 +441,7 @@ it('keeps answer controls usable after rejected submission and disables controls
   tool.status = 'error';
   prompts.updateAsyncQuestion(tool);
   await waitFor(() => expect(within(panelHost).queryByRole('button', { name: 'Submit answers' })).toBeNull());
-  expect(composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(composer.classList.contains('scribe-hidden')).toBe(false);
   expect(within(block).getByText('Question expired.')).toBeDefined();
 });
 
@@ -467,7 +467,7 @@ it('shows js source before output arrives and preserves it after a live failure'
   expect(block.textContent).toContain('Running...');
   updateToolCallResult(block, { ...tool, status: 'error', result: 'ReferenceError: app is not defined' });
   expect(block.querySelector('code')?.textContent).toBe('await app.getState();');
-  expect(block.querySelector('.claudian-tool-script-output')?.textContent).toBe('ReferenceError: app is not defined');
+  expect(block.querySelector('.scribe-tool-script-output')?.textContent).toBe('ReferenceError: app is not defined');
 });
 
 
@@ -479,7 +479,7 @@ it('expires dismissed questions and keeps history replay read-only', async () =>
   expect((await axe(panel)).violations).toEqual([]);
   fireEvent.keyDown(panel, { key: 'Escape' });
   await waitFor(() => expect(tool.questionStatus).toBe('expired'));
-  expect(composer.classList.contains('claudian-hidden')).toBe(false);
+  expect(composer.classList.contains('scribe-hidden')).toBe(false);
   expect(onAnswer).not.toHaveBeenCalled();
   expect(tool.resolvedAnswers).toBeUndefined();
   expect(within(block).getByText('Question expired.')).toBeDefined();
@@ -593,14 +593,14 @@ it.each([false, true].flatMap(lateNative => ['text', 'thinking'].map(boundary =>
     expect(header.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(header);
     expect(header.getAttribute('aria-expanded')).toBe('true');
-    const content = card.querySelector<HTMLElement>('.claudian-tool-content')!;
+    const content = card.querySelector<HTMLElement>('.scribe-tool-content')!;
     expect(within(content).getAllByText(`hello-${index}`)).toHaveLength(1);
     fireEvent.click(header);
     expect(header.getAttribute('aria-expanded')).toBe('false');
   };
   try {
     state.addMessage(response);
-    state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
     router.beginTurn();
     await notify('item/agentMessage/delta', { itemId: 'intro', delta: 'Creating the note.' });
     for (const [index, wrapped] of [false, true].entries()) {

@@ -25,7 +25,7 @@ import type { AssembledTabRuntime } from '@/features/chat/tabs/types';
 
 /** Real persistence/orchestration with only the Obsidian filesystem boundary supplied by the test. */
 export async function createForkTestEnvironment() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-fork-integration-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scribe-fork-integration-'));
   const app = new App();
   app.vault.adapter = {
     basePath: root,

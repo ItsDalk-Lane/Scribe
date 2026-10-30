@@ -6,7 +6,7 @@ import {
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { ProviderCapabilities, ProviderChatUIConfig } from '@/core/providers/types';
-import type { ClaudianSettings, Conversation, ConversationSummary } from '@/core/types';
+import type { Conversation, ConversationSummary,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { type ChatSettings, getChatSettingsSnapshot } from '@/features/chat/ChatSettings';
 import type { SessionIdentity } from '@/features/chat/sessions/ChatSessionRuntime';
@@ -129,7 +129,7 @@ function reasoningSelectionKey(providerId: string, model: string): string {
 export function getSessionSelectedModel(
   tab: Readonly<SessionIdentity>,
   plugin: ChatFeatureHost,
-  settings: Readonly<ClaudianSettings> = plugin.settings,
+  settings: Readonly<ScribeSettings> = plugin.settings,
   conversation: ConversationSummary | null = tab.conversationId ? plugin.getConversationSummary(tab.conversationId) : null,
 ): string | null {
   const providerId = conversation?.providerId ?? tab.providerId;

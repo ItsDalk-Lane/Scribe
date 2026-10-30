@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const script = fileURLToPath(new URL('./summarize-vitest-results.mjs', import.meta.url));
 
 test('reports every test, retains failed timings, and summarizes the slowest cases', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'claudian-vitest-report-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'scribe-vitest-report-'));
   try {
     const input = path.join(directory, 'vitest.json');
     const output = path.join(directory, 'timings');
@@ -64,7 +64,7 @@ test('reports every test, retains failed timings, and summarizes the slowest cas
 });
 
 test('bounds the summary while retaining timings for all tests', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'claudian-vitest-report-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'scribe-vitest-report-'));
   try {
     const input = path.join(directory, 'vitest.json');
     const output = path.join(directory, 'timings');
@@ -93,7 +93,7 @@ test('bounds the summary while retaining timings for all tests', async () => {
 });
 
 test('real Vitest execution records resolved workers and environment alongside suite timings', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'claudian-vitest-metadata-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'scribe-vitest-metadata-'));
   try {
     const input = path.join(directory, 'vitest.json');
     const output = path.join(directory, 'timings');
@@ -136,7 +136,7 @@ test('real Vitest execution records resolved workers and environment alongside s
 
 
 test('real skipped and load-error suites have no measured execution duration', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'claudian-vitest-unexecuted-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'scribe-vitest-unexecuted-'));
   try {
     const input = path.join(directory, 'vitest.json');
     const output = path.join(directory, 'timings');
@@ -169,7 +169,7 @@ test('real skipped and load-error suites have no measured execution duration', a
 
 // The final JSON report cannot help when a worker blocks before the run finishes.
 test('interrupted Vitest execution leaves the active module available for CI diagnostics', async () => {
-  const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'claudian-vitest-interrupted-')));
+  const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'scribe-vitest-interrupted-')));
   let child;
   try {
     const input = path.join(directory, 'vitest.json');

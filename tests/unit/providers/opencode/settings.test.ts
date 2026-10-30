@@ -231,7 +231,7 @@ describe('OpenCode settings normalization', () => {
             { id: 'build', name: 'Build' },
           ],
           discoveredModels,
-          selectedMode: 'claudian-safe',
+          selectedMode: 'scribe-safe',
           visibleModels: ['anthropic/claude-sonnet-4'],
         },
       },

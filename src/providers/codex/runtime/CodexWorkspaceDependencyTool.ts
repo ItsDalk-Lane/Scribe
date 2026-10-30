@@ -18,7 +18,7 @@ export function createCodexWorkspaceDependencyTool(
     tool: {
       type: 'function',
       name: CODEX_WORKSPACE_DEPENDENCY_TOOL_NAME,
-      description: 'Locate the configured bundled workspace dependency runtime paths for this local Claudian Codex thread, including Node.js, Python, and useful libraries for working with spreadsheets, slide decks, Word documents, and PDFs. This is read-only and takes no arguments.',
+      description: 'Locate the configured bundled workspace dependency runtime paths for this local Scribe Codex thread, including Node.js, Python, and useful libraries for working with spreadsheets, slide decks, Word documents, and PDFs. This is read-only and takes no arguments.',
       inputSchema: {
         type: 'object',
         properties: {},

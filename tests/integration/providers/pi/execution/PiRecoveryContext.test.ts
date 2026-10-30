@@ -24,7 +24,7 @@ const cases: Array<{ label: string; context?: ProviderExecutionContext; expected
 ];
 
 it.each(cases)('sends a repeated unanswered request with its $label during Pi recovery', async ({ context, expected, nativeFailure }) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'claudian-pi-recovery-context-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'scribe-pi-recovery-context-'));
   const script = path.join(root, 'native.cjs');
   const captured = path.join(root, 'prompt.json');
   await writeFile(script, `

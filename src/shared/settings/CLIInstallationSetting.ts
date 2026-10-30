@@ -26,7 +26,7 @@ export interface CLIInstallationSettingControl extends HostnameCLIPathSettingCon
 const installationRefreshers = new WeakMap<HTMLElement, () => Promise<void>>();
 
 export function refreshCLIInstallations(container: HTMLElement): void {
-  for (const card of container.querySelectorAll<HTMLElement>('.claudian-cli-installation')) {
+  for (const card of container.querySelectorAll<HTMLElement>('.scribe-cli-installation')) {
     void installationRefreshers.get(card)?.();
   }
 }
@@ -40,28 +40,28 @@ export function renderCLIInstallationSetting(
   let disabled = options.disabled ?? false;
   let saving = false;
   let generation = 0;
-  options.container.classList.add('claudian-cli-installation-container');
-  const card = options.container.createDiv({ cls: 'claudian-cli-installation' });
-  const heading = card.createDiv({ cls: 'claudian-cli-installation-heading' });
+  options.container.classList.add('scribe-cli-installation-container');
+  const card = options.container.createDiv({ cls: 'scribe-cli-installation' });
+  const heading = card.createDiv({ cls: 'scribe-cli-installation-heading' });
   const header = heading.createEl('button', {
-    cls: 'claudian-cli-installation-header',
+    cls: 'scribe-cli-installation-header',
     attr: { type: 'button', 'aria-label': t('settings.cliInstallation.disclosure', { name: options.cliName }), 'aria-expanded': 'false' },
   });
-  const icon = header.createSpan({ cls: 'claudian-cli-installation-icon', attr: { 'aria-hidden': 'true' } });
+  const icon = header.createSpan({ cls: 'scribe-cli-installation-icon', attr: { 'aria-hidden': 'true' } });
   if (options.icon) createProviderIconSvg(options.icon, { parent: icon });
-  const dot = icon.createSpan({ cls: 'claudian-cli-installation-dot' });
-  const summary = header.createSpan({ cls: 'claudian-cli-installation-summary' });
-  const title = summary.createSpan({ cls: 'claudian-cli-installation-title' });
+  const dot = icon.createSpan({ cls: 'scribe-cli-installation-dot' });
+  const summary = header.createSpan({ cls: 'scribe-cli-installation-summary' });
+  const title = summary.createSpan({ cls: 'scribe-cli-installation-title' });
   title.createSpan({ text: options.cliName });
-  const version = title.createSpan({ cls: 'claudian-cli-installation-version' });
-  const status = summary.createSpan({ cls: 'claudian-cli-installation-status', attr: { role: 'status' } });
-  const chevron = header.createSpan({ cls: 'claudian-cli-installation-chevron', text: '›', attr: { 'aria-hidden': 'true' } });
+  const version = title.createSpan({ cls: 'scribe-cli-installation-version' });
+  const status = summary.createSpan({ cls: 'scribe-cli-installation-status', attr: { role: 'status' } });
+  const chevron = header.createSpan({ cls: 'scribe-cli-installation-chevron', text: '›', attr: { 'aria-hidden': 'true' } });
   if (options.enablement) {
-    const enablement = heading.createDiv({ cls: 'claudian-cli-installation-enablement' });
+    const enablement = heading.createDiv({ cls: 'scribe-cli-installation-enablement' });
     renderProviderEnablementSetting({ ...options.enablement, container: enablement, description: '' });
   }
-  const body = card.createDiv({ cls: 'claudian-cli-installation-body' });
-  body.id = `claudian-cli-installation-${++nextId}`;
+  const body = card.createDiv({ cls: 'scribe-cli-installation-body' });
+  body.id = `scribe-cli-installation-${++nextId}`;
   summary.id = `${body.id}-summary`;
   status.id = `${body.id}-status`;
   header.setAttribute('aria-describedby', `${summary.id} ${status.id}`);
@@ -73,8 +73,8 @@ export function renderCLIInstallationSetting(
     chevron.textContent = body.hidden ? '›' : '⌄';
   });
 
-  const location = body.createDiv({ cls: 'claudian-cli-installation-location' });
-  const path = location.createSpan({ cls: 'claudian-cli-installation-path' });
+  const location = body.createDiv({ cls: 'scribe-cli-installation-location' });
+  const path = location.createSpan({ cls: 'scribe-cli-installation-path' });
   const control = renderHostnameCLIPathSetting({
     ...options,
     container: body,
@@ -85,7 +85,7 @@ export function renderCLIInstallationSetting(
   control.text.inputEl.setAttribute('aria-describedby', `${body.id}-error`);
   control.validationEl.id = `${body.id}-error`;
   control.validationEl.setAttribute('role', 'alert');
-  if (options.renderDetails) options.renderDetails(body.createDiv({ cls: 'claudian-cli-installation-details' }));
+  if (options.renderDetails) options.renderDetails(body.createDiv({ cls: 'scribe-cli-installation-details' }));
 
   const refresh = async (): Promise<void> => {
     const current = ++generation;
@@ -128,7 +128,7 @@ export function renderCLIInstallationSetting(
     } catch {
       await refresh();
       control.validationEl.textContent = t('settings.cliInstallation.saveFailed');
-      control.validationEl.classList.remove('claudian-hidden');
+      control.validationEl.classList.remove('scribe-hidden');
     } finally {
       saving = false;
       setDisabled(disabled);

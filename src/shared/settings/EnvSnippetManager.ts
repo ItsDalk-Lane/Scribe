@@ -38,7 +38,7 @@ export class EnvSnippetModal extends Modal {
     const { contentEl } = this;
     this.setTitle(this.snippet ? t('settings.envSnippets.modal.titleEdit') : t('settings.envSnippets.modal.titleSave'));
 
-    this.modalEl.addClass('claudian-env-snippet-modal');
+    this.modalEl.addClass('scribe-env-snippet-modal');
 
     let nameEl: HTMLInputElement;
     let descEl: HTMLInputElement;
@@ -103,7 +103,7 @@ export class EnvSnippetModal extends Modal {
 
       saving = true;
       const controls = contentEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>(
-        'input, textarea, button:not(.claudian-cancel-btn)',
+        'input, textarea, button:not(.scribe-cancel-btn)',
       );
       for (const control of controls) control.disabled = true;
       try {
@@ -112,8 +112,8 @@ export class EnvSnippetModal extends Modal {
       } catch (error) {
         const committed = error !== null && typeof error === 'object'
           && 'committed' in error && error.committed === true;
-        new Notice(committed ? 'Environment snippet was saved, but settings refresh failed.'
-          : this.snippet ? 'Could not complete environment snippet update' : 'Could not complete environment snippet save');
+        new Notice(committed ? t('settings.ui.snippetRefreshFailed')
+          : this.snippet ? t('settings.ui.snippetUpdateFailed') : t('settings.ui.snippetSaveFailed'));
         if (committed) this.close();
       } finally {
         saving = false;
@@ -133,11 +133,11 @@ export class EnvSnippetModal extends Modal {
       const uniqueModelIds = ProviderRegistry.getCustomModelIds(envVars);
 
       if (uniqueModelIds.size === 0) {
-        contextLimitsContainer.addClass('claudian-hidden');
+        contextLimitsContainer.addClass('scribe-hidden');
         return;
       }
 
-      contextLimitsContainer.removeClass('claudian-hidden');
+      contextLimitsContainer.removeClass('scribe-hidden');
 
       const existingLimits = this.snippet?.contextLimits ?? this.plugin.settings.customContextLimits ?? {};
       const existingAliases = this.snippet?.modelAliases ?? (ProviderRegistry.getChatUIConfig('claude').customModelAliases?.get(this.plugin.settings) ?? {});
@@ -152,29 +152,29 @@ export class EnvSnippetModal extends Modal {
       });
 
       for (const modelId of uniqueModelIds) {
-        const row = contextLimitsContainer.createDiv({ cls: 'claudian-snippet-limit-row' });
-        row.createSpan({ text: modelId, cls: 'claudian-snippet-limit-model' });
-        row.createSpan({ cls: 'claudian-snippet-limit-spacer' });
+        const row = contextLimitsContainer.createDiv({ cls: 'scribe-snippet-limit-row' });
+        row.createSpan({ text: modelId, cls: 'scribe-snippet-limit-model' });
+        row.createSpan({ cls: 'scribe-snippet-limit-spacer' });
 
         const aliasInput = row.createEl('input', {
           type: 'text',
           placeholder: t('settings.customModelAliases.placeholder'),
-          cls: 'claudian-snippet-alias-input',
+          cls: 'scribe-snippet-alias-input',
         });
         aliasInput.value = draftAliases.get(modelId)
           ?? (Object.prototype.hasOwnProperty.call(existingAliases, modelId) ? existingAliases[modelId] : '');
-        aliasInput.setAttribute('aria-label', `Alias for ${modelId}`);
+        aliasInput.setAttribute('aria-label', t('settings.customModelAliases.ariaLabel', { model: modelId }));
         aliasInput.setAttribute('aria-description', t('settings.customModelAliases.ariaDescription'));
         modelAliasInputs.set(modelId, aliasInput);
 
         const input = row.createEl('input', {
           type: 'text',
           placeholder: '200k',
-          cls: 'claudian-snippet-limit-input',
+          cls: 'scribe-snippet-limit-input',
         });
         input.value = draftLimits.get(modelId)
           ?? (Object.prototype.hasOwnProperty.call(existingLimits, modelId) ? formatContextLimit(existingLimits[modelId]) : '');
-        input.setAttribute('aria-label', `Context window for ${modelId}`);
+        input.setAttribute('aria-label', t('settings.ui.contextLabel', { model: modelId }));
         contextLimitInputs.set(modelId, input);
       }
     };
@@ -210,24 +210,24 @@ export class EnvSnippetModal extends Modal {
         text.inputEl.rows = 8;
         text.inputEl.addEventListener('blur', () => renderContextLimitFields());
       });
-    envVarsSetting.settingEl.addClass('claudian-env-snippet-setting');
-    envVarsSetting.controlEl.addClass('claudian-env-snippet-control');
+    envVarsSetting.settingEl.addClass('scribe-env-snippet-setting');
+    envVarsSetting.controlEl.addClass('scribe-env-snippet-control');
 
-    contextLimitsContainer = contentEl.createDiv({ cls: 'claudian-snippet-context-limits' });
+    contextLimitsContainer = contentEl.createDiv({ cls: 'scribe-snippet-context-limits' });
     renderContextLimitFields();
 
-    const buttonContainer = contentEl.createDiv({ cls: 'claudian-snippet-buttons' });
+    const buttonContainer = contentEl.createDiv({ cls: 'scribe-snippet-buttons' });
 
     const cancelBtn = buttonContainer.createEl('button', {
       text: t('settings.envSnippets.modal.cancel'),
-      cls: 'claudian-cancel-btn',
+      cls: 'scribe-cancel-btn',
       attr: { type: 'button' },
     });
     cancelBtn.addEventListener('click', () => this.close());
 
     const saveBtn = buttonContainer.createEl('button', {
       text: this.snippet ? t('settings.envSnippets.modal.update') : t('settings.envSnippets.modal.save'),
-      cls: 'claudian-save-btn',
+      cls: 'scribe-save-btn',
       attr: { type: 'button' },
     });
     saveBtn.addEventListener('click', () => { void saveSnippet(); });
@@ -264,18 +264,18 @@ export class EnvSnippetManager {
   private render() {
     this.containerEl.empty();
 
-    const headerEl = this.containerEl.createDiv({ cls: 'claudian-snippet-header' });
-    headerEl.createSpan({ text: t('settings.envSnippets.name'), cls: 'claudian-snippet-label' });
+    const headerEl = this.containerEl.createDiv({ cls: 'scribe-snippet-header' });
+    headerEl.createSpan({ text: t('settings.envSnippets.name'), cls: 'scribe-snippet-label' });
 
     const snippets = this.plugin.settings.envSnippets.filter((snippet) => this.#shouldDisplaySnippet(snippet));
 
     // The empty state is itself the save action, so the header button only appears beside a list.
     if (snippets.length === 0) {
       const emptyBtn = this.containerEl.createEl('button', {
-        cls: 'claudian-snippet-empty',
+        cls: 'scribe-snippet-empty',
         attr: { type: 'button' },
       });
-      setIcon(emptyBtn.createSpan({ cls: 'claudian-snippet-empty-icon' }), 'plus');
+      setIcon(emptyBtn.createSpan({ cls: 'scribe-snippet-empty-icon' }), 'plus');
       emptyBtn.createSpan({ text: t('settings.envSnippets.saveCurrent') });
       emptyBtn.addEventListener('click', () => {
         void this.#saveCurrentEnv();
@@ -284,7 +284,7 @@ export class EnvSnippetManager {
     }
 
     const saveBtn = headerEl.createEl('button', {
-      cls: 'claudian-settings-action-btn',
+      cls: 'scribe-settings-action-btn',
       attr: { type: 'button', 'aria-label': t('settings.envSnippets.addBtn') },
     });
     setIcon(saveBtn, 'plus');
@@ -292,25 +292,25 @@ export class EnvSnippetManager {
       void this.#saveCurrentEnv();
     });
 
-    const listEl = this.containerEl.createDiv({ cls: 'claudian-snippet-list' });
+    const listEl = this.containerEl.createDiv({ cls: 'scribe-snippet-list' });
 
     for (const snippet of snippets) {
-      const itemEl = listEl.createDiv({ cls: 'claudian-snippet-item' });
+      const itemEl = listEl.createDiv({ cls: 'scribe-snippet-item' });
 
-      const infoEl = itemEl.createDiv({ cls: 'claudian-snippet-info' });
+      const infoEl = itemEl.createDiv({ cls: 'scribe-snippet-info' });
 
-      const nameEl = infoEl.createDiv({ cls: 'claudian-snippet-name' });
+      const nameEl = infoEl.createDiv({ cls: 'scribe-snippet-name' });
       nameEl.setText(snippet.name);
 
       if (snippet.description) {
-        const descEl = infoEl.createDiv({ cls: 'claudian-snippet-description' });
+        const descEl = infoEl.createDiv({ cls: 'scribe-snippet-description' });
         descEl.setText(snippet.description);
       }
 
-      const actionsEl = itemEl.createDiv({ cls: 'claudian-snippet-actions' });
+      const actionsEl = itemEl.createDiv({ cls: 'scribe-snippet-actions' });
 
       const restoreBtn = actionsEl.createEl('button', {
-        cls: 'claudian-settings-action-btn',
+        cls: 'scribe-settings-action-btn',
         attr: { type: 'button', 'aria-label': t('settings.envSnippets.insert') },
       });
       setIcon(restoreBtn, 'clipboard-paste');
@@ -325,7 +325,7 @@ export class EnvSnippetManager {
       });
 
       const editBtn = actionsEl.createEl('button', {
-        cls: 'claudian-settings-action-btn',
+        cls: 'scribe-settings-action-btn',
         attr: { type: 'button', 'aria-label': t('common.edit') },
       });
       setIcon(editBtn, 'pencil');
@@ -334,7 +334,7 @@ export class EnvSnippetManager {
       });
 
       const deleteBtn = actionsEl.createEl('button', {
-        cls: 'claudian-settings-action-btn claudian-settings-delete-btn',
+        cls: 'scribe-settings-action-btn scribe-settings-delete-btn',
         attr: { type: 'button', 'aria-label': t('common.delete') },
       });
       setIcon(deleteBtn, 'trash-2');
@@ -367,7 +367,7 @@ export class EnvSnippetManager {
           // The committed snapshot may have advanced even when publication failed.
           this.render();
         }
-        new Notice(`Environment snippet "${snippet.name}" saved`);
+        new Notice(t('settings.ui.snippetSaved', { name: snippet.name }));
       }
     );
     modal.open();
@@ -440,7 +440,7 @@ export class EnvSnippetManager {
           } finally {
             this.render();
           }
-          new Notice(`Environment snippet "${updatedSnippet.name}" updated`);
+          new Notice(t('settings.ui.snippetUpdated', { name: updatedSnippet.name }));
         }
       }
     );
@@ -452,7 +452,7 @@ export class EnvSnippetManager {
       settings.envSnippets = settings.envSnippets.filter(s => s.id !== snippet.id);
     });
     this.render();
-    new Notice(`Environment snippet "${snippet.name}" deleted`);
+    new Notice(t('settings.ui.snippetDeleted', { name: snippet.name }));
   }
 
   public refresh() {
@@ -468,7 +468,7 @@ export class EnvSnippetManager {
   }
 
   #syncTextareaValue(scope: EnvironmentScope, value: string): void {
-    const selector = `.claudian-settings-env-textarea[data-env-scope="${scope}"]`;
+    const selector = `.scribe-settings-env-textarea[data-env-scope="${scope}"]`;
     const envTextarea = (this.containerEl.ownerDocument ?? window.document).querySelector<HTMLTextAreaElement>(selector);
     if (envTextarea) {
       envTextarea.value = value;

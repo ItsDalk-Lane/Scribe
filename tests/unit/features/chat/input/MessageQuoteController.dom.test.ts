@@ -15,23 +15,23 @@ import type { ComposerInputElement } from '@/shared/composer-dropdown/types';
 
 function createMessages(): { wrapperEl: HTMLElement; messagesEl: HTMLElement; assistantText: Text; userText: Text } {
   const wrapperEl = document.createElement('div');
-  wrapperEl.className = 'claudian-messages-wrapper';
+  wrapperEl.className = 'scribe-messages-wrapper';
   const messagesEl = document.createElement('div');
-  messagesEl.className = 'claudian-messages';
+  messagesEl.className = 'scribe-messages';
   wrapperEl.appendChild(messagesEl);
 
   const userEl = document.createElement('div');
-  userEl.className = 'claudian-message claudian-message-user';
+  userEl.className = 'scribe-message scribe-message-user';
   const userText = document.createTextNode('What should I refactor first?');
   userEl.appendChild(userText);
 
   const assistantEl = document.createElement('div');
-  assistantEl.className = 'claudian-message claudian-message-assistant';
+  assistantEl.className = 'scribe-message scribe-message-assistant';
   const assistantText = document.createTextNode('Start with the renderer.\nThen split the controller.');
   assistantEl.appendChild(assistantText);
 
   const welcomeEl = document.createElement('div');
-  welcomeEl.className = 'claudian-welcome';
+  welcomeEl.className = 'scribe-welcome';
   welcomeEl.textContent = 'Welcome';
 
   messagesEl.append(welcomeEl, userEl, assistantEl);
@@ -94,7 +94,7 @@ describe('MessageQuoteController', () => {
   });
 
   it('ignores selections outside messages', () => {
-    const welcomeText = dom.messagesEl.querySelector('.claudian-welcome')!.firstChild!;
+    const welcomeText = dom.messagesEl.querySelector('.scribe-welcome')!.firstChild!;
     select(welcomeText, 0, 7);
     releaseMouse(dom.messagesEl);
 
@@ -173,7 +173,7 @@ describe('MessageQuoteController', () => {
   it('hides when the selection moves outside messages', () => {
     select(dom.assistantText, 0, 5);
     releaseMouse(dom.assistantText.parentElement!);
-    const welcomeText = dom.messagesEl.querySelector('.claudian-welcome')!.firstChild!;
+    const welcomeText = dom.messagesEl.querySelector('.scribe-welcome')!.firstChild!;
     select(welcomeText, 0, 7);
     document.dispatchEvent(new Event('selectionchange'));
 
@@ -232,10 +232,10 @@ describe('MessageQuoteController', () => {
     releaseMouse(dom.assistantText.parentElement!);
 
     controller.dispose();
-    expect(dom.wrapperEl.querySelector('.claudian-message-quote-btn')).toBeNull();
+    expect(dom.wrapperEl.querySelector('.scribe-message-quote-btn')).toBeNull();
 
     releaseMouse(dom.assistantText.parentElement!);
-    expect(dom.wrapperEl.querySelector('.claudian-message-quote-btn')).toBeNull();
+    expect(dom.wrapperEl.querySelector('.scribe-message-quote-btn')).toBeNull();
   });
 });
 

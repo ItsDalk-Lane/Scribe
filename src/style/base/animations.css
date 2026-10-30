@@ -31,7 +31,7 @@
   }
 }
 
-@keyframes claudian-spin {
+@keyframes scribe-spin {
   to {
     transform: rotate(360deg);
   }

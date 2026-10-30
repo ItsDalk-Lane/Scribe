@@ -44,7 +44,7 @@ export class GrokModelCatalogProbe implements GrokModelCatalogProbeLike {
           fs: { readTextFile: false, writeTextFile: false },
           terminal: false,
         },
-        clientInfo: { name: 'claudian', version: request.version },
+        clientInfo: { name: 'scribe', version: request.version },
       }, options);
       const response = await transport.request<{ error?: unknown; result?: unknown } | null>(
         '_x.ai/models/list', {}, options,

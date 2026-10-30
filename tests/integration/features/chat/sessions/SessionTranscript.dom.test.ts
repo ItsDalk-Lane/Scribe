@@ -186,7 +186,7 @@ it.each<[string, ProviderCapabilities['providerId'], Pick<ChatMessage, 'toolCall
   session.createRenderer(hydrated).renderMessages(session.state.messages, () => 'Welcome');
   const reattached = session.attach();
 
-  const transcript = (root: HTMLElement) => [...root.querySelectorAll('.claudian-message')].map(el => el.outerHTML);
+  const transcript = (root: HTMLElement) => [...root.querySelectorAll('.scribe-message')].map(el => el.outerHTML);
   expect(transcript(reattached)).toEqual(transcript(hydrated));
   expect(within(reattached).getAllByRole('button', { name: /Zeno|Research/ })).toHaveLength(1);
 });

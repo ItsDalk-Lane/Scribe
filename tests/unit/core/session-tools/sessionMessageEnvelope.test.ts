@@ -4,7 +4,7 @@ describe('session message envelope', () => {
   it('encodes a sender-tagged envelope with an optional-reply hint', () => {
     expect(encodeSessionMessage({ from: 'Planner', sessionId: 'conv-1', text: 'Hello' })).toBe(
       '<session_message from="Planner" session_id="conv-1">\n<![CDATA[Hello]]>\n</session_message>\n'
-        + 'Replying is optional. If a response is needed, call claudian_send_message with this session_id.',
+        + 'Replying is optional. If a response is needed, call scribe_send_message with this session_id.',
     );
   });
 

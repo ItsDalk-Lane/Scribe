@@ -108,7 +108,7 @@ async function restoreLive(updates: NativeToolUpdates): Promise<ToolCallInfo> {
   });
   const response: ChatMessage = { id: 'response', role: 'assistant', timestamp: testDate().getTime(), content: '', contentBlocks: [] };
   state.addMessage(response);
-  state.currentContentEl = renderer.addMessage(response).querySelector('.claudian-message-content');
+  state.currentContentEl = renderer.addMessage(response).querySelector('.scribe-message-content');
   for (const chunk of output.map(providerOutputEventToStreamChunk)) {
     if (chunk?.type === 'tool_use' || chunk?.type === 'tool_output' || chunk?.type === 'tool_result') {
       await stream.handleStreamChunk(chunk as StreamChunk, response);
@@ -145,7 +145,7 @@ const expand = (block: HTMLElement, name: RegExp) => {
   return header;
 };
 
-const lines = (block: HTMLElement) => [...block.querySelectorAll('.claudian-tool-line')].map(line => line.textContent);
+const lines = (block: HTMLElement) => [...block.querySelectorAll('.scribe-tool-line')].map(line => line.textContent);
 
 function bashUpdates(id: string, command: string, chunks: Array<{ text: string; rawOutput: Record<string, unknown> }>, final: {
   exitCode: number; text: string; outputForPrompt: string; timedOut?: boolean; signal?: string | null;
@@ -228,7 +228,7 @@ describe.each(['live', 'history'] as const)('%s Grok tool presentation', mode =>
     expect(getToolIcon(tool.name)).toBe(getToolIcon('Bash'));
     const block = renderStoredToolCall(document.body.createDiv(), tool);
     expand(block, /^Bash: ls -la/);
-    expect(block.querySelector('.claudian-tool-bash-command')?.textContent).toBe('$ ls -la');
+    expect(block.querySelector('.scribe-tool-bash-command')?.textContent).toBe('$ ls -la');
     expect(lines(block)).toEqual([
       'total 16',
       'drwxr-xr-x@ 4 user wheel 128 .',
@@ -428,9 +428,9 @@ describe.each(['live', 'history'] as const)('%s Grok tool presentation', mode =>
     expect(getToolIcon(tool.name)).toBe('workflow');
     const block = renderStoredToolCall(document.body.createDiv(), tool);
     expand(block, /^Workflow: pong/);
-    expect([...block.querySelectorAll('.claudian-tool-script-label')].map(label => label.textContent)).toEqual(['Rhai', 'Output']);
+    expect([...block.querySelectorAll('.scribe-tool-script-label')].map(label => label.textContent)).toEqual(['Rhai', 'Output']);
     expect(block.querySelector('code')?.textContent).toBe(script);
-    expect(block.querySelector('.claudian-tool-script-output')?.textContent).toBe(message);
+    expect(block.querySelector('.scribe-tool-script-output')?.textContent).toBe(message);
     expect((await axe(block)).violations).toEqual([]);
   });
 
@@ -450,7 +450,7 @@ describe.each(['live', 'history'] as const)('%s Grok tool presentation', mode =>
     expect(getToolIcon(tool.name)).toBe(getToolIcon('Bash'));
     const block = renderStoredToolCall(document.body.createDiv(), tool);
     expand(block, /^BashOutput: sleep 2; echo finished/);
-    expect(block.querySelector('.claudian-tool-bash-command')?.textContent).toBe('$ sleep 2; echo finished');
+    expect(block.querySelector('.scribe-tool-bash-command')?.textContent).toBe('$ sleep 2; echo finished');
     expect(lines(block)).toEqual(['exit: 3', 'finished']);
   });
 

@@ -241,7 +241,7 @@ export class OpencodeServerService {
       signal.throwIfAborted();
       client = new OpencodeHTTPClient(cliPath, cwd, {
         ...environment, OPENCODE_CONFIG: config.file, OPENCODE_CONFIG_CONTENT: artifacts.configContent,
-        ...(callRoute ? { CLAUDIAN_SESSION_TOOLS_URL: callRoute.url, CLAUDIAN_SESSION_TOOLS_ROUTE_ID: callRoute.routeId } : {}),
+        ...(callRoute ? { SCRIBE_SESSION_TOOLS_URL: callRoute.url, SCRIBE_SESSION_TOOLS_ROUTE_ID: callRoute.routeId } : {}),
       });
       const server: Server = { client, config, callRoute, databasePath: artifacts.databasePath, subscribers, forms: new Map() };
       await config.initialize(error => { void this.close(server, error); });

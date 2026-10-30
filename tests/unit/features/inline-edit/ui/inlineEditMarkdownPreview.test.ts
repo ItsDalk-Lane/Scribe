@@ -150,7 +150,7 @@ describe('renderInlineEditMarkdownPreview', () => {
     });
 
     expect(container.children).toHaveLength(1);
-    expect(container.children[0].hasClass('claudian-inline-markdown-fallback')).toBe(true);
+    expect(container.children[0].hasClass('scribe-inline-markdown-fallback')).toBe(true);
     expect(container.children[0].textContent).toBe('Use $x^2$ here.');
   });
 });

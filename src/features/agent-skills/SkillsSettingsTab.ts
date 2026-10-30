@@ -2,7 +2,7 @@ import { type App, Notice, Setting } from 'obsidian';
 
 import { normalizeHiddenCommandList } from '@/core/providers/commands/hiddenCommands';
 import type { FolderLinkState, VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
-import type { ClaudianSettings } from '@/core/types/settings';
+import type { ScribeSettings } from '@/core/types/settings';
 import { AgentSkillManagementCoordinator } from '@/features/agent-skills/AgentSkillManagementCoordinator';
 import {
   AGENT_SKILLS_ROOT,
@@ -29,7 +29,7 @@ export type SkillsSettingsHost = Pick<FeatureHost, 'settings' | 'mutateSettings'
  */
 export class SkillsSettingsTab {
   private activeSubTab: SkillsSubTab = 'claude';
-  private readonly textEdits: DebouncedSettingsWriter<ClaudianSettings>;
+  private readonly textEdits: DebouncedSettingsWriter<ScribeSettings>;
   private renderGeneration = 0;
   private readonly panels: AgentSkillSettings[] = [];
   private readonly sync: ClaudeSkillSync;
@@ -42,9 +42,9 @@ export class SkillsSettingsTab {
     private readonly host: SkillsSettingsHost,
   ) {
     this.textEdits = new DebouncedSettingsWriter(mutation => host.mutateSettings(mutation),
-      () => { new Notice('Failed to save settings'); });
+      () => { new Notice(t('settings.ui.saveFailed')); });
     this.sync = new ClaudeSkillSync(files);
-    this.bodyEl = containerEl.createDiv({ cls: 'claudian-skills-tab' });
+    this.bodyEl = containerEl.createDiv({ cls: 'scribe-skills-tab' });
     this.#renderHiddenCommands(containerEl);
     void this.render();
   }
@@ -75,7 +75,7 @@ export class SkillsSettingsTab {
 
     if (state === null) {
       this.bodyEl.createDiv({
-        cls: 'claudian-skills-status',
+        cls: 'scribe-skills-status',
         text: t('settings.skills.status.error', {
           message: stateError instanceof Error ? stateError.message : String(stateError),
         }),
@@ -106,7 +106,7 @@ export class SkillsSettingsTab {
         renderHeaderAccessory: actions => {
           if (linked) {
             actions.createSpan({
-              cls: 'claudian-skills-synced-dot',
+              cls: 'scribe-skills-synced-dot',
               attr: { role: 'img', 'aria-label': t('settings.skills.synced') },
             });
           } else {
@@ -118,32 +118,32 @@ export class SkillsSettingsTab {
   }
 
   #renderBeforeSync(): void {
-    const subTabs = this.bodyEl.createDiv({ cls: 'claudian-settings-provider-tabs claudian-skills-subtabs' });
-    const panelHost = this.bodyEl.createDiv({ cls: 'claudian-skills-subtab-content' });
+    const subTabs = this.bodyEl.createDiv({ cls: 'scribe-settings-provider-tabs scribe-skills-subtabs' });
+    const panelHost = this.bodyEl.createDiv({ cls: 'scribe-skills-subtab-content' });
     const buttons = new Map<SkillsSubTab, HTMLButtonElement>();
     const panels = new Map<SkillsSubTab, HTMLElement>();
     const select = (): void => {
       for (const [id, button] of buttons) {
         const active = id === this.activeSubTab;
-        button.toggleClass('claudian-settings-provider-tab--active', active);
+        button.toggleClass('scribe-settings-provider-tab--active', active);
         button.setAttribute('aria-pressed', String(active));
-        panels.get(id)?.toggleClass('claudian-settings-provider-content--active', active);
+        panels.get(id)?.toggleClass('scribe-settings-provider-content--active', active);
       }
     };
     for (const id of ['claude', 'shared'] as const) {
       const button = subTabs.createEl('button', {
-        cls: 'claudian-settings-provider-tab',
+        cls: 'scribe-settings-provider-tab',
         text: t(`settings.skills.subTabs.${id}`),
         attr: { type: 'button' },
       });
       buttons.set(id, button);
-      panels.set(id, panelHost.createDiv({ cls: 'claudian-settings-provider-content' }));
+      panels.set(id, panelHost.createDiv({ cls: 'scribe-settings-provider-content' }));
       button.addEventListener('click', () => {
         this.activeSubTab = id;
         select();
       });
     }
-    this.#renderSyncButton(subTabs.createDiv({ cls: 'claudian-skills-subtabs-actions' }), 'settings.skills.actions.sync');
+    this.#renderSyncButton(subTabs.createDiv({ cls: 'scribe-skills-subtabs-actions' }), 'settings.skills.actions.sync');
     select();
 
     this.#renderPanel(
@@ -201,8 +201,8 @@ export class SkillsSettingsTab {
     new Setting(containerEl)
       .setName(t('settings.skills.hidden.name'))
       .setDesc(t('settings.skills.hidden.desc'))
-      .setClass('claudian-settings-textarea')
-      .setClass('claudian-skills-hidden-setting')
+      .setClass('scribe-settings-textarea')
+      .setClass('scribe-skills-hidden-setting')
       .addTextArea((text) => {
         text
           .setPlaceholder(t('settings.skills.hidden.placeholder'))

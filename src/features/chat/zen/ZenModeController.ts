@@ -1,10 +1,11 @@
 import type { App, Command, EventRef, WorkspaceLeaf } from 'obsidian';
 import { Platform } from 'obsidian';
 
-import { VIEW_TYPE_CLAUDIAN, type ZenModePosition } from '@/core/types';
+import { VIEW_TYPE_SCRIBE, type ZenModePosition } from '@/core/types';
 import { scheduleAnimationFrame } from '@/features/chat/utils/animationFrame';
 import type { ZenModeSource, ZenPresentationPort, ZenScrollSnapshot } from '@/features/chat/zen/types';
 import { ZenModePanel } from '@/features/chat/zen/ZenModePanel';
+import { t } from '@/i18n/i18n';
 
 export interface ZenModeControllerDeps {
   readonly app: App;
@@ -62,7 +63,7 @@ export class ZenModeController {
   createToggleHistoryCommand(): Command {
     return {
       id: 'toggle-zen-mode-history',
-      name: 'Toggle zen mode history',
+      name: t('commands.toggleZenHistory'),
       checkCallback: (checking: boolean) => {
         const panel = this.#attachment?.panel;
         if (!panel?.runtime?.state.messages.length) return false;
@@ -189,7 +190,7 @@ export class ZenModeController {
     for (let index = this.#focusOrder.length - 1; index >= 0; index -= 1) {
       if (eligible.includes(this.#focusOrder[index])) return this.#focusOrder[index];
     }
-    const leafOrder = this.deps.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
+    const leafOrder = this.deps.app.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE);
     const orderOf = (source: ZenModeSource) => {
       const index = leafOrder.indexOf(source.leaf);
       return index === -1 ? Number.MAX_SAFE_INTEGER : index;
@@ -219,7 +220,7 @@ export class ZenModeController {
     if (!this.#canPresent()) return;
     const pending = [...this.#sources.keys()].some(source => this.#isInCollapsedSidebar(source.leaf));
     if (pending) return;
-    const leaf = this.deps.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN).find(candidate => (
+    const leaf = this.deps.app.workspace.getLeavesOfType(VIEW_TYPE_SCRIBE).find(candidate => (
       candidate.isDeferred && !this.#loadRequested.has(candidate) && this.#isInCollapsedSidebar(candidate)
     ));
     if (!leaf) return;

@@ -27,6 +27,7 @@ import {
   diffOpsEqual,
 } from '@/features/inline-edit/ui/markdownLineDiff';
 import { normalizeInsertionText } from '@/features/inline-edit/ui/normalizeInsertionText';
+import { t } from '@/i18n/i18n';
 import { MarkdownRenderScope } from '@/shared/components/MarkdownRenderScope';
 import { hideSelectionHighlight, showSelectionHighlight } from '@/shared/components/SelectionHighlight';
 import {
@@ -116,7 +117,7 @@ function buildInlineEditInputDecorations(options: {
   const lineStart = options.doc.lineAt(options.inputPos).from;
   return Decoration.set([
     Decoration.line({
-      class: 'claudian-inline-input-line',
+      class: 'scribe-inline-input-line',
     }).range(lineStart),
     Decoration.widget({
       widget: options.widget,
@@ -168,11 +169,11 @@ const inlineEditField = StateField.define<DecorationSet>({
 function getDiffBlockClass(type: DiffOp['type']): string {
   switch (type) {
     case 'delete':
-      return 'claudian-diff-del';
+      return 'scribe-diff-del';
     case 'insert':
-      return 'claudian-diff-ins';
+      return 'scribe-diff-ins';
     default:
-      return 'claudian-diff-equal';
+      return 'scribe-diff-equal';
   }
 }
 
@@ -254,7 +255,7 @@ export class InlineEditModal {
     }
 
     if (!editorView) {
-      new Notice('Inline edit unavailable: could not access the active editor. Try reopening the note.');
+      new Notice(t('inlineEdit.unavailableEditor'));
       return { decision: 'reject' };
     }
 
@@ -292,7 +293,7 @@ export class InlineEditModal {
       ).then(() => {
         if (settled) return;
         if (editorView.state.doc !== sourceDoc) {
-          new Notice('Inline edit was not applied because the source document or selection changed.');
+          new Notice(t('inlineEdit.sourceChanged'));
           close();
           return;
         }
@@ -312,7 +313,7 @@ export class InlineEditModal {
         session.show();
       }).catch(() => {
         if (settled) return;
-        new Notice(`Inline edit unavailable: failed to start the ${providerContext.providerId} provider.`);
+        new Notice(t('inlineEdit.providerStartFailed', { provider: providerContext.providerId }));
         close();
       });
     });
@@ -382,7 +383,7 @@ export class InlineEditSession {
     this.pickedProviderId = providerId;
     this.mentionDataProvider = new VaultMentionDataProvider(this.app, {
       onFileLoadError: () => {
-        new Notice('Failed to load vault files. Vault @-mentions may be unavailable.');
+        new Notice(t('inlineEdit.vaultLoadFailed'));
       },
     });
     this.mentionDataProvider.initializeInBackground();
@@ -515,36 +516,36 @@ export class InlineEditSession {
     if (this.inputResources) this.destroyInputDOM(this.inputResources.container);
     const ownerDocument = this.getOwnerDocument();
     const container = createDiv({
-      cls: 'claudian-inline-input-container',
+      cls: 'scribe-inline-input-container',
       attr: { 'data-provider': this.#inlineEdit.providerId },
     });
     this.containerEl = container;
 
     // The widget root only spaces the card: Obsidian zeroes editor widget margins.
-    const cardEl = container.createDiv({ cls: 'claudian-inline-composer' });
-    this.agentReplyEl = cardEl.createDiv({ cls: 'claudian-inline-agent-reply claudian-hidden' });
+    const cardEl = container.createDiv({ cls: 'scribe-inline-composer' });
+    this.agentReplyEl = cardEl.createDiv({ cls: 'scribe-inline-agent-reply scribe-hidden' });
 
-    const inputWrap = cardEl.createDiv({ cls: 'claudian-inline-input-wrap' });
+    const inputWrap = cardEl.createDiv({ cls: 'scribe-inline-input-wrap' });
 
     const inputEl = inputWrap.createEl('input', {
-      cls: 'claudian-inline-input',
+      cls: 'scribe-inline-input',
       attr: {
         type: 'text',
-        'aria-label': this.mode === 'cursor' ? 'Insert instructions' : 'Edit instructions',
+        'aria-label': this.mode === 'cursor' ? t('inlineEdit.insertInstructions') : t('inlineEdit.editInstructions'),
         placeholder: this.inputPlaceholder
-          ?? (this.mode === 'cursor' ? 'Insert instructions...' : 'Edit instructions...'),
+          ?? (this.mode === 'cursor' ? t('inlineEdit.insertPlaceholder') : t('inlineEdit.editPlaceholder')),
         spellcheck: 'false',
       },
     });
     this.inputEl = inputEl;
     inputEl.value = this.instructionDraft;
 
-    this.spinnerEl = inputWrap.createDiv({ cls: 'claudian-inline-spinner claudian-hidden' });
-    this.modelToolbarEl = inputWrap.createDiv({ cls: 'claudian-input-toolbar claudian-inline-model-toolbar' });
+    this.spinnerEl = inputWrap.createDiv({ cls: 'scribe-inline-spinner scribe-hidden' });
+    this.modelToolbarEl = inputWrap.createDiv({ cls: 'scribe-input-toolbar scribe-inline-model-toolbar' });
     const menus = new ToolbarMenuGroup();
     // Obsidian clips editor widgets, so the open model menu floats in a layer outside the editor.
     const menuLayer = ownerDocument.body.createDiv({
-      cls: 'claudian-inline-menu-layer',
+      cls: 'scribe-inline-menu-layer',
       attr: { 'data-provider': this.#inlineEdit.providerId },
     });
     const modelSelector = new ModelSelector(this.modelToolbarEl, this.#modelPickerCallbacks(), menus, menuLayer);
@@ -621,7 +622,7 @@ export class InlineEditSession {
       onModelChange: async (model) => {
         const providerId = this.#getModelProvider(model);
         if (!providerId) {
-          new Notice('Select an available model in Claudian settings.');
+          new Notice(t('inlineEdit.modelRequired'));
           return;
         }
         // The chip shows the pick at once; another provider starts behind it.
@@ -721,7 +722,7 @@ export class InlineEditSession {
       return true;
     } catch {
       if (!this.settled && providerId === this.pickedProviderId) {
-        new Notice(`Failed to start the ${ProviderRegistry.getProviderDisplayName(providerId)} provider.`);
+        new Notice(t('inlineEdit.providerStartFailed', { provider: ProviderRegistry.getProviderDisplayName(providerId) }));
       }
       return false;
     }
@@ -764,8 +765,8 @@ export class InlineEditSession {
   #showGenerating(generating: boolean): void {
     if (this.inputEl) this.inputEl.disabled = generating;
     if (generating) this.inputResources?.menus.closeOpenMenu();
-    this.spinnerEl?.toggleClass('claudian-hidden', !generating);
-    this.modelToolbarEl?.toggleClass('claudian-hidden', generating);
+    this.spinnerEl?.toggleClass('scribe-hidden', !generating);
+    this.modelToolbarEl?.toggleClass('scribe-hidden', generating);
   }
 
   destroyDiffPreviewDOM(container: HTMLElement): void {
@@ -782,22 +783,22 @@ export class InlineEditSession {
   }
 
   createDiffPreviewDOM(diffOps: DiffOp[]): HTMLElement {
-    const previewEl = createDiv({ cls: 'claudian-inline-diff-preview' });
+    const previewEl = createDiv({ cls: 'scribe-inline-diff-preview' });
     this.containerEl = previewEl;
 
-    const bodyEl = previewEl.createDiv({ cls: 'claudian-inline-diff-preview-body markdown-rendered' });
+    const bodyEl = previewEl.createDiv({ cls: 'scribe-inline-diff-preview-body markdown-rendered' });
 
-    const actionsEl = previewEl.createDiv({ cls: 'claudian-inline-preview-actions' });
+    const actionsEl = previewEl.createDiv({ cls: 'scribe-inline-preview-actions' });
     actionsEl.setAttribute('role', 'toolbar');
-    actionsEl.setAttribute('aria-label', 'Inline edit actions');
-    const statsEl = actionsEl.createDiv({ cls: 'claudian-inline-diff-stats' });
+    actionsEl.setAttribute('aria-label', t('inlineEdit.actions'));
+    const statsEl = actionsEl.createDiv({ cls: 'scribe-inline-diff-stats' });
     const removed = countDiffLines(diffOps, 'delete');
     const added = countDiffLines(diffOps, 'insert');
-    if (removed > 0) statsEl.createSpan({ cls: 'claudian-inline-diff-stat-del', text: `−${removed}` });
-    if (added > 0) statsEl.createSpan({ cls: 'claudian-inline-diff-stat-ins', text: `+${added}` });
-    statsEl.createSpan({ text: removed + added === 1 ? 'line' : 'lines' });
-    actionsEl.appendChild(this.#createPreviewActionButton('Reject', 'reject', 'Esc', () => this.reject()));
-    actionsEl.appendChild(this.#createPreviewActionButton('Accept', 'accept', '↵', () => this.accept()));
+    if (removed > 0) statsEl.createSpan({ cls: 'scribe-inline-diff-stat-del', text: `−${removed}` });
+    if (added > 0) statsEl.createSpan({ cls: 'scribe-inline-diff-stat-ins', text: `+${added}` });
+    statsEl.createSpan({ text: removed + added === 1 ? t('inlineEdit.line') : t('inlineEdit.lines') });
+    actionsEl.appendChild(this.#createPreviewActionButton(t('inlineEdit.reject'), 'reject', 'Esc', () => this.reject()));
+    actionsEl.appendChild(this.#createPreviewActionButton(t('inlineEdit.accept'), 'accept', '↵', () => this.accept()));
 
     void this.#renderMarkdownDiffPreview(bodyEl, diffOps);
     return previewEl;
@@ -810,15 +811,15 @@ export class InlineEditSession {
     onClick: () => void
   ): HTMLButtonElement {
     const button = createEl('button', {
-      cls: `claudian-inline-preview-action ${variant}`,
+      cls: `scribe-inline-preview-action ${variant}`,
       text: label,
       attr: {
         type: 'button',
-        'aria-label': `${label} inline edit`,
+        'aria-label': t(variant === 'accept' ? 'inlineEdit.acceptAria' : 'inlineEdit.rejectAria'),
         'aria-keyshortcuts': variant === 'accept' ? 'Enter' : 'Escape',
       },
     });
-    button.createEl('kbd', { cls: 'claudian-inline-preview-key', text: keyHint, attr: { 'aria-hidden': 'true' } });
+    button.createEl('kbd', { cls: 'scribe-inline-preview-key', text: keyHint, attr: { 'aria-hidden': 'true' } });
     button.addEventListener('click', (event: MouseEvent) => {
       event.preventDefault?.();
       event.stopPropagation?.();
@@ -853,7 +854,7 @@ export class InlineEditSession {
       if (this.settled || !this.containerEl?.contains(container)) return;
       if (!document.markdown) continue;
 
-      const opEl = container.createDiv({ cls: `claudian-diff-block ${getDiffBlockClass(document.type)}` });
+      const opEl = container.createDiv({ cls: `scribe-diff-block ${getDiffBlockClass(document.type)}` });
       await this.#renderMarkdownPreview(opEl, document.markdown);
     }
   }
@@ -892,7 +893,7 @@ export class InlineEditSession {
     } catch (error) {
       if (!this.settled) {
         if (!this.#isSourceUnchanged()) this.#rejectStaleSource();
-        else this.#handleError(error instanceof Error ? error.message : 'Error - try again');
+        else this.#handleError(error instanceof Error ? error.message : t('inlineEdit.retryError'));
       }
       return;
     } finally {
@@ -919,7 +920,7 @@ export class InlineEditSession {
         this.#showInsertionInPlace();
       } else if (result.clarification) {
         this.instructionDraft = '';
-        this.inputPlaceholder = 'Reply to continue...';
+        this.inputPlaceholder = t('inlineEdit.replyPlaceholder');
         this.showAgentReply(result.clarification);
         if (this.inputEl) {
           this.inputEl.disabled = false;
@@ -928,10 +929,10 @@ export class InlineEditSession {
           this.inputEl.focus();
         }
       } else {
-        this.#handleError('No response from agent');
+        this.#handleError(t('inlineEdit.noResponse'));
       }
     } else {
-      this.#handleError(result.error || 'Error - try again');
+      this.#handleError(result.error || t('inlineEdit.retryError'));
     }
   }
 
@@ -965,7 +966,7 @@ export class InlineEditSession {
     this.releasePreviews(replyEl);
     const renderedEl = this.agentReplyEl.createDiv();
 
-    replyEl.removeClass('claudian-hidden');
+    replyEl.removeClass('scribe-hidden');
     replyEl.empty();
     void this.#renderMarkdownPreview(renderedEl, message, replyEl).then(() => {
       if (renderVersion !== this.agentReplyRenderVersion || replyEl !== this.agentReplyEl) {
@@ -1147,7 +1148,7 @@ export class InlineEditSession {
     if (this.settled) {
       return;
     }
-    new Notice('Inline edit was not applied because the source document or selection changed.');
+    new Notice(t('inlineEdit.sourceChanged'));
     this.settled = true;
     this.cleanup();
     this.#focusEditor();

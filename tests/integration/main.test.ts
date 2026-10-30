@@ -1,5 +1,5 @@
 import { deferred } from '@test/helpers/ChatInputHarness';
-import { DEFAULT_CLAUDIAN_SETTINGS as DEFAULT_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS as DEFAULT_SETTINGS } from '@test/helpers/defaultSettings';
 import { grokEnvironmentHash, writeGrokCatalog } from '@test/helpers/providers/grokSettings';
 import { testClock } from '@test/helpers/testClock';
 import { Notice, TFile, TFolder } from 'obsidian';
@@ -10,8 +10,8 @@ import { ConversationPersistenceStore } from '@/app/storage/ConversationPersiste
 import type { SessionMetadataReadResult } from '@/app/storage/SessionStorage';
 import { SessionStorage } from '@/app/storage/SessionStorage';
 import type { SharedStorageService } from '@/app/storage/SharedStorageService';
-import type { ClaudianChatFeatureHost } from '@/composition/ClaudianFeatureHosts';
-import type { ClaudianViews } from '@/composition/ClaudianViews';
+import type { ScribeChatFeatureHost } from '@/composition/ScribeFeatureHosts';
+import type { ScribeViews } from '@/composition/ScribeViews';
 import { getDeviceSessionsPath } from '@/core/bootstrap/storagePaths';
 import { getInstallationKey as getHostnameKey } from '@/core/device/InstallationKey';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
@@ -20,7 +20,7 @@ import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceReg
 import { isVersionedRuntimeInputFingerprint } from '@/core/providers/settings/RuntimeInputFingerprint';
 import { LoopbackSessionToolServer } from '@/core/session-tools/LoopbackSessionToolServer';
 import { TOOL_SUBAGENT } from '@/core/tools/toolNames';
-import { type ClaudianSettings, type Conversation, type SessionMetadata, VIEW_TYPE_CLAUDIAN } from '@/core/types';
+import { type Conversation, type ScribeSettings, type SessionMetadata, VIEW_TYPE_SCRIBE } from '@/core/types';
 import { ConversationTitleGeneration } from '@/features/chat/conversation/ConversationTitleGeneration';
 import { resolveSessionMentions } from '@/features/chat/input/resolveSessionMentions';
 import { SessionMessagingService } from '@/features/chat/session-messaging/SessionMessagingService';
@@ -40,7 +40,7 @@ import {
   updateGrokProviderSettings,
 } from '@/providers/grok/settings';
 
-// Mock fs for ClaudianService
+// Mock fs for ScribeService
 vi.mock('fs');
 
 // The real probe spawns the developer's interactive login shell, which can outlast the test timeout.
@@ -51,18 +51,18 @@ vi.mock('@/core/process/loginShellPath', () => ({
 // Now import the plugin after mocking
 import type { Mock, MockInstance } from 'vitest';
 
-import ClaudianPlugin from '@/main';
+import ScribePlugin from '@/main';
 
 
 
-describe('ClaudianPlugin', () => {
-  let plugin: ClaudianPlugin;
-  let pluginInstances: ClaudianPlugin[];
+describe('ScribePlugin', () => {
+  let plugin: ScribePlugin;
+  let pluginInstances: ScribePlugin[];
   let mockApp: any;
   let mockManifest: any;
 
-  function createPlugin(): ClaudianPlugin {
-    const instance = new ClaudianPlugin(mockApp, mockManifest);
+  function createPlugin(): ScribePlugin {
+    const instance = new ScribePlugin(mockApp, mockManifest);
     pluginInstances.push(instance);
     return instance;
   }
@@ -100,29 +100,29 @@ describe('ClaudianPlugin', () => {
     return call[0];
   }
 
-  function chatHostOf(target: ClaudianPlugin = plugin): ClaudianChatFeatureHost {
-    return (target as unknown as { chatHost: ClaudianChatFeatureHost }).chatHost;
+  function chatHostOf(target: ScribePlugin = plugin): ScribeChatFeatureHost {
+    return (target as unknown as { chatHost: ScribeChatFeatureHost }).chatHost;
   }
 
-  function viewsOf(target: ClaudianPlugin = plugin): ClaudianViews {
-    return (target as unknown as { views: ClaudianViews }).views;
+  function viewsOf(target: ScribePlugin = plugin): ScribeViews {
+    return (target as unknown as { views: ScribeViews }).views;
   }
 
-  function storageOf(target: ClaudianPlugin = plugin): SharedStorageService {
+  function storageOf(target: ScribePlugin = plugin): SharedStorageService {
     return (target as unknown as { storage: SharedStorageService }).storage;
   }
 
-  function repositoryOf(target: ClaudianPlugin = plugin): ConversationRepository {
+  function repositoryOf(target: ScribePlugin = plugin): ConversationRepository {
     return chatHostOf(target).executionPersistence;
   }
 
   /** The runtime settings coordinator wired into the plugin's session metadata loader. */
-  function runtimeSettingsOf(target: ClaudianPlugin = plugin): any {
+  function runtimeSettingsOf(target: ScribePlugin = plugin): any {
     return (target as any).sessionMetadata.options.runtimeSettings;
   }
 
   function getConversationPersistence(
-    target: ClaudianPlugin,
+    target: ScribePlugin,
   ): ConversationPersistenceStore {
     return (
       storageOf(target) as SharedStorageService & {
@@ -163,7 +163,7 @@ describe('ClaudianPlugin', () => {
 
   function installVaultFiles(initialFiles: Record<string, string>): Map<string, string> {
     const files = new Map(Object.entries(initialFiles));
-    const folders = new Set<string>(['.claudian']);
+    const folders = new Set<string>(['.scribe']);
     mockApp.vault.adapter.exists.mockImplementation(async (path: string) => (
       files.has(path) || folders.has(path)
     ));
@@ -242,8 +242,8 @@ describe('ClaudianPlugin', () => {
     };
 
     mockManifest = {
-      id: 'claudian',
-      name: 'Claudian',
+      id: 'scribe',
+      name: 'Scribe',
       version: '0.1.0',
     };
 
@@ -260,7 +260,7 @@ describe('ClaudianPlugin', () => {
     let finish!: () => void;
     let started!: () => void;
     const writing = new Promise<void>(resolve => { started = resolve; });
-    const persist = vi.spyOn(storageOf(plugin), 'saveClaudianSettings').mockImplementationOnce(async () => {
+    const persist = vi.spyOn(storageOf(plugin), 'saveScribeSettings').mockImplementationOnce(async () => {
       started();
       await new Promise<void>(resolve => { finish = resolve; });
     });
@@ -312,14 +312,14 @@ describe('ClaudianPlugin', () => {
   }
 
   it.each([
-    ['organization', (settings: ClaudianSettings) => { settings.sessionManagerOrganization = 'linked-content'; }],
-    ['sort', (settings: ClaudianSettings) => { settings.sessionManagerSort = 'created'; }],
-    ['project order', (settings: ClaudianSettings) => { settings.projectOrder = ['research', 'launch']; }],
+    ['organization', (settings: ScribeSettings) => { settings.sessionManagerOrganization = 'linked-content'; }],
+    ['sort', (settings: ScribeSettings) => { settings.sessionManagerSort = 'created'; }],
+    ['project order', (settings: ScribeSettings) => { settings.projectOrder = ['research', 'launch']; }],
   ])('refreshes every view\'s session list when only session %s changes', async (_name, mutation) => {
     await plugin.onload();
     const views = createPublishedViews();
     const viewsSpy = vi.spyOn(viewsOf(plugin), 'getAllViews').mockReturnValue(views as never);
-    const persist = vi.spyOn(storageOf(plugin), 'saveClaudianSettings').mockResolvedValueOnce(undefined);
+    const persist = vi.spyOn(storageOf(plugin), 'saveScribeSettings').mockResolvedValueOnce(undefined);
     try {
       await chatHostOf(plugin).mutateSettings(mutation);
       for (const view of views) {
@@ -361,9 +361,9 @@ describe('ClaudianPlugin', () => {
     });
 
     it.each(['run', 'before-layout', 'before-timer'])('defers obsolete input cleanup until after layout and respects unload: %s', async mode => {
-      const inputPath = '.claudian/sessions/old.inputs.json';
+      const inputPath = '.scribe/sessions/old.inputs.json';
       const files = installVaultFiles({ [inputPath]: '{}' });
-      await mockApp.vault.adapter.mkdir('.claudian/sessions');
+      await mockApp.vault.adapter.mkdir('.scribe/sessions');
       mockApp.vault.adapter.list.mockResolvedValue({ files: [inputPath], folders: [] });
       await plugin.onload();
       expect(files.has(inputPath)).toBe(true);
@@ -376,9 +376,9 @@ describe('ClaudianPlugin', () => {
     });
 
     it('joins an admitted input deletion on unload and leaves remaining inputs for the next launch', async () => {
-      const inputs = ['.claudian/sessions/first.inputs.json', '.claudian/sessions/second.inputs.json'];
+      const inputs = ['.scribe/sessions/first.inputs.json', '.scribe/sessions/second.inputs.json'];
       const files = installVaultFiles(Object.fromEntries(inputs.map(file => [file, '{}'])));
-      await mockApp.vault.adapter.mkdir('.claudian/sessions');
+      await mockApp.vault.adapter.mkdir('.scribe/sessions');
       mockApp.vault.adapter.list.mockResolvedValue({ files: inputs, folders: [] });
       let entered!: () => void;
       const deleting = new Promise<void>(resolve => { entered = resolve; });
@@ -408,9 +408,9 @@ describe('ClaudianPlugin', () => {
     });
 
     it('retries a failed deferred input cleanup on the next launch', async () => {
-      const inputPath = '.claudian/sessions/old.inputs.json';
+      const inputPath = '.scribe/sessions/old.inputs.json';
       const files = installVaultFiles({ [inputPath]: '{}' });
-      await mockApp.vault.adapter.mkdir('.claudian/sessions');
+      await mockApp.vault.adapter.mkdir('.scribe/sessions');
       mockApp.vault.adapter.list.mockResolvedValue({ files: [inputPath], folders: [] });
       mockApp.vault.adapter.remove.mockRejectedValueOnce(new Error('Storage unavailable'));
       await plugin.onload();
@@ -447,7 +447,7 @@ describe('ClaudianPlugin', () => {
       await plugin.onload();
 
       expect((plugin.registerView as Mock)).toHaveBeenCalledWith(
-        VIEW_TYPE_CLAUDIAN,
+        VIEW_TYPE_SCRIBE,
         expect.any(Function)
       );
     });
@@ -719,10 +719,10 @@ describe('ClaudianPlugin', () => {
         resumeAtMessageId: 'deferred-message-id',
       };
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => (
-        path === '.claudian/claudian-settings.json'
+        path === '.scribe/scribe-settings.json'
       ));
       mockApp.vault.adapter.read.mockImplementation(async (path: string) => {
-        if (path === '.claudian/claudian-settings.json') {
+        if (path === '.scribe/scribe-settings.json') {
           return JSON.stringify({
             providerConfigs: {
               claude: {
@@ -910,7 +910,7 @@ describe('ClaudianPlugin', () => {
     });
 
     it('keeps a pending provider invalidation after an incomplete metadata scan', async () => {
-      const settingsPath = '.claudian/claudian-settings.json';
+      const settingsPath = '.scribe/scribe-settings.json';
       const pendingGeneration = 11;
       const deferredMetadata = {
         id: 'incomplete-scan-session',
@@ -1072,7 +1072,7 @@ describe('ClaudianPlugin', () => {
     });
 
     it('retries a pending provider invalidation after unload and restart', async () => {
-      const settingsPath = '.claudian/claudian-settings.json';
+      const settingsPath = '.scribe/scribe-settings.json';
       const deferredMetadata = {
         id: 'restart-deferred-session',
         providerId: 'claude' as const,
@@ -1149,7 +1149,7 @@ describe('ClaudianPlugin', () => {
     });
 
     it('keeps a pending provider invalidation when a metadata write fails', async () => {
-      const settingsPath = '.claudian/claudian-settings.json';
+      const settingsPath = '.scribe/scribe-settings.json';
       const pendingGeneration = 7;
       const deferredMetadata = {
         id: 'failed-write-session',
@@ -1259,7 +1259,7 @@ describe('ClaudianPlugin', () => {
           } else if (kind === 'last reply') {
             result = await service.readLastReply(id);
           } else if (kind === 'mention') {
-            result = (await resolveSessionMentions(host, `@[session](claudian-session:${id})`, new AbortController().signal)).references[0].id;
+            result = (await resolveSessionMentions(host, `@[session](scribe-session:${id})`, new AbortController().signal)).references[0].id;
           } else {
             await titles.regenerate(id);
             result = repository.getSummary(id)?.title ?? '';
@@ -1366,7 +1366,7 @@ describe('ClaudianPlugin', () => {
 
     it('fences session tools synchronously and joins the service before provider teardown', async () => {
       await plugin.onload();
-      const host = (plugin as unknown as { chatHost: ClaudianChatFeatureHost }).chatHost;
+      const host = (plugin as unknown as { chatHost: ScribeChatFeatureHost }).chatHost;
       const binding = host.bindSessionTools('caller');
       let release!: () => void;
       const pending = new Promise<void>(resolve => { release = resolve; });
@@ -1450,7 +1450,7 @@ describe('ClaudianPlugin', () => {
         resolveViewDrain = resolve;
       });
       const prepareForPluginUnload = vi.fn(() => viewDrain);
-      mockApp.workspace.getLeavesOfType.mockImplementation((type: string) => type === VIEW_TYPE_CLAUDIAN ? [{
+      mockApp.workspace.getLeavesOfType.mockImplementation((type: string) => type === VIEW_TYPE_SCRIBE ? [{
         view: {
           prepareForPluginUnload,
           getTabManager: vi.fn(),
@@ -1527,7 +1527,7 @@ describe('ClaudianPlugin', () => {
 
       expect(mockApp.workspace.getRightLeaf).toHaveBeenCalledWith(false);
       expect(mockRightLeaf.setViewState).toHaveBeenCalledWith({
-        type: VIEW_TYPE_CLAUDIAN,
+        type: VIEW_TYPE_SCRIBE,
         active: true,
       });
       expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockRightLeaf);
@@ -1584,14 +1584,14 @@ describe('ClaudianPlugin', () => {
       mockApp.workspace.getLeftLeaf.mockReturnValue(mockLeftLeaf);
 
       await plugin.onload();
-      (plugin.settings as ClaudianSettings).chatViewPlacement = 'left-sidebar';
+      (plugin.settings as ScribeSettings).chatViewPlacement = 'left-sidebar';
       await viewsOf(plugin).activateView();
 
       expect(mockApp.workspace.getLeftLeaf).toHaveBeenCalledWith(false);
       expect(mockApp.workspace.getRightLeaf).not.toHaveBeenCalled();
       expect(mockApp.workspace.getLeaf).not.toHaveBeenCalled();
       expect(mockLeftLeaf.setViewState).toHaveBeenCalledWith({
-        type: VIEW_TYPE_CLAUDIAN,
+        type: VIEW_TYPE_SCRIBE,
         active: true,
       });
     });
@@ -1614,14 +1614,14 @@ describe('ClaudianPlugin', () => {
       mockApp.workspace.getLeaf.mockReturnValue(mockMainLeaf);
 
       await plugin.onload();
-      (plugin.settings as ClaudianSettings).chatViewPlacement = 'main-tab';
+      (plugin.settings as ScribeSettings).chatViewPlacement = 'main-tab';
       await viewsOf(plugin).activateView();
 
       expect(mockApp.workspace.getLeaf).toHaveBeenCalledWith('tab');
       expect(mockApp.workspace.getRightLeaf).not.toHaveBeenCalled();
       expect(mockApp.workspace.getLeftLeaf).not.toHaveBeenCalled();
       expect(mockMainLeaf.setViewState).toHaveBeenCalledWith({
-        type: VIEW_TYPE_CLAUDIAN,
+        type: VIEW_TYPE_SCRIBE,
         active: true,
       });
     });
@@ -1631,7 +1631,7 @@ describe('ClaudianPlugin', () => {
       mockApp.workspace.getLeaf.mockReturnValue(null);
 
       await plugin.onload();
-      (plugin.settings as ClaudianSettings).chatViewPlacement = 'main-tab';
+      (plugin.settings as ScribeSettings).chatViewPlacement = 'main-tab';
 
       await expect(viewsOf(plugin).activateView()).resolves.not.toThrow();
     });
@@ -1643,15 +1643,15 @@ describe('ClaudianPlugin', () => {
 
       await chatHostOf(plugin).mutateSettings(() => undefined);
 
-      // Claudian-specific settings should be written to .claudian/claudian-settings.json
+      // Scribe-specific settings should be written to .scribe/scribe-settings.json
       expect(mockApp.vault.adapter.write).toHaveBeenCalledWith(
-        '.claudian/claudian-settings.json',
+        '.scribe/scribe-settings.json',
         expect.any(String)
       );
 
       // The written content should include state fields
       const writeCall = (mockApp.vault.adapter.write as Mock).mock.calls.find(
-        ([path]) => path === '.claudian/claudian-settings.json'
+        ([path]) => path === '.scribe/scribe-settings.json'
       );
       expect(writeCall).toBeDefined();
       const content = JSON.parse(writeCall![1]);
@@ -1659,7 +1659,7 @@ describe('ClaudianPlugin', () => {
       expect(content).toHaveProperty('providerConfigs.claude.environmentHash');
       expect(content).not.toHaveProperty('enableBlocklist');
       expect(content).not.toHaveProperty('blockedCommands');
-      // Permissions are now in .claude/settings.json (CC format), not claudian-settings.json
+      // Permissions are now in .claude/settings.json (CC format), not scribe-settings.json
       expect(content).not.toHaveProperty('permissions');
     });
   });
@@ -1867,7 +1867,7 @@ describe('ClaudianPlugin', () => {
     });
 
     describe('Codex catalog commits', () => {
-      const settingsPath = '.claudian/claudian-settings.json';
+      const settingsPath = '.scribe/scribe-settings.json';
       const discoveredModel = {
         defaultReasoningEffort: 'medium',
         defaultServiceTier: null,
@@ -2027,7 +2027,7 @@ describe('ClaudianPlugin', () => {
         const persistedFailureSettings = JSON.parse(
           [...mockApp.vault.adapter.write.mock.calls]
             .reverse()
-            .find(([path]: [string]) => path === '.claudian/claudian-settings.json')?.[1]
+            .find(([path]: [string]) => path === '.scribe/scribe-settings.json')?.[1]
             ?? '{}',
         );
         expect(persistedFailureSettings.pendingProviderSessionInvalidations?.claude)
@@ -2082,7 +2082,7 @@ describe('ClaudianPlugin', () => {
         const persistedFailureSettings = JSON.parse(
           [...mockApp.vault.adapter.write.mock.calls]
             .reverse()
-            .find(([path]: [string]) => path === '.claudian/claudian-settings.json')?.[1]
+            .find(([path]: [string]) => path === '.scribe/scribe-settings.json')?.[1]
             ?? '{}',
         );
         expect(persistedFailureSettings.pendingProviderSessionInvalidations?.claude)
@@ -2208,7 +2208,7 @@ describe('ClaudianPlugin', () => {
       const failedWrite = new Promise<void>((_resolve, reject) => { rejectWrite = reject; });
       let shouldFailSettingsWrite = true;
       mockApp.vault.adapter.write.mockImplementation(async (path: string) => {
-        if (path === '.claudian/claudian-settings.json' && shouldFailSettingsWrite) {
+        if (path === '.scribe/scribe-settings.json' && shouldFailSettingsWrite) {
           shouldFailSettingsWrite = false;
           markWriteStarted();
           await failedWrite;
@@ -2270,7 +2270,7 @@ describe('ClaudianPlugin', () => {
         sessionId: null,
       }));
       expect(mockApp.vault.adapter.write.mock.calls.filter(
-        ([path]: [string]) => path === '.claudian/claudian-settings.json',
+        ([path]: [string]) => path === '.scribe/scribe-settings.json',
       )).toHaveLength(1);
 
       const invalidateSpy = vi.spyOn(
@@ -2607,7 +2607,7 @@ describe('ClaudianPlugin', () => {
 
   describe('applyProviderRuntimeSettings', () => {
     it('persists a session-scope fingerprint and restart-safe session invalidation atomically', async () => {
-      const settingsPath = '.claudian/claudian-settings.json';
+      const settingsPath = '.scribe/scribe-settings.json';
       const deferredMetadata = {
         id: 'runtime-settings-restart-session',
         providerId: 'codex' as const,
@@ -2780,7 +2780,7 @@ describe('ClaudianPlugin', () => {
 
       expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
         'bot',
-        'Open Claudian',
+        'Open Scribe',
         expect.any(Function),
       );
       const ribbonCallback = (plugin.addRibbonIcon as Mock).mock.calls[0][2];
@@ -2821,7 +2821,7 @@ describe('ClaudianPlugin', () => {
 
       await runToggle();
 
-      expect(rightLeaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_CLAUDIAN, active: true });
+      expect(rightLeaf.setViewState).toHaveBeenCalledWith({ type: VIEW_TYPE_SCRIBE, active: true });
       expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(rightLeaf);
     });
   });
@@ -3009,7 +3009,7 @@ describe('ClaudianPlugin', () => {
       expect(command.checkCallback(true)).toBe(true);
     });
 
-    it('keeps tab commands unavailable while a Claudian leaf view is not initialized', async () => {
+    it('keeps tab commands unavailable while a Scribe leaf view is not initialized', async () => {
       await plugin.onload();
 
       mockApp.workspace.getLeavesOfType.mockReturnValue([{ view: {} }]);
@@ -3159,7 +3159,7 @@ describe('ClaudianPlugin', () => {
       expect(result?.id).toBe(conversation.id);
       expect(chatHostOf(plugin).getConversationList()).toHaveLength(1);
       expect(mockApp.vault.adapter.remove).not.toHaveBeenCalledWith(
-        '.claudian/sessions/session-removed-after-startup.meta.json',
+        '.scribe/sessions/session-removed-after-startup.meta.json',
       );
       availabilitySpy.mockRestore();
     });
@@ -3186,7 +3186,7 @@ describe('ClaudianPlugin', () => {
         previousProviderSessionIds: ['session-from-previous-vault-path'],
       }));
       expect(mockApp.vault.adapter.remove).not.toHaveBeenCalledWith(
-        '.claudian/sessions/session-from-previous-vault-path.meta.json',
+        '.scribe/sessions/session-from-previous-vault-path.meta.json',
       );
       availabilitySpy.mockRestore();
       loadSpy.mockRestore();
@@ -3897,7 +3897,7 @@ describe('ClaudianPlugin', () => {
     ];
 
     async function loadAllSessions(settings: Record<string, unknown>): Promise<Map<string, string>> {
-      const files = installVaultFiles({ '.claudian/claudian-settings.json': JSON.stringify(settings) });
+      const files = installVaultFiles({ '.scribe/scribe-settings.json': JSON.stringify(settings) });
       vi.spyOn(SessionStorage.prototype, 'scan').mockImplementation(async (options) => {
         options?.onBatch?.(deviceMetadataRecords(...sessions));
         return { records: deviceMetadataRecords(...sessions), complete: true, invalidMetadataCount: 0 };
@@ -3926,11 +3926,11 @@ describe('ClaudianPlugin', () => {
 
     it('skips sessions held by a deferred chat pane that has not mounted its view', async () => {
       mockApp.workspace.getLeavesOfType.mockImplementation((type: string) => (
-        type === VIEW_TYPE_CLAUDIAN
+        type === VIEW_TYPE_SCRIBE
           ? [{
               view: {},
               getViewState: () => ({
-                type: VIEW_TYPE_CLAUDIAN,
+                type: VIEW_TYPE_SCRIBE,
                 state: {
                   tabWorkspace: {
                     version: 1,
@@ -4802,7 +4802,7 @@ describe('ClaudianPlugin', () => {
       finish();
       await turn;
       expect(mockApp.workspace.trigger).toHaveBeenCalledTimes(1);
-      expect(mockApp.workspace.trigger).toHaveBeenCalledWith('claudian:turn-ended', { sessionId: conversation.id });
+      expect(mockApp.workspace.trigger).toHaveBeenCalledWith('scribe:turn-ended', { sessionId: conversation.id });
     });
   });
 

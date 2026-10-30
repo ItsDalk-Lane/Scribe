@@ -1,7 +1,7 @@
 import { getInstallationKey, getLegacyDeviceSettingsKey } from '@/core/device/InstallationKey';
 
 import {
-  CLAUDIAN_SETTINGS_PATH,
+  SCRIBE_SETTINGS_PATH,
 } from '../../core/bootstrap/storagePaths';
 import { normalizeLinkedContentPath } from '../../core/path/LinkedContentPath';
 import {
@@ -17,24 +17,24 @@ import type { VaultFileAdapter } from '../../core/storage/VaultFileAdapter';
 import {
   CHAT_VIEW_PLACEMENTS,
   type ChatViewPlacement,
-  type ClaudianSettings,
   DUAL_PANE_SIDES,
   type DualPaneSide,
   type EnvironmentScope,
   type EnvSnippet,
   type ProviderConfigMap,
+  type ScribeSettings,
   type SessionManagerOrganization,
   type StoredChatModelSelection,
   type StoredInlineEditModelSelection,
   type ZenModePosition,
 } from '../../core/types/settings';
-import { DEFAULT_CLAUDIAN_SETTINGS } from './defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from './defaultSettings';
 
 export {
-  CLAUDIAN_SETTINGS_PATH
+  SCRIBE_SETTINGS_PATH
 };
 
-export type StoredClaudianSettings = ClaudianSettings;
+export type StoredScribeSettings = ScribeSettings;
 
 const RETIRED_SHARED_SETTING_FIELDS = [
   'pinnedLinkedNotePaths',
@@ -68,13 +68,13 @@ function isChatViewPlacement(value: unknown): value is ChatViewPlacement {
 function normalizeEnableDualPane(value: unknown): boolean {
   return typeof value === 'boolean'
     ? value
-    : DEFAULT_CLAUDIAN_SETTINGS.enableDualPane;
+    : DEFAULT_SCRIBE_SETTINGS.enableDualPane;
 }
 
 function normalizeEnableZenMode(value: unknown): boolean {
   return typeof value === 'boolean'
     ? value
-    : DEFAULT_CLAUDIAN_SETTINGS.enableZenMode;
+    : DEFAULT_SCRIBE_SETTINGS.enableZenMode;
 }
 
 function normalizeZenModePosition(value: unknown): ZenModePosition | null {
@@ -89,13 +89,13 @@ function normalizeDualPaneSide(value: unknown): DualPaneSide {
   return typeof value === 'string'
     && (DUAL_PANE_SIDES as readonly string[]).includes(value)
     ? value as DualPaneSide
-    : DEFAULT_CLAUDIAN_SETTINGS.dualPaneSide;
+    : DEFAULT_SCRIBE_SETTINGS.dualPaneSide;
 }
 
 function normalizeRestoreTabsOnStartup(value: unknown): boolean {
   return typeof value === 'boolean'
     ? value
-    : DEFAULT_CLAUDIAN_SETTINGS.restoreTabsOnStartup;
+    : DEFAULT_SCRIBE_SETTINGS.restoreTabsOnStartup;
 }
 
 function normalizeSessionManagerOrganization(
@@ -104,7 +104,7 @@ function normalizeSessionManagerOrganization(
   if (value === 'linked-note') return 'linked-content';
   return value === 'linked-content' || value === 'list'
     ? value
-    : DEFAULT_CLAUDIAN_SETTINGS.sessionManagerOrganization ?? 'list';
+    : DEFAULT_SCRIBE_SETTINGS.sessionManagerOrganization ?? 'list';
 }
 
 function normalizePinnedLinkedContentPaths(value: unknown): string[] {
@@ -417,18 +417,18 @@ function migrateLegacyChatModelSelection(
   return model ? { providerId, model } : null;
 }
 
-export class ClaudianSettingsStorage {
+export class ScribeSettingsStorage {
   constructor(
     private readonly adapter: VaultFileAdapter,
-    private readonly defaults: Readonly<ClaudianSettings>,
+    private readonly defaults: Readonly<ScribeSettings>,
   ) {}
 
-  async load(): Promise<StoredClaudianSettings> {
-    if (!await this.adapter.exists(CLAUDIAN_SETTINGS_PATH)) {
+  async load(): Promise<StoredScribeSettings> {
+    if (!await this.adapter.exists(SCRIBE_SETTINGS_PATH)) {
       return this.#getDefaults();
     }
 
-    const content = await this.adapter.read(CLAUDIAN_SETTINGS_PATH);
+    const content = await this.adapter.read(SCRIBE_SETTINGS_PATH);
     const stored = JSON.parse(content) as Record<string, unknown>;
     const hasStoredChatModelSelection = Object.prototype.hasOwnProperty.call(
       stored,
@@ -451,7 +451,7 @@ export class ClaudianSettingsStorage {
     } = migrateCurrentDeviceProviderConfigKeys(projectedProviderConfigs);
     const chatViewPlacement = isChatViewPlacement(stored.chatViewPlacement)
       ? stored.chatViewPlacement
-      : DEFAULT_CLAUDIAN_SETTINGS.chatViewPlacement;
+      : DEFAULT_SCRIBE_SETTINGS.chatViewPlacement;
     const enableZenMode = normalizeEnableZenMode(stored.enableZenMode);
     const zenModePosition = normalizeZenModePosition(stored.zenModePosition);
     const enableDualPane = normalizeEnableDualPane(stored.enableDualPane);
@@ -561,7 +561,7 @@ export class ClaudianSettingsStorage {
     return merged;
   }
 
-  async save(settings: StoredClaudianSettings): Promise<void> {
+  async save(settings: StoredScribeSettings): Promise<void> {
     const providerConfigs = projectPersistableProviderConfigs(settings);
     const content = JSON.stringify(
       stripRetiredSharedFields(pruneDeselectedProviderProjections({
@@ -577,10 +577,10 @@ export class ClaudianSettingsStorage {
       null,
       2,
     );
-    await this.adapter.write(CLAUDIAN_SETTINGS_PATH, content);
+    await this.adapter.write(SCRIBE_SETTINGS_PATH, content);
   }
 
-  #getDefaults(): StoredClaudianSettings {
+  #getDefaults(): StoredScribeSettings {
     return structuredClone(this.defaults);
   }
 

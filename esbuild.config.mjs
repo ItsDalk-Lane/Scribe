@@ -2,13 +2,13 @@ import esbuild from 'esbuild';
 import { builtinModules } from 'node:module';
 import path from 'path';
 import process from 'process';
+import { fileURLToPath } from 'url';
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
   promises as fsPromises,
   readFileSync,
-  rmSync,
 } from 'fs';
 import { assertRuntimeDependencyParity } from './scripts/runtimeDependencyParity.mjs';
 import rendererSafeUnrefHelpers from './scripts/rendererSafeUnref.js';
@@ -102,7 +102,7 @@ const patchSdkImportMeta = {
 };
 
 // The Claude SDK `/core` entry imports its zod and MCP peers only for
-// `createSdkMcpServer()`, which Claudian does not use. Marking those
+// `createSdkMcpServer()`, which Scribe does not use. Marking those
 // SDK-issued imports side-effect-free lets esbuild drop them when unused
 // instead of evaluating their module graphs for their top-level effects.
 const omitUnusedClaudeSdkPeers = {
@@ -159,38 +159,25 @@ function createPatchRendererUnsafeUnref(outputPaths) {
   };
 }
 
-// Obsidian plugin folder path (set via OBSIDIAN_VAULT env var or .env.local)
-const OBSIDIAN_VAULT = process.env.OBSIDIAN_VAULT;
-const OBSIDIAN_PLUGIN_PATH = OBSIDIAN_VAULT && existsSync(OBSIDIAN_VAULT)
-  ? path.join(OBSIDIAN_VAULT, '.obsidian', 'plugins', 'claudian')
-  : null;
+// Only builds from this checkout publish to the dedicated test vault.
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+const testVault = '/Users/study_superior/Desktop/Scribe';
+const testPluginPath = path.join(testVault, '.obsidian', 'plugins', 'scribe');
 
-// Plugin to copy built files to Obsidian plugin folder
 const copyToObsidian = {
   name: 'copy-to-obsidian',
   setup(build) {
     build.onEnd((result) => {
-      if (result.errors.length > 0) return;
-      rmSync(path.join(process.cwd(), '.codex-vendor'), { recursive: true, force: true });
+      if (result.errors.length > 0 || path.resolve(process.cwd()) !== projectRoot) return;
+      if (!existsSync(testVault)) throw new Error(`Test vault does not exist: ${testVault}`);
 
-      if (!OBSIDIAN_PLUGIN_PATH) return;
-
-      if (!existsSync(OBSIDIAN_PLUGIN_PATH)) {
-        mkdirSync(OBSIDIAN_PLUGIN_PATH, { recursive: true });
+      mkdirSync(testPluginPath, { recursive: true });
+      for (const file of ['main.js', 'manifest.json', 'styles.css']) {
+        copyFileSync(file, path.join(testPluginPath, file));
       }
-
-      const files = ['main.js', 'manifest.json', 'styles.css'];
-      for (const file of files) {
-        if (existsSync(file)) {
-          copyFileSync(file, path.join(OBSIDIAN_PLUGIN_PATH, file));
-          console.log(`Copied ${file} to Obsidian plugin folder`);
-        }
-      }
-
-      const pluginVendorRoot = path.join(OBSIDIAN_PLUGIN_PATH, '.codex-vendor');
-      rmSync(pluginVendorRoot, { recursive: true, force: true });
+      console.log('Synced plugin to the dedicated test vault');
     });
-  }
+  },
 };
 
 const external = [

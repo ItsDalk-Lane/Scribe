@@ -54,3 +54,6 @@ Thumbs.db
 .claude/
 .codex/
 CLAUDE.local.md
+
+# Local AOCI tooling
+/tools/aoci/

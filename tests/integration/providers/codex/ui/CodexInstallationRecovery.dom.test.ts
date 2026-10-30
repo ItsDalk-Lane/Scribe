@@ -90,7 +90,7 @@ it.each([
   const row = within(container).getByText('Installation method').parentElement!;
   const select = within(row).getByRole('combobox') as HTMLSelectElement;
   const distro = within(container).getByPlaceholderText('Ubuntu') as HTMLInputElement;
-  const cliCard = container.querySelector<HTMLElement>('.claudian-cli-installation')!;
+  const cliCard = container.querySelector<HTMLElement>('.scribe-cli-installation')!;
   fireEvent.click(within(cliCard).getByRole('button', { name: 'Codex CLI installation' }));
   const cli = within(cliCard).getByRole('textbox', { name: 'Codex CLI path' }) as HTMLInputElement;
   expect(select.value).toBe(initial);

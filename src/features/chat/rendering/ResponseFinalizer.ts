@@ -44,13 +44,13 @@ export class ResponseFinalizer {
       automaticNotification, earlierMessages, hasContinuation, finalBlockCount } = getResponseLayout(msg, messages, collapse, index);
     const precedingNotificationHistory = notificationPredecessor
       ? this.findMessageEl(notificationPredecessor.id)?.querySelector<HTMLElement>(
-        '.claudian-task-notification .claudian-work-history',
+        '.scribe-task-notification .scribe-work-history',
       ) ?? null : null;
     if (automaticNotification && canCollapse) {
       let history: HTMLElement | null = precedingNotificationHistory;
       for (const child of Array.from(contentEl.children) as HTMLElement[]) {
         if (getResponseElementKind(child) === 'notification') {
-          history = child.querySelector<HTMLElement>('.claudian-work-history');
+          history = child.querySelector<HTMLElement>('.scribe-work-history');
         } else if (history && getResponseElementKind(child) !== 'text'
           && getResponseElementKind(child) !== 'citations') {
           history.appendChild(child);
@@ -61,11 +61,11 @@ export class ResponseFinalizer {
       // Keep the disclosure at the start of its response and fold consumed
       // notifications with the work around them, preserving transcript order.
       const workContentEl = hasContinuation && earlierMessages.length
-        ? this.findMessageEl(earlierMessages[0].id)?.querySelector<HTMLElement>('.claudian-message-content') ?? contentEl : contentEl;
+        ? this.findMessageEl(earlierMessages[0].id)?.querySelector<HTMLElement>('.scribe-message-content') ?? contentEl : contentEl;
       const earlierEls = earlierMessages.flatMap(message => {
         const el = this.findMessageEl(message.id);
         if (!el) return [];
-        const previousContent = el.querySelector<HTMLElement>('.claudian-message-content');
+        const previousContent = el.querySelector<HTMLElement>('.scribe-message-content');
         return previousContent === workContentEl ? Array.from(previousContent.children) as HTMLElement[] : [el];
       });
       const children = Array.from(contentEl.children) as HTMLElement[];
@@ -87,7 +87,7 @@ export class ResponseFinalizer {
       if (hasWork) {
         this.#collapsedResponses.add(msgEl);
         const wrapper = workContentEl.createDiv({
-          cls: 'claudian-work', attr: { 'data-work-message-id': msg.id },
+          cls: 'scribe-work', attr: { 'data-work-message-id': msg.id },
         });
         workContentEl.insertBefore(wrapper, automaticTurn
           ? folded.find(el => el.parentElement === workContentEl) ?? null : workContentEl.firstChild);
@@ -95,7 +95,7 @@ export class ResponseFinalizer {
         const label = interrupted ? appendInterruptLabel
           : msg.durationSeconds === undefined ? t('chat.worked')
             : t('chat.zen.workedFor', { duration: formatWorkDuration(msg.durationSeconds) });
-        const history = this.#createDisclosure(wrapper, 'claudian-work-history', label);
+        const history = this.#createDisclosure(wrapper, 'scribe-work-history', label);
         for (const el of folded) {
           if (getResponseElementKind(el) === 'interrupt') el.remove();
           else history.appendChild(el);
@@ -110,8 +110,8 @@ export class ResponseFinalizer {
 
   /** A collapsed notification whose Markdown renders on first expansion. */
   renderTaskNotification(contentEl: HTMLElement, content: string): void {
-    const wrapper = markResponseElement(contentEl.createDiv({ cls: 'claudian-task-notification' }), 'notification');
-    const history = this.#createDisclosure(wrapper, 'claudian-task-notification', t('chat.taskNotification'), () => {
+    const wrapper = markResponseElement(contentEl.createDiv({ cls: 'scribe-task-notification' }), 'notification');
+    const history = this.#createDisclosure(wrapper, 'scribe-task-notification', t('chat.taskNotification'), () => {
       void this.renderContent(body, content);
     });
     const body = history.createDiv({ text: content });
@@ -123,11 +123,11 @@ export class ResponseFinalizer {
     label: string | ((header: HTMLElement) => void),
     onFirstExpand?: () => void,
   ): HTMLElement {
-    const header = wrapper.createEl('button', { cls: 'claudian-work-header' });
+    const header = wrapper.createEl('button', { cls: 'scribe-work-header' });
     if (typeof label === 'string') header.setText(label);
     else label(header);
     const history = wrapper.createDiv({
-      cls: 'claudian-work-history', attr: { id: `${idPrefix}-${nextHistoryId++}` },
+      cls: 'scribe-work-history', attr: { id: `${idPrefix}-${nextHistoryId++}` },
     });
     setupDisclosureButton(header, history, { onFirstExpand });
     return history;

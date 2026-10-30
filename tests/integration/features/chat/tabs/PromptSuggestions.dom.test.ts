@@ -12,7 +12,7 @@ import { App, Component } from 'obsidian';
 
 import { ProviderExecutionLifecycleRegistry } from '@/core/execution';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
-import type { ClaudianSettings, Conversation } from '@/core/types';
+import type { Conversation,ScribeSettings } from '@/core/types';
 import type { ChatFeatureHost } from '@/features/chat/ChatFeatureHost';
 import { activateTab, deactivateTab, destroyTab } from '@/features/chat/tabs/TabLifecycle';
 import { createTabRuntime } from '@/features/chat/tabs/TabRuntimeFactory';
@@ -62,7 +62,7 @@ async function createView(fakeBackend?: FakeSideBackend) {
       ...claudeCatalogFixture(['claude-sonnet-4-5', 'claude-opus-4-6'], ['low', 'high']),
       promptSuggestions: true,
     } },
-  } as unknown as ClaudianSettings;
+  } as unknown as ScribeSettings;
   const conversation = {
     id: 'conversation-1', providerId: 'claude', selectedModel: 'claude-sonnet-4-5',
     sessionId: 'main-session', messages: [],
@@ -91,7 +91,7 @@ async function createView(fakeBackend?: FakeSideBackend) {
     getConversationList: () => [...conversations.values()],
     renameConversation: async () => {},
     updateConversation: async (_id: string, patch: unknown) => { saved.push(structuredClone(patch)); },
-    mutateSettings: async (mutate: (settings: ClaudianSettings) => void) => mutate(settings),
+    mutateSettings: async (mutate: (settings: ScribeSettings) => void) => mutate(settings),
     chatModelSelection: { beginIntent: () => 1, commitIntent: async () => true },
   } as unknown as ChatFeatureHost;
   if (!plugin.sessionRuntimes) installSessionRuntimePool(plugin);
@@ -105,7 +105,7 @@ async function createView(fakeBackend?: FakeSideBackend) {
   tab.hydrationState = 'ready';
   await tab.executionCoordinator.bindConversation({ conversationId: conversation.id, providerId: 'claude' });
   await tab.executionCoordinator.prepare();
-  vi.spyOn(tab.dom.messagesEl, 'getClientRects').mockImplementation(() => (tab.dom.contentEl.hasClass('claudian-hidden') ? [] : [{}]) as unknown as DOMRectList);
+  vi.spyOn(tab.dom.messagesEl, 'getClientRects').mockImplementation(() => (tab.dom.contentEl.hasClass('scribe-hidden') ? [] : [{}]) as unknown as DOMRectList);
   activateTab(tab);
   tab.dom.inputEl.focus();
   return { get tab() { return tab; }, conversation, saved, plugin,

@@ -16,7 +16,7 @@ describe('enhanced CLI discovery and subprocess PATH', () => {
   let directory: string;
 
   beforeEach(() => {
-    directory = mkdtempSync(path.join(tmpdir(), 'claudian mise '));
+    directory = mkdtempSync(path.join(tmpdir(), 'scribe mise '));
     process.env = { ...originalEnv, PATH: '' };
     for (const key of ['MISE_SHIMS_DIR', 'MISE_DATA_DIR', 'XDG_DATA_HOME', 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'npm_config_prefix']) {
       delete process.env[key];
@@ -71,7 +71,7 @@ describe('enhanced CLI discovery and subprocess PATH', () => {
             : path.join(directory, '.local', 'share', 'mise', 'shims');
       }
 
-      const binaryName = 'claudian-mise-probe';
+      const binaryName = 'scribe-mise-probe';
       const executable = path.join(shims, `${binaryName}${isWindows ? '.exe' : ''}`);
       mkdirSync(shims, { recursive: true });
       // Use a runnable fixture without installing mise or downloading managed tools.
@@ -97,7 +97,7 @@ describe('enhanced CLI discovery and subprocess PATH', () => {
       const first = path.join(directory, 'first bin');
       const second = path.join(directory, 'second bin');
       mkdirSync(first); mkdirSync(second);
-      const name = 'claudian-executable-probe';
+      const name = 'scribe-executable-probe';
       writeFileSync(path.join(first, name), 'not executable');
       chmodSync(path.join(first, name), 0o644);
       const executable = path.join(second, name);

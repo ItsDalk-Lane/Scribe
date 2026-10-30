@@ -5,11 +5,12 @@ import '@test/helpers/ObsidianSettingsDOM';
 import { deserialize, serialize } from 'node:v8';
 
 import { axe } from '@test/helpers/accessibility';
-import { DEFAULT_CLAUDIAN_SETTINGS } from '@test/helpers/defaultSettings';
+import { DEFAULT_SCRIBE_SETTINGS } from '@test/helpers/defaultSettings';
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 
 import { SettingsCoordinator } from '@/app/settings/SettingsCoordinator';
-import { ClaudianSettingTab } from '@/features/settings/ClaudianSettings';
+import { ChatViewPublisher } from '@/features/chat/workspace/ChatViewPublisher';
+import { ScribeSettingTab } from '@/features/settings/ScribeSettings';
 import { setLocale, t } from '@/i18n/i18n';
 
 const mockChanges: Promise<void>[] = [];
@@ -52,6 +53,23 @@ vi.mock('obsidian', async () => {
 
 afterEach(() => { setLocale('en'); document.body.replaceChildren(); mockChanges.length = 0; });
 
+it('refreshes mounted chat views in the committed language', async () => {
+  const settings = structuredClone(DEFAULT_SCRIBE_SETTINGS);
+  settings.locale = 'en';
+  setLocale('en');
+  const labels: string[] = [];
+  const publisher = new ChatViewPublisher({
+    views: { getAllViews: () => [{ refreshLocale: () => labels.push(t('settings.language.name')) } as never] },
+    zenMode: { reconcile() {} },
+    inactiveSessions: { request() {} },
+    hasLoadedAllSessionMetadata: () => false,
+  });
+  const coordinator = new SettingsCoordinator(settings, async () => {},
+    (current, previous) => publisher.publishSettings(current, previous));
+  await coordinator.mutate(draft => { draft.locale = 'zh-CN'; });
+  expect(labels).toEqual(['语言']);
+});
+
 it.each(['persist-failure', 'publish-failure', 'success'])('keeps the translator and control aligned with committed settings after %s', async phase => {
   globalThis.structuredClone ??= value => deserialize(serialize(value));
   setLocale('en');
@@ -60,7 +78,7 @@ it.each(['persist-failure', 'publish-failure', 'success'])('keeps the translator
   const translatedLabel = t('settings.language.name');
   setLocale('en');
   expect(translatedLabel).not.toBe(originalLabel);
-  const settings = { ...structuredClone(DEFAULT_CLAUDIAN_SETTINGS), locale: 'en', enableAutoTitleGeneration: false };
+  const settings = { ...structuredClone(DEFAULT_SCRIBE_SETTINGS), locale: 'en', enableAutoTitleGeneration: false };
   let saved = JSON.stringify(settings);
   const coordinator = new SettingsCoordinator(settings, async draft => {
     if (phase === 'persist-failure') throw new Error('Storage unavailable');
@@ -69,7 +87,7 @@ it.each(['persist-failure', 'publish-failure', 'success'])('keeps the translator
     if (phase === 'publish-failure') throw new Error('Publication unavailable');
   });
   const host = { settings, mutateSettings: coordinator.mutate.bind(coordinator) };
-  const tab = new ClaudianSettingTab({} as never, {} as never, host as never);
+  const tab = new ScribeSettingTab({} as never, {} as never, host as never);
   const container = document.body.createDiv();
   tab['renderGeneralTab'](container);
   const row = within(container).getByText(originalLabel).parentElement!;

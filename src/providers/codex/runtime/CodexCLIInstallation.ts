@@ -38,7 +38,7 @@ export async function inspectCodexInstallation(host: ProviderRuntimeHost): Promi
   // script and CLI reference for that shell; sh receives the reference as $1.
   const lookup = launch('sh', [
     '-c', quoteShellArgument('resolved=$(command -v -- "$1") || exit 1; test -f "$resolved" && test -x "$resolved" || exit 1; printf "%s\\n" "$resolved"'),
-    'claudian-cli-probe', quoteShellArgument(command),
+    'scribe-cli-probe', quoteShellArgument(command),
   ]);
   const resolved = (await probe(lookup))?.trim();
   if (!resolved || /[\r\n]/u.test(resolved)) return missing;

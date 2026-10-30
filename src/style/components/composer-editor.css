@@ -1,11 +1,11 @@
 /* The wrapper owns composer chrome; CodeMirror owns document layout and scrolling. */
-.claudian-input-wrapper .claudian-composer-editor {
+.scribe-input-wrapper .scribe-composer-editor {
   --no-tooltip: true;
 
   /* Shared by the pre-mount placeholder and CodeMirror's content and lines. */
-  --claudian-composer-padding-top: 12px;
-  --claudian-composer-padding-inline: 13px;
-  --claudian-composer-padding-bottom: 2px;
+  --scribe-composer-padding-top: 12px;
+  --scribe-composer-padding-inline: 13px;
+  --scribe-composer-padding-bottom: 2px;
 
   width: 100%;
   min-width: 0;
@@ -26,31 +26,31 @@
   white-space: pre-wrap;
 }
 
-.claudian-composer-editor:focus,
-.claudian-composer-editor .cm-editor.cm-focused {
+.scribe-composer-editor:focus,
+.scribe-composer-editor .cm-editor.cm-focused {
   outline: none;
 }
 
-.claudian-composer-editor:empty::before {
+.scribe-composer-editor:empty::before {
   display: block;
-  padding: var(--claudian-composer-padding-top) var(--claudian-composer-padding-inline) var(--claudian-composer-padding-bottom);
+  padding: var(--scribe-composer-padding-top) var(--scribe-composer-padding-inline) var(--scribe-composer-padding-bottom);
   content: attr(data-placeholder);
   color: var(--text-muted);
 }
 
 /* Restored drafts are plain text until first focus mounts CodeMirror. */
-.claudian-composer-editor[role="textbox"]:not(:empty) {
-  padding: var(--claudian-composer-padding-top) var(--claudian-composer-padding-inline) var(--claudian-composer-padding-bottom);
-  max-height: var(--claudian-textarea-max-height, none);
+.scribe-composer-editor[role="textbox"]:not(:empty) {
+  padding: var(--scribe-composer-padding-top) var(--scribe-composer-padding-inline) var(--scribe-composer-padding-bottom);
+  max-height: var(--scribe-textarea-max-height, none);
   overflow: auto;
 }
 
-.claudian-composer-editor .cm-editor {
+.scribe-composer-editor .cm-editor {
   background: transparent;
 }
 
-.claudian-composer-editor .cm-scroller {
-  max-height: var(--claudian-textarea-max-height, none);
+.scribe-composer-editor .cm-scroller {
+  max-height: var(--scribe-textarea-max-height, none);
   overflow: auto;
   font-family: inherit;
   line-height: inherit;
@@ -60,39 +60,39 @@
  * Text lines up with the toolbar content (13px in) and gets more room above than below,
  * since the toolbar under it already adds space.
  */
-.claudian-composer-editor .cm-content {
-  padding: var(--claudian-composer-padding-top) 0 var(--claudian-composer-padding-bottom);
+.scribe-composer-editor .cm-content {
+  padding: var(--scribe-composer-padding-top) 0 var(--scribe-composer-padding-bottom);
   min-height: 48px;
   caret-color: var(--text-normal);
 }
 
-.claudian-composer-editor .cm-line {
-  padding: 0 var(--claudian-composer-padding-inline);
+.scribe-composer-editor .cm-line {
+  padding: 0 var(--scribe-composer-padding-inline);
 }
 
 /*
  * CodeMirror's inline-block hint makes the native caret beside it as tall as the whole hint
  * once it wraps; inline, the caret takes the first line's height and the hint wraps the same.
  */
-.claudian-composer-editor .cm-placeholder {
+.scribe-composer-editor .cm-placeholder {
   display: inline;
   color: var(--text-muted);
 }
 
-.claudian-composer-editor .claudian-prompt-suggestion-hint {
+.scribe-composer-editor .scribe-prompt-suggestion-hint {
   color: var(--text-faint);
 }
 
-.claudian-composer-editor .cm-cursor {
+.scribe-composer-editor .cm-cursor {
   border-left-color: var(--text-normal);
 }
 
-.claudian-composer-wikilink > p {
+.scribe-composer-wikilink > p {
   display: inline;
   margin: 0;
 }
 
-.claudian-composer-chip {
+.scribe-composer-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
@@ -102,18 +102,18 @@
   vertical-align: baseline;
 }
 
-.claudian-composer-chip-icon {
+.scribe-composer-chip-icon {
   display: inline-flex;
   color: var(--text-muted);
 }
 
-.claudian-composer-chip-icon svg {
+.scribe-composer-chip-icon svg {
   width: 1em;
   height: 1em;
 }
 
 /* Commands read as code: a monospaced chip rather than prose, with the prefix joined to the name. */
-.claudian-composer-command {
+.scribe-composer-command {
   gap: 0;
   color: var(--text-normal);
   font-family: var(--font-monospace);
@@ -121,6 +121,6 @@
   font-weight: var(--font-semibold);
 }
 
-.claudian-composer-command-prefix {
+.scribe-composer-command-prefix {
   font-weight: var(--font-extrabold);
 }

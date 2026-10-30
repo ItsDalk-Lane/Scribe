@@ -112,7 +112,7 @@ describe('GrokExecutionNativeConnection', () => {
     });
     await expect(native.request(fixture.request.method, fixture.request.params)).resolves.toEqual({
       decision: 'deny',
-      systemMessage: 'Plan mode is unavailable in Claudian. Continue in normal mode.',
+      systemMessage: 'Plan mode is unavailable in Scribe. Continue in normal mode.',
     });
     expect(request._meta).toEqual({
       modelId: 'grok-4.6',
@@ -151,7 +151,7 @@ describe('GrokExecutionNativeConnection', () => {
         toolName: 'exit_plan_mode',
       })).resolves.toEqual({
         decision: 'deny',
-        systemMessage: 'Plan mode is unavailable in Claudian. Continue in normal mode.',
+        systemMessage: 'Plan mode is unavailable in Scribe. Continue in normal mode.',
       });
     },
   );

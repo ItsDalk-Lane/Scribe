@@ -213,7 +213,7 @@ describe('CLI installation environment updates', () => {
     HTMLElement.prototype.empty = function () { this.replaceChildren(); };
   });
   it.each(['typing', 'snippet'] as const)('refreshes sibling provider cards after a shared PATH update via %s', async (method) => {
-    const root = document.body.createDiv({ cls: 'claudian-settings' });
+    const root = document.body.createDiv({ cls: 'scribe-settings' });
     const providers = root.createDiv();
     const general = root.createDiv();
     let envText = '';

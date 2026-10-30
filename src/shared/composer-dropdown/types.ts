@@ -20,6 +20,7 @@ export interface ComposerInputElement extends HTMLElement {
   isCaretOnEdgeRow?: (direction: 'up' | 'down') => boolean | null;
   /** Element currently exposed as the textbox; popup relationships belong on it. Defaults to the input itself. */
   getAccessibleTextbox?: () => HTMLElement;
+  setAccessibleLabel?: (label: string) => void;
 }
 
 export type ComposerCommandResolver = (token: string, atInputStart: boolean) => ProviderCommandKind | null;

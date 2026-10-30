@@ -10,7 +10,7 @@ function formatInstructions(instructions: string): string {
 export function renderProjectMemberInstructions(record: ProjectPromptRecord): string {
   return `## Project
 
-This session is a member of the Claudian project **${record.name}**. A project is a group of sessions working toward one goal.
+This session is a member of the Scribe project **${record.name}**. A project is a group of sessions working toward one goal.
 
 ### Project Instructions
 
@@ -30,7 +30,7 @@ This file is your working memory. Do not mention, cite, or link it in replies to
 
 ### Working With Other Sessions
 
-- When asked to find or check on other sessions in this project, use \`claudian_list_destinations\` with \`project: true\`, and \`claudian_read_session\` to read one.
-- When asked to hand off, delegate, or coordinate work, use \`claudian_send_message\`. Messages must be self-contained; the recipient cannot see this conversation.
-- Sessions you start with \`claudian_send_message\` join this project.`;
+- When asked to find or check on other sessions in this project, use \`scribe_list_destinations\` with \`project: true\`, and \`scribe_read_session\` to read one.
+- When asked to hand off, delegate, or coordinate work, use \`scribe_send_message\`. Messages must be self-contained; the recipient cannot see this conversation.
+- Sessions you start with \`scribe_send_message\` join this project.`;
 }

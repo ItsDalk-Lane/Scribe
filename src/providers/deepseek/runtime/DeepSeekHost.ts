@@ -136,7 +136,7 @@ export class DeepSeekHost {
           } catch (error) {
             // Only a native refusal proves no fork exists. Otherwise the unfinished fork may still claim a token, its own
             // after withdrawal or a later fork's, so the process ends first and its token file goes with it. A fork the
-            // watchdog gave up on would also complete after Claudian reported it failed, whatever the plugin state.
+            // watchdog gave up on would also complete after Scribe reported it failed, whatever the plugin state.
             unresolved = expired || (ephemeral && !(error instanceof DeepSeekRemoteError && error.code !== undefined));
             if (unresolved) {
               this.lose(generation, 'transport', error instanceof Error ? error : new Error('DeepSeek fork failed.'));

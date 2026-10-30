@@ -59,7 +59,7 @@ it.each([
   const rawResult = plainAnswer ?? envelope;
   try {
     state.addMessage(message);
-    state.currentContentEl = renderer.addMessage(message).querySelector('.claudian-message-content');
+    state.currentContentEl = renderer.addMessage(message).querySelector('.scribe-message-content');
     let sequence = 0;
     const nativeMessages = [
       { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'sync-tool', name: 'Agent',
@@ -110,7 +110,7 @@ it.each([
     }
     fireEvent.click(within(messagesEl).getByRole('button', { name: /Subagent task: Sync test agent/ }));
     fireEvent.click(within(messagesEl).getByRole('button', { name: /Result - click to expand/ }));
-    const result = messagesEl.querySelector('.claudian-subagent-result-output');
+    const result = messagesEl.querySelector('.scribe-subagent-result-output');
     expect(result?.textContent).toBe(structured ? structuredAnswer : answer);
     expect(message.toolCalls?.[0].result).toBe(result?.textContent);
     expect((await axe(messagesEl)).violations).toEqual([]);

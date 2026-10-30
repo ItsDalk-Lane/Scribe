@@ -1,32 +1,32 @@
 /* Write/Edit Diff Block - Subagent style */
-.claudian-write-edit-block {
+.scribe-write-edit-block {
   margin: 4px 0;
   overflow: hidden;
 }
 
-.claudian-text-block+.claudian-write-edit-block,
-.claudian-write-edit-block+.claudian-text-block {
+.scribe-text-block+.scribe-write-edit-block,
+.scribe-write-edit-block+.scribe-text-block {
   margin-top: 8px;
 }
 
-.claudian-write-edit-header {
+.scribe-write-edit-header {
   user-select: none;
 }
 
-.claudian-write-edit-icon {
+.scribe-write-edit-icon {
   width: 16px;
   height: 16px;
   color: var(--text-accent);
   flex-shrink: 0;
 }
 
-.claudian-write-edit-icon svg {
+.scribe-write-edit-icon svg {
   width: 16px;
   height: 16px;
 }
 
 /* Two-part header: name (fixed) + summary (flexible) */
-.claudian-write-edit-name {
+.scribe-write-edit-name {
   font-family: var(--font-monospace);
   font-size: 13px;
   font-weight: 400;
@@ -35,7 +35,7 @@
   flex-shrink: 0;
 }
 
-.claudian-write-edit-summary {
+.scribe-write-edit-summary {
   font-family: var(--font-monospace);
   font-size: 13px;
   color: var(--text-muted);
@@ -46,50 +46,50 @@
   min-width: 0;
 }
 
-.claudian-write-edit-stats {
+.scribe-write-edit-stats {
   font-family: var(--font-monospace);
   font-size: 11px;
   flex-shrink: 0;
 }
 
-.claudian-write-edit-stats .added {
+.scribe-write-edit-stats .added {
   color: var(--color-green);
 }
 
-.claudian-write-edit-stats .removed {
+.scribe-write-edit-stats .removed {
   color: var(--color-red);
   margin-left: 4px;
 }
 
-.claudian-write-edit-status {
+.scribe-write-edit-status {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
 }
 
 /* Hide empty status on successful completion so stats align to right edge */
-.claudian-write-edit-block.done .claudian-write-edit-status:empty {
+.scribe-write-edit-block.done .scribe-write-edit-status:empty {
   display: none;
 }
 
-.claudian-write-edit-status svg {
+.scribe-write-edit-status svg {
   width: 16px;
   height: 16px;
 }
 
-.claudian-write-edit-status.status-error {
+.scribe-write-edit-status.status-error {
   color: var(--color-red);
 }
 
-.claudian-write-edit-content {
+.scribe-write-edit-content {
   overflow: hidden;
 }
 
-.claudian-write-edit-diff-row {
+.scribe-write-edit-diff-row {
   display: flex;
 }
 
-.claudian-write-edit-diff {
+.scribe-write-edit-diff {
   flex: 1;
   font-family: var(--font-monospace);
   font-size: 12px;
@@ -98,30 +98,30 @@
   overflow: auto;
 }
 
-.claudian-write-edit-loading,
-.claudian-write-edit-error,
-.claudian-write-edit-done-text {
+.scribe-write-edit-loading,
+.scribe-write-edit-error,
+.scribe-write-edit-done-text {
   font-family: var(--font-monospace);
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.claudian-write-edit-error {
+.scribe-write-edit-error {
   color: var(--color-red);
 }
 
 /* Diff line styling */
-.claudian-diff-hunk {
+.scribe-diff-hunk {
   margin-bottom: 4px;
 }
 
-.claudian-diff-line {
+.scribe-diff-line {
   display: flex;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-.claudian-diff-prefix {
+.scribe-diff-prefix {
   flex-shrink: 0;
   width: 16px;
   text-align: center;
@@ -129,36 +129,36 @@
   user-select: none;
 }
 
-.claudian-diff-text {
+.scribe-diff-text {
   flex: 1;
   min-width: 0;
 }
 
 /* Diff colors - NO strikethrough for Write/Edit blocks */
-.claudian-diff-equal {
+.scribe-diff-equal {
   color: var(--text-muted);
 }
 
-.claudian-diff-delete {
+.scribe-diff-delete {
   background: rgb(255 80 80 / 25%);
   color: var(--text-normal);
 }
 
-.claudian-diff-delete .claudian-diff-prefix {
+.scribe-diff-delete .scribe-diff-prefix {
   color: var(--color-red);
 }
 
-.claudian-diff-insert {
+.scribe-diff-insert {
   background: rgb(80 200 80 / 25%);
   color: var(--text-normal);
 }
 
-.claudian-diff-insert .claudian-diff-prefix {
+.scribe-diff-insert .scribe-diff-prefix {
   color: var(--color-green);
 }
 
 /* Hunk separator */
-.claudian-diff-separator {
+.scribe-diff-separator {
   color: var(--text-muted);
   text-align: center;
   padding: 4px 0;
@@ -169,7 +169,7 @@
   font-size: 11px;
 }
 
-.claudian-diff-no-changes {
+.scribe-diff-no-changes {
   color: var(--text-muted);
   font-style: italic;
   padding: 8px;

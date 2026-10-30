@@ -241,7 +241,7 @@ describe('NavigationController', () => {
       controller.initialize();
 
       expect(messagesEl.getAttribute('tabindex')).toBe('0');
-      expect(messagesEl.hasClass('claudian-messages-focusable')).toBe(true);
+      expect(messagesEl.hasClass('scribe-messages-focusable')).toBe(true);
       expect(addMessagesListener).toHaveBeenCalledWith('keydown', expect.any(Function));
       expect(addDocumentListener).toHaveBeenCalledWith('keyup', expect.any(Function));
       expect(addInputListener).toHaveBeenCalledWith('keydown', expect.any(Function), { capture: true });
@@ -465,7 +465,7 @@ describe('NavigationController', () => {
         tagName: 'INPUT',
         classList: {
           contains: (className: string) => (
-            className === 'claudian-linked-content-picker-search'
+            className === 'scribe-linked-content-picker-search'
           ),
         },
       };
