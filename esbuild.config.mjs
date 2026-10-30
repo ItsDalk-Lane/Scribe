@@ -168,7 +168,7 @@ const copyToObsidian = {
   name: 'copy-to-obsidian',
   setup(build) {
     build.onEnd((result) => {
-      if (result.errors.length > 0 || path.resolve(process.cwd()) !== projectRoot) return;
+      if (result.errors.length > 0 || process.env.CI || path.resolve(process.cwd()) !== projectRoot) return;
       if (!existsSync(testVault)) throw new Error(`Test vault does not exist: ${testVault}`);
 
       mkdirSync(testPluginPath, { recursive: true });
