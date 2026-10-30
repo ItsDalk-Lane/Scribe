@@ -7,7 +7,7 @@
 .node-version[FV5T]: F:Pins Node.js 24.16.0 for local development and CI setup | R:code:package.json | A:- | S:package.json engines rejects anything outside Node 24
 AGENTS.md[SG8S]: F:Repository agent instructions covering verification commands, architectural boundaries, naming conventions, and AOCI cognition rules | R:code:src/main.ts,code:CONTRIBUTING.md,code:.github/workflows/ci.yml | A:- | S:Builds sync the plugin only to /Users/study_superior/Desktop/Scribe; the full check chain is typecheck, lint, test, build, then performance
 CONTRIBUTING.md[SQ5T]: F:Contribution guide covering issue and pull request expectations, development commands, the verification suite, and CI test sharding | R:code:AGENTS.md | A:- | S:Documentation-only changes skip the production build; run git diff --check and the affected documentation tests instead
-LICENSE[SZ2T]: F:MIT license text for the project, with copyright held by Yishen Tu | R:- | A:- | S:-
+LICENSE[SZ2T]: F:MIT license text for the project, with copyright held by Yishen Tu | R:- | A:- | S:MIT terms must remain verbatim
 README.md[SG7S]: F:Product overview, feature list, supported harnesses, install steps, privacy boundaries, and source architecture map | R:code:CONTRIBUTING.md,code:docs/troubleshooting.md,code:docs/projects.md,code:docs/cross-session-messaging.md,code:docs/plugin-api.md,code:AGENTS.md | A:- | S:Forked from Claudian 2.3.36 at commit 2c5f6313; the build syncs only to the dedicated test vault
 bun.lock[FV7L]: F:Bun lockfile pinning the full dependency graph and workspace configuration | R:code:package.json,code:scripts/AGENTS.md | A:- | S:Bundle-critical packages must match package-lock.json exactly; runtimeDependencyParity.mjs enforces that inventory
 esbuild.config.mjs[XV8M]: F:esbuild bundle configuration that builds src/main.ts into main.js and syncs the plugin to the dedicated test vault | R:code:scripts/build.mjs,code:scripts/compressedStaticAssets.js,code:scripts/runtimeDependencyParity.mjs,code:scripts/rendererSafeUnref.js,code:scripts/desktopRuntimeAliases.js,code:src/main.ts | A:- | S:Production builds assert lockfile parity and fail on renderer-unsafe timer unrefs; CI builds skip the test-vault sync
@@ -19,25 +19,25 @@ tsconfig.json[FV8T]: F:TypeScript configuration with path aliases and strict com
 vitest.config.mts[TQ8T]: F:Vitest configuration with aliases, setup, workers, and test file globs | R:code:package.json,code:scripts/run-vitest.js | A:- | S:Workers default to half the available parallelism; only unit and integration tests are selected
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/ISSUE_TEMPLATE/===
-bug_report.yml[FQ4T]: F:GitHub bug report form requiring problem, reproduction steps, expected behavior, and environment versions | R:code:CONTRIBUTING.md | A:- | S:-
-config.yml[FQ2T]: F:Allows blank issues alongside the structured issue templates | R:code:.github/ISSUE_TEMPLATE/bug_report.yml,code:.github/ISSUE_TEMPLATE/feature_request.yml | A:- | S:-
+bug_report.yml[FQ4T]: F:GitHub bug report form requiring problem, reproduction steps, expected behavior, and environment versions | R:code:CONTRIBUTING.md | A:- | S:Environment fields are required; a report without versions is rejected
+config.yml[FQ2T]: F:Allows blank issues alongside the structured issue templates | R:code:.github/ISSUE_TEMPLATE/bug_report.yml,code:.github/ISSUE_TEMPLATE/feature_request.yml | A:- | S:Blank issues stay enabled
 feature_request.yml[FQ4T]: F:Feature request form centered on the unmet use case and affected provider; new-provider pull requests are rejected | R:code:CONTRIBUTING.md | A:- | S:Opening a provider issue does not imply the provider will be added
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/===
-PULL_REQUEST_TEMPLATE.md[SQ4T]: F:Pull request template requiring why, what changed, approach, validation, impact, and a contribution checklist | R:code:CONTRIBUTING.md | A:- | S:-
+PULL_REQUEST_TEMPLATE.md[SQ4T]: F:Pull request template requiring why, what changed, approach, validation, impact, and a contribution checklist | R:code:CONTRIBUTING.md | A:- | S:Checklist and validation evidence stay required in every pull request
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/codeql/===
-codeql-config.yml[FS5T]: F:CodeQL path filter excluding the tests directory from security analysis | R:code:.github/workflows/codeql.yml | A:- | S:-
+codeql-config.yml[FS5T]: F:CodeQL path filter excluding the tests directory from security analysis | R:code:.github/workflows/codeql.yml | A:- | S:Tests are excluded; only production sources are analyzed
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/workflows/===
 ci.yml[OQ8M]: F:Primary CI pipeline covering workflow lint, lockfiles, typecheck, lint, audit, affected test shards, cross-platform smoke, and release artifact build | R:code:scripts/ciTestSelection.mjs,code:scripts/check-release-version.mjs,code:.github/workflows/release.yml | A:- | S:Selected tests run under a +1100 day fake clock; the test step stops after five minutes and keeps progress diagnostics
-claude-code-review.yml[OQ5T]: F:Runs the Claude Code action to review newly opened or updated pull requests and comment on the PR | R:code:AGENTS.md | A:- | S:-
+claude-code-review.yml[OQ5T]: F:Runs the Claude Code action to review newly opened or updated pull requests and comment on the PR | R:code:AGENTS.md | A:- | S:Runs on PR open and sync; comments through gh
 claude.yml[OQ5T]: F:Triggers the Claude Code action when an issue or review comment mentions @claude | R:- | A:- | S:Requires the CLAUDE_CODE_OAUTH_TOKEN secret and actions read permission to read CI results
 codeql.yml[OS6T]: F:Weekly and manual CodeQL security-extended analysis of JavaScript and TypeScript | R:code:.github/codeql/codeql-config.yml | A:- | S:Uses build-mode none, so it analyzes sources without the esbuild production build
-duplicate-issues.yml[OQ3T]: F:Labels newly opened or edited issues at 0.6 similarity as possible duplicates and comments the matches | R:- | A:- | S:-
+duplicate-issues.yml[OQ3T]: F:Labels newly opened or edited issues at 0.6 similarity as possible duplicates and comments the matches | R:- | A:- | S:Threshold 0.6; label possible-duplicate
 nightly.yml[OQ6S]: F:Weekly full-suite verification across Linux, macOS, and three Windows shards plus open-handle and production dependency audits | R:code:scripts/check-open-handles.mjs | A:- | S:Only the Linux 1/1 shard builds the plugin and shuffles test files with the workflow run ID as seed
 release.yml[OV8T]: F:Publishes a GitHub Release with verified main.js, manifest.json, and styles.css whenever a tag is pushed | R:code:.github/workflows/ci.yml,code:scripts/check-release-version.mjs | A:release | S:Tag must exactly equal the package and manifest version; release notes are generated from commits since the previous tag
-stale.yml[OQ3T]: F:Marks issues stale after 7 inactive days and closes them 7 days later, exempting pinned, security, and bug labels | R:- | A:- | S:-
+stale.yml[OQ3T]: F:Marks issues stale after 7 inactive days and closes them 7 days later, exempting pinned, security, and bug labels | R:- | A:- | S:Pinned, security, and bug issues are exempt
 
 ===/Users/study_superior/Desktop/Code/Scribe/docs/===
 cross-session-messaging.md[SG6S]: F:Documents the session tools that list, read, message, steer, or interrupt other Scribe sessions and start new ones | R:code:docs/plugin-api.md,code:docs/projects.md | A:- | S:A session cannot message itself; an uncertain steer is never resent; only a 127.0.0.1 listener serves the tools
@@ -48,16 +48,16 @@ troubleshooting.md[SG5T]: F:Troubleshooting guide for provider CLI discovery, mi
 ===/Users/study_superior/Desktop/Code/Scribe/scripts/===
 AGENTS.md[SV6T]: F:Build and release constraints for lockfiles, distributable artifacts, Electron renderer compatibility, and locale bundling | R:code:scripts/runtimeDependencyParity.mjs,code:scripts/check-startup-performance.mjs | A:- | S:Community plugin installation cannot fetch chunks or vendor files, so the distributable must stay self-contained
 build-css.mjs[XV6S]: F:Concatenates modular CSS from src/style following index.css import order and writes styles.css | R:code:src/style/index.css,code:scripts/build.mjs | A:- | S:Missing index.css or zero imports exits non-zero instead of emitting an empty stylesheet
-build.mjs[XV5T]: F:Runs the CSS build and then esbuild, forwarding arguments, as npm run build | R:code:scripts/build-css.mjs,code:esbuild.config.mjs | A:- | S:-
+build.mjs[XV5T]: F:Runs the CSS build and then esbuild, forwarding arguments, as npm run build | R:code:scripts/build-css.mjs,code:esbuild.config.mjs | A:- | S:Runs CSS then esbuild; arguments pass through
 check-architecture-boundaries.test.mjs[TQ8L]: F:Architecture-boundary test suite covering startup performance budgets, lockfile parity, and import-layer rules | R:code:scripts/check-startup-performance.mjs,code:scripts/runtimeDependencyParity.mjs | A:- | S:35 tests walk TypeScript files with the TypeScript compiler API; any violation fails the architecture check
 check-eslint-config.test.mjs[TQ5S]: F:Tests the exported file-naming rule and asserts the ESLint configuration stays strict | R:code:eslint.config.mjs | A:- | S:fileNamingRule is exercised directly rather than through a lint run
 check-open-handles.mjs[TQ6T]: F:Runs the full Vitest suite serially with async-leak detection and flags non-promise handles or workers that fail to exit | R:code:.github/workflows/nightly.yml | A:- | S:Promise-only leaks are ignored because unresolved fixture promises do not keep Node alive
 check-open-handles.test.mjs[TQ4T]: F:Tests leak marker parsing and asserts that the real Vitest detects native timers but not cleaned or transient ones | R:code:scripts/check-open-handles.mjs | A:- | S:Builds a temporary Vitest project with a junction to node_modules
 check-release-version.mjs[TV7T]: F:Validates that a release tag is semver and equals both package.json and manifest.json versions | R:code:.github/workflows/ci.yml,code:.github/workflows/release.yml | A:- | S:Leading-zero versions such as 01.2.3 are rejected; CI runs this only for tag refs
-check-release-version.test.mjs[TQ5T]: F:Tests release tag validation for matching, mismatched, malformed, and leading-zero versions | R:code:scripts/check-release-version.mjs | A:- | S:-
+check-release-version.test.mjs[TQ5T]: F:Tests release tag validation for matching, mismatched, malformed, and leading-zero versions | R:code:scripts/check-release-version.mjs | A:- | S:Leading-zero tags are rejected; tag must equal both versions
 check-startup-performance.mjs[TQ7M]: F:Inspects production artifacts for size budget, startup evaluation time, and self-update-like artifact references | R:code:esbuild.config.mjs,code:.github/workflows/ci.yml,code:scripts/AGENTS.md | A:- | S:Artifact size above 5 MB fails; evaluation timing over 150 ms requires review; plugin artifact references fail the check
 ciTestSelection.mjs[TQ7S]: F:Selects affected Vitest and script tests and platform jobs from changed paths for CI | R:code:scripts/testSuites.cjs,code:scripts/list-related-tests.mjs | A:- | S:Global inputs force full selection; style suites are listed from disk so new files are never skipped
-ciTestSelection.test.mjs[TQ5M]: F:Tests CI test selection across pull requests, pushes, documentation-only changes, and global inputs | R:code:scripts/ciTestSelection.mjs | A:- | S:-
+ciTestSelection.test.mjs[TQ5M]: F:Tests CI test selection across pull requests, pushes, documentation-only changes, and global inputs | R:code:scripts/ciTestSelection.mjs | A:- | S:Global inputs force full selection
 compressedStaticAssets.js[XV6T]: F:esbuild plugin that precompresses locale JSON into a Brotli base64 catalog served by a virtual module | R:code:src/i18n/i18n.ts,code:esbuild.config.mjs | A:createCompressedStaticAssetsPlugin | S:Every locale JSON is parsed and re-serialized before compression; adding a locale file automatically joins the catalog
 desktopRuntimeAliases.js[XV5T]: F:Resolves CommonJS entry paths for @lezer/markdown and ws so the desktop bundle resolves them | R:code:esbuild.config.mjs | A:createDesktopRuntimeAliases | S:Points @lezer/markdown at its CJS index.js because Electron loads the bundle as CommonJS
 list-related-tests.mjs[TQ5T]: F:Prints the Vitest-related test specification list for the given source paths as JSON | R:code:scripts/ciTestSelection.mjs | A:- | S:Uses the Vitest node API rather than the CLI so related listing matches runtime selection
@@ -67,11 +67,11 @@ rendererSafeUnref.js[XV8M]: F:Patches and detects timer unref calls that are uns
 run-affected-tests.mjs[TQ6T]: F:Runs the tests and script checks affected by local changes against a base branch | R:code:scripts/ciTestSelection.mjs,code:scripts/run-tests.js | A:- | S:Compares from the merge base and includes untracked files; unusable git state falls back to full verification
 run-cross-platform-tests.js[TQ5T]: F:Runs the curated cross-platform suite, optionally constrained to a validated selection | R:code:scripts/testSuites.cjs,code:scripts/run-vitest.js | A:- | S:Rejects any selection outside testSuites crossPlatformTests; defaults to serial workers
 run-tests.js[TQ6T]: F:Runs selected Vitest suites and Node script checks, validating every selection path | R:code:scripts/run-vitest.js,code:scripts/testSuites.cjs | A:- | S:Rejects traversal and files outside scriptTests; an empty Vitest selection skips only that phase
-run-tests.test.mjs[TQ5T]: F:Tests the combined runner's selection filtering, empty selection, and shard coverage | R:code:scripts/run-tests.js | A:- | S:-
+run-tests.test.mjs[TQ5T]: F:Tests the combined runner's selection filtering, empty selection, and shard coverage | R:code:scripts/run-tests.js | A:- | S:Selections outside the suite lists are rejected
 run-vitest.js[TQ6T]: F:Launches Vitest with a temporary localStorage file and adds the metadata reporter for JSON output | R:code:scripts/vitestMetadataReporter.mjs,code:vitest.config.mts | A:- | S:Defaults to run mode; the localStorage file lives in the OS temp directory
 runtimeDependencyParity.mjs[TV7S]: F:Checks that bundle-critical runtime dependencies resolve to identical exact versions in both lockfiles | R:code:scripts/AGENTS.md,code:esbuild.config.mjs | A:assertRuntimeDependencyParity,inspectRuntimeDependencyParity,parseBunLock | S:Production builds call the assert; ranges and missing exact versions fail parity
 summarize-vitest-results.mjs[TQ6T]: F:Turns Vitest JSON into pass/fail counts, suite timings, slowest tests, and Markdown artifacts | R:code:scripts/vitestMetadataReporter.mjs,code:.github/workflows/ci.yml | A:- | S:Skipped and collection-error suites have no execution duration; metadata comes from the sibling .metadata.json
-summarize-vitest-results.test.mjs[TQ5M]: F:Tests result summarization and real Vitest worker metadata, including skipped, load-error, and interrupted runs | R:code:scripts/summarize-vitest-results.mjs | A:- | S:-
+summarize-vitest-results.test.mjs[TQ5M]: F:Tests result summarization and real Vitest worker metadata, including skipped, load-error, and interrupted runs | R:code:scripts/summarize-vitest-results.mjs | A:- | S:Skipped suites have no duration; metadata is optional
 sync-version.js[TV6T]: F:Copies the package.json version into manifest.json | R:code:package.json,code:manifest.json | A:- | S:Writes two-space JSON with a trailing newline
 testSuites.cjs[TQ7T]: F:Declares the curated cross-platform test list and the Node script check list | R:code:scripts/ciTestSelection.mjs,code:scripts/run-cross-platform-tests.js | A:- | S:New platform-sensitive tests or script checks must be added here or they never run in those jobs
 vitest-open-handles.config.mts[TQ5T]: F:Extends the base Vitest config for leak detection with no execArgv and the custom runner | R:code:vitest.config.mts,code:scripts/openHandleTestRunner.mjs | A:- | S:execArgv is cleared so the localStorage-file flag cannot create a process-lifetime resource
@@ -123,7 +123,7 @@ ScribeViews.ts[EU6S]: F:Locates, opens, and reveals Scribe chat views in the Obs
 AGENTS.md[SG8T]: F:Core contract rules for provider lifecycle, prompt ownership, linked content, persistence, and model resolution | R:code:src/core/providers/ProviderRegistry.ts,code:src/core/execution/ProviderExecutionBackend.ts,code:src/core/prompt/mainAgent.ts | A:- | S:Explicit model and reasoning choices are authoritative; adapters never substitute saved defaults; binary payloads never persist in metadata
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/core/auxiliary/===
-AuxiliaryExecutionContext.ts[CD6T]: F:Capabilities handed to auxiliary executions: native persistence, backend, interaction port, lifecycle registry, and working directory | R:code:src/core/execution/ProviderExecutionBackend.ts,code:src/core/execution/ProviderInteractionPort.ts | A:- | S:-
+AuxiliaryExecutionContext.ts[CD6T]: F:Capabilities handed to auxiliary executions: native persistence, backend, interaction port, lifecycle registry, and working directory | R:code:src/core/execution/ProviderExecutionBackend.ts,code:src/core/execution/ProviderInteractionPort.ts | A:- | S:Auxiliary sessions get their own context; chat orchestration is excluded
 AuxiliarySessionController.ts[CD7S]: F:Owns one auxiliary provider session per consumer: lease, cancellation, generation invalidation, and reset | R:code:src/core/auxiliary/TextResponseCollector.ts,code:src/core/auxiliary/AuxiliaryExecutionContext.ts,code:src/core/execution/ProviderExecutionSession.ts | A:run,dispose,cancel | S:Only one active run per controller; an environment change forces a fresh session instead of resuming
 InlineEditService.ts[DD7T]: F:One inline edit's read-only provider conversation, deciding when to continue versus start fresh | R:code:src/core/prompt/inlineEdit.ts,code:src/core/auxiliary/AuxiliarySessionController.ts | A:edit | S:Continuation sends only the instruction; an environment change resets continuity with a user-visible message
 RoutedTitleGenerationService.ts[AD7T]: F:Routes title requests to a provider service, cancelling a previous request for the same conversation | R:code:src/core/providers/types.ts,code:src/core/auxiliary/TitleGenerationService.ts | A:generateTitle | S:A newer request cancels the earlier one; a cancelled or stale result is not delivered
@@ -230,7 +230,7 @@ ProviderTransitionFence.ts[CR7T]: F:Serializes provider transitions and lets cal
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/core/providers/models/===
 ProviderModelCatalog.ts[CD8M]: F:Provider model catalog contract with snapshots, availability, selection, aliases, and refresh results | R:code:src/core/providers/metadata/ProviderTransitionFence.ts,code:src/core/providers/ProviderRuntimeHost.ts | A:- | S:Unavailable models stay visible as unavailable; only selected models persist metadata
-ProviderModelUnavailableError.ts[CD5T]: F:Error explaining that the selected provider model is unavailable and how to rediscover models | R:code:src/core/providers/types.ts | A:- | S:-
+ProviderModelUnavailableError.ts[CD5T]: F:Error explaining that the selected provider model is unavailable and how to rediscover models | R:code:src/core/providers/types.ts | A:- | S:Recovery is discover, then choose an enabled model
 modelAliases.ts[CD5T]: F:Decodes stored model aliases, dropping empty ids and non-string aliases | R:code:src/app/settings/ScribeSettingsStorage.ts | A:decodeModelAliases | S:Ids and aliases are trimmed; empty entries are discarded
 modelOptions.ts[CD7T]: F:Finds an available model option by identity without applying semantic defaults | R:code:src/core/providers/modelSelection.ts,code:src/core/providers/types.ts | A:findAvailableModelOption | S:A selection id from another provider never matches; variants are preserved
 selectedModelMetadata.ts[CD5T]: F:Keeps metadata only for models selected in the provider's catalog | R:- | A:selectModelMetadata | S:Metadata for unselected models is dropped on persistence
@@ -260,7 +260,7 @@ VaultFileAdapter.ts[PD9L]: F:Obsidian Vault file operations plus verified manage
 pathContainment.ts[CS8T]: F:Checks whether a candidate path stays within a root and whether two paths name the same location | R:- | A:isPathWithinRoot,isSamePath | S:Platform path modules are chosen per path spelling, not just process.platform
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/core/tools/===
-todo.ts[CD4T]: F:Todo item shape with content, status, and active form | R:code:src/core/types/tools.ts | A:- | S:-
+todo.ts[CD4T]: F:Todo item shape with content, status, and active form | R:code:src/core/types/tools.ts | A:- | S:Status is pending, in_progress, or completed
 toolDiff.ts[DD8L]: F:Parses provider patches, update changes, structured hunks, unified text, and replacements into tool diffs | R:code:src/core/types/diff.ts,code:src/core/types/tools.ts | A:parseApplyPatchDiffs,parseFileUpdateChangeDiffs,diffFromStructuredPatch,diffFromUnifiedText,diffFromReplacements | S:Image data is omitted from fallback content; a missing path is resolved by the consumer
 toolIcons.ts[CU6S]: F:Maps tool names to icons, including provider and MCP markers | R:code:src/core/tools/toolNames.ts | A:getToolIcon | S:MCP tools use the MCP icon marker
 toolInput.ts[CD6T]: F:Extracts and normalizes structured ask-user answers from tool results | R:code:src/core/types/tools.ts | A:extractResolvedAnswers,normalizeResolvedAnswers,extractResolvedAnswersFromResultText | S:Non-string or non-array answers are dropped
@@ -271,10 +271,10 @@ toolResultDetails.ts[CD8S]: F:Normalizes and merges web search, image, script ca
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/core/types/===
 chat.ts[CD8M]: F:Chat domain types: conversations, messages, images, snapshots, citations, and view identity | R:code:src/core/execution/ProviderExecutionRequest.ts,code:src/core/types/tools.ts | A:- | S:VIEW_TYPE_SCRIBE is the Obsidian view id; image media types are limited to four formats
-diff.ts[CD5T]: F:Diff line, stats, and structured hunk types | R:- | A:- | S:-
+diff.ts[CD5T]: F:Diff line, stats, and structured hunk types | R:- | A:- | S:Lines keep old and new numbers; hunks carry starts
 index.ts[CG7T]: F:Public barrel re-exporting the core type groups | R:code:src/core/types/chat.ts,code:src/core/types/tools.ts,code:src/core/types/settings.ts | A:- | S:Preserve this barrel and the types.ts buckets; new domain types must be re-exported here
 project.ts[CD7S]: F:Project record, create and update inputs, reader, mutation, and memory operation contracts | R:- | A:- | S:Record ids pass the session-metadata safe-segment check; deleting a record leaves member project ids unresolved
-provider.ts[CD4T]: F:Provider id type alias | R:- | A:- | S:-
+provider.ts[CD4T]: F:Provider id type alias | R:- | A:- | S:ProviderId is a plain string alias; no runtime branding
 settings.ts[CC8S]: F:Scribe settings types: approval decisions, env snippets, slash commands, keyboard navigation, and placements | R:code:src/core/types/chat.ts | A:- | S:Saved selections and placements are serialized keys and must stay stable
 tools.ts[CD7S]: F:Tool call, result, diff, question, web search, and script detail types | R:code:src/core/types/diff.ts | A:- | S:Ask-user answers are strings or string arrays
 turnStats.ts[CD7T]: F:Creates turn stats from valid native evidence and rejects estimates | R:code:src/core/types/chat.ts | A:createTurnStats,isTokenCount | S:Missing or invalid evidence never becomes an estimated rate
@@ -291,7 +291,7 @@ AgentSkillRepository.ts[PE8M]: F:Filesystem repository for vault skills under .a
 AgentSkillSettings.ts[AU8L]: F:Skill management settings UI, editor modal, diagnostics, and repair actions | R:code:src/features/agent-skills/AgentSkillManagementCoordinator.ts,code:src/features/agent-skills/AgentSkill.ts | A:- | S:Collision and revision conflicts surface as notices rather than silent overwrites
 ClaudeCommandRepository.ts[PE7M]: F:Repository for Claude command Markdown files under .claude/commands with revision checks | R:code:src/features/agent-skills/AgentSkillRepository.ts,code:src/features/agent-skills/frontmatter.ts,code:src/features/agent-skills/validateAgentSkill.ts | A:commandNameFromPath | S:Commands use the .md extension and share skill name validation
 ClaudeSkillSync.ts[PE8L]: F:Plans and applies per-device sync between .agents/skills and the linked .claude/skills folder | R:code:src/features/agent-skills/AgentSkillRepository.ts,code:src/features/agent-skills/ClaudeCommandRepository.ts,code:src/core/storage/VaultFileAdapter.ts | A:plan,apply | S:Link state is read from disk and never persisted; folder links are removed with unlink, never followed
-SkillSyncModal.ts[AU6M]: F:Sync review modal listing items, blocking reasons, and per-item apply, replace, or skip choices | R:code:src/features/agent-skills/ClaudeSkillSync.ts | A:- | S:-
+SkillSyncModal.ts[AU6M]: F:Sync review modal listing items, blocking reasons, and per-item apply, replace, or skip choices | R:code:src/features/agent-skills/ClaudeSkillSync.ts | A:- | S:Closing leaves the plan unapplied; choices are per item
 SkillsSettingsTab.ts[AU7M]: F:Settings tab wiring skill repositories, sync, hidden commands, and the management UI | R:code:src/features/agent-skills/AgentSkillSettings.ts,code:src/features/agent-skills/SkillSyncModal.ts | A:- | S:The tab only reads skillsSynced from settings; link state comes from disk
 frontmatter.ts[DE6S]: F:Parses a leading YAML frontmatter block and falls back to a simple key-value parser | R:- | A:parseFrontmatter | S:Invalid keys and unclosed blocks are rejected rather than guessed
 validateAgentSkill.ts[DE7T]: F:Validates agent skill names, descriptions, and instructions, including portable and filesystem rules | R:code:src/features/agent-skills/AgentSkill.ts | A:validateAgentSkillName,collectAgentSkillInputErrors,validateAgentSkillInput | S:Names are at most 64 lowercase kebab-case characters and reject Windows devices and YAML reserved words
@@ -312,7 +312,7 @@ FileContextManager.ts[AU6T]: F:Owns composer mention selection over the shared v
 ImageContextManager.ts[AU7M]: F:Attaches, previews, and removes composer images with media type and size validation | R:code:src/core/execution/imageAttachment.ts,code:src/features/chat/composer/ComposerContextTray.ts,code:src/shared/modals/ImagePreviewModal.ts | A:- | S:Images are capped at 5 MB and four media types; unsupported drops show a notice
 MainChatComposerDropdown.ts[AU7S]: F:Main chat composer dropdown combining slash commands, skills, mentions, and hidden commands | R:code:src/shared/composer-dropdown/ComposerDropdownController.ts,code:src/features/chat/composer/FileContextManager.ts | A:- | S:Refresh on open uses the provider catalog snapshot; hidden commands are filtered
 PromptHistoryNavigation.ts[AU7S]: F:Arrow-key recall over the current conversation's visible user prompts | R:code:src/core/prompt/promptContext.ts,code:src/core/types/index.ts | A:- | S:A recall stays active only while the composer still shows exactly the recalled text
-QueueStrip.ts[AU6T]: F:Renders queued and steering messages with steer, edit, and discard actions | R:code:src/features/chat/state/types.ts | A:renderQueueStrip | S:-
+QueueStrip.ts[AU6T]: F:Renders queued and steering messages with steer, edit, and discard actions | R:code:src/features/chat/state/types.ts | A:renderQueueStrip | S:Steering is offered only when the entry can steer
 composerSessionMentions.ts[CD6T]: F:Formats and finds session mentions in composer text | R:code:src/core/bootstrap/storagePaths.ts,code:src/utils/markdownTextTokens.ts | A:formatComposerSessionMention,findComposerSessionMentions | S:Mention links use the scribe-session scheme and ignore code tokens
 composerWikilinks.ts[CD5T]: F:Formats and finds wikilinks in composer text, ignoring code tokens | R:code:src/utils/fileLink.ts | A:formatComposerWikilink,findComposerWikilinks | S:Display names drop the folder and .md extension
 markdownSnippet.ts[CU5T]: F:Appends a trimmed Markdown snippet with sensible blank-line spacing | R:code:src/features/chat/composer/ComposerDraftController.ts | A:appendMarkdownSnippet | S:Empty snippets leave the prompt unchanged
@@ -324,7 +324,7 @@ ContextUsageMeter.ts[AU7S]: F:Circular context-usage meter with accessible progr
 InputToolbar.ts[AU7T]: F:Creates the composer toolbar with model, mode, permission, service tier, effort, and context usage | R:code:src/features/chat/composer/toolbar/ContextUsageMeter.ts,code:src/shared/toolbar/ModelSelector.ts | A:createInputToolbar | S:Control order is fixed: model, context meter, menu extras, then permission, which CSS pins to the far end
 ModeSelector.ts[AU7T]: F:Provider mode selector shown only when the provider supplies exactly two options | R:code:src/core/providers/types.ts,code:src/features/chat/composer/toolbar/types.ts | A:- | S:Zero or more than two options hides the selector
 PermissionToggle.ts[AU7T]: F:Toolbar menu for the provider's permission modes | R:code:src/core/providers/types.ts,code:src/shared/toolbar/ToolbarMenu.ts | A:- | S:A single available mode hides the toggle
-ServiceTierToggle.ts[AU6T]: F:Fast-mode switch inside the model menu with an indicator on the model button | R:code:src/features/chat/composer/toggleServiceTier.ts,code:src/shared/toolbar/ModelSelector.ts | A:- | S:-
+ServiceTierToggle.ts[AU6T]: F:Fast-mode switch inside the model menu with an indicator on the model button | R:code:src/features/chat/composer/toggleServiceTier.ts,code:src/shared/toolbar/ModelSelector.ts | A:- | S:Active fast mode marks the model button
 types.ts[CU7T]: F:Toolbar settings and callback contract for mode, tier, permission, and model changes | R:code:src/features/chat/ChatSettings.ts,code:src/shared/toolbar/types.ts | A:- | S:Mode, tier, and permission callbacks persist through the tab host; they never keep local settings
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/conversation/===
@@ -365,7 +365,7 @@ InlineAskUserQuestion.ts[AU9L]: F:Inline question card for asking the user for c
 QuestionInteractionState.ts[CU6T]: F:Mutable answers, custom inputs, and delivery state shared by question views | R:code:src/features/chat/interactions/InlineAskUserQuestion.ts | A:- | S:State is reset after a submission settles
 SessionInteractions.ts[AU8M]: F:Routes approval and question interactions to inline cards, preserving pending requests | R:code:src/features/chat/interactions/InlineAskUserQuestion.ts,code:src/core/tools/toolNames.ts | A:requestApproval,askUserQuestion,dismiss | S:Pending requests and attention belong to the session store, not the view
 asyncQuestionDelivery.ts[AD7T]: F:Delivers async question answers or steers them into a running turn with explicit delivery states | R:code:src/core/providers/ProviderRegistry.ts,code:src/core/types/tools.ts | A:- | S:Accepted or uncertain delivery is never resent; uncertain is reconciled from provider history
-interactionPromptPort.ts[CD6T]: F:Adapts provider interaction payloads to session prompt methods | R:code:src/core/execution/ProviderInteractionPort.ts,code:src/features/chat/interactions/SessionInteractions.ts | A:createInteractionPromptPort | S:-
+interactionPromptPort.ts[CD6T]: F:Adapts provider interaction payloads to session prompt methods | R:code:src/core/execution/ProviderInteractionPort.ts,code:src/features/chat/interactions/SessionInteractions.ts | A:createInteractionPromptPort | S:Interaction ids are echoed; pending state belongs to the session store
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/linked-content/===
 LinkedContentChip.ts[AU6T]: F:Presents Linked content in the composer info row with open and remove actions | R:code:src/features/chat/composer/ComposerInfoRow.ts,code:src/features/chat/linked-content/LinkedContentPresentation.ts | A:- | S:Removal is offered only while the conversation is editable
@@ -373,7 +373,7 @@ LinkedContentController.ts[AD9L]: F:Owns Linked content creation, freezing, lock
 LinkedContentPickerSource.ts[AU7T]: F:Lists files, folders, and the no-content choice for the Linked content picker | R:code:src/core/path/LinkedContentPath.ts | A:- | S:Paths are normalized and confined to the Vault
 LinkedContentPresentation.ts[CU6T]: F:Derives the Linked content label, icon, kind, and target from Vault files | R:code:src/core/path/LinkedContentPath.ts | A:deriveLinkedContentPresentation | S:A missing target presents as missing, not as removed
 LinkedContentSelector.ts[AU7M]: F:Picker menu for choosing or clearing Linked content | R:code:src/features/chat/linked-content/LinkedContentPickerSource.ts | A:- | S:Selection is disabled while submitting or locked
-index.ts[CG5T]: F:Barrel for the Linked content controller, picker source, and presentation | R:code:src/features/chat/linked-content/LinkedContentController.ts | A:- | S:-
+index.ts[CG5T]: F:Barrel for the Linked content controller, picker source, and presentation | R:code:src/features/chat/linked-content/LinkedContentController.ts | A:- | S:Barrel only; keep export names stable
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/navigation/===
 NavigationController.ts[AU7M]: F:Keyboard and scroll navigation over the rendered transcript | R:code:src/core/types/index.ts,code:src/features/chat/utils/animationFrame.ts | A:- | S:Scroll speed is eight pixels per frame
@@ -387,7 +387,7 @@ projectActions.ts[AU6T]: F:Opens project editors and memory, and deletes project
 projectOrder.ts[CD6T]: F:Natural project name ordering and picker filtering for pinned and unarchived projects | R:code:src/core/types/project.ts,code:src/features/chat/ChatFeatureHost.ts | A:compareProjectNames,projectsForPicker,savedProjectOrder | S:Archived projects never appear in the picker; pinned projects come first
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/rendering/===
-CitationRenderer.ts[AU6T]: F:Renders collapsible citation groups with path and line ranges | R:code:src/features/chat/rendering/collapsible.ts,code:src/features/chat/rendering/ResponseLayout.ts | A:renderCitationGroup | S:-
+CitationRenderer.ts[AU6T]: F:Renders collapsible citation groups with path and line ranges | R:code:src/features/chat/rendering/collapsible.ts,code:src/features/chat/rendering/ResponseLayout.ts | A:renderCitationGroup | S:A single line prints one number instead of a range
 MessageActions.ts[AU8M]: F:Message action menus for copy, quote, edit, fork, rewind, and session links | R:code:src/features/chat/conversation/rewind.ts,code:src/core/providers/types.ts | A:- | S:Rewind actions only appear when the native context can prove a target
 MessageRenderer.ts[AU9L]: F:Renders transcript messages, streaming response blocks, tool cards, and subagents | R:code:src/features/chat/rendering/ResponseLayout.ts,code:src/features/chat/rendering/ResponseFinalizer.ts,code:src/features/chat/rendering/markdown/MarkdownContentRenderer.ts | A:- | S:A transcript renders only a suffix starting at a prompt; a DOM lookup miss never falls back to the current reply
 NotificationBoundaries.ts[CD7T]: F:Tracks response continuations and notification predecessors that segment a rendered reply | R:code:src/core/execution/ProviderExecutionEvent.ts,code:src/core/types/index.ts | A:recordResponseContinuation,getResponseSegments,recordNotificationPredecessors | S:Predecessors live in a WeakMap and never persist
@@ -411,9 +411,9 @@ ToolCallRenderer.ts[AU7S]: F:Renders a collapsible tool card from tool presentat
 WriteEditRenderer.ts[AU7M]: F:Renders Write and Edit tool blocks with file path, diff stats, and diff content | R:code:src/features/chat/rendering/tools/DiffRenderer.ts,code:src/core/tools/toolIcons.ts | A:createWriteEditBlock,updateWriteEditWithDiff | S:Diff content renders lazily only while expanded; diffDirty defers updates until the card is expanded
 applyPatchContent.ts[AU6S]: F:Renders apply-patch tool summaries, status, and expanded per-file diffs | R:code:src/core/tools/toolDiff.ts,code:src/features/chat/rendering/tools/DiffRenderer.ts | A:getApplyPatchSummary,setApplyPatchStatus,renderApplyPatchExpanded | S:Status reflects patch parse failures as errors, not empty content
 askUserQuestionContent.ts[AU6S]: F:Renders ask-user question cards and resolved answers in tool results | R:code:src/core/tools/toolInput.ts,code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:renderAskUserQuestionContent | S:A pending card shows the question; resolved answers replace it
-scriptContent.ts[AU6S]: F:Renders script tool cards with language, summary, output, and nested tool calls | R:code:src/core/types/tools.ts,code:src/utils/stringify.ts | A:getScriptLanguage,getScriptSummary | S:-
+scriptContent.ts[AU6S]: F:Renders script tool cards with language, summary, output, and nested tool calls | R:code:src/core/types/tools.ts,code:src/utils/stringify.ts | A:getScriptLanguage,getScriptSummary | S:Nested tool calls come from the stored call list
 sessionToolContent.ts[AU6S]: F:Renders list, send, and read session tool cards from neutral JSON results | R:code:src/features/chat/rendering/sessionLinks.ts,code:src/core/types/tools.ts | A:renderListDestinationsContent,renderSendMessageContent,renderReadSessionContent | S:Unparseable or error results fall back to raw result text
-todoContent.ts[AU5T]: F:Extracts todo items and renders the todo tool's label and status | R:code:src/core/tools/todo.ts | A:getTodoName,getTodoLabel,getCurrentTaskText,setTodoWriteStatus | S:-
+todoContent.ts[AU5T]: F:Extracts todo items and renders the todo tool's label and status | R:code:src/core/tools/todo.ts | A:getTodoName,getTodoLabel,getCurrentTaskText,setTodoWriteStatus | S:Todos are read from input.todos only
 toolCardDispatch.ts[AU6T]: F:Dispatches tool cards to write/edit, apply-patch, or generic renderers | R:code:src/features/chat/rendering/tools/ToolCallRenderer.ts,code:src/features/chat/rendering/tools/WriteEditRenderer.ts | A:renderToolCard,isSilentWriteStdinTool | S:Silent write-stdin calls with empty chars are not rendered
 toolContentPrimitives.ts[CU7S]: F:Shared tool card primitives: icons, value formatting, truncation, and empty results | R:code:src/core/tools/toolIcons.ts,code:src/shared/icons.ts | A:setToolIcon,stringifyToolValue,getInputText,truncateText | S:MCP tools render the shared MCP icon instead of a name icon
 toolExpandedContent.ts[AU7S]: F:Renders expanded bash, read, file search, tool search, and image content | R:code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:renderBashContent,renderReadExpanded,renderFileSearchExpanded | S:Legacy line-number gutters are stripped only when every non-terminal line carries the next consecutive number
@@ -422,8 +422,8 @@ toolStatus.ts[CU6T]: F:Sets the status icon and label on a tool card | R:code:sr
 webSearchContent.ts[AU6S]: F:Renders web search summaries, labels, and expandable result lists | R:code:src/core/types/tools.ts,code:src/features/chat/rendering/tools/toolContentPrimitives.ts | A:getWebSearchSummary,getWebSearchLabel,renderWebSearchExpanded | S:Results without a URL are dropped
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/session-manager/===
-HistoryDropdown.ts[AU6M]: F:Compact history dropdown for single-pane mode with groups and project sections | R:code:src/features/chat/session-manager/SessionGroupCollapse.ts,code:src/features/chat/session-manager/SessionSurfaceShared.ts | A:- | S:-
-ProjectsHeaderActions.ts[AU5T]: F:Renders the Projects section header's New project action | R:code:src/features/chat/projects/projectActions.ts | A:renderProjectsHeaderActions | S:-
+HistoryDropdown.ts[AU6M]: F:Compact history dropdown for single-pane mode with groups and project sections | R:code:src/features/chat/session-manager/SessionGroupCollapse.ts,code:src/features/chat/session-manager/SessionSurfaceShared.ts | A:- | S:Single-pane only; shares group state with the sidebar
+ProjectsHeaderActions.ts[AU5T]: F:Renders the Projects section header's New project action | R:code:src/features/chat/projects/projectActions.ts | A:renderProjectsHeaderActions | S:Creates one header action; project creation owns the modal
 ProvisionalNoteNames.ts[CL6S]: F:Localized untitled-note names and provisional note path detection | R:- | A:getObsidianLanguage,isProvisionalNotePath | S:Names come from Obsidian's own locale table
 SessionActions.ts[AU7L]: F:Builds session row actions for archive, pin, project, rename, delete, and copy id | R:code:src/features/chat/projects/projectActions.ts,code:src/core/types/project.ts | A:- | S:Project actions appear only when the project is live
 SessionBrowser.ts[AU8L]: F:Browser-style session list with search, grouping, sorting, and project sections | R:code:src/features/chat/session-manager/SessionListOrganizer.ts,code:src/features/chat/conversation/ConversationTitleGeneration.ts | A:- | S:Search never changes saved project expansion preferences
@@ -432,9 +432,9 @@ SessionGroupCollapse.ts[AU6T]: F:Tracks collapsed session groups and project sec
 SessionInlineRename.ts[AU5T]: F:Inline session title editing with row restore when editing ends | R:- | A:- | S:An empty title is not persisted
 SessionListOrganizer.ts[AD8L]: F:Organizes sessions into recency, content, ungrouped, missing, and project sections | R:code:src/features/chat/projects/projectOrder.ts,code:src/features/chat/session-manager/ProvisionalNoteNames.ts | A:isProjectSectionKey,getLinkedContentTitle | S:Provisional note titles are normalized before grouping
 SessionListPosition.ts[CU6S]: F:Captures and restores list scroll anchors across rerenders | R:- | A:captureSessionListPosition,recordVisibleCount | S:Project headers are anchors so expanding keeps them still
-SessionManagerIcons.ts[CU5T]: F:Inline SVG paths for session group collapse and expand toggles | R:- | A:renderSessionGroupToggleIcon | S:-
+SessionManagerIcons.ts[CU5T]: F:Inline SVG paths for session group collapse and expand toggles | R:- | A:renderSessionGroupToggleIcon | S:Inline SVG paths; no icon font dependency
 SessionManagerSurface.ts[AU7S]: F:Chooses the session manager surface: sidebar in dual pane, dropdown in single pane | R:code:src/features/chat/session-manager/HistoryDropdown.ts,code:src/features/chat/session-manager/SessionBrowser.ts | A:- | S:Startup profiling spans surface construction
-SessionMetadataPopover.ts[AU6M]: F:Shows session provider, model, timestamps, and linked-content metadata | R:code:src/features/chat/session-manager/SessionListOrganizer.ts,code:src/shared/icons.ts | A:formatSessionCreatedDate,formatSessionLastActive | S:-
+SessionMetadataPopover.ts[AU6M]: F:Shows session provider, model, timestamps, and linked-content metadata | R:code:src/features/chat/session-manager/SessionListOrganizer.ts,code:src/shared/icons.ts | A:formatSessionCreatedDate,formatSessionLastActive | S:Dates format in the Obsidian language
 SessionMultiSelection.ts[AU6S]: F:Multi-selects session rows within one list and never outlives it | R:- | A:- | S:Selection resets with the container or search query
 SessionNavigation.ts[AU7T]: F:Opens conversations into tabs with cross-view awareness and status lookup | R:code:src/features/chat/tabs/TabManager.ts,code:src/features/chat/session-manager/SessionStatusPresentation.ts | A:- | S:Status projects this view's tabs; another view's open tab reports other-view and is never opened from here
 SessionSidebar.ts[AU8L]: F:Persistent dual-pane session sidebar with sorting, grouping, search, and drag targets | R:code:src/features/chat/session-manager/SessionBrowser.ts,code:src/features/chat/session-manager/SessionDrag.ts | A:- | S:Rows keep their position across rerenders through captured anchors
@@ -454,7 +454,7 @@ SessionEvents.ts[AD8S]: F:Applies session and provider events to the conversatio
 SessionForkSource.ts[AD7M]: F:Captures a source conversation's messages and native state for a fork | R:code:src/core/providers/conversationModel.ts,code:src/features/chat/conversation/forkSourceTypes.ts | A:- | S:A fork seed never includes the parent's established provider session id
 SessionModel.ts[AD9L]: F:Session presentation model exposing conversation, settings, usage, attention, and change events | R:code:src/features/chat/conversation/ConversationController.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:createSessionMessageId | S:Change categories drive selective rerenders; identity changes are explicit
 SessionRuntimePool.ts[AR9M]: F:Owns session runtimes across tab rebinds and view closes, with exclusive attachment handles | R:code:src/features/chat/sessions/ChatSessionRuntime.ts | A:acquire,ensure,release,get,getAttachment,holdDraft | S:Attachment is exclusive and reserved before awaiting hydration; only the pool issues a current handle
-SessionTranscript.ts[AU6T]: F:Optional transcript view over a session model; attachment never changes execution | R:code:src/features/chat/rendering/MessageRenderer.ts | A:- | S:-
+SessionTranscript.ts[AU6T]: F:Optional transcript view over a session model; attachment never changes execution | R:code:src/features/chat/rendering/MessageRenderer.ts | A:- | S:Attachment only changes rendering; execution is untouched
 createChatSessionRuntime.ts[AD7T]: F:Assembles a chat session runtime from the host, execution coordinator, mailbox, and side chat | R:code:src/features/chat/execution/ChatExecutionCoordinator.ts,code:src/features/chat/sessions/ChatSessionRuntime.ts | A:createChatSessionRuntime | S:The runtime is assembled without a tab, document, or window; events for an unready model apply after hydration
 sessionExecution.ts[CD6T]: F:Builds the resumable execution binding snapshot from a conversation | R:code:src/core/types/index.ts | A:createConversationExecutionBinding | S:Resume seeds carry native session id, provider state, and resume checkpoint only
 sessionProvider.ts[CD6T]: F:Resolves the provider a session or tab runs on, failing clearly when none is configured | R:code:src/core/providers/types.ts,code:src/features/chat/ChatFeatureHost.ts | A:getSessionProviderId,requireSessionProviderId | S:An unset provider raises a user-facing notice rather than a default
@@ -464,11 +464,11 @@ sessionSettings.ts[CD7S]: F:Resolves session capabilities, chat UI config, and s
 AGENTS.md[SG7T]: F:Side chat constraints: memory-only child conversation and parent retention rules | R:code:src/features/chat/side-chat/SideChatRuntime.ts | A:- | S:Seed with returned fork state only, never the parent's native session id; lost native context requires a new side chat
 SideChatCommandSubmission.ts[CM6T]: F:Reserves queue order while preparing a side chat command's detached input | R:code:src/features/chat/input/resolveSessionMentions.ts | A:- | S:A released submission settles to null without running
 SideChatController.ts[AD8L]: F:Creates and presents side chats from commands, seeds, and images | R:code:src/core/commands/builtInCommands.ts,code:src/features/chat/side-chat/SideChatRuntime.ts | A:- | S:A side chat acts as its parent for session tools and cannot message the parent
-SideChatPanel.ts[AU6S]: F:Collapsible side chat panel with status, expand, and discard actions | R:code:src/features/chat/side-chat/SideChatTypes.ts | A:- | S:-
+SideChatPanel.ts[AU6S]: F:Collapsible side chat panel with status, expand, and discard actions | R:code:src/features/chat/side-chat/SideChatTypes.ts | A:- | S:Collapsed state shows a compact status chip
 SideChatRuntime.ts[AD8L]: F:Owns one side chat's ephemeral session, turns, status, and presentation | R:code:src/features/chat/side-chat/SideChatSession.ts,code:src/core/execution/ProviderExecutionSession.ts | A:- | S:Side chats are never idle-released
 SideChatSession.ts[AD8L]: F:Ephemeral side chat provider session with turn requests, cancellation, and status | R:code:src/core/execution/ProviderExecutionBackend.ts,code:src/features/chat/side-chat/SideChatTypes.ts | A:- | S:Native fork state seeds the session; the parent's established session id is never used
 SideChatTypes.ts[CD6T]: F:Side chat status, source, destination, and settings projection types | R:code:src/core/types/index.ts,code:src/features/chat/conversation/forkSourceTypes.ts | A:- | S:Destination is derived from panel expansion and never separately mutable
-index.ts[CG5T]: F:Barrel for the side chat controller, panel, runtime, and session | R:code:src/features/chat/side-chat/SideChatController.ts | A:- | S:-
+index.ts[CG5T]: F:Barrel for the side chat controller, panel, runtime, and session | R:code:src/features/chat/side-chat/SideChatController.ts | A:- | S:Barrel only; side chat state stays in the runtime
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/state/===
 ChatState.ts[CD9L]: F:Chat transcript state: messages, streaming responses, tool calls, queue, usage, and callbacks | R:code:src/features/chat/state/ResponseModel.ts,code:src/features/chat/state/SessionAttention.ts | A:- | S:Streaming blocks are reset per response; the queue is ordered and labels are bounded
@@ -480,7 +480,7 @@ usageInfo.ts[CD7T]: F:Computes context usage percentages and merges reported usa
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/subagents/===
 AsyncSubagentHistoryRecovery.ts[AR7M]: F:Recovers async subagent history from the provider and registers it with the subagent manager | R:code:src/features/chat/subagents/SubagentManager.ts,code:src/core/providers/types.ts | A:- | S:Recovery is keyed by provider session and subagent id
-SubagentCardView.ts[AU6T]: F:Disposable subagent card presentation; task identity stays with the manager | R:code:src/features/chat/subagents/SubagentRenderer.ts | A:- | S:-
+SubagentCardView.ts[AU6T]: F:Disposable subagent card presentation; task identity stays with the manager | R:code:src/features/chat/subagents/SubagentRenderer.ts | A:- | S:Presentation only; identity and lifecycle stay with the manager
 SubagentHistoryRenderer.ts[AU6T]: F:Renders stored subagent runs with linked cards and disclosure state | R:code:src/features/chat/subagents/SubagentRenderer.ts,code:src/features/chat/rendering/collapsible.ts | A:renderSubagentHistory | S:Runs of one agent id are linked across separate cards
 SubagentManager.ts[AD8L]: F:Owns subagent task identity, lifecycle, progress, and result interpretation | R:code:src/features/chat/subagents/SubagentCardView.ts,code:src/core/providers/types.ts | A:- | S:Task identity and lifecycle never live in the card view; native payloads are interpreted by the provider
 SubagentRenderer.ts[AU7L]: F:Renders and updates subagent blocks, progress, and stored runs | R:code:src/features/chat/rendering/collapsible.ts,code:src/features/chat/rendering/tools/toolPresentation.ts | A:createSubagentBlock,updateSubagentBlock,updateSubagentProgress,renderStoredSubagent | S:Sections and tool cards reuse their elements; renderedToolCall and renderedContent skip rebuilding unchanged content
@@ -544,7 +544,7 @@ ToolCallStream.ts[CD7M]: F:Builds and merges streaming tool call records from pr
 TurnCoordinator.ts[AD9S]: F:Owns turn admission, phases, cancellation reasons, and activity | R:code:src/features/chat/state/types.ts | A:- | S:Non-user cancellation also releases presentation; only one turn phase is active
 TurnQueue.ts[AD7S]: F:Queues user input while a turn runs and renders the queue strip | R:code:src/features/chat/composer/QueueStrip.ts,code:src/features/chat/state/chatTurnRequest.ts | A:- | S:Queued messages merge into one entry; steering is offered only when supported
 TurnSteering.ts[AD8M]: F:Steers input into a running turn and reconciles provider echo | R:code:src/features/chat/execution/ChatExecutionCoordinator.ts | A:- | S:Accepted or uncertain delivery is reconciled from provider echo and never resent
-flavorTexts.ts[CU3T]: F:Random flavor texts shown while the agent is thinking | R:- | A:FLAVOR_TEXTS | S:-
+flavorTexts.ts[CU3T]: F:Random flavor texts shown while the agent is thinking | R:- | A:FLAVOR_TEXTS | S:Display only; no logic depends on the text
 vaultFileChangeNotifications.ts[CD7T]: F:Nudges Obsidian's vault after file-writing tools so the tree refreshes | R:code:src/core/tools/toolNames.ts,code:src/utils/path.ts | A:notifyVaultFileChange,notifyScriptFileChanges,notifyApplyPatchFileChanges | S:Only existing vault files are refreshed
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/chat/utils/===
@@ -581,7 +581,7 @@ InlineEditEditorLifetime.ts[CU5T]: F:Notifies listeners when an inline edit edit
 InlineEditModal.ts[AU9L]: F:Inline edit modal with prompt, streaming preview, accept, edit, and reject | R:code:src/core/auxiliary/InlineEditService.ts,code:src/core/prompt/inlineEdit.ts,code:src/features/inline-edit/ui/markdownLineDiff.ts | A:- | S:The modal owns one edit; accept applies the insertion through the editor
 contextMentionResolver.ts[CD6S]: F:Resolves @file mentions in an inline edit instruction to Vault paths | R:- | A:resolveContextFiles | S:Trailing punctuation is excluded from the matched path
 inlineEditMarkdownPreview.ts[AU5T]: F:Renders the inline edit preview Markdown with links, images, and math | R:code:src/utils/fileLink.ts,code:src/utils/imageEmbed.ts,code:src/utils/markdownMath.ts | A:- | S:Preview rendering never writes to the note
-normalizeInsertionText.ts[CU4T]: F:Trims leading and trailing blank lines from insertion text | R:- | A:normalizeInsertionText | S:-
+normalizeInsertionText.ts[CU4T]: F:Trims leading and trailing blank lines from insertion text | R:- | A:normalizeInsertionText | S:Only blank lines are trimmed; indentation is preserved
 markdownLineDiff.ts[KD6S]: F:Computes a line diff that preserves line endings and builds renderable documents | R:- | A:computeMarkdownDiff,buildMarkdownDiffDocuments | S:Each side stays renderable Markdown
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/features/settings/===
@@ -621,7 +621,7 @@ ACPSubprocess.ts[CN7T]: F:Launches and manages the ACP subprocess with bounded s
 ACPToolResultNormalization.ts[CN6T]: F:Decodes ACP diff results; a missing oldText means a new file | R:code:src/core/tools/toolDiff.ts,code:src/core/tools/toolResultDetails.ts | A:extractACPDiffResultDetails | S:A new file's presentation derives from the tool input
 ACPToolStreamAdapter.ts[CN7S]: F:Adapts ACP tool call updates into stream chunks and provider payloads | R:code:src/core/tools/toolProviderPayload.ts,code:src/core/tools/toolResultDetails.ts | A:- | S:Raw tool names keep their provenance: fallback, kind, or title
 buildACPUsageInfo.ts[CN6T]: F:Builds usage info from ACP prompt and context-window usage | R:code:src/core/types/index.ts,code:src/providers/acp/types.ts | A:buildACPUsageInfo | S:Missing usage evidence yields null, never an estimate
-index.ts[CG5T]: F:Barrel for shared ACP protocol mechanics | R:code:src/providers/acp/ACPClientConnection.ts | A:- | S:-
+index.ts[CG5T]: F:Barrel for shared ACP protocol mechanics | R:code:src/providers/acp/ACPClientConnection.ts | A:- | S:Barrel for ACP mechanics; providers own launch policy
 methodNames.ts[CN7T]: F:ACP logical method names for client and server methods | R:- | A:ACP_METHOD_NAMES,ACP_SERVER_NOTIFICATION_METHODS,ACP_SERVER_REQUEST_METHODS | S:Wire method strings are protocol constants shared by client and server dispatch
 types.ts[CN8L]: F:ACP protocol types pinned to protocol version 1 | R:- | A:ACP_PROTOCOL_VERSION | S:Protocol version is 1
 
@@ -629,7 +629,7 @@ types.ts[CN8L]: F:ACP protocol types pinned to protocol version 1 | R:- | A:ACP_
 AGENTS.md[SG8T]: F:Claude integration constraints: live SDK queries, metadata discovery, Node launches, plugins, MCP, and history | R:code:src/providers/claude/execution/ClaudeExecutionSession.ts,code:src/providers/claude/history/ClaudeHistoryPathResolver.ts | A:- | S:Native duplication is deduplicated; context-meter denominator never comes from the autocompact threshold; Claude owns plugin and MCP setup
 ClaudeModelPolicy.ts[CE7S]: F:Claude model and permission policies, tiers, and custom model options | R:code:src/providers/claude/claudeModelEnv.ts,code:src/core/providers/reasoning.ts | A:claudeModelPolicy | S:Custom model ids come from configured environment variables
 capabilities.ts[CE7T]: F:Claude provider capability declaration | R:code:src/core/providers/types.ts | A:CLAUDE_PROVIDER_CAPABILITIES | S:Capabilities, not provider names, gate optional UI and behavior
-claudeAgentQueryModule.ts[CE5T]: F:Re-exports the SDK query entry so the bundle controls resolution | R:- | A:query | S:-
+claudeAgentQueryModule.ts[CE5T]: F:Re-exports the SDK query entry so the bundle controls resolution | R:- | A:query | S:Single SDK re-export so the bundle controls resolution
 claudeModelEnv.ts[CE6T]: F:Resolves custom model ids from Claude model environment variables | R:code:src/providers/claude/modelTiers.ts | A:getCustomModelIds | S:Only configured tier keys and ANTHROPIC_MODEL are read
 config.ts[CE8S]: F:Decodes and updates Claude provider settings and discovered models | R:code:src/core/providers/providerConfig.ts,code:src/providers/claude/models.ts | A:decodeClaudeConfig,updateClaudeConfig | S:Writers merge provider-owned configuration; invalid stored values fall back
 loadClaudeAgentSDK.ts[CE5T]: F:Lazily loads the Claude agent SDK query module | R:code:src/providers/claude/claudeAgentQueryModule.ts | A:loadClaudeAgentQuery | S:The module promise is memoized
@@ -642,7 +642,7 @@ permissionModes.ts[CE7T]: F:Claude permission modes and their SDK mappings | R:c
 registration.ts[CE9T]: F:Claude provider module registration wiring capabilities, models, backend, and history | R:code:src/core/providers/types.ts,code:src/providers/claude/capabilities.ts,code:src/providers/claude/execution/ClaudeExecutionBackend.ts | A:claudeProviderRegistration | S:Registration stays free of concrete workspace services until lazy initialization
 settings.ts[CE7T]: F:Reads and updates Claude provider settings in the settings document | R:code:src/core/providers/providerConfig.ts,code:src/providers/claude/config.ts | A:getClaudeProviderSettings,updateClaudeProviderSettings,getClaudeModelSource | S:Writers merge provider-owned configuration
 subagentAdapter.ts[CE6T]: F:Claude managed-agent subagent adapter | R:code:src/core/providers/types.ts,code:src/providers/claude/subagentToolNames.ts | A:claudeSubagentAdapter | S:TaskOutput is accepted only for transcripts recorded before its removal
-subagentToolNames.ts[CE5T]: F:Recognizes the native Claude subagent tool name | R:code:src/core/tools/toolNames.ts | A:isClaudeSubagentToolName | S:-
+subagentToolNames.ts[CE5T]: F:Recognizes the native Claude subagent tool name | R:code:src/core/tools/toolNames.ts | A:isClaudeSubagentToolName | S:Only the Task tool counts as a Claude subagent
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/claude/app/===
 ClaudeWorkspaceServices.ts[CE8T]: F:Claude workspace registration: CLI resolver, command catalog, and settings services | R:code:src/core/providers/ProviderWorkspaceRegistry.ts,code:src/providers/claude/commands/ClaudeCommandCatalog.ts | A:claudeWorkspaceRegistration,getClaudeWorkspaceServices | S:Workspace services initialize lazily through the shared registry
@@ -669,7 +669,7 @@ ClaudeResumeState.ts[CE7S]: F:Persists and restores Claude native resume state |
 ClaudeTaskNotificationQueue.ts[CE7T]: F:Queues Claude task notifications and maps them to transcript boundaries | R:code:src/providers/claude/normalization/claudeTaskNotification.ts | A:- | S:Background completion edges are bridged even without user echoes
 ClaudeTurnInputs.ts[CE8S]: F:Tracks steer acceptance and replayed user messages for Claude turns | R:code:src/providers/claude/execution/ClaudeResponseOwnership.ts | A:getReplayedUserMessageId | S:Delivery evidence settles acceptance; replayed messages are not echoed as new
 classifyClaudeError.ts[CE7S]: F:Classifies Claude failures into categories and invalidation reasons | R:code:src/core/execution/ProviderSessionSnapshot.ts,code:src/core/providers/models/ProviderModelUnavailableError.ts | A:classifyClaudeError,getClaudeInvalidationReason | S:Authentication and configuration failures are distinct from transport and process exits
-index.ts[CG5T]: F:Barrel for Claude execution backend and session | R:code:src/providers/claude/execution/ClaudeExecutionBackend.ts | A:- | S:-
+index.ts[CG5T]: F:Barrel for Claude execution backend and session | R:code:src/providers/claude/execution/ClaudeExecutionBackend.ts | A:- | S:Barrel only; backend and session are the public pair
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/claude/history/===
 ClaudeConversationHistoryService.ts[ID8L]: F:Reads, writes, and adapts Claude native conversation history | R:code:src/core/providers/providerHistory.ts,code:src/providers/claude/history/ClaudeHistoryStore.ts,code:src/providers/claude/history/ClaudeHistoryPathResolver.ts | A:- | S:History follows the configured Claude home; native bytes are never rewritten by metadata changes
@@ -681,7 +681,7 @@ ClaudeTurnStats.ts[ID6S]: F:Derives turn token and duration stats from Claude hi
 interrupt.ts[ID5T]: F:Recognizes Claude interrupt markers and compaction-canceled stderr | R:- | A:isCompactionCanceledStderr,isInterruptSignalText | S:Only exact marker lines count as interrupts
 sdkAsyncSubagent.ts[ID6T]: F:Builds async subagent info from Claude agent output and tool results | R:code:src/providers/claude/history/sdkHistoryTypes.ts,code:src/core/types/index.ts | A:hasAgentOutputReport,extractAgentIdFromToolUseResult,resolveToolUseResultStatus,buildAsyncSubagentInfo | S:Only completed agent output carries a result
 sdkBranchFilter.ts[ID6M]: F:Filters Claude history to the active branch or an exact checkpoint | R:code:src/providers/claude/history/sdkHistoryTypes.ts | A:filterActiveBranch | S:Branch replay retains relevant sibling tool results
-sdkHistoryTypes.ts[ID6T]: F:Claude native history message and result types | R:code:src/core/types/index.ts | A:- | S:-
+sdkHistoryTypes.ts[ID6T]: F:Claude native history message and result types | R:code:src/core/types/index.ts | A:- | S:Shapes mirror SDK transcripts; do not add policy here
 sdkMessageParsing.ts[ID8L]: F:Parses Claude SDK messages into chat messages, tool results, and structured patches | R:code:src/core/execution/imageAttachment.ts,code:src/core/session-tools/sessionMessageEnvelope.ts,code:src/providers/claude/history/interrupt.ts | A:parseSDKMessageToChat,collectToolResults,collectStructuredPatchResults | S:Interrupt and compaction markers settle their turns
 sdkSubagentSidecar.ts[ID7M]: F:Reads Claude subagent sidecar files and tool-use indexes | R:code:src/core/tools/toolResultContent.ts,code:src/core/types/index.ts | A:isValidAgentId,hasSubagentSidecar,readSubagentToolUseIndex | S:Agent ids must be safe path segments
 subagentJSONL.ts[ID5T]: F:Collects the final textual result from subagent JSONL lines | R:- | A:createSubagentFinalResultCollector,extractFinalResultFromSubagentJSONL | S:The latest assistant message wins over the top-level result
@@ -706,10 +706,10 @@ ClaudeUserMessageFactory.ts[CE6T]: F:Builds Claude SDK user messages from prompt
 customSpawn.ts[CR7T]: F:Spawns the Claude CLI with Node-backed launches and cross-platform shims | R:code:src/core/process/env.ts,code:src/core/process/windowsCmdShim.ts | A:createCustomSpawnFunction | S:Node-backed launches use the full Node executable path
 probeClaudeModels.ts[CE7T]: F:Maps the runtime initialize response into the Claude model catalog | R:code:src/providers/claude/models.ts,code:src/providers/claude/runtime/probeClaudeRuntime.ts | A:toClaudeDiscoveredModel,toClaudeRuntimeCatalog | S:Only declared effort levels survive
 probeClaudeRuntime.ts[CE7S]: F:Builds launch options and probes the Claude runtime without persisted sessions | R:code:src/core/process/env.ts | A:buildClaudeLaunchOptions | S:Metadata discovery never infers or persists sessions
-types.ts[CE5T]: F:Claude user content block types | R:code:src/core/types/index.ts | A:- | S:-
+types.ts[CE5T]: F:Claude user content block types | R:code:src/core/types/index.ts | A:- | S:Content blocks are text and image only
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/claude/sdk/===
-types.ts[CE6T]: F:Claude SDK event and session init types used by the provider | R:code:src/core/types/index.ts | A:- | S:-
+types.ts[CE6T]: F:Claude SDK event and session init types used by the provider | R:code:src/core/types/index.ts | A:- | S:Event shapes mirror the SDK; no provider policy here
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/claude/stream/===
 transformClaudeMessage.ts[CE8L]: F:Transforms Claude SDK messages into stream chunks, usage, and task notifications | R:code:src/providers/claude/sdk/types.ts,code:src/providers/claude/stream/toolInputStreamState.ts | A:- | S:Context usage selects unknown on multi-model ambiguity; autocompact threshold never supplies the meter denominator
@@ -765,7 +765,7 @@ CodexSubagentHistory.ts[ID7S]: F:Reads subagent history from Codex child session
 CodexThreadArchiveService.ts[IR7T]: F:Mirrors archive state onto Codex threads and treats already-in-state as success | R:code:src/core/providers/types.ts,code:src/providers/codex/metadata/CodexMetadataTransitionGate.ts,code:src/providers/codex/runtime/CodexRPCTransport.ts | A:- | S:A thread already in the requested state is reported as a missing rollout and accepted
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/codex/metadata/===
-CodexMetadataTransitionGate.ts[IR6T]: F:Codex metadata transition gate over the shared transition fence | R:code:src/core/providers/metadata/ProviderTransitionFence.ts | A:- | S:-
+CodexMetadataTransitionGate.ts[IR6T]: F:Codex metadata transition gate over the shared transition fence | R:code:src/core/providers/metadata/ProviderTransitionFence.ts | A:- | S:Only the abort message differs; fence semantics are shared
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/codex/normalization/===
 CodexFileCitation.ts[CE6T]: F:Strips Codex file citations from Markdown output | R:code:src/utils/markdownSegments.ts | A:stripCodexFileCitations | S:Only complete citation tags are removed
@@ -802,7 +802,7 @@ CodexWorkspaceDependencyTool.ts[CE6T]: F:Dynamic tool that reports resolved Code
 codexAppServerSupport.ts[CN7T]: F:Builds the Codex app-server environment and initialization handshake | R:code:src/providers/codex/runtime/CodexLaunchSpecBuilder.ts,code:src/providers/codex/runtime/CodexExecutionTargetResolver.ts | A:getCodexAppServerWorkingDirectory,buildCodexAppServerEnvironment | S:Initialization keeps experimental capability opt-ins
 codexAppServerTypes.ts[CN6L]: F:Local protocol subset for the Codex app-server stdio JSON-RPC wire format | R:- | A:- | S:Field names match the wire format and are validated against the generated CLI schema
 codexEnvironmentHash.ts[CE7T]: F:Builds the Codex environment fingerprint from model, account, and home keys | R:code:src/core/providers/settings/RuntimeInputFingerprint.ts,code:src/core/process/env.ts | A:CODEX_ENV_HASH_KEYS,LEGACY_CODEX_ENV_HASH_KEYS | S:Store and account keys invalidate bindings; PATH and model keys do not
-codexLaunchTypes.ts[CN6T]: F:Codex execution target, platform, and launch spec types | R:code:src/providers/codex/config.ts | A:- | S:-
+codexLaunchTypes.ts[CN6T]: F:Codex execution target, platform, and launch spec types | R:code:src/providers/codex/config.ts | A:- | S:Execution method adds host-native to installation methods
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/codex/runtime/notifications/===
 CodexAssistantTextTracker.ts[CM7S]: F:Accumulates assistant text and memory citations into stream chunks | R:code:src/providers/codex/normalization/CodexMemoryCitation.ts | A:- | S:Citation markup is stripped before text is emitted
@@ -811,7 +811,7 @@ CodexDeferredExecCorrelator.ts[CM7L]: F:Matches deferred Codex exec envelopes to
 CodexRawToolCallTracker.ts[CM7L]: F:Tracks raw Codex tool calls and appends their command output | R:code:src/providers/codex/normalization/codexToolNormalization.ts | A:- | S:Internal and silent write-stdin calls are not presented
 CodexToolLedger.ts[CM7T]: F:Ledger of raw Codex tool results keyed by call | R:code:src/providers/codex/runtime/notifications/codexItemToolProjection.ts | A:- | S:Apply-patch inputs merge into one call record
 codexItemToolProjection.ts[CM7L]: F:Projects Codex item notifications into tool use and result shapes | R:code:src/core/tools/toolResultDetails.ts | A:- | S:Web search results drop entries without URLs
-codexNotificationValues.ts[CM5T]: F:Helpers for reading Codex notification records and string fields | R:- | A:asRecord,firstString,getItemId | S:-
+codexNotificationValues.ts[CM5T]: F:Helpers for reading Codex notification records and string fields | R:- | A:asRecord,firstString,getItemId | S:Non-object values never become records
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/codex/skills/===
 CodexSkillListingService.ts[CE7S]: F:Lists Codex skills through the app-server with scope priority | R:code:src/providers/codex/runtime/CodexAppServerRuntime.ts,code:src/providers/codex/metadata/CodexMetadataTransitionGate.ts | A:compareCodexSkillPriority,getCodexSkillDescription | S:Skill listing awaits one startup plugin reconciliation
@@ -921,7 +921,7 @@ GrokHistoryStore.ts[ID8L]: F:Parses Grok JSONL history into messages, tools, dif
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/grok/normalization/===
 grokCommandNormalization.ts[CE6T]: F:Normalizes Grok ACP commands and distinguishes skills | R:code:src/providers/acp/ACPSessionUpdateNormalizer.ts | A:normalizeGrokCommands | S:Only commands pointing at SKILL.md are skills
-grokLifecycleToolNames.ts[CE5T]: F:Grok subagent spawn, wait, and close tool names | R:- | A:GROK_SUBAGENT_SPAWN_TOOL_NAMES,GROK_SUBAGENT_WAIT_TOOL_NAMES,GROK_SUBAGENT_CLOSE_TOOL_NAMES | S:-
+grokLifecycleToolNames.ts[CE5T]: F:Grok subagent spawn, wait, and close tool names | R:- | A:GROK_SUBAGENT_SPAWN_TOOL_NAMES,GROK_SUBAGENT_WAIT_TOOL_NAMES,GROK_SUBAGENT_CLOSE_TOOL_NAMES | S:Names cover spawn, wait, and close variants
 grokSubagentNormalization.ts[CE7M]: F:Normalizes Grok subagent results and lifecycle payloads | R:code:src/core/providers/types.ts,code:src/core/types/index.ts | A:extractGrokSpawnResult,extractGrokWaitResult,buildGrokSubagentInfo | S:Unknown native task names and payloads are preserved
 grokToolNormalization.ts[CE7L]: F:Normalizes Grok tool names, inputs, session tools, and diffs | R:code:src/core/tools/toolDiff.ts,code:src/core/tools/toolNames.ts,code:src/providers/acp/ACPToolStreamAdapter.ts | A:- | S:Session tools are recognized by their neutral names
 grokUsage.ts[CE6T]: F:Parses Grok usage and prompt usage values | R:code:src/providers/acp/types.ts | A:parseGrokUsage,parseGrokPromptUsage | S:Invalid token counts yield null
@@ -989,7 +989,7 @@ OpencodeServerService.ts[CN9L]: F:Owns shared OpenCode server leases, session to
 OpencodeShellOutput.ts[CN6T]: F:Polls a best-effort preview of OpenCode shell output | R:code:src/providers/opencode/http/OpencodeServerService.ts | A:- | S:Native completion always supplies the authoritative result
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/opencode/internal/===
-compareCollections.ts[CU5T]: F:Compares discovered models and thinking option collections | R:code:src/providers/opencode/models.ts | A:sameDiscoveredModels,sameThinkingOptionsByModel | S:-
+compareCollections.ts[CU5T]: F:Compares discovered models and thinking option collections | R:code:src/providers/opencode/models.ts | A:sameDiscoveredModels,sameThinkingOptionsByModel | S:Comparison covers order and all option fields
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/opencode/metadata/===
 OpencodeHTTPMetadataProbe.ts[CE7S]: F:Probes OpenCode commands and models over HTTP without creating a session | R:code:src/providers/opencode/http/OpencodeNativeModelCatalog.ts,code:src/providers/opencode/http/OpencodeServerService.ts | A:- | S:Probes may read native catalogs but never create a session
@@ -1048,7 +1048,7 @@ PiCommandMetadataProbe.ts[CE7S]: F:Probes Pi runtime commands through an owned p
 PiExecutionBackend.ts[CE8T]: F:Pi execution backend creating RPC-backed sessions | R:code:src/core/execution/ProviderExecutionBackend.ts,code:src/providers/pi/execution/PiExecutionSession.ts | A:- | S:Session-target changes require a new process
 PiExecutionKernel.ts[CE8M]: F:Pi execution kernel bridging RPC events, session tools, and extension UI | R:code:src/core/session-tools/invokeSessionTool.ts,code:src/providers/pi/runtime/PiExtensionUIBridge.ts | A:- | S:Session tools use neutral names
 PiExecutionSession.ts[CE9L]: F:Pi execution session over a subprocess: prompts, steering, resume proof, and events | R:code:src/providers/pi/execution/PiExecutionKernel.ts,code:src/core/prompt/historyContext.ts,code:src/core/commands/compactCommand.ts | A:- | S:Initial native state must prove the requested resume id before any input; pre-1.0 runs settle on the final agent_end
-index.ts[CG5T]: F:Barrel for Pi execution backend, kernel, and probe | R:code:src/providers/pi/execution/PiExecutionBackend.ts | A:- | S:-
+index.ts[CG5T]: F:Barrel for Pi execution backend, kernel, and probe | R:code:src/providers/pi/execution/PiExecutionBackend.ts | A:- | S:Barrel only; probe and backend stay public
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/pi/history/===
 PiConversationHistoryService.ts[ID8L]: F:Reads and updates Pi native conversation history | R:code:src/core/providers/providerHistory.ts,code:src/providers/pi/history/PiHistoryStore.ts | A:- | S:Only the selected branch recovers historical models
@@ -1079,7 +1079,7 @@ buildPiUsageInfo.ts[CE6T]: F:Builds usage info from Pi responses and catalog con
 ===/Users/study_superior/Desktop/Code/Scribe/src/providers/pi/ui/===
 ObsidianPiExtensionUIRenderer.ts[AU7M]: F:Obsidian renderer for Pi extension select, confirm, input, and editor requests | R:code:src/providers/pi/ui/PiExtensionUIRenderer.ts | A:- | S:Requests resolve once and never block execution
 PiChatUIConfig.ts[CE6T]: F:Pi chat UI config | R:code:src/core/providers/types.ts,code:src/shared/icons.ts | A:piChatUIConfig | S:Pi exposes no mode selector
-PiExtensionUIRenderer.ts[CE5T]: F:Pi extension UI request and renderer types | R:- | A:- | S:-
+PiExtensionUIRenderer.ts[CE5T]: F:Pi extension UI request and renderer types | R:- | A:- | S:Renderer types only; routing stays outside execution DOM
 PiSettingsTab.ts[AU8S]: F:Pi settings tab with CLI installation and model controls | R:code:src/core/providers/cli/CLIInstallationProbe.ts,code:src/core/providers/providerEnvironment.ts | A:createPiSettingsTabRenderer | S:Quoted CLI paths are normalized before probing
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/shared/components/===
@@ -1094,7 +1094,7 @@ ComposerDropdownController.ts[CU7M]: F:Coordinates composer dropdown triggers, s
 ComposerDropdownView.ts[CU6M]: F:Renders the composer dropdown list and keyboard navigation | R:code:src/shared/composer-dropdown/types.ts | A:ComposerDropdownView | S:Fixed placement is optional
 MentionSource.ts[CU7S]: F:Composer mention source over Vault files and folders | R:code:src/shared/mention/formatMention.ts,code:src/shared/mention/types.ts | A:MentionSource | S:Only Vault entries are offered
 SlashCommandSource.ts[CU7M]: F:Composer source combining built-in, provider, and skill slash commands | R:code:src/core/commands/builtInCommands.ts,code:src/core/providers/commands/ProviderCommandDiscoveryStore.ts | A:SlashCommandSource | S:Hidden commands are filtered by the caller
-index.ts[CG4T]: F:Barrel for composer dropdown controller, view, and sources | R:code:src/shared/composer-dropdown/ComposerDropdownController.ts | A:- | S:-
+index.ts[CG4T]: F:Barrel for composer dropdown controller, view, and sources | R:code:src/shared/composer-dropdown/ComposerDropdownController.ts | A:- | S:Barrel only; keep export names stable for consumers
 types.ts[CU6T]: F:Composer input and dropdown source types shared by native inputs and the rich editor | R:code:src/core/providers/commands/ProviderCommandEntry.ts | A:- | S:The text and caret contract must work for both input elements
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/shared/===
@@ -1102,9 +1102,9 @@ icons.ts[CU6S]: F:Shared icons, including provider marks and the MCP icon | R:co
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/shared/mention/===
 VaultMentionCache.ts[CU7S]: F:Caches Vault files and folders for mention suggestions | R:- | A:VaultFileCache,VaultFolderCache | S:Load failures are reported through the optional callback
-VaultMentionDataProvider.ts[CU6T]: F:Provides Vault mention data from the shared caches | R:code:src/shared/mention/VaultMentionCache.ts | A:VaultMentionDataProvider | S:-
-formatMention.ts[CU3T]: F:Formats a Vault file mention | R:- | A:formatVaultFileMention | S:-
-types.ts[CU3T]: F:Folder mention item type | R:- | A:- | S:-
+VaultMentionDataProvider.ts[CU6T]: F:Provides Vault mention data from the shared caches | R:code:src/shared/mention/VaultMentionCache.ts | A:VaultMentionDataProvider | S:File load errors are reported through the callback
+formatMention.ts[CU3T]: F:Formats a Vault file mention | R:- | A:formatVaultFileMention | S:Mentions always end with a trailing space
+types.ts[CU3T]: F:Folder mention item type | R:- | A:- | S:Folder mentions carry only name and Vault path
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/shared/modals/===
 ConfirmModal.ts[CU5T]: F:Confirmation modal for destructive actions | R:code:src/i18n/i18n.ts | A:confirmDelete,confirm | S:Dismissing resolves false
@@ -1116,7 +1116,7 @@ DebouncedSettingsWriter.ts[CU7T]: F:Coalesces text drafts before they enter the 
 EnvSnippetManager.ts[CU8L]: F:Environment snippet modal and manager | R:code:src/core/process/env.ts,code:src/shared/settings/EnvironmentSettingsSection.ts | A:EnvSnippetModal,EnvSnippetManager | S:Variable ownership decides which scope receives a snippet
 EnvironmentSettingsSection.ts[CU8T]: F:Environment settings section with review and snippet controls | R:code:src/core/providers/providerEnvironment.ts,code:src/shared/settings/CLIInstallationSetting.ts | A:renderEnvironmentSettingsSection | S:Only affected providers are notified
 HostnameCLIPathSetting.ts[CU6S]: F:Hostname-scoped CLI path setting control | R:- | A:renderHostnameCLIPathSetting | S:Empty values clear the override
-ProviderEnablementSetting.ts[CU5T]: F:Provider enable toggle setting control | R:- | A:renderProviderEnablementSetting | S:-
+ProviderEnablementSetting.ts[CU5T]: F:Provider enable toggle setting control | R:- | A:renderProviderEnablementSetting | S:Disabling the last provider is guarded by the caller
 ProviderModelEnablementWarning.ts[CU7S]: F:Warnings for provider and model enablement edge cases | R:code:src/core/providers/types.ts,code:src/i18n/i18n.ts | A:renderLastEnabledProviderWarning | S:The last enabled provider cannot be disabled without a warning
 ProviderModelPicker.ts[CU8L]: F:Provider model picker with ordering, enablement, and discovery actions | R:code:src/core/providers/models/ProviderModelCatalog.ts,code:src/shared/components/LiveListSorter.ts | A:renderProviderModelPicker | S:Selection changes follow the catalog's current snapshot
 ProviderModelsSection.ts[CU7T]: F:Provider models section wrapping the model picker | R:code:src/core/providers/models/ProviderModelCatalog.ts,code:src/shared/settings/ProviderModelPicker.ts | A:renderProviderModelsSection | S:The section observes the catalog and disposes its subscription; stale and empty states render in a polite status region
@@ -1136,30 +1136,30 @@ accessibility.css[FU6T]: F:Focus-visible outlines for interactive headers and co
 index.css[FU9T]: F:Ordered module inclusion list that the CSS build concatenates | R:code:scripts/build-css.mjs | A:- | S:Every style module must be registered here or it disappears from the generated styles.css
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/base/===
-animations.css[FU3T]: F:Shared keyframes such as the thinking pulse | R:- | A:- | S:-
-container.css[FU4T]: F:Root flex container for the Scribe pane | R:- | A:- | S:-
+animations.css[FU3T]: F:Shared keyframes such as the thinking pulse | R:- | A:- | S:Shared keyframes; do not redefine these names
+container.css[FU4T]: F:Root flex container for the Scribe pane | R:- | A:- | S:Full-height flex column with hidden overflow
 variables.css[FU7S]: F:Brand and semantic CSS custom properties | R:- | A:- | S:Tokens are defined on Scribe containers, not the document root
 visibility.css[FU2T]: F:Visibility utilities imported late to win display overrides | R:- | A:- | S:Uses doubled selectors instead of importance flags
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/components/===
-citations.css[FU4T]: F:Citation group layout | R:- | A:- | S:-
+citations.css[FU4T]: F:Citation group layout | R:- | A:- | S:Citations are muted and compact, never interactive
 code.css[FU7M]: F:Code block wrapper and copy button styling | R:- | A:- | S:The scroll area stays inside the wrapper
 composer-dropdown.css[FU6S]: F:Composer dropdown positioning and list styling | R:- | A:- | S:Hidden by default until opened
 composer-editor.css[FU6S]: F:CodeMirror composer chrome and padding | R:- | A:- | S:The wrapper owns chrome; CodeMirror owns layout and scrolling
 composer-info-row.css[FU6S]: F:Composer info row styling under the input box | R:- | A:- | S:The toolbar holds only user-changeable controls
-context-footer.css[FU4T]: F:Context usage meter placement and styling | R:- | A:- | S:-
+context-footer.css[FU4T]: F:Context usage meter placement and styling | R:- | A:- | S:The meter follows the model picker in the toolbar
 context-tray.css[FU7S]: F:Composer context tray for selections and images | R:- | A:- | S:The tray is display:none by default and the component toggles it; chips override Obsidian's native button surface in every interaction state
 history.css[FU8L]: F:Session history, groups, and dropup styling | R:- | A:- | S:Session lists scroll independently with min-height zero through flex ancestors
 input.css[FU7M]: F:Composer input container and surface styling | R:- | A:- | S:Textarea resizing needs an explicit bounded modifier
 messages.css[FU8L]: F:Transcript wrapper, messages, and scroll-to-bottom styling | R:- | A:- | S:The messages wrapper keeps min-height zero for bounded scrolling
-nav-sidebar.css[FU6S]: F:Floating navigation sidebar styling | R:- | A:- | S:-
+nav-sidebar.css[FU6S]: F:Floating navigation sidebar styling | R:- | A:- | S:Absolute placement against the pane's right edge
 response-blocks.css[FU4T]: F:Shared collapsible response block layout | R:- | A:- | S:Content borders align with the 16px header icon
 session-projects.css[FU4T]: F:Projects section styling in the session sidebar | R:- | A:- | S:The section takes its own capped height and scrolls its rows
 side-chat.css[FU7M]: F:Side chat panel and composer border styling | R:- | A:- | S:Collapsed and expanded states share one composer border; the panel keeps min-height zero so its transcript scrolls
 subagent.css[FU7M]: F:Subagent card and icon styling | R:- | A:- | S:History toggles reset Obsidian's button chrome on hover, focus, active, and disabled while keeping focus-visible
-tabs.css[FU6S]: F:Tab bar container and tab styling | R:- | A:- | S:-
-thinking.css[FU4T]: F:Thinking indicator styling and pulse animation | R:- | A:- | S:-
-todo-list.css[FU4T]: F:Todo list item styling | R:- | A:- | S:-
+tabs.css[FU6S]: F:Tab bar container and tab styling | R:- | A:- | S:The tab strip shrinks before composer controls
+thinking.css[FU4T]: F:Thinking indicator styling and pulse animation | R:- | A:- | S:The pulse is decorative; text stays readable without it
+todo-list.css[FU4T]: F:Todo list item styling | R:- | A:- | S:Rows are single-line flex rows with tight padding
 toolcalls.css[FU7M]: F:Tool call and write/edit card styling | R:- | A:- | S:Hover tooltips are suppressed while accessible labels remain
 live-sort.css[FU3T]: F:Live list sorting transform states | R:- | A:- | S:Movement is transform-only during drag
 zen-mode.css[FU7L]: F:Zen mode floating panel, composer, and dock styling | R:- | A:- | S:Moved nodes are only relocated and restored, never duplicated
@@ -1167,15 +1167,15 @@ zen-mode.css[FU7L]: F:Zen mode floating panel, composer, and dock styling | R:- 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/features/===
 ask-user-question.css[FU7L]: F:Ask-user question card and option styling | R:- | A:- | S:The widget's flex display would defeat the hidden attribute, so hidden forces display:none; controls reset native chrome in every state
 diff.css[FU7S]: F:Diff stats, hunks, and line styling | R:- | A:- | S:Successful completion hides the empty status so stats align right; Write and Edit diffs never use strikethrough
-file-link.css[FU3T]: F:Wikilink and file link styling | R:- | A:- | S:-
-image-context.css[FU4T]: F:Composer image context chip styling | R:- | A:- | S:-
-image-embed.css[FU4T]: F:Embedded image styling inside rendered Markdown | R:- | A:- | S:-
-image-modal.css[FU4T]: F:Image preview modal styling | R:- | A:- | S:-
+file-link.css[FU3T]: F:Wikilink and file link styling | R:- | A:- | S:Links stay inline and inherit text color
+image-context.css[FU4T]: F:Composer image context chip styling | R:- | A:- | S:The drop overlay sits inside the input wrapper and is hidden by default
+image-embed.css[FU4T]: F:Embedded image styling inside rendered Markdown | R:- | A:- | S:Embeds are display-only; the agent still receives the wikilink text
+image-modal.css[FU4T]: F:Image preview modal styling | R:- | A:- | S:Full-screen preview is display-only; it never changes attachments
 inline-edit.css[FU7M]: F:Inline edit modal, diff preview, and insertion styling | R:- | A:- | S:The card owns surface and focus treatment; the input stays bare in every state and the preview highlight is gated by SelectionController
-resume-session.css[FU5S]: F:Resume session dropdown styling | R:- | A:- | S:-
+resume-session.css[FU5S]: F:Resume session dropdown styling | R:- | A:- | S:Dropdown aligns to the composer edge
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/modals/===
-fork-target.css[FU4T]: F:Fork target modal styling | R:- | A:- | S:-
+fork-target.css[FU4T]: F:Fork target modal styling | R:- | A:- | S:Modal-only rules; no global modal overrides
 projects.css[FU7M]: F:Project editor and memory modal styling | R:- | A:- | S:Obsidian's modal rules show hidden tools; the memory modal fills the space between header and footer with min-height zero
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/settings/===
@@ -1185,14 +1185,14 @@ cli-installation.css[FU7M]: F:CLI installation setting styling | R:- | A:- | S:T
 env-snippets.css[FU7M]: F:Environment snippet manager styling | R:- | A:- | S:The empty state doubles as the save button; its border must survive hover, focus-visible, and active or the settings reset shifts layout
 groups.css[FU7M]: F:Settings group framing and headings | R:- | A:- | S:Obsidian restores filled button chrome; resets are scoped to settings items and the agent and env modals and keep a visible focus ring
 provider-model-picker.css[FU7L]: F:Provider model picker and sortable row styling | R:- | A:- | S:The picker scrolls its own rows without clipping
-slash-settings.css[FU3T]: F:Slash command settings styling | R:- | A:- | S:-
+slash-settings.css[FU3T]: F:Slash command settings styling | R:- | A:- | S:Unique rules only; shared layout lives in base.css
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/style/toolbar/===
-mode-selector.css[FU3T]: F:Mode selector toolbar styling | R:- | A:- | S:-
+mode-selector.css[FU3T]: F:Mode selector toolbar styling | R:- | A:- | S:Toolbar only; no fill on hover or focus
 model-selector.css[FU7L]: F:Model selector menu and button styling | R:- | A:- | S:Narrow composers hide reasoning and fast-mode details; the model name truncates first and chips take no fill
-permission-toggle.css[FU3T]: F:Permission toggle toolbar styling | R:- | A:- | S:-
-service-tier-toggle.css[FU4T]: F:Service tier toggle styling | R:- | A:- | S:-
-thinking-selector.css[FU4T]: F:Thinking level selector styling | R:- | A:- | S:-
+permission-toggle.css[FU3T]: F:Permission toggle toolbar styling | R:- | A:- | S:Toolbar only; a single mode hides the control
+service-tier-toggle.css[FU4T]: F:Service tier toggle styling | R:- | A:- | S:Active fast mode marks the model button
+thinking-selector.css[FU4T]: F:Thinking level selector styling | R:- | A:- | S:Five levels and the fast switch fit without scrolling
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/utils/===
 LineBuffer.ts[CG4T]: F:Accumulates stream fragments into complete lines with an optional cap | R:- | A:LineBuffer | S:Incomplete lines are retained without repeated joins
@@ -1202,9 +1202,9 @@ date.ts[CG4T]: F:Formats today's date and durations for prompts and indicators |
 electronCompat.ts[CG5T]: F:Patches Node's max-listeners handling for Electron's cross-realm AbortSignal | R:- | A:patchSetMaxListenersForElectron | S:Must run before any SDK import
 error.ts[CG3T]: F:Converts unknown thrown values into Errors | R:- | A:toError | S:Non-error values are preserved as the cause
 fileLink.ts[CG7M]: F:Parses wikilinks and opens linked Vault files | R:code:src/core/types/index.ts | A:parseWikilinks,registerFileLinkHandler,processFileLinks | S:Code and math segments are excluded before link parsing
-html.ts[CG4T]: F:Escapes HTML special characters | R:- | A:escapeHTML | S:-
+html.ts[CG4T]: F:Escapes HTML special characters | R:- | A:escapeHTML | S:Escapes &, <, >, and double quotes for markup
 imageEmbed.ts[CG6S]: F:Replaces Obsidian image embeds with HTML images for rendering | R:- | A:replaceImageEmbedsWithHTML | S:Display-only: the agent still receives the wikilink text
-jsonlFile.ts[CG5T]: F:Reads JSONL files, including gzip, line by line | R:code:src/utils/LineBuffer.ts | A:forEachJSONLLine | S:-
+jsonlFile.ts[CG5T]: F:Reads JSONL files, including gzip, line by line | R:code:src/utils/LineBuffer.ts | A:forEachJSONLLine | S:Zstd-compressed JSONL is decompressed while streaming
 markdownMath.ts[CG6S]: F:Normalizes LaTeX math delimiters for Obsidian rendering | R:code:src/utils/markdownSegments.ts | A:normalizeLatexMathDelimiters,escapeMathDelimitersForStreaming,hasStreamingMathDelimiters | S:Escaped delimiters are left untouched
 markdownSegments.ts[CG8L]: F:Shared Obsidian Markdown segmentation for code, math, links, and raw HTML | R:- | A:isBackslashEscaped,transformMarkdownSegments,parseMarkdownSegments | S:This is the single owner of segment boundaries; consumers must not maintain competing parsers
 markdownTextTokens.ts[CG4T]: F:Filters token matches to plain Markdown text, excluding code | R:- | A:filterMarkdownTextTokens | S:Code tokens are excluded unless explicitly allowed
