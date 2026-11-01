@@ -1,0 +1,95 @@
+
+> obsidian-scribe@4.0.17 test:vault
+> bash scripts/test-vault.sh
+
+==> Installing dependencies
+
+> obsidian-scribe@4.0.17 prepare
+> husky
+
+
+up to date in 608ms
+==> Regenerating gallery story index
+
+> obsidian-scribe@4.0.17 gallery:stories
+> node scripts/gen-gallery-stories.mjs
+
+==> Building plugin
+
+> obsidian-scribe@4.0.17 build
+> npm run build:tailwind && npm run build:esbuild || exit 1
+
+
+> obsidian-scribe@4.0.17 build:tailwind
+> npx tailwindcss -i src/styles/tailwind.css -o styles.css --minify
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Rebuilding...
+
+Done in 1248ms.
+
+> obsidian-scribe@4.0.17 build:esbuild
+> tsc -noEmit -skipLibCheck && node esbuild.config.mjs production
+
+[patch-renderer-unsafe-unref] rewrote 4 site(s)
+==> Copying artifacts into /Users/study_superior/Desktop/Project/houde/.obsidian/plugins/scribe
+==> Wrote development manifest (build: f0915bf1-dirty-68f42829a78d, branch: main)
+==> Redeploying the gallery plugin from this worktree so both stylesheets match
+
+> obsidian-scribe@4.0.17 gallery:vault
+> npm run gallery:build && bash scripts/gallery-vault.sh
+
+
+> obsidian-scribe@4.0.17 gallery:build
+> npm run gallery:stories && npm run gallery:css && npm run gallery:esbuild -- production
+
+
+> obsidian-scribe@4.0.17 gallery:stories
+> node scripts/gen-gallery-stories.mjs
+
+
+> obsidian-scribe@4.0.17 gallery:css
+> npm run gallery:css:source && npm run gallery:css:tailwind
+
+
+> obsidian-scribe@4.0.17 gallery:css:source
+> node scripts/prepare-gallery-css.mjs
+
+
+> obsidian-scribe@4.0.17 gallery:css:tailwind
+> npx tailwindcss -i dev/gallery/styles.source.css -o dev/gallery/styles.css --content './src/**/*.{js,ts,jsx,tsx},./dev/gallery/**/*.{js,ts,jsx,tsx}'
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Rebuilding...
+
+Done in 4692ms.
+
+> obsidian-scribe@4.0.17 gallery:esbuild
+> node dev/gallery/esbuild.config.mjs production
+
+==> Linking gallery plugin directory at /Users/study_superior/Desktop/Project/houde/.obsidian/plugins/copilot-component-gallery
+==> Reloading gallery plugin in Obsidian (vault: /Users/study_superior/Desktop/Project/houde)
+    reloaded
+
+Done.
+  worktree: /Users/study_superior/Desktop/Code/obsidian-copilot-master
+  vault:    /Users/study_superior/Desktop/Project/houde
+  plugin:   copilot-component-gallery
+==> Reloading plugin in Obsidian (vault: /Users/study_superior/Desktop/Project/houde)
+    reloaded (onload re-ran). Note: the sidebar manifest label only
+    refreshes on a full Obsidian restart; use a dev-console marker to
+    confirm the loaded build, not the label.
+
+Done.
+  worktree: /Users/study_superior/Desktop/Code/obsidian-copilot-master
+  branch:   main
+  build:    f0915bf1-dirty-68f42829a78d
+  built:    20261101-080313
+  vault:    /Users/study_superior/Desktop/Project/houde
+  plugin:   scribe

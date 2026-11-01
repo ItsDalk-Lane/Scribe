@@ -1,0 +1,25 @@
+
+> obsidian-scribe@4.0.17 test:mobile-load
+> npm run build && node scripts/mobile-load-smoke.cjs
+
+
+> obsidian-scribe@4.0.17 build
+> npm run build:tailwind && npm run build:esbuild || exit 1
+
+
+> obsidian-scribe@4.0.17 build:tailwind
+> npx tailwindcss -i src/styles/tailwind.css -o styles.css --minify
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Rebuilding...
+
+Done in 1365ms.
+
+> obsidian-scribe@4.0.17 build:esbuild
+> tsc -noEmit -skipLibCheck && node esbuild.config.mjs production
+
+[patch-renderer-unsafe-unref] rewrote 4 site(s)
+Mobile load smoke test passed.

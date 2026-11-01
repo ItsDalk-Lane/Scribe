@@ -1,0 +1,151 @@
+import type { ProjectConfig } from "@/aiParams";
+import type { ProjectFileRecord } from "@/projects/type";
+import { App, TFile } from "obsidian";
+import {
+  getProjectContextSignature,
+  getProjectLandingCaptureSignature,
+  normalizeProjectContextSource,
+} from "./projectContextSignature";
+
+function makeProject(overrides: Partial<ProjectConfig> = {}): ProjectConfig {
+  return {
+    id: "p1",
+    name: "Project One",
+    systemPrompt: "",
+    contextSource: {},
+    created: 0,
+    UsageTimestamps: 0,
+    ...overrides,
+  };
+}
+
+function makeRecord(
+  project: ProjectConfig,
+  filePath = "Projects/One/project.md"
+): ProjectFileRecord {
+  return { project, filePath, folderName: "One" };
+}
+
+function makeApp(agentsFiles: Record<string, { mtime: number; size: number }> = {}): App {
+  return {
+    vault: {
+      getAbstractFileByPath: (path: string) => {
+        const stat = agentsFiles[path];
+        if (!stat) return null;
+        const file = new (TFile as unknown as new (path: string) => TFile)(path);
+        file.stat = { ctime: 0, mtime: stat.mtime, size: stat.size };
+        return file;
+      },
+    },
+  } as unknown as App;
+}
+
+const AGENTS_PATH = "Projects/One/AGENTS.md";
+const noAgents = makeApp();
+
+describe("projectContextSignature", () => {
+  describe("normalizeProjectContextSource()", () => {
+    it("trims lines, drops blanks, and rejoins", () => {
+      const project = makeProject({
+        contextSource: { webUrls: "  https://a.com \n\n  https://b.com  \n" },
+      });
+      expect(normalizeProjectContextSource(project).webUrls).toBe("https://a.com\nhttps://b.com");
+    });
+
+    it("treats undefined source fields as empty strings", () => {
+      expect(normalizeProjectContextSource(makeProject())).toEqual({
+        inclusions: "",
+        exclusions: "",
+        webUrls: "",
+        youtubeUrls: "",
+      });
+    });
+
+    it("ignores fields outside the context source (systemPrompt etc.)", () => {
+      const a = makeProject({ systemPrompt: "old" });
+      const b = makeProject({ systemPrompt: "new" });
+      expect(normalizeProjectContextSource(a)).toEqual(normalizeProjectContextSource(b));
+    });
+  });
+
+  describe("getProjectContextSignature()", () => {
+    it("is stable across cosmetic whitespace edits", () => {
+      const a = makeRecord(makeProject({ contextSource: { webUrls: "https://a.com" } }));
+      const b = makeRecord(makeProject({ contextSource: { webUrls: "  https://a.com  \n" } }));
+      expect(getProjectContextSignature(a)).toBe(getProjectContextSignature(b));
+    });
+
+    it("changes when a web URL is added", () => {
+      const before = makeRecord(makeProject({ contextSource: { webUrls: "https://a.com" } }));
+      const after = makeRecord(
+        makeProject({ contextSource: { webUrls: "https://a.com\nhttps://b.com" } })
+      );
+      expect(getProjectContextSignature(before)).not.toBe(getProjectContextSignature(after));
+    });
+
+    it("does NOT change on a usage-timestamp-only touch", () => {
+      const before = makeRecord(makeProject({ UsageTimestamps: 1 }));
+      const after = makeRecord(makeProject({ UsageTimestamps: 999 }));
+      expect(getProjectContextSignature(before)).toBe(getProjectContextSignature(after));
+    });
+
+    it("changes when the project file is relocated (cache dir / cwd moves)", () => {
+      const project = makeProject({ contextSource: { webUrls: "https://a.com" } });
+      const before = makeRecord(project, "Projects/One/project.md");
+      const after = makeRecord(project, "Projects/Renamed/project.md");
+      expect(getProjectContextSignature(before)).not.toBe(getProjectContextSignature(after));
+    });
+  });
+
+  describe("getProjectLandingCaptureSignature()", () => {
+    it("resolves AGENTS.md beside the record's own project.md, not under the live root", () => {
+      const record = makeRecord(makeProject(), "old-root/projects/One/project.md");
+      const app = makeApp({ "old-root/projects/One/AGENTS.md": { mtime: 1000, size: 40 } });
+
+      expect(getProjectLandingCaptureSignature(app, record)).toContain("agents:1000:40");
+    });
+
+    it("tracks the project's AGENTS.md, not the inert project.md body", () => {
+      const record = makeRecord(makeProject({ systemPrompt: "unchanged" }));
+      const before = makeApp({ [AGENTS_PATH]: { mtime: 1000, size: 40 } });
+      const after = makeApp({ [AGENTS_PATH]: { mtime: 2000, size: 55 } });
+      expect(getProjectLandingCaptureSignature(before, record)).not.toBe(
+        getProjectLandingCaptureSignature(after, record)
+      );
+
+      const app = makeApp({ [AGENTS_PATH]: { mtime: 1000, size: 40 } });
+      expect(
+        getProjectLandingCaptureSignature(app, makeRecord(makeProject({ systemPrompt: "old" })))
+      ).toBe(
+        getProjectLandingCaptureSignature(app, makeRecord(makeProject({ systemPrompt: "new" })))
+      );
+    });
+
+    it("falls back to the project.md body until AGENTS.md exists", () => {
+      const before = makeRecord(makeProject({ systemPrompt: "old" }));
+      const after = makeRecord(makeProject({ systemPrompt: "new" }));
+      expect(getProjectContextSignature(before)).toBe(getProjectContextSignature(after));
+      expect(getProjectLandingCaptureSignature(noAgents, before)).not.toBe(
+        getProjectLandingCaptureSignature(noAgents, after)
+      );
+    });
+
+    it("changes on a context-source edit", () => {
+      const before = makeRecord(makeProject({ contextSource: { webUrls: "https://a.com" } }));
+      const after = makeRecord(
+        makeProject({ contextSource: { webUrls: "https://a.com\nhttps://b.com" } })
+      );
+      expect(getProjectLandingCaptureSignature(noAgents, before)).not.toBe(
+        getProjectLandingCaptureSignature(noAgents, after)
+      );
+    });
+
+    it("does NOT change on a usage-timestamp-only touch", () => {
+      const before = makeRecord(makeProject({ systemPrompt: "same", UsageTimestamps: 1 }));
+      const after = makeRecord(makeProject({ systemPrompt: "same", UsageTimestamps: 999 }));
+      expect(getProjectLandingCaptureSignature(noAgents, before)).toBe(
+        getProjectLandingCaptureSignature(noAgents, after)
+      );
+    });
+  });
+});

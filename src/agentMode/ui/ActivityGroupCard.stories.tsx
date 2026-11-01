@@ -1,0 +1,227 @@
+import { ActivityGroupCard } from "@/agentMode/ui/ActivityGroupCard";
+import type { ActivityGroupNode, ActivityMember } from "@/agentMode/ui/activityGroups";
+import { activityLiveStep } from "@/agentMode/ui/activityLiveStep";
+import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
+import { Button } from "@/components/ui/button";
+import type { Meta, StoryObj } from "@/lib/story";
+import React, { useState } from "react";
+
+type ActivityGroupCardProps = React.ComponentProps<typeof ActivityGroupCard>;
+
+function action(title: string, overrides: Partial<ToolCallPart> = {}): ActivityMember {
+  return {
+    type: "action",
+    part: { kind: "tool_call", id: title, title, status: "completed", ...overrides },
+  };
+}
+
+const THINKING: ActivityMember = {
+  type: "reasoning",
+  part: {
+    kind: "thought",
+    text: "The migration note is the one that changed most recently.",
+    durationMs: 51_000,
+  },
+};
+
+const LIVE_THINKING: ActivityMember = {
+  type: "reasoning",
+  part: { kind: "thought", text: "The migration note is the one that changed most recently." },
+};
+
+function group(members: ActivityMember[]): ActivityGroupNode {
+  return { type: "activityGroup", id: "activity-0", members };
+}
+
+function renderMember(member: ActivityMember, key: string | number): React.ReactNode {
+  return (
+    <div key={key} className="tw-truncate tw-py-1 tw-text-sm tw-text-muted">
+      {member.type === "action" ? member.part.title : "Thought about the vault layout"}
+    </div>
+  );
+}
+
+const MIXED = group([
+  action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+  THINKING,
+  action("npm run lint", { vendorToolName: "Bash" }),
+  action("npm run test -- activityGroups", { vendorToolName: "Bash" }),
+  action("Edit Projects/Copilot/Roadmap.md", { vendorToolName: "Edit" }),
+]);
+
+const meta = {
+  title: "Agent Mode/Activity Group Card",
+  component: ActivityGroupCard,
+  args: {
+    group: MIXED,
+    open: false,
+    onToggle: () => undefined,
+    renderMember,
+    thinkingMs: 0,
+  },
+  parameters: { gallery: { host: "leaf", layout: "padded" } },
+} satisfies Meta<ActivityGroupCardProps>;
+export default meta;
+
+export const Collapsed: StoryObj<ActivityGroupCardProps> = {};
+
+export const WithFailure: StoryObj<ActivityGroupCardProps> = {
+  args: {
+    group: group([
+      action("rg --files Daily/", { vendorToolName: "Grep" }),
+      action("npm run build", { vendorToolName: "Bash", status: "failed" }),
+      THINKING,
+      action("npm run build", { vendorToolName: "Bash" }),
+    ]),
+    thinkingMs: 0,
+  },
+};
+
+export const WithFailedEdit: StoryObj<ActivityGroupCardProps> = {
+  args: {
+    group: group([
+      action("Read Projects/plan.md", { vendorToolName: "Read" }),
+      action("Edit Projects/plan.md", {
+        vendorToolName: "Edit",
+        status: "failed",
+        input: { file_path: "Projects/plan.md" },
+      }),
+      action("Edit Projects/todo.md", {
+        vendorToolName: "Edit",
+        input: { file_path: "Projects/todo.md" },
+      }),
+    ]),
+    thinkingMs: 0,
+  },
+};
+
+export const InFlight: StoryObj<ActivityGroupCardProps> = {
+  args: {
+    group: group([
+      action("Read Meetings/2026-08-03 Standup.md", { vendorToolName: "Read" }),
+      THINKING,
+      action("npm run test -- ActivityGroupCard", {
+        vendorToolName: "Bash",
+        status: "in_progress",
+      }),
+    ]),
+    thinkingMs: 0,
+    liveStep: "npm run test -- ActivityGroupCard",
+  },
+};
+
+export const MultiFileEdit: StoryObj<ActivityGroupCardProps> = {
+  args: {
+    group: group([
+      action("Calculate description lengths", { toolKind: "execute" }),
+      action("Edit skill definitions", {
+        toolKind: "edit",
+        output: ["a.md", "b.md", "c.md", "d.md", "e.md"].map((path) => ({
+          type: "diff" as const,
+          path,
+          oldText: "before",
+          newText: "after",
+        })),
+      }),
+      action("Validate skill definitions", { toolKind: "execute" }),
+      {
+        type: "reasoning",
+        part: { kind: "thought", text: "Check the repaired files.", durationMs: 18_426 },
+      },
+    ]),
+    thinkingMs: 0,
+  },
+};
+
+export const LongLine: StoryObj<ActivityGroupCardProps> = {
+  args: {
+    group: group([
+      action("Read Research/Vector Stores.md", { vendorToolName: "Read" }),
+      action("Read Research/Chunking.md", { vendorToolName: "Read" }),
+      action("Grep for “embedding”", { vendorToolName: "Grep" }),
+      action("Fetch https://docs.obsidian.md/Plugins", { vendorToolName: "WebFetch" }),
+      action("mcp call", { mcpServer: "obsidian-vault-search" }),
+      action("Design sync", { vendorToolName: "DesignSyncFromFigmaWorkspace" }),
+      THINKING,
+    ]),
+    thinkingMs: 0,
+  },
+};
+
+const ExpandedDemo: React.FC = () => {
+  const [open, setOpen] = useState(true);
+  return (
+    <ActivityGroupCard
+      group={MIXED}
+      thinkingMs={0}
+      open={open}
+      onToggle={() => setOpen((v) => !v)}
+      renderMember={renderMember}
+    />
+  );
+};
+
+export const Expanded: StoryObj<ActivityGroupCardProps> = { render: ExpandedDemo };
+
+const LIVE_FRAMES: ActivityMember[][] = [
+  [action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }), LIVE_THINKING],
+  [
+    action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+    LIVE_THINKING,
+    action("lint", {
+      vendorToolName: "Bash",
+      status: "in_progress",
+      input: { command: "npm run lint" },
+    }),
+  ],
+  [
+    action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+    LIVE_THINKING,
+    action("lint", { vendorToolName: "Bash", input: { command: "npm run lint" } }),
+    action("test", {
+      vendorToolName: "Bash",
+      status: "in_progress",
+      input: { command: "npm run test -- activityLiveStep" },
+    }),
+  ],
+  [
+    action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+    LIVE_THINKING,
+    action("lint", { vendorToolName: "Bash", input: { command: "npm run lint" } }),
+    action("test", {
+      vendorToolName: "Bash",
+      input: { command: "npm run test -- activityLiveStep" },
+    }),
+  ],
+];
+
+const LiveEdgeDemo: React.FC = () => {
+  const [frame, setFrame] = useState(0);
+  const members = LIVE_FRAMES[frame];
+  const isStreaming = frame < LIVE_FRAMES.length - 1;
+  return (
+    <div className="tw-flex tw-flex-col tw-items-start tw-gap-2">
+      <ActivityGroupCard
+        group={group(members)}
+        thinkingMs={4_000}
+        open={false}
+        onToggle={() => undefined}
+        renderMember={renderMember}
+        liveStep={activityLiveStep(members, isStreaming)}
+      />
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => setFrame((f) => (f + 1) % LIVE_FRAMES.length)}
+      >
+        {isStreaming ? "Next step" : "Restart"}
+      </Button>
+    </div>
+  );
+};
+
+export const LiveEdge: StoryObj<ActivityGroupCardProps> = { render: LiveEdgeDemo };
+
+export const CompletedTurnSummary: StoryObj<ActivityGroupCardProps> = {
+  args: { turnDurationMs: 138_000 },
+};

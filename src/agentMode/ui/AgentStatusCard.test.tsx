@@ -1,0 +1,113 @@
+import { AgentStatusCard } from "@/agentMode/ui/AgentStatusCard";
+import { fireEvent, render, screen } from "@testing-library/react";
+import React from "react";
+
+describe("AgentStatusCard", () => {
+  describe("AgentStatusCard()", () => {
+    it("shows installation progress when requested (https://github.com/Brevilabs/obsidian-copilot-private/issues/530)", () => {
+      render(<AgentStatusCard message="Downloading agent…" progress={{ percent: 42 }} />);
+      expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("42");
+    });
+    it("renders a neutral message and invokes its recovery action", () => {
+      const onClick = jest.fn();
+
+      render(
+        <AgentStatusCard
+          message="Claude not installed"
+          action={{ label: "Install Claude", onClick }}
+        />
+      );
+
+      expect(screen.queryByRole("alert")).toBeNull();
+      const action = screen.getByRole("button", { name: "Install Claude" });
+      expect(action.className).toContain("tw-bg-secondary");
+      fireEvent.click(action);
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("announces warning and error messages with decorative semantic icons", () => {
+      const { rerender } = render(
+        <AgentStatusCard tone="warning" message="Claude must be upgraded" />
+      );
+
+      const warning = screen.getByRole("alert");
+      expect(warning.textContent).toBe("Claude must be upgraded");
+      expect(warning.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+      expect(warning.querySelector("svg")?.getAttribute("class")).toContain("tw-text-warning");
+      expect(screen.getByText("Claude must be upgraded").className).toContain("tw-text-normal");
+
+      rerender(<AgentStatusCard tone="error" message="Claude could not start" />);
+      const error = screen.getByRole("alert");
+      expect(error.textContent).toBe("Claude could not start");
+      expect(error.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+      expect(error.querySelector("svg")?.getAttribute("class")).toContain("tw-text-error");
+      expect(screen.getByText("Claude could not start").className).toContain("tw-text-normal");
+    });
+
+    it("keeps exact recovery details visible below a caller-owned summary (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+      const message =
+        "Could not execute /Users/example/Agent Runtime/bin/codex-acp.\nCheck the configured binary path and retry.\nEACCES: permission denied";
+      const onClick = jest.fn();
+      render(
+        <AgentStatusCard
+          tone="error"
+          summary="Codex setup error"
+          message={message}
+          action={{ label: "Configure Codex", onClick }}
+        />
+      );
+      const summary = screen.getByText("Codex setup error");
+      const details = screen.getByText(message, { normalizer: (text) => text });
+      expect(details.textContent).toBe(message);
+      expect(details.closest("details")).toBeNull();
+      expect(
+        summary.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Configure Codex" }));
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a busy action disabled", () => {
+      render(
+        <AgentStatusCard
+          tone="warning"
+          message="Claude must be upgraded"
+          action={{ label: "Upgrading…", onClick: jest.fn(), disabled: true }}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: "Upgrading…" }).hasAttribute("disabled")).toBe(
+        true
+      );
+      expect(screen.getByRole("button", { name: "Upgrading…" }).className).toContain(
+        "disabled:tw-opacity-100"
+      );
+    });
+
+    it("renders the sign-in fallback as a safe new-tab link", () => {
+      const { rerender } = render(
+        <AgentStatusCard
+          message="Signing in to Claude…"
+          action={{ label: "Open sign-in page", href: "https://example.com/sign-in" }}
+        />
+      );
+
+      const link = screen.getByRole("link", { name: "Open sign-in page" });
+      expect(link.className).toContain("tw-bg-secondary");
+      expect(link.getAttribute("href")).toBe("https://example.com/sign-in");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+      expect(link.getAttribute("target")).toBe("_blank");
+
+      rerender(
+        <AgentStatusCard
+          message="Signing in to Claude…"
+          action={{ label: "Waiting for sign-in URL", href: "" }}
+        />
+      );
+      expect(
+        screen.getByRole("link", { name: "Waiting for sign-in URL" }).getAttribute("href")
+      ).toBe("");
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+  });
+});

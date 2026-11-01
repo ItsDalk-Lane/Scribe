@@ -1,0 +1,468 @@
+import {
+  agentsFileIsUninitialized,
+  captureInstructionFiles,
+  restoreInstructionFiles,
+  ensureAgentsFile,
+  removeGeneratedInstructionFiles,
+  ensureAgentsFileForDiscovery,
+  openAgentsFile,
+  readAgentsFile,
+  writeAgentsFile,
+} from "@/instructions/agentsFile";
+import { App, Platform, TFile, TFolder } from "obsidian";
+
+function setCaseInsensitiveFilesystem(value: boolean) {
+  (Platform as { isMacOS: boolean }).isMacOS = value;
+}
+
+interface MockVaultState {
+  files: Map<string, string>;
+  folders: Set<string>;
+}
+
+function makeApp(initialFiles: Record<string, string> = {}, folders: string[] = []) {
+  const state: MockVaultState = {
+    files: new Map(Object.entries(initialFiles)),
+    folders: new Set(folders),
+  };
+  const toFile = (path: string) => new (TFile as unknown as new (path: string) => TFile)(path);
+  const toFolder = (path: string) =>
+    new (TFolder as unknown as new (path: string) => TFolder)(path);
+  const openFile = jest.fn().mockResolvedValue(undefined);
+  const folderWithChildren = (path: string) => {
+    const folder = toFolder(path);
+    const children = [...state.files.keys()]
+      .filter((key) => key.slice(0, key.lastIndexOf("/") + 1) === (path ? `${path}/` : ""))
+      .map(toFile);
+    (folder as unknown as { children: unknown[] }).children = children;
+    return folder;
+  };
+  const diskPath = (path: string): string | undefined => {
+    if (state.files.has(path)) return path;
+    if (!Platform.isMacOS) return undefined;
+    const target = path.toLowerCase();
+    return [...state.files.keys()].find((key) => key.toLowerCase() === target);
+  };
+  const app = {
+    vault: {
+      getAbstractFileByPath: jest.fn((path: string) => {
+        if (state.files.has(path)) return toFile(path);
+        if (state.folders.has(path)) return folderWithChildren(path);
+        return null;
+      }),
+      getRoot: jest.fn(() => folderWithChildren("")),
+      create: jest.fn(async (path: string, content: string) => {
+        state.files.set(path, content);
+        return toFile(path);
+      }),
+      read: jest.fn(async (file: TFile) => state.files.get(file.path) ?? ""),
+      process: jest.fn(async (file: TFile, update: (content: string) => string) => {
+        state.files.set(file.path, update(state.files.get(file.path) ?? ""));
+      }),
+      modify: jest.fn(async (file: TFile, content: string) => {
+        state.files.set(file.path, content);
+      }),
+      adapter: {
+        exists: jest.fn(async (path: string) => diskPath(path) !== undefined),
+        read: jest.fn(async (path: string) => state.files.get(diskPath(path) ?? path) ?? ""),
+        write: jest.fn(async (path: string, content: string) => {
+          state.files.set(diskPath(path) ?? path, content);
+        }),
+        stat: jest.fn(async () => ({ ctime: 0, mtime: 0, size: 0 })),
+        mkdir: jest.fn(async (path: string) => {
+          state.folders.add(path);
+        }),
+      },
+    },
+    workspace: {
+      getLeaf: jest.fn(() => ({ openFile })),
+    },
+    fileManager: {
+      trashFile: jest.fn(async (file: TFile) => {
+        state.files.delete(file.path);
+      }),
+    },
+  };
+  return { app: app as unknown as App, state, openFile };
+}
+
+describe("agentsFile", () => {
+  describe("ensureAgentsFile()", () => {
+    it("creates only AGENTS.md, since Claude reads it without a CLAUDE.md import (https://github.com/logancyang/obsidian-copilot/issues/3662)", async () => {
+      const { app, state } = makeApp();
+
+      await ensureAgentsFile(app, "", "");
+
+      expect(state.files.get("AGENTS.md")).toBe("");
+      expect(state.files.has("CLAUDE.md")).toBe(false);
+    });
+
+    it("leaves an existing AGENTS.md and CLAUDE.md exactly as the user wrote them", async () => {
+      const { app, state } = makeApp({
+        "AGENTS.md": "User rules",
+        "CLAUDE.md": "# Claude rules\n",
+      });
+
+      await ensureAgentsFile(app, "", "Fallback rules");
+      await ensureAgentsFile(app, "", "Different fallback");
+
+      expect(state.files.get("AGENTS.md")).toBe("User rules");
+      expect(state.files.get("CLAUDE.md")).toBe("# Claude rules\n");
+    });
+
+    it("initializes a missing project AGENTS file from the supplied compatibility body", async () => {
+      const { app, state } = makeApp({}, ["copilot/projects/Research"]);
+
+      await ensureAgentsFile(app, "copilot/projects/Research", "Legacy project rules");
+
+      expect(state.files.get("copilot/projects/Research/AGENTS.md")).toBe("Legacy project rules");
+    });
+
+    it("converts a generated mirror back to the current project.md instruction body", async () => {
+      const marker =
+        "<!-- copilot:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nExisting instructions`,
+      });
+
+      await ensureAgentsFile(app, "Projects/Research", "Fallback rules");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("Fallback rules");
+    });
+
+    it("keeps a generated mirror's body when there is nothing to replace it with", async () => {
+      const marker =
+        "<!-- copilot:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nExisting instructions`,
+      });
+
+      await ensureAgentsFile(app, "Projects/Research", "");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("Existing instructions");
+    });
+  });
+
+  describe("agentsFileIsUninitialized()", () => {
+    it("is true when the file is absent", async () => {
+      const { app } = makeApp();
+      expect(await agentsFileIsUninitialized(app, "Projects/Research")).toBe(true);
+    });
+
+    it("is true for a generated mirror, which is Copilot's own output to replace", async () => {
+      const marker =
+        "<!-- copilot:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+      const { app } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nExisting instructions`,
+      });
+      expect(await agentsFileIsUninitialized(app, "Projects/Research")).toBe(true);
+    });
+
+    it("is false once the file is the user's own", async () => {
+      const { app } = makeApp({ "Projects/Research/AGENTS.md": "The user's own rules" });
+      expect(await agentsFileIsUninitialized(app, "Projects/Research")).toBe(false);
+    });
+  });
+
+  describe("readAgentsFile()", () => {
+    it("returns an empty string when the folder has no AGENTS.md", async () => {
+      const { app } = makeApp();
+      expect(await readAgentsFile(app, "Projects/Research")).toBe("");
+    });
+
+    it("returns the file body verbatim", async () => {
+      const { app } = makeApp({ "AGENTS.md": "Cite every source.\n" });
+      expect(await readAgentsFile(app, "")).toBe("Cite every source.\n");
+    });
+
+    it("hides a legacy mirror's marker so an editor shows only the instructions", async () => {
+      const marker =
+        "<!-- copilot:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+      const { app } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nCite every source.`,
+      });
+      expect(await readAgentsFile(app, "Projects/Research")).toBe("Cite every source.");
+    });
+  });
+
+  describe("writeAgentsFile()", () => {
+    it("creates AGENTS.md for a folder that had none", async () => {
+      const { app, state } = makeApp();
+
+      await writeAgentsFile(app, "", "Cite every source.");
+
+      expect(state.files.get("AGENTS.md")).toBe("Cite every source.");
+    });
+
+    it("replaces the body of a file the user already had", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Old rules", "CLAUDE.md": "@AGENTS.md\n" });
+
+      await writeAgentsFile(app, "", "New rules");
+
+      expect(state.files.get("AGENTS.md")).toBe("New rules");
+    });
+
+    it("writes nothing when a blank draft would create a file out of nothing", async () => {
+      const { app, state } = makeApp();
+
+      await writeAgentsFile(app, "", "   ");
+
+      expect(state.files.has("AGENTS.md")).toBe(false);
+      expect(state.files.has("CLAUDE.md")).toBe(false);
+    });
+
+    it("clears an existing file when the user empties the editor", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Old rules" });
+
+      await writeAgentsFile(app, "", "");
+
+      expect(state.files.get("AGENTS.md")).toBe("");
+    });
+
+    it("takes over a legacy mirror, leaving no marker behind", async () => {
+      const marker =
+        "<!-- copilot:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nOld rules`,
+      });
+
+      await writeAgentsFile(app, "Projects/Research", "New rules");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("New rules");
+    });
+
+    it("does not rewrite a file whose content already matches", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Same rules", "CLAUDE.md": "@AGENTS.md\n" });
+
+      await writeAgentsFile(app, "", "Same rules");
+
+      expect(app.vault.modify).not.toHaveBeenCalled();
+      expect(state.files.get("AGENTS.md")).toBe("Same rules");
+    });
+
+    it("checks the latest content inside the atomic update", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Original" });
+      const process = jest.spyOn(app.vault, "process");
+      process.mockImplementationOnce(async (file, update) => {
+        state.files.set(file.path, "External update");
+        const result = update(state.files.get(file.path)!);
+        state.files.set(file.path, result);
+        return result;
+      });
+      await expect(writeAgentsFile(app, "", "Draft", "Original")).rejects.toThrow();
+      expect(state.files.get("AGENTS.md")).toBe("External update");
+    });
+
+    it("updates matching content and creates a missing file only from an empty baseline", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Original" });
+      await writeAgentsFile(app, "", "Draft", "Original");
+      expect(state.files.get("AGENTS.md")).toBe("Draft");
+      state.files.delete("AGENTS.md");
+      await expect(writeAgentsFile(app, "", "Draft", "Original")).rejects.toThrow();
+      await writeAgentsFile(app, "", "New", "");
+      expect(state.files.get("AGENTS.md")).toBe("New");
+    });
+  });
+
+  describe("captureInstructionFiles() / restoreInstructionFiles()", () => {
+    it("preserves a newer external edit instead of rolling it back", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Original" });
+      const before = await captureInstructionFiles(app, "");
+      await writeAgentsFile(app, "", "Draft");
+      state.files.set("AGENTS.md", "External update");
+      await expect(restoreInstructionFiles(app, "", before, "Draft")).rejects.toThrow();
+      expect(state.files.get("AGENTS.md")).toBe("External update");
+    });
+
+    it("does not delete a newly created instruction file after an external edit", async () => {
+      const { app, state } = makeApp();
+      const before = await captureInstructionFiles(app, "");
+      await writeAgentsFile(app, "", "Draft");
+      state.files.set("AGENTS.md", "External update");
+      await restoreInstructionFiles(app, "", before, "Draft");
+      expect(state.files.get("AGENTS.md")).toBe("External update");
+    });
+
+    it("does not recreate instructions deleted externally during the save", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "Original" });
+      const before = await captureInstructionFiles(app, "");
+      await writeAgentsFile(app, "", "Draft");
+      state.files.delete("AGENTS.md");
+      await restoreInstructionFiles(app, "", before, "Draft");
+      expect(state.files.has("AGENTS.md")).toBe(false);
+    });
+
+    it("preserves newly created instructions instead of risking deletion of concurrent edits", async () => {
+      const { app, state } = makeApp();
+      const before = await captureInstructionFiles(app, "Projects/Research");
+      await writeAgentsFile(app, "Projects/Research", "Half-finished rules");
+
+      await restoreInstructionFiles(app, "Projects/Research", before, "Half-finished rules");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("Half-finished rules");
+      expect(state.files.has("Projects/Research/CLAUDE.md")).toBe(false);
+    });
+
+    it("puts an existing body back verbatim", async () => {
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": "Old rules",
+        "Projects/Research/CLAUDE.md": "@AGENTS.md\n",
+      });
+      const before = await captureInstructionFiles(app, "Projects/Research");
+      await writeAgentsFile(app, "Projects/Research", "New rules");
+
+      await restoreInstructionFiles(app, "Projects/Research", before, "New rules");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("Old rules");
+    });
+
+    it("keeps a file the user had deliberately emptied empty", async () => {
+      const { app, state } = makeApp({ "Projects/Research/AGENTS.md": "" });
+      const before = await captureInstructionFiles(app, "Projects/Research");
+      await writeAgentsFile(app, "Projects/Research", "New rules");
+
+      await restoreInstructionFiles(app, "Projects/Research", before, "New rules");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("");
+    });
+  });
+
+  describe("removeGeneratedInstructionFiles()", () => {
+    const marker =
+      "<!-- copilot:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+
+    it("removes a marker-owned mirror, so a recreated project starts clean", async () => {
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nDead project's instructions`,
+      });
+
+      await removeGeneratedInstructionFiles(app, "Projects/Research");
+
+      expect(state.files.has("Projects/Research/AGENTS.md")).toBe(false);
+    });
+
+    it("keeps an import-only CLAUDE.md, which carries no marker to prove it is ours", async () => {
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nDead project's instructions`,
+        "Projects/Research/CLAUDE.md": "@AGENTS.md\n",
+      });
+
+      await removeGeneratedInstructionFiles(app, "Projects/Research");
+
+      expect(state.files.get("Projects/Research/CLAUDE.md")).toBe("@AGENTS.md\n");
+    });
+
+    it("preserves files carrying anything the user wrote", async () => {
+      const { app, state } = makeApp({
+        "Projects/Research/AGENTS.md": "The user's own rules",
+        "Projects/Research/CLAUDE.md": "# Claude notes\n\n@AGENTS.md\n",
+      });
+
+      await removeGeneratedInstructionFiles(app, "Projects/Research");
+
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("The user's own rules");
+      expect(state.files.get("Projects/Research/CLAUDE.md")).toBe("# Claude notes\n\n@AGENTS.md\n");
+    });
+
+    it("never rejects when deletion fails", async () => {
+      const { app } = makeApp({
+        "Projects/Research/AGENTS.md": `${marker}\n\nbody`,
+      });
+      (app.vault.adapter.remove as jest.Mock | undefined)?.mockRejectedValue?.(new Error("locked"));
+      (
+        app as unknown as { fileManager?: { trashFile: jest.Mock } }
+      ).fileManager?.trashFile?.mockRejectedValue?.(new Error("locked"));
+
+      await expect(
+        removeGeneratedInstructionFiles(app, "Projects/Research")
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("ensureAgentsFileForDiscovery()", () => {
+    it("creates nothing for a scope with no AGENTS.md", async () => {
+      const { app, state } = makeApp({}, ["copilot/projects/Fresh"]);
+
+      await ensureAgentsFileForDiscovery(app, "copilot/projects/Fresh");
+
+      expect(state.files.size).toBe(0);
+    });
+
+    it("leaves a user-authored AGENTS.md as it is and adds no CLAUDE.md beside it", async () => {
+      const { app, state } = makeApp({ "AGENTS.md": "My vault rules" });
+
+      await ensureAgentsFileForDiscovery(app, "");
+
+      expect(state.files.get("AGENTS.md")).toBe("My vault rules");
+      expect(state.files.has("CLAUDE.md")).toBe(false);
+    });
+
+    it("never rejects when the vault cannot read the file", async () => {
+      const { app } = makeApp({ "copilot/projects/Research/AGENTS.md": "rules" });
+      (app.vault.read as jest.Mock).mockRejectedValue(new Error("disk error"));
+
+      await expect(
+        ensureAgentsFileForDiscovery(app, "copilot/projects/Research")
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("openAgentsFile()", () => {
+    it("opens the ensured AGENTS file in the requested leaf", async () => {
+      const { app, openFile } = makeApp();
+
+      await openAgentsFile(app, "");
+
+      expect(app.workspace.getLeaf).toHaveBeenCalledWith(true);
+      expect(openFile).toHaveBeenCalledWith(expect.objectContaining({ path: "AGENTS.md" }));
+    });
+
+    it("opens a note the vault stores under another casing", async () => {
+      setCaseInsensitiveFilesystem(true);
+      const { app, openFile } = makeApp({ "agents.md": "rules" });
+
+      await openAgentsFile(app, "");
+
+      expect(openFile).toHaveBeenCalledWith(expect.objectContaining({ path: "agents.md" }));
+    });
+  });
+
+  describe("differently-cased instruction files", () => {
+    afterEach(() => setCaseInsensitiveFilesystem(false));
+
+    it("reads the existing note rather than reporting no instructions", async () => {
+      setCaseInsensitiveFilesystem(true);
+      const { app } = makeApp({ "agents.md": "Old rules" });
+
+      await expect(readAgentsFile(app, "")).resolves.toBe("Old rules");
+    });
+
+    it("edits that same note through the vault instead of creating a second file", async () => {
+      setCaseInsensitiveFilesystem(true);
+      const { app, state } = makeApp({ "agents.md": "Old rules", "CLAUDE.md": "@AGENTS.md\n" });
+
+      await writeAgentsFile(app, "", "New rules");
+
+      expect(state.files.get("agents.md")).toBe("New rules");
+      expect(state.files.has("AGENTS.md")).toBe(false);
+      expect(app.vault.modify).toHaveBeenCalled();
+      expect(app.vault.adapter.write).not.toHaveBeenCalled();
+    });
+
+    it("reads nothing when the folder has no instruction file under any casing", async () => {
+      setCaseInsensitiveFilesystem(true);
+      const { app } = makeApp();
+
+      await expect(readAgentsFile(app, "")).resolves.toBe("");
+    });
+
+    it("keeps them separate on a case-sensitive volume, where the backends read only the exact name", async () => {
+      const { app, state } = makeApp({ "agents.md": "Someone else's note" });
+
+      await writeAgentsFile(app, "", "New rules");
+
+      expect(state.files.get("AGENTS.md")).toBe("New rules");
+      expect(state.files.get("agents.md")).toBe("Someone else's note");
+    });
+  });
+});

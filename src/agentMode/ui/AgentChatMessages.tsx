@@ -1,0 +1,330 @@
+import { t } from "@/lib/i18n";
+import { AgentTrail } from "@/agentMode/ui/AgentTrailView";
+import { AskUserQuestionCard } from "@/agentMode/ui/AskUserQuestionCard";
+import { PlanProposalCard } from "@/agentMode/ui/PlanProposalCard";
+import { FeedbackCard, findFeedbackCardIndex } from "@/agentMode/ui/FeedbackCard";
+import { openReportIssueModal } from "@/agentMode/ui/ReportIssueModal";
+import { formatFeedbackNote, type FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
+import { setSettings } from "@/settings/model";
+import { ToolPermissionCard } from "@/agentMode/ui/ToolPermissionCard";
+import { useAgentTasks } from "@/agentMode/ui/AgentTasksContext";
+import { permissionRequesterName } from "@/agentMode/ui/taskDisplay";
+import { openTurnDiff } from "@/agentMode/ui/TurnDiffView";
+import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndicator";
+import ChatSingleMessage from "@/components/chat-components/ChatSingleMessage";
+import { ChatTranscriptViewport } from "@/components/chat-components/ui/ChatTranscriptViewport";
+import { USER_SENDER } from "@/constants";
+import { useChatScrolling } from "@/hooks/useChatScrolling";
+import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import type {
+  AgentChatMessage,
+  AskUserQuestionPrompt,
+  CurrentPlan,
+  PermissionPrompt,
+} from "@/agentMode/session/types";
+import type { ChatMessage } from "@/types/message";
+import { logError } from "@/logger";
+import { App, Notice, Plugin } from "obsidian";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+
+interface AgentChatMessagesProps {
+  messages: AgentChatMessage[];
+  plugin: Pick<Plugin, "app" | "manifest">;
+  sourcePath?: string;
+  currentPlan: CurrentPlan | null;
+  pendingToolPermissions: PermissionPrompt[];
+  pendingAskUserQuestions: AskUserQuestionPrompt[];
+  chatBackend: AgentChatBackend;
+  isLoading: boolean;
+  feedbackOffer: FeedbackOffer | null;
+  onForkMessage?: (messageId: string) => Promise<void>;
+}
+
+function toChatMessageView(m: AgentChatMessage): ChatMessage {
+  return {
+    id: m.id,
+    sender: m.sender,
+    message: m.message,
+    timestamp: m.timestamp,
+    isVisible: m.isVisible,
+    isErrorMessage: m.isErrorMessage,
+    content: m.content,
+    context: m.context,
+  };
+}
+
+// A permission card names the tool its request omits from the chat's own tool call.
+// https://github.com/Brevilabs/obsidian-copilot-private/issues/599
+function findToolCallTitle(messages: AgentChatMessage[], toolCallId: string): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const part = messages[i].parts?.find((p) => p.kind === "tool_call" && p.id === toolCallId);
+    if (part?.kind === "tool_call") return part.title;
+  }
+  return undefined;
+}
+
+function lastAssistant(visible: AgentChatMessage[]): AgentChatMessage | undefined {
+  for (let i = visible.length - 1; i >= 0; i--) {
+    if (visible[i].sender !== USER_SENDER) return visible[i];
+  }
+  return undefined;
+}
+
+interface AgentMessageRowProps {
+  message: AgentChatMessage;
+  app: App;
+  sourcePath: string;
+  isLatestAssistant: boolean;
+  isStreaming: boolean;
+  trailingCard?: React.ReactNode;
+  onForkMessage?: (messageId: string) => void;
+  forkDisabled?: boolean;
+}
+
+// Completed messages retain their object identity across streaming updates, so
+// stable row props keep their Markdown and trail renderers out of the live path.
+// https://github.com/logancyang/obsidian-copilot/issues/3343
+const AgentMessageRow = memo(function AgentMessageRow({
+  message,
+  app,
+  sourcePath,
+  isLatestAssistant,
+  isStreaming,
+  trailingCard,
+  onForkMessage,
+  forkDisabled,
+}: AgentMessageRowProps) {
+  const adaptedMessage = toChatMessageView(message);
+  const isAssistant = message.sender !== USER_SENDER;
+  const hasParts = (message.parts?.length ?? 0) > 0;
+  const renderTrail = isAssistant && hasParts;
+  const completedTurnDurationMs = message.turnDurationMs;
+  const runningTurnStartedAtMs =
+    isLatestAssistant && isStreaming ? message.timestamp?.epoch : undefined;
+  const completedTurnDuration =
+    completedTurnDurationMs !== undefined ? (
+      <AgentTurnDurationIndicator status="complete" durationMs={completedTurnDurationMs} inline />
+    ) : null;
+  const runningTurnDuration =
+    runningTurnStartedAtMs !== undefined ? (
+      <AgentTurnDurationIndicator status="running" startedAtMs={runningTurnStartedAtMs} />
+    ) : null;
+  const onFork =
+    isAssistant && !isStreaming && onForkMessage ? () => onForkMessage(message.id) : undefined;
+  const isStreamingPlaceholder = isAssistant && isStreaming && !hasParts && !message.message;
+
+  return (
+    <div className="tw-w-full">
+      {isStreamingPlaceholder ? (
+        <div className="tw-px-3 tw-pt-2">{runningTurnDuration}</div>
+      ) : renderTrail ? (
+        <div className="tw-px-3 tw-pt-2">
+          <AgentTrail
+            parts={message.parts!}
+            onFork={onFork}
+            forkDisabled={forkDisabled}
+            isStreaming={isStreaming}
+            turnStartedAtMs={runningTurnStartedAtMs}
+            turnDurationMs={completedTurnDurationMs}
+            timestamp={message.timestamp?.display}
+            app={app}
+            turnStopReason={message.turnStopReason}
+            errorText={message.isErrorMessage ? message.message : undefined}
+            fileChanges={message.fileChanges}
+            onOpenFileChange={(change) =>
+              void openTurnDiff(app, change, message.id).catch((error: unknown) =>
+                logError("[AgentChatMessages] failed to open the turn diff", error)
+              )
+            }
+          />
+        </div>
+      ) : (
+        <>
+          {isAssistant && completedTurnDuration ? (
+            <div className="tw-px-3 tw-pt-2">{completedTurnDuration}</div>
+          ) : null}
+          <ChatSingleMessage
+            sourcePath={sourcePath}
+            message={adaptedMessage}
+            app={app}
+            isStreaming={false}
+            onFork={onFork}
+            forkDisabled={forkDisabled}
+          />
+          {runningTurnDuration ? <div className="tw-px-3">{runningTurnDuration}</div> : null}
+        </>
+      )}
+      {trailingCard}
+    </div>
+  );
+});
+
+const AgentChatMessages = memo(
+  ({
+    messages,
+    plugin,
+    sourcePath = "",
+    currentPlan,
+    pendingToolPermissions,
+    pendingAskUserQuestions,
+    chatBackend,
+    isLoading,
+    feedbackOffer,
+    onForkMessage,
+  }: AgentChatMessagesProps) => {
+    const { app } = plugin;
+    const forkingRef = useRef(false);
+    const [forkDisabled, setForkDisabled] = useState(false);
+    const forkMessage = useCallback(
+      (messageId: string) => {
+        if (!onForkMessage || forkingRef.current) return;
+        forkingRef.current = true;
+        setForkDisabled(true);
+        void onForkMessage(messageId)
+          .catch((error: unknown) => {
+            logError("[AgentChatMessages] failed to fork conversation", error);
+            new Notice(t("Failed to fork conversation. Please try again."));
+          })
+          .finally(() => {
+            forkingRef.current = false;
+            setForkDisabled(false);
+          });
+      },
+      [onForkMessage]
+    );
+
+    const visible = useMemo(() => messages.filter((m) => m.isVisible), [messages]);
+    const adapted = useMemo(() => visible.map(toChatMessageView), [visible]);
+    const {
+      scrollContainerCallbackRef,
+      contentCallbackRef,
+      onScroll,
+      isScrollPaused,
+      scrollToEnd,
+      getMessageKey,
+    } = useChatScrolling({ chatHistory: adapted });
+
+    const showPlanCard = currentPlan != null && currentPlan.decision === "pending";
+    const inlinePlanCard = showPlanCard ? (
+      <PlanProposalCard plan={currentPlan} app={app} chatBackend={chatBackend} />
+    ) : null;
+    const pendingQuestion = pendingAskUserQuestions[0];
+    const pendingPermission = pendingQuestion ? undefined : pendingToolPermissions[0];
+    const pendingToolName = useMemo(
+      () =>
+        pendingPermission
+          ? findToolCallTitle(messages, pendingPermission.toolCall.toolCallId)
+          : undefined,
+      [messages, pendingPermission]
+    );
+    const tasks = useAgentTasks();
+    const pendingRequester =
+      pendingPermission && tasks
+        ? permissionRequesterName(pendingPermission, tasks.tasks)
+        : undefined;
+    // Questions take priority so the separate resolver queues have a stable
+    // presentation policy without carrying cross-type sequencing state.
+    // https://github.com/logancyang/obsidian-copilot/issues/2948
+    const pendingActionId = pendingQuestion
+      ? `question:${pendingQuestion.requestId}`
+      : pendingPermission
+        ? `permission:${pendingPermission.toolCall.toolCallId}`
+        : null;
+
+    const feedbackCardIndex = useMemo(
+      () => findFeedbackCardIndex(visible, feedbackOffer),
+      [visible, feedbackOffer]
+    );
+    const feedbackCard = useMemo(
+      () =>
+        feedbackOffer ? (
+          <FeedbackCard
+            offer={feedbackOffer}
+            onReview={() =>
+              openReportIssueModal(plugin, {
+                activeBackend: feedbackOffer.evidence.backendId,
+                initialNote: formatFeedbackNote(feedbackOffer),
+                preselectAllSources: true,
+                onReported: (report) => chatBackend.markFeedbackReported(report),
+              })
+            }
+            onDismiss={() => chatBackend.dismissFeedbackOffer()}
+            onTurnOff={() => {
+              setSettings((cur) => ({
+                agentMode: { ...cur.agentMode, offerFeedbackCards: false },
+              }));
+              chatBackend.dismissFeedbackOffer();
+            }}
+          />
+        ) : null,
+      [feedbackOffer, plugin, chatBackend]
+    );
+
+    const latestAssistant = useMemo(() => lastAssistant(visible), [visible]);
+    // The chat keeps running while Claude waits on its subagents with no reply open, so only an unfinished reply gets the live timer. https://github.com/Brevilabs/obsidian-copilot-private/issues/757
+    const streamingMessageId =
+      isLoading && !latestAssistant?.turnStopReason ? latestAssistant?.id : undefined;
+
+    return (
+      <div className="tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
+        <ChatTranscriptViewport
+          scrollContainerRef={scrollContainerCallbackRef}
+          contentRef={contentCallbackRef}
+          onScroll={onScroll}
+          isScrollPaused={isScrollPaused}
+          scrollToEnd={scrollToEnd}
+        >
+          {visible.map((message, index) => {
+            return (
+              <AgentMessageRow
+                key={getMessageKey(adapted[index], index)}
+                message={message}
+                onForkMessage={onForkMessage ? forkMessage : undefined}
+                forkDisabled={forkDisabled}
+                app={app}
+                sourcePath={sourcePath}
+                isLatestAssistant={
+                  message.sender !== USER_SENDER && message.id === latestAssistant?.id
+                }
+                isStreaming={message.id === streamingMessageId}
+                trailingCard={index === feedbackCardIndex ? feedbackCard : undefined}
+              />
+            );
+          })}
+          {inlinePlanCard}
+        </ChatTranscriptViewport>
+        {pendingActionId ? (
+          <div
+            role="region"
+            aria-label={t("Pending agent actions")}
+            data-testid="agent-action-rail"
+            // A verbose question can exceed a short chat pane. Bound and scroll
+            // the rail so its resolution controls remain reachable.
+            // https://github.com/logancyang/obsidian-copilot/issues/2948
+            className="tw-max-h-full tw-w-full tw-overflow-y-auto tw-bg-primary"
+          >
+            <div key={pendingActionId} data-action-id={pendingActionId}>
+              {pendingQuestion ? (
+                <AskUserQuestionCard
+                  request={pendingQuestion}
+                  onResolve={chatBackend.resolveAskUserQuestion.bind(chatBackend)}
+                />
+              ) : pendingPermission ? (
+                <ToolPermissionCard
+                  request={pendingPermission}
+                  toolName={pendingToolName}
+                  requester={pendingRequester}
+                  onResolve={chatBackend.resolveToolPermission.bind(chatBackend)}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+);
+
+AgentChatMessages.displayName = "AgentChatMessages";
+
+export default AgentChatMessages;

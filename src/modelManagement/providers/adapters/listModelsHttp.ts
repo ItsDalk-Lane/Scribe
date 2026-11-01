@@ -1,0 +1,100 @@
+import { t } from "@/lib/i18n";
+import { isPlainObject } from "@/modelManagement/catalog/modelsDevWire";
+import { safeFetchNoThrow } from "@/utils";
+
+const DEFAULT_TIMEOUT_MS = 8000;
+const MAX_BODY_CHARS = 200;
+
+export type ListModelsResult = { ok: true; modelIds: string[] } | { ok: false; message: string };
+
+export type ListModelsResponseResult =
+  | { ok: true; modelIds: string[] }
+  | { ok: false; message: string; status?: number };
+
+interface ModelListWireShape {
+  listKey: "data" | "models";
+  idKey: "id" | "name";
+  normalizeId?: (id: string) => string;
+}
+
+export class ListModelsTimeoutError extends Error {
+  override readonly name = "ListModelsTimeoutError";
+}
+
+export async function fetchWithListModelsTimeout(
+  url: string,
+  init: { method?: string; headers?: Record<string, string> },
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<Response> {
+  let timer: number | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = window.setTimeout(
+      () => reject(new ListModelsTimeoutError(t("Timed out after {timeoutMs}ms", { timeoutMs }))),
+      timeoutMs
+    );
+  });
+  try {
+    return await Promise.race([safeFetchNoThrow(url, init), timeoutPromise]);
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer);
+  }
+}
+
+export async function readBodySnippet(response: Response): Promise<string> {
+  try {
+    const body = (await response.text()).trim();
+    return body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}…` : body;
+  } catch {
+    return "";
+  }
+}
+
+export async function parseModelListResponse(
+  response: Response,
+  shape: ModelListWireShape
+): Promise<ListModelsResponseResult> {
+  const { status } = response;
+  if (status === 401) {
+    return { ok: false, message: t("Authentication failed — check your API key."), status };
+  }
+  // 目录权限受限时仍可能允许聊天，不能把 403 归咎于密钥。https://github.com/logancyang/obsidian-copilot/issues/3147
+  if (status === 403) {
+    const detail = await readBodySnippet(response);
+    const message = t("Access denied (HTTP 403). Check your account permissions.");
+    return { ok: false, message: detail ? `${message} ${detail}` : message, status };
+  }
+  if (status < 200 || status >= 300) {
+    const snippet = await readBodySnippet(response);
+    return {
+      ok: false,
+      message: snippet ? `HTTP ${status}: ${snippet}` : `HTTP ${status}`,
+      status,
+    };
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return { ok: false, message: t("Endpoint returned an unreadable response."), status };
+  }
+
+  const list = isPlainObject(payload) ? payload[shape.listKey] : undefined;
+  // 服务商的错误响应不能因为同时含有空目录而被当作可用连接。https://github.com/logancyang/obsidian-copilot/issues/3147
+  if (!isPlainObject(payload) || payload.error || !Array.isArray(list)) {
+    return { ok: false, message: t("Endpoint did not return a model list."), status };
+  }
+
+  const seen = new Set<string>();
+  const modelIds: string[] = [];
+  for (const entry of list) {
+    const rawId = (entry as Record<string, unknown> | null)?.[shape.idKey];
+    if (typeof rawId !== "string") continue;
+    const trimmedId = rawId.trim();
+    const id = shape.normalizeId?.(trimmedId) ?? trimmedId;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    modelIds.push(id);
+  }
+  return { ok: true, modelIds };
+}

@@ -1,0 +1,12 @@
+
+> obsidian-scribe@4.0.17 test
+> jest --runInBand --silent src/agentMode/backends/claude/extensionManagement.test.ts src/agentMode/backends/claude/descriptor.test.ts src/agentMode/session/mergeExtensionRuntime.test.ts
+
+PASS src/agentMode/backends/claude/extensionManagement.test.ts
+PASS src/agentMode/backends/claude/descriptor.test.ts
+PASS src/agentMode/session/mergeExtensionRuntime.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       78 passed, 78 total
+Snapshots:   0 total
+Time:        0.762 s, estimated 1 s

@@ -1,0 +1,363 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { extname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { ESLint } from "eslint";
+import reviewConfig from "../eslint.review.config.mjs";
+import {
+  collectPackageFindings,
+  getManifestFilename,
+  lintRuntimeDependencies,
+  validateSelectedManifest,
+} from "./review-obsidian-package.mjs";
+
+const repositoryRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const reviewSourceRoots = ["src", "dev/gallery"];
+const reviewSourceExtensions = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+
+const invalidSourceFixture = `import "node:fs";
+export { promisify } from "node:util";
+const path = require("path");
+void path;
+async function loadOs() {
+  return import("node:os");
+}
+void loadOs;
+
+// eslint-disable-next-line no-console
+console.log(fetch("https://example.com"));
+`;
+const validNodeBoundaryFixture = `import { Buffer } from "buffer/";
+import { requireNodeModule } from "@/utils/desktopRuntime";
+
+type Stats = import("node:fs").Stats;
+
+export function encodeSize(stats: Stats): string {
+  const path = requireNodeModule<typeof import("node:path")>("path");
+  return Buffer.from(path.basename(String(stats.size))).toString("base64");
+}
+`;
+const invalidStyleWarningFixture = `.review-fixture:has(button) {
+  display: block !important;
+}
+`;
+const invalidStyleErrorFixture = `.review-fixture {
+  background-image: url("https://example.com/review-fixture.png");
+}
+`;
+const invalidLicenseFixture = "Copyright (C) 2020-2025 by Dynalist Inc.\n";
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+async function expectOutsideTypeAwareScope(filePath) {
+  const eslint = new ESLint({
+    cwd: repositoryRoot,
+    overrideConfigFile: true,
+    baseConfig: [{ rules: { "obsidianmd/no-plugin-as-component": "error" } }, ...reviewConfig],
+  });
+  try {
+    await eslint.lintText("{}", { filePath: resolve(repositoryRoot, filePath) });
+  } catch (error) {
+    throw new Error(
+      `${filePath} is in type-aware ESLint scope, which aborts the whole review gate: ${error.message}`
+    );
+  }
+}
+
+function listTrackedReviewSources() {
+  return execFileSync("git", ["ls-files", "-z", "--", ...reviewSourceRoots], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  })
+    .split("\0")
+    .filter((filePath) => reviewSourceExtensions.has(extname(filePath)));
+}
+
+async function lintSourceFixture(code, filePath) {
+  const eslint = new ESLint({
+    cwd: repositoryRoot,
+    ignore: false,
+    overrideConfig: {
+      languageOptions: {
+        parserOptions: {
+          disallowAutomaticSingleRunInference: true,
+        },
+      },
+    },
+    overrideConfigFile: resolve(repositoryRoot, "eslint.review.config.mjs"),
+  });
+  const [result] = await eslint.lintText(code, {
+    filePath: resolve(repositoryRoot, filePath),
+  });
+  return result;
+}
+
+function expectEslintRules(result, expectedRules) {
+  const reportedRules = new Set(result.messages.map((message) => message.ruleId));
+  for (const rule of expectedRules) {
+    assert(reportedRules.has(rule), `ESLint fixture did not exercise ${rule}`);
+  }
+}
+
+function expectRejected(command, args, expectedRules, input) {
+  const result = spawnSync(command, args, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    input,
+  });
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  assert(result.status !== 0, `${command} unexpectedly accepted its invalid review fixture`);
+  for (const rule of expectedRules) {
+    assert(output.includes(rule), `${command} fixture did not exercise ${rule}`);
+  }
+}
+
+function expectReported(command, args, expectedRules, input) {
+  const result = spawnSync(command, args, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    input,
+  });
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  assert(result.status === 0, `${command} treated a warning-only fixture as blocking`);
+  for (const rule of expectedRules) {
+    assert(output.includes(rule), `${command} did not report warning rule ${rule}`);
+  }
+}
+
+async function main() {
+  const baseEslint = new ESLint({
+    cwd: repositoryRoot,
+    overrideConfigFile: resolve(repositoryRoot, "eslint.config.mjs"),
+  });
+  const ignoredSources = [];
+  for (const filePath of listTrackedReviewSources()) {
+    if (await baseEslint.isPathIgnored(filePath)) ignoredSources.push(filePath);
+  }
+  assert(
+    ignoredSources.length === 0,
+    `Tracked files under Obsidian review source roots are hidden by the base ESLint config:\n${ignoredSources.join("\n")}\nMove non-source fixtures outside the review roots instead of ignoring them.`
+  );
+
+  for (const target of ["manifest.json", "package.json", "LICENSE"]) {
+    await expectOutsideTypeAwareScope(target);
+  }
+
+  const invalidSourceResult = await lintSourceFixture(invalidSourceFixture, "src/utils.ts");
+  assert(invalidSourceResult.errorCount > 0, "ESLint accepted its invalid source fixture");
+  expectEslintRules(invalidSourceResult, [
+    "obsidianmd/no-nodejs-modules",
+    "copilot/no-direct-node-imports",
+    "no-restricted-globals",
+    "eslint-comments/require-description",
+    "eslint-comments/no-restricted-disable",
+  ]);
+  assert(
+    ["node:fs", "node:util", "path", "node:os"].every((moduleName) =>
+      invalidSourceResult.messages.some(
+        (message) =>
+          message.ruleId === "copilot/no-direct-node-imports" &&
+          message.message.includes(`"${moduleName}"`) &&
+          message.message.includes("requireNodeModule()")
+      )
+    ),
+    "direct Node access guidance did not cover imports, re-exports, and require() calls"
+  );
+  const validNodeBoundaryResult = await lintSourceFixture(validNodeBoundaryFixture, "src/utils.ts");
+  assert(
+    validNodeBoundaryResult.messages.every(
+      (message) => message.ruleId !== "copilot/no-direct-node-imports"
+    ),
+    "browser polyfills or guarded/type-only Node access were rejected"
+  );
+  const issuelessComments = [
+    "// Explains the next line\nexport const a = 1;",
+    "/** Documents a without an issue */\nexport const a = 1;",
+    "export const a = 1; // trailing note",
+    "// global cache warms lazily\nexport const a = 1;",
+    "// eslint rejects the obvious shape here\nexport const a = 1;",
+    "// See https://github.com/logancyang/obsidian-copilot/pull/1\nexport const a = 1;",
+    "// See https://github.com/logancyang/obsidian-copilot/issues/12oops\nexport const a = 1;",
+    "export const a = 1; // trailing note\nexport const b = 2; // https://github.com/o/r/issues/1",
+    "// Explains the next line\nexport const a = 1; // https://github.com/o/r/issues/1",
+  ];
+  for (const code of issuelessComments) {
+    const result = await lintSourceFixture(code, "src/utils.ts");
+    assert(
+      result.messages.some((message) => message.ruleId === "copilot/issue-linked-comments"),
+      `issue-less comment was accepted: ${code}`
+    );
+  }
+  const allowedComments = [
+    "// Needed for https://github.com/logancyang/obsidian-copilot/issues/1\nexport const a = 1;",
+    "// A decision spanning lines\n// https://github.com/Brevilabs/obsidian-copilot-private/issues/1\nexport const a = 1;",
+    "// Tracked in https://github.com/logancyang/obsidian-copilot/issues/1.\nexport const a = 1;",
+    "// eslint-disable-next-line no-restricted-syntax -- fixture\nexport const a = 1;",
+    "// prettier-ignore\nexport const a = [1,2];",
+    "/* global activeWindow */\nexport const a = 1;",
+  ];
+  for (const code of allowedComments) {
+    const result = await lintSourceFixture(code, "src/utils.ts");
+    assert(
+      result.messages.every(
+        (message) => !["copilot/issue-linked-comments", "no-empty"].includes(message.ruleId)
+      ),
+      `issue-linked comment or tool directive was rejected: ${code}`
+    );
+  }
+  const emptyCatchResult = await lintSourceFixture(
+    "export function parse(text: string): unknown {\n  try {\n    return JSON.parse(text);\n  } catch {}\n  return undefined;\n}",
+    "src/utils.ts"
+  );
+  assert(
+    emptyCatchResult.messages.some(
+      (message) => message.ruleId === "no-empty" && message.severity === 2
+    ),
+    "Empty catch block was accepted"
+  );
+  const browserStorageAccesses = [
+    'localStorage.getItem("key")',
+    'sessionStorage.setItem("key", "value")',
+    "window.localStorage",
+    "globalThis.sessionStorage",
+    'window["localStorage"]',
+    "window?.sessionStorage",
+    "const { localStorage: storage } = window; void storage",
+    'const { ["sessionStorage"]: storage } = globalThis; void storage',
+  ];
+  for (const access of browserStorageAccesses) {
+    const result = await lintSourceFixture(`${access};`, "src/utils.ts");
+    assert(
+      result.messages.some(
+        (message) =>
+          message.ruleId === "no-restricted-syntax" &&
+          message.severity === 2 &&
+          message.message.includes("vault-scoped storage")
+      ),
+      `Browser storage access was not blocked: ${access}`
+    );
+  }
+  const vaultStorageResult = await lintSourceFixture(
+    `import type { App } from "obsidian";
+export function savePreference(app: App): unknown {
+  app.saveLocalStorage("key", "value");
+  return app.loadLocalStorage("key");
+}`,
+    "src/utils.ts"
+  );
+  assert(
+    !vaultStorageResult.messages.some((message) =>
+      message.message.includes("vault-scoped storage")
+    ),
+    "Obsidian vault-scoped storage was rejected"
+  );
+  const invalidLicenseResult = await lintSourceFixture(invalidLicenseFixture, "LICENSE");
+  assert(
+    invalidLicenseResult.errorCount === 0,
+    "ESLint treated a warning-only LICENSE fixture as blocking"
+  );
+  expectEslintRules(invalidLicenseResult, ["obsidianmd/validate-license"]);
+
+  expectRejected(
+    process.execPath,
+    [
+      resolve(repositoryRoot, "node_modules/stylelint/bin/stylelint.mjs"),
+      "--stdin",
+      "--stdin-filename",
+      "src/review-fixtures/invalid-review.css",
+      "--config",
+      "stylelint.config.mjs",
+      "--max-warnings",
+      "0",
+    ],
+    ["declaration-no-important", "selector-pseudo-class-disallowed-list"],
+    invalidStyleWarningFixture
+  );
+  expectReported(
+    process.execPath,
+    [
+      resolve(repositoryRoot, "node_modules/stylelint/bin/stylelint.mjs"),
+      "--stdin",
+      "--stdin-filename",
+      "src/review-fixtures/invalid-review.css",
+      "--config",
+      "stylelint.config.mjs",
+    ],
+    ["declaration-no-important", "selector-pseudo-class-disallowed-list"],
+    invalidStyleWarningFixture
+  );
+  expectRejected(
+    process.execPath,
+    [
+      resolve(repositoryRoot, "node_modules/stylelint/bin/stylelint.mjs"),
+      "--stdin",
+      "--stdin-filename",
+      "src/review-fixtures/invalid-review-error.css",
+      "--config",
+      "stylelint.config.mjs",
+    ],
+    ["function-url-scheme-disallowed-list"],
+    invalidStyleErrorFixture
+  );
+  const invalidManifestAccepted = await validateSelectedManifest(
+    resolve(repositoryRoot, "manifest-beta.json"),
+    JSON.stringify({
+      id: "invalid",
+      name: "Invalid",
+      version: "1.0.0-beta.1",
+      minAppVersion: "1.0.0",
+      description: "A valid description.",
+      author: "Tester",
+      isDesktopOnly: false,
+      fundingUrl: { sponsor: 42 },
+      unsupported: true,
+    })
+  );
+  assert(!invalidManifestAccepted, "upstream manifest schema failure was accepted");
+  const copyWarningAccepted = await validateSelectedManifest(
+    resolve(repositoryRoot, "manifest.json"),
+    JSON.stringify({
+      id: "valid",
+      name: "Valid",
+      version: "1.0.0",
+      minAppVersion: "1.0.0",
+      description: "Visible copy: unchanged.",
+      author: "Tester",
+      isDesktopOnly: false,
+    })
+  );
+  assert(copyWarningAccepted, "manifest copy guidance unexpectedly blocked the review gate");
+
+  const packageFindings = collectPackageFindings({
+    manifest: { name: "Invalid", version: "2.0.0", isDesktopOnly: true },
+    packageJson: { version: "1.0.0", license: "" },
+    licenseText: "",
+  });
+  assert(packageFindings.length >= 3, "invalid manifest/license fixture was accepted");
+  const runtimeDependencyResult = await lintRuntimeDependencies({
+    dependencies: { axios: "^1.0.0" },
+  });
+  assert(
+    runtimeDependencyResult.errorCount === 0,
+    "runtime dependency guidance unexpectedly blocked the review gate"
+  );
+  expectEslintRules(runtimeDependencyResult, ["depend/ban-dependencies"]);
+  const developmentDependencyResult = await lintRuntimeDependencies({
+    devDependencies: { axios: "^1.0.0" },
+  });
+  assert(
+    developmentDependencyResult.messages.every(
+      (message) => message.ruleId !== "depend/ban-dependencies"
+    ),
+    "development-only dependency was reported as a runtime dependency"
+  );
+  assert(
+    getManifestFilename("1.0.0-beta.1") === "manifest-beta.json",
+    "prerelease package was not matched to manifest-beta.json"
+  );
+
+  console.info("Obsidian review fixtures passed.");
+}
+
+await main();

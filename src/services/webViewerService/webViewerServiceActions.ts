@@ -1,0 +1,357 @@
+import { logError } from "@/logger";
+import { getYouTubeVideoId } from "@/utils/youtubeUrl";
+import {
+  requireWebview,
+  type WebViewerLeaf,
+  type WebViewerPageInfo,
+  WebViewerTimeoutError,
+} from "@/services/webViewerService/webViewerServiceTypes";
+import { htmlToMarkdown, toStringSafe } from "@/services/webViewerService/webViewerServiceHelpers";
+
+export function getPageInfo(leaf: WebViewerLeaf): WebViewerPageInfo {
+  return {
+    url: typeof leaf.view?.url === "string" ? leaf.view.url : "",
+    title: typeof leaf.view?.title === "string" ? leaf.view.title : "",
+    faviconUrl: typeof leaf.view?.faviconUrl === "string" ? leaf.view.faviconUrl : "",
+    mode: leaf.view?.mode === "reader" ? "reader" : "webview",
+  };
+}
+
+export async function getReaderModeMarkdown(
+  leaf: WebViewerLeaf,
+  options: { signal?: AbortSignal } = {}
+): Promise<string> {
+  const { signal } = options;
+
+  if (signal?.aborted) {
+    throw new WebViewerTimeoutError("Operation was aborted");
+  }
+
+  try {
+    const contentPromise = Promise.resolve(leaf.view.getReaderModeContent());
+
+    if (!signal) {
+      const content = await contentPromise;
+      return typeof content?.md === "string" ? content.md : "";
+    }
+
+    const content = await new Promise<{ md?: string } | undefined>((resolve, reject) => {
+      const abortHandler = () => {
+        reject(new WebViewerTimeoutError("Operation was aborted"));
+      };
+
+      signal.addEventListener("abort", abortHandler, { once: true });
+
+      contentPromise
+        .then((result) => {
+          signal.removeEventListener("abort", abortHandler);
+          resolve(result);
+        })
+        .catch((err) => {
+          signal.removeEventListener("abort", abortHandler);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        });
+    });
+
+    return typeof content?.md === "string" ? content.md : "";
+  } catch (err) {
+    if (err instanceof WebViewerTimeoutError) {
+      throw err;
+    }
+    logError("Failed to get reader mode content:", err);
+    throw err;
+  }
+}
+
+export async function getSelectedText(leaf: WebViewerLeaf, trim = true): Promise<string> {
+  const webview = requireWebview(leaf);
+  const code = `(() => { try { return window.getSelection?.()?.toString?.() ?? ""; } catch { return ""; } })()`;
+
+  try {
+    const raw = await webview.executeJavaScript(code);
+    const text = toStringSafe(raw);
+    return trim ? text.trim() : text;
+  } catch (err) {
+    logError("Failed to get selected text:", err);
+    throw err;
+  }
+}
+
+export async function getSelectedMarkdown(leaf: WebViewerLeaf): Promise<string> {
+  const webview = requireWebview(leaf);
+
+  let baseUrl = "";
+  try {
+    baseUrl = typeof webview.getURL === "function" ? webview.getURL() : "";
+  } catch {
+    baseUrl = leaf.view?.url ?? "";
+  }
+
+  const code = `(() => {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return "";
+  const div = document.createElement("div");
+  for (let i = 0; i < sel.rangeCount; i++) div.appendChild(sel.getRangeAt(i).cloneContents());
+  return div.innerHTML;
+})()`;
+
+  let html = "";
+  try {
+    const raw = await webview.executeJavaScript(code);
+    html = toStringSafe(raw);
+  } catch (err) {
+    logError("Failed to get selection HTML:", err);
+    throw err;
+  }
+
+  try {
+    return htmlToMarkdown(html, baseUrl);
+  } catch (err) {
+    logError("Failed to convert HTML to Markdown:", err);
+    throw err;
+  }
+}
+
+export { getYouTubeVideoId } from "@/utils/youtubeUrl";
+
+export interface YouTubeTranscriptSegment {
+  timestamp: string;
+  text: string;
+}
+
+export interface YouTubeTranscriptResult {
+  videoId: string;
+  title: string;
+  channel: string;
+  description?: string;
+  uploadDate?: string;
+  duration?: string;
+  genre?: string;
+  transcript: YouTubeTranscriptSegment[];
+}
+
+function isValidTranscriptResult(data: unknown): data is YouTubeTranscriptResult {
+  if (typeof data !== "object" || data === null) return false;
+  const d = data as Record<string, unknown>;
+  return (
+    typeof d.videoId === "string" &&
+    typeof d.title === "string" &&
+    typeof d.channel === "string" &&
+    (d.description === undefined || typeof d.description === "string") &&
+    (d.uploadDate === undefined || typeof d.uploadDate === "string") &&
+    (d.duration === undefined || typeof d.duration === "string") &&
+    (d.genre === undefined || typeof d.genre === "string") &&
+    Array.isArray(d.transcript) &&
+    d.transcript.every(
+      (seg: unknown) =>
+        typeof seg === "object" &&
+        seg !== null &&
+        typeof (seg as Record<string, unknown>).timestamp === "string" &&
+        typeof (seg as Record<string, unknown>).text === "string"
+    )
+  );
+}
+
+export async function getYouTubeTranscript(
+  leaf: WebViewerLeaf,
+  options: { timeoutMs?: number } = {}
+): Promise<YouTubeTranscriptResult> {
+  const webview = requireWebview(leaf);
+  const { timeoutMs = 10000 } = options;
+  const maxAttempts = Math.ceil(timeoutMs / 500);
+
+  let pageUrl = "";
+  try {
+    pageUrl = typeof webview.getURL === "function" ? webview.getURL() : "";
+  } catch {
+    pageUrl = "";
+  }
+  if (!pageUrl) pageUrl = leaf.view?.url ?? "";
+
+  const videoId = getYouTubeVideoId(pageUrl);
+  if (!videoId) {
+    throw new Error("Not a YouTube video page");
+  }
+
+  const code = `(async () => {
+    const videoId = ${JSON.stringify(videoId)};
+
+    // =========================================================================
+    // Step 1: Extract video metadata from JSON-LD (structured data)
+    // JSON-LD is more reliable than DOM selectors as it's machine-readable
+    // =========================================================================
+    let title = '';
+    let channel = '';
+    let description = '';
+    let uploadDate = '';
+    let duration = '';
+    let genre = '';
+
+    // Helper to extract fields from a VideoObject schema
+    const extractVideoObject = (data) => {
+      if (!data || data['@type'] !== 'VideoObject') return;
+      if (!title && data.name && typeof data.name === 'string') {
+        title = data.name;
+      }
+      if (!description && data.description && typeof data.description === 'string') {
+        description = data.description;
+      }
+      if (!uploadDate && data.uploadDate && typeof data.uploadDate === 'string') {
+        uploadDate = data.uploadDate;
+      }
+      // JSON-LD duration is ISO 8601 format (e.g., "PT12M34S"), convert to readable format
+      if (!duration && data.duration && typeof data.duration === 'string') {
+        const match = data.duration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/);
+        if (match) {
+          const h = match[1] ? match[1] + ':' : '';
+          const m = match[2] || '0';
+          const s = match[3] || '0';
+          duration = h + (h ? m.padStart(2, '0') : m) + ':' + s.padStart(2, '0');
+        }
+      }
+      if (!genre && data.genre) {
+        genre = Array.isArray(data.genre) ? data.genre.join(', ') : String(data.genre);
+      }
+      // author can be string, object {name}, or array [{name}]
+      if (!channel && data.author) {
+        const author = data.author;
+        if (typeof author === 'string') {
+          channel = author;
+        } else if (Array.isArray(author) && author[0]?.name) {
+          channel = String(author[0].name);
+        } else if (author?.name) {
+          channel = String(author.name);
+        }
+      }
+    };
+
+    // Parse all JSON-LD scripts, handling various formats (@graph, array, single object)
+    const ldJsonEls = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const el of ldJsonEls) {
+      try {
+        const data = JSON.parse(el.textContent || '');
+        if (Array.isArray(data)) {
+          for (const item of data) {
+            extractVideoObject(item);
+          }
+        } else if (data['@graph'] && Array.isArray(data['@graph'])) {
+          for (const item of data['@graph']) {
+            extractVideoObject(item);
+          }
+        } else {
+          extractVideoObject(data);
+        }
+        // Stop if we have all essential fields
+        if (title && channel && description) break;
+      } catch {}
+    }
+
+    // =========================================================================
+    // Step 2: Fallback to DOM selectors for missing metadata
+    // =========================================================================
+    if (!title) {
+      title = document.querySelector('h1.ytd-watch-metadata yt-formatted-string')?.textContent?.trim()
+           || document.querySelector('#title h1')?.textContent?.trim() || '';
+    }
+    if (!channel) {
+      channel = document.querySelector('#owner #channel-name a')?.textContent?.trim()
+             || document.querySelector('#channel-name a')?.textContent?.trim()
+             || document.querySelector('#channel-name')?.textContent?.trim() || '';
+    }
+    if (!duration) {
+      duration = document.querySelector('#ytd-player .ytp-time-duration')?.textContent?.trim() || '';
+    }
+
+    // =========================================================================
+    // Step 3: Find or open the transcript panel
+    // Reason: YouTube has two coexisting transcript panel DOM structures:
+    // - Classic ("In this video"): ytd-transcript-segment-renderer
+    // - Modern ("Transcript"): transcript-segment-view-model
+    // YouTube selects the panel type server-side per video. We must support both.
+    // All segment queries are scoped to the panel to avoid false matches.
+    // =========================================================================
+
+    // Reason: Find panel by checking for transcript segment elements inside it,
+    // rather than relying on fragile target-id strings that YouTube changes.
+    // Prefer visible panels to avoid picking up hidden/stale panels YouTube
+    // leaves in the DOM during page transitions.
+    const findTranscriptPanel = () => {
+      const panels = document.querySelectorAll('ytd-engagement-panel-section-list-renderer');
+      for (const panel of panels) {
+        const hasSegments = panel.querySelector('ytd-transcript-segment-renderer')
+                         || panel.querySelector('transcript-segment-view-model');
+        if (!hasSegments) continue;
+        const style = window.getComputedStyle(panel);
+        if (style.display !== 'none' && style.visibility !== 'hidden') return panel;
+      }
+      return null;
+    };
+
+    // Reason: Auto-detect classic vs modern layout and use the correct selectors
+    // for each. Queries are scoped to the panel to prevent matching unrelated UI.
+    const extractFromPanel = (panel) => {
+      const classicSegs = panel.querySelectorAll('ytd-transcript-segment-renderer');
+      if (classicSegs.length > 0) {
+        return [...classicSegs].map(seg => ({
+          timestamp: seg.querySelector('.segment-timestamp')?.textContent?.trim() || '',
+          text: seg.querySelector('yt-formatted-string.segment-text, .segment-text')?.textContent?.trim() || ''
+        })).filter(t => t.timestamp && t.text);
+      }
+      const modernSegs = panel.querySelectorAll('transcript-segment-view-model');
+      if (modernSegs.length > 0) {
+        return [...modernSegs].map(seg => ({
+          timestamp: seg.querySelector('.ytwTranscriptSegmentViewModelTimestamp')?.textContent?.trim() || '',
+          text: [...seg.querySelectorAll('span.yt-core-attributed-string')].map(s => s.textContent || '').join('').trim() || ''
+        })).filter(t => t.timestamp && t.text);
+      }
+      return null;
+    };
+
+    let panel = findTranscriptPanel();
+    let needClose = false;
+
+    if (!panel) {
+      const btn = document.querySelector('ytd-video-description-transcript-section-renderer button')
+                || document.querySelector('ytd-video-description-transcript-section-renderer [role="button"]');
+      if (btn) {
+        btn.click();
+        needClose = true;
+
+        // Poll for the panel container to appear (not individual segments)
+        for (let i = 0; i < ${maxAttempts}; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          panel = findTranscriptPanel();
+          if (panel) break;
+        }
+      }
+    }
+
+    // =========================================================================
+    // Step 4: Extract transcript segments from the panel
+    // =========================================================================
+
+    // Reason: Close via captured panel element rather than hardcoded target-id.
+    // This is resilient to YouTube changing the target-id string.
+    const closePanel = () => {
+      if (!needClose || !panel) return;
+      const closeBtn = panel.querySelector('#visibility-button button')
+                    || panel.querySelector('#visibility-button [role="button"]');
+      if (closeBtn) closeBtn.click();
+    };
+
+    try {
+      const transcript = panel ? (extractFromPanel(panel) || []) : [];
+      return { videoId, title, channel, description, uploadDate, duration, genre, transcript };
+    } finally {
+      closePanel();
+    }
+  })()`;
+
+  const result = await webview.executeJavaScript(code);
+
+  if (!isValidTranscriptResult(result)) {
+    throw new Error("Invalid transcript data structure");
+  }
+
+  return result;
+}

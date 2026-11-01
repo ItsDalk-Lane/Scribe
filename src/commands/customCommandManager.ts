@@ -1,0 +1,247 @@
+import { App, TFile } from "obsidian";
+import { isMap, parseDocument } from "yaml";
+import {
+  getCommandFilePath,
+  getCustomCommandsFolder,
+  getNextCustomCommandOrder,
+} from "@/commands/customCommandUtils";
+import { CustomCommand } from "@/commands/type";
+import {
+  COPILOT_COMMAND_ENABLED,
+  COPILOT_COMMAND_CONTEXT_MENU_ENABLED,
+  COPILOT_COMMAND_CONTEXT_MENU_ORDER,
+  COPILOT_COMMAND_LAST_USED,
+  COPILOT_COMMAND_MODEL_KEY,
+  COPILOT_COMMAND_SLASH_ENABLED,
+  EMPTY_COMMAND,
+} from "@/commands/constants";
+import {
+  addPendingFileWrite,
+  isCustomCommandEnabled,
+  deleteCachedCommand,
+  removePendingFileWrite,
+  updateCachedCommand,
+} from "./state";
+import { ensureFolderExists } from "@/utils";
+import { trashFile } from "@/utils/vaultAdapterUtils";
+
+const METADATA_FIELDS = {
+  enabled: COPILOT_COMMAND_ENABLED,
+  showInContextMenu: COPILOT_COMMAND_CONTEXT_MENU_ENABLED,
+  showInSlashMenu: COPILOT_COMMAND_SLASH_ENABLED,
+  order: COPILOT_COMMAND_CONTEXT_MENU_ORDER,
+  modelKey: COPILOT_COMMAND_MODEL_KEY,
+  lastUsedMs: COPILOT_COMMAND_LAST_USED,
+} as const;
+const EDITABLE_FIELDS = [
+  "enabled",
+  "content",
+  "showInContextMenu",
+  "showInSlashMenu",
+  "modelKey",
+] as const;
+type CommandChanges = Partial<Omit<CustomCommand, "title">>;
+
+export class CustomCommandManager {
+  private static instance: CustomCommandManager;
+  private writeQueue: Promise<unknown> = Promise.resolve();
+
+  private constructor(private readonly app: App) {}
+
+  static getInstance(app?: App): CustomCommandManager {
+    if (!CustomCommandManager.instance) {
+      if (!app) {
+        throw new Error(
+          "CustomCommandManager.getInstance() requires `app` on first call (seed it at plugin load)."
+        );
+      }
+      CustomCommandManager.instance = new CustomCommandManager(app);
+    }
+    return CustomCommandManager.instance;
+  }
+
+  async createCommand(
+    command: CustomCommand,
+    options: { skipStoreUpdate?: boolean; autoOrder?: boolean } = {}
+  ): Promise<void> {
+    await this.enqueue(async () => {
+      await this.create(
+        {
+          ...command,
+          order: options.autoOrder === false ? command.order : getNextCustomCommandOrder(),
+        },
+        options.skipStoreUpdate ?? false
+      );
+    });
+  }
+
+  async recordUsage(command: CustomCommand): Promise<void> {
+    await this.enqueue(async () => {
+      if (!isCustomCommandEnabled(command)) return;
+      await this.patchExisting(command.title, { lastUsedMs: Date.now() });
+    });
+  }
+
+  async updateCommand(
+    command: CustomCommand,
+    prevCommandTitle: string,
+    skipStoreUpdate = false,
+    previous?: CustomCommand
+  ): Promise<void> {
+    const normalized = { ...command, enabled: command.enabled !== false };
+    const baseline = previous ? { ...previous, enabled: previous.enabled !== false } : undefined;
+    const changes: CommandChanges = {};
+    for (const field of EDITABLE_FIELDS) {
+      if (!baseline || normalized[field] !== baseline[field])
+        Object.assign(changes, { [field]: normalized[field] });
+    }
+    await this.enqueue(() =>
+      this.update(command.title, prevCommandTitle, changes, skipStoreUpdate, baseline)
+    );
+  }
+
+  async updateCommands(commands: CustomCommand[]): Promise<void> {
+    await this.enqueue(async () => {
+      for (const command of commands) {
+        if (this.app.vault.getAbstractFileByPath(getCommandFilePath(command.title))) {
+          await this.update(command.title, command.title, command);
+        } else {
+          await this.create(command);
+        }
+      }
+    });
+  }
+
+  async reorderCommands(commands: CustomCommand[]): Promise<void> {
+    await this.enqueue(async () => {
+      for (const [index, command] of commands.entries()) {
+        await this.patchExisting(command.title, { order: index * 10 });
+      }
+    });
+  }
+
+  async deleteCommand(command: CustomCommand): Promise<void> {
+    await this.enqueue(async () => {
+      const filePath = getCommandFilePath(command.title);
+      addPendingFileWrite(filePath);
+      try {
+        const file = this.app.vault.getAbstractFileByPath(filePath);
+        if (file instanceof TFile) await trashFile(this.app, file);
+        deleteCachedCommand(command.title);
+      } finally {
+        removePendingFileWrite(filePath);
+      }
+    });
+  }
+
+  private enqueue(run: () => Promise<void>): Promise<void> {
+    const task = this.writeQueue.catch(() => undefined).then(run);
+    this.writeQueue = task;
+    return task;
+  }
+
+  private async create(command: CustomCommand, skipStoreUpdate = false): Promise<void> {
+    const filePath = getCommandFilePath(command.title);
+    addPendingFileWrite(filePath);
+    try {
+      if (this.app.vault.getAbstractFileByPath(filePath))
+        throw new Error("同名指令已存在，未覆盖现有文件。");
+      const saved = this.patchDocument("", command.title, command);
+      await ensureFolderExists(this.app.vault, getCustomCommandsFolder());
+      await this.app.vault.create(filePath, saved.text);
+      if (!skipStoreUpdate) updateCachedCommand(saved.command, command.title);
+    } finally {
+      removePendingFileWrite(filePath);
+    }
+  }
+
+  private async patchExisting(title: string, changes: CommandChanges): Promise<void> {
+    if (!(this.app.vault.getAbstractFileByPath(getCommandFilePath(title)) instanceof TFile)) return;
+    await this.update(title, title, changes);
+  }
+
+  private async update(
+    title: string,
+    previousTitle: string,
+    changes: CommandChanges,
+    skipStoreUpdate = false,
+    baseline?: CustomCommand
+  ): Promise<void> {
+    const oldPath = getCommandFilePath(previousTitle);
+    const newPath = getCommandFilePath(title);
+    const renamed = oldPath !== newPath;
+    const file = this.app.vault.getAbstractFileByPath(oldPath);
+    if (!(file instanceof TFile)) throw new Error("指令文件已变化，请重新打开后编辑。");
+    addPendingFileWrite(oldPath);
+    if (renamed) addPendingFileWrite(newPath);
+    try {
+      if (renamed) {
+        if (this.app.vault.getAbstractFileByPath(newPath))
+          throw new Error("同名指令已存在，未覆盖现有文件。");
+        await this.app.vault.rename(file, newPath);
+      }
+      let saved: CustomCommand | undefined;
+      try {
+        await this.app.vault.process(file, (current) => {
+          const result = this.patchDocument(current, title, changes, baseline);
+          saved = result.command;
+          return result.text;
+        });
+      } catch (error) {
+        if (renamed) {
+          try {
+            await this.app.vault.rename(file, oldPath);
+          } catch {
+            const actual = this.patchDocument(await this.app.vault.read(file), title, {}).command;
+            updateCachedCommand(actual, previousTitle);
+            throw new Error(
+              `保存失败，无法恢复原文件名；原内容仍保存在 ${file.path}。请刷新列表后重试。`
+            );
+          }
+        }
+        throw error;
+      }
+      if (!skipStoreUpdate && saved) updateCachedCommand(saved, previousTitle);
+    } finally {
+      removePendingFileWrite(oldPath);
+      if (renamed) removePendingFileWrite(newPath);
+    }
+  }
+
+  private patchDocument(
+    text: string,
+    title: string,
+    changes: CommandChanges,
+    baseline?: CustomCommand
+  ): { text: string; command: CustomCommand } {
+    const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
+    const document = parseDocument(match ? match[1] : "{}");
+    if (document.errors.length || (document.contents !== null && !isMap(document.contents)))
+      throw new Error("指令属性格式不正确，未保存修改。");
+    const current: CustomCommand = {
+      ...EMPTY_COMMAND,
+      title,
+      content: match ? text.slice(match[0].length) : text,
+    };
+    for (const [field, key] of Object.entries(METADATA_FIELDS)) {
+      const value: unknown = document.get(key);
+      if (typeof value === typeof EMPTY_COMMAND[field as keyof typeof METADATA_FIELDS])
+        Object.assign(current, { [field]: value });
+    }
+    if (baseline) {
+      for (const field of Object.keys(changes) as (keyof CommandChanges)[]) {
+        const value = field === "content" && match ? current.content.trimStart() : current[field];
+        if (value !== baseline[field] && value !== changes[field])
+          throw new Error("指令已被其他操作修改，请重新打开后再保存。草稿仍保留在当前窗口。");
+      }
+    }
+    const command = { ...current, ...changes, title, enabled: changes.enabled ?? current.enabled };
+    for (const [field, key] of Object.entries(METADATA_FIELDS)) {
+      document.set(key, command[field as keyof typeof METADATA_FIELDS]);
+    }
+    return {
+      text: `---\n${document.toString()}---\n${command.content}`,
+      command: { ...command, content: command.content.trimStart() },
+    };
+  }
+}

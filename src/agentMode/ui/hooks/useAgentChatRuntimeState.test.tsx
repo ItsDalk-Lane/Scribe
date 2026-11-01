@@ -1,0 +1,202 @@
+import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import type {
+  AgentChatMessage,
+  AgentTodoListEntry,
+  AskUserQuestionPrompt,
+  CurrentPlan,
+  PermissionPrompt,
+  QueuedPrompt,
+} from "@/agentMode/session/types";
+import type { FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
+import type { AgentTask } from "@/agentMode/session/AgentSession";
+import { useAgentChatRuntimeState } from "@/agentMode/ui/hooks/useAgentChatRuntimeState";
+import { act, render, renderHook } from "@testing-library/react";
+import React, { useEffect } from "react";
+
+interface FakeBackendState {
+  messages: AgentChatMessage[];
+  isStarting: boolean;
+  isTurnInFlight: boolean;
+  isReplyRunning: boolean;
+  hasPendingPlanPermission: boolean;
+  currentPlan: CurrentPlan | null;
+  currentTodoList?: AgentTodoListEntry[] | null;
+  pendingToolPermissions: PermissionPrompt[];
+  pendingAskUserQuestions: AskUserQuestionPrompt[];
+  feedbackOffer?: FeedbackOffer | null;
+  queuedPrompts?: readonly QueuedPrompt[];
+  tasks?: readonly AgentTask[];
+}
+
+function makeFakeBackend(initial: Partial<FakeBackendState> = {}) {
+  const state: FakeBackendState = {
+    messages: initial.messages ?? [],
+    isStarting: initial.isStarting ?? false,
+    isTurnInFlight: initial.isTurnInFlight ?? false,
+    isReplyRunning: initial.isReplyRunning ?? false,
+    hasPendingPlanPermission: initial.hasPendingPlanPermission ?? false,
+    currentPlan: initial.currentPlan ?? null,
+    currentTodoList: initial.currentTodoList ?? null,
+    pendingToolPermissions: initial.pendingToolPermissions ?? [],
+    pendingAskUserQuestions: initial.pendingAskUserQuestions ?? [],
+    feedbackOffer: initial.feedbackOffer ?? null,
+    queuedPrompts: initial.queuedPrompts ?? [],
+    tasks: initial.tasks ?? [],
+  };
+  const listeners = new Set<() => void>();
+
+  const backend = {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getMessages: () => state.messages,
+    isStarting: () => state.isStarting,
+    isTurnInFlight: () => state.isTurnInFlight,
+    isReplyRunning: () => state.isReplyRunning,
+    hasPendingPlanPermission: () => state.hasPendingPlanPermission,
+    getCurrentPlan: () => state.currentPlan,
+    getCurrentTodoList: () => state.currentTodoList ?? null,
+    getPendingToolPermissions: () => state.pendingToolPermissions,
+    getPendingAskUserQuestions: () => state.pendingAskUserQuestions,
+    getFeedbackOffer: () => state.feedbackOffer ?? null,
+    getQueuedPrompts: () => state.queuedPrompts ?? [],
+    getTasks: () => state.tasks ?? [],
+  } as unknown as AgentChatBackend;
+
+  return {
+    backend,
+    state,
+    listenerCount: () => listeners.size,
+    emit: () => listeners.forEach((l) => l()),
+  };
+}
+
+const RUNNING_TASK: AgentTask = {
+  taskId: "task-1",
+  toolCallId: "call-1",
+  kind: "subagent",
+  description: "Count words",
+  status: "running",
+};
+
+const msg = (id: string): AgentChatMessage => ({ id }) as unknown as AgentChatMessage;
+
+describe("useAgentChatRuntimeState", () => {
+  describe("useAgentChatRuntimeState()", () => {
+    it("returns the backend's initial snapshot", () => {
+      const fake = makeFakeBackend({ messages: [msg("a")], isStarting: true });
+      const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
+
+      expect(result.current.messages).toEqual([msg("a")]);
+      expect(result.current.isStarting).toBe(true);
+      expect(result.current.isTurnInFlight).toBe(false);
+      expect(result.current.hasPendingPlanPermission).toBe(false);
+      expect(result.current.currentPlan).toBeNull();
+      expect(result.current.pendingToolPermissions).toEqual([]);
+    });
+
+    it("shows an externally started plan implementation as running until the turn finishes (https://github.com/Brevilabs/obsidian-copilot-private/issues/41)", () => {
+      const fake = makeFakeBackend();
+      const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
+
+      act(() => {
+        fake.state.isTurnInFlight = true;
+        fake.emit();
+      });
+      expect(result.current.isTurnInFlight).toBe(true);
+
+      act(() => {
+        fake.state.isTurnInFlight = false;
+        fake.emit();
+      });
+      expect(result.current.isTurnInFlight).toBe(false);
+    });
+
+    it("picks up a feedback card the moment the backend offers it", () => {
+      const fake = makeFakeBackend();
+      const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
+      expect(result.current.feedbackOffer).toBeNull();
+      const offer = { status: "open" } as FeedbackOffer;
+
+      act(() => {
+        fake.state.feedbackOffer = offer;
+        fake.emit();
+      });
+
+      expect(result.current.feedbackOffer).toBe(offer);
+    });
+
+    it("re-syncs every field when the backend notifies", () => {
+      const fake = makeFakeBackend();
+      const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
+
+      act(() => {
+        fake.state.messages = [msg("x"), msg("y")];
+        fake.state.isStarting = true;
+        fake.state.hasPendingPlanPermission = true;
+        fake.state.queuedPrompts = [{ id: "steer", text: "Only the first two" }];
+        fake.state.tasks = [RUNNING_TASK];
+        fake.state.isReplyRunning = true;
+        fake.emit();
+      });
+
+      expect(result.current.tasks).toEqual([RUNNING_TASK]);
+      expect(result.current.messages).toHaveLength(2);
+      expect(result.current.queuedPrompts).toEqual([{ id: "steer", text: "Only the first two" }]);
+      expect(result.current.isStarting).toBe(true);
+      expect(result.current.hasPendingPlanPermission).toBe(true);
+      expect(result.current.isReplyRunning).toBe(true);
+    });
+
+    it("serves the new backend's state on the first render after the backend prop changes, never the previous backend's", () => {
+      const first = makeFakeBackend({ isStarting: false });
+      const second = makeFakeBackend({ isStarting: true });
+      const snapshots: boolean[] = [];
+
+      function Probe({ backend }: { backend: AgentChatBackend }) {
+        const { isStarting } = useAgentChatRuntimeState(backend);
+        useEffect(() => {
+          snapshots.push(isStarting);
+        }, [isStarting]);
+        return null;
+      }
+
+      const { rerender } = render(<Probe backend={first.backend} />);
+      snapshots.length = 0;
+      rerender(<Probe backend={second.backend} />);
+
+      expect(snapshots).toEqual([true]);
+    });
+
+    it("unsubscribes from the previous backend on switch and unmount", () => {
+      const first = makeFakeBackend();
+      const second = makeFakeBackend();
+      const { rerender, unmount } = renderHook(({ backend }) => useAgentChatRuntimeState(backend), {
+        initialProps: { backend: first.backend },
+      });
+      expect(first.listenerCount()).toBe(1);
+
+      rerender({ backend: second.backend });
+      expect(first.listenerCount()).toBe(0);
+      expect(second.listenerCount()).toBe(1);
+
+      unmount();
+      expect(second.listenerCount()).toBe(0);
+    });
+
+    it("ignores notifications fired after unmount", () => {
+      const fake = makeFakeBackend();
+      const { result, unmount } = renderHook(() => useAgentChatRuntimeState(fake.backend));
+
+      unmount();
+      expect(() =>
+        act(() => {
+          fake.state.messages = [msg("late")];
+          fake.emit();
+        })
+      ).not.toThrow();
+      expect(result.current.messages).toEqual([]);
+    });
+  });
+});

@@ -1,0 +1,116 @@
+import { setInterfaceLocale } from "@/lib/i18n";
+import type CopilotPlugin from "@/main";
+import SettingsMainV2 from "@/settings/v2/SettingsMainV2";
+import { render, screen, waitFor } from "@testing-library/react";
+import React from "react";
+
+jest.mock("@/settings/v2/components/GeneralSettings", () => ({ GeneralSettings: () => null }));
+jest.mock("@/settings/v2/components/QuickActionsSettings", () => ({
+  QuickActionsSettings: () => null,
+}));
+jest.mock("@/settings/v2/components/DesktopOnlySettingsPanel", () => ({
+  DesktopOnlySettingsPanel: () => null,
+}));
+const mockSkillManagerRefresh = jest.fn().mockResolvedValue(undefined);
+jest.mock("@/agentMode", () => ({
+  SkillsSettings: () => null,
+}));
+jest.mock("@/modelManagement", () => ({
+  ModelManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+jest.mock("@/settings/model", () => ({ resetSettings: jest.fn() }));
+let mockSkillLoadErrorCount = 0;
+jest.mock("@/settings/skillLoadErrorState", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hook; the name must match the export
+  useSkillLoadErrorCount: () => mockSkillLoadErrorCount,
+}));
+jest.mock("@/utils/desktopRuntime", () => ({ isDesktopRuntime: () => true }));
+
+const plugin = {
+  app: {},
+  manifest: { version: "1.2.3" },
+  skills: { refresh: mockSkillManagerRefresh },
+} as unknown as CopilotPlugin;
+
+describe("SettingsMainV2", () => {
+  describe("SettingsMainV2()", () => {
+    afterEach(() => setInterfaceLocale("en"));
+
+    it("translates all settings tabs after the module has already loaded", () => {
+      setInterfaceLocale("zh-CN");
+      render(<SettingsMainV2 plugin={plugin} initialTab="quickActions" />);
+      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+        "通用",
+        "快捷操作",
+        "代理",
+        "插件",
+        "技能",
+        "命令",
+        "钩子",
+        "MCP",
+        "子Agent",
+      ]);
+      expect(screen.getByRole("tab", { name: "快捷操作" }).getAttribute("aria-selected")).toBe(
+        "true"
+      );
+    });
+
+    beforeEach(() => {
+      mockSkillLoadErrorCount = 0;
+      mockSkillManagerRefresh.mockClear();
+    });
+
+    it("displays text without icons in every settings tab", () => {
+      render(<SettingsMainV2 plugin={plugin} initialTab="quickActions" />);
+      for (const tab of screen.getAllByRole("tab")) {
+        expect(tab.querySelector("svg")).toBeNull();
+      }
+    });
+
+    it("keeps version information out of the settings header", () => {
+      render(<SettingsMainV2 plugin={plugin} />);
+      expect(screen.queryByText("v1.2.3")).toBeNull();
+    });
+
+    it("lists the tabs in the agreed order", () => {
+      render(<SettingsMainV2 plugin={plugin} />);
+
+      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+        "Common",
+        "Quick actions",
+        "Agents",
+        "Plugins",
+        "Skills",
+        "Commands",
+        "Hooks",
+        "MCP",
+        "Subagents",
+      ]);
+    });
+
+    it("marks the Skills tab while a skill failed to load for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", () => {
+      mockSkillLoadErrorCount = 1;
+
+      render(<SettingsMainV2 plugin={plugin} />);
+
+      expect(
+        screen.getByRole("tab", { name: "Skills: Some skills failed to load" })
+      ).not.toBeNull();
+      expect(screen.getByTitle("Some skills failed to load")).not.toBeNull();
+    });
+
+    it("refreshes hidden Agent repairs when Settings reopens for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+      render(<SettingsMainV2 plugin={plugin} />);
+
+      await waitFor(() => expect(mockSkillManagerRefresh).toHaveBeenCalledTimes(1));
+    });
+
+    it("opens on a requested tab (https://github.com/Brevilabs/obsidian-copilot-private/issues/280)", () => {
+      render(<SettingsMainV2 plugin={plugin} initialTab="quickActions" />);
+
+      expect(screen.getByRole("tab", { name: "Quick actions" }).getAttribute("aria-selected")).toBe(
+        "true"
+      );
+    });
+  });
+});

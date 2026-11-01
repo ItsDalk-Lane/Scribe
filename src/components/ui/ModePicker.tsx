@@ -1,0 +1,99 @@
+import { t } from "@/lib/i18n";
+import React from "react";
+import { Check, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { CopilotMode } from "@/agentMode";
+import { cn } from "@/lib/utils";
+
+export interface ModePickerOverride {
+  options: { label: string; value: CopilotMode }[];
+  value: CopilotMode | null;
+  onChange: (value: CopilotMode) => void;
+  disabled?: boolean;
+}
+
+interface ModePickerProps {
+  override: ModePickerOverride;
+  className?: string;
+}
+
+const MODE_DISPLAY: Record<CopilotMode, { label: string; description: string }> = {
+  auto: {
+    label: "Auto",
+    description: "Uses the agent's Auto permissions for tools and edits.",
+  },
+  plan: {
+    label: "Plan",
+    description: "Drafts a plan and waits for your approval before editing.",
+  },
+  default: {
+    label: "Safe",
+    description: "Allows edits under the agent's approval rules.",
+  },
+};
+
+function getModeLabel(value: CopilotMode): string {
+  return t(MODE_DISPLAY[value]?.label ?? value);
+}
+
+export function ModePicker({ override, className }: ModePickerProps) {
+  const { options, value, onChange, disabled } = override;
+  const triggerLabel = value ? getModeLabel(value) : t("Mode");
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost2"
+          size="sm"
+          disabled={disabled}
+          className={cn(
+            "tw-shrink-0 tw-text-muted",
+            value === "plan" &&
+              "tw-text-blue/70 hover:tw-text-blue/100 focus-visible:tw-text-blue/100",
+            value === "auto" &&
+              "tw-text-red/70 hover:tw-text-red/100 focus-visible:tw-text-red/100",
+            className
+          )}
+          title={t("Mode")}
+        >
+          <span className="tw-truncate">{triggerLabel}</span>
+          {!disabled && <ChevronDown className="tw-mt-0.5 tw-size-4 tw-shrink-0" />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="tw-w-[320px]">
+        {options.map((opt) => {
+          const display = MODE_DISPLAY[opt.value];
+          const isActive = value === opt.value;
+          return (
+            <DropdownMenuItem
+              key={opt.value}
+              onSelect={() => onChange(opt.value)}
+              className="tw-items-start tw-gap-2 tw-py-2"
+            >
+              <div className="tw-mt-0.5 tw-w-3 tw-shrink-0">
+                {isActive && <Check className="tw-size-3 tw-text-muted" />}
+              </div>
+              <div className="tw-flex tw-flex-col tw-gap-0.5">
+                <span className="tw-text-sm tw-font-medium tw-text-normal">
+                  {display ? t(display.label) : opt.label}
+                </span>
+                {display?.description && (
+                  <span className="tw-text-xs tw-leading-snug tw-text-muted">
+                    {t(display.description)}
+                  </span>
+                )}
+              </div>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

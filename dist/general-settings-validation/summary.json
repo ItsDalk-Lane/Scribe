@@ -1,0 +1,26 @@
+{
+  "version": "4.0.17",
+  "testSuites": 481,
+  "testsPassed": 6600,
+  "nativePagesVerified": ["通用", "模型", "代理", "插件", "技能", "命令", "钩子", "MCP", "子Agent"],
+  "nativeGeneralSectionsVerified": [
+    "快捷工具",
+    "常规",
+    "自定义说明",
+    "聊天保存",
+    "其他",
+    "调试与支持"
+  ],
+  "configurationIdentical": true,
+  "originalVaultFiles": 171,
+  "changedFiles": [".obsidian/plugins/scribe/main.js"],
+  "localChatFilesIdentical": 5,
+  "galleryThemes": ["light", "dark"],
+  "galleryWidths": [300, 600],
+  "galleryStructuralProblems": 0,
+  "sharedTabContrastWarningsRetained": true,
+  "packageMatchesInstallation": true,
+  "backup": "/Users/study_superior/.codex/backups/scribe-general-settings-install/20261101-080251",
+  "temporaryVaultListEntryRemoved": true,
+  "systemThemeRestored": true
+}

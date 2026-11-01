@@ -1,0 +1,447 @@
+jest.mock("@/settings/model", () => ({
+  getSettings: () => ({ debug: false }),
+}));
+
+jest.mock("obsidian", () => ({
+  requestUrl: jest.fn(),
+  normalizePath: (p: string) => String(p).replace(/\/+/g, "/"),
+}));
+
+import { requestUrl, type RequestUrlParam, type RequestUrlResponse, type App } from "obsidian";
+
+import type { CatalogProvider } from "@/modelManagement/types/catalog";
+
+import { CatalogDownloadService } from "./CatalogDownloadService";
+import type { WireCatalog } from "./modelsDevWire";
+
+const mockedRequestUrl = requestUrl as unknown as jest.Mock<
+  Promise<RequestUrlResponse>,
+  [RequestUrlParam]
+>;
+
+const CACHE_DIR = ".scribe";
+const CACHE_PATH = `${CACHE_DIR}/model-catalog-cache.json`;
+
+const FIXTURE: WireCatalog = {
+  anthropic: {
+    id: "anthropic",
+    name: "Anthropic",
+    npm: "@ai-sdk/anthropic",
+    api: "https://api.anthropic.com/v1",
+    models: {
+      "claude-sonnet-4-5": {
+        id: "claude-sonnet-4-5",
+        name: "Claude Sonnet 4.5",
+        tool_call: true,
+        reasoning: true,
+        limit: { context: 200000, output: 64000 },
+      },
+    },
+  },
+  openai: {
+    id: "openai",
+    name: "OpenAI",
+    npm: "@ai-sdk/openai",
+    api: "https://api.openai.com/v1",
+    models: { "gpt-5": { id: "gpt-5", name: "GPT-5" } },
+  },
+  helicone: {
+    id: "helicone",
+    name: "Helicone",
+    npm: "@ai-sdk/openai-compatible",
+    api: "https://ai-gateway.helicone.ai/v1",
+    models: {},
+  },
+};
+
+type AdapterMock = {
+  read: jest.Mock<Promise<string>, [string]>;
+  write: jest.Mock<Promise<void>, [string, string]>;
+  exists: jest.Mock<Promise<boolean>, [string]>;
+  mkdir: jest.Mock<Promise<void>, [string]>;
+};
+
+function buildFakeApp(adapter: AdapterMock): App {
+  return { vault: { adapter } } as unknown as App;
+}
+
+function buildAdapter(initial?: { fetchedAt: number; data: WireCatalog }): AdapterMock {
+  let stored = initial ? JSON.stringify(initial) : null;
+  let dirExists = false;
+  const exists: AdapterMock["exists"] = jest.fn((path: string) =>
+    Promise.resolve(path === CACHE_DIR ? dirExists : stored !== null)
+  );
+  const read: AdapterMock["read"] = jest.fn((_path: string) => {
+    if (stored === null) throw new Error("not found");
+    return Promise.resolve(stored);
+  });
+  const write: AdapterMock["write"] = jest.fn((_path: string, contents: string) => {
+    stored = contents;
+    return Promise.resolve();
+  });
+  const mkdir: AdapterMock["mkdir"] = jest.fn((_path: string) => {
+    dirExists = true;
+    return Promise.resolve();
+  });
+  return { exists, read, write, mkdir };
+}
+
+function okResponse(json: unknown): RequestUrlResponse {
+  return {
+    status: 200,
+    text: typeof json === "string" ? json : JSON.stringify(json),
+    json,
+    arrayBuffer: new ArrayBuffer(0),
+    headers: {},
+  };
+}
+
+function freezeNow(timestamp: number): jest.SpyInstance<number, []> {
+  return jest.spyOn(Date, "now").mockReturnValue(timestamp);
+}
+
+describe("CatalogDownloadService", () => {
+  const FIXED_NOW = 1_700_000_000_000;
+
+  let nowSpy: jest.SpyInstance<number, []> | null = null;
+
+  beforeEach(() => {
+    mockedRequestUrl.mockReset();
+  });
+
+  afterEach(() => {
+    nowSpy?.mockRestore();
+    nowSpy = null;
+    jest.useRealTimers();
+  });
+
+  describe("ensureLoaded()", () => {
+    it("serves a disk cache younger than 24h without fetching", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter({ fetchedAt: FIXED_NOW - 60 * 60 * 1000, data: FIXTURE });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+
+      expect(mockedRequestUrl).not.toHaveBeenCalled();
+      expect(adapter.read).toHaveBeenCalledWith(CACHE_PATH);
+      expect(svc.getAllProviders().map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+      expect(svc.getProvider("anthropic")?.providerType).toBe("anthropic");
+    });
+
+    it("fetches and rewrites the cache when the disk cache is older than 24h", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const STALE_BY = 25 * 60 * 60 * 1000;
+      const adapter = buildAdapter({
+        fetchedAt: FIXED_NOW - STALE_BY,
+        data: { foo: { id: "foo" } },
+      });
+      mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(1);
+      expect(mockedRequestUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ url: "https://models.dev/api.json", method: "GET" })
+      );
+      expect(adapter.write).toHaveBeenCalledTimes(1);
+      const written = JSON.parse(adapter.write.mock.calls[0][1]) as {
+        fetchedAt: number;
+        data: WireCatalog;
+      };
+      expect(written.fetchedAt).toBe(FIXED_NOW);
+      expect(Object.keys(written.data)).toEqual(["anthropic", "openai", "helicone"]);
+      expect(svc.getAllProviders().map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+    });
+
+    it("keeps serving a stale disk cache when the refresh fails", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const STALE_BY = 48 * 60 * 60 * 1000;
+      const adapter = buildAdapter({ fetchedAt: FIXED_NOW - STALE_BY, data: FIXTURE });
+      mockedRequestUrl.mockResolvedValue({ ...okResponse(null), status: 500, json: undefined });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(1);
+      expect(adapter.write).not.toHaveBeenCalled();
+      expect(svc.getAllProviders().map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+    });
+
+    it("fetches and caches the catalog when no disk cache exists", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(1);
+      expect(adapter.write).toHaveBeenCalledTimes(1);
+      expect(svc.getAllProviders().length).toBe(3);
+    });
+
+    it("stays empty when no disk cache exists and the fetch fails", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue({ ...okResponse(null), status: 500, json: undefined });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+
+      expect(svc.getAllProviders()).toEqual([]);
+      expect(adapter.write).not.toHaveBeenCalled();
+    });
+
+    it("stops retrying after 3 failed loads while manual refresh() still recovers", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue({ ...okResponse(null), status: 500, json: undefined });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(3);
+
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(3);
+
+      mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+      const result = await svc.refresh();
+      expect(result.ok).toBe(true);
+      expect(svc.getAllProviders().length).toBe(3);
+
+      await svc.ensureLoaded();
+      expect(svc.getAllProviders().length).toBe(3);
+    });
+
+    it("retries on the next call after an empty first load fails", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValueOnce({ ...okResponse(null), status: 500, json: undefined });
+      mockedRequestUrl.mockResolvedValueOnce(okResponse(FIXTURE));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+      expect(svc.getAllProviders()).toEqual([]);
+
+      await svc.ensureLoaded();
+      expect(svc.getAllProviders().length).toBe(3);
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it("reads the disk cache once for concurrent calls", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter({ fetchedAt: FIXED_NOW - 60 * 1000, data: FIXTURE });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await Promise.all([svc.ensureLoaded(), svc.ensureLoaded(), svc.ensureLoaded()]);
+
+      expect(adapter.read).toHaveBeenCalledTimes(1);
+      expect(mockedRequestUrl).not.toHaveBeenCalled();
+    });
+
+    it("does not count a fresh but empty disk cache toward the retry cap", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter({
+        fetchedAt: FIXED_NOW - 60 * 1000,
+        data: {},
+      });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      await svc.ensureLoaded();
+      expect(mockedRequestUrl).not.toHaveBeenCalled();
+      expect(svc.getAllProviders()).toEqual([]);
+
+      nowSpy.mockReturnValue(FIXED_NOW + 25 * 60 * 60 * 1000);
+      mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+      await svc.ensureLoaded();
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(1);
+      expect(svc.getAllProviders().length).toBe(3);
+    });
+
+    it("keeps a just-refreshed snapshot when a slow disk read finishes afterwards", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const OLDER_DISK: WireCatalog = {
+        stale: {
+          id: "stale",
+          name: "Stale Provider",
+          npm: "@ai-sdk/openai-compatible",
+          api: "https://stale.example/v1",
+          models: {},
+        },
+      };
+      const adapter = buildAdapter({
+        fetchedAt: FIXED_NOW - 60 * 60 * 1000,
+        data: OLDER_DISK,
+      });
+      let resolveRead: (() => void) | null = null;
+      const stored = JSON.stringify({ fetchedAt: FIXED_NOW - 60 * 60 * 1000, data: OLDER_DISK });
+      adapter.read.mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveRead = () => resolve(stored);
+          })
+      );
+      mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const ensurePending = svc.ensureLoaded();
+      await svc.refresh();
+      expect(svc.getAllProviders().map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+
+      resolveRead!();
+      await ensurePending;
+
+      expect(svc.getAllProviders().map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+    });
+  });
+
+  describe("refresh()", () => {
+    it("issues a single request for concurrent calls", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      let resolveFetch: ((r: RequestUrlResponse) => void) | null = null;
+      mockedRequestUrl.mockImplementation(
+        () =>
+          new Promise<RequestUrlResponse>((resolve) => {
+            resolveFetch = resolve;
+          })
+      );
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const pending = Promise.all([svc.refresh(), svc.refresh(), svc.refresh()]);
+      expect(mockedRequestUrl).toHaveBeenCalledTimes(1);
+
+      resolveFetch!(okResponse(FIXTURE));
+      const results = await pending;
+
+      expect(results.every((r) => r.ok)).toBe(true);
+      expect(adapter.write).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports failure on HTTP 500 and leaves the catalog empty", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue({ ...okResponse(null), status: 500 });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const result = await svc.refresh();
+
+      expect(result.ok).toBe(false);
+      expect(adapter.write).not.toHaveBeenCalled();
+      expect(svc.getAllProviders()).toEqual([]);
+    });
+
+    it("reports failure and writes nothing for a non-object payload", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue(okResponse([1, 2, 3]));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const result = await svc.refresh();
+
+      expect(result.ok).toBe(false);
+      expect(adapter.write).not.toHaveBeenCalled();
+    });
+
+    it("reports failure when the payload is not valid JSON", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue({
+        status: 200,
+        text: "not json",
+        json: "not json",
+        arrayBuffer: new ArrayBuffer(0),
+        headers: {},
+      });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const result = await svc.refresh();
+
+      expect(result.ok).toBe(false);
+    });
+
+    it("reports a timeout after 5s when the request hangs", async () => {
+      jest.useFakeTimers();
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockReturnValue(new Promise(() => {}));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const pending = svc.refresh();
+      jest.advanceTimersByTime(5000);
+      const result = await pending;
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/timed out/i);
+      expect(adapter.write).not.toHaveBeenCalled();
+    });
+
+    it("uses requestUrl and never the global fetch", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const fetchMock = jest.fn(() => {
+        throw new Error("global fetch should not be called");
+      });
+      const target = window as unknown as { fetch?: unknown };
+      const original = target.fetch;
+      target.fetch = fetchMock;
+      try {
+        const adapter = buildAdapter();
+        mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+        const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+        await svc.ensureLoaded();
+
+        expect(fetchMock).not.toHaveBeenCalled();
+      } finally {
+        target.fetch = original;
+      }
+    });
+  });
+
+  describe("onChange()", () => {
+    it("notifies subscribed listeners after a successful refresh but not unsubscribed ones", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter();
+      mockedRequestUrl.mockResolvedValue(okResponse(FIXTURE));
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      const subscribed = jest.fn();
+      const unsubscribedAt = jest.fn();
+      const stop = svc.onChange(unsubscribedAt);
+      svc.onChange(subscribed);
+      stop();
+
+      await svc.refresh();
+
+      expect(subscribed).toHaveBeenCalledTimes(1);
+      expect(unsubscribedAt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getAllProviders()", () => {
+    it("returns a copy that callers cannot use to corrupt the catalog", async () => {
+      nowSpy = freezeNow(FIXED_NOW);
+      const adapter = buildAdapter({ fetchedAt: FIXED_NOW - 60 * 1000, data: FIXTURE });
+      const svc = new CatalogDownloadService({ app: buildFakeApp(adapter) });
+
+      await svc.ensureLoaded();
+
+      const snapshot = svc.getAllProviders() as CatalogProvider[];
+      expect(snapshot.map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+
+      snapshot.reverse();
+      snapshot.pop();
+
+      expect(svc.getAllProviders().map((p) => p.id)).toEqual(["anthropic", "helicone", "openai"]);
+    });
+  });
+});

@@ -1,0 +1,93 @@
+import React from "react";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $getSelection, $isRangeSelection, PASTE_COMMAND, COMMAND_PRIORITY_HIGH } from "lexical";
+import { useApp } from "@/context";
+import {
+  parseTextForPills,
+  createNodesFromSegments,
+} from "@/components/chat-components/utils/lexicalTextUtils";
+
+interface PastePluginProps {
+  onImagePaste?: (files: File[]) => void;
+}
+
+export function PastePlugin({ onImagePaste }: PastePluginProps): null {
+  const app = useApp();
+  const [editor] = useLexicalComposerContext();
+
+  React.useEffect(() => {
+    return editor.registerCommand(
+      PASTE_COMMAND,
+      (event: ClipboardEvent) => {
+        const clipboardData = event.clipboardData;
+        if (!clipboardData) {
+          return false;
+        }
+
+        if (onImagePaste) {
+          const items = clipboardData.items;
+          if (items) {
+            const imageItems = Array.from(items).filter(
+              (item) => item.type.indexOf("image") !== -1
+            );
+
+            if (imageItems.length > 0) {
+              event.preventDefault();
+
+              const files = imageItems.map((item) => item.getAsFile());
+              const validFiles = files.filter((file): file is File => file !== null);
+              if (validFiles.length > 0) {
+                onImagePaste(validFiles);
+              }
+
+              return true;
+            }
+          }
+        }
+
+        const plainText = clipboardData.getData("text/plain");
+        const hasNoteLinks = plainText.includes("[[");
+        const hasFolders = plainText.includes("{") && plainText.includes("}");
+
+        if (!plainText || (!hasNoteLinks && !hasFolders)) {
+          return false;
+        }
+
+        const segments = parseTextForPills(app, plainText, {
+          includeNotes: true,
+          includeCustomTemplates: true,
+        });
+
+        const hasValidPills = segments.some(
+          (segment) =>
+            segment.type === "note-pill" ||
+            segment.type === "active-note-pill" ||
+            segment.type === "folder-pill"
+        );
+
+        if (!hasValidPills) {
+          return false;
+        }
+
+        event.preventDefault();
+
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) {
+            return;
+          }
+
+          const nodes = createNodesFromSegments(segments);
+          if (nodes.length > 0) {
+            selection.insertNodes(nodes);
+          }
+        });
+
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH
+    );
+  }, [editor, onImagePaste, app]);
+
+  return null;
+}

@@ -1,0 +1,137 @@
+import { agentOriginEnabledModelEntries } from "./agentEnabledModels";
+import type { CopilotSettings } from "@/settings/model";
+import type { ConfiguredModel } from "@/modelManagement";
+import { ModelCapability } from "@/constants";
+
+const bareDecode = (wireId: string): { selection: { baseModelId: string } } => ({
+  selection: { baseModelId: wireId },
+});
+
+const KNOWN_EFFORTS = new Set(["minimal", "low", "medium", "high", "xhigh"]);
+const suffixDecode = (wireId: string): { selection: { baseModelId: string } } => {
+  const segments = wireId.split("/");
+  if (segments.length === 2 && KNOWN_EFFORTS.has(segments[1])) {
+    return { selection: { baseModelId: segments[0] } };
+  }
+  return { selection: { baseModelId: wireId } };
+};
+
+function model(configuredModelId: string, infoId: string): ConfiguredModel {
+  return {
+    configuredModelId,
+    providerId: "p1",
+    info: { id: infoId, displayName: infoId },
+    configuredAt: 0,
+  };
+}
+
+function settingsWith(
+  agentType: "claude",
+  enabledModels: string[],
+  configuredModels: ConfiguredModel[]
+): CopilotSettings {
+  return {
+    backends: { [agentType]: { enabledModels } },
+    configuredModels,
+    providers: { p1: { origin: { kind: "agent", agentType } } },
+  } as unknown as CopilotSettings;
+}
+
+describe("agentEnabledModels", () => {
+  describe("agentOriginEnabledModelEntries()", () => {
+    it("keeps complete-list order when an earlier model was re-enabled later", () => {
+      const settings = settingsWith(
+        "claude",
+        ["second", "first"],
+        [model("first", "sonnet"), model("second", "opus")]
+      );
+      expect(
+        agentOriginEnabledModelEntries(settings, "claude", bareDecode).map(
+          (entry) => entry.baseModelId
+        )
+      ).toEqual(["sonnet", "opus"]);
+    });
+
+    it("returns the shared frozen empty array when nothing is enabled", () => {
+      const a = agentOriginEnabledModelEntries(
+        settingsWith("claude", [], []),
+        "claude",
+        bareDecode
+      );
+      const b = agentOriginEnabledModelEntries(
+        settingsWith("claude", [], []),
+        "claude",
+        suffixDecode
+      );
+      expect(a).toHaveLength(0);
+      expect(a).toBe(b);
+    });
+
+    it("claude: maps enabled configured-model ids to their bare info.id baseModelId, all ok", () => {
+      const settings = settingsWith(
+        "claude",
+        ["cm1", "cm2"],
+        [model("cm1", "claude-sonnet-4-5"), model("cm2", "claude-opus-4-1")]
+      );
+      const entries = agentOriginEnabledModelEntries(settings, "claude", bareDecode);
+      expect(entries.map((e) => e.baseModelId).sort()).toEqual([
+        "claude-opus-4-1",
+        "claude-sonnet-4-5",
+      ]);
+      expect(entries.every((e) => e.credentialState === "ok")).toBe(true);
+      expect(entries[0].name).toBe("claude-sonnet-4-5");
+    });
+
+    it("decodes the model identifier before listing enabled models", () => {
+      const settings = settingsWith("claude", ["cm1"], [model("cm1", "gpt-5/high")]);
+      const entries = agentOriginEnabledModelEntries(settings, "claude", suffixDecode);
+      expect(entries.map((e) => e.baseModelId)).toEqual(["gpt-5"]);
+    });
+
+    it("skips enabled ids with no matching configured-model row", () => {
+      const settings = settingsWith(
+        "claude",
+        ["cm1", "ghost"],
+        [model("cm1", "claude-sonnet-4-5")]
+      );
+      const entries = agentOriginEnabledModelEntries(settings, "claude", bareDecode);
+      expect(entries.map((e) => e.baseModelId)).toEqual(["claude-sonnet-4-5"]);
+    });
+
+    it("derives capabilities from info.modalities, and leaves them undefined when unknown", () => {
+      const visionModel: ConfiguredModel = {
+        configuredModelId: "cm1",
+        providerId: "p1",
+        info: {
+          id: "claude-sonnet-4-5",
+          displayName: "claude-sonnet-4-5",
+          modalities: { input: ["text", "image"] },
+        },
+        configuredAt: 0,
+      };
+      const settings = settingsWith(
+        "claude",
+        ["cm1", "cm2"],
+        [visionModel, model("cm2", "legacy")]
+      );
+      const entries = agentOriginEnabledModelEntries(settings, "claude", bareDecode);
+      const vision = entries.find((e) => e.baseModelId === "claude-sonnet-4-5");
+      const unknown = entries.find((e) => e.baseModelId === "legacy");
+      expect(vision?.capabilities).toContain(ModelCapability.VISION);
+      expect(unknown?.capabilities).toBeUndefined();
+    });
+
+    it("only reads the requested agentType's enabledModels", () => {
+      const settings = {
+        backends: {
+          claude: { enabledModels: ["cm1"] },
+          chat: { enabledModels: ["cm2"] },
+        },
+        configuredModels: [model("cm1", "claude-sonnet-4-5"), model("cm2", "gpt-5")],
+        providers: { p1: { origin: { kind: "agent", agentType: "claude" } } },
+      } as unknown as CopilotSettings;
+      const claude = agentOriginEnabledModelEntries(settings, "claude", bareDecode);
+      expect(claude.map((e) => e.baseModelId)).toEqual(["claude-sonnet-4-5"]);
+    });
+  });
+});

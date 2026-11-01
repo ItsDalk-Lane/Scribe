@@ -1,0 +1,251 @@
+{
+  "status": "done",
+  "dark": [
+    {
+      "theme": "obsidian-dark",
+      "width": 300,
+      "findings": [
+        {
+          "story": "Settings/General settings tabs/General",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Instructions",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Others",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/QuickTools",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Saving",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Support",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/InlineVariant",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/PageVariant",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/WarningDot",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        }
+      ]
+    },
+    {
+      "theme": "obsidian-dark",
+      "width": 600,
+      "findings": [
+        {
+          "story": "Settings/General settings tabs/General",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Instructions",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Others",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/QuickTools",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Saving",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Support",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/InlineVariant",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/PageVariant",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/WarningDot",
+          "check": "contrast",
+          "detail": "4.3:1, needs 4.5:1 on span"
+        }
+      ]
+    }
+  ],
+  "light": [
+    {
+      "theme": "obsidian-light",
+      "width": 300,
+      "findings": [
+        {
+          "story": "Settings/General settings tabs/General",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Instructions",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Others",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/QuickTools",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Saving",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Support",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/InlineVariant",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/PageVariant",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/WarningDot",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        }
+      ]
+    },
+    {
+      "theme": "obsidian-light",
+      "width": 600,
+      "findings": [
+        {
+          "story": "Settings/General settings tabs/General",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Instructions",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Others",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/QuickTools",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Saving",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "Settings/General settings tabs/Support",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/InlineVariant",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/LongLabels",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/PageVariant",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        },
+        {
+          "story": "UI/Setting Tabs/WarningDot",
+          "check": "contrast",
+          "detail": "3.4:1, needs 4.5:1 on span"
+        }
+      ]
+    }
+  ]
+}

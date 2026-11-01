@@ -1,0 +1,757 @@
+import * as Obsidian from "obsidian";
+import { TFile } from "obsidian";
+import {
+  extractTemplateNoteFiles,
+  formatDateTime,
+  getNotesFromPath,
+  getNotesFromTags,
+  getPropertyValuesFromNote,
+  noteHasProperty,
+  getUtf8ByteLength,
+  insertAtCursor,
+  insertIntoEditor,
+  processVariableNameForNotePath,
+  removeThinkTags,
+  stripFrontmatter,
+  truncateToByteLimit,
+  withTimeout,
+  safeFetchNoThrow,
+} from "./utils";
+import { rememberChatInsertionTarget } from "@/editor/chatInsertionTarget";
+import { TimeoutError } from "./error";
+
+jest.mock("obsidian", () => {
+  class MockTFile {
+    path: string;
+    basename: string;
+    extension: string;
+
+    constructor(path: string = "") {
+      this.path = path;
+      const parts = path.split("/");
+      const filename = parts[parts.length - 1];
+      this.basename = filename.replace(/\.[^/.]+$/, "");
+      this.extension = filename.split(".").pop() || "";
+    }
+  }
+
+  class MockVault {
+    private files: MockTFile[];
+
+    constructor() {
+      this.files = [
+        new MockTFile("test/test2/note1.md"),
+        new MockTFile("test/note2.md"),
+        new MockTFile("test2/note3.md"),
+        new MockTFile("note4.md"),
+        new MockTFile("Note1.md"),
+        new MockTFile("Note2.md"),
+        new MockTFile("Note 1.md"),
+        new MockTFile("Another Note.md"),
+        new MockTFile("Note-1.md"),
+        new MockTFile("Note_2.md"),
+        new MockTFile("Note#3.md"),
+      ];
+    }
+
+    getMarkdownFiles() {
+      return this.files;
+    }
+
+    getAbstractFileByPath(path: string) {
+      const file = this.files.find((f) => f.path === path + (path.endsWith(".md") ? "" : ".md"));
+      return file || null;
+    }
+  }
+
+  return {
+    TFile: MockTFile,
+    Vault: MockVault,
+    MarkdownView: class MockMarkdownView {},
+    Notice: class MockNotice {},
+    requestUrl: jest.fn(),
+  };
+});
+
+const mockMetadataCache = {
+  getFileCache: jest.fn(),
+};
+
+const mockFileMetadata = {
+  "test/test2/note1.md": {
+    tags: [{ tag: "#inlineTag1" }, { tag: "#inlineTag2" }],
+    frontmatter: { tags: ["tag1", "tag2", "tag4"] },
+  },
+  "test/note2.md": {
+    tags: [{ tag: "#inlineTag3" }, { tag: "#inlineTag4" }],
+    frontmatter: { tags: ["tag2", "tag3"] },
+  },
+  "test2/note3.md": {
+    tags: [{ tag: "#inlineTag5" }],
+    frontmatter: { tags: ["tag5"] },
+  },
+  "note4.md": {
+    tags: [{ tag: "#inlineTag1" }, { tag: "#inlineTag6" }],
+    frontmatter: { tags: ["tag1", "tag4"] },
+  },
+};
+
+const mockApp = {
+  vault: new Obsidian.Vault(),
+  metadataCache: mockMetadataCache,
+} as unknown as typeof window.app;
+
+describe("utils", () => {
+  describe("safeFetchNoThrow()", () => {
+    it.each([
+      [undefined, "application/json", '{"messages":[]}'],
+      [
+        "application/x-www-form-urlencoded",
+        "application/x-www-form-urlencoded",
+        "grant_type=apikey&apikey=fixture",
+      ],
+    ])(
+      "preserves the request content type %s for provider authentication",
+      async (contentType, expected, body) => {
+        const requestUrl = Obsidian.requestUrl as jest.MockedFunction<typeof Obsidian.requestUrl>;
+        requestUrl.mockResolvedValueOnce({
+          status: 200,
+          headers: {},
+          text: "{}",
+          json: {},
+          arrayBuffer: new ArrayBuffer(0),
+        });
+        await safeFetchNoThrow("https://auth.example/token", {
+          method: "POST",
+          headers: contentType ? { "Content-Type": contentType } : {},
+          body,
+        });
+        expect(requestUrl).toHaveBeenLastCalledWith(
+          expect.objectContaining({ contentType: expected, body })
+        );
+      }
+    );
+  });
+  describe("getNotesFromPath()", () => {
+    it("returns every markdown file for the root path", () => {
+      const files = getNotesFromPath(new Obsidian.Vault(), "/");
+      expect(files.map((f) => f.path)).toEqual([
+        "test/test2/note1.md",
+        "test/note2.md",
+        "test2/note3.md",
+        "note4.md",
+        "Note1.md",
+        "Note2.md",
+        "Note 1.md",
+        "Another Note.md",
+        "Note-1.md",
+        "Note_2.md",
+        "Note#3.md",
+      ]);
+    });
+
+    it("returns files under a folder at any depth", () => {
+      const files = getNotesFromPath(new Obsidian.Vault(), "test2");
+      expect(files.map((f) => f.path)).toEqual(["test/test2/note1.md", "test2/note3.md"]);
+    });
+
+    it("ignores a leading slash on the folder path", () => {
+      const files = getNotesFromPath(new Obsidian.Vault(), "/test");
+      expect(files.map((f) => f.path)).toEqual(["test/test2/note1.md", "test/note2.md"]);
+    });
+
+    it("returns a single file when the path is a file name", () => {
+      const files = getNotesFromPath(new Obsidian.Vault(), "note4.md");
+      expect(files.map((f) => f.path)).toEqual(["note4.md"]);
+    });
+
+    it("returns only files from the specified subfolder path", () => {
+      const vault = new Obsidian.Vault();
+      vault.getMarkdownFiles = jest
+        .fn()
+        .mockReturnValue([
+          { path: "folder/subfolder 1/eng/1.md" },
+          { path: "folder/subfolder 2/eng/3.md" },
+          { path: "folder/subfolder 1/eng/2.md" },
+          { path: "folder/other/note.md" },
+        ]);
+
+      const files = getNotesFromPath(vault, "folder/subfolder 1/eng");
+      expect(files).toEqual([
+        { path: "folder/subfolder 1/eng/1.md" },
+        { path: "folder/subfolder 1/eng/2.md" },
+      ]);
+    });
+
+    it("returns no files for an empty path", () => {
+      expect(getNotesFromPath(new Obsidian.Vault(), "")).toEqual([]);
+    });
+  });
+
+  describe("processVariableNameForNotePath()", () => {
+    it.each([
+      ["[[test]]", "test.md"],
+      [" [[  test]]", "test.md"],
+      ["[[ test   ]] ", "test.md"],
+      [" [[ test note   ]] ", "test note.md"],
+      [" [[    test_note note   ]] ", "test_note note.md"],
+    ])("turns the wikilink %j into the file name %j", (input, expected) => {
+      expect(processVariableNameForNotePath(input)).toBe(expected);
+    });
+
+    it.each([
+      ["/testfolder", "/testfolder"],
+      ["testfolder", "testfolder"],
+      ["testfolder/", "testfolder/"],
+      ["  testfolder ", "testfolder"],
+    ])("returns the folder path %j as %j", (input, expected) => {
+      expect(processVariableNameForNotePath(input)).toBe(expected);
+    });
+  });
+
+  describe("getNotesFromTags()", () => {
+    beforeEach(() => {
+      mockMetadataCache.getFileCache.mockImplementation((file: TFile) => {
+        return mockFileMetadata[file.path as keyof typeof mockFileMetadata];
+      });
+    });
+
+    it("returns the files whose frontmatter has the tag", () => {
+      const result = getNotesFromTags(mockApp, ["#tag1"]);
+
+      expect(result.map((file) => file.path)).toEqual(["test/test2/note1.md", "note4.md"]);
+    });
+
+    it("returns files matching any of several tags", () => {
+      const result = getNotesFromTags(mockApp, ["#tag2", "#tag4"]);
+
+      expect(result.map((file) => file.path)).toEqual([
+        "test/test2/note1.md",
+        "test/note2.md",
+        "note4.md",
+      ]);
+    });
+
+    it("limits the search to the provided note files", () => {
+      type TFileCtor = new (path: string) => TFile;
+      const noteFiles: TFile[] = [
+        new (TFile as unknown as TFileCtor)("test/test2/note1.md"),
+        new (TFile as unknown as TFileCtor)("test/note2.md"),
+      ];
+
+      const result = getNotesFromTags(mockApp, ["#tag1"], noteFiles);
+
+      expect(result.map((file) => file.path)).toEqual(["test/test2/note1.md"]);
+    });
+
+    it("returns no files for a tag no note has", () => {
+      expect(getNotesFromTags(mockApp, ["#nonexistentTag"])).toEqual([]);
+    });
+
+    it("ignores inline tags and only considers frontmatter tags", () => {
+      expect(getNotesFromTags(mockApp, ["#inlineTag1"])).toEqual([]);
+    });
+  });
+
+  describe("getPropertyValuesFromNote()", () => {
+    const file = new TFile();
+    const withFrontmatter = (frontmatter: Record<string, unknown>) =>
+      mockMetadataCache.getFileCache.mockReturnValue({ frontmatter });
+
+    beforeEach(() => {
+      mockMetadataCache.getFileCache.mockReset();
+    });
+
+    it("returns each element of a list property as a string", () => {
+      withFrontmatter({ Topics: ["Physics", "Math"] });
+      expect(getPropertyValuesFromNote(mockApp, file, "Topics")).toEqual(["Physics", "Math"]);
+    });
+
+    it("wraps a scalar property in a single-element array", () => {
+      withFrontmatter({ Subject: "Einstein" });
+      expect(getPropertyValuesFromNote(mockApp, file, "Subject")).toEqual(["Einstein"]);
+    });
+
+    it("stringifies non-string scalar values", () => {
+      withFrontmatter({ Year: 2024 });
+      expect(getPropertyValuesFromNote(mockApp, file, "Year")).toEqual(["2024"]);
+    });
+
+    it("returns an empty array when the key is absent", () => {
+      withFrontmatter({ Topics: ["Physics"] });
+      expect(getPropertyValuesFromNote(mockApp, file, "Subject")).toEqual([]);
+    });
+
+    it("returns an empty array when the note has no frontmatter", () => {
+      mockMetadataCache.getFileCache.mockReturnValue({});
+      expect(getPropertyValuesFromNote(mockApp, file, "Topics")).toEqual([]);
+    });
+
+    it("drops non-scalar values instead of collapsing them to [object Object]", () => {
+      withFrontmatter({ meta: { owner: "Alice" } });
+      expect(getPropertyValuesFromNote(mockApp, file, "meta")).toEqual([]);
+    });
+
+    it("keeps only the scalar elements of a mixed list", () => {
+      withFrontmatter({ Topics: ["Physics", { nested: true }, 2024] });
+      expect(getPropertyValuesFromNote(mockApp, file, "Topics")).toEqual(["Physics", "2024"]);
+    });
+
+    it("returns an empty array for a key inherited from Object.prototype", () => {
+      withFrontmatter({ Topics: "Physics" });
+      expect(getPropertyValuesFromNote(mockApp, file, "constructor")).toEqual([]);
+    });
+
+    it.each([
+      ["null", null],
+      ["an empty list", []],
+      ["a list of only non-scalar values", [{ nested: true }, { another: "object" }]],
+    ])("returns the shared empty array when the value is %s", (_label, value) => {
+      withFrontmatter({ Topics: value });
+      const first = getPropertyValuesFromNote(mockApp, file, "Topics");
+      const second = getPropertyValuesFromNote(mockApp, file, "Topics");
+      expect(first).toEqual([]);
+      expect(first).toBe(second);
+    });
+  });
+
+  describe("noteHasProperty()", () => {
+    const file = new TFile();
+
+    beforeEach(() => {
+      mockMetadataCache.getFileCache.mockReset();
+    });
+
+    it("returns true when the key is present with a value", () => {
+      mockMetadataCache.getFileCache.mockReturnValue({ frontmatter: { Topics: "Physics" } });
+      expect(noteHasProperty(mockApp, file, "Topics")).toBe(true);
+    });
+
+    it("returns true when the key is present but its value is empty or null", () => {
+      mockMetadataCache.getFileCache.mockReturnValue({ frontmatter: { Topics: null } });
+      expect(noteHasProperty(mockApp, file, "Topics")).toBe(true);
+
+      mockMetadataCache.getFileCache.mockReturnValue({ frontmatter: { Topics: [] } });
+      expect(noteHasProperty(mockApp, file, "Topics")).toBe(true);
+    });
+
+    it("returns false when the key is absent", () => {
+      mockMetadataCache.getFileCache.mockReturnValue({ frontmatter: { Subject: "x" } });
+      expect(noteHasProperty(mockApp, file, "Topics")).toBe(false);
+    });
+
+    it("returns false when the note has no frontmatter", () => {
+      mockMetadataCache.getFileCache.mockReturnValue({});
+      expect(noteHasProperty(mockApp, file, "Topics")).toBe(false);
+    });
+
+    it("returns false for a key inherited from Object.prototype", () => {
+      mockMetadataCache.getFileCache.mockReturnValue({ frontmatter: { Topics: "Physics" } });
+      expect(noteHasProperty(mockApp, file, "constructor")).toBe(false);
+      expect(noteHasProperty(mockApp, file, "toString")).toBe(false);
+    });
+  });
+
+  describe("extractTemplateNoteFiles()", () => {
+    const extractPaths = (query: string): string[] =>
+      extractTemplateNoteFiles(query, new Obsidian.Vault()).map((f) => f.path);
+
+    it("extracts the notes referenced by wikilinks wrapped in curly braces in order", () => {
+      expect(
+        extractPaths("Please refer to {[[Note1]]} and {[[Note2]]} for more information.")
+      ).toEqual(["Note1.md", "Note2.md"]);
+    });
+
+    it("resolves note titles containing spaces and special characters", () => {
+      expect(
+        extractPaths("Check out {[[Note 1]]}, {[[Another Note]]}, {[[Note-1]]}, and {[[Note#3]]}.")
+      ).toEqual(["Note 1.md", "Another Note.md", "Note-1.md", "Note#3.md"]);
+    });
+
+    it("returns each note once when it is linked repeatedly", () => {
+      expect(extractPaths("Refer to {[[Note1]]}, {[[Note2]]}, and {[[Note1]]} again.")).toEqual([
+        "Note1.md",
+        "Note2.md",
+      ]);
+    });
+
+    it("ignores bare wikilinks that have no curly braces", () => {
+      expect(extractPaths("Extract {[[Note1]]} but not [[Note2]].")).toEqual(["Note1.md"]);
+      expect(extractPaths("Only [[Note1]] and [[Note2]] exist here.")).toEqual([]);
+    });
+
+    it("returns no notes when the text has no template patterns", () => {
+      expect(extractPaths("There are no template note patterns in this string.")).toEqual([]);
+    });
+  });
+
+  describe("removeThinkTags()", () => {
+    it("removes complete think blocks, including multi-line content with inner tags", () => {
+      const input = `Main text <think>
+I need to consider:
+- Point 1
+<inner>nested content</inner>
+</think> Final text`;
+      expect(removeThinkTags(input)).toBe("Main text  Final text");
+    });
+
+    it("removes every think block in the text", () => {
+      const input = "Text <think>First thought</think> middle <think>Second thought</think> end";
+      expect(removeThinkTags(input)).toBe("Text  middle  end");
+    });
+
+    it("drops an unclosed think block while it is still streaming", () => {
+      const input = "Before content <think>Partial thought that is still being";
+      expect(removeThinkTags(input)).toBe("Before content");
+    });
+
+    it("removes an empty think block", () => {
+      expect(removeThinkTags("Text <think></think> more text")).toBe("Text  more text");
+    });
+
+    it("keeps the text around a think block at the start or end", () => {
+      expect(removeThinkTags("<think>Initial thoughts</think>Main content here")).toBe(
+        "Main content here"
+      );
+      expect(removeThinkTags("Main content here<think>Final thoughts</think>")).toBe(
+        "Main content here"
+      );
+    });
+
+    it("returns text without think blocks unchanged apart from trimming", () => {
+      expect(removeThinkTags("  regular text  ")).toBe("regular text");
+      expect(removeThinkTags("  <think>content</think>  ")).toBe("");
+    });
+  });
+
+  describe("withTimeout()", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const sleepThen = <T>(ms: number, run: () => T) => {
+      return async () => {
+        await new Promise((resolve) => window.setTimeout(resolve, ms));
+        return run();
+      };
+    };
+
+    it("resolves with the operation result when it finishes within the timeout", async () => {
+      const pending = withTimeout(
+        sleepThen(50, () => "success"),
+        200,
+        "Test operation"
+      );
+
+      await jest.advanceTimersByTimeAsync(50);
+
+      await expect(pending).resolves.toBe("success");
+    });
+
+    it("rejects with a TimeoutError naming the operation and limit when the operation is too slow", async () => {
+      const pending = withTimeout(
+        sleepThen(200, () => "late"),
+        50,
+        "Test operation"
+      );
+      const assertion = expect(pending).rejects.toThrow(TimeoutError);
+
+      await jest.advanceTimersByTimeAsync(50);
+
+      await assertion;
+      await expect(pending).rejects.toMatchObject({
+        name: "TimeoutError",
+        message: "Test operation timed out after 50ms",
+      });
+    });
+
+    it("aborts the operation's signal when the timeout is reached", async () => {
+      let signalSeen: AbortSignal | undefined;
+      const pending = withTimeout(
+        async (signal) => {
+          signalSeen = signal;
+          await new Promise((resolve) => window.setTimeout(resolve, 200));
+        },
+        50,
+        "Test operation"
+      );
+      const assertion = expect(pending).rejects.toThrow(TimeoutError);
+
+      await jest.advanceTimersByTimeAsync(50);
+
+      await assertion;
+      expect(signalSeen?.aborted).toBe(true);
+    });
+
+    it("propagates non-timeout errors from the operation and clears the timer", async () => {
+      const pending = withTimeout(
+        sleepThen(50, () => {
+          throw new Error("Operation failed");
+        }),
+        200,
+        "Test operation"
+      );
+      const assertion = expect(pending).rejects.toThrow("Operation failed");
+
+      await jest.advanceTimersByTimeAsync(50);
+
+      await assertion;
+      expect(jest.getTimerCount()).toBe(0);
+    });
+  });
+
+  describe("getUtf8ByteLength()", () => {
+    it.each([
+      ["ASCII", "Test 123", 8],
+      ["Cyrillic", "Привет", 12],
+      ["Chinese, Japanese, and Korean", "你好こんにちは안녕", 27],
+      ["emoji", "🚀🌟", 8],
+      ["mixed scripts", "Hello мир 你好", 19],
+      ["an empty string", "", 0],
+    ])("counts the bytes of %s text", (_label, text, expected) => {
+      expect(getUtf8ByteLength(text)).toBe(expected);
+    });
+  });
+
+  describe("truncateToByteLimit()", () => {
+    it("returns the string unchanged when it fits the limit", () => {
+      expect(truncateToByteLimit("Hello", 10)).toBe("Hello");
+      expect(truncateToByteLimit("Test", 4)).toBe("Test");
+    });
+
+    it("cuts ASCII text at the byte limit", () => {
+      expect(truncateToByteLimit("Hello World", 5)).toBe("Hello");
+    });
+
+    it("never splits a multi-byte character", () => {
+      expect(truncateToByteLimit("Привет мир", 13)).toBe("Привет ");
+      expect(truncateToByteLimit("🚀🌟✨🎉", 8)).toBe("🚀🌟");
+      expect(truncateToByteLimit("Hello мир 你好", 12)).toBe("Hello мир");
+    });
+
+    it("keeps the result within the limit when the first character alone exceeds it", () => {
+      expect(getUtf8ByteLength(truncateToByteLimit("🚀Test", 3))).toBeLessThanOrEqual(3);
+    });
+
+    it("returns an empty string for a zero or negative limit", () => {
+      expect(truncateToByteLimit("Hello", 0)).toBe("");
+      expect(truncateToByteLimit("Hello", -1)).toBe("");
+    });
+
+    it("returns an empty string for an empty input", () => {
+      expect(truncateToByteLimit("", 10)).toBe("");
+    });
+  });
+
+  describe("stripFrontmatter()", () => {
+    it("removes the leading YAML frontmatter block", () => {
+      const content = `---
+title: "Quoted String"
+count: 42
+tags:
+  - tag1
+---
+This is the actual content.`;
+      expect(stripFrontmatter(content)).toBe("This is the actual content.");
+    });
+
+    it("trims leading whitespace after the frontmatter by default", () => {
+      const content = `---
+title: Test
+---
+
+  Content with leading whitespace after frontmatter.`;
+      expect(stripFrontmatter(content)).toBe("Content with leading whitespace after frontmatter.");
+    });
+
+    it("keeps later --- separators in the body", () => {
+      const content = `---
+title: Test
+---
+Content with --- separator in the middle.`;
+      expect(stripFrontmatter(content)).toBe("Content with --- separator in the middle.");
+    });
+
+    it("returns content without frontmatter unchanged", () => {
+      expect(stripFrontmatter("This is content without frontmatter.")).toBe(
+        "This is content without frontmatter."
+      );
+      expect(stripFrontmatter("")).toBe("");
+    });
+
+    it("returns content unchanged when the opening --- has no closing ---", () => {
+      const content = "---\nThis is not valid frontmatter";
+      expect(stripFrontmatter(content)).toBe(content);
+    });
+
+    it("preserves leading whitespace after the frontmatter when trimStart is false", () => {
+      const content = `---
+title: Test
+---
+
+  Content after empty line.`;
+      expect(stripFrontmatter(content, { trimStart: false })).toBe("\n  Content after empty line.");
+    });
+
+    it("strips CRLF frontmatter when trimStart is false", () => {
+      const content = "---\r\ntitle: Test\r\n---\r\n  Content here.";
+      expect(stripFrontmatter(content, { trimStart: false })).toBe("  Content here.");
+    });
+  });
+
+  describe("formatDateTime()", () => {
+    const fixedDate = new Date("2024-03-15T14:30:45.123Z");
+
+    it("formats UTC deterministically when timezone is utc", () => {
+      const result = formatDateTime(fixedDate, "utc");
+      expect(result.fileName).toBe("20240315_143045");
+      expect(result.display).toBe("2024/03/15 14:30:45");
+      expect(result.epoch).toBe(fixedDate.getTime());
+    });
+
+    it("zero-pads single-digit month, day, hour, minute, and second", () => {
+      const result = formatDateTime(new Date("2024-01-02T03:04:05.000Z"), "utc");
+      expect(result.fileName).toBe("20240102_030405");
+      expect(result.display).toBe("2024/01/02 03:04:05");
+    });
+
+    it("formats local time using the host timezone", () => {
+      const result = formatDateTime(fixedDate, "local");
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const expectedDisplay =
+        `${fixedDate.getFullYear()}/${pad(fixedDate.getMonth() + 1)}/${pad(fixedDate.getDate())} ` +
+        `${pad(fixedDate.getHours())}:${pad(fixedDate.getMinutes())}:${pad(fixedDate.getSeconds())}`;
+
+      expect(result.display).toBe(expectedDisplay);
+      expect(result.fileName).toMatch(/^\d{8}_\d{6}$/);
+      expect(result.epoch).toBe(fixedDate.getTime());
+    });
+
+    it("defaults to local timezone", () => {
+      expect(formatDateTime(fixedDate)).toEqual(formatDateTime(fixedDate, "local"));
+    });
+  });
+
+  describe("insertIntoEditor()", () => {
+    it("uses an explicitly chosen open editor even while the most recent tab is the chat", async () => {
+      const position = { line: 2, ch: 4 };
+      const editor = {
+        getCursor: jest.fn(() => position),
+        replaceRange: jest.fn(),
+        setSelection: jest.fn(),
+        focus: jest.fn(),
+      };
+      const target = {
+        view: Object.assign(
+          Object.create(Obsidian.MarkdownView.prototype) as Obsidian.MarkdownView,
+          { editor }
+        ),
+      };
+      const app = {
+        workspace: { getMostRecentLeaf: jest.fn(() => ({ view: {} })), getLeaf: jest.fn() },
+      };
+
+      await insertIntoEditor(app as never, "inserted", false, target as never);
+
+      expect(editor.replaceRange).toHaveBeenCalledWith("inserted", position, position);
+      expect(app.workspace.getMostRecentLeaf).not.toHaveBeenCalled();
+      expect(app.workspace.getLeaf).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("insertAtCursor()", () => {
+    const from = { line: 0, ch: 0 };
+    const to = { line: 0, ch: 5 };
+
+    function makeApp(selection: string) {
+      const editor = {
+        getSelection: jest.fn(() => selection),
+        getCursor: jest.fn((which: string) => (which === "from" ? from : to)),
+        replaceRange: jest.fn(),
+        setSelection: jest.fn(),
+        focus: jest.fn(),
+        cm: undefined,
+      };
+      const view = new (Obsidian.MarkdownView as unknown as new () => { editor: unknown })();
+      view.editor = editor;
+      const leaf = { view };
+      Object.assign(view, { leaf, file: { path: "Source.md" } });
+      const app = {
+        workspace: {
+          getMostRecentLeaf: jest.fn(() => leaf),
+          getLeaf: jest.fn(() => leaf),
+          getActiveViewOfType: jest.fn(() => view),
+          getLeavesOfType: jest.fn(() => [leaf]),
+          revealLeaf: jest.fn(async () => {}),
+          setActiveLeaf: jest.fn(),
+        },
+      };
+      return { app, editor, leaf };
+    }
+
+    it("inserts at the cursor when there is no selection", async () => {
+      const { app, editor } = makeApp("");
+
+      await insertAtCursor(app as never, "hello");
+
+      expect(editor.replaceRange).toHaveBeenCalledWith("hello", to, to);
+    });
+
+    it("replaces from the selection start when text is selected", async () => {
+      const { app, editor } = makeApp("selected");
+
+      await insertAtCursor(app as never, "hello");
+
+      expect(editor.replaceRange).toHaveBeenCalledWith("hello", from, to);
+    });
+
+    it("inserts into the note focused before the editor-area chat without replacing the chat tab", async () => {
+      const { app, editor, leaf } = makeApp("selected");
+      rememberChatInsertionTarget(app as never, leaf as never);
+      app.workspace.getActiveViewOfType.mockReturnValue(null as never);
+      app.workspace.getMostRecentLeaf.mockReturnValue({ view: {} } as never);
+
+      await insertAtCursor(app as never, "hello");
+
+      expect(editor.replaceRange).toHaveBeenCalledWith("hello", from, to);
+      expect(app.workspace.revealLeaf).toHaveBeenCalledWith(leaf);
+      expect(app.workspace.setActiveLeaf).toHaveBeenCalledWith(leaf, { focus: true });
+      expect(app.workspace.getLeaf).not.toHaveBeenCalled();
+    });
+
+    it("opens an empty new tab when the remembered note has been closed instead of editing another open note", async () => {
+      const { app, editor, leaf } = makeApp("");
+      const empty = { view: {} };
+      rememberChatInsertionTarget(app as never, leaf as never);
+      app.workspace.getActiveViewOfType.mockReturnValue(null as never);
+      app.workspace.getLeavesOfType.mockReturnValue([]);
+      app.workspace.getLeaf.mockReturnValue(empty as never);
+
+      await insertAtCursor(app as never, "hello");
+
+      expect(app.workspace.getLeaf).toHaveBeenCalledWith("tab");
+      expect(app.workspace.setActiveLeaf).toHaveBeenCalledWith(empty, { focus: true });
+      expect(editor.replaceRange).not.toHaveBeenCalled();
+    });
+
+    it("opens a blank tab when no note was focused before the chat", async () => {
+      const leaf = { view: {} };
+      const app = {
+        workspace: {
+          getMostRecentLeaf: jest.fn(() => leaf),
+          getLeaf: jest.fn(() => leaf),
+          getActiveViewOfType: jest.fn(() => null),
+          setActiveLeaf: jest.fn(),
+        },
+      };
+
+      await expect(insertAtCursor(app as never, "hello")).resolves.toBeUndefined();
+      expect(app.workspace.getLeaf).toHaveBeenCalledWith("tab");
+      expect(app.workspace.setActiveLeaf).toHaveBeenCalledWith(leaf, { focus: true });
+    });
+  });
+});

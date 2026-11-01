@@ -1,0 +1,3 @@
+export const MODAL_MIN_HEIGHT_COMPACT = 180;
+
+export const MODAL_MIN_HEIGHT_EXPANDED = 400;

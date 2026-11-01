@@ -1,0 +1,1 @@
+export const CURRENT_SETTINGS_VERSION = 18;

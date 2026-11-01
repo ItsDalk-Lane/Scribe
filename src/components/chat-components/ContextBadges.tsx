@@ -1,0 +1,246 @@
+import { t } from "@/lib/i18n";
+import React from "react";
+import { FileText, Folder, Globe, Hash, CircleDashed, TextSelect } from "lucide-react";
+import { TFile } from "obsidian";
+import { TruncatedText } from "@/components/TruncatedText";
+import { getDomainFromUrl } from "@/utils";
+import { cn } from "@/lib/utils";
+import { ContextBadgeWrapper } from "./ContextBadgeWrapper";
+import { SelectedTextContext, WebTabContext, isWebSelectedTextContext } from "@/types/message";
+
+interface BaseContextBadgeProps {
+  onRemove?: () => void;
+  onClick?: () => void;
+}
+
+interface ContextNoteBadgeProps extends BaseContextBadgeProps {
+  note: TFile;
+}
+
+interface ContextWebTabBadgeProps extends BaseContextBadgeProps {
+  webTab: WebTabContext;
+}
+
+interface ContextTagBadgeProps extends BaseContextBadgeProps {
+  tag: string;
+}
+
+interface ContextFolderBadgeProps extends BaseContextBadgeProps {
+  folder: string;
+}
+
+interface ContextSelectedTextBadgeProps extends BaseContextBadgeProps {
+  selectedText: SelectedTextContext;
+}
+
+interface ContextActiveNoteBadgeProps extends BaseContextBadgeProps {
+  currentActiveFile: TFile | null;
+}
+
+interface FaviconOrGlobeProps {
+  faviconUrl?: string;
+  isLoaded?: boolean;
+  className?: string;
+}
+
+function FaviconImage({ faviconUrl, className }: { faviconUrl: string; className: string }) {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) {
+    return <Globe className={className} />;
+  }
+  return (
+    <img
+      src={faviconUrl}
+      alt=""
+      referrerPolicy="no-referrer"
+      loading="lazy"
+      decoding="async"
+      className={cn(className, "tw-rounded-sm")}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function FaviconOrGlobe({
+  faviconUrl,
+  isLoaded = true,
+  className = "tw-size-3",
+}: FaviconOrGlobeProps) {
+  if (!isLoaded) {
+    return <CircleDashed className={cn(className, "tw-text-muted")} />;
+  }
+
+  if (faviconUrl) {
+    return <FaviconImage key={faviconUrl} faviconUrl={faviconUrl} className={className} />;
+  }
+
+  return <Globe className={className} />;
+}
+
+export function ContextActiveNoteBadge({
+  currentActiveFile,
+  onRemove,
+  onClick,
+}: ContextActiveNoteBadgeProps) {
+  if (!currentActiveFile) {
+    return null;
+  }
+
+  const tooltipContent = <div className="tw-text-left">{currentActiveFile.path}</div>;
+  const isPdf = currentActiveFile.extension === "pdf";
+  const isCanvas = currentActiveFile.extension === "canvas";
+
+  return (
+    <ContextBadgeWrapper
+      icon={<FileText className="tw-size-3" />}
+      onRemove={onRemove}
+      isClickable={!!onClick}
+      onClick={onClick}
+    >
+      <TruncatedText className="tw-max-w-40" tooltipContent={tooltipContent} alwaysShowTooltip>
+        {currentActiveFile.basename}
+      </TruncatedText>
+      <span className="tw-text-xs tw-text-faint">{t("Current")}</span>
+      {isPdf && <span className="tw-text-xs tw-text-faint">pdf</span>}
+      {isCanvas && <span className="tw-text-xs tw-text-faint">canvas</span>}
+    </ContextBadgeWrapper>
+  );
+}
+
+interface ContextActiveWebTabBadgeProps extends BaseContextBadgeProps {
+  activeWebTab: WebTabContext | null;
+}
+
+export function ContextActiveWebTabBadge({
+  activeWebTab,
+  onRemove,
+  onClick,
+}: ContextActiveWebTabBadgeProps) {
+  if (!activeWebTab) {
+    return null;
+  }
+
+  const domain = getDomainFromUrl(activeWebTab.url);
+  const displayText = activeWebTab.title || domain || activeWebTab.url || t("Untitled");
+  const tooltipContent = <div className="tw-text-left">{activeWebTab.url}</div>;
+
+  return (
+    <ContextBadgeWrapper
+      icon={<FaviconOrGlobe faviconUrl={activeWebTab.faviconUrl} />}
+      onRemove={onRemove}
+      isClickable={!!onClick}
+      onClick={onClick}
+    >
+      <TruncatedText className="tw-max-w-40" tooltipContent={tooltipContent} alwaysShowTooltip>
+        {displayText}
+      </TruncatedText>
+      <span className="tw-text-xs tw-text-faint">{t("Current")}</span>
+    </ContextBadgeWrapper>
+  );
+}
+
+export function ContextNoteBadge({ note, onRemove, onClick }: ContextNoteBadgeProps) {
+  const tooltipContent = <div className="tw-text-left">{note.path}</div>;
+  const isPdf = note.extension === "pdf";
+  const isCanvas = note.extension === "canvas";
+
+  return (
+    <ContextBadgeWrapper
+      icon={<FileText className="tw-size-3" />}
+      onRemove={onRemove}
+      isClickable={!!onClick}
+      onClick={onClick}
+    >
+      <TruncatedText className="tw-max-w-40" tooltipContent={tooltipContent} alwaysShowTooltip>
+        {note.basename}
+      </TruncatedText>
+      {isPdf && <span className="tw-text-xs tw-text-faint">pdf</span>}
+      {isCanvas && <span className="tw-text-xs tw-text-faint">canvas</span>}
+    </ContextBadgeWrapper>
+  );
+}
+
+export function ContextWebTabBadge({ webTab, onRemove, onClick }: ContextWebTabBadgeProps) {
+  const isLoaded = webTab.isLoaded !== false;
+  const domain = getDomainFromUrl(webTab.url);
+  const displayText = webTab.title || domain || webTab.url || t("Untitled");
+  const tooltipText = isLoaded
+    ? webTab.url
+    : t("Tab not loaded - switch to this tab to load content");
+
+  return (
+    <ContextBadgeWrapper
+      icon={<FaviconOrGlobe faviconUrl={webTab.faviconUrl} isLoaded={isLoaded} />}
+      onRemove={onRemove}
+      isClickable={!!onClick}
+      onClick={onClick}
+      className={cn(!isLoaded && "tw-opacity-60")}
+    >
+      <TruncatedText
+        className={cn("tw-max-w-40", !isLoaded && "tw-italic")}
+        tooltipContent={tooltipText}
+      >
+        {displayText}
+      </TruncatedText>
+      {!isLoaded && <span className="tw-text-xs tw-text-muted">{t("(not loaded)")}</span>}
+    </ContextBadgeWrapper>
+  );
+}
+
+export function ContextTagBadge({ tag, onRemove }: ContextTagBadgeProps) {
+  const displayTag = tag.startsWith("#") ? tag.slice(1) : tag;
+
+  return (
+    <ContextBadgeWrapper icon={<Hash className="tw-size-3" />} onRemove={onRemove}>
+      <TruncatedText className="tw-max-w-40" tooltipContent={tag}>
+        {displayTag}
+      </TruncatedText>
+    </ContextBadgeWrapper>
+  );
+}
+
+export function ContextFolderBadge({ folder, onRemove }: ContextFolderBadgeProps) {
+  return (
+    <ContextBadgeWrapper icon={<Folder className="tw-size-3" />} onRemove={onRemove}>
+      <TruncatedText className="tw-max-w-40" tooltipContent={folder} alwaysShowTooltip>
+        {folder}
+      </TruncatedText>
+    </ContextBadgeWrapper>
+  );
+}
+
+export function ContextSelectedTextBadge({
+  selectedText,
+  onRemove,
+}: ContextSelectedTextBadgeProps) {
+  // Excerpts need their own identity when shown beside the full source note.
+  // https://github.com/Brevilabs/obsidian-copilot-private/issues/465
+  const normalizedContent = selectedText.content.replace(/\s+/g, " ").trim();
+
+  const isWebSelection = isWebSelectedTextContext(selectedText);
+  const location =
+    isWebSelection || selectedText.startLine === 0
+      ? t("Selection")
+      : selectedText.startLine === selectedText.endLine
+        ? `L${selectedText.startLine}`
+        : `L${selectedText.startLine}-${selectedText.endLine}`;
+  const source = isWebSelection ? selectedText.url : `${selectedText.notePath} (${location})`;
+  const tooltipContent = (
+    <div className="tw-max-h-60 tw-overflow-y-auto tw-text-left">
+      <div className="tw-whitespace-pre-wrap">{selectedText.content}</div>
+      <div className="tw-text-faint">{source}</div>
+    </div>
+  );
+
+  return (
+    <ContextBadgeWrapper
+      icon={<TextSelect aria-hidden="true" className="tw-size-3" />}
+      onRemove={onRemove}
+    >
+      <TruncatedText className="tw-max-w-40" tooltipContent={tooltipContent} alwaysShowTooltip>
+        {normalizedContent}
+      </TruncatedText>
+      <span className="tw-text-xs tw-text-faint">{location}</span>
+    </ContextBadgeWrapper>
+  );
+}

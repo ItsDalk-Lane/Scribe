@@ -1,0 +1,122 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Node.js CI
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    # Run on all pull requests regardless of target branch
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  jest:
+    name: Jest (22.x, shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - run: npm test -- --shard=${{ matrix.shard }}/4
+
+  lint:
+    name: Lint and PR size (22.x)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - name: Verify PR size labels
+        run: node --test scripts/pr-size.test.mjs
+
+  review:
+    name: Obsidian review (22.x)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - name: Obsidian community review gate
+        run: npm run review:obsidian
+
+  bundle:
+    name: Bundle and smoke tests (22.x)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      # Type-checks the project and bundles the plugin. Otherwise both run only
+      # when a release PR merges, so a break would sit on master until someone
+      # cut a release.
+      - run: npm run build
+      # Builds the component gallery's whole story graph, so a story that cannot
+      # bundle fails the PR instead of reaching master unnoticed.
+      - run: npm run gallery:build
+      - run: node scripts/mobile-load-smoke.cjs
+
+  build:
+    name: build (22.x)
+    if: always()
+    needs: [jest, lint, review, bundle]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI job to pass
+        env:
+          JEST_RESULT: ${{ needs.jest.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          REVIEW_RESULT: ${{ needs.review.result }}
+          BUNDLE_RESULT: ${{ needs.bundle.result }}
+        run: |
+          test "$JEST_RESULT" = success
+          test "$LINT_RESULT" = success
+          test "$REVIEW_RESULT" = success
+          test "$BUNDLE_RESULT" = success
+
+  docs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: "npm"
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

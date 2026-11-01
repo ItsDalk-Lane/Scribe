@@ -1,0 +1,222 @@
+import { ChatModelProviders, DEFAULT_MAX_OUTPUT_TOKENS, ModelCapability } from "@/constants";
+import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
+
+import {
+  configuredModelToCustomModel,
+  mapProviderTypeToChatModelProvider,
+} from "./configuredModelToCustomModel";
+
+function provider(overrides: Partial<Provider> = {}): Provider {
+  return {
+    providerId: "p1",
+    providerType: "openai-compatible",
+    displayName: "P",
+    origin: { kind: "byok" },
+    addedAt: 0,
+    apiKeyKeychainId: null,
+    ...overrides,
+  };
+}
+
+function configuredModel(overrides: Partial<ConfiguredModel> = {}): ConfiguredModel {
+  return {
+    configuredModelId: "cm1",
+    providerId: "p1",
+    info: { id: "gpt-5", displayName: "GPT-5" },
+    configuredAt: 0,
+    ...overrides,
+  };
+}
+
+describe("configuredModelToCustomModel", () => {
+  describe("mapProviderTypeToChatModelProvider()", () => {
+    it("maps anthropic and google provider types to their dedicated chat providers", () => {
+      expect(mapProviderTypeToChatModelProvider(provider({ providerType: "anthropic" }))).toBe(
+        ChatModelProviders.ANTHROPIC
+      );
+      expect(mapProviderTypeToChatModelProvider(provider({ providerType: "google" }))).toBe(
+        ChatModelProviders.GOOGLE
+      );
+    });
+
+    it("maps an openai-compatible BYOK provider to the chat provider of its catalog id", () => {
+      const cases: Array<[string, ChatModelProviders]> = [
+        ["openai", ChatModelProviders.OPENAI],
+        ["groq", ChatModelProviders.GROQ],
+        ["mistral", ChatModelProviders.MISTRAL],
+        ["openrouter", ChatModelProviders.OPENROUTERAI],
+        ["deepseek", ChatModelProviders.DEEPSEEK],
+        ["xai", ChatModelProviders.XAI],
+        ["cohere", ChatModelProviders.COHEREAI],
+        ["siliconflow", ChatModelProviders.SILICONFLOW],
+      ];
+      for (const [catalogProviderId, expected] of cases) {
+        expect(
+          mapProviderTypeToChatModelProvider(
+            provider({ origin: { kind: "byok", catalogProviderId } })
+          )
+        ).toBe(expected);
+      }
+    });
+
+    it("maps an openai-compatible provider with an unknown or missing catalog id to OPENAI_FORMAT", () => {
+      expect(
+        mapProviderTypeToChatModelProvider(
+          provider({ origin: { kind: "byok", catalogProviderId: "together" } })
+        )
+      ).toBe(ChatModelProviders.OPENAI_FORMAT);
+      expect(
+        mapProviderTypeToChatModelProvider(
+          provider({ baseUrl: "http://localhost:11434/v1", origin: { kind: "byok" } })
+        )
+      ).toBe(ChatModelProviders.OPENAI_FORMAT);
+    });
+
+    it("maps an xAI catalog provider with a custom base URL to OPENAI_FORMAT", () => {
+      expect(
+        mapProviderTypeToChatModelProvider(
+          provider({
+            baseUrl: "https://proxy.example.com/v1",
+            origin: { kind: "byok", catalogProviderId: "xai" },
+          })
+        )
+      ).toBe(ChatModelProviders.OPENAI_FORMAT);
+    });
+  });
+
+  describe("configuredModelToCustomModel()", () => {
+    it("uses the wire id as the model name and the stored display name", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ providerType: "anthropic" }),
+        configuredModel: configuredModel({
+          info: { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" },
+        }),
+        apiKey: "sk-ant",
+      });
+      expect(custom.name).toBe("claude-sonnet-4-5");
+      expect(custom.displayName).toBe("Claude Sonnet 4.5");
+      expect(custom.provider).toBe(ChatModelProviders.ANTHROPIC);
+      expect(custom.apiKey).toBe("sk-ant");
+      expect(custom.enabled).toBe(true);
+      expect(custom.configuredModelId).toBe("cm1");
+    });
+
+    it("caps an Anthropic model's published ceiling rather than passing it through (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ providerType: "anthropic" }),
+        configuredModel: configuredModel({
+          info: {
+            id: "claude-sonnet-4-5",
+            displayName: "Claude Sonnet 4.5",
+            limits: { context: 200000, output: 64000 },
+          },
+        }),
+        apiKey: "sk-ant",
+      });
+
+      expect(custom.maxTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+    });
+
+    it("sends no output limit to a provider that accepts a request without one (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", () => {
+      const openAiCompatible = configuredModelToCustomModel({
+        provider: provider({ origin: { kind: "byok", catalogProviderId: "openai" } }),
+        configuredModel: configuredModel({
+          info: { id: "gpt-5", displayName: "GPT-5", limits: { context: 400000, output: 128000 } },
+        }),
+        apiKey: "sk",
+      });
+      const anthropicWithoutLimits = configuredModelToCustomModel({
+        provider: provider({ providerType: "anthropic" }),
+        configuredModel: configuredModel({
+          info: { id: "claude-next", displayName: "Claude Next" },
+        }),
+        apiKey: "sk-ant",
+      });
+
+      expect(openAiCompatible.maxTokens).toBeUndefined();
+      expect(anthropicWithoutLimits.maxTokens).toBeUndefined();
+    });
+
+    it("carries the provider base URL onto the custom model", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ baseUrl: "https://api.example.com/v1" }),
+        configuredModel: configuredModel(),
+        apiKey: "key-123",
+      });
+      expect(custom.apiKey).toBe("key-123");
+      expect(custom.baseUrl).toBe("https://api.example.com/v1");
+    });
+
+    it("preserves the provider's explicit Quick tools CORS choice (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", () => {
+      const corsEnabled = configuredModelToCustomModel({
+        provider: provider({ baseUrl: "https://work.example.com/v1", enableCors: true }),
+        configuredModel: configuredModel(),
+        apiKey: "key-123",
+      });
+      const streaming = configuredModelToCustomModel({
+        provider: provider({
+          baseUrl: "https://openrouter.ai/api/v1",
+          enableCors: false,
+          origin: { kind: "byok", catalogProviderId: "openrouter" },
+        }),
+        configuredModel: configuredModel(),
+        apiKey: "key-123",
+      });
+      expect(corsEnabled.enableCors).toBe(true);
+      expect(streaming.enableCors).toBe(false);
+    });
+
+    it("carries the runtime auth contract without synthesizing a key (https://github.com/logancyang/obsidian-copilot/issues/2895)", () => {
+      const keyless = configuredModelToCustomModel({
+        provider: provider({ requiresApiKey: false, baseUrl: "http://localhost:11434/v1" }),
+        configuredModel: configuredModel(),
+        apiKey: null,
+      });
+      expect(keyless.apiKey).toBeUndefined();
+      expect(keyless.requiresApiKey).toBe(false);
+
+      const requiresKey = configuredModelToCustomModel({
+        provider: provider({ requiresApiKey: true }),
+        configuredModel: configuredModel(),
+        apiKey: null,
+      });
+      expect(requiresKey.apiKey).toBeUndefined();
+      expect(requiresKey.requiresApiKey).toBe(true);
+
+      const missingStoredKey = configuredModelToCustomModel({
+        provider: provider({ requiresApiKey: false, apiKeyKeychainId: "keychain-p1" }),
+        configuredModel: configuredModel(),
+        apiKey: null,
+      });
+      expect(missingStoredKey.requiresApiKey).toBe(true);
+    });
+
+    it("lists reasoning and vision capabilities from the stored model info", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ providerType: "anthropic" }),
+        configuredModel: configuredModel({
+          info: {
+            id: "claude-sonnet-4-5",
+            displayName: "Claude Sonnet 4.5",
+            reasoning: true,
+            modalities: { input: ["text", "image"] },
+          },
+        }),
+        apiKey: "k",
+      });
+      expect(custom.capabilities).toEqual([ModelCapability.REASONING, ModelCapability.VISION]);
+    });
+
+    it("copies the OpenAI organization id from provider extras", () => {
+      const openai = configuredModelToCustomModel({
+        provider: provider({
+          origin: { kind: "byok", catalogProviderId: "openai" },
+          extras: { openAIOrgId: "org-1" },
+        }),
+        configuredModel: configuredModel(),
+        apiKey: "sk",
+      });
+      expect(openai.openAIOrgId).toBe("org-1");
+    });
+  });
+});

@@ -1,0 +1,96 @@
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { INSERT_TEXT_WITH_PILLS_COMMAND } from "@/components/chat-components/utils/lexicalTextUtils";
+import { LexicalEditor } from "lexical";
+
+interface ChatInputContextType {
+  insertTextWithPills: (text: string) => void;
+  focusInput: () => void;
+  registerEditor: (editor: LexicalEditor) => void;
+  registerFocusHandler: (handler: () => void) => void;
+}
+
+const ChatInputContext = createContext<ChatInputContextType | undefined>(undefined);
+
+export function useChatInput(): ChatInputContextType {
+  const context = useContext(ChatInputContext);
+  if (context === undefined) {
+    throw new Error("useChatInput must be used within a ChatInputProvider");
+  }
+  return context;
+}
+
+interface ChatInputProviderProps {
+  children: React.ReactNode;
+}
+
+export function ChatInputProvider({ children }: ChatInputProviderProps): JSX.Element {
+  const [editor, setEditor] = useState<LexicalEditor | null>(null);
+  const [focusHandler, setFocusHandler] = useState<(() => void) | null>(null);
+  const pendingInsertRef = useRef<{ text: string } | null>(null);
+  const pendingFocusRef = useRef(false);
+
+  const registerEditor = useCallback((editorInstance: LexicalEditor) => {
+    setEditor(editorInstance);
+  }, []);
+
+  const registerFocusHandler = useCallback((handler: () => void) => {
+    setFocusHandler(() => handler);
+  }, []);
+
+  const insertTextWithPills = useCallback(
+    (text: string) => {
+      if (editor) {
+        editor.dispatchCommand(INSERT_TEXT_WITH_PILLS_COMMAND, {
+          text,
+        });
+      } else {
+        pendingInsertRef.current = { text };
+      }
+    },
+    [editor]
+  );
+
+  useEffect(() => {
+    if (!editor || !pendingInsertRef.current) return;
+    const { text } = pendingInsertRef.current;
+    pendingInsertRef.current = null;
+    editor.dispatchCommand(INSERT_TEXT_WITH_PILLS_COMMAND, {
+      text,
+    });
+  }, [editor]);
+
+  const focusInput = useCallback(() => {
+    if (focusHandler) {
+      focusHandler();
+    } else {
+      pendingFocusRef.current = true;
+    }
+  }, [focusHandler]);
+
+  useEffect(() => {
+    if (focusHandler && pendingFocusRef.current) {
+      pendingFocusRef.current = false;
+      focusHandler();
+    }
+  }, [focusHandler]);
+
+  const contextValue = useMemo<ChatInputContextType>(
+    () => ({
+      insertTextWithPills,
+      focusInput,
+      registerEditor,
+      registerFocusHandler,
+    }),
+    [insertTextWithPills, focusInput, registerEditor, registerFocusHandler]
+  );
+
+  return <ChatInputContext.Provider value={contextValue}>{children}</ChatInputContext.Provider>;
+}
