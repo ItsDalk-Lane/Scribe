@@ -40,7 +40,17 @@ import React from "react";
 export interface AgentExtensionsSettingsProps {
   kind?: AgentExtensionKind;
 }
+const EXTENSION_KINDS: readonly AgentExtensionKind[] = Object.freeze([
+  "plugin",
+  "skill",
+  "command",
+  "hook",
+  "mcp",
+  "subagent",
+]);
+
 interface InventoryState {
+  context?: string;
   groups: readonly AgentExtensionGroup[] | null;
   loading: boolean;
   error?: boolean;
@@ -57,7 +67,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
   const descriptor = descriptors.find((item) => item.id === selectedAgent) ?? descriptors[0];
   const [source, setSource] = React.useState("user");
   const [query, setQuery] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
+  const [operation, setOperation] = React.useState<{
+    context: string;
+    controller: AbortController;
+  } | null>(null);
   const [state, setState] = React.useState<InventoryState>({
     groups: null,
     loading: true,
@@ -91,139 +104,124 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     [descriptor, settings, cwd]
   );
   const requestId = React.useRef(0);
+  const mutationController = React.useRef<AbortController | null>(null);
+  const context = JSON.stringify([descriptor.id, selection, cwd, kind]);
+  const busy = operation?.context === context;
   const controller = React.useRef<AbortController | null>(null);
   const sessionManager = plugin.agentSessionManager;
   const enabled = sessionManager?.isBackendEnabled(descriptor.id) ?? true;
-  const load = React.useCallback(
-    async (check: boolean) => {
-      const id = ++requestId.current;
-      controller.current?.abort();
-      const abort = new AbortController();
-      controller.current = abort;
-      setState((current) => ({ ...current, loading: true, error: false }));
-      try {
-        if (!management || !cwd || !descriptor.readExtensions)
-          throw new Error("Configuration is unavailable");
-        const session = sessionManager
-          ?.getSessions()
-          .find((item) => item.backendId === descriptor.id && item.cwd === cwd);
-        const readRuntime = async (): Promise<AgentExtensionRuntimeSnapshot | null> => {
-          if (!enabled) return null;
-          if (check && descriptor.checkExtensions)
-            return descriptor.checkExtensions({ plugin, cwd, signal: abort.signal });
-          return session ? session.getExtensionRuntime() : null;
-        };
-        const [items, discovered, report] = await Promise.all([
-          management.list(kind, scope),
-          descriptor.readExtensions({ settings, cwd }),
-          readRuntime().then(
-            (runtime) => ({ runtime, failed: false }),
-            () => ({ runtime: null, failed: true })
-          ),
-        ]);
-        const merged = mergeExtensionRuntime(discovered, report.runtime).find(
-          (group) => group.kind === kind
-        );
-        const identity = (item: AgentExtensionItem) =>
-          JSON.stringify([item.id, item.target?.path, item.target?.keyPath, item.target?.scope]);
-        const observed = new Map(merged?.items.map((item) => [identity(item), item]));
-        const local = items.map((item) => {
-          const runtime = observed.get(identity(item));
-          return {
-            ...item,
-            availability:
-              item.enabled === false
-                ? ("disabled" as const)
-                : (runtime?.availability ?? item.availability),
-            toolCount: runtime?.toolCount ?? item.toolCount,
-          };
-        });
-        const managedNames = new Set([
-          ...managedSkills.map((item) => item.name),
-          ...BUILTIN_SKILLS.map((item) => item.name),
-        ]);
-        const runtimeOnly =
-          selection === "vault"
-            ? (merged?.items.filter(
-                (item) =>
-                  item.source === "runtime" && !(kind === "skill" && managedNames.has(item.name))
-              ) ?? [])
-            : [];
-        const managedFiles = new Set(managedSkills.map((item) => normalizeAbsPath(item.filePath)));
-        const filtered =
-          kind === "skill" && selection === "vault"
-            ? local.filter(
-                (item) =>
-                  item.source === "plugin" ||
-                  item.parentPluginId ||
-                  !managedFiles.has(normalizeAbsPath(item.target?.path ?? item.location ?? ""))
-              )
-            : local;
-        if (id === requestId.current && !abort.signal.aborted)
-          setState({
-            groups: [
-              {
-                kind,
-                status: "partial",
-                warnings: merged?.warnings ?? [],
-                items: [...filtered, ...runtimeOnly],
-              },
-            ],
-            loading: false,
-            runtimeState: report.failed ? "error" : report.runtime ? "checked" : "not_started",
-          });
-      } catch (error) {
-        if (id === requestId.current && !abort.signal.aborted) {
-          logError("Could not read extension configuration", error);
-          setState({ groups: null, loading: false, error: true, runtimeState: "error" });
-        }
-      }
-    },
-    [
-      management,
-      cwd,
-      descriptor,
-      sessionManager,
-      kind,
-      scope,
-      settings,
-      selection,
-      enabled,
-      plugin,
-      managedSkills,
-    ]
+  const pending = React.useSyncExternalStore(
+    React.useCallback(
+      (listener: () => void) => sessionManager?.subscribe?.(listener) ?? (() => {}),
+      [sessionManager]
+    ),
+    () => sessionManager?.isExtensionChangePending?.(descriptor.id, scope) ?? false
   );
+  const load = React.useCallback(async () => {
+    const id = ++requestId.current;
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    setState((current) => ({
+      ...current,
+      context,
+      groups: current.context === context ? current.groups : null,
+      loading: true,
+      error: false,
+    }));
+    try {
+      if (!management || !cwd) throw new Error("Configuration is unavailable");
+      const readRuntime = async (): Promise<AgentExtensionRuntimeSnapshot | null> => {
+        if (!enabled || !descriptor.checkExtensions) return null;
+        return descriptor.checkExtensions({ plugin, cwd, scope, signal: abort.signal });
+      };
+      const [inventory, discovered, report] = await Promise.all([
+        Promise.all(
+          EXTENSION_KINDS.map(
+            async (entryKind): Promise<AgentExtensionGroup> => ({
+              kind: entryKind,
+              status: "partial",
+              warnings: [],
+              items: await management.list(entryKind, scope),
+            })
+          )
+        ),
+        descriptor.readExtensions?.({ settings, cwd: scope.kind === "user" ? null : cwd }) ??
+          Promise.resolve([]),
+        readRuntime().then(
+          (runtime) => ({ runtime, failed: false }),
+          () => ({ runtime: null, failed: true })
+        ),
+      ]);
+      const merged = mergeExtensionRuntime(
+        inventory.map((group) => ({
+          ...group,
+          warnings:
+            discovered.find((entry) => entry.kind === group.kind)?.warnings ?? group.warnings,
+        })),
+        report.runtime
+      );
+      if (id === requestId.current && !abort.signal.aborted)
+        setState({
+          context,
+          groups: merged,
+          loading: false,
+          runtimeState: report.failed
+            ? "error"
+            : report.runtime?.checkErrors?.length
+              ? "partial"
+              : report.runtime
+                ? "checked"
+                : "not_started",
+        });
+    } catch (error) {
+      if (id === requestId.current && !abort.signal.aborted) {
+        logError("Could not read extension configuration", error);
+        setState({ context, groups: null, loading: false, error: true, runtimeState: "error" });
+        abort.abort();
+      }
+    }
+  }, [management, cwd, descriptor, scope, settings, enabled, plugin, context]);
+  const loadRef = React.useRef(load);
+  loadRef.current = load;
   React.useEffect(() => {
-    void load(false);
+    void loadRef.current();
     return () => {
       controller.current?.abort();
+      mutationController.current?.abort();
     };
-  }, [load]);
+  }, [context, enabled]);
   const mutate = async (action: (manager: AgentExtensionManager) => Promise<void>) => {
     if (!management) throw new Error(t("Configuration is unavailable."));
-    setBusy(true);
+    const mutation = new AbortController();
+    setOperation({ context, controller: mutation });
+    mutationController.current = mutation;
     try {
       await action(management);
-      sessionManager?.noteExtensionsChanged(descriptor.id);
+      if (sessionManager?.applyExtensionChanges)
+        await sessionManager.applyExtensionChanges(descriptor.id, scope, mutation.signal);
+      else sessionManager?.noteExtensionsChanged(descriptor.id);
       try {
         await plugin.skills?.refresh();
       } catch (error) {
         logError("Configuration saved but skill refresh failed", error);
         new Notice(t("Configuration saved; refresh the skill list to see its latest state."));
       }
-      await load(false);
+      if (!mutation.signal.aborted) await loadRef.current();
     } catch (error) {
-      await load(false);
+      if (!mutation.signal.aborted) await loadRef.current();
       throw error;
     } finally {
-      setBusy(false);
+      setOperation((current) => (current?.controller === mutation ? null : current));
     }
   };
   const showError = (error: unknown) => {
+    if (error instanceof Error && error.name === "AbortError") return;
     logError("Extension configuration action failed", error);
     new Notice(error instanceof Error ? error.message : t("Could not save configuration."));
   };
   const remove = (item: AgentExtensionItem, close?: () => void) => {
+    const localPlugin = item.kind === "plugin" && item.target?.keyPath?.[0] === "localPlugins";
     new ConfirmModal(
       plugin.app,
       async () => {
@@ -234,7 +232,9 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
           showError(error);
         }
       },
-      t("Remove {name} from this configuration?", { name: item.name }),
+      localPlugin
+        ? t("Delete {name} and its plugin directory?", { name: item.name })
+        : t("Remove {name} from this configuration?", { name: item.name }),
       t("Delete {name}", { name: item.name }),
       t("Delete")
     ).open();
@@ -279,8 +279,33 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
   };
   const openItem = async (item: AgentExtensionItem) => {
     try {
-      const details =
+      const originalDetails =
         item.target && management ? await management.details(item) : { item, revision: "" };
+      const allItems = state.groups?.flatMap((group) => group.items) ?? [];
+      // Children of a disabled plugin carry no observed availability, so the detail view marks them disabled to explain their dot. https://github.com/ItsDalk-Lane/Scribe/issues/1
+      const pluginDisabled = item.enabled === false || item.availability === "disabled";
+      const children = originalDetails.children?.map((child) => {
+        if (pluginDisabled) return { ...child, availability: "disabled" as const };
+        const observed = allItems.find(
+          (entry) =>
+            entry.id === child.id &&
+            entry.kind === child.kind &&
+            entry.parentPluginId === child.parentPluginId
+        );
+        return observed
+          ? {
+              ...child,
+              availability: observed.availability,
+              toolCount: observed.toolCount,
+              unavailableReason: observed.unavailableReason,
+            }
+          : child;
+      });
+      const details: AgentExtensionDetails = {
+        ...originalDetails,
+        item,
+        ...(children ? { children } : {}),
+      };
       if (item.capabilities?.edit && kind !== "plugin") {
         openEditor(details);
         return;
@@ -290,7 +315,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
           details={details}
           onClose={close}
           onUpdate={
-            kind === "plugin" && !item.readOnly && item.capabilities?.update !== false
+            kind === "plugin" &&
+            !item.readOnly &&
+            item.capabilities?.update !== false &&
+            item.target?.keyPath?.[0] !== "localPlugins"
               ? () =>
                   mutate((manager) =>
                     manager.pluginAction({
@@ -336,33 +364,54 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       />
     )).open();
   const q = query.trim().toLowerCase();
+  const currentState: InventoryState =
+    state.context === context
+      ? state
+      : { groups: null, loading: true, runtimeState: "not_started" as const };
+  const managedFiles = new Set(managedSkills.map((item) => normalizeAbsPath(item.filePath)));
+  const managedNames = new Set([
+    ...managedSkills.map((item) => item.name),
+    ...BUILTIN_SKILLS.map((item) => item.name),
+  ]);
   const groups =
-    state.groups?.map((group) => ({
-      ...group,
-      items: group.items.filter((item) =>
-        `${item.name} ${item.description ?? ""} ${item.parentPluginId ?? ""}`
-          .toLowerCase()
-          .includes(q)
-      ),
-    })) ?? null;
+    currentState.groups
+      ?.filter((group) => group.kind === kind)
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          if (
+            kind === "skill" &&
+            selection === "vault" &&
+            !item.parentPluginId &&
+            item.source !== "plugin"
+          ) {
+            if (managedFiles.has(normalizeAbsPath(item.target?.path ?? item.location ?? "")))
+              return false;
+            if (item.source === "runtime" && managedNames.has(item.name)) return false;
+          }
+          return `${item.name} ${item.description ?? ""} ${item.parentPluginId ?? ""}`
+            .toLowerCase()
+            .includes(q);
+        }),
+      })) ?? null;
   const inactive = enabled ? {} : { inert: "" };
   const ownsSkills = kind === "skill" && selection === "vault";
   const hideEmpty =
     ownsSkills &&
-    !state.loading &&
-    !state.error &&
-    state.runtimeState !== "error" &&
+    !currentState.loading &&
+    !currentState.error &&
+    currentState.runtimeState !== "error" &&
     groups?.every((group) => group.items.length === 0 && group.warnings.length === 0);
   const content = hideEmpty ? null : (
     <div {...inactive} aria-disabled={!enabled} className={enabled ? undefined : "tw-opacity-50"}>
       <AgentExtensionsPanel
         agentName={descriptor.displayName}
         groups={groups}
-        loading={state.loading}
-        error={state.error}
-        runtimeState={state.runtimeState}
-        onRefresh={() => void load(false)}
-        busy={busy}
+        loading={currentState.loading}
+        error={currentState.error}
+        runtimeState={currentState.runtimeState}
+        onRefresh={() => void loadRef.current()}
+        busy={busy || pending}
         onOpen={(item) => void openItem(item)}
         onToggle={(item, next) => {
           void mutate(async (manager) => manager.toggle(await manager.details(item), next)).catch(
@@ -390,7 +439,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         searchPlaceholder={t("Search {name}…", { name: t(EXTENSION_LABELS[kind]) })}
         label={t("Installed")}
         count={
-          (state.groups?.reduce(
+          (groups?.reduce(
             (sum, group) =>
               sum +
               group.items.filter(
@@ -405,29 +454,33 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
               size="icon"
               variant="secondary"
               aria-label={t("Refresh and check")}
-              disabled={busy || state.loading || !enabled}
-              onClick={() => void load(true)}
+              disabled={busy || pending || currentState.loading || !enabled}
+              onClick={() => void loadRef.current()}
             >
               <RefreshCw className="tw-size-4" />
             </Button>
             {kind === "plugin" && (
               <Button
                 variant="secondary"
-                disabled={busy || !enabled}
+                disabled={busy || pending || !enabled}
                 onClick={() => void installPlugin()}
               >
                 {t("Browse plugin marketplace")}
               </Button>
             )}
             {kind === "mcp" && (
-              <Button variant="secondary" disabled={busy || !enabled} onClick={importConfiguration}>
+              <Button
+                variant="secondary"
+                disabled={busy || pending || !enabled}
+                onClick={importConfiguration}
+              >
                 <Download className="tw-size-4" />
                 {t("Import")}
               </Button>
             )}
             {!ownsSkills && (
               <Button
-                disabled={busy || !enabled}
+                disabled={busy || pending || !enabled}
                 onClick={() => (kind === "plugin" ? void installPlugin() : openEditor())}
               >
                 <Plus className="tw-size-4" />
@@ -452,7 +505,17 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       )}
       {ownsSkills ? (
         <div {...inactive} aria-disabled={!enabled}>
-          <SkillsSettings embedded query={query}>
+          <SkillsSettings
+            embedded
+            query={query}
+            runtimeItems={
+              currentState.runtimeState === "error" || currentState.runtimeState === "not_started"
+                ? undefined
+                : currentState.groups?.find((group) => group.kind === "skill")?.items
+            }
+            checking={currentState.loading || busy || pending}
+            onChanged={() => mutate(async () => {})}
+          >
             {content}
           </SkillsSettings>
         </div>
@@ -475,7 +538,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
           <p>{t("Loaded or connected does not guarantee that each execution succeeds.")}</p>
           <p>
             {t(
-              "Configuration changes take effect at the next agent start; current tasks keep running."
+              "Availability is checked automatically. Changes reach existing chats after their current tasks finish."
             )}
           </p>
         </div>

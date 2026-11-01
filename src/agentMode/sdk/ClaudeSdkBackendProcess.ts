@@ -43,6 +43,7 @@ import type {
 } from "@/agentMode/session/types";
 import type { ProjectScopeId } from "@/agentMode/session/scope";
 import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
+import type { AgentExtensionScope } from "@/agentMode/session/extensionManagement";
 import { AuthRequiredError, MethodUnsupportedError } from "@/agentMode/session/errors";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { createClaudeTaskPlanState, type ClaudeTaskPlanState } from "./claudeTodoPlan";
@@ -101,6 +102,7 @@ export const runSubagentsInBackground: HookCallback = async (input) => {
 
 export interface ClaudeSdkBackendProcessOptions {
   pathToClaudeCodeExecutable: string;
+  configurationScope?: AgentExtensionScope;
   app: App;
   clientVersion: string;
   descriptor: BackendDescriptor;
@@ -146,6 +148,7 @@ export class ClaudeSdkBackendProcess implements BackendProcess {
   private authConfirmed = false;
   private compatibilityConfirmed = false;
   private compatibilityProbe: Promise<void> | null = null;
+  private userConfigurationDirectory?: Promise<string>;
 
   constructor(private readonly opts: ClaudeSdkBackendProcessOptions) {
     logInfo(
@@ -344,7 +347,23 @@ export class ClaudeSdkBackendProcess implements BackendProcess {
       excludeDynamicSections: true,
       append: session.systemPromptAppend || undefined,
     };
-    const localPlugins = await this.opts.getLocalPlugins?.(session.cwd);
+    if (this.opts.configurationScope) {
+      options.settingSources =
+        this.opts.configurationScope.kind === "user" ? ["user"] : ["user", "project", "local"];
+      if (this.opts.configurationScope.kind === "user") {
+        const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+        const os = requireNodeModule<typeof import("node:os")>("os");
+        const path = requireNodeModule<typeof import("node:path")>("path");
+        this.userConfigurationDirectory ??= fs.mkdtemp(
+          path.join(os.tmpdir(), "scribe-extension-check-")
+        );
+        options.cwd = await this.userConfigurationDirectory;
+        this.abortController.signal.throwIfAborted();
+      }
+    }
+    const localPlugins = await this.opts.getLocalPlugins?.(
+      this.opts.configurationScope?.kind === "user" ? null : session.cwd
+    );
     if (localPlugins?.length) options.plugins = [...localPlugins];
     if (session.hasTranscript) {
       options.resume = sessionId;
@@ -378,6 +397,14 @@ export class ClaudeSdkBackendProcess implements BackendProcess {
       ...managedEnv,
       ...envOverrides,
     };
+
+    if (this.opts.configurationScope?.kind === "user" && options.env.CLAUDE_CONFIG_DIR) {
+      const path = requireNodeModule<typeof import("node:path")>("path");
+      options.env.CLAUDE_CONFIG_DIR = path.resolve(
+        session.cwd ?? process.cwd(),
+        options.env.CLAUDE_CONFIG_DIR
+      );
+    }
 
     if (this.sessions.get(sessionId) !== session) {
       throw new Error(`Session ${sessionId} closed before its prompt was sent`);
@@ -629,6 +656,12 @@ export class ClaudeSdkBackendProcess implements BackendProcess {
     this.sessions.clear();
     this.sessionHandlers.clear();
     this.pendingUpdates.clear();
+    if (this.userConfigurationDirectory) {
+      const directory = await this.userConfigurationDirectory;
+      const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+      await fs.rm(directory, { recursive: true, force: true });
+      this.userConfigurationDirectory = undefined;
+    }
     for (const fn of this.exitListeners) {
       try {
         fn();

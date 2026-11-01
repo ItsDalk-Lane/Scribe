@@ -90,10 +90,16 @@ export function TypeaheadMenuContent({
   const hasPreview = showPreview && options[selectedIndex]?.content;
 
   return (
-    <div className={cn("tw-flex tw-flex-col", className)}>
+    <div
+      className={cn(
+        "tw-flex tw-flex-col",
+        hasPreview && "tw-gap-2 min-[900px]:tw-flex-row-reverse min-[900px]:tw-items-start",
+        className
+      )}
+    >
       {hasPreview && (
         <div
-          className="tw-mb-2 tw-overflow-hidden tw-rounded-md tw-bg-primary tw-p-3 tw-text-sm tw-shadow-xl"
+          className="tw-overflow-y-auto tw-rounded-md tw-bg-primary tw-p-3 tw-text-sm tw-shadow-xl"
           style={{
             minHeight: PREVIEW_MIN_HEIGHT,
             maxHeight: PREVIEW_MAX_HEIGHT,

@@ -4,6 +4,7 @@ import {
   object,
 } from "@/agentMode/backends/shared/extensionInventory";
 import { input, skill } from "@/agentMode/backends/shared/extensionInventoryFixtures";
+import { sha256 } from "@/utils/hash";
 
 describe("extensionInventory", () => {
   describe("object()", () => {
@@ -25,6 +26,47 @@ describe("extensionInventory", () => {
     });
   });
   describe("ExtensionInventoryReader", () => {
+    describe("directoryExists()", () => {
+      it("accepts existing empty directories and distinguishes missing paths from unreadable ones", async () => {
+        const source = input({});
+        source.fs!.list = async (path) => {
+          if (path === "/empty") return [];
+          throw Object.assign(new Error(path), { code: path === "/missing" ? "ENOENT" : "EACCES" });
+        };
+        const reader = new ExtensionInventoryReader(source);
+
+        expect(await reader.directoryExists("/empty")).toBe(true);
+        expect(await reader.directoryExists("/missing")).toBe(false);
+        await expect(reader.directoryExists("/unreadable")).rejects.toThrow("/unreadable");
+      });
+    });
+    describe("hooks()", () => {
+      it("retains an exact event, matcher and hashed command identity without exposing credentials", () => {
+        const reader = new ExtensionInventoryReader(input({}));
+        reader.hooks(
+          {
+            PreToolUse: [
+              { matcher: "Bash", hooks: [{ type: "command", command: "check --token secret" }] },
+            ],
+          },
+          "project",
+          "/vault/.claude/settings.json"
+        );
+
+        const hooks = reader.result().find((group) => group.kind === "hook")!.items;
+
+        expect(hooks[0]).toMatchObject({
+          hookIdentity: {
+            event: "PreToolUse",
+            matcher: "Bash",
+            type: "command",
+            source: "project",
+            commandHash: sha256("check --token secret"),
+          },
+        });
+        expect(JSON.stringify(hooks)).not.toContain("secret");
+      });
+    });
     describe("config()", () => {
       it("parses local configuration without exposing unreadable file content in diagnostics", async () => {
         const reader = new ExtensionInventoryReader(

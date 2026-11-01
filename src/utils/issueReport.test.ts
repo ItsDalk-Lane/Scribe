@@ -682,9 +682,7 @@ describe("issueReport", () => {
       const url = buildManualIssueUrl({ title: "it exploded", body: "## What went wrong\n\nboom" });
 
       const params = new URLSearchParams(url.split("?")[1]);
-      expect(url.startsWith("https://github.com/logancyang/obsidian-copilot/issues/new?")).toBe(
-        true
-      );
+      expect(url.startsWith("https://github.com/ItsDalk-Lane/Scribe/issues/new?")).toBe(true);
       expect(params.get("title")).toBe("it exploded");
       expect(params.get("labels")).toBe("bug");
       expect(bodyOf(url)).toBe("## What went wrong\n\nboom");
@@ -706,9 +704,7 @@ describe("issueReport", () => {
       const url = buildLinkedReportIssueUrl({ title: "it exploded", body: "## What" }, REPORT_ID);
 
       const params = new URLSearchParams(url.split("?")[1]);
-      expect(url.startsWith("https://github.com/logancyang/obsidian-copilot/issues/new?")).toBe(
-        true
-      );
+      expect(url.startsWith("https://github.com/ItsDalk-Lane/Scribe/issues/new?")).toBe(true);
       expect(params.get("title")).toBe("it exploded");
       expect(params.get("labels")).toBe("bug");
       expect(bodyOf(url)).toBe(`**Scribe report ID:** \`${REPORT_ID}\`\n\n## What`);

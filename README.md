@@ -8,6 +8,10 @@
 
 ---
 
+## Upstream project
+
+Scribe is a fork of [Obsidian Copilot](https://github.com/logancyang/obsidian-copilot), based on upstream version **4.0.17**. This repository tracks upstream releases and selectively syncs the updates this project can use; **4.0.17** is the currently followed upstream version, and this record is updated whenever a sync lands. Scribe's own version numbering is independent of upstream and starts at 1.0.0.
+
 ## Work with Claude
 
 **Agent** is the main Scribe experience for multi-step work. It can inspect notes, use tools, create Obsidian files, and continue across several turns with permissions you control.
@@ -86,21 +90,9 @@ Your notes remain files in your vault. Prompts and included context go to your s
 
 ## Help and links
 
-[Documentation](./docs/index.md) · [YouTube](https://www.youtube.com/@loganhallucinates) · [Report a bug](https://github.com/logancyang/obsidian-copilot/issues/new?template=bug_report.md) · [Request a feature](https://github.com/logancyang/obsidian-copilot/issues/new?template=feature_request.md) · [Privacy](https://www.obsidiancopilot.com/en/privacy)
+[Documentation](./docs/index.md) · [Report a bug](https://github.com/ItsDalk-Lane/Scribe/issues/new?template=bug_report.md) · [Request a feature](https://github.com/ItsDalk-Lane/Scribe/issues/new?template=feature_request.md) · [Privacy](https://www.obsidiancopilot.com/en/privacy)
 
 To report a bug with its evidence attached, use **Settings → Scribe → Advanced → Debugging & support → Report an issue**. It packs a screenshot and recent logs into a zip you review before anything is sent, uploads it privately, and opens a prefilled issue carrying the report ID.
-
-## Support the project
-
-If Scribe is useful to you, consider [sponsoring the project on GitHub](https://github.com/sponsors/logancyang) or buying us a coffee.
-
-<p align="center">
-  <a href="https://www.buymeacoffee.com/logancyang"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="165"></a>
-</p>
-
-### Thank you to our GitHub Sponsors
-
-Special thanks to our top sponsors: @mikelaaron, @pedramamini, @Arlorean, @dashinja, @azagore, @MTGMAD, @gpythomas, @emaynard, @scmarinelli, @borthwick, @adamhill, @gluecode, @rusi, @timgrote, @JiaruiYu-Consilium, @ddocta, @AMOz1, @chchwy, @pborenstein, @GitTom, @kazukgw, @mjluser1, @joesfer, @rwaal, @turnoutnow-harpreet, @dreznicek, @xrise-informatik, @jeremygentles, @ZhengRui, @bfoujols, @jsmith0475, @pagiaddlemon, @sebbyyyywebbyyy, @royschwartz2, @vikram11, @amiable-dev, @khalidhalim, @DrJsPBs, @chishaku, @Andrea18500, @shayonpal, @rhm2k, @snorcup, @JohnBub, @obstinatelark, @jonashaefele, @vishnu2kmohan
 
 ## Privacy and data handling
 
@@ -113,4 +105,4 @@ Scribe is based on Copilot, a product of Brevilabs LLC, and is not affiliated wi
 
 ## Authors
 
-Brevilabs Team · [logan@brevilabs.com](mailto:logan@brevilabs.com) · [@logancyang](https://twitter.com/logancyang)
+ItsDalk-Lane · [GitHub](https://github.com/ItsDalk-Lane)

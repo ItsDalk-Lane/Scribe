@@ -1,7 +1,9 @@
 import { t } from "@/lib/i18n";
 import type { AgentBrand, BackendId } from "@/agentMode/session/types";
+import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
+import { getExtensionSwitchState } from "@/agentMode/session/extensionAvailability";
 import React from "react";
-import { Badge } from "@/components/ui/badge";
+import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { SkillRowLayout } from "./SkillRowLayout";
@@ -10,6 +12,7 @@ export interface BuiltinSkillRow {
   name: string;
   description: string;
   content: string;
+  filePath?: string;
 }
 
 export interface BuiltinSkillsTableProps {
@@ -17,6 +20,8 @@ export interface BuiltinSkillsTableProps {
   unavailableReasons?: Readonly<Record<string, string>>;
   agents: readonly AgentBrand[];
   availableAgents: readonly BackendId[];
+  runtimeItems?: readonly AgentExtensionItem[];
+  checking?: boolean;
   error?: string;
 }
 
@@ -25,6 +30,8 @@ export function BuiltinSkillsTable({
   unavailableReasons,
   agents,
   availableAgents,
+  runtimeItems,
+  checking,
   error,
 }: BuiltinSkillsTableProps) {
   return (
@@ -32,9 +39,6 @@ export function BuiltinSkillsTable({
       <div role="heading" aria-level={3} className="tw-text-left tw-text-sm tw-font-semibold">
         {t("Built-in skills")}
       </div>
-      <p className="tw-m-0 tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
-        {t("Scribe built-in skills are always enabled and read-only.")}
-      </p>
       {error && (
         <div role="alert" className="tw-text-ui-smaller tw-text-error">
           {error}
@@ -47,6 +51,8 @@ export function BuiltinSkillsTable({
             skill={skill}
             unavailableReason={unavailableReasons?.[skill.name]}
             available={agents.some((agent) => availableAgents.includes(agent.id))}
+            runtimeItems={runtimeItems}
+            checking={checking}
           />
         ))}
         {skills.length === 0 && (
@@ -63,31 +69,53 @@ interface BuiltinSkillItemProps {
   skill: BuiltinSkillRow;
   unavailableReason?: string;
   available: boolean;
+  runtimeItems?: readonly AgentExtensionItem[];
+  checking?: boolean;
 }
 
 const BuiltinSkillItem = React.memo(function BuiltinSkillItem({
   skill,
   unavailableReason,
   available,
+  runtimeItems,
+  checking,
 }: BuiltinSkillItemProps) {
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  const matches = runtimeItems?.filter(
+    (item) =>
+      !item.parentPluginId &&
+      (item.runtimeName ?? item.name) === skill.name &&
+      (skill.filePath
+        ? (item.location ?? item.target?.path) === skill.filePath
+        : !item.location && !item.target?.path)
+  );
+  const observed = matches?.length === 1 ? matches[0] : undefined;
+  const reason =
+    unavailableReason ?? (!available ? t("Set up Claude Code to use this skill.") : undefined);
+  const item: AgentExtensionItem = {
+    ...observed,
+    id: `builtin:${skill.name}`,
+    name: skill.name,
+    kind: "skill",
+    source: "project",
+    builtin: true,
+    readOnly: true,
+    availability: reason ? "disabled" : observed?.availability,
+    unavailableReason: reason,
+    canEnable: false,
+    canDisable: false,
+    capabilities: { edit: false, delete: false, toggle: false },
+  };
   return (
     <div>
       <SkillRowLayout
         name={skill.name}
         description={skill.description}
-        annotations={<Badge variant="secondary">{t("Read-only")}</Badge>}
         controls={
-          <span
-            title={
-              unavailableReason ??
-              (available ? t("Always enabled") : t("Set up Claude Code to use this skill."))
-            }
-            className="tw-max-w-24 tw-truncate tw-text-ui-smaller tw-text-muted"
-          >
-            {unavailableReason ??
-              (available ? t("Always enabled") : t("Set up Claude Code to use this skill."))}
-          </span>
+          <ExtensionAvailabilitySwitch
+            label={t("Enable {name}", { name: skill.name })}
+            state={getExtensionSwitchState(item, checking)}
+          />
         }
         actions={
           <Button

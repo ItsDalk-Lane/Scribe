@@ -213,13 +213,14 @@ export const ClaudeBackendDescriptor: ClaudeDescriptor = {
       })
     );
   },
-  async checkExtensions({ plugin, cwd, signal }) {
+  async checkExtensions({ plugin, cwd, scope, signal }) {
     signal?.throwIfAborted();
     const temporary = ClaudeBackendDescriptor.createBackendProcess({
       plugin,
       app: plugin.app,
       clientVersion: plugin.manifest.version,
       descriptor: ClaudeBackendDescriptor,
+      ...(scope ? { configurationScope: scope } : {}),
     });
     let closing: Promise<void> | undefined;
     const shutdown = (): void => {
@@ -380,6 +381,7 @@ export const ClaudeBackendDescriptor: ClaudeDescriptor = {
     }
     return new ClaudeSdkBackendProcess({
       pathToClaudeCodeExecutable: claudePath,
+      configurationScope: args.configurationScope,
       app: args.app,
       clientVersion: args.clientVersion,
       descriptor: args.descriptor,

@@ -11,6 +11,7 @@ import {
 } from "@/agentMode/skills/skillRepairPrompt";
 import { listBackendDescriptors } from "@/agentMode/backends/registry";
 import type { AgentBrand } from "@/agentMode/session/types";
+import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
 import { DeleteConfirmModal } from "./DeleteConfirmDialog";
 import { EmptyPlaceholder } from "./EmptyPlaceholder";
 import {
@@ -65,12 +66,18 @@ export interface SkillsSettingsProps {
   embedded?: boolean;
   query?: string;
   children?: React.ReactNode;
+  runtimeItems?: readonly AgentExtensionItem[];
+  checking?: boolean;
+  onChanged?: () => Promise<void>;
 }
 
 export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
   embedded = false,
   query,
   children,
+  runtimeItems,
+  checking,
+  onChanged,
 }) => {
   const app = useApp();
   const plugin = usePlugin();
@@ -117,7 +124,10 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
   }
   const builtinRows = BUILTIN_ROWS.filter((skill) =>
     `${skill.name} ${skill.description}`.toLowerCase().includes(searchValue.trim().toLowerCase())
-  );
+  ).map((skill) => ({
+    ...skill,
+    filePath: skills.find((managed) => managed.builtin && managed.name === skill.name)?.filePath,
+  }));
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -156,10 +166,14 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
     (skill: Skill) => {
       new SkillEditorModal(app, {
         skill,
-        onSave: (_name, content) => SkillManager.getInstance().saveContent(skill, content),
+        onSave: async (_name, content) => {
+          const result = await SkillManager.getInstance().saveContent(skill, content);
+          if (result.ok) await onChanged?.();
+          return result;
+        },
       }).open();
     },
-    [app]
+    [app, onChanged]
   );
 
   // Hidden agent folders are outside Obsidian's index, so they cannot use the vault reveal
@@ -236,11 +250,12 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
             );
             return "stay";
           }
+          await onChanged?.();
           return "close";
         }
       ).open();
     },
-    [app, displayFolder]
+    [app, displayFolder, onChanged]
   );
 
   const handleAskDelete = useCallback(
@@ -255,11 +270,13 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
           const result = await manager.deleteSkill(skill);
           if (!result.ok) {
             new Notice(t("Failed to delete {p0}: {p1}", { p0: skill.name, p1: result.message }));
+            return;
           }
+          await onChanged?.();
         }
       ).open();
     },
-    [app, displayFolder]
+    [app, displayFolder, onChanged]
   );
 
   const syncBrand = useMemo(() => detectSyncBrand(app), [app]);
@@ -311,7 +328,11 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
           <Button
             onClick={() =>
               new SkillEditorModal(app, {
-                onSave: (name, content) => SkillManager.getInstance().createSkill(name, content),
+                onSave: async (name, content) => {
+                  const result = await SkillManager.getInstance().createSkill(name, content);
+                  if (result.ok) await onChanged?.();
+                  return result;
+                },
               }).open()
             }
           >
@@ -355,6 +376,9 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
                     onRevealInVault={() => handleRevealSkillFolder(skill.dirPath)}
                     onDelete={() => handleAskDelete(skill)}
                     containerRef={containerRef}
+                    runtimeItems={runtimeItems}
+                    checking={checking}
+                    onChanged={onChanged}
                   />
                 ))
               )}
@@ -367,6 +391,8 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
         unavailableReasons={unavailableReasons}
         agents={agents}
         availableAgents={availableAgents}
+        runtimeItems={runtimeItems}
+        checking={checking}
       />
       {children}
     </div>

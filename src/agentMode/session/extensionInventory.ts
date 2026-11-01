@@ -1,9 +1,29 @@
 export type AgentExtensionKind = "skill" | "mcp" | "plugin" | "command" | "hook" | "subagent";
 
+export interface AgentPluginInstallation {
+  scope: "user" | "project" | "local";
+  path: string;
+  projectPath?: string;
+  version?: string;
+  available?: boolean;
+}
+
 export interface AgentExtensionItem {
   id: string;
   name: string;
   description?: string;
+  version?: string;
+  installations?: readonly AgentPluginInstallation[];
+  unavailableReason?: string;
+  canEnable?: boolean;
+  canDisable?: boolean;
+  hookIdentity?: {
+    event: string;
+    matcher?: string;
+    commandHash: string;
+    type?: string;
+    source?: string;
+  };
   source: "user" | "project" | "plugin" | "runtime";
   enabled?: boolean;
   location?: string;
@@ -39,8 +59,22 @@ export type AgentExtensionAvailability =
   | "disabled";
 
 export interface AgentExtensionRuntimeSnapshot {
+  hooks?:
+    | readonly {
+        event: string;
+        matcher?: string;
+        source?: string;
+        pluginName?: string;
+        type?: string;
+        commandHash?: string;
+        disabled?: boolean;
+      }[]
+    | null;
+  hooksDisabled?: boolean;
+  checkErrors?: readonly string[];
   subagents?: readonly { name: string; description?: string; model?: string }[] | null;
   commands: readonly string[] | null;
+  builtinCommands?: readonly string[];
   skills: readonly string[] | null;
   disabledSkills?: readonly string[];
   manualSkills?: readonly string[];

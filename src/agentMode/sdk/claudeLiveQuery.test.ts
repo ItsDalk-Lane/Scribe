@@ -333,6 +333,43 @@ describe("claudeLiveQuery", () => {
         }
       );
 
+      it.each([
+        [{ disabledByPolicy: true, allDisabled: false, policyHookCount: 0 }, true],
+        [{ disabledByPolicy: false, allDisabled: true, policyHookCount: 0 }, true],
+        [{ disabledByPolicy: false, allDisabled: true, policyHookCount: 1 }, false],
+      ])(
+        "reports whether the effective hooks policy disables every hook for %j",
+        async (policy, disabled) => {
+          const { live, fake } = startLive();
+          Object.assign(fake, { getHooksListing: jest.fn(async () => ({ hooks: [], policy })) });
+
+          const runtime = await live.getExtensionRuntime();
+
+          expect(runtime.hooks).toEqual([]);
+          expect(runtime.hooksDisabled).toBe(disabled);
+          expect(fake.inputs).toEqual([]);
+          live.close();
+        }
+      );
+
+      it("reports skipped hook settings as a partial check without exposing parse errors", async () => {
+        const { live, fake } = startLive();
+        Object.assign(fake, {
+          getHooksListing: jest.fn(async () => ({
+            hooks: [],
+            errors: [{ message: "private malformed settings" }],
+          })),
+        });
+
+        const runtime = await live.getExtensionRuntime();
+
+        expect(runtime.hooks).toEqual([]);
+        expect(runtime.checkErrors).toEqual(["hook"]);
+        expect(JSON.stringify(runtime)).not.toContain("private malformed settings");
+        expect(fake.inputs).toEqual([]);
+        live.close();
+      });
+
       it("retains loaded skill names and plugin identities with failed plugin paths from init", async () => {
         const { live, fake, recorder } = startLive();
         fake.emit(

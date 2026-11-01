@@ -70,7 +70,7 @@ describe("discoverExtensions", () => {
       });
       expect(JSON.stringify(result)).not.toContain("credential-canary");
     });
-    it("preserves disabled plugin state and excludes registrations from other projects", async () => {
+    it("preserves disabled plugin state and marks other projects' installations as unavailable", async () => {
       const result = await discoverClaudeExtensions(
         input({
           "/home/.claude/settings.json": JSON.stringify({
@@ -90,8 +90,15 @@ describe("discoverExtensions", () => {
         })
       );
       const plugins = result.find((group) => group.kind === "plugin")!.items;
-      expect(plugins).toHaveLength(1);
+      expect(plugins).toHaveLength(2);
       expect(plugins[0]).toMatchObject({ name: "review@local", enabled: false });
+      expect(plugins[1]).toMatchObject({
+        name: "other@local",
+        enabled: false,
+        canEnable: false,
+        canDisable: false,
+        installations: [{ projectPath: "/other" }],
+      });
       expect(result.find((group) => group.kind === "skill")!.items[0].enabled).toBe(false);
     });
   });

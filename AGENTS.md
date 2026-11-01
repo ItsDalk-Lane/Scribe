@@ -6,6 +6,8 @@ This file provides guidance to any coding agent when working with code in this r
 
 Copilot for Obsidian is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) and the Claude Code agent with Obsidian. It provides chat interfaces and various AI-powered commands for note-taking and knowledge management.
 
+This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/logancyang/obsidian-copilot), forked from upstream v4.0.17. It tracks upstream releases and selectively syncs the updates this project can use. The currently followed upstream version is recorded in the README's "Upstream project" section — update that record whenever a sync lands. Scribe's own version numbering is independent of upstream and starts at 1.0.0.
+
 ## Commands
 
 - **NEVER RUN `npm run dev`**.
@@ -139,6 +141,7 @@ gh api repos/OWNER/REPO/pulls/PR/reviews --jq '[.[]|select(.state=="PENDING")]|l
 <!-- brevilabs-review-guidelines:end -->
 
 <!-- aoci:begin -->
+
 ## AOCI Repository Cognition
 
 AOCI maintains a stable, versioned, incrementally updatable repository-level cognition layer so models can reuse their understanding of this system across tasks.
@@ -174,7 +177,6 @@ This managed block defines only repository integration, cognition use, and task-
 ### Establishing, generating, and restoring cognition
 
 1. At the beginning of every new Agent Run, first determine:
-
    - whether this repository already has a usable complete AOCI index; and
    - whether current context already contains complete repository cognition that matches this repository root, current index version, and current AOCI service, and that the model can still use reliably.
 
@@ -205,7 +207,6 @@ This managed block defines only repository integration, cognition use, and task-
    Do not reconstruct or hard-code the full-index generation state machine in this file.
 
 4. During a long-running task, the model is responsible for preserving the current cognition receipt and using the refresh gate correctly:
-
    - when the Host reports context compaction or the model knows the system-wide view was lost, follow the mandatory `context_compaction` reload rule above; AOCI cannot infer the Host event;
    - when entering a genuinely major phase, declare `phase_transition`, not a function, test run, or small step;
    - at a plausible stable checkpoint, use `check_only=true` to obtain the machine semantic count when that fact is useful;
@@ -223,7 +224,6 @@ This managed block defines only repository integration, cognition use, and task-
    When evidence is insufficient and the current layout supports `aoci_report`, use it instead of guessing, applying a template, or generating unsupported cognition merely to eliminate follow-up work.
 
 8. Obey structured tool states and safety boundaries:
-
    - `repair_required`: repair only the explicitly identified candidates, then resubmit the complete current machine-issued batch;
    - `stopped`: end that write attempt and inspect `failed_step`, error, formal-write evidence, and Recovery. In auto mode, a proven zero-write closure is followed by a fresh Plan; a complete Intent with provable postimage is resumed; a policy-selected Rollback with exact preimage is completed and replanned. Stop the user task only when proof is unavailable, third-party bytes conflict, approval or external action is required, or another real safety boundary applies;
    - never ignore conflicts, approvals, human decisions, permissions, or safety signals; and
@@ -240,6 +240,5 @@ This managed block defines only repository integration, cognition use, and task-
 Initialization, complete-index generation, Header generation, Entries generation, database-structure indexing, Curation, human review, and failure recovery must follow only the instructions, commands, and safety stops returned by the current AOCI Guide or tool at the corresponding stage.
 
 Do not preload, guess, or reconstruct these specialized workflows. The relevant Guide, tool descriptions, model Prompt, and CLI help provide platform invocation, request format, batch limits, approval rules, index-format details, and recovery steps as needed.
+
 <!-- aoci:end -->
-
-

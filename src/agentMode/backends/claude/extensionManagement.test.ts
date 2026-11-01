@@ -1,6 +1,7 @@
 import { ClaudeExtensionManager, type ClaudeExtensionFs } from "./extensionManagement";
 import type { AgentExtensionScope } from "@/agentMode/session/extensionManagement";
 import { discoverClaudeExtensions } from "./discoverExtensions";
+import { requireNodeModule } from "@/utils/desktopRuntime";
 
 const USER: AgentExtensionScope = { kind: "user" };
 const PROJECT: AgentExtensionScope = { kind: "project", cwd: "/vault" };
@@ -36,6 +37,11 @@ function fixture(initial: Record<string, string> = {}) {
     remove: async (path) => {
       files.delete(path);
     },
+    removeTree: async (path) => {
+      const keys = [...files.keys()].filter((file) => file === path || file.startsWith(`${path}/`));
+      if (!keys.length) throw missing();
+      keys.forEach((file) => files.delete(file));
+    },
   };
   const run = jest.fn(async () => "installed");
   const manager = new ClaudeExtensionManager({
@@ -59,6 +65,138 @@ const markdown = (name: string) =>
 describe("extensionManagement", () => {
   describe("ClaudeExtensionManager", () => {
     describe("list()", () => {
+      it("uses Claude's enabled state and keeps every installation record while blocking plugins installed only for other projects", async () => {
+        const { manager, run } = fixture({
+          "/plugins/active/.claude-plugin/plugin.json":
+            '{"name":"active","description":"Active tools","version":"2"}',
+          "/plugins/disabled/.claude-plugin/plugin.json": '{"name":"disabled"}',
+          "/plugins/elsewhere/.claude-plugin/plugin.json": '{"name":"elsewhere"}',
+        });
+        run.mockResolvedValue(
+          JSON.stringify([
+            {
+              id: "active@team",
+              enabled: true,
+              scope: "user",
+              installPath: "/plugins/active",
+              version: "2",
+            },
+            {
+              id: "disabled@team",
+              enabled: false,
+              scope: "user",
+              installPath: "/plugins/disabled",
+            },
+            { id: "missing@team", enabled: true, scope: "user", installPath: "/plugins/missing" },
+            {
+              id: "elsewhere@team",
+              enabled: false,
+              scope: "local",
+              projectPath: "/other",
+              installPath: "/plugins/elsewhere",
+            },
+            {
+              id: "elsewhere@team",
+              enabled: false,
+              scope: "local",
+              projectPath: "/third",
+              installPath: "/plugins/elsewhere",
+            },
+          ])
+        );
+
+        const plugins = await manager.list("plugin", PROJECT);
+
+        expect(plugins).toHaveLength(4);
+        expect(plugins.find((item) => item.id === "active@team")).toMatchObject({
+          enabled: true,
+          version: "2",
+          description: "Active tools",
+          target: { scope: PROJECT },
+        });
+        expect(plugins.find((item) => item.id === "disabled@team")).toMatchObject({
+          enabled: false,
+        });
+        expect(plugins.find((item) => item.id === "missing@team")).toMatchObject({
+          enabled: true,
+          canEnable: false,
+          canDisable: true,
+          unavailableReason: "Installed plugin files are missing.",
+          installations: [{ available: false }],
+        });
+        expect(plugins.find((item) => item.id === "elsewhere@team")).toMatchObject({
+          enabled: false,
+          canEnable: false,
+          canDisable: false,
+          installations: [{ projectPath: "/other" }, { projectPath: "/third" }],
+        });
+        expect(run).toHaveBeenCalledWith(
+          "/bin/claude",
+          ["--setting-sources", "user,project,local", "plugin", "list", "--json"],
+          "/vault",
+          {}
+        );
+      });
+      it("reads user plugin state in an isolated empty directory and removes that directory after the query", async () => {
+        const { manager, run } = fixture();
+        run.mockResolvedValue("[]");
+
+        await manager.list("plugin", USER);
+
+        expect(run).toHaveBeenCalledWith(
+          "/bin/claude",
+          ["--setting-sources", "user", "plugin", "list", "--json"],
+          expect.stringMatching(/scribe-plugin-list-/),
+          {}
+        );
+        const directory = (run.mock.calls as unknown as Array<[string, string[], string]>)[0][2];
+        expect(directory).not.toBe("/home");
+        expect(directory).not.toBe("/vault");
+        expect(requireNodeModule<typeof import("node:fs")>("fs").existsSync(directory)).toBe(false);
+      });
+      it.each(["not json", "{}", '[{"id":"notes@team"}]'])(
+        "keeps discovered plugins with an explicit unknown-status reason when Claude returns %s",
+        async (output) => {
+          const { manager, run } = fixture({
+            "/home/.claude/plugins/installed_plugins.json": JSON.stringify({
+              plugins: { "notes@team": [{ scope: "user", installPath: "/plugin" }] },
+            }),
+            "/plugin/.claude-plugin/plugin.json": '{"name":"notes"}',
+          });
+          run.mockResolvedValue(output);
+
+          const plugins = await manager.list("plugin", USER);
+
+          expect(plugins).toMatchObject([
+            { name: "notes@team", unavailableReason: "Could not read Claude plugin status." },
+          ]);
+          expect(plugins[0].enabled).toBeUndefined();
+        }
+      );
+      it("shares an in-flight Claude listing across component kinds and reads fresh status on the next refresh", async () => {
+        const { manager, run, io } = fixture();
+        const reads = jest.spyOn(io, "read");
+        let finish!: (value: string) => void;
+        run.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            })
+        );
+        const plugins = manager.list("plugin", PROJECT);
+        const skills = manager.list("skill", PROJECT);
+        expect(run).toHaveBeenCalledTimes(1);
+        finish("[]");
+        await Promise.all([plugins, skills]);
+        expect(
+          reads.mock.calls.filter(([path]) => path === "/home/.claude/settings.json")
+        ).toHaveLength(1);
+        run.mockResolvedValue("[]");
+
+        await manager.list("plugin", PROJECT);
+
+        expect(run).toHaveBeenCalledTimes(2);
+      });
       it("resolves a relative Claude config directory against the query folder or home and uses the same directory for discovery, writes and CLI operations", async () => {
         const { io, files, run } = fixture({
           "/vault/profile/commands/review.md": "Project profile command",
@@ -123,7 +261,7 @@ describe("extensionManagement", () => {
           target: { scope: PROJECT },
         });
       });
-      it("keeps user and project rows separate and carries exact plugin ownership and disabled state", async () => {
+      it("includes inherited user entries as read-only in project lists and carries plugin ownership and disabled state", async () => {
         const { manager } = fixture({
           "/home/.claude/agents/user.md": markdown("user"),
           "/vault/.claude/agents/project.md": markdown("project"),
@@ -142,7 +280,12 @@ describe("extensionManagement", () => {
         const user = await manager.list("subagent", USER),
           project = await manager.list("subagent", PROJECT);
         expect(user.map((item) => item.name)).toEqual(["user", "check"]);
-        expect(project.map((item) => item.name)).toEqual(["project"]);
+        expect(project.map((item) => item.name)).toEqual(["user", "project", "check"]);
+        expect(project[0]).toMatchObject({
+          readOnly: true,
+          capabilities: { edit: false, delete: false, toggle: false },
+          target: { scope: USER },
+        });
         expect(user[1]).toMatchObject({
           parentPluginId: "notes@team",
           enabled: false,
@@ -156,6 +299,51 @@ describe("extensionManagement", () => {
       });
     });
     describe("details()", () => {
+      it("returns the plugin's version, introduction, all installation records and its own five component kinds", async () => {
+        const { manager, run } = fixture({
+          "/plugins/notes/.claude-plugin/plugin.json": JSON.stringify({
+            name: "notes",
+            description: "Work with notes",
+            version: "3",
+            mcpServers: { docs: { command: "server" } },
+            hooks: { Stop: [{ hooks: [{ type: "command", command: "check notes" }] }] },
+          }),
+          "/plugins/notes/skills/check/SKILL.md": markdown("check"),
+          "/plugins/notes/commands/review.md": "Review notes",
+          "/plugins/notes/agents/check.md": markdown("check-agent"),
+          "/home/.claude/commands/unrelated.md": "Not part of this plugin",
+        });
+        run.mockResolvedValue(
+          JSON.stringify([
+            {
+              id: "notes@team",
+              enabled: true,
+              scope: "user",
+              installPath: "/plugins/notes",
+              version: "3",
+            },
+          ])
+        );
+        const item = (await manager.list("plugin", USER))[0];
+
+        const details = await manager.details({ ...item, availability: "loaded" });
+
+        expect(details.item).toMatchObject({
+          description: "Work with notes",
+          version: "3",
+          installations: [{ path: "/plugins/notes" }],
+        });
+        expect(details.children?.map((child) => child.kind).sort()).toEqual([
+          "command",
+          "hook",
+          "mcp",
+          "skill",
+          "subagent",
+        ]);
+        expect(details.children?.every((child) => child.parentPluginId === "notes@team")).toBe(
+          true
+        );
+      });
       it.each(["command", "http", "prompt", "agent"])(
         "reports valid trigger events for %s hooks",
         async (type) => {
@@ -460,6 +648,64 @@ describe("extensionManagement", () => {
       });
     });
     describe("toggle()", () => {
+      it("writes an inherited plugin override only to the selected project without gaining ownership of the user installation", async () => {
+        const { manager, run, files } = fixture({
+          "/home/.claude/settings.json": JSON.stringify({ enabledPlugins: { "notes@team": true } }),
+          "/plugins/notes/.claude-plugin/plugin.json": '{"name":"notes"}',
+        });
+        run.mockResolvedValue(
+          JSON.stringify([
+            { id: "notes@team", enabled: true, scope: "user", installPath: "/plugins/notes" },
+          ])
+        );
+        const item = (await manager.list("plugin", PROJECT))[0];
+
+        expect(item).toMatchObject({
+          target: { scope: PROJECT },
+          capabilities: { toggle: true, delete: false, update: false },
+        });
+        expect(item.readOnly).not.toBe(true);
+        await manager.toggle(await manager.details(item), false);
+
+        expect(config(files, "/vault/.claude/settings.json").enabledPlugins).toEqual({
+          "notes@team": false,
+        });
+        expect(config(files, "/home/.claude/settings.json").enabledPlugins).toEqual({
+          "notes@team": true,
+        });
+      });
+      it("refuses to enable missing plugin files or modify another project's installation and permits disabling a broken plugin", async () => {
+        const { manager, run, files } = fixture({
+          "/plugins/elsewhere/.claude-plugin/plugin.json": '{"name":"elsewhere"}',
+        });
+        run.mockResolvedValue(
+          JSON.stringify([
+            { id: "missing@team", enabled: true, scope: "user", installPath: "/plugins/missing" },
+            {
+              id: "elsewhere@team",
+              enabled: false,
+              scope: "local",
+              projectPath: "/other",
+              installPath: "/plugins/elsewhere",
+            },
+          ])
+        );
+        const plugins = await manager.list("plugin", PROJECT);
+        const missing = await manager.details(plugins.find((item) => item.id === "missing@team")!);
+        const elsewhere = await manager.details(
+          plugins.find((item) => item.id === "elsewhere@team")!
+        );
+
+        await expect(manager.toggle(missing, true)).rejects.toThrow("missing");
+        await expect(manager.toggle(elsewhere, true)).rejects.toThrow("other projects");
+        await expect(manager.toggle(elsewhere, false)).rejects.toThrow("other projects");
+        expect(files.has("/vault/.claude/settings.json")).toBe(false);
+        await manager.toggle(missing, false);
+        expect(config(files, "/vault/.claude/settings.json").enabledPlugins).toEqual({
+          "missing@team": false,
+        });
+        expect(files.has("/other/.claude/settings.local.json")).toBe(false);
+      });
       it.each([undefined, JSON.stringify({ future: { retained: true } })])(
         "reads installed plugin metadata and safely creates its exact enable preference when the initial settings are %p",
         async (initial) => {
@@ -489,10 +735,9 @@ describe("extensionManagement", () => {
             ...(initial ? JSON.parse(initial) : {}),
             enabledPlugins: { "notes@team": false },
           });
-          await manager.toggle(
-            await manager.details((await manager.list("plugin", USER))[0]),
-            true
-          );
+          const latest = await manager.details((await manager.list("plugin", USER))[0]);
+          run.mockClear();
+          await manager.toggle(latest, true);
           expect(config(files, settingsPath).enabledPlugins["notes@team"]).toBe(true);
           expect(run).not.toHaveBeenCalled();
         }
@@ -641,6 +886,7 @@ describe("extensionManagement", () => {
           "/plugin/.claude-plugin/plugin.json": '{"name":"notes"}',
         });
         const inherited = (await manager.list("plugin", PROJECT))[0];
+        run.mockClear();
         await expect(manager.delete(await manager.details(inherited))).rejects.toThrow();
         expect(inherited.capabilities).toMatchObject({
           toggle: true,
@@ -731,6 +977,36 @@ describe("extensionManagement", () => {
         expect(config(files, "/vault/.mcp.json")).toEqual({
           future: 8,
           mcpServers: { two: { command: "two" } },
+        });
+      });
+      it("deletes a local plugin directory from disk and then removes its reference", async () => {
+        const { manager, files } = fixture({
+          "/home/.claude/.scribe/extensions.json": JSON.stringify({
+            localPlugins: { "local:notes": { path: "/plugins/notes" } },
+          }),
+          "/plugins/notes/.claude-plugin/plugin.json": '{"name":"notes"}',
+          "/plugins/notes/commands/review.md": "Review notes",
+        });
+        await manager.delete(await manager.details((await manager.list("plugin", USER))[0]));
+        expect([...files.keys()].some((path) => path.startsWith("/plugins/notes"))).toBe(false);
+        expect(config(files, "/home/.claude/.scribe/extensions.json")).toEqual({
+          localPlugins: {},
+        });
+        expect(await manager.list("plugin", USER)).toEqual([]);
+      });
+      it("keeps a referenced directory and its reference when the directory is not a plugin", async () => {
+        const { manager, files } = fixture({
+          "/home/.claude/.scribe/extensions.json": JSON.stringify({
+            localPlugins: { "local:notes": { path: "/notes" } },
+          }),
+          "/notes/readme.md": "Keep me",
+        });
+        await expect(
+          manager.delete(await manager.details((await manager.list("plugin", USER))[0]))
+        ).rejects.toThrow("不是插件目录");
+        expect(files.get("/notes/readme.md")).toBe("Keep me");
+        expect(config(files, "/home/.claude/.scribe/extensions.json")).toEqual({
+          localPlugins: { "local:notes": { path: "/notes" } },
         });
       });
     });
@@ -831,6 +1107,7 @@ describe("extensionManagement", () => {
         });
         expect(await manager.localPlugins()).toEqual([{ type: "local", path: "/plugin" }]);
         const item = (await manager.list("plugin", USER))[0];
+        run.mockClear();
         await manager.toggle(await manager.details(item), false);
         expect(await manager.localPlugins()).toEqual([]);
         expect(run).not.toHaveBeenCalled();

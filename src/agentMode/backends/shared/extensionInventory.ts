@@ -4,6 +4,7 @@ import type {
   AgentExtensionKind,
 } from "@/agentMode/session/extensionInventory";
 import { requireNodeModule } from "@/utils/desktopRuntime";
+import { sha256 } from "@/utils/hash";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
@@ -139,7 +140,19 @@ export class ExtensionInventoryReader {
     manifest: Record<string, unknown>,
     enabled?: boolean
   ): Promise<void> {
-    const plugin = this.add("plugin", { id, name: id, source: "plugin", location: root, enabled });
+    const previous = this.items.get("plugin")!.get(id);
+    const plugin = this.add("plugin", {
+      id,
+      name: id,
+      source: previous?.source ?? "plugin",
+      location: root,
+      enabled,
+      ...(typeof manifest.name === "string" ? { runtimeName: manifest.name } : {}),
+      ...(typeof manifest.description === "string" ? { description: manifest.description } : {}),
+      ...(typeof manifest.version === "string" && !previous?.version
+        ? { version: manifest.version }
+        : {}),
+    });
     const previousPlugin = this.parentPluginId;
     this.parentPluginId = id;
     const pluginName = typeof manifest.name === "string" ? manifest.name : id.split("@")[0];
@@ -277,6 +290,17 @@ export class ExtensionInventoryReader {
     }
   }
 
+  async directoryExists(path: string): Promise<boolean> {
+    try {
+      await this.fs.list(path);
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") return false;
+      throw error;
+    }
+  }
+
   parse(content: string, format: "json" | "toml"): JsonObject {
     try {
       if (format === "toml") return object(parseToml(content));
@@ -351,7 +375,9 @@ export class ExtensionInventoryReader {
       groups.forEach((group, index) => {
         const data = object(group);
         if (!Array.isArray(data.hooks)) return;
-        data.hooks.forEach((_hook: unknown, hookIndex: number) => {
+        data.hooks.forEach((hook: unknown, hookIndex: number) => {
+          const config = object(hook);
+          const commandText = config.command ?? config.prompt ?? config.url ?? config.mcp_tool;
           this.add("hook", {
             id: `${location}:${JSON.stringify(keyPrefix)}:${event}:${index}:${hookIndex}`,
             name: event,
@@ -367,6 +393,20 @@ export class ExtensionInventoryReader {
                   : { kind: "user" },
             },
             enabled: enabled === false ? false : undefined,
+            ...(typeof commandText === "string"
+              ? {
+                  hookIdentity: {
+                    event,
+                    commandHash: sha256(commandText),
+                    source:
+                      source === "project" && this.path.basename(location) === "settings.local.json"
+                        ? "local"
+                        : source,
+                    ...(typeof data.matcher === "string" ? { matcher: data.matcher } : {}),
+                    ...(typeof config.type === "string" ? { type: config.type } : {}),
+                  },
+                }
+              : {}),
           });
         });
       });

@@ -12,7 +12,10 @@ import { Edit3, FolderSearch, MoreVertical, Move, Settings, Trash2 } from "lucid
 import { Notice, type App } from "obsidian";
 import React from "react";
 import type { AgentBrand, BackendId } from "@/agentMode/session/types";
+import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
+import { getExtensionSwitchState } from "@/agentMode/session/extensionAvailability";
 import { Button } from "@/components/ui/button";
+import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { useApp } from "@/context";
 import { logError } from "@/logger";
 import { getEffectiveSkillsFolder } from "@/settings/copilotFolder";
@@ -25,7 +28,7 @@ import {
   type MigrateActionLine,
   type MigrateConfirmVariant,
 } from "./MigrateSkillConfirmModal";
-import { AgentIconButton } from "./AgentIconButton";
+import { skillRuntimeItem } from "./skillRuntimeItem";
 
 interface SkillRowProps {
   skill: Skill;
@@ -36,6 +39,9 @@ interface SkillRowProps {
   onRevealInVault?: () => void;
   onDelete?: () => void;
   containerRef: React.RefObject<HTMLDivElement>;
+  runtimeItems?: readonly AgentExtensionItem[];
+  checking?: boolean;
+  onChanged?: () => Promise<void>;
 }
 
 export const SkillRow: React.FC<SkillRowProps> = ({
@@ -47,11 +53,13 @@ export const SkillRow: React.FC<SkillRowProps> = ({
   onRevealInVault,
   onDelete,
   containerRef,
+  runtimeItems,
+  checking,
+  onChanged,
 }) => {
   const app = useApp();
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const chips = computeChips(skill);
-  const enabledAgents = React.useMemo(() => new Set(skill.enabledAgents), [skill.enabledAgents]);
+  const [busy, setBusy] = React.useState(false);
   const displayName = formatSkillDisplayName(skill);
   const locationLabel = buildLocationLabel(skill, agentDirsProjectRel);
 
@@ -64,71 +72,82 @@ export const SkillRow: React.FC<SkillRowProps> = ({
     : null;
 
   const handleToggleAgent = React.useCallback(
-    async (agent: BackendId): Promise<void> => {
-      const manager = SkillManager.getInstance();
-      const willBeEnabled = !enabledAgents.has(agent);
-      const decision = decideToggleAction(skill, agent, willBeEnabled);
-      switch (decision.kind) {
-        case "no-op":
-          return;
-        case "canonical-toggle": {
-          const result = await manager.toggleAgent(skill, agent, decision.enabled);
-          if (!result.ok && result.code !== "eperm") {
-            new Notice(
-              t("Could not {p0} {p1}: {p2}", {
-                p0: decision.enabled ? t("enable") : t("disable"),
-                p1: agent,
-                p2: result.message,
-              })
-            );
-          }
-          return;
-        }
-        case "mirrored-remove-one": {
-          const result = await manager.removeProjectAgentDir(skill, decision.agent);
-          if (!result.ok) {
-            new Notice(
-              t("Could not remove {p0} from {p1}: {p2}", {
-                p0: skill.name,
-                p1: decision.agent,
-                p2: result.message,
-              })
-            );
+    async (agent: BackendId, willBeEnabled: boolean): Promise<void> => {
+      setBusy(true);
+      try {
+        const manager = SkillManager.getInstance();
+        const decision = decideToggleAction(skill, agent, willBeEnabled);
+        switch (decision.kind) {
+          case "no-op":
+            return;
+          case "canonical-toggle": {
+            const result = await manager.toggleAgent(skill, agent, decision.enabled);
+            if (!result.ok && result.code !== "eperm") {
+              new Notice(
+                t("Could not {p0} {p1}: {p2}", {
+                  p0: decision.enabled ? t("enable") : t("disable"),
+                  p1: agent,
+                  p2: result.message,
+                })
+              );
+              return;
+            }
+            await onChanged?.();
             return;
           }
-          const survivors = (
-            skill.location.kind === "project" ? skill.location.agentDirs : []
-          ).filter((a) => a !== decision.agent);
-          const survivorLabel = survivors.length === 1 ? survivors[0] : survivors.join(", ");
-          new Notice(
-            t("Removed {p0} from {p1} project folder; still active in {p2}.", {
-              p0: skill.name,
-              p1: decision.agent,
-              p2: survivorLabel,
-            })
-          );
-          return;
+          case "mirrored-remove-one": {
+            const result = await manager.removeProjectAgentDir(skill, decision.agent);
+            if (!result.ok) {
+              new Notice(
+                t("Could not remove {p0} from {p1}: {p2}", {
+                  p0: skill.name,
+                  p1: decision.agent,
+                  p2: result.message,
+                })
+              );
+              return;
+            }
+            const survivors = (
+              skill.location.kind === "project" ? skill.location.agentDirs : []
+            ).filter((a) => a !== decision.agent);
+            const survivorLabel = survivors.length === 1 ? survivors[0] : survivors.join(", ");
+            new Notice(
+              t("Removed {p0} from {p1} project folder; still active in {p2}.", {
+                p0: skill.name,
+                p1: decision.agent,
+                p2: survivorLabel,
+              })
+            );
+            await onChanged?.();
+            return;
+          }
+          case "migrate-confirm": {
+            await runMigration({
+              app,
+              skill,
+              agentDirsProjectRel,
+              variant: decision.variant,
+              targetAgent: decision.targetAgent,
+              targetAgentDisplayName: agentDisplayName(agents, decision.targetAgent),
+              action: decision.action,
+              onChanged,
+            });
+            return;
+          }
+          default: {
+            const _exhaustive: never = decision;
+            void _exhaustive;
+            return;
+          }
         }
-        case "migrate-confirm": {
-          await runMigration({
-            app,
-            skill,
-            agentDirsProjectRel,
-            variant: decision.variant,
-            targetAgent: decision.targetAgent,
-            targetAgentDisplayName: agentDisplayName(agents, decision.targetAgent),
-            action: decision.action,
-          });
-          return;
-        }
-        default: {
-          const _exhaustive: never = decision;
-          void _exhaustive;
-          return;
-        }
+      } catch (error) {
+        logError("Could not update skill availability", error);
+        new Notice(error instanceof Error ? error.message : t("Could not save configuration."));
+      } finally {
+        setBusy(false);
       }
     },
-    [agents, agentDirsProjectRel, app, enabledAgents, skill]
+    [agents, agentDirsProjectRel, app, onChanged, skill]
   );
 
   const handleProactiveConsolidate = React.useCallback(() => {
@@ -136,8 +155,9 @@ export const SkillRow: React.FC<SkillRowProps> = ({
       app,
       skill,
       agentDirsProjectRel,
+      onChanged,
     });
-  }, [agentDirsProjectRel, app, skill]);
+  }, [agentDirsProjectRel, app, onChanged, skill]);
 
   return (
     <SkillRowLayout
@@ -147,9 +167,6 @@ export const SkillRow: React.FC<SkillRowProps> = ({
       onOpen={mirroredLockdown ? undefined : onEditSkillMd}
       annotations={
         <>
-          {chips.map((chip) => (
-            <Chip key={chip.label} variant={chip.variant} label={chip.label} />
-          ))}
           {locationLabel !== null && (
             <span className="tw-truncate tw-text-ui-smaller tw-text-faint">{locationLabel}</span>
           )}
@@ -158,18 +175,16 @@ export const SkillRow: React.FC<SkillRowProps> = ({
       controls={
         <div className="tw-flex tw-items-center tw-gap-1.5">
           {agents.map((agent) => {
-            const enabled = enabledAgents.has(agent.id);
+            const item = skillRuntimeItem(skill, agent.id, runtimeItems);
             return (
-              <AgentIconButton
+              <ExtensionAvailabilitySwitch
                 key={agent.id}
-                Icon={agent.Icon}
-                agentId={agent.id}
-                agentName={agent.displayName}
-                enabled={enabled}
-                onClick={() => {
-                  void handleToggleAgent(agent.id);
+                label={t("Enable {name}", { name: skill.name })}
+                state={getExtensionSwitchState(item, checking)}
+                busy={busy}
+                onToggle={(next) => {
+                  void handleToggleAgent(agent.id, next);
                 }}
-                title={tooltipFor(agent.displayName, enabled)}
               />
             );
           })}
@@ -240,11 +255,6 @@ export const SkillRow: React.FC<SkillRowProps> = ({
   );
 };
 
-interface ChipSpec {
-  variant: "default" | "warn" | "solid";
-  label: string;
-}
-
 function buildLocationLabel(
   skill: Skill,
   agentDirsProjectRel: Readonly<Record<BackendId, string>>
@@ -272,30 +282,6 @@ function parentDotFolder(rel: string): string {
 
 function agentDisplayName(agents: ReadonlyArray<AgentBrand>, id: BackendId): string {
   return agents.find((a) => a.id === id)?.displayName ?? id;
-}
-
-function computeChips(skill: Skill): ChipSpec[] {
-  const chips: ChipSpec[] = [];
-  if (skill.disableModelInvocation === true) {
-    chips.push({ variant: "warn", label: t("manual only") });
-  }
-  if (skill.userInvocable === false) {
-    chips.push({ variant: "default", label: t("hidden from slash menu") });
-  }
-  if (skill.model !== undefined && skill.model.length > 0) {
-    chips.push({ variant: "solid", label: `claude · ${truncateModel(skill.model)}` });
-  }
-  return chips;
-}
-
-function truncateModel(model: string): string {
-  return model.length <= 22 ? model : `${model.slice(0, 21)}…`;
-}
-
-function tooltipFor(agentName: string, enabled: boolean): string {
-  return enabled
-    ? t("Enabled for {p0}", { p0: agentName })
-    : t("Disabled for {p0} · click to enable", { p0: agentName });
 }
 
 const MirroredLockdownMenu: React.FC<{
@@ -365,19 +351,6 @@ const MirroredLockdownMenu: React.FC<{
   );
 };
 
-const Chip: React.FC<{ variant: ChipSpec["variant"]; label: string }> = ({ variant, label }) => {
-  const base = cn(
-    "tw-rounded-sm tw-border tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-smallest tw-font-medium tw-uppercase tw-tracking-wide"
-  );
-  const variantClasses =
-    variant === "warn"
-      ? "tw-border-dashed tw-border-warning tw-text-warning tw-bg-callout-warning/20"
-      : variant === "solid"
-        ? "tw-border-solid tw-border-border tw-bg-primary-alt tw-text-normal"
-        : "tw-border-dashed tw-border-faint tw-text-muted";
-  return <span className={cn(base, variantClasses)}>{label}</span>;
-};
-
 interface RunMigrationArgs {
   app: App;
   skill: Skill;
@@ -386,6 +359,7 @@ interface RunMigrationArgs {
   targetAgent: BackendId;
   targetAgentDisplayName: string;
   action: "expandToNewAgent" | "disableLastAgent";
+  onChanged?: () => Promise<void>;
 }
 
 function runMigration(args: RunMigrationArgs): Promise<void> {
@@ -424,6 +398,7 @@ function runMigration(args: RunMigrationArgs): Promise<void> {
       new Notice(t("Could not migrate {p0}: {p1}", { p0: args.skill.name, p1: result.reason }));
       return;
     }
+    await args.onChanged?.();
     if (args.action === "expandToNewAgent") {
       new Notice(
         t("Moved {p0} to {p1}/ and enabled {p2}.", {
@@ -476,6 +451,7 @@ interface RunProactiveConsolidateArgs {
   app: App;
   skill: Skill;
   agentDirsProjectRel: Readonly<Record<BackendId, string>>;
+  onChanged?: () => Promise<void>;
 }
 
 function runProactiveConsolidate(args: RunProactiveConsolidateArgs): Promise<void> {
@@ -515,6 +491,7 @@ function runProactiveConsolidate(args: RunProactiveConsolidateArgs): Promise<voi
       new Notice(t("Could not merge {p0}: {p1}", { p0: args.skill.name, p1: result.reason }));
       return;
     }
+    await args.onChanged?.();
     new Notice(t("Merged {p0} into {p1}/.", { p0: args.skill.name, p1: canonicalFolderRel }));
   };
 

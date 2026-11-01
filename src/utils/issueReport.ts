@@ -16,7 +16,7 @@ import {
   withTruncationNote,
 } from "@/utils/logTail";
 
-const REPORT_REPO = "logancyang/obsidian-copilot";
+const REPORT_REPO = "ItsDalk-Lane/Scribe";
 const SCREENSHOT_NAME = "screenshot.png";
 const REPORT_NOTE_NAME = "report.md";
 const SCREENSHOT_SOURCE_ID = "screenshot";

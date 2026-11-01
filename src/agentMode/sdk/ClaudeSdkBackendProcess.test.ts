@@ -11,7 +11,7 @@ import type {
   SessionEvent,
   TurnEnd,
 } from "@/agentMode/session/types";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -72,6 +72,7 @@ import {
   runSubagentsInBackground,
 } from "./ClaudeSdkBackendProcess";
 import { CLAUDE_DISCONNECTED_MESSAGE } from "./claudeLiveQuery";
+import { sha256 } from "@/utils/hash";
 import { FakeClaudeQuery, SessionEventRecorder } from "./testing/fakeClaudeQuery";
 import { getCachedSdkCatalog } from "./effortOption";
 import { AuthRequiredError } from "@/agentMode/session/errors";
@@ -539,6 +540,197 @@ describe("ClaudeSdkBackendProcess", () => {
         expect(queryMock.mock.calls[0][0].options.plugins).toEqual([
           { type: "local", path: "/local/notes" },
         ]);
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+      });
+
+      it("checks only user settings and user local plugins when the user scope is selected", async () => {
+        queryMock.mockImplementation(silent());
+        const getLocalPlugins = jest.fn(async () => []);
+        const proc = makeProc({
+          getLocalPlugins,
+          configurationScope: { kind: "user" },
+        });
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(queryMock.mock.calls[0][0].options.settingSources).toEqual(["user"]);
+        expect(getLocalPlugins).toHaveBeenCalledWith(null);
+        const checkCwd = queryMock.mock.calls[0][0].options.cwd as string;
+        expect(checkCwd).not.toBe("/selected-project");
+        expect(await readdir(checkCwd)).toEqual([]);
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+        await expect(stat(checkCwd)).rejects.toMatchObject({ code: "ENOENT" });
+      });
+
+      it("keeps a relative user configuration directory bound to the original folder during an isolated user check", async () => {
+        queryMock.mockImplementation(silent());
+        const proc = makeProc({
+          configurationScope: { kind: "user" },
+          getEnvOverrides: () => ({ CLAUDE_CONFIG_DIR: "configs/claude" }),
+        });
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(queryMock.mock.calls[0][0].options.env.CLAUDE_CONFIG_DIR).toBe(
+          path.resolve("/selected-project", "configs/claude")
+        );
+        await proc.shutdown();
+      });
+
+      it("includes inherited settings when checking the current project scope", async () => {
+        queryMock.mockImplementation(silent());
+        const proc = makeProc({
+          configurationScope: { kind: "project", cwd: "/selected-project" },
+        });
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(queryMock.mock.calls[0][0].options.settingSources).toEqual([
+          "user",
+          "project",
+          "local",
+        ]);
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+      });
+
+      it("reports registered hooks and effective policy without executing hooks or sending messages", async () => {
+        const hooks = [
+          {
+            event: "PreToolUse",
+            matcher: "Read",
+            source: "pluginHook",
+            pluginName: "notes",
+            type: "command",
+            commandText: "check-note",
+          },
+          {
+            event: "Stop",
+            matcher: "",
+            source: "userSettings",
+            type: "command",
+            commandText: "save-note",
+            disabled: true,
+          },
+        ];
+        queryMock.mockImplementation(({ prompt }: QueryArgs) => {
+          const fake = new FakeClaudeQuery(prompt);
+          Object.assign(fake, {
+            getHooksListing: jest.fn(async () => ({
+              hooks,
+              policy: { disabledByPolicy: false, allDisabled: false, policyHookCount: 0 },
+            })),
+          });
+          fakes.push(fake);
+          return fake;
+        });
+        const proc = makeProc();
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        const snapshot = await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(snapshot).toEqual(
+          expect.objectContaining({
+            hooks: hooks.map(({ commandText, ...hook }) => ({
+              ...hook,
+              commandHash: sha256(commandText),
+            })),
+            hooksDisabled: false,
+          })
+        );
+        expect(JSON.stringify(snapshot)).not.toContain("check-note");
+        expect(JSON.stringify(snapshot)).not.toContain("save-note");
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+      });
+
+      it("keeps a failed hooks check unknown while preserving successful extension reports", async () => {
+        queryMock.mockImplementation(({ prompt }: QueryArgs) => {
+          const fake = new FakeClaudeQuery(prompt);
+          Object.assign(fake, {
+            getHooksListing: jest.fn(async () => {
+              throw new Error("unsupported hooks listing");
+            }),
+          });
+          fakes.push(fake);
+          return fake;
+        });
+        const proc = makeProc();
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        const snapshot = await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(snapshot).toEqual(
+          expect.objectContaining({ commands: [], hooks: null, checkErrors: ["hook"] })
+        );
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+      });
+
+      it("preserves an unavailable plugin report when reload fails instead of reporting an empty installed set", async () => {
+        queryMock.mockImplementation(({ prompt }: QueryArgs) => {
+          const fake = new FakeClaudeQuery(prompt);
+          fake.reloadPlugins.mockRejectedValue(new Error("reload unavailable"));
+          fakes.push(fake);
+          return fake;
+        });
+        const proc = makeProc();
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        const snapshot = await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(snapshot).toEqual(
+          expect.objectContaining({ plugins: null, checkErrors: ["plugin"] })
+        );
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+      });
+
+      it("keeps malformed hook reports unknown without discarding successful commands", async () => {
+        queryMock.mockImplementation(({ prompt }: QueryArgs) => {
+          const fake = new FakeClaudeQuery(prompt);
+          Object.assign(fake, {
+            getHooksListing: jest.fn(async () => ({ hooks: [{ event: "Stop" }] })),
+          });
+          fakes.push(fake);
+          return fake;
+        });
+        const proc = makeProc();
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        const snapshot = await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(snapshot).toEqual(
+          expect.objectContaining({ commands: [], hooks: null, checkErrors: ["hook"] })
+        );
+        expect(fakes[0].inputs).toEqual([]);
+        await proc.shutdown();
+      });
+
+      it("reports built-in commands separately so their availability is visible without user-edit controls", async () => {
+        queryMock.mockImplementation(({ prompt }: QueryArgs) => {
+          const fake = new FakeClaudeQuery(prompt);
+          fake.reloadPlugins.mockRejectedValue(new Error("reload unavailable"));
+          fake.supportedCommands.mockResolvedValue([
+            { name: "help", description: "Help", argumentHint: "", builtin: true },
+            { name: "review", description: "Review", argumentHint: "" },
+          ]);
+          fakes.push(fake);
+          return fake;
+        });
+        const proc = makeProc();
+        const { sessionId } = await proc.newSession({ cwd: "/selected-project" });
+
+        const snapshot = await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+
+        expect(snapshot).toEqual(
+          expect.objectContaining({ commands: ["review"], builtinCommands: ["help"] })
+        );
         expect(fakes[0].inputs).toEqual([]);
         await proc.shutdown();
       });

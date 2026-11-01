@@ -58,7 +58,6 @@ Before doing any version bumping, validate the repo is releasable. Stop and surf
    ```
 
    Confirm that:
-
    - `isDesktopOnly` is declared (currently `false`; do not silently change this).
    - `minAppVersion` matches the Obsidian APIs the code actually uses. If a commit since the last release introduced a call that needs a newer minimum, the `minAppVersion` bump belongs in its own dedicated PR with its own review window, not bundled inside this release PR. Stop and tell the user.
 
@@ -70,7 +69,7 @@ Before doing any version bumping, validate the repo is releasable. Stop and surf
    # Use /releases/latest which returns only the most-recent non-prerelease,
    # non-draft release in a single call — works regardless of how many
    # prereleases have accumulated since the last stable.
-   LATEST_STABLE=$(gh api repos/logancyang/obsidian-copilot/releases/latest -q .tag_name)
+   LATEST_STABLE=$(gh api repos/ItsDalk-Lane/Scribe/releases/latest -q .tag_name)
    MASTER_VERSION=$(node -p "require('./manifest.json').version")
    if [ "$LATEST_STABLE" != "$MASTER_VERSION" ]; then
      echo "DRIFT: master manifest.json.version='$MASTER_VERSION' but latest stable Release='$LATEST_STABLE'. Stop." >&2

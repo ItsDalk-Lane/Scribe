@@ -142,13 +142,141 @@ describe("mergeExtensionRuntime", () => {
         availability: "needs-auth",
       });
     });
-    it("keeps disabled configuration disabled when the running session still reports its previous state", () => {
+    it("uses the actual loaded state even when a saved flag disagrees", () => {
       const local = groups();
       local[0].items = [{ ...local[0].items[0], enabled: false }];
       expect(mergeExtensionRuntime(local, runtime())[0].items[0]).toMatchObject({
         enabled: false,
-        availability: "disabled",
+        availability: "loaded",
       });
+    });
+    it("matches registered hooks by event, matcher and command instead of configuration presence", () => {
+      const local = groups();
+      local[4].items = [
+        {
+          ...local[4].items[0],
+          hookIdentity: { event: "Stop", matcher: "", commandHash: "check-notes" },
+        },
+      ];
+      expect(
+        mergeExtensionRuntime(
+          local,
+          runtime({ hooks: [{ event: "Stop", matcher: "", commandHash: "check-notes" }] })
+        )[4].items[0].availability
+      ).toBe("loaded");
+      expect(mergeExtensionRuntime(local, runtime({ hooks: [] }))[4].items[0].availability).toBe(
+        "not_listed"
+      );
+      expect(
+        mergeExtensionRuntime(
+          local,
+          runtime({
+            hooks: [{ event: "Stop", matcher: "", commandHash: "check-notes", disabled: true }],
+          })
+        )[4].items[0].availability
+      ).toBe("disabled");
+    });
+    it("uses the hook source and owner to keep identical commands from borrowing availability", () => {
+      const local = groups();
+      local[4].items = [
+        {
+          id: "user-hook",
+          name: "Stop",
+          source: "user",
+          hookIdentity: { event: "Stop", source: "user", commandHash: "check" },
+        },
+        {
+          id: "project-hook",
+          name: "Stop",
+          source: "project",
+          hookIdentity: { event: "Stop", source: "project", commandHash: "check" },
+        },
+        {
+          id: "plugin-hook",
+          name: "Stop",
+          source: "plugin",
+          parentPluginId: "notes@team",
+          hookIdentity: { event: "Stop", source: "plugin", commandHash: "check" },
+        },
+      ];
+      const result = mergeExtensionRuntime(
+        local,
+        runtime({
+          hooks: [
+            { event: "Stop", source: "userSettings", commandHash: "check", disabled: true },
+            { event: "Stop", source: "projectSettings", commandHash: "check" },
+          ],
+        })
+      );
+      expect(result[4].items.slice(0, 3).map((item) => item.availability)).toEqual([
+        "disabled",
+        "loaded",
+        undefined,
+      ]);
+    });
+    it("keeps hooks disabled when the running agent reports a global hook restriction", () => {
+      const local = groups();
+      local[4].items = [
+        { ...local[4].items[0], hookIdentity: { event: "Stop", commandHash: "check" } },
+      ];
+      expect(
+        mergeExtensionRuntime(
+          local,
+          runtime({ hooksDisabled: true, hooks: [{ event: "Stop", commandHash: "check" }] })
+        )[4].items[0].availability
+      ).toBe("disabled");
+    });
+    it("includes native commands as confirmed read-only built-ins", () => {
+      const result = mergeExtensionRuntime(groups(), runtime({ builtinCommands: ["help"] }));
+      expect(result[2].items.find((item) => item.name === "help")).toMatchObject({
+        builtin: true,
+        readOnly: true,
+        availability: "loaded",
+      });
+    });
+    it("keeps a disabled plugin's child off when no child runtime report was provided", () => {
+      const local = groups();
+      local[0].items = [{ ...local[0].items[0], parentPluginId: "notes@team", enabled: false }];
+      expect(
+        mergeExtensionRuntime(local, runtime({ skills: null, plugins: [] }))[0].items[0]
+          .availability
+      ).toBe("disabled");
+    });
+    it("hides the children of a disabled plugin from every kind except plugins (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+      const local = groups();
+      local[1].items = [{ ...local[1].items[0], enabled: false }];
+      const owned = (id: string): AgentExtensionGroup["items"][number] => ({
+        id,
+        name: id,
+        source: "plugin",
+        parentPluginId: "plugin",
+        readOnly: true,
+      });
+      local[0].items = [owned("child-skill")];
+      local[2].items = [owned("child-command")];
+      local[3].items = [owned("child-mcp")];
+      local[4].items = [owned("child-hook")];
+      const result = mergeExtensionRuntime(
+        local,
+        runtime({ skills: [], commands: [], plugins: [], mcpServers: [] })
+      );
+      expect(result.find((group) => group.kind === "plugin")!.items[0].name).toBe("notes@team");
+      for (const kind of ["skill", "command", "mcp", "hook"])
+        expect(result.find((group) => group.kind === kind)!.items).toEqual([]);
+    });
+    it("keeps the children of an enabled plugin listed (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+      const local = groups();
+      local[0].items = [
+        {
+          id: "child-skill",
+          name: "child-skill",
+          source: "plugin",
+          parentPluginId: "notes@team",
+          readOnly: true,
+        },
+      ];
+      const result = mergeExtensionRuntime(local, runtime({ skills: ["child-skill"] }));
+      expect(result[0].items[0].availability).toBe("loaded");
     });
     it("shows a failed plugin even when it is absent from the loaded plugin list", () => {
       const result = mergeExtensionRuntime(

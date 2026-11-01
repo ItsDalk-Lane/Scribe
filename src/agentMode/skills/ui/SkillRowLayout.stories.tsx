@@ -1,9 +1,8 @@
 import type { Meta, StoryObj } from "@/lib/story";
-import { Bot, MoreVertical } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { AgentIconButton } from "./AgentIconButton";
+import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { SkillRowLayout, type SkillRowLayoutProps } from "./SkillRowLayout";
 
 const meta = {
@@ -18,7 +17,11 @@ const args: SkillRowLayoutProps = {
   description: "Review the structure, clarity and supporting evidence in a long-form note.",
   controls: (
     <div className="tw-flex tw-items-center tw-gap-1.5">
-      <AgentIconButton Icon={Bot} agentId="claude" enabled />
+      <ExtensionAvailabilitySwitch
+        label="Enable writing-review"
+        state={{ checked: true, disabled: false }}
+        onToggle={() => undefined}
+      />
     </div>
   ),
   actions: (
@@ -29,14 +32,14 @@ const args: SkillRowLayoutProps = {
 };
 
 export const Canonical: StoryObj<SkillRowLayoutProps> = { args };
-export const WithChips: StoryObj<SkillRowLayoutProps> = {
+export const Checking: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
-    annotations: (
-      <>
-        <Badge variant="secondary">model-invoke off</Badge>
-        <Badge variant="secondary">hidden from /</Badge>
-      </>
+    controls: (
+      <ExtensionAvailabilitySwitch
+        label="Enable writing-review"
+        state={{ checked: true, disabled: true, phase: "checking" }}
+      />
     ),
   },
 };
@@ -50,14 +53,14 @@ export const MirroredLocation: StoryObj<SkillRowLayoutProps> = {
     ),
   },
 };
-export const ChipsAndLocation: StoryObj<SkillRowLayoutProps> = {
+export const WaitingForUpdate: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
-    annotations: (
-      <>
-        <Badge variant="secondary">claude · sonnet</Badge>
-        <span className="tw-truncate tw-text-ui-smaller tw-text-faint">in .claude/skills</span>
-      </>
+    controls: (
+      <ExtensionAvailabilitySwitch
+        label="Enable writing-review"
+        state={{ checked: false, disabled: true, phase: "pending" }}
+      />
     ),
   },
 };
@@ -73,6 +76,26 @@ export const LongDescription: StoryObj<SkillRowLayoutProps> = {
 export const DisabledAgent: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
-    controls: <AgentIconButton Icon={Bot} agentId="claude" enabled={false} disabled />,
+    controls: (
+      <ExtensionAvailabilitySwitch
+        label="Enable writing-review"
+        state={{
+          checked: false,
+          disabled: true,
+          reason: "Move this skill to the shared folder before changing its availability.",
+        }}
+      />
+    ),
+  },
+};
+export const Unconfirmed: StoryObj<SkillRowLayoutProps> = {
+  args: {
+    ...args,
+    controls: (
+      <ExtensionAvailabilitySwitch
+        label="Enable writing-review"
+        state={{ checked: false, disabled: true, phase: "unknown" }}
+      />
+    ),
   },
 };

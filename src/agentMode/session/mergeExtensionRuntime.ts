@@ -4,11 +4,36 @@ import type {
   AgentExtensionRuntimeSnapshot,
 } from "./extensionInventory";
 
+// A disabled plugin leaves the other tabs together with its children; the plugin itself stays listed for its own switch. https://github.com/ItsDalk-Lane/Scribe/issues/1
+function disabledPluginIds(groups: readonly AgentExtensionGroup[]): Set<string> {
+  return new Set(
+    (groups.find((group) => group.kind === "plugin")?.items ?? [])
+      .filter((plugin) => plugin.enabled === false || plugin.availability === "disabled")
+      .map((plugin) => plugin.id)
+  );
+}
+
+function withoutDisabledChildren(
+  group: AgentExtensionGroup,
+  disabledParents: Set<string>
+): AgentExtensionGroup {
+  if (group.kind === "plugin" || disabledParents.size === 0) return group;
+  const items = group.items.filter(
+    (item) => !item.parentPluginId || !disabledParents.has(item.parentPluginId)
+  );
+  return items.length === group.items.length ? group : { ...group, items };
+}
+
 export function mergeExtensionRuntime(
   groups: readonly AgentExtensionGroup[],
   runtime: AgentExtensionRuntimeSnapshot | null
 ): readonly AgentExtensionGroup[] {
-  if (!runtime) return groups;
+  if (!runtime) {
+    const disabledParents = disabledPluginIds(groups);
+    return disabledParents.size
+      ? groups.map((group) => withoutDisabledChildren(group, disabledParents))
+      : groups;
+  }
   const loaded = (name: string): AgentExtensionItem => ({
     id: `runtime:${name}`,
     name,
@@ -37,7 +62,16 @@ export function mergeExtensionRuntime(
           availability: runtime.manualSkills?.includes(name) ? "manual_only" : "loaded",
         })
       ) ?? null,
-    command: runtime.commands?.map(loaded) ?? null,
+    command: runtime.commands
+      ? [
+          ...runtime.commands.map(loaded),
+          ...(runtime.builtinCommands ?? []).map((name) => ({
+            ...loaded(name),
+            builtin: true,
+            readOnly: true,
+          })),
+        ]
+      : null,
     plugin: plugins,
     mcp:
       runtime.mcpServers?.map(
@@ -49,7 +83,24 @@ export function mergeExtensionRuntime(
           toolCount: server.toolCount,
         })
       ) ?? null,
-    hook: null,
+    hook:
+      runtime.hooks?.map(
+        (hook): AgentExtensionItem => ({
+          id: `runtime:hook:${JSON.stringify(hook)}`,
+          name: hook.event,
+          source: "runtime",
+          kind: "hook",
+          availability: runtime.hooksDisabled || hook.disabled ? "disabled" : "loaded",
+          hookIdentity: {
+            event: hook.event,
+            matcher: hook.matcher,
+            commandHash: hook.commandHash ?? "",
+            type: hook.type,
+            source: hook.source?.replace(/Settings$/, "").replace(/Hook$/, ""),
+          },
+          ...(hook.pluginName ? { parentPluginId: hook.pluginName } : {}),
+        })
+      ) ?? null,
     subagent:
       runtime.subagents?.map((agent) => ({
         ...loaded(agent.name),
@@ -62,9 +113,17 @@ export function mergeExtensionRuntime(
   for (const name of runtime.disabledSkills ?? []) {
     observed.skill?.push({ ...loaded(name), availability: "disabled" });
   }
-  return groups.map((group) => {
+  const merged: readonly AgentExtensionGroup[] = groups.map((group) => {
     const reported = observed[group.kind];
-    if (!reported) return group;
+    if (!reported)
+      return {
+        ...group,
+        items: group.items.map((item) =>
+          item.enabled === false && item.parentPluginId
+            ? { ...item, availability: "disabled" as const }
+            : item
+        ),
+      };
     const matched = new Set<AgentExtensionItem>();
     const normalizeName = (name: string) => (group.kind === "plugin" ? name.split("@")[0] : name);
     const identity = (item: AgentExtensionItem) => item.runtimeName ?? item.name;
@@ -74,16 +133,32 @@ export function mergeExtensionRuntime(
       const uniqueName =
         group.items.filter((entry) => normalizeName(identity(entry)) === name).length === 1;
       const matches = reported.filter((entry) => {
+        if (group.kind === "hook") {
+          const left = item.hookIdentity,
+            right = entry.hookIdentity;
+          return Boolean(
+            left &&
+            right &&
+            left.event === right.event &&
+            (left.matcher ?? "") === (right.matcher ?? "") &&
+            left.commandHash === right.commandHash &&
+            (!left.type || !right.type || left.type === right.type) &&
+            (!left.source || !right.source || left.source === right.source) &&
+            Boolean(item.parentPluginId) === Boolean(entry.parentPluginId) &&
+            (!item.parentPluginId ||
+              !entry.parentPluginId ||
+              (groups
+                .find((entry) => entry.kind === "plugin")
+                ?.items.find((parent) => parent.id === item.parentPluginId)?.runtimeName ??
+                item.parentPluginId.split("@")[0]) === entry.parentPluginId.split("@")[0])
+          );
+        }
         if (group.kind === "plugin" && item.location && entry.location)
           return normalizePath(item.location) === normalizePath(entry.location);
         if (group.kind === "plugin" && entry.availability === "failed" && entry.name.includes("@"))
           return item.name === entry.name;
         return uniqueName && normalizeName(identity(entry)) === name;
       });
-      if (item.enabled === false) {
-        for (const match of matches) matched.add(match);
-        return { ...item, availability: "disabled" };
-      }
       if (matches.length) {
         for (const match of matches) matched.add(match);
         const loadedPlugin =
@@ -96,6 +171,7 @@ export function mergeExtensionRuntime(
           toolCount: match.toolCount,
         };
       }
+      if (item.enabled === false) return { ...item, availability: "disabled" };
       if (!uniqueName || (group.kind === "plugin" && runtime.plugins === null)) return item;
       return { ...item, availability: group.kind === "plugin" ? "not_loaded" : "not_listed" };
     });
@@ -112,4 +188,8 @@ export function mergeExtensionRuntime(
       items: [...items, ...reported.filter((item) => !matched.has(item))],
     };
   });
+  const disabledParents = disabledPluginIds(merged);
+  return disabledParents.size
+    ? merged.map((group) => withoutDisabledChildren(group, disabledParents))
+    : merged;
 }

@@ -57,6 +57,7 @@ export const settingsTranslations: Record<string, string> = {
   "Configuration is unavailable.": "当前配置不可用。",
   "Could not save configuration.": "保存配置失败。",
   "Remove {name} from this configuration?": "确定要从当前配置中移除“{name}”吗？",
+  "Delete {name} and its plugin directory?": "确定要删除“{name}”及其插件目录吗？",
   "New {name}": "新建 {name}",
   "Add plugin": "添加插件",
   Import: "导入",
@@ -97,8 +98,8 @@ export const settingsTranslations: Record<string, string> = {
   "URL, repository or configured marketplace": "网址、仓库或已配置的插件市场",
   "Plugin directory": "插件目录",
   "Plugin name": "插件名称",
-  "The plugin stays in this directory. Removing it here does not delete its source files.":
-    "插件保留在原目录中，从这里移除不会删除其原始文件。",
+  "The plugin runs from this directory. Deleting it later from the extension list also deletes this directory.":
+    "插件直接从该目录运行。之后在扩展列表中删除它时，该目录也会一并删除。",
   "Installing…": "正在安装…",
   "Could not import configuration.": "导入配置失败。",
   "Choose configuration file": "选择配置文件",
@@ -505,4 +506,36 @@ export const settingsTranslations: Record<string, string> = {
   "Provider-native API": "供应商原生接口",
   "When selecting the provider-native API, enter the provider's native base URL.":
     "选择供应商原生接口时，请填写该供应商的原生基础地址。",
+
+  "Checking availability…": "正在检查可用性…",
+  "Availability could not be confirmed. Check again.": "暂时无法确认是否可用，请重新检查。",
+  "Sign in before enabling this item.": "请先完成登录，再启用此项。",
+  "Resolve the loading error before enabling this item.": "请先解决加载问题，再启用此项。",
+  "This server did not expose any callable tools.": "此服务没有提供可调用的工具。",
+  "This item could not be loaded in the selected scope.": "此项无法在所选范围内加载。",
+  "Managed by its plugin; it cannot be switched independently.":
+    "此项由所属插件管理，不能单独切换。",
+  "This item cannot be switched in the selected scope.": "此项不能在所选范围内切换。",
+  "Its plugin is not enabled in this scope.": "它所属的插件在当前范围内没有启用。",
+  "This item is disabled in the current configuration.": "此项在当前配置中已被停用。",
+  "Waiting for configuration changes to take effect.": "正在等待当前任务结束并应用更改。",
+  "Available in this scope": "在此范围内可用",
+  "Unavailable in this scope": "在此范围内不可用",
+  "Availability in this scope": "当前范围内的可用性",
+  "Installation address": "安装地址",
+  Installations: "安装记录",
+  "Project · Local": "项目 · 仅本机",
+  "Plugin components": "插件包含的事项",
+  "Plugin components could not be confirmed.": "暂时无法确认此插件包含哪些事项。",
+  "This plugin has no listed components.": "此插件没有列出的附属事项。",
+  "Not provided": "未提供",
+  "Installation files are missing.": "安装文件已缺失。",
+  "Installed plugin files are missing.": "插件安装文件已缺失。",
+  "Installed only for other projects; unavailable in this scope.":
+    "仅安装于其他项目，在此范围内不可用。",
+  "Could not read Claude plugin status.": "无法读取 Claude 的插件状态。",
+  "Move this skill to the shared folder before changing its availability.":
+    "请先将此技能迁移到共享文件夹，再切换可用性。",
+  "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":
+    "打开页面会自动检查可用性；已有聊天将在当前任务结束后应用更改。",
 };

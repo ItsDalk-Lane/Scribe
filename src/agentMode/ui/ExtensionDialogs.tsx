@@ -7,12 +7,18 @@ import type {
 } from "@/agentMode/session/extensionManagement";
 import type { AgentExtensionKind } from "@/agentMode/session/extensionInventory";
 import { ExtensionField, ExtensionSelect } from "@/agentMode/ui/ExtensionEditor";
+import { EXTENSION_LABELS } from "@/agentMode/ui/AgentExtensionsPanel";
+import { getExtensionDotState } from "@/agentMode/session/extensionAvailability";
+import { ExtensionAvailabilityDot } from "@/components/ui/extension-availability-dot";
 import { ReactModal } from "@/components/modals/ReactModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { t } from "@/lib/i18n";
+import { logError } from "@/logger";
+import { Copy } from "lucide-react";
 import type { App } from "obsidian";
+import { Notice } from "obsidian";
 import React from "react";
 
 export class ExtensionModal extends ReactModal {
@@ -146,7 +152,7 @@ export function PluginInstallForm({
       {source === "local" && (
         <p className="tw-text-ui-smaller tw-leading-normal tw-text-muted">
           {t(
-            "The plugin stays in this directory. Removing it here does not delete its source files."
+            "The plugin runs from this directory. Deleting it later from the extension list also deletes this directory."
           )}
         </p>
       )}
@@ -237,6 +243,19 @@ export function ExtensionImportForm({ kind, scope, onImport, onClose }: Extensio
   );
 }
 
+const PLUGIN_COMPONENT_KINDS: readonly AgentExtensionKind[] = Object.freeze([
+  "skill",
+  "command",
+  "hook",
+  "mcp",
+  "subagent",
+]);
+const INSTALLATION_SCOPE_LABELS = {
+  user: "Local · User",
+  project: "Project",
+  local: "Project · Local",
+};
+
 export interface ExtensionDetailsViewProps {
   details: AgentExtensionDetails;
   onClose: () => void;
@@ -254,6 +273,7 @@ export function ExtensionDetailsView({
   const [error, setError] = React.useState("");
   const { item, config } = details;
   const readOnly = Boolean(item.builtin || item.readOnly || item.parentPluginId);
+  const dot = getExtensionDotState(item);
   const update = async () => {
     setBusy(true);
     try {
@@ -265,9 +285,135 @@ export function ExtensionDetailsView({
       setBusy(false);
     }
   };
+  const copyName = async () => {
+    try {
+      await navigator.clipboard.writeText(item.name);
+      new Notice(t("Copied to clipboard"));
+    } catch (failure) {
+      logError("Could not copy the extension name", failure);
+      new Notice(t("Failed to copy to clipboard"));
+    }
+  };
   return (
     <div className="tw-group/settings tw-space-y-4 tw-text-normal">
+      <div className="tw-flex tw-items-start tw-justify-between tw-gap-3">
+        <span className="tw-min-w-0 tw-break-words tw-text-ui-medium tw-font-medium">
+          {item.name}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("Copy name")}
+          title={t("Copy name")}
+          onClick={() => void copyName()}
+        >
+          <Copy className="tw-size-4" />
+        </Button>
+      </div>
+      <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
+        <span className="tw-text-ui-small">{t("Availability in this scope")}</span>
+        <span className="tw-inline-flex tw-min-w-0 tw-items-center tw-gap-2">
+          <ExtensionAvailabilityDot state={dot} />
+          <span className="tw-truncate tw-text-ui-small tw-text-muted">
+            {dot.enabled
+              ? t("Available in this scope")
+              : t(dot.reason ?? "Unavailable in this scope")}
+          </span>
+        </span>
+      </div>
       <p className="tw-text-ui-small">{item.description}</p>
+      {item.unavailableReason && (
+        <p className="tw-text-ui-small tw-text-muted">{t(item.unavailableReason)}</p>
+      )}
+      {item.kind === "plugin" && (
+        <dl className="tw-space-y-2 tw-text-ui-small">
+          <div className="tw-flex tw-flex-wrap tw-gap-x-3 tw-gap-y-1">
+            <dt className="tw-text-muted">{t("Version")}</dt>
+            <dd className="tw-m-0 tw-break-all">{item.version ?? t("Not provided")}</dd>
+          </div>
+          <div className="tw-space-y-1">
+            <dt className="tw-text-muted">{t("Installation address")}</dt>
+            <dd className="tw-m-0 tw-break-all">{item.location ?? t("Not provided")}</dd>
+          </div>
+        </dl>
+      )}
+      {item.installations && item.installations.length > 0 && (
+        <section className="tw-space-y-2" aria-label={t("Installations")}>
+          <h3 className="tw-m-0 tw-text-ui-small tw-font-medium">{t("Installations")}</h3>
+          <div className="tw-divide-y tw-divide-border tw-rounded-lg tw-border tw-border-solid tw-border-border">
+            {item.installations.map((installation) => (
+              <div
+                key={JSON.stringify([
+                  installation.scope,
+                  installation.projectPath,
+                  installation.path,
+                  installation.version,
+                ])}
+                className="tw-space-y-1 tw-p-3 tw-text-ui-smaller"
+              >
+                <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-x-3 tw-gap-y-1">
+                  <span>{t(INSTALLATION_SCOPE_LABELS[installation.scope])}</span>
+                  {installation.version && (
+                    <span className="tw-break-all tw-text-muted">{installation.version}</span>
+                  )}
+                </div>
+                {installation.projectPath && (
+                  <p className="tw-m-0 tw-break-all tw-text-muted">{installation.projectPath}</p>
+                )}
+                <p className="tw-m-0 tw-break-all tw-text-muted">{installation.path}</p>
+                {installation.available === false && (
+                  <p className="tw-m-0 tw-text-error">{t("Installation files are missing.")}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {item.kind === "plugin" && (
+        <section className="tw-space-y-4" aria-label={t("Plugin components")}>
+          {details.children === undefined ? (
+            <p className="tw-text-ui-small tw-text-muted">
+              {t("Plugin components could not be confirmed.")}
+            </p>
+          ) : details.children.length === 0 ? (
+            <p className="tw-text-ui-small tw-text-muted">
+              {t("This plugin has no listed components.")}
+            </p>
+          ) : (
+            PLUGIN_COMPONENT_KINDS.map((kind) => {
+              const children = details.children?.filter((child) => child.kind === kind);
+              if (!children?.length) return null;
+              return (
+                <section key={kind} className="tw-space-y-2">
+                  <h3 className="tw-m-0 tw-text-ui-small tw-font-medium">
+                    {t(EXTENSION_LABELS[kind])}
+                  </h3>
+                  <div className="tw-divide-y tw-divide-border tw-rounded-lg tw-border tw-border-solid tw-border-border">
+                    {children.map((child) => (
+                      <div
+                        key={child.id}
+                        className="tw-flex tw-min-w-0 tw-items-center tw-justify-between tw-gap-3 tw-p-3"
+                      >
+                        <div className="tw-min-w-0 tw-space-y-1">
+                          <div className="tw-flex tw-min-w-0 tw-items-center tw-gap-2">
+                            <span className="tw-break-words tw-text-ui-small">{child.name}</span>
+                            <ExtensionAvailabilityDot state={getExtensionDotState(child)} />
+                          </div>
+                          {child.description && (
+                            <p className="tw-m-0 tw-break-words tw-text-ui-smaller tw-text-muted">
+                              {child.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </section>
+      )}
       {item.parentPluginId && (
         <p className="tw-text-ui-small tw-text-muted">
           {t("Plugin")}: {item.parentPluginId}
@@ -294,7 +440,7 @@ export function ExtensionDetailsView({
           <Textarea readOnly rows={8} value={details.content} />
         </ExtensionField>
       )}
-      {item.location && (
+      {item.location && item.kind !== "plugin" && (
         <p className="tw-break-all tw-text-ui-smaller tw-leading-normal tw-text-muted">
           {item.location}
         </p>

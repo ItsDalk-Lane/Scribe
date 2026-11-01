@@ -79,6 +79,7 @@ export interface BackendDescriptor {
   checkExtensions?: (input: {
     plugin: CopilotPlugin;
     cwd: string;
+    scope?: import("./extensionManagement").AgentExtensionScope;
     signal?: AbortSignal;
   }) => Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot | null>;
 
@@ -143,6 +144,7 @@ export interface BackendDescriptor {
     app: App;
     clientVersion: string;
     descriptor: BackendDescriptor;
+    configurationScope?: import("./extensionManagement").AgentExtensionScope;
   }): BackendProcess;
 
   SettingsPanel?: React.FC<{ plugin: CopilotPlugin; app: App }>;

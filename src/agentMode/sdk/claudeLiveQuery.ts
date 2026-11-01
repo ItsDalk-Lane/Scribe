@@ -7,6 +7,7 @@ import type {
 import { v4 as uuidv4 } from "uuid";
 import { logWarn } from "@/logger";
 import { err2String } from "@/utils";
+import { sha256 } from "@/utils/hash";
 import type { SessionEvent, SessionId, SessionUpdate, TurnEnd } from "@/agentMode/session/types";
 import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
 import { AsyncPushQueue } from "./asyncPushQueue";
@@ -33,6 +34,22 @@ export interface ClaudeLiveQueryOptions {
   onSignedOut: () => void;
   onEnded: () => void;
   stallTimeoutMs?: number;
+}
+
+interface HooksListingQuery {
+  getHooksListing?(): Promise<{
+    hooks: readonly {
+      event: string;
+      matcher?: string;
+      source?: string;
+      pluginName?: string;
+      type?: string;
+      commandText: string;
+      disabled?: boolean;
+    }[];
+    policy?: { disabledByPolicy?: boolean; allDisabled?: boolean; policyHookCount?: number };
+    errors?: readonly unknown[];
+  } | null>;
 }
 
 interface SkillsDialogQuery {
@@ -73,14 +90,19 @@ export class ClaudeLiveQuery {
   async getExtensionRuntime(
     options: { reloadPlugins?: boolean } = {}
   ): Promise<AgentExtensionRuntimeSnapshot> {
-    const reloaded = options.reloadPlugins
-      ? await this.query.reloadPlugins().catch(() => null)
+    const reload = options.reloadPlugins
+      ? await this.query.reloadPlugins().then(
+          (value) => ({ value, failed: false }),
+          () => ({ value: null, failed: true })
+        )
       : null;
-    const [commands, mcpServers, skillDialog, subagents] = await Promise.allSettled([
+    const reloaded = reload?.value;
+    const [commands, mcpServers, skillDialog, subagents, hooksListing] = await Promise.allSettled([
       reloaded ? reloaded.commands : this.query.supportedCommands(),
       this.query.mcpServerStatus(),
       (this.query as Query & SkillsDialogQuery).getSkillsDialog?.(),
       reloaded ? reloaded.agents : this.query.supportedAgents?.(),
+      (this.query as Query & HooksListingQuery).getHooksListing?.(),
     ]);
     const skills =
       skillDialog.status === "fulfilled" &&
@@ -90,6 +112,32 @@ export class ClaudeLiveQuery {
       )
         ? skillDialog.value.skills
         : null;
+    const hooks =
+      hooksListing.status === "fulfilled" &&
+      Array.isArray(hooksListing.value?.hooks) &&
+      hooksListing.value.hooks.every(
+        (hook: unknown) =>
+          typeof hook === "object" &&
+          hook !== null &&
+          "event" in hook &&
+          typeof hook.event === "string" &&
+          "commandText" in hook &&
+          typeof hook.commandText === "string"
+      )
+        ? hooksListing.value
+        : null;
+    const checkErrors = [
+      ...(reload?.failed ? ["plugin"] : []),
+      ...(commands.status === "rejected" ? ["command"] : []),
+      ...(mcpServers.status === "rejected" ? ["mcp"] : []),
+      ...(skillDialog.status === "rejected" ? ["skill"] : []),
+      ...(subagents.status === "rejected" ? ["subagent"] : []),
+      ...(hooksListing.status === "rejected" ||
+      (hooksListing.status === "fulfilled" && hooksListing.value && !hooks) ||
+      hooks?.errors?.length
+        ? ["hook"]
+        : []),
+    ];
     const builtinNames = new Set(
       commands.status === "fulfilled"
         ? commands.value.filter((command) => command.builtin).map((command) => command.name)
@@ -97,6 +145,29 @@ export class ClaudeLiveQuery {
     );
     return {
       ...this.extensionInit,
+      ...(hooks
+        ? {
+            hooks: hooks.hooks.map(
+              ({ event, matcher, source, pluginName, type, commandText, disabled }) => ({
+                event,
+                ...(matcher !== undefined ? { matcher } : {}),
+                ...(source !== undefined ? { source } : {}),
+                ...(pluginName !== undefined ? { pluginName } : {}),
+                ...(type !== undefined ? { type } : {}),
+                commandHash: sha256(commandText),
+                ...(disabled ? { disabled: true } : {}),
+              })
+            ),
+            hooksDisabled: Boolean(
+              hooks.policy?.disabledByPolicy ||
+              (hooks.policy?.allDisabled && !hooks.policy.policyHookCount)
+            ),
+          }
+        : hooksListing.status === "rejected" ||
+            (hooksListing.status === "fulfilled" && hooksListing.value)
+          ? { hooks: null }
+          : {}),
+      ...(checkErrors.length ? { checkErrors } : {}),
       ...(subagents.status === "fulfilled" && Array.isArray(subagents.value)
         ? {
             subagents: subagents.value.map(({ name, description, model }) => ({
@@ -124,6 +195,7 @@ export class ClaudeLiveQuery {
             pluginErrorCount: reloaded.error_count,
           }
         : {}),
+      ...(builtinNames.size ? { builtinCommands: [...builtinNames] } : {}),
       commands:
         commands.status === "fulfilled"
           ? commands.value

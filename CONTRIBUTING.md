@@ -1,12 +1,12 @@
-# Contributing to Copilot for Obsidian
+# Contributing to Scribe
 
-First off, thank you for considering contributing to Copilot for Obsidian! It's people like you who make Copilot for Obsidian such a great tool!
+First off, thank you for considering contributing to Scribe! It's people like you who make Scribe such a great tool!
 
 ## How Can I Contribute?
 
 ### Reporting Bugs or Suggesting Enhancements
 
-Before submitting a bug report or suggestion, please check the [issues](https://github.com/logancyang/obsidian-copilot/issues) page for a list of currently known issues to ensure the bug has not already been reported. If it's a new bug or suggestion, create an issue and provide the following information:
+Before submitting a bug report or suggestion, please check the [issues](https://github.com/ItsDalk-Lane/Scribe/issues) page for a list of currently known issues to ensure the bug has not already been reported. If it's a new bug or suggestion, create an issue and provide the following information:
 
 - Use a clear and descriptive title.
 - Describe the exact steps which reproduce the problem in as much detail as possible.
@@ -17,16 +17,16 @@ Before submitting a bug report or suggestion, please check the [issues](https://
 
 ### Your First Code Contribution
 
-Unsure where to begin contributing to Copilot for Obsidian? You can start by looking through the `help-wanted` issues.
+Unsure where to begin contributing to Scribe? You can start by looking through the `help-wanted` issues.
 
 ### Pull Requests
 
 The process described here aims to:
 
-- Maintain the quality of Copilot for Obsidian.
+- Maintain the quality of Scribe.
 - Fix problems that are important to users.
-- Engage the community in working towards the best possible Copilot for Obsidian.
-- Enable a sustainable system for Copilot for Obsidian's maintainers to review contributions.
+- Engage the community in working towards the best possible Scribe.
+- Enable a sustainable system for Scribe's maintainers to review contributions.
 
 Please follow these steps to have your contribution considered by the maintainers:
 
@@ -39,7 +39,7 @@ Please follow these steps to have your contribution considered by the maintainer
 
 Here is a great [writeup by Daniel Haven](https://medium.com/gitconnected/how-to-set-up-the-ideal-obsidian-plugin-development-workflow-b222fe72280f) on the best practices for setting up your dev environment for Obsidian plugins.
 
-In the case of Copilot for Obsidian, you will need to:
+In the case of Scribe, you will need to:
 
 1. Fork the repo.
 2. Create a vault just for development.
@@ -76,7 +76,7 @@ It takes a number (`2`) or a share of your CPU cores (`50%`). When it's unset, J
 
 #### Fast Iteration with `npm run test:vault` (macOS)
 
-If you work across multiple worktrees or just want one command to build and load the plugin into a test vault, use `npm run test:vault`. It runs `npm install`, builds, symlinks `main.js` / `manifest.json` / `styles.css` from the worktree into the vault's `.obsidian/plugins/copilot/` folder, and reloads the plugin in Obsidian via its CLI.
+If you work across multiple worktrees or just want one command to build and load the plugin into a test vault, use `npm run test:vault`. It runs `npm install`, builds, symlinks `main.js` / `manifest.json` / `styles.css` from the worktree into the vault's `.obsidian/plugins/scribe/` folder, and reloads the plugin in Obsidian via its CLI.
 
 **One-time setup:**
 
@@ -165,7 +165,6 @@ Test the items relevant to your change using a separate test vault. Enable debug
 
 ## Getting Help
 
-- **Discord**: [Join](https://discord.gg/bFtfKDQqZt) the server for Copilot dev discussions.
-- **Email**: logan@brevilabs.com
+- **GitHub Issues**: [Open an issue](https://github.com/ItsDalk-Lane/Scribe/issues) for bugs and feature requests.
 
-Thank you for contributing to Copilot for Obsidian!
+Thank you for contributing to Scribe!

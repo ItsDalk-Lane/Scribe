@@ -45,6 +45,7 @@ export const componentTranslations: Record<string, string> = {
   "Error generating response. Please try again.": "生成回答时出错，请重试。",
   "Select a model to continue.": "请选择一个模型以继续。",
   "Copied to clipboard": "已复制到剪贴板",
+  "Copy name": "复制名称",
   "Failed to copy to clipboard": "复制到剪贴板失败",
   "No selection to replace.": "没有可替换的选中文字。",
   "Message replaced in the active note.": "已替换当前笔记中的消息。",

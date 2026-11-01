@@ -317,15 +317,70 @@ export class AgentSessionManager {
     return this.pendingBackendDisables.has(backendId);
   }
 
-  noteExtensionsChanged(backendId: BackendId): void {
+  noteExtensionsChanged(
+    backendId: BackendId,
+    scope?: import("./extensionManagement").AgentExtensionScope
+  ): void {
     for (const session of this.sessions.values()) {
-      if (session.backendId === backendId) this.dirtyExtensionSessions.add(session.internalId);
+      if (
+        session.backendId === backendId &&
+        (!scope || scope.kind === "user" || session.cwd === scope.cwd)
+      )
+        this.dirtyExtensionSessions.add(session.internalId);
     }
     void this.preloader.stop(backendId).catch((error) => {
       logWarn(`[AgentMode] clearing extension probe failed: ${backendId}`, error);
     });
     this.preloadStatus.delete(backendId);
     this.notify();
+  }
+
+  isExtensionChangePending(
+    backendId: BackendId,
+    scope: import("./extensionManagement").AgentExtensionScope
+  ): boolean {
+    for (const id of this.dirtyExtensionSessions) {
+      const session = this.sessions.get(id);
+      if (session?.backendId === backendId && (scope.kind === "user" || session.cwd === scope.cwd))
+        return true;
+    }
+    return false;
+  }
+
+  async applyExtensionChanges(
+    backendId: BackendId,
+    scope: import("./extensionManagement").AgentExtensionScope,
+    signal?: AbortSignal
+  ): Promise<void> {
+    this.noteExtensionsChanged(backendId, scope);
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    await new Promise<void>((resolve, reject) => {
+      const finish = () => {
+        unsubscribe();
+        signal?.removeEventListener("abort", abort);
+      };
+      const abort = () => {
+        finish();
+        const reason: unknown = signal?.reason;
+        reject(reason instanceof Error ? reason : new DOMException("Aborted", "AbortError"));
+      };
+      const check = () => {
+        for (const session of this.sessions.values()) {
+          if (
+            session.backendId !== backendId ||
+            (scope.kind === "project" && session.cwd !== scope.cwd)
+          )
+            continue;
+          this.prepareNextPrompt(session.internalId);
+          if (this.dirtyExtensionSessions.has(session.internalId)) return;
+        }
+        finish();
+        resolve();
+      };
+      const unsubscribe = this.subscribe(check);
+      signal?.addEventListener("abort", abort, { once: true });
+      check();
+    });
   }
 
   private prepareNextPrompt(internalId: string): void {
@@ -338,9 +393,9 @@ export class AgentSessionManager {
     )
       return;
     const sessionId = session.getBackendSessionId();
-    if (!sessionId) return;
-    this.backends.get(session.backendId)?.refreshSessionConfiguration?.(sessionId);
+    if (sessionId) this.backends.get(session.backendId)?.refreshSessionConfiguration?.(sessionId);
     this.dirtyExtensionSessions.delete(internalId);
+    this.notify();
   }
 
   async setBackendEnabled(backendId: BackendId, enabled: boolean): Promise<void> {
@@ -2712,6 +2767,7 @@ export class AgentSessionManager {
     const unsubscribe = session.subscribe({
       onMessagesChanged: () => {},
       onTasksChanged: () => {
+        this.prepareNextPrompt(session.internalId);
         void this.finishBackendDisableIfReady(session.backendId);
         if (hasRunningTask(session) === tasksRunning) return;
         tasksRunning = !tasksRunning;
@@ -2720,6 +2776,7 @@ export class AgentSessionManager {
       // A dropped connection ends an idle chat's subagents with no reply to wait for and no status change. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
       onDisconnected: () => void this.flushDeferredBackendRestartIfReady(session.backendId),
       onStatusChanged: (next) => {
+        this.prepareNextPrompt(session.internalId);
         void this.finishBackendDisableIfReady(session.backendId);
         const wasRunning = prev === "running";
         const isRunning = next === "running";

@@ -1073,6 +1073,205 @@ describe("AgentSessionManager", () => {
       });
     });
 
+    describe("isExtensionChangePending()", () => {
+      it("reports no pending change before configuration is saved", async () => {
+        const manager = buildManager();
+        const session = await manager.createSession();
+        await session.ready;
+        expect(manager.isExtensionChangePending("opencode", { kind: "user" })).toBe(false);
+      });
+      it("reports a saved project change only for affected project chats", async () => {
+        seedProjects("notes", "research");
+        const manager = buildManager();
+        const selected = await manager.createSession(undefined, "notes");
+        const other = await manager.createSession(undefined, "research");
+        await Promise.all([selected.ready, other.ready]);
+        getSessionTestHandle(selected).setStatus("running");
+        manager.noteExtensionsChanged("opencode", { kind: "project", cwd: selected.cwd! });
+        expect(
+          manager.isExtensionChangePending("opencode", { kind: "project", cwd: selected.cwd! })
+        ).toBe(true);
+        expect(
+          manager.isExtensionChangePending("opencode", { kind: "project", cwd: other.cwd! })
+        ).toBe(false);
+        expect(
+          manager.isExtensionChangePending("claude", { kind: "project", cwd: selected.cwd! })
+        ).toBe(false);
+      });
+      it("keeps a user change pending after its page closes and clears it when the task finishes", async () => {
+        const manager = buildManager();
+        const session = await manager.createSession();
+        await session.ready;
+        getSessionTestHandle(session).setStatus("running");
+        const controller = new AbortController();
+        const applied = manager.applyExtensionChanges(
+          "opencode",
+          { kind: "user" },
+          controller.signal
+        );
+        controller.abort();
+        await expect(applied).rejects.toMatchObject({ name: "AbortError" });
+        expect(manager.isExtensionChangePending("opencode", { kind: "user" })).toBe(true);
+        expect(
+          manager.isExtensionChangePending("opencode", { kind: "project", cwd: session.cwd! })
+        ).toBe(true);
+        getSessionTestHandle(session).setStatus("idle");
+        expect(manager.isExtensionChangePending("opencode", { kind: "user" })).toBe(false);
+      });
+    });
+
+    describe("applyExtensionChanges()", () => {
+      it("finishes immediately when a failed chat has no backend instance to refresh", async () => {
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const session = await manager.createSession();
+        await session.ready;
+        getSessionTestHandle(session).setStatus("error");
+        jest.spyOn(session, "getBackendSessionId").mockReturnValue(null);
+        await manager.applyExtensionChanges("opencode", { kind: "user" });
+        expect(refresh).not.toHaveBeenCalled();
+        expect(session.getStatus()).toBe("error");
+      });
+      it("waits for a running task to finish before refreshing its configuration", async () => {
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const session = await manager.createSession();
+        await session.ready;
+        getSessionTestHandle(session).setStatus("running");
+        const applied = manager.applyExtensionChanges("opencode", { kind: "user" });
+        expect(refresh).not.toHaveBeenCalled();
+        getSessionTestHandle(session).setStatus("idle");
+        await applied;
+        expect(refresh).toHaveBeenCalledWith(session.getBackendSessionId());
+        expect(manager.getActiveSession()).toBe(session);
+      });
+      it("waits for an idle chat's background task to finish before refreshing", async () => {
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const session = await manager.createSession();
+        await session.ready;
+        const handle = getSessionTestHandle(session);
+        handle.setTaskStatuses(["running"]);
+        const applied = manager.applyExtensionChanges("opencode", { kind: "user" });
+        expect(refresh).not.toHaveBeenCalled();
+        handle.setTaskStatuses(["completed"]);
+        await applied;
+        expect(refresh).toHaveBeenCalledTimes(1);
+        expect(refresh).toHaveBeenCalledWith(session.getBackendSessionId());
+        expect(mockSessionCancel).not.toHaveBeenCalled();
+      });
+      it("refreshes only the selected project without waiting for another project's running chat", async () => {
+        seedProjects("notes", "research");
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const selected = await manager.createSession(undefined, "notes");
+        const other = await manager.createSession(undefined, "research");
+        await Promise.all([selected.ready, other.ready]);
+        getSessionTestHandle(other).setStatus("running");
+        await manager.applyExtensionChanges("opencode", { kind: "project", cwd: selected.cwd! });
+        expect(refresh).toHaveBeenCalledTimes(1);
+        expect(refresh).toHaveBeenCalledWith(selected.getBackendSessionId());
+        getSessionTestHandle(other).setStatus("idle");
+        expect(refresh).toHaveBeenCalledTimes(1);
+      });
+      it("updates user-level changes across projects after each affected chat finishes", async () => {
+        seedProjects("notes", "research");
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const first = await manager.createSession(undefined, "notes");
+        const second = await manager.createSession(undefined, "research");
+        await Promise.all([first.ready, second.ready]);
+        getSessionTestHandle(second).setStatus("running");
+        const applied = manager.applyExtensionChanges("opencode", { kind: "user" });
+        expect(refresh).toHaveBeenCalledWith(first.getBackendSessionId());
+        expect(refresh).not.toHaveBeenCalledWith(second.getBackendSessionId());
+        getSessionTestHandle(second).setStatus("idle");
+        await applied;
+        expect(refresh).toHaveBeenCalledTimes(2);
+        expect(refresh).toHaveBeenCalledWith(second.getBackendSessionId());
+      });
+      it("abandons only the waiting check when its page closes", async () => {
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const session = await manager.createSession();
+        await session.ready;
+        getSessionTestHandle(session).setStatus("running");
+        const controller = new AbortController();
+        const applied = manager.applyExtensionChanges(
+          "opencode",
+          { kind: "user" },
+          controller.signal
+        );
+        controller.abort();
+        await expect(applied).rejects.toMatchObject({ name: "AbortError" });
+        expect(session.getStatus()).toBe("running");
+        getSessionTestHandle(session).setStatus("idle");
+        expect(refresh).toHaveBeenCalledWith(session.getBackendSessionId());
+      });
+      it("keeps a saved change pending even when its page already cancelled the wait", async () => {
+        const refresh = jest.fn();
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            createBackendProcess: () => ({
+              ...makeMockBackendProcess(),
+              refreshSessionConfiguration: refresh,
+            }),
+          }),
+        });
+        const session = await manager.createSession();
+        await session.ready;
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+          manager.applyExtensionChanges("opencode", { kind: "user" }, controller.signal)
+        ).rejects.toMatchObject({ name: "AbortError" });
+        sessionCreateSpy.mock.calls[0][0].beforePrompt!();
+        expect(refresh).toHaveBeenCalledWith(session.getBackendSessionId());
+      });
+    });
+
     describe("setBackendEnabled()", () => {
       function keepEnablementSettings(): void {
         let current = {

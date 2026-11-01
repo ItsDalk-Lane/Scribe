@@ -11,6 +11,7 @@ import { __resetVaultBaseCache } from "@/utils/vaultPath";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { FileSystemAdapter, TFile, TFolder, type App } from "obsidian";
 import React from "react";
+import { Bot } from "lucide-react";
 import type CopilotPlugin from "@/main";
 import type { SkillLoadIssue } from "./SkillLoadIssues";
 import { SkillsSettings, type SkillsSettingsProps } from "./SkillsSettings";
@@ -142,6 +143,65 @@ describe("SkillsSettings", () => {
       expect(screen.queryByRole("tablist")).toBeNull();
       expect(screen.getByText("Plugin skills")).toBeTruthy();
       expect(screen.getByRole("button", { name: "New skill" })).toBeTruthy();
+    });
+
+    it("shares checked availability with the managed and built-in skill lists", async () => {
+      mockAgents = [{ id: "claude", displayName: "Claude", Icon: Bot }];
+      mockInstallStates = { claude: { kind: "ready", source: "custom" } };
+      const managed: Skill = {
+        name: "review-notes",
+        description: "Review notes",
+        body: "Review",
+        filePath: "/vault/copilot/skills/review-notes/SKILL.md",
+        dirPath: "/vault/copilot/skills/review-notes",
+        enabledAgents: ["claude"],
+        location: { kind: "canonical" },
+      };
+      const builtin = {
+        ...managed,
+        name: "obsidian-markdown",
+        filePath: "/vault/copilot/skills/obsidian-markdown/SKILL.md",
+        dirPath: "/vault/copilot/skills/obsidian-markdown",
+        builtin: true,
+      };
+      mockManagedSkills = [managed, builtin];
+      await act(async () => {
+        renderSettings(makeApp(), {
+          embedded: true,
+          runtimeItems: [
+            {
+              id: managed.filePath,
+              name: managed.name,
+              source: "project",
+              location: managed.filePath,
+              availability: "not_listed",
+            },
+            {
+              id: builtin.filePath,
+              name: builtin.name,
+              source: "project",
+              location: builtin.filePath,
+              availability: "loaded",
+            },
+          ],
+        });
+      });
+      expect(
+        screen.getByRole("switch", { name: "Enable review-notes" }).getAttribute("aria-disabled")
+      ).toBe("true");
+      expect(
+        screen.getByRole("switch", { name: "Enable review-notes" }).getAttribute("aria-checked")
+      ).toBe("false");
+      expect(
+        screen
+          .getByRole("switch", { name: "Enable obsidian-markdown" })
+          .getAttribute("aria-disabled")
+      ).toBe("true");
+      expect(
+        screen
+          .getByRole("switch", { name: "Enable obsidian-markdown" })
+          .getAttribute("aria-checked")
+      ).toBe("true");
     });
 
     it("reports background cleanup failures when settings opens and clears them after focus refresh for https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {

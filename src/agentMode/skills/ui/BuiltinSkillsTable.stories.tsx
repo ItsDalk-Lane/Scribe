@@ -12,6 +12,14 @@ const args: BuiltinSkillsTableProps = {
   ],
   agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
   availableAgents: ["claude"],
+  runtimeItems: [
+    {
+      id: "runtime:obsidian-markdown",
+      name: "obsidian-markdown",
+      source: "runtime",
+      availability: "loaded",
+    },
+  ],
 };
 const meta = {
   title: "Skills/Built-in Skills",
@@ -21,6 +29,8 @@ const meta = {
 } satisfies Meta<BuiltinSkillsTableProps>;
 export default meta;
 export const AlwaysEnabled: StoryObj<BuiltinSkillsTableProps> = {};
+export const Checking: StoryObj<BuiltinSkillsTableProps> = { args: { checking: true } };
+export const Unconfirmed: StoryObj<BuiltinSkillsTableProps> = { args: { runtimeItems: undefined } };
 export const NotInstalled: StoryObj<BuiltinSkillsTableProps> = { args: { availableAgents: [] } };
 export const NameCollision: StoryObj<BuiltinSkillsTableProps> = {
   args: {

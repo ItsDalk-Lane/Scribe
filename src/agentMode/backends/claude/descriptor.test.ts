@@ -270,6 +270,29 @@ describe("descriptor", () => {
       });
       expect(temporary.shutdown).toHaveBeenCalledTimes(1);
     });
+    it.each([{ kind: "user" as const }, { kind: "project" as const, cwd: "/selected-project" }])(
+      "passes $kind scope to the temporary process without changing chat configuration",
+      async (scope) => {
+        const temporary = {
+          newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),
+          getExtensionRuntime: jest.fn().mockResolvedValue(null),
+          shutdown: jest.fn().mockResolvedValue(undefined),
+        };
+        const plugin = {
+          app: {},
+          manifest: { version: "4.0.0" },
+        } as unknown as import("@/main").default;
+        const create = jest
+          .spyOn(ClaudeBackendDescriptor, "createBackendProcess")
+          .mockReturnValue(temporary as unknown as BackendProcess);
+
+        await ClaudeBackendDescriptor.checkExtensions!({ plugin, cwd: "/selected-project", scope });
+
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ configurationScope: scope }));
+        expect(temporary.shutdown).toHaveBeenCalledTimes(1);
+      }
+    );
+
     it("shuts down the temporary process when the extension check fails", async () => {
       const temporary = {
         newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),

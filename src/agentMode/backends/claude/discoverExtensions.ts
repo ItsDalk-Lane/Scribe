@@ -1,4 +1,7 @@
-import type { AgentExtensionGroup } from "@/agentMode/session/extensionInventory";
+import type {
+  AgentExtensionGroup,
+  AgentPluginInstallation,
+} from "@/agentMode/session/extensionInventory";
 import {
   ExtensionInventoryReader,
   object,
@@ -6,7 +9,8 @@ import {
 } from "@/agentMode/backends/shared/extensionInventory";
 
 export async function discoverClaudeExtensions(
-  input: ExtensionDiscoveryInput
+  input: ExtensionDiscoveryInput,
+  installedPlugins?: readonly unknown[]
 ): Promise<readonly AgentExtensionGroup[]> {
   const reader = new ExtensionInventoryReader(input);
   const configDir = input.env.CLAUDE_CONFIG_DIR
@@ -63,30 +67,64 @@ export async function discoverClaudeExtensions(
   const registry = await reader.config(
     reader.path.join(configDir, "plugins", "installed_plugins.json")
   );
-  for (const [id, values] of Object.entries(object(registry.plugins))) {
+  const registered: Record<string, unknown[]> = {};
+  for (const value of installedPlugins ?? []) {
+    const data = object(value);
+    if (typeof data.id !== "string") continue;
+    (registered[data.id] ??= []).push(data);
+  }
+  for (const [id, values] of Object.entries(
+    installedPlugins ? registered : object(registry.plugins)
+  )) {
     if (!Array.isArray(values)) continue;
-    const installations = values
-      .map(object)
-      .filter(
-        (data) =>
-          typeof data.installPath === "string" &&
-          (!(data.scope === "project" || data.scope === "local") || data.projectPath === input.cwd)
-      );
+    const records = values.map(object).filter((data) => typeof data.installPath === "string");
+    const installations = records.filter(
+      (data) =>
+        !(data.scope === "project" || data.scope === "local") || data.projectPath === input.cwd
+    );
     const data =
       installations.find((data) => data.scope === "local") ??
       installations.find((data) => data.scope === "project") ??
-      installations[0];
+      installations[0] ??
+      records[0];
     if (data && typeof data.installPath === "string") {
-      const scope = data.scope === "project" || data.scope === "local" ? "project" : "user";
+      const scope = input.cwd ? "project" : "user";
+      const applicable = installations.length > 0;
+      const available = applicable && (await reader.directoryExists(data.installPath));
+      const allInstallations: AgentPluginInstallation[] = await Promise.all(
+        records.map(async (record) => ({
+          scope: record.scope === "local" || record.scope === "project" ? record.scope : "user",
+          path: record.installPath as string,
+          ...(typeof record.projectPath === "string" ? { projectPath: record.projectPath } : {}),
+          ...(typeof record.version === "string" ? { version: record.version } : {}),
+          available: await reader.directoryExists(record.installPath as string),
+        }))
+      );
       const plugin = reader.add("plugin", {
         id,
         name: id,
         source: scope,
-        installationScope: data.scope === "local" ? "local" : scope,
+        installationScope: data.scope === "local" || data.scope === "project" ? data.scope : "user",
+        ...(typeof data.version === "string" ? { version: data.version } : {}),
+        ...(installedPlugins
+          ? { enabled: applicable && data.enabled === true }
+          : applicable
+            ? {}
+            : { enabled: false }),
+        installations: allInstallations,
+        canEnable: available,
+        canDisable: applicable,
+        ...(!applicable
+          ? { unavailableReason: "Installed only for other projects; unavailable in this scope." }
+          : !available
+            ? { unavailableReason: "Installed plugin files are missing." }
+            : !installedPlugins
+              ? { unavailableReason: "Could not read Claude plugin status." }
+              : {}),
         target: {
           path: reader.path.join(
             scope === "project" && input.cwd ? reader.path.join(input.cwd, ".claude") : configDir,
-            data.scope === "local" ? "settings.local.json" : "settings.json"
+            scope === "project" && data.scope === "local" ? "settings.local.json" : "settings.json"
           ),
           format: "json",
           keyPath: ["enabledPlugins", id],
@@ -96,7 +134,11 @@ export async function discoverClaudeExtensions(
               : { kind: "user" },
         },
       });
-      const ownsInstallation = plugin.target?.scope.kind === scope;
+      const ownsInstallation =
+        applicable &&
+        (data.scope === "user" || data.scope === undefined
+          ? scope === "user"
+          : scope === "project");
       reader.add("plugin", {
         ...plugin,
         capabilities: {

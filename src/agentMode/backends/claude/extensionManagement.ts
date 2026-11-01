@@ -7,6 +7,7 @@ import {
   type ExtensionFs,
 } from "@/agentMode/backends/shared/extensionInventory";
 import type {
+  AgentExtensionGroup,
   AgentExtensionItem,
   AgentExtensionKind,
 } from "@/agentMode/session/extensionInventory";
@@ -30,6 +31,7 @@ export interface ClaudeExtensionFs extends ExtensionFs {
   mkdir(path: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   remove(path: string): Promise<void>;
+  removeTree(path: string): Promise<void>;
 }
 
 export interface ClaudeExtensionManagerInput extends ExtensionDiscoveryInput {
@@ -66,6 +68,8 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
   private readonly configDir: string;
   private readonly env: Readonly<Record<string, string | undefined>>;
   private readonly knownScopes = new Map<string, AgentExtensionScope>();
+  private readonly inventories = new Map<string, Promise<readonly AgentExtensionGroup[]>>();
+  private readonly pluginChildren = new Map<string, readonly AgentExtensionItem[]>();
 
   constructor(private readonly input: ClaudeExtensionManagerInput) {
     const fs = input.io
@@ -83,6 +87,9 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
       remove: async (path) => {
         await fs!.unlink(path);
       },
+      removeTree: async (path) => {
+        await fs!.rm(path, { recursive: true });
+      },
     };
     this.configDir = input.env.CLAUDE_CONFIG_DIR
       ? this.path.resolve(input.cwd ?? input.home, input.env.CLAUDE_CONFIG_DIR)
@@ -97,27 +104,62 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
     scope: AgentExtensionScope
   ): Promise<readonly AgentExtensionItem[]> {
     this.validateScope(scope);
-    const groups = await discoverClaudeExtensions({
-      ...this.input,
-      env: this.env,
-      fs: this.io,
-      cwd: scope.kind === "project" ? scope.cwd : null,
-    });
+    const listingKey = scope.kind === "project" ? `project:${scope.cwd}` : "user";
+    let listing = this.inventories.get(listingKey);
+    if (!listing) {
+      listing = this.readPluginList(scope)
+        .catch(() => undefined)
+        .then((installedPlugins) =>
+          discoverClaudeExtensions(
+            {
+              ...this.input,
+              env: this.env,
+              fs: this.io,
+              cwd: scope.kind === "project" ? scope.cwd : null,
+            },
+            installedPlugins
+          )
+        )
+        .finally(() => this.inventories.delete(listingKey));
+      this.inventories.set(listingKey, listing);
+    }
+    const groups = await listing;
+    const unavailablePlugins = new Set(
+      groups
+        .find((group) => group.kind === "plugin")
+        ?.items.filter((item) => item.canDisable === false)
+        .map((item) => item.id)
+    );
     const seen = new Set<string>();
-    return (groups.find((group) => group.kind === kind)?.items ?? []).filter((item) => {
+    return (groups.find((group) => group.kind === kind)?.items ?? []).flatMap((item) => {
       const targetScope = item.target?.scope;
       if (
         !targetScope ||
-        targetScope.kind !== scope.kind ||
+        (scope.kind === "user" && targetScope.kind !== "user") ||
         (scope.kind === "project" &&
-          (targetScope.kind !== "project" ||
-            this.path.resolve(targetScope.cwd) !== this.path.resolve(scope.cwd)))
+          targetScope.kind === "project" &&
+          this.path.resolve(targetScope.cwd) !== this.path.resolve(scope.cwd)) ||
+        (item.parentPluginId && unavailablePlugins.has(item.parentPluginId))
       )
-        return false;
+        return [];
       const key = `${item.parentPluginId ?? ""}:${item.target!.path}:${JSON.stringify(item.target!.keyPath ?? [])}:${item.name}`;
-      if (seen.has(key)) return false;
+      if (seen.has(key)) return [];
       seen.add(key);
-      return true;
+      const inherited = scope.kind === "project" && targetScope.kind === "user";
+      const next = inherited
+        ? {
+            ...item,
+            readOnly: true,
+            capabilities: { edit: false, delete: false, toggle: false, update: false },
+          }
+        : item;
+      if (kind === "plugin") {
+        this.pluginChildren.set(
+          `${item.target!.path}:${item.id}`,
+          groups.flatMap((group) => group.items.filter((child) => child.parentPluginId === item.id))
+        );
+      }
+      return [next];
     });
   }
 
@@ -128,7 +170,10 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
       item.kind === "plugin" &&
       target.format === "json" &&
       target.keyPath?.[0] === "enabledPlugins";
-    if (text === null && implicitPlugin) return { item, revision: this.revision(null), config: {} };
+    const children =
+      item.kind === "plugin" ? this.pluginChildren.get(`${target.path}:${item.id}`) : undefined;
+    if (text === null && implicitPlugin)
+      return { item, revision: this.revision(null), config: {}, children };
     if (text === null) throw new Error("配置文件已不存在，请刷新列表。");
     if (target.format === "markdown")
       return {
@@ -163,6 +208,7 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
       item,
       revision: this.revision(text),
       config,
+      ...(children ? { children } : {}),
       ...(item.kind === "hook" ? { hookEvents: this.hookEvents(config.type) } : {}),
     };
   }
@@ -321,6 +367,8 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
   }
 
   async toggle(details: AgentExtensionDetails, enabled: boolean): Promise<void> {
+    if (enabled ? details.item.canEnable === false : details.item.canDisable === false)
+      throw new Error(details.item.unavailableReason ?? "此插件不能在当前范围切换。");
     const target = this.writable(details, "toggle");
     if (target.format === "markdown") {
       if (Boolean(target.disabled) === !enabled) return;
@@ -351,6 +399,18 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
 
   async delete(details: AgentExtensionDetails): Promise<void> {
     const target = this.writable(details, "delete");
+    if (details.item.kind === "plugin" && target.keyPath?.[0] === "localPlugins") {
+      await this.change(target.path, details.revision, async (old) => {
+        const reference = object(this.at(this.parse(old!), target.keyPath!));
+        if (typeof reference.path !== "string") throw new Error("未找到本地插件引用。");
+        const pluginPath = this.path.resolve(reference.path);
+        if ((await this.read(this.path.join(pluginPath, ".claude-plugin", "plugin.json"))) === null)
+          throw new Error("本地插件目录不存在或不是插件目录，未删除任何文件。");
+        await this.io.removeTree(pluginPath);
+        return this.patch(old!, target.keyPath!, undefined);
+      });
+      return;
+    }
     if (details.item.kind === "plugin" && target.keyPath?.[0] !== "localPlugins") {
       await this.assertRevision(target.path, details.revision);
       await this.pluginAction({
@@ -984,6 +1044,49 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
       }
     });
   }
+  private async readPluginList(scope: AgentExtensionScope): Promise<readonly unknown[]> {
+    const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+    const directory =
+      scope.kind === "user"
+        ? await fs.mkdtemp(
+            this.path.join(
+              requireNodeModule<typeof import("node:os")>("os").tmpdir(),
+              "scribe-plugin-list-"
+            )
+          )
+        : undefined;
+    try {
+      const records: unknown = JSON.parse(
+        await this.run(
+          [
+            "--setting-sources",
+            scope.kind === "user" ? "user" : "user,project,local",
+            "plugin",
+            "list",
+            "--json",
+          ],
+          scope.kind === "project" ? scope.cwd : directory
+        )
+      );
+      if (
+        !Array.isArray(records) ||
+        records.some((value) => {
+          const record = object(value);
+          return (
+            typeof record.id !== "string" ||
+            typeof record.installPath !== "string" ||
+            typeof record.enabled !== "boolean" ||
+            !["user", "project", "local"].includes(String(record.scope))
+          );
+        })
+      )
+        throw new Error("Claude Code 插件列表格式无效。");
+      return records as unknown[];
+    } finally {
+      if (directory) await fs.rmdir(directory);
+    }
+  }
+
   private async run(args: readonly string[], cwd?: string): Promise<string> {
     if (!this.input.binaryPath) throw new Error("未找到可用的 Claude Code。");
     if (this.input.run) return this.input.run(this.input.binaryPath, args, cwd, this.env);

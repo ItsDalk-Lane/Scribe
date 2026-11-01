@@ -168,32 +168,24 @@ See [Skills with Claude](agent-mode-and-tools.md#skills-with-claude).
 | **MCP**      | 新建 HTTP、SSE 或本地命令连接，编辑请求头或环境变量，导入配置；可在保存前测试连接，测试不会替你保存。                                      |
 | **子Agent**  | 新建和编辑专门代理的说明、模型及可用工具，也可启停和删除；插件提供的专门代理只读。                                                         |
 
-**Refresh and check** 会读取当前来源的配置，并在需要时启动临时 Claude 来检查加载和连接状态，无需先发送聊天消息，也不会新建聊天标签。关闭页面、切换来源或取消时会清理临时检查。检查不逐个调用工具；正常启动 Claude 可能连接扩展服务，并触发你已配置的启动 Hook。
+进入任一页面、切换来源或选择 **Refresh and check** 时，Scribe 会自动启动一次不发送聊天消息的检查。检查不会新建聊天标签；离开页面或切换来源会清理临时检查。**本机用户**只检查用户范围，**当前库**及项目范围则包含继承的用户设置。
 
-插件清单会包含插件声明的命令文件、子 Agent 文件，以及默认位置和附加位置的技能、MCP 与钩子。需要由 Claude 解读的压缩扩展包会提示先运行检查。
+每个列表把条目分成两类：能通过开关启用或停用的条目显示开关，开关表示所选范围内的实际可用性，不再把配置中的开启值直接当成可用；不能单独控制的条目不显示开关，检查确认可用时正常显示，未启用时在名称右侧显示一个红点，悬停可查看原因。检查会核对插件实际加载、技能和命令及子 Agent 是否被识别、MCP 是否提供可调用工具，以及钩子是否注册并允许触发。
 
-子 Agent 的模型留空时保留代理的默认模型规则；填写 `inherit` 才会明确跟随主代理。仅编辑说明不会改变原来的模型或工具设置。
+- 开关开启表示检查确认可用，关闭表示确认不可用。
+- 检查中、检查失败、信息不足或等待已有任务结束时，开关灰化并附小图标。悬停或打开详情可查看原因。
+- 缺少安装文件、需要登录、仅安装在其他项目，或加载失败等情况，不显示开关而显示红点与原因。
+- 不能单独控制的条目包括内置事项、插件附属事项和随来源继承的只读事项；其中未启用的显示红点。
 
-修改扩展不会中断正在运行的任务；新的配置会在下一次合适的代理启动或下一轮任务准备时应用。需要确认实际结果时，再执行一次检查。代理关闭期间配置仍保留，但不能启动扩展检查。
+列表按来源分组：**已安装**、**内置**，插件附属事项按所属插件单独分组。所属插件未启用时，它包含的技能、命令、钩子、MCP 和子 Agent 不会出现在各自的页面；插件启用后按所属插件分组显示，且一律没有开关。
 
-Each entry shows its source. **Agent report** identifies information supplied by Claude. A configuration switch, such as **Enabled in configuration** or **Disabled in configuration**, is separate from the actual check result:
+修改后会重新检查实际结果。已有聊天不会被打断，待当前任务和后台任务结束后应用；等待状态在六个页面之间保持一致。
 
-| Status                                                                                                                    | Meaning                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Loaded**                                                                                                                | Claude reported the skill or plugin as loaded.                                                                                                 |
-| **Loaded; manual invocation only**                                                                                        | Claude reported the skill as loaded, but it requires an explicit manual request rather than automatic selection.                               |
-| **Loaded with component errors**                                                                                          | The plugin itself loaded, but Claude reported an error in a component such as a hook. This is separate from a plugin failing to load.          |
-| **Registered**                                                                                                            | Claude reported the command during this check.                                                                                                 |
-| **Connected**                                                                                                             | The MCP server is connected. The tool count is shown when reported, including zero.                                                            |
-| **Not loaded in this check**                                                                                              | Claude's complete plugin list for this check confirms that this plugin was not loaded.                                                         |
-| **Claude did not report this entry**                                                                                      | Claude did not include this skill, command, or MCP server in its report. Hidden skills may be omitted; not reported does not mean unavailable. |
-| **Connection failed**, **Failed to load**, **Sign-in required**, **Connection not completed in this check**, **Disabled** | The state explicitly reported by Claude.                                                                                                       |
-| **Discovered; loading not checked**                                                                                       | The entry was found, but its loading state has not been established.                                                                           |
-| **Triggered by events; execution not verified**                                                                           | A hook runs in response to events. This page does not test whether it executed. Disabled configuration remains visible separately.             |
+插件按独立插件计数，多条安装记录合并在同一详情中。详情显示介绍、版本、安装地址、各记录所属范围，以及插件包含的技能、命令、钩子、MCP 和子 Agent。详情页不再显示开关：条目可用时正常显示，不可用时显示红点并说明原因，插件附属事项同样如此。插件的启用和停用在列表的开关中操作。
 
-Loaded or connected does not guarantee that each execution succeeds. Results describe this check; check again after changing configuration. If some or all results cannot be read, the page explains that limitation rather than treating missing information as an unloaded extension.
+检查不会逐个执行工具、运行子 Agent 或人为触发业务钩子。正常启动 Claude 仍可能连接扩展服务并运行已配置的启动钩子；确认可用不保证每次实际任务都成功。读取不到的结果保持未知，不会冒充成功或失败。
 
-This is not a complete account-wide directory. Organization-managed, remote, dynamically registered, and some bundled entries may be absent. Configuration read failures are shown separately from an empty list. 详情页只读展示条目内容；插件组件不能独立编辑或删除。
+插件清单会读取默认位置和清单声明的附加位置；插件组件不能独立编辑或删除。子 Agent 的模型留空时保留代理默认规则，填写 `inherit` 才会明确跟随主代理。
 
 这些代理配置页面需要桌面版 Obsidian。界面会保留读取失败与不支持的操作信息，不把“没有读到”当成“没有配置”。
 

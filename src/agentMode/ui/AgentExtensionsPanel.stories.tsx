@@ -163,3 +163,78 @@ export const LongNames: StoryObj<AgentExtensionsPanelProps> = {
 export const Busy: StoryObj<AgentExtensionsPanelProps> = {
   args: { ...args, busy: true },
 };
+
+export const PluginAvailability: StoryObj<AgentExtensionsPanelProps> = {
+  args: {
+    ...args,
+    runtimeState: "checked",
+    groups: [
+      {
+        kind: "plugin",
+        status: "partial",
+        warnings: [],
+        items: [
+          {
+            id: "notes@community",
+            name: "笔记助手",
+            source: "user",
+            kind: "plugin",
+            version: "1.4.0",
+            availability: "loaded_with_errors",
+            capabilities: { edit: false, delete: true, toggle: true },
+            description: "插件已加载；附属服务的可用性在详情中分别查看。",
+          },
+          {
+            id: "review@community",
+            name: "内容审阅",
+            source: "user",
+            kind: "plugin",
+            version: "0.9.2",
+            enabled: false,
+            availability: "disabled",
+            canEnable: false,
+            unavailableReason: "Installed only for other projects; unavailable in this scope.",
+            capabilities: { edit: false, delete: false, toggle: true },
+          },
+          {
+            id: "research@community",
+            name: "资料研究",
+            source: "user",
+            kind: "plugin",
+            availability: "failed",
+            unavailableReason: "Installed plugin files are missing.",
+            capabilities: { edit: false, delete: true, toggle: true },
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const ConfirmedBuiltin: StoryObj<AgentExtensionsPanelProps> = {
+  args: {
+    ...args,
+    runtimeState: "checked",
+    groups: [
+      {
+        kind: "command",
+        status: "partial",
+        warnings: [],
+        items: [
+          {
+            id: "help",
+            name: "help",
+            source: "runtime",
+            kind: "command",
+            builtin: true,
+            availability: "loaded",
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const FailedCheck: StoryObj<AgentExtensionsPanelProps> = {
+  args: { ...args, runtimeState: "error" },
+};

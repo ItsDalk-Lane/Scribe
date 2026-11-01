@@ -1,6 +1,8 @@
 import React from "react";
 import type { App } from "obsidian";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Notice } from "obsidian";
+import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type {
   AgentExtensionDetails,
   AgentExtensionScope,
@@ -200,6 +202,153 @@ describe("ExtensionDialogs", () => {
     });
   });
   describe("ExtensionDetailsView()", () => {
+    it("copies the extension name to the clipboard when its button is clicked (https://github.com/ItsDalk-Lane/Scribe/issues/2)", async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
+      });
+      render(<ExtensionDetailsView details={pluginDetails} onClose={jest.fn()} />);
+      expect(screen.getByText("Notes")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Copy name" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith("Notes"));
+      expect(Notice).toHaveBeenCalledWith("Copied to clipboard");
+    });
+    it("reports a notice when copying the extension name fails (https://github.com/ItsDalk-Lane/Scribe/issues/2)", async () => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: jest.fn().mockRejectedValue(new Error("denied")) },
+      });
+      render(<ExtensionDetailsView details={pluginDetails} onClose={jest.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: "Copy name" }));
+      await waitFor(() => expect(Notice).toHaveBeenCalledWith("Failed to copy to clipboard"));
+    });
+    it("shows plugin version, description, installation paths and each installation scope", () => {
+      render(
+        <ExtensionDetailsView
+          details={{
+            ...pluginDetails,
+            item: {
+              ...pluginDetails.item,
+              kind: "plugin",
+              version: "2.4.1",
+              availability: "loaded",
+              installations: [
+                { scope: "user", path: "/plugins/notes", version: "2.4.1", available: true },
+                {
+                  scope: "local",
+                  path: "/plugins/notes-previous",
+                  projectPath: "/another-project",
+                  version: "2.3.0",
+                  available: false,
+                },
+              ],
+            },
+            children: [],
+          }}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(screen.getByText("Read notes")).toBeTruthy();
+      expect(screen.getAllByText("2.4.1").length).toBeGreaterThan(0);
+      expect(screen.getByText("2.3.0")).toBeTruthy();
+      expect(screen.getAllByText("/plugins/notes").length).toBeGreaterThan(0);
+      expect(screen.getByText("/plugins/notes-previous")).toBeTruthy();
+      expect(screen.getByText("/another-project")).toBeTruthy();
+      expect(screen.getByText("Local · User")).toBeTruthy();
+      expect(screen.getByText("Project · Local")).toBeTruthy();
+      expect(screen.getByText("Installation files are missing.")).toBeTruthy();
+      expect(screen.queryByRole("switch")).toBeNull();
+      expect(screen.getByText("Available in this scope")).toBeTruthy();
+    });
+
+    it("groups the plugin's five component kinds and marks the unavailable ones with a reason dot (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+      const children: AgentExtensionItem[] = [
+        { id: "notes:skill", name: "review-notes", kind: "skill", availability: "loaded" },
+        { id: "notes:command", name: "summarize", kind: "command", availability: "loaded" },
+        { id: "notes:hook", name: "check-note", kind: "hook", availability: "not_listed" },
+        { id: "notes:mcp", name: "note-search", kind: "mcp", availability: "failed" },
+        { id: "notes:agent", name: "reviewer", kind: "subagent", availability: "disabled" },
+      ].map(
+        (item) =>
+          ({
+            ...item,
+            source: "plugin",
+            parentPluginId: "notes",
+            readOnly: true,
+            capabilities: { edit: false, delete: false, toggle: false },
+          }) as AgentExtensionItem
+      );
+      render(
+        <ExtensionDetailsView
+          details={{ ...pluginDetails, item: { ...pluginDetails.item, kind: "plugin" }, children }}
+          onClose={jest.fn()}
+        />
+      );
+
+      for (const heading of ["Skills", "Commands", "Hooks", "MCP servers", "Subagents"])
+        expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+      expect(screen.queryByRole("switch")).toBeNull();
+      const unavailableReasons: Record<string, string> = {
+        "check-note": "Availability could not be confirmed. Check again.",
+        "note-search": "Resolve the loading error before enabling this item.",
+        reviewer: "Its plugin is not enabled in this scope.",
+      };
+      for (const child of children) {
+        const dot = within(screen.getByText(child.name).parentElement!).queryByRole("img");
+        if (child.availability === "loaded") {
+          expect(dot).toBeNull();
+          continue;
+        }
+        expect(dot).not.toBeNull();
+        expect(dot!.getAttribute("aria-label")).toBe(unavailableReasons[child.name]);
+      }
+      expect(screen.queryByText("Loaded")).toBeNull();
+      expect(screen.queryByText("Discovered; loading not checked")).toBeNull();
+    });
+
+    it.each([
+      [undefined, "Plugin components could not be confirmed."],
+      [[], "This plugin has no listed components."],
+    ] as const)(
+      "distinguishes unavailable component details from a confirmed empty list",
+      (children, message) => {
+        render(
+          <ExtensionDetailsView
+            details={{
+              ...pluginDetails,
+              item: { ...pluginDetails.item, kind: "plugin" },
+              children,
+            }}
+            onClose={jest.fn()}
+          />
+        );
+
+        expect(screen.getByText(message)).toBeTruthy();
+      }
+    );
+
+    it("shows the unavailable reason of a failed plugin without a switch (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+      render(
+        <ExtensionDetailsView
+          details={{
+            ...pluginDetails,
+            item: {
+              ...pluginDetails.item,
+              kind: "plugin",
+              availability: "failed",
+              unavailableReason: "Installation files are missing.",
+            },
+          }}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(screen.getAllByText("Installation files are missing.").length).toBeGreaterThan(0);
+      expect(screen.queryByRole("switch")).toBeNull();
+    });
+
     it("shows read-only child details without editable or uninstall actions even when callbacks exist", () => {
       render(
         <ExtensionDetailsView

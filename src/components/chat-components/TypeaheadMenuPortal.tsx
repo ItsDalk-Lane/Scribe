@@ -29,6 +29,8 @@ function tryToPositionRange(leadOffset: number, editorWindow: Window): Range | n
 
 const MENU_WIDTH = 400;
 const MAX_WIDTH_PERCENTAGE = 0.9;
+const PREVIEW_GAP = 8;
+const SIDE_PREVIEW_MIN_WINDOW = 900;
 
 interface TypeaheadMenuPortalProps {
   options: TypeaheadOption[];
@@ -53,9 +55,12 @@ export function TypeaheadMenuPortal({
   mode = "search",
   onKeyDown,
 }: TypeaheadMenuPortalProps) {
-  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(
-    null
-  );
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    totalWidth: number;
+  } | null>(null);
 
   const targetWin: Window = range?.startContainer.win ?? window;
 
@@ -81,19 +86,24 @@ export function TypeaheadMenuPortal({
     const win = range.startContainer.win;
     const rect = range.getBoundingClientRect();
     const containerWidth = calculateWidth(win);
+    const totalWidth =
+      showPreview && options[selectedIndex]?.content && win.innerWidth >= SIDE_PREVIEW_MIN_WINDOW
+        ? containerWidth * 2 + PREVIEW_GAP
+        : containerWidth;
 
     const top = rect.top - 4;
     const minLeft = 8;
-    const maxLeft = win.innerWidth - containerWidth - 8;
-    const left = Math.min(Math.max(rect.left, minLeft), maxLeft);
+    const maxLeft = win.innerWidth - totalWidth - 8;
+    const left = Math.max(minLeft, Math.min(Math.max(rect.left, minLeft), maxLeft));
 
     // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- clear the measured position when the anchor disappears
     setPosition({
       top,
       left,
       width: containerWidth,
+      totalWidth,
     });
-  }, [range, calculateWidth]);
+  }, [range, calculateWidth, showPreview, options, selectedIndex]);
 
   useEffect(() => {
     recalcPosition();
@@ -121,7 +131,7 @@ export function TypeaheadMenuPortal({
       style={{
         bottom: `calc(100vh - ${position.top}px)`,
         left: position.left,
-        width: position.width,
+        width: position.totalWidth,
       }}
     >
       <TypeaheadMenuContent

@@ -1,11 +1,16 @@
 import type {
-  AgentExtensionAvailability,
   AgentExtensionGroup,
   AgentExtensionItem,
   AgentExtensionKind,
 } from "@/agentMode/session/extensionInventory";
 import { Button } from "@/components/ui/button";
-import { SettingSwitch } from "@/components/ui/setting-switch";
+import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
+import { ExtensionAvailabilityDot } from "@/components/ui/extension-availability-dot";
+import {
+  getExtensionDotState,
+  getExtensionSwitchState,
+  isExtensionToggleable,
+} from "@/agentMode/session/extensionAvailability";
 import { t } from "@/lib/i18n";
 import { Bot, Network, Pencil, Puzzle, Terminal, Trash2, Wand2, Webhook } from "lucide-react";
 import React from "react";
@@ -38,18 +43,6 @@ const ICONS = {
   command: Terminal,
   hook: Webhook,
   subagent: Bot,
-};
-const AVAILABILITY_LABELS: Record<AgentExtensionAvailability, string> = {
-  loaded: "Loaded",
-  loaded_with_errors: "Loaded with component errors",
-  manual_only: "Loaded; manual invocation only",
-  not_loaded: "Not loaded in this check",
-  not_listed: "Claude did not report this entry",
-  connected: "Connected",
-  failed: "Failed to load",
-  "needs-auth": "Sign-in required",
-  pending: "Connection not completed in this check",
-  disabled: "Disabled",
 };
 
 export function AgentExtensionsPanel({
@@ -109,26 +102,14 @@ export function AgentExtensionsPanel({
             )}
             {[...sections].map(([name, items]) => (
               <section key={name} className="tw-space-y-3">
-                {name !== t("Installed") && (
-                  <h3 className="tw-m-0 tw-flex tw-items-center tw-gap-2 tw-text-ui-small tw-font-medium">
-                    {name}
-                    <span className="tw-text-ui-smaller tw-font-normal tw-text-muted">
-                      {items.length}
-                    </span>
-                  </h3>
-                )}
+                <h3 className="tw-m-0 tw-flex tw-items-center tw-gap-2 tw-text-ui-small tw-font-medium">
+                  {name}
+                  <span className="tw-text-ui-smaller tw-font-normal tw-text-muted">
+                    {items.length}
+                  </span>
+                </h3>
                 <div className="tw-divide-y tw-divide-border tw-overflow-hidden tw-rounded-lg tw-border tw-border-solid tw-border-border tw-bg-transparent tw-@container">
                   {items.map((item) => {
-                    const readOnlyLabel = t(
-                      item.enabled === false && (item.parentPluginId || item.source === "plugin")
-                        ? "Disabled with plugin"
-                        : item.builtin ||
-                            item.parentPluginId ||
-                            item.source === "plugin" ||
-                            item.source === "runtime"
-                          ? "Built-in; managed by its source"
-                          : "Read-only; manage at its source"
-                    );
                     return (
                       <article
                         key={item.id}
@@ -154,19 +135,11 @@ export function AgentExtensionsPanel({
                             <span className="tw-min-w-0 tw-truncate tw-text-ui-small tw-font-medium">
                               {item.name}
                             </span>
-                            <span className="tw-max-w-[55%] tw-shrink-0 tw-truncate tw-text-ui-smaller tw-leading-normal tw-text-muted">
-                              {group.kind === "hook"
-                                ? t("Triggered by events; execution not verified")
-                                : t(
-                                    item.availability
-                                      ? group.kind === "mcp" && item.availability === "failed"
-                                        ? "Connection failed"
-                                        : AVAILABILITY_LABELS[item.availability]
-                                      : "Discovered; loading not checked"
-                                  )}
-                              {item.toolCount !== undefined &&
-                                ` · ${t("{count} tools", { count: item.toolCount })}`}
-                            </span>
+                            {group.kind === "plugin" && item.version && (
+                              <span className="tw-shrink-0 tw-text-ui-smaller tw-text-muted">
+                                {item.version}
+                              </span>
+                            )}
                           </span>
                           {item.description && (
                             <span className="tw-mt-1 tw-block tw-truncate tw-text-ui-smaller tw-leading-normal tw-text-muted">
@@ -175,20 +148,26 @@ export function AgentExtensionsPanel({
                           )}
                         </button>
                         <div className="tw-flex tw-max-w-16 tw-shrink-0 tw-flex-wrap tw-items-center tw-justify-end tw-gap-1 @sm:tw-max-w-none @sm:tw-flex-nowrap">
-                          {item.capabilities?.toggle && onToggle ? (
-                            <SettingSwitch
-                              aria-label={t("Enable {name}", { name: item.name })}
-                              checked={item.enabled !== false}
-                              disabled={busy}
-                              onCheckedChange={(next) => onToggle(item, next)}
+                          {isExtensionToggleable({ ...item, kind: group.kind }) ? (
+                            <ExtensionAvailabilitySwitch
+                              label={t("Enable {name}", { name: item.name })}
+                              state={
+                                runtimeState === "error"
+                                  ? {
+                                      ...getExtensionSwitchState({ ...item, kind: group.kind }),
+                                      disabled: true,
+                                      phase: "unknown",
+                                      reason: "Availability could not be confirmed. Check again.",
+                                    }
+                                  : getExtensionSwitchState({ ...item, kind: group.kind }, loading)
+                              }
+                              busy={busy}
+                              onToggle={onToggle ? (next) => onToggle(item, next) : undefined}
                             />
                           ) : (
-                            <span
-                              title={readOnlyLabel}
-                              className="tw-max-w-16 tw-truncate tw-text-right tw-text-ui-smaller tw-leading-normal tw-text-muted @sm:tw-max-w-24"
-                            >
-                              {readOnlyLabel}
-                            </span>
+                            <ExtensionAvailabilityDot
+                              state={getExtensionDotState({ ...item, kind: group.kind })}
+                            />
                           )}
                           {item.capabilities?.edit &&
                             onOpen &&

@@ -24,6 +24,7 @@ export interface AgentExtensionDetails {
   content?: string;
   config?: Record<string, unknown>;
   hookEvents?: readonly string[];
+  children?: readonly AgentExtensionItem[];
 }
 
 export interface AgentExtensionDraft {
