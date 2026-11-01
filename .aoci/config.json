@@ -27,7 +27,9 @@
     "tmp",
     "uploads",
     "artifacts",
-    "vendor"
+    "vendor",
+    ".mimosa",
+    ".context"
   ],
   "exclude_files": [
     "*.backup.*",
