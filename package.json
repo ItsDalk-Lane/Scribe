@@ -1,6 +1,6 @@
 {
   "name": "obsidian-scribe",
-  "version": "4.0.17",
+  "version": "1.0.1",
   "description": "Run Claude Code inside your vault. Turn your second brain into a smart assistant that gets knowledge work done.",
   "main": "main.js",
   "scripts": {
@@ -40,7 +40,7 @@
     "test:reset-data": "bash scripts/test-reset-data.sh"
   },
   "keywords": [],
-  "author": "Logan Yang",
+  "author": "ItsDalk-Lane",
   "nano-staged": {
     "*.{js,jsx,ts,tsx,json,css,md}": [
       "prettier --write"

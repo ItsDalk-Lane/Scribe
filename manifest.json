@@ -1,14 +1,10 @@
 {
   "id": "scribe",
   "name": "Scribe",
-  "version": "4.0.17",
+  "version": "1.0.1",
   "minAppVersion": "1.11.4",
   "isDesktopOnly": false,
   "description": "Run Claude Code inside your vault. Turn your second brain into a smart assistant that gets knowledge work done.",
-  "author": "Logan Yang",
-  "authorUrl": "https://twitter.com/logancyang",
-  "fundingUrl": {
-    "Buy Me a Coffee": "https://www.buymeacoffee.com/logancyang",
-    "GitHub Sponsor": "https://github.com/sponsors/logancyang"
-  }
+  "author": "ItsDalk-Lane",
+  "authorUrl": "https://github.com/ItsDalk-Lane"
 }

@@ -1,5 +1,25 @@
 # Release Notes
 
+# v1.0.1 - Rebuilt on the Copilot 4.0.17 base
+
+Scribe now runs on the Obsidian Copilot 4.0.17 codebase, bringing its current chat and agent infrastructure into Scribe.
+
+## ✨ Enhancements
+
+- Agent extension pages (Plugins, Skills, Commands, Hooks, MCP servers, Subagents) report each entry's real availability in the selected scope instead of echoing the configuration value, and group plugin-provided entries under their plugin.
+- Plugin details show the version, every installation record with its scope, and the components the plugin contributes. The plugin list shows each version next to its name.
+- The slash menu preview opens beside the command list instead of covering it.
+
+## 🛠️ Bug Fixes
+
+- Deleting a local-directory plugin now also deletes its plugin directory from disk, and removes the reference only after the files are gone. A referenced directory that is not a plugin is left untouched.
+- Local-directory plugins no longer show an update action that could not change anything.
+- The slash menu no longer shifts sideways when the highlighted entry has no preview content.
+
+## ⚠️ Compatibility Notes
+
+- Requires Obsidian 1.11.4 or newer.
+
 # v4.0.17 - Excalidraw integration, Miyo search control
 
 [![Demo video: Obsidian Copilot 4.0.17: Excalidraw Drawings, Send Now, Miyo Limits](https://images.brevilabs.com/newsletters/copilot-releases/4.0.17/video-thumbnail-25ea4ac7.png)](https://youtube.com/shorts/ZYazABOaBMk)
