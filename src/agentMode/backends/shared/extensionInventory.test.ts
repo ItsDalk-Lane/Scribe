@@ -6,6 +6,8 @@ import {
 import { input, skill } from "@/agentMode/backends/shared/extensionInventoryFixtures";
 import { sha256 } from "@/utils/hash";
 
+jest.mock("path", () => jest.requireActual<typeof import("path")>("path").posix);
+
 describe("extensionInventory", () => {
   describe("object()", () => {
     it("accepts configuration objects and uses one stable empty result for missing or invalid shapes", () => {

@@ -1,6 +1,8 @@
 import { discoverClaudeExtensions } from "@/agentMode/backends/claude/discoverExtensions";
 import { input, skill } from "@/agentMode/backends/shared/extensionInventoryFixtures";
 
+jest.mock("path", () => jest.requireActual<typeof import("path")>("path").posix);
+
 describe("discoverExtensions", () => {
   describe("discoverClaudeExtensions()", () => {
     it("lists user and project skills, configured servers, enabled plugins and hook events without returning credentials", async () => {

@@ -3,6 +3,8 @@ import type { AgentExtensionScope } from "@/agentMode/session/extensionManagemen
 import { discoverClaudeExtensions } from "./discoverExtensions";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 
+jest.mock("path", () => jest.requireActual<typeof import("path")>("path").posix);
+
 const USER: AgentExtensionScope = { kind: "user" };
 const PROJECT: AgentExtensionScope = { kind: "project", cwd: "/vault" };
 

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-02T09:56:11Z",
+  "updated_at": "2026-11-02T10:12:11Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -551,9 +551,9 @@
     },
     "manifest.json": {
       "role": "index",
-      "sha256": "bc9bea23c54a1167bd62737ea176e66f54f64f4fe49cadb8838b75a361a46a97",
-      "size": 320,
-      "normalized_sha256": "bc9bea23c54a1167bd62737ea176e66f54f64f4fe49cadb8838b75a361a46a97"
+      "sha256": "a731c1858a978b5a514af7f86ecbbe4a5df4aaaea84f596a1f8ac49c6a8eb6f1",
+      "size": 328,
+      "normalized_sha256": "a731c1858a978b5a514af7f86ecbbe4a5df4aaaea84f596a1f8ac49c6a8eb6f1"
     },
     "nodeModuleShim.mjs": {
       "role": "index",
@@ -1091,9 +1091,9 @@
     },
     "src/agentMode/backends/claude/discoverExtensions.test.ts": {
       "role": "observe",
-      "sha256": "b87cc75f3221a3301a8c56fd050c75f9e768ae3cc7b2083a1b1be535265e6f26",
-      "size": 4695,
-      "normalized_sha256": "b87cc75f3221a3301a8c56fd050c75f9e768ae3cc7b2083a1b1be535265e6f26"
+      "sha256": "5612ec8f8fe58632e065c697343fe63c22e924e819853aff60afb09b2ab710c9",
+      "size": 4778,
+      "normalized_sha256": "5612ec8f8fe58632e065c697343fe63c22e924e819853aff60afb09b2ab710c9"
     },
     "src/agentMode/backends/claude/discoverExtensions.ts": {
       "role": "index",
@@ -1103,9 +1103,9 @@
     },
     "src/agentMode/backends/claude/extensionManagement.test.ts": {
       "role": "observe",
-      "sha256": "e03aecf2be4b0893ef843d8cb2415cb34c4d362dfccd469b363c9f3d08a8339b",
-      "size": 49404,
-      "normalized_sha256": "e03aecf2be4b0893ef843d8cb2415cb34c4d362dfccd469b363c9f3d08a8339b"
+      "sha256": "53343af811077588ff4b34f0022fdbe5a1a692f2b8e285d07f91c4eed21ebbad",
+      "size": 49487,
+      "normalized_sha256": "53343af811077588ff4b34f0022fdbe5a1a692f2b8e285d07f91c4eed21ebbad"
     },
     "src/agentMode/backends/claude/extensionManagement.ts": {
       "role": "index",
@@ -1247,9 +1247,9 @@
     },
     "src/agentMode/backends/shared/extensionInventory.test.ts": {
       "role": "observe",
-      "sha256": "814ca68d315faa08f573d42bfe2a30eba46eba4167999f392aab02ff417d8e5d",
-      "size": 15618,
-      "normalized_sha256": "814ca68d315faa08f573d42bfe2a30eba46eba4167999f392aab02ff417d8e5d"
+      "sha256": "f5ecf0ee500b7d8b555232dbd6188c8048571395984e1e9791a9de907a6ea414",
+      "size": 15701,
+      "normalized_sha256": "f5ecf0ee500b7d8b555232dbd6188c8048571395984e1e9791a9de907a6ea414"
     },
     "src/agentMode/backends/shared/extensionInventory.ts": {
       "role": "index",
@@ -8561,9 +8561,9 @@
     },
     "versions.json": {
       "role": "index",
-      "sha256": "53c3b39cf6b36025bd381c51c5a15e239aa0b41a42ae75f4ee36085a08caaa4a",
-      "size": 63,
-      "normalized_sha256": "53c3b39cf6b36025bd381c51c5a15e239aa0b41a42ae75f4ee36085a08caaa4a"
+      "sha256": "89480c5f9d0901c64268e3a3e8a67f628afe6f198acb50f1451614d91b98c805",
+      "size": 66,
+      "normalized_sha256": "89480c5f9d0901c64268e3a3e8a67f628afe6f198acb50f1451614d91b98c805"
     },
     "wasmPlugin.mjs": {
       "role": "index",
