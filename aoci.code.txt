@@ -31,7 +31,7 @@ wasmPlugin.mjs[XV3T]: F:Esbuild plugin loading WebAssembly modules | R:- | A:was
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/workflows/===
 release.yml[OV7M]: F:Publishes GitHub releases from semver-titled PRs merged to the default branch, stable or prerelease, with attested build artifacts | R:- | A:- | S:Non-semver PR titles exit silently; the committed manifest.json must stay pinned to the latest stable release because the Obsidian store reads it to serve installs
-canary.yml[OV6M]: F:Publishes the head of a stable release PR as a canary prerelease when a maintainer comments /canary | R:code:.github/workflows/release.yml | A:- | S:issue_comment runs always execute the master copy of this workflow, so edits take effect only after they merge; closing the release PR deletes the canary
+canary.yml[OV6M]: F:Publishes the head of a stable release PR as a canary prerelease when a maintainer comments /canary | R:code:.github/workflows/release.yml | A:- | S:issue_comment runs always execute the default-branch copy of this workflow, so edits take effect only after they merge; closing the release PR deletes the canary
 node.js.yml[OQ5S]: F:Pull-request and push CI running sharded Jest, lint, Obsidian review gate, and bundle smoke tests | R:- | A:- | S:-
 pr-size.yml[OQ3T]: F:Labels pull requests by production-code churn while excluding tests, stories, mocks, and fixtures | R:- | A:- | S:PR code is never checked out or executed
 windows-tests.yml[OQ4S]: F:Runs native Windows test coverage on every PR plus a no-regexp-optimization sanitization check | R:- | A:- | S:Releases call these jobs pinned to their exact merge commit via workflow_call

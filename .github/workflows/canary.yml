@@ -2,13 +2,13 @@
 # (title "X.Y.Z") to publish its head commit as a GitHub prerelease tagged
 # "X.Y.Z-canary.<run>". BRAT testers install it; the Obsidian plugin store is
 # untouched because the prerelease never becomes the latest release and
-# manifest.json on master is unchanged. Semver orders X.Y.Z-canary.N below
+# manifest.json on main is unchanged. Semver orders X.Y.Z-canary.N below
 # X.Y.Z, so BRAT testers move to the stable release once it ships.
 #
 # Each release PR keeps at most one canary so the Releases page stays readable,
 # and closing the PR (merged or not) deletes it along with its tag.
 #
-# issue_comment workflows always run the copy of this file on master, so edits
+# issue_comment workflows always run the copy of this file on main, so edits
 # here take effect only after they merge.
 
 name: Canary
@@ -19,7 +19,7 @@ on:
   pull_request:
     types: [closed]
     branches:
-      - master
+      - main
 
 jobs:
   publish:
@@ -65,8 +65,8 @@ jobs:
             echo "PR title '$TITLE' is not a stable release version (X.Y.Z)."
             exit 1
           fi
-          if [ "$(jq -r .isCrossRepository <<< "$PR_JSON")" = "true" ] || [ "$(jq -r .baseRefName <<< "$PR_JSON")" != "master" ]; then
-            echo "Canaries are only published for same-repository PRs targeting master."
+          if [ "$(jq -r .isCrossRepository <<< "$PR_JSON")" = "true" ] || [ "$(jq -r .baseRefName <<< "$PR_JSON")" != "main" ]; then
+            echo "Canaries are only published for same-repository PRs targeting main."
             exit 1
           fi
 

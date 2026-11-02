@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-02T00:11:37Z",
+  "updated_at": "2026-11-02T00:20:06Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -77,9 +77,9 @@
     },
     ".github/workflows/canary.yml": {
       "role": "index",
-      "sha256": "955aa56cf4a5ab01e669b6abc61356c0dda47b8f6e92ff107fcb54899b37d106",
-      "size": 8081,
-      "normalized_sha256": "955aa56cf4a5ab01e669b6abc61356c0dda47b8f6e92ff107fcb54899b37d106"
+      "sha256": "dfe8c8aaccdc86b869dc18d160797e25be0437654ddd57bce90db8bf651d2277",
+      "size": 8071,
+      "normalized_sha256": "dfe8c8aaccdc86b869dc18d160797e25be0437654ddd57bce90db8bf651d2277"
     },
     ".github/workflows/node.js.yml": {
       "role": "index",
@@ -179,9 +179,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "a3d077dff614b509769e75d8090db891af96182332c00cfb45139602138c2183",
-      "size": 156486,
-      "normalized_sha256": "a3d077dff614b509769e75d8090db891af96182332c00cfb45139602138c2183"
+      "sha256": "bca0a93b068a2ccd1b5cb4f499483f3a292143862bbd84bd3a4b83c83f30a5b2",
+      "size": 156494,
+      "normalized_sha256": "bca0a93b068a2ccd1b5cb4f499483f3a292143862bbd84bd3a4b83c83f30a5b2"
     },
     "aoci.meta.txt": {
       "role": "index",
