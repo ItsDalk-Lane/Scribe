@@ -23,7 +23,6 @@ describe("extensionAvailability", () => {
       expect(getExtensionSwitchState({ ...item, enabled: true })).toMatchObject({
         checked: false,
         disabled: true,
-        phase: "unknown",
       });
     });
     it("allows a confirmed disabled item to be enabled", () => {
@@ -39,9 +38,8 @@ describe("extensionAvailability", () => {
         getExtensionSwitchState({ ...item, availability: "disabled", parentPluginId: "notes" })
       ).toMatchObject({ checked: false, disabled: true });
     });
-    it("keeps missing reports unknown and blocks enabling items with unmet prerequisites", () => {
+    it("keeps unconfirmed and prerequisite-blocked items off their switch (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
       expect(getExtensionSwitchState({ ...item, availability: "not_listed" })).toMatchObject({
-        phase: "unknown",
         disabled: true,
       });
       expect(getExtensionSwitchState({ ...item, availability: "needs-auth" })).toMatchObject({
@@ -72,10 +70,10 @@ describe("extensionAvailability", () => {
         getExtensionSwitchState({ ...item, kind: "plugin", availability: "loaded_with_errors" })
       ).toMatchObject({ checked: true, disabled: false });
     });
-    it("requires callable tools for a connected MCP server", () => {
+    it("requires callable tools for a connected MCP server (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
       expect(
         getExtensionSwitchState({ ...item, kind: "mcp", availability: "connected" })
-      ).toMatchObject({ checked: false, disabled: true, phase: "unknown" });
+      ).toMatchObject({ checked: false, disabled: true });
       expect(
         getExtensionSwitchState({ ...item, kind: "mcp", availability: "connected", toolCount: 0 })
       ).toMatchObject({ checked: false, disabled: true });
@@ -96,12 +94,14 @@ describe("extensionAvailability", () => {
         })
       ).toBe(false);
     });
-    it("blocks switching while a prerequisite failure stands but not while state is merely unknown (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("renders a dot instead of a switch while connecting, unverifiable, or blocked by a prerequisite (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
       expect(isExtensionToggleable({ ...item, availability: "needs-auth" })).toBe(false);
       expect(isExtensionToggleable({ ...item, availability: "failed" })).toBe(false);
       expect(isExtensionToggleable({ ...item, availability: "not_loaded" })).toBe(false);
-      expect(isExtensionToggleable({ ...item, availability: "not_listed" })).toBe(true);
-      expect(isExtensionToggleable(item)).toBe(true);
+      expect(isExtensionToggleable({ ...item, availability: "not_listed" })).toBe(false);
+      expect(isExtensionToggleable({ ...item, availability: "unconfirmed" })).toBe(false);
+      expect(isExtensionToggleable({ ...item, kind: "mcp", availability: "pending" })).toBe(false);
+      expect(isExtensionToggleable(item)).toBe(false);
     });
     it("follows the scope rules recorded for the entry (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
       expect(isExtensionToggleable({ ...item, availability: "loaded", canDisable: false })).toBe(
@@ -119,6 +119,37 @@ describe("extensionAvailability", () => {
       expect(
         getExtensionDotState({ ...item, kind: "mcp", availability: "connected", toolCount: 2 })
       ).toEqual({ enabled: true });
+    });
+    it("explains where a confirmed but non-switchable row is managed instead of rendering nothing (https://github.com/ItsDalk-Lane/Scribe/issues/5)", () => {
+      expect(getExtensionDotState({ ...item, availability: "loaded", readOnly: true })).toEqual({
+        enabled: true,
+        informational: true,
+        reason: "Read-only; manage at its source",
+      });
+      expect(getExtensionDotState({ ...item, availability: "loaded", builtin: true })).toEqual({
+        enabled: true,
+        informational: true,
+        reason: "Built-in; managed by its source",
+      });
+      expect(
+        getExtensionDotState({ ...item, availability: "loaded", parentPluginId: "docs" })
+      ).toEqual({
+        enabled: true,
+        informational: true,
+        reason: "Managed by its plugin; it cannot be switched independently.",
+      });
+      expect(getExtensionDotState({ ...item, availability: "loaded", source: "runtime" })).toEqual({
+        enabled: true,
+        informational: true,
+        reason: "Reported by the running session.",
+      });
+    });
+    it("marks a connecting server with the connecting reason instead of a failure (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+      expect(getExtensionDotState({ ...item, kind: "mcp", availability: "pending" })).toEqual({
+        enabled: false,
+        connecting: true,
+        reason: "Connecting…",
+      });
     });
     it("explains why a plugin-owned entry is unavailable (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
       expect(
@@ -151,6 +182,9 @@ describe("extensionAvailability", () => {
         enabled: false,
         reason: "Availability could not be confirmed. Check again.",
       });
+      expect(getExtensionDotState({ ...item, availability: "unconfirmed" }).reason).toBe(
+        "Availability could not be confirmed. Check again."
+      );
     });
   });
 });

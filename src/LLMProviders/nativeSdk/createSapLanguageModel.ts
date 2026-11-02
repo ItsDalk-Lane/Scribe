@@ -21,45 +21,51 @@ export function createSapLanguageModel(
   let cachedToken: { value: string; expiresAt: number } | undefined;
   let pendingToken: Promise<string> | undefined;
   let deploymentId = credentials.deploymentId;
-  const token = async (signal?: AbortSignal): Promise<string> => {
+  const token = async (): Promise<string> => {
     if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.value;
     if (!pendingToken) {
       pendingToken = (async () => {
-        const response = await transport(
-          `${credentials.tokenUrl.replace(/\/+$/, "")}/oauth/token`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              grant_type: "client_credentials",
-              client_id: credentials.clientId,
-              client_secret: credentials.clientSecret,
-            }).toString(),
-            signal,
-          }
-        );
-        if (!response.ok)
-          throw Object.assign(
-            new Error(t("SAP authorization failed ({status}).", { status: response.status })),
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 15_000);
+        try {
+          const response = await transport(
+            `${credentials.tokenUrl.replace(/\/+$/, "")}/oauth/token`,
             {
-              statusCode: response.status,
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                grant_type: "client_credentials",
+                client_id: credentials.clientId,
+                client_secret: credentials.clientSecret,
+              }).toString(),
+              signal: controller.signal,
             }
           );
-        const result = (await response.json()) as Record<string, unknown>;
-        if (
-          typeof result.access_token !== "string" ||
-          !result.access_token ||
-          typeof result.expires_in !== "number" ||
-          result.expires_in <= 0
-        )
-          throw new Error(
-            t("SAP authorization did not return a valid access token and expiration.")
-          );
-        cachedToken = {
-          value: result.access_token,
-          expiresAt: Date.now() + Math.max(0, result.expires_in * 1000 - 30000),
-        };
-        return result.access_token;
+          if (!response.ok)
+            throw Object.assign(
+              new Error(t("SAP authorization failed ({status}).", { status: response.status })),
+              {
+                statusCode: response.status,
+              }
+            );
+          const result = (await response.json()) as Record<string, unknown>;
+          if (
+            typeof result.access_token !== "string" ||
+            !result.access_token ||
+            typeof result.expires_in !== "number" ||
+            result.expires_in <= 0
+          )
+            throw new Error(
+              t("SAP authorization did not return a valid access token and expiration.")
+            );
+          cachedToken = {
+            value: result.access_token,
+            expiresAt: Date.now() + Math.max(0, result.expires_in * 1000 - 30000),
+          };
+          return result.access_token;
+        } finally {
+          window.clearTimeout(timer);
+        }
       })().finally(() => {
         pendingToken = undefined;
       });
@@ -67,7 +73,7 @@ export function createSapLanguageModel(
     return pendingToken;
   };
   return async (options) => {
-    const accessToken = await token(options.signal);
+    const accessToken = await token();
     const api = new URL(model.baseUrl || credentials.apiUrl);
     if (api.pathname === "/") api.pathname = "/v2";
     const base = api.href.replace(/\/+$/, "");

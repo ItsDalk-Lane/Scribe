@@ -240,6 +240,7 @@ export class AgentSessionManager {
       indexTimer?: number;
       unsub?: () => void;
       signature?: string;
+      dirty?: boolean;
       attentionUnsub?: () => void;
       snapshotTimer?: number;
       snapshotSaving?: Promise<void>;
@@ -2500,15 +2501,15 @@ export class AgentSessionManager {
         const sessionId = session.getBackendSessionId();
         if (!sessionId || !session.hasUserVisibleMessages()) return;
         await Promise.all(
-          session.getTaskSnapshots().map(async (entry) => {
-            if (entry.task.kind !== "command" || !entry.task.outputFile) return;
+          session.getTasks().map(async (task) => {
+            if (task.kind !== "command" || !task.outputFile) return;
             try {
               const output = await new TaskOutputTail(
-                entry.task.outputFile,
+                task.outputFile,
                 256 * 1024,
                 this.opts.taskOutputReader ?? createNodeTaskOutputReader()
               ).poll();
-              if (output.text) session.rememberTaskOutput(entry.task.toolCallId, output);
+              if (output.text) session.rememberTaskOutput(task.toolCallId, output);
             } catch (error) {
               logWarn("[AgentMode] could not capture task output", error);
             }
@@ -2591,6 +2592,7 @@ export class AgentSessionManager {
     // Manual Save opts this chat into keeping its note current.
     // https://github.com/logancyang/obsidian-copilot/issues/3225
     if (!getSettings().autosaveChat && !state.source) return;
+    state.dirty = true;
     if (state.timer) window.clearTimeout(state.timer);
     state.timer = window.setTimeout(() => {
       state.timer = undefined;
@@ -2688,6 +2690,7 @@ export class AgentSessionManager {
     const signature = `${label ?? ""}-${sessionId ?? ""}-${messages.length}-${last?.message ?? ""}-${usage?.updatedAt ?? ""}`;
     const state = this.getSessionState(session.internalId);
     if (state.signature === signature) {
+      state.dirty = false;
       return state.source ?? null;
     }
 
@@ -2705,6 +2708,7 @@ export class AgentSessionManager {
     if (result) {
       state.source = this.app.vault.getAbstractFileByPath(result.path) ?? result;
       state.signature = signature;
+      state.dirty = false;
       // The first successful save changes relative-link resolution in the mounted chat.
       // https://github.com/Brevilabs/obsidian-copilot-private/issues/539
       if (previousSourcePath !== result.path) this.notify();
@@ -2727,9 +2731,11 @@ export class AgentSessionManager {
     // A save that already started is in neither timer; closing must still wait for it.
     // https://github.com/logancyang/obsidian-copilot/issues/2888
     await state?.saving;
-    if (!state?.timer) return;
-    window.clearTimeout(state.timer);
-    state.timer = undefined;
+    if (!state || (!state.timer && !state.dirty)) return;
+    if (state.timer) {
+      window.clearTimeout(state.timer);
+      state.timer = undefined;
+    }
     try {
       await this.flushAutoSave(session);
     } catch (e) {
@@ -2750,9 +2756,11 @@ export class AgentSessionManager {
     indexTimer?: number;
     snapshotTimer?: number;
     unsub?: () => void;
+    dirty?: boolean;
   }): void {
     window.clearTimeout(state.timer);
     state.timer = undefined;
+    state.dirty = false;
     window.clearTimeout(state.indexTimer);
     state.indexTimer = undefined;
     window.clearTimeout(state.snapshotTimer);
@@ -2772,6 +2780,12 @@ export class AgentSessionManager {
         if (hasRunningTask(session) === tasksRunning) return;
         tasksRunning = !tasksRunning;
         this.notify();
+        if (
+          !tasksRunning &&
+          (session.getStatus() === "idle" || session.getStatus() === "error") &&
+          this.detachedFromTabIds.has(session.internalId)
+        )
+          this.closeIdleHiddenChatsOverCap();
       },
       // A dropped connection ends an idle chat's subagents with no reply to wait for and no status change. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
       onDisconnected: () => void this.flushDeferredBackendRestartIfReady(session.backendId),
@@ -2787,6 +2801,11 @@ export class AgentSessionManager {
         const wantsUser = wasRunning && ATTENTION_TRIGGER_STATUSES.has(next);
         if (wantsUser) this.signalSessionNeedsAttention(session);
         if (wasRunning !== isRunning) this.notify();
+        if (
+          (next === "idle" || next === "error") &&
+          this.detachedFromTabIds.has(session.internalId)
+        )
+          this.closeIdleHiddenChatsOverCap();
       },
     });
     this.getSessionState(session.internalId).attentionUnsub = unsubscribe;

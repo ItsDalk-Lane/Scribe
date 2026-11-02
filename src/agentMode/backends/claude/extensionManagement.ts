@@ -131,35 +131,30 @@ export class ClaudeExtensionManager implements AgentExtensionManager {
         .map((item) => item.id)
     );
     const seen = new Set<string>();
+    // Each scope's list holds only entries whose write target lives in that scope; entries from
+    // other scopes are invisible here instead of appearing as read-only inherited rows.
+    // https://github.com/ItsDalk-Lane/Scribe/issues/6
     return (groups.find((group) => group.kind === kind)?.items ?? []).flatMap((item) => {
       const targetScope = item.target?.scope;
       if (
         !targetScope ||
         (scope.kind === "user" && targetScope.kind !== "user") ||
         (scope.kind === "project" &&
-          targetScope.kind === "project" &&
-          this.path.resolve(targetScope.cwd) !== this.path.resolve(scope.cwd)) ||
+          (targetScope.kind !== "project" ||
+            this.path.resolve(targetScope.cwd) !== this.path.resolve(scope.cwd))) ||
         (item.parentPluginId && unavailablePlugins.has(item.parentPluginId))
       )
         return [];
       const key = `${item.parentPluginId ?? ""}:${item.target!.path}:${JSON.stringify(item.target!.keyPath ?? [])}:${item.name}`;
       if (seen.has(key)) return [];
       seen.add(key);
-      const inherited = scope.kind === "project" && targetScope.kind === "user";
-      const next = inherited
-        ? {
-            ...item,
-            readOnly: true,
-            capabilities: { edit: false, delete: false, toggle: false, update: false },
-          }
-        : item;
       if (kind === "plugin") {
         this.pluginChildren.set(
           `${item.target!.path}:${item.id}`,
           groups.flatMap((group) => group.items.filter((child) => child.parentPluginId === item.id))
         );
       }
-      return [next];
+      return [item];
     });
   }
 

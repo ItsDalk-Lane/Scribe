@@ -26,7 +26,8 @@ describe("createGitlabAccessToken", () => {
           "https://gitlab.fixture.invalid/api/v4/ai/third_party_agents/direct_access"
         );
         expect(new Headers(request.headers).get("Authorization")).toBe("Bearer user-token");
-        expect(request.signal).toBe(controller.signal);
+        expect(request.signal).not.toBe(controller.signal);
+        expect(request.signal).toBeInstanceOf(AbortSignal);
         expect(JSON.parse(request.body as string)).toEqual({
           feature_flags: { DuoAgentPlatformNext: true },
         });

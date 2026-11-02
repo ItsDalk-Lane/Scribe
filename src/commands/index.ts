@@ -17,7 +17,7 @@ import {
 import { CustomCommandChatModal } from "@/commands/CustomCommandChatModal";
 import { ApplyCustomCommandModal } from "@/components/modals/ApplyCustomCommandModal";
 import type CopilotPlugin from "@/main";
-import { getAllQAMarkdownContent } from "@/search/searchUtils";
+import { getVaultCharacterCount } from "@/search/searchUtils";
 import { WebSelectedTextContext } from "@/types/message";
 import { isSourceModeOn } from "@/utils";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
@@ -87,8 +87,8 @@ export function registerCommands(plugin: CopilotPlugin) {
 
   addCommand(plugin, COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS, async () => {
     try {
-      const allContent = await getAllQAMarkdownContent(plugin.app);
-      const totalTokens = await ChatModelManager.getInstance().countTokens(allContent);
+      const characterCount = await getVaultCharacterCount(plugin.app);
+      const totalTokens = Math.ceil(characterCount / 4);
       new Notice(t("Total tokens in your vault: {totalTokens}", { totalTokens: totalTokens }));
     } catch (error) {
       logError("Error counting tokens: ", error);

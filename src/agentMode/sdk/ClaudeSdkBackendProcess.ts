@@ -254,6 +254,14 @@ export class ClaudeSdkBackendProcess implements BackendProcess {
     return live?.getExtensionRuntime({ reloadPlugins: params.startIfNeeded }) ?? null;
   }
 
+  async getMcpServerStatus(params: {
+    sessionId: SessionId;
+  }): Promise<AgentExtensionRuntimeSnapshot["mcpServers"] | null> {
+    const session = this.sessions.get(params.sessionId);
+    if (!session?.live) return null;
+    return session.live.getMcpServerStatus();
+  }
+
   async prompt(params: PromptInput): Promise<void> {
     const session = this.sessions.get(params.sessionId);
     if (!session) {
@@ -318,6 +326,7 @@ export class ClaudeSdkBackendProcess implements BackendProcess {
     const permissionBridge = new PermissionBridge(sessionId, {
       getPrompter: () => this.permissionPrompter,
       getAskUserQuestionPrompter: () => this.askUserQuestionPrompter,
+      isPlanMode: () => session.permissionMode === "plan",
       isPlanModePlanFilePath: this.opts.isPlanModePlanFilePath,
     });
 

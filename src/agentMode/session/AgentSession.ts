@@ -105,6 +105,7 @@ const EMPTY_TASKS: readonly AgentTask[] = Object.freeze([]);
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = Object.freeze([]);
 const EMPTY_TASK_SNAPSHOTS: readonly SavedAgentTask[] = Object.freeze([]);
 const EMPTY_TOOL_CALL_IDS: ReadonlySet<string> = new Set();
+const MAX_RETAINED_TASKS = 20;
 const LAUNCH_CARD_STATUS: Record<TaskEndStatus, AgentToolStatus> = {
   completed: "completed",
   failed: "failed",
@@ -1502,6 +1503,19 @@ export class AgentSession {
     return undefined;
   }
 
+  private pruneEndedTasks(): void {
+    let excess = this.tasks.size - MAX_RETAINED_TASKS;
+    if (excess <= 0) return;
+    for (const [toolCallId, task] of this.tasks) {
+      if (excess <= 0) return;
+      if (task.status === "running") continue;
+      this.tasks.delete(toolCallId);
+      this.taskContent.delete(toolCallId);
+      this.taskFiles.delete(toolCallId);
+      excess--;
+    }
+  }
+
   // A launch that settles before the agent names its task never became one: it was denied, failed or stopped. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   private endUnstartedTasks(): void {
     for (const task of this.tasks.values()) {
@@ -1555,8 +1569,9 @@ export class AgentSession {
     const contentId = content?.getDisplayMessages()[0]?.id;
     if (contentId) content?.stopToolCalls(contentId, EMPTY_TOOL_CALL_IDS);
     this.endUnstartedTasks();
-    this.publishTasks();
     void this.finalizeTaskFileChanges(task.toolCallId);
+    this.pruneEndedTasks();
+    this.publishTasks();
   }
 
   private async finalizeTaskFileChanges(toolCallId: string): Promise<void> {

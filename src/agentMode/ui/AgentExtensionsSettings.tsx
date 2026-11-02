@@ -11,6 +11,14 @@ import type {
   AgentExtensionScope,
 } from "@/agentMode/session/extensionManagement";
 import { mergeExtensionRuntime } from "@/agentMode/session/mergeExtensionRuntime";
+import {
+  extensionCheckCacheIdentity,
+  extensionCheckCacheKey,
+  readCachedExtensionCheck,
+  readCachedExtensionView,
+  storeCachedExtensionCheck,
+  storeCachedExtensionView,
+} from "@/agentMode/session/extensionCheckCache";
 import { resolveScopeCwd } from "@/agentMode/session/sessionScope";
 import { useManagedSkills } from "@/agentMode/skills/SkillManager";
 import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
@@ -34,13 +42,13 @@ import { useSettingsValue } from "@/settings/model";
 import { getVaultBase } from "@/utils/vaultPath";
 import { normalizeAbsPath } from "@/utils/pathUtils";
 import { Plus, RefreshCw, Download } from "lucide-react";
-import { Notice } from "obsidian";
+import { Notice, type App } from "obsidian";
 import React from "react";
 
 export interface AgentExtensionsSettingsProps {
   kind?: AgentExtensionKind;
 }
-const EXTENSION_KINDS: readonly AgentExtensionKind[] = Object.freeze([
+export const EXTENSION_KINDS: readonly AgentExtensionKind[] = Object.freeze([
   "plugin",
   "skill",
   "command",
@@ -57,6 +65,20 @@ interface InventoryState {
   runtimeState: "not_started" | "checked" | "partial" | "error";
 }
 
+// The saved answer is the state a reopened page paints before its configuration scan finishes, so the
+// previous result appears instantly instead of a loading state.
+// https://github.com/ItsDalk-Lane/Scribe/issues/3
+function savedInventoryState(
+  app: App | null | undefined,
+  identity: string,
+  context: string
+): InventoryState | null {
+  const view = readCachedExtensionView(app, identity);
+  return view
+    ? { context, groups: view.groups, loading: false, runtimeState: view.runtimeState }
+    : null;
+}
+
 export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSettingsProps) {
   const plugin = usePlugin();
   const settings = useSettingsValue();
@@ -71,11 +93,6 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     context: string;
     controller: AbortController;
   } | null>(null);
-  const [state, setState] = React.useState<InventoryState>({
-    groups: null,
-    loading: true,
-    runtimeState: "not_started",
-  });
   const vaultBase = getVaultBase(plugin.app);
   const sources = [
     { value: "user", label: t("Local · User") },
@@ -106,6 +123,25 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
   const requestId = React.useRef(0);
   const mutationController = React.useRef<AbortController | null>(null);
   const context = JSON.stringify([descriptor.id, selection, cwd, kind]);
+  const cacheIdentity = React.useMemo(
+    () =>
+      extensionCheckCacheIdentity({
+        backendId: descriptor.id,
+        scopeKind: scope.kind,
+        cwd: scope.kind === "user" ? null : cwd,
+        vaultBase,
+      }),
+    [descriptor.id, scope.kind, cwd, vaultBase]
+  );
+  const [state, setState] = React.useState<InventoryState>(
+    () =>
+      savedInventoryState(plugin.app, cacheIdentity, context) ?? {
+        context,
+        groups: null,
+        loading: true,
+        runtimeState: "not_started",
+      }
+  );
   const busy = operation?.context === context;
   const controller = React.useRef<AbortController | null>(null);
   const sessionManager = plugin.agentSessionManager;
@@ -117,71 +153,128 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     ),
     () => sessionManager?.isExtensionChangePending?.(descriptor.id, scope) ?? false
   );
-  const load = React.useCallback(async () => {
-    const id = ++requestId.current;
-    controller.current?.abort();
-    const abort = new AbortController();
-    controller.current = abort;
-    setState((current) => ({
-      ...current,
-      context,
-      groups: current.context === context ? current.groups : null,
-      loading: true,
-      error: false,
-    }));
-    try {
-      if (!management || !cwd) throw new Error("Configuration is unavailable");
-      const readRuntime = async (): Promise<AgentExtensionRuntimeSnapshot | null> => {
-        if (!enabled || !descriptor.checkExtensions) return null;
-        return descriptor.checkExtensions({ plugin, cwd, scope, signal: abort.signal });
-      };
-      const [inventory, discovered, report] = await Promise.all([
-        Promise.all(
-          EXTENSION_KINDS.map(
-            async (entryKind): Promise<AgentExtensionGroup> => ({
-              kind: entryKind,
-              status: "partial",
-              warnings: [],
-              items: await management.list(entryKind, scope),
-            })
-          )
-        ),
-        descriptor.readExtensions?.({ settings, cwd: scope.kind === "user" ? null : cwd }) ??
-          Promise.resolve([]),
-        readRuntime().then(
-          (runtime) => ({ runtime, failed: false }),
-          () => ({ runtime: null, failed: true })
-        ),
-      ]);
-      const merged = mergeExtensionRuntime(
-        inventory.map((group) => ({
+  // An explicit refresh re-runs the backend check even when the configuration fingerprint is
+  // unchanged; automatic loads answer from the saved view and the check cache instead.
+  // https://github.com/ItsDalk-Lane/Scribe/issues/3
+  const load = React.useCallback(
+    async (force = false) => {
+      const id = ++requestId.current;
+      controller.current?.abort();
+      const abort = new AbortController();
+      controller.current = abort;
+      const savedView = readCachedExtensionView(plugin.app, cacheIdentity);
+      setState((current) => {
+        if (current.context === context)
+          return { ...current, loading: current.groups === null, error: false };
+        const groups = savedView?.groups ?? null;
+        return {
+          context,
+          groups,
+          loading: groups === null,
+          error: false,
+          runtimeState:
+            groups === null ? "not_started" : (savedView?.runtimeState ?? "not_started"),
+        };
+      });
+      try {
+        if (!management || !cwd) throw new Error("Configuration is unavailable");
+        const [inventory, discovered] = await Promise.all([
+          Promise.all(
+            EXTENSION_KINDS.map(
+              async (entryKind): Promise<AgentExtensionGroup> => ({
+                kind: entryKind,
+                status: "partial",
+                warnings: [],
+                items: await management.list(entryKind, scope),
+              })
+            )
+          ),
+          descriptor.readExtensions?.({ settings, cwd: scope.kind === "user" ? null : cwd }) ??
+            Promise.resolve([]),
+        ]);
+        const inventoryWithWarnings = inventory.map((group) => ({
           ...group,
           warnings:
             discovered.find((entry) => entry.kind === group.kind)?.warnings ?? group.warnings,
-        })),
-        report.runtime
-      );
-      if (id === requestId.current && !abort.signal.aborted)
-        setState({
-          context,
-          groups: merged,
-          loading: false,
-          runtimeState: report.failed
-            ? "error"
-            : report.runtime?.checkErrors?.length
-              ? "partial"
-              : report.runtime
-                ? "checked"
-                : "not_started",
-        });
-    } catch (error) {
-      if (id === requestId.current && !abort.signal.aborted) {
-        logError("Could not read extension configuration", error);
-        setState({ context, groups: null, loading: false, error: true, runtimeState: "error" });
-        abort.abort();
+        }));
+        const key = extensionCheckCacheKey(
+          {
+            backendId: descriptor.id,
+            scopeKind: scope.kind,
+            cwd: scope.kind === "user" ? null : cwd,
+          },
+          inventory
+        );
+        // A disabled backend never reuses a check it is not allowed to run.
+        // https://github.com/ItsDalk-Lane/Scribe/issues/3
+        const cached = enabled && !force ? readCachedExtensionCheck(plugin.app, key) : null;
+        // A scope-isolated view keeps only its own entries: runtime rows would reintroduce the
+        // other scopes the check session also loaded. https://github.com/ItsDalk-Lane/Scribe/issues/6
+        const mergeOptions = { appendRuntimeEntries: scope.kind === "user" } as const;
+        let runtime: AgentExtensionRuntimeSnapshot | null = cached;
+        let failed = false;
+        if (!cached && enabled && descriptor.checkExtensions) {
+          setState((current) =>
+            current.context === context ? { ...current, loading: true } : current
+          );
+          // The check returns while remote MCP servers may still be connecting; each refreshed
+          // snapshot repaints the panel and, once settled, becomes the saved answer.
+          // https://github.com/ItsDalk-Lane/Scribe/issues/3
+          const applyUpdate = (snapshot: AgentExtensionRuntimeSnapshot) => {
+            storeCachedExtensionCheck(plugin.app, key, snapshot);
+            const mergedSnapshot = mergeExtensionRuntime(
+              inventoryWithWarnings,
+              snapshot,
+              mergeOptions
+            );
+            const runtimeState = snapshot.checkErrors?.length ? "partial" : "checked";
+            storeCachedExtensionView(plugin.app, cacheIdentity, {
+              groups: mergedSnapshot,
+              runtimeState,
+            });
+            if (id !== requestId.current || abort.signal.aborted) return;
+            setState((current) =>
+              current.context === context
+                ? { ...current, groups: mergedSnapshot, loading: false, runtimeState }
+                : current
+            );
+          };
+          try {
+            runtime = await descriptor.checkExtensions({
+              plugin,
+              cwd,
+              scope,
+              signal: abort.signal,
+              onUpdate: applyUpdate,
+            });
+            if (runtime) storeCachedExtensionCheck(plugin.app, key, runtime);
+          } catch {
+            failed = true;
+            runtime = null;
+          }
+        }
+        const merged = mergeExtensionRuntime(inventoryWithWarnings, runtime, mergeOptions);
+        const runtimeState = failed
+          ? "error"
+          : runtime?.checkErrors?.length
+            ? "partial"
+            : runtime
+              ? "checked"
+              : "not_started";
+        if (id === requestId.current && !abort.signal.aborted) {
+          setState({ context, groups: merged, loading: false, runtimeState });
+          storeCachedExtensionView(plugin.app, cacheIdentity, { groups: merged, runtimeState });
+        }
+      } catch (error) {
+        if (id === requestId.current && !abort.signal.aborted) {
+          logError("Could not read extension configuration", error);
+          setState({ context, groups: null, loading: false, error: true, runtimeState: "error" });
+          abort.abort();
+        }
       }
-    }
-  }, [management, cwd, descriptor, scope, settings, enabled, plugin, context]);
+    },
+    [management, cwd, descriptor, scope, settings, enabled, plugin, context, cacheIdentity]
+  );
   const loadRef = React.useRef(load);
   loadRef.current = load;
   React.useEffect(() => {
@@ -310,7 +403,8 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         openEditor(details);
         return;
       }
-      new ExtensionModal(plugin.app, item.name, (close) => (
+      // The details view renders the name itself beside its copy button; a native modal title would duplicate it. https://github.com/ItsDalk-Lane/Scribe/issues/2
+      new ExtensionModal(plugin.app, undefined, (close) => (
         <ExtensionDetailsView
           details={details}
           onClose={close}
@@ -367,7 +461,12 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
   const currentState: InventoryState =
     state.context === context
       ? state
-      : { groups: null, loading: true, runtimeState: "not_started" as const };
+      : (savedInventoryState(plugin.app, cacheIdentity, context) ?? {
+          context,
+          groups: null,
+          loading: true,
+          runtimeState: "not_started" as const,
+        });
   const managedFiles = new Set(managedSkills.map((item) => normalizeAbsPath(item.filePath)));
   const managedNames = new Set([
     ...managedSkills.map((item) => item.name),
@@ -410,6 +509,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         loading={currentState.loading}
         error={currentState.error}
         runtimeState={currentState.runtimeState}
+        forceExpanded={query.trim() !== ""}
         onRefresh={() => void loadRef.current()}
         busy={busy || pending}
         onOpen={(item) => void openItem(item)}
@@ -455,7 +555,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
               variant="secondary"
               aria-label={t("Refresh and check")}
               disabled={busy || pending || currentState.loading || !enabled}
-              onClick={() => void loadRef.current()}
+              onClick={() => void loadRef.current(true)}
             >
               <RefreshCw className="tw-size-4" />
             </Button>

@@ -4,6 +4,7 @@ import type {
   AgentExtensionKind,
 } from "@/agentMode/session/extensionInventory";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { ExtensionAvailabilityDot } from "@/components/ui/extension-availability-dot";
 import {
@@ -12,7 +13,18 @@ import {
   isExtensionToggleable,
 } from "@/agentMode/session/extensionAvailability";
 import { t } from "@/lib/i18n";
-import { Bot, Network, Pencil, Puzzle, Terminal, Trash2, Wand2, Webhook } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Bot,
+  ChevronDown,
+  Network,
+  Pencil,
+  Puzzle,
+  Terminal,
+  Trash2,
+  Wand2,
+  Webhook,
+} from "lucide-react";
 import React from "react";
 
 export interface AgentExtensionsPanelProps {
@@ -26,6 +38,7 @@ export interface AgentExtensionsPanelProps {
   onToggle?: (item: AgentExtensionItem, enabled: boolean) => void;
   onDelete?: (item: AgentExtensionItem) => void;
   busy?: boolean;
+  forceExpanded?: boolean;
 }
 
 export const EXTENSION_LABELS: Record<AgentExtensionKind, string> = {
@@ -45,6 +58,15 @@ const ICONS = {
   subagent: Bot,
 };
 
+// Section collapse choices live only for the current app session and never reach persisted
+// settings; a fresh Obsidian start collapses every section again.
+// https://github.com/ItsDalk-Lane/Scribe/issues/4
+let sessionExpandedSections: ReadonlySet<string> = new Set<string>();
+
+export function resetExpandedExtensionSectionsForTests(): void {
+  sessionExpandedSections = new Set<string>();
+}
+
 export function AgentExtensionsPanel({
   groups,
   loading,
@@ -55,7 +77,20 @@ export function AgentExtensionsPanel({
   onToggle,
   onDelete,
   busy = false,
+  forceExpanded = false,
 }: AgentExtensionsPanelProps) {
+  const [expandedSections, setExpandedSections] = React.useState<ReadonlySet<string>>(
+    () => sessionExpandedSections
+  );
+  const toggleSection = (key: string, open: boolean): void => {
+    setExpandedSections((current) => {
+      const next = new Set(current);
+      if (open) next.add(key);
+      else next.delete(key);
+      sessionExpandedSections = next;
+      return next;
+    });
+  };
   return (
     <div className="tw-group/settings tw-space-y-5">
       {loading && (
@@ -100,107 +135,141 @@ export function AgentExtensionsPanel({
                 </span>
               </div>
             )}
-            {[...sections].map(([name, items]) => (
-              <section key={name} className="tw-space-y-3">
-                <h3 className="tw-m-0 tw-flex tw-items-center tw-gap-2 tw-text-ui-small tw-font-medium">
-                  {name}
-                  <span className="tw-text-ui-smaller tw-font-normal tw-text-muted">
-                    {items.length}
-                  </span>
-                </h3>
-                <div className="tw-divide-y tw-divide-border tw-overflow-hidden tw-rounded-lg tw-border tw-border-solid tw-border-border tw-bg-transparent tw-@container">
-                  {items.map((item) => {
-                    return (
-                      <article
-                        key={item.id}
-                        aria-label={item.name}
-                        onClick={(event) => {
-                          if (!(event.target as HTMLElement).closest("button, [role=switch]"))
-                            onOpen?.(item);
+            {[...sections].map(([name, items]) => {
+              const key = `${group.kind}:${name}`;
+              const open = forceExpanded || expandedSections.has(key);
+              return (
+                <Collapsible
+                  key={name}
+                  open={open}
+                  onOpenChange={(next) => toggleSection(key, next)}
+                  className="tw-w-full tw-overflow-hidden tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-secondary tw-@container"
+                >
+                  <h3 className="!tw-m-0 !tw-p-0">
+                    <CollapsibleTrigger asChild>
+                      {/* Obsidian's button stylesheet outranks per-element overrides here, so the
+                          header is a plain div trigger whose values apply verbatim.
+                          https://github.com/ItsDalk-Lane/Scribe/issues/4 */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.currentTarget.click();
+                          }
                         }}
-                        className="tw-flex tw-min-w-0 tw-items-center tw-gap-2 tw-p-3 @sm:tw-gap-3"
+                        className="tw-flex tw-w-full tw-cursor-pointer tw-items-center tw-justify-start tw-gap-2 tw-bg-transparent tw-px-3 tw-py-1 tw-text-left tw-text-normal focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-inset focus-visible:tw-ring-ring"
                       >
-                        <div className="tw-flex tw-size-6 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-md tw-bg-transparent @sm:tw-size-9">
-                          <Icon
+                        {/* The chevron sits in the same icon slot a row uses, so its left edge
+                            aligns with the row icons structurally instead of by measured offsets.
+                            https://github.com/ItsDalk-Lane/Scribe/issues/4 */}
+                        <div className="tw-flex tw-w-6 tw-shrink-0 tw-items-center tw-justify-center @sm:tw-w-9">
+                          <ChevronDown
                             aria-hidden="true"
-                            className="tw-size-4 tw-text-muted @sm:tw-size-5"
+                            className={cn(
+                              "tw-size-4 tw-text-muted tw-transition-transform @sm:tw-size-5",
+                              !open && "tw--rotate-90"
+                            )}
                           />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => onOpen?.(item)}
-                          className="!tw-block !tw-h-auto tw-min-w-0 tw-flex-1 !tw-whitespace-normal !tw-border-0 !tw-bg-transparent !tw-p-0 tw-text-left tw-text-normal !tw-shadow-none focus-visible:tw-outline-none focus-visible:tw-ring-2 focus-visible:tw-ring-ring"
-                        >
-                          <span className="tw-flex tw-min-w-0 tw-items-center tw-gap-2">
-                            <span className="tw-min-w-0 tw-truncate tw-text-ui-small tw-font-medium">
-                              {item.name}
-                            </span>
-                            {group.kind === "plugin" && item.version && (
-                              <span className="tw-shrink-0 tw-text-ui-smaller tw-text-muted">
-                                {item.version}
-                              </span>
-                            )}
-                          </span>
-                          {item.description && (
-                            <span className="tw-mt-1 tw-block tw-truncate tw-text-ui-smaller tw-leading-normal tw-text-muted">
-                              {item.description}
-                            </span>
-                          )}
-                        </button>
-                        <div className="tw-flex tw-max-w-16 tw-shrink-0 tw-flex-wrap tw-items-center tw-justify-end tw-gap-1 @sm:tw-max-w-none @sm:tw-flex-nowrap">
-                          {isExtensionToggleable({ ...item, kind: group.kind }) ? (
-                            <ExtensionAvailabilitySwitch
-                              label={t("Enable {name}", { name: item.name })}
-                              state={
-                                runtimeState === "error"
-                                  ? {
-                                      ...getExtensionSwitchState({ ...item, kind: group.kind }),
-                                      disabled: true,
-                                      phase: "unknown",
-                                      reason: "Availability could not be confirmed. Check again.",
-                                    }
-                                  : getExtensionSwitchState({ ...item, kind: group.kind }, loading)
-                              }
-                              busy={busy}
-                              onToggle={onToggle ? (next) => onToggle(item, next) : undefined}
-                            />
-                          ) : (
-                            <ExtensionAvailabilityDot
-                              state={getExtensionDotState({ ...item, kind: group.kind })}
-                            />
-                          )}
-                          {item.capabilities?.edit &&
-                            onOpen &&
-                            (group.kind === "plugin" || group.kind === "hook") && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                disabled={busy}
-                                aria-label={t("Edit {name}", { name: item.name })}
-                                onClick={() => onOpen(item)}
-                              >
-                                <Pencil className="tw-size-4" />
-                              </Button>
-                            )}
-                          {item.capabilities?.delete && onDelete && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              disabled={busy}
-                              aria-label={t("Delete {name}", { name: item.name })}
-                              className="hover:tw-text-error group-[]/settings:hover:!tw-text-error"
-                              onClick={() => onDelete(item)}
+                        <span className="tw-text-ui-small tw-font-medium">{name}</span>
+                        <span className="tw-text-ui-smaller tw-font-normal tw-text-muted">
+                          {items.length}
+                        </span>
+                      </div>
+                    </CollapsibleTrigger>
+                  </h3>
+                  <CollapsibleContent>
+                    <div>
+                      {items.map((item) => {
+                        return (
+                          <article
+                            key={item.id}
+                            aria-label={item.name}
+                            onClick={(event) => {
+                              if (!(event.target as HTMLElement).closest("button, [role=switch]"))
+                                onOpen?.(item);
+                            }}
+                            className="tw-flex tw-min-w-0 tw-items-center tw-gap-2 tw-px-3 tw-py-1.5"
+                          >
+                            <div className="tw-flex tw-size-6 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-md tw-bg-transparent @sm:tw-size-9">
+                              <Icon
+                                aria-hidden="true"
+                                className="tw-size-4 tw-text-muted @sm:tw-size-5"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onOpen?.(item)}
+                              className="!tw-block !tw-h-auto tw-min-w-0 tw-flex-1 !tw-whitespace-normal !tw-border-0 !tw-bg-transparent !tw-p-0 tw-text-left tw-text-normal !tw-shadow-none focus-visible:tw-outline-none focus-visible:tw-ring-2 focus-visible:tw-ring-ring"
                             >
-                              <Trash2 className="tw-size-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+                              <span className="tw-flex tw-min-w-0 tw-items-center tw-gap-2">
+                                <span className="tw-min-w-0 tw-truncate tw-text-ui-small tw-font-medium">
+                                  {item.name}
+                                </span>
+                                {group.kind === "plugin" && item.version && (
+                                  <span className="tw-shrink-0 tw-text-ui-smaller tw-text-muted">
+                                    {item.version}
+                                  </span>
+                                )}
+                              </span>
+                              {item.description && (
+                                <span className="tw-mt-1 tw-block tw-truncate tw-text-ui-smaller tw-leading-normal tw-text-muted">
+                                  {item.description}
+                                </span>
+                              )}
+                            </button>
+                            <div className="tw-flex tw-max-w-16 tw-shrink-0 tw-flex-wrap tw-items-center tw-justify-end tw-gap-1 @sm:tw-max-w-none @sm:tw-flex-nowrap">
+                              {isExtensionToggleable({ ...item, kind: group.kind }) ? (
+                                <ExtensionAvailabilitySwitch
+                                  label={t("Enable {name}", { name: item.name })}
+                                  state={getExtensionSwitchState(
+                                    { ...item, kind: group.kind },
+                                    loading
+                                  )}
+                                  busy={busy}
+                                  onToggle={onToggle ? (next) => onToggle(item, next) : undefined}
+                                />
+                              ) : (
+                                <ExtensionAvailabilityDot
+                                  state={getExtensionDotState({ ...item, kind: group.kind })}
+                                />
+                              )}
+                              {item.capabilities?.edit &&
+                                onOpen &&
+                                (group.kind === "plugin" || group.kind === "hook") && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    disabled={busy}
+                                    aria-label={t("Edit {name}", { name: item.name })}
+                                    onClick={() => onOpen(item)}
+                                  >
+                                    <Pencil className="tw-size-4" />
+                                  </Button>
+                                )}
+                              {item.capabilities?.delete && onDelete && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  disabled={busy}
+                                  aria-label={t("Delete {name}", { name: item.name })}
+                                  className="hover:tw-text-error group-[]/settings:hover:!tw-text-error"
+                                  onClick={() => onDelete(item)}
+                                >
+                                  <Trash2 className="tw-size-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </section>
         );
       })}

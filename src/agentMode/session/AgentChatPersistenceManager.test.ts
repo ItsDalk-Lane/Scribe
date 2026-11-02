@@ -146,6 +146,18 @@ describe("AgentChatPersistenceManager", () => {
   });
 
   describe("saveSession()", () => {
+    it("keeps the transcript baseline cache bounded across many chats", async () => {
+      for (let i = 0; i < 55; i++) {
+        const messages = [makeMessage(USER_SENDER, `hello ${i}`, 1735732800000 + i)];
+        const saved = await manager.saveSession(messages, "claude", {});
+        await manager.saveSession(messages, "claude", { existingPath: saved!.path });
+      }
+
+      const cache = (manager as unknown as { loadedTranscripts: Map<unknown, string> })
+        .loadedTranscripts;
+      expect(cache.size).toBe(50);
+    });
+
     it("saves a fork with its own identity without changing the source chat or inherited message times", async () => {
       const messages = [
         makeMessage(USER_SENDER, "Review", 1000),
@@ -614,6 +626,21 @@ describe("AgentChatPersistenceManager", () => {
       const loadedB = await manager.loadFile(file as unknown as TFile);
       expect(loadedA.messages.map((m) => m.id)).toEqual(loadedB.messages.map((m) => m.id));
       expect(loadedA.messages[0].id.startsWith("loaded-0-")).toBe(true);
+    });
+
+    it("keeps sender markers and timestamp-looking lines inside a message body", async () => {
+      const body = "Pasted transcript:\n**user**: hello\n\n**ai**: hi\n[Timestamp: not a real one]";
+      const messages = [
+        makeMessage(USER_SENDER, body, 1700000000000),
+        makeMessage(AI_SENDER, "ok", 1700000000001),
+      ];
+
+      const saved = await manager.saveSession(messages, "claude");
+      const loaded = await manager.loadFile(app.files.get(saved!.path)! as unknown as TFile);
+
+      expect(loaded.messages).toHaveLength(2);
+      expect(loaded.messages[0].message).toBe(body);
+      expect(loaded.messages[1].message).toBe("ok");
     });
 
     it("maps a legacy agent__ chat with no projectId frontmatter to GLOBAL_SCOPE", async () => {

@@ -1,13 +1,13 @@
 import { SettingSwitch } from "@/components/ui/setting-switch";
 import { t } from "@/lib/i18n";
-import { CircleHelp, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import React from "react";
 
 interface ExtensionAvailabilitySwitchProps {
   state: {
     checked: boolean;
     disabled: boolean;
-    phase?: "checking" | "unknown" | "pending";
+    phase?: "checking" | "pending";
     reason?: string;
   };
   label: string;
@@ -29,12 +29,7 @@ export function ExtensionAvailabilitySwitch({
   );
   return (
     <span className="tw-inline-flex tw-items-center tw-gap-2" title={reason}>
-      {phase &&
-        (phase === "unknown" ? (
-          <CircleHelp aria-label={reason} className="tw-size-4 tw-text-muted" />
-        ) : (
-          <Loader2 aria-label={reason} className="tw-size-4 tw-animate-spin tw-text-muted" />
-        ))}
+      {phase && <Loader2 aria-label={reason} className="tw-size-4 tw-animate-spin tw-text-muted" />}
       <SettingSwitch
         aria-label={label}
         aria-description={reason}

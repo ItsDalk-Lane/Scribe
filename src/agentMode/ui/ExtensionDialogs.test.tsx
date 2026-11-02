@@ -298,7 +298,9 @@ describe("ExtensionDialogs", () => {
       for (const child of children) {
         const dot = within(screen.getByText(child.name).parentElement!).queryByRole("img");
         if (child.availability === "loaded") {
-          expect(dot).toBeNull();
+          expect(dot!.getAttribute("aria-label")).toBe(
+            "Managed by its plugin; it cannot be switched independently."
+          );
           continue;
         }
         expect(dot).not.toBeNull();

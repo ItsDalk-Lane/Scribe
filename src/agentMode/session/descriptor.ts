@@ -81,6 +81,10 @@ export interface BackendDescriptor {
     cwd: string;
     scope?: import("./extensionManagement").AgentExtensionScope;
     signal?: AbortSignal;
+    // The check returns while remote MCP servers may still be connecting; the backend reports each
+    // refreshed snapshot through this callback until statuses settle or the window closes.
+    // https://github.com/ItsDalk-Lane/Scribe/issues/3
+    onUpdate?: (runtime: import("./extensionInventory").AgentExtensionRuntimeSnapshot) => void;
   }) => Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot | null>;
 
   readExtensions?: (input: {

@@ -190,11 +190,9 @@ export class TurnTracker {
         if (outcome.error !== undefined) throw outcome.error;
         return outcome.stopReason;
       } catch (err) {
-        // A message the agent refused goes back to the composer, and the user is told why it came back. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
-        if (this.isQueued(prompt.id)) {
-          this.withdrawPrompts([prompt.id]);
-          new Notice(t("Failed to send message. Please try again."));
-        }
+        // A message the agent refused before delivery goes back to the composer; either way the user is told. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
+        if (this.isQueued(prompt.id)) this.withdrawPrompts([prompt.id]);
+        new Notice(t("Failed to send message. Please try again."));
         throw err;
       } finally {
         order.done();

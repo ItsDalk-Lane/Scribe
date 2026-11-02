@@ -142,6 +142,18 @@ describe("mergeExtensionRuntime", () => {
         availability: "needs-auth",
       });
     });
+    it("keeps a scope-isolated list free of entries the report knows only from other scopes (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+      const result = mergeExtensionRuntime(
+        groups(),
+        runtime({
+          skills: ["remote-review"],
+          mcpServers: [{ name: "remote", status: "connected", toolCount: 1 }],
+        }),
+        { appendRuntimeEntries: false }
+      );
+      expect(result[0].items.map((item) => item.name)).toEqual(["review"]);
+      expect(result[3].items.map((item) => item.name)).toEqual(["docs"]);
+    });
     it("uses the actual loaded state even when a saved flag disagrees", () => {
       const local = groups();
       local[0].items = [{ ...local[0].items[0], enabled: false }];

@@ -65,7 +65,7 @@ const markdown = (name: string) =>
 describe("extensionManagement", () => {
   describe("ClaudeExtensionManager", () => {
     describe("list()", () => {
-      it("uses Claude's enabled state and keeps every installation record while blocking plugins installed only for other projects", async () => {
+      it("uses Claude's enabled state and keeps every installation record while hiding other scopes' plugins (https://github.com/ItsDalk-Lane/Scribe/issues/6)", async () => {
         const { manager, run } = fixture({
           "/plugins/active/.claude-plugin/plugin.json":
             '{"name":"active","description":"Active tools","version":"2"}',
@@ -105,14 +105,14 @@ describe("extensionManagement", () => {
           ])
         );
 
-        const plugins = await manager.list("plugin", PROJECT);
+        const plugins = await manager.list("plugin", USER);
 
-        expect(plugins).toHaveLength(4);
+        expect(plugins).toHaveLength(3);
         expect(plugins.find((item) => item.id === "active@team")).toMatchObject({
           enabled: true,
           version: "2",
           description: "Active tools",
-          target: { scope: PROJECT },
+          target: { scope: USER },
         });
         expect(plugins.find((item) => item.id === "disabled@team")).toMatchObject({
           enabled: false,
@@ -124,12 +124,8 @@ describe("extensionManagement", () => {
           unavailableReason: "Installed plugin files are missing.",
           installations: [{ available: false }],
         });
-        expect(plugins.find((item) => item.id === "elsewhere@team")).toMatchObject({
-          enabled: false,
-          canEnable: false,
-          canDisable: false,
-          installations: [{ projectPath: "/other" }, { projectPath: "/third" }],
-        });
+        expect(plugins.find((item) => item.id === "elsewhere@team")).toBeUndefined();
+        expect(await manager.list("plugin", PROJECT)).toEqual([]);
         expect(run).toHaveBeenCalledWith(
           "/bin/claude",
           ["--setting-sources", "user,project,local", "plugin", "list", "--json"],
@@ -239,7 +235,7 @@ describe("extensionManagement", () => {
           expect(input.env.CLAUDE_CONFIG_DIR).toBe("profile");
         }
       });
-      it("uses the selected project's explicit plugin overrides without changing the user view", async () => {
+      it("shows a project's explicit plugin override as a toggle-only entry while the user view keeps its own (https://github.com/ItsDalk-Lane/Scribe/issues/6)", async () => {
         const { manager } = fixture({
           "/home/.claude/settings.json": JSON.stringify({ enabledPlugins: { "notes@team": true } }),
           "/vault/.claude/settings.json": JSON.stringify({
@@ -255,13 +251,16 @@ describe("extensionManagement", () => {
           enabled: true,
           target: { scope: USER },
         });
-        expect((await manager.list("subagent", PROJECT))[0]).toMatchObject({
+        const project = await manager.list("plugin", PROJECT);
+        expect(project).toHaveLength(1);
+        expect(project[0]).toMatchObject({
           enabled: false,
-          parentPluginId: "notes@team",
           target: { scope: PROJECT },
+          capabilities: { edit: false, delete: false, toggle: true },
         });
+        expect(await manager.list("subagent", PROJECT)).toEqual([]);
       });
-      it("includes inherited user entries as read-only in project lists and carries plugin ownership and disabled state", async () => {
+      it("keeps each scope's list to entries written in that scope while carrying plugin ownership and disabled state (https://github.com/ItsDalk-Lane/Scribe/issues/6)", async () => {
         const { manager } = fixture({
           "/home/.claude/agents/user.md": markdown("user"),
           "/vault/.claude/agents/project.md": markdown("project"),
@@ -280,12 +279,9 @@ describe("extensionManagement", () => {
         const user = await manager.list("subagent", USER),
           project = await manager.list("subagent", PROJECT);
         expect(user.map((item) => item.name)).toEqual(["user", "check"]);
-        expect(project.map((item) => item.name)).toEqual(["user", "project", "check"]);
-        expect(project[0]).toMatchObject({
-          readOnly: true,
-          capabilities: { edit: false, delete: false, toggle: false },
-          target: { scope: USER },
-        });
+        expect(project.map((item) => item.name)).toEqual(["project"]);
+        expect(project.every((item) => item.target?.scope.kind === "project")).toBe(true);
+        expect(await manager.list("plugin", PROJECT)).toEqual([]);
         expect(user[1]).toMatchObject({
           parentPluginId: "notes@team",
           enabled: false,
@@ -648,8 +644,8 @@ describe("extensionManagement", () => {
       });
     });
     describe("toggle()", () => {
-      it("writes an inherited plugin override only to the selected project without gaining ownership of the user installation", async () => {
-        const { manager, run, files } = fixture({
+      it("excludes a user-scope plugin installation from the project list (https://github.com/ItsDalk-Lane/Scribe/issues/6)", async () => {
+        const { manager, run } = fixture({
           "/home/.claude/settings.json": JSON.stringify({ enabledPlugins: { "notes@team": true } }),
           "/plugins/notes/.claude-plugin/plugin.json": '{"name":"notes"}',
         });
@@ -658,23 +654,13 @@ describe("extensionManagement", () => {
             { id: "notes@team", enabled: true, scope: "user", installPath: "/plugins/notes" },
           ])
         );
-        const item = (await manager.list("plugin", PROJECT))[0];
-
-        expect(item).toMatchObject({
-          target: { scope: PROJECT },
-          capabilities: { toggle: true, delete: false, update: false },
-        });
-        expect(item.readOnly).not.toBe(true);
-        await manager.toggle(await manager.details(item), false);
-
-        expect(config(files, "/vault/.claude/settings.json").enabledPlugins).toEqual({
-          "notes@team": false,
-        });
-        expect(config(files, "/home/.claude/settings.json").enabledPlugins).toEqual({
-          "notes@team": true,
+        expect(await manager.list("plugin", PROJECT)).toEqual([]);
+        expect((await manager.list("plugin", USER))[0]).toMatchObject({
+          target: { scope: USER },
+          capabilities: { edit: false, toggle: true, delete: true, update: true },
         });
       });
-      it("refuses to enable missing plugin files or modify another project's installation and permits disabling a broken plugin", async () => {
+      it("refuses to enable missing plugin files or touch another project's installation and permits disabling a broken plugin (https://github.com/ItsDalk-Lane/Scribe/issues/6)", async () => {
         const { manager, run, files } = fixture({
           "/plugins/elsewhere/.claude-plugin/plugin.json": '{"name":"elsewhere"}',
         });
@@ -690,18 +676,13 @@ describe("extensionManagement", () => {
             },
           ])
         );
-        const plugins = await manager.list("plugin", PROJECT);
+        const plugins = await manager.list("plugin", USER);
         const missing = await manager.details(plugins.find((item) => item.id === "missing@team")!);
-        const elsewhere = await manager.details(
-          plugins.find((item) => item.id === "elsewhere@team")!
-        );
+        expect(plugins.find((item) => item.id === "elsewhere@team")).toBeUndefined();
 
         await expect(manager.toggle(missing, true)).rejects.toThrow("missing");
-        await expect(manager.toggle(elsewhere, true)).rejects.toThrow("other projects");
-        await expect(manager.toggle(elsewhere, false)).rejects.toThrow("other projects");
-        expect(files.has("/vault/.claude/settings.json")).toBe(false);
         await manager.toggle(missing, false);
-        expect(config(files, "/vault/.claude/settings.json").enabledPlugins).toEqual({
+        expect(config(files, "/home/.claude/settings.json").enabledPlugins).toEqual({
           "missing@team": false,
         });
         expect(files.has("/other/.claude/settings.local.json")).toBe(false);
@@ -888,10 +869,10 @@ describe("extensionManagement", () => {
         const inherited = (await manager.list("plugin", PROJECT))[0];
         run.mockClear();
         await expect(manager.delete(await manager.details(inherited))).rejects.toThrow();
-        expect(inherited.capabilities).toMatchObject({
-          toggle: true,
+        expect(inherited.capabilities).toEqual({
+          edit: false,
           delete: false,
-          update: false,
+          toggle: true,
         });
         expect(run).not.toHaveBeenCalled();
         await manager.toggle(await manager.details(inherited), true);

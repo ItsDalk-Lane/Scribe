@@ -3,12 +3,14 @@ import type { AgentExtensionItem } from "./extensionInventory";
 export interface ExtensionSwitchState {
   checked: boolean;
   disabled: boolean;
-  phase?: "checking" | "unknown" | "pending";
+  phase?: "checking" | "pending";
   reason?: string;
 }
 
 export interface ExtensionDotState {
   enabled: boolean;
+  connecting?: boolean;
+  informational?: boolean;
   reason?: string;
 }
 
@@ -20,6 +22,41 @@ function isAvailabilityChecked(item: AgentExtensionItem): boolean {
   );
 }
 
+// Every entry renders either a usable switch or a dot — never a locked switch — so an entry whose
+// state cannot carry a switch (still connecting, unverifiable, or blocked by a standing failure)
+// is described here and rendered as a dot. https://github.com/ItsDalk-Lane/Scribe/issues/3
+interface DotRendering {
+  connecting?: boolean;
+  reason: string;
+}
+
+function dotRendering(item: AgentExtensionItem): DotRendering | null {
+  if (item.availability === "pending") return { connecting: true, reason: "Connecting…" };
+  if (item.kind === "mcp" && item.availability === "connected" && !item.toolCount)
+    return {
+      reason:
+        item.toolCount === 0
+          ? "This server did not expose any callable tools."
+          : "Availability could not be confirmed. Check again.",
+    };
+  if (item.availability === "needs-auth") return { reason: "Sign in before enabling this item." };
+  if (item.availability === "failed")
+    return { reason: "Resolve the loading error before enabling this item." };
+  if (item.availability === "not_loaded" && item.enabled !== false)
+    return {
+      reason: item.unavailableReason ?? "This item could not be loaded in the selected scope.",
+    };
+  if (
+    !item.availability ||
+    item.availability === "not_listed" ||
+    item.availability === "unconfirmed"
+  )
+    return {
+      reason: item.unavailableReason ?? "Availability could not be confirmed. Check again.",
+    };
+  return null;
+}
+
 export function getExtensionSwitchState(
   item: AgentExtensionItem,
   checking = false
@@ -27,39 +64,16 @@ export function getExtensionSwitchState(
   const checked = isAvailabilityChecked(item);
   if (checking)
     return { checked, disabled: true, phase: "checking", reason: "Checking availability…" };
-  if (
-    !item.availability ||
-    item.availability === "not_listed" ||
-    item.availability === "pending" ||
-    (item.kind === "mcp" && item.availability === "connected" && item.toolCount === undefined)
-  )
-    return {
-      checked,
-      disabled: true,
-      phase: "unknown",
-      reason: item.unavailableReason ?? "Availability could not be confirmed. Check again.",
-    };
+  const blocked = dotRendering(item);
   const owned = item.builtin || item.readOnly || item.parentPluginId || item.source === "runtime";
-  const prerequisite =
-    item.unavailableReason ??
-    (item.availability === "needs-auth"
-      ? "Sign in before enabling this item."
-      : item.availability === "failed"
-        ? "Resolve the loading error before enabling this item."
-        : item.kind === "mcp" && item.toolCount === 0
-          ? "This server did not expose any callable tools."
-          : item.availability === "not_loaded" && item.enabled !== false
-            ? "This item could not be loaded in the selected scope."
-            : undefined);
   const allowed = checked ? item.canDisable : item.canEnable;
-  const disabled = Boolean(
-    owned || !item.capabilities?.toggle || allowed === false || (!checked && prerequisite)
-  );
+  const disabled = Boolean(blocked || owned || !item.capabilities?.toggle || allowed === false);
   return {
     checked,
     disabled,
     reason:
-      prerequisite ??
+      blocked?.reason ??
+      item.unavailableReason ??
       (disabled
         ? item.parentPluginId
           ? "Managed by its plugin; it cannot be switched independently."
@@ -73,32 +87,40 @@ export function isExtensionToggleable(item: AgentExtensionItem): boolean {
   if (item.builtin || item.readOnly || item.parentPluginId || item.source === "runtime")
     return false;
   if (!item.capabilities?.toggle) return false;
+  if (dotRendering(item)) return false;
   if (isAvailabilityChecked(item)) return item.canDisable !== false;
-  if (item.canEnable === false) return false;
-  return !(
-    item.availability === "needs-auth" ||
-    item.availability === "failed" ||
-    (item.availability === "not_loaded" && item.enabled !== false) ||
-    (item.kind === "mcp" && item.toolCount === 0)
-  );
+  return item.canEnable !== false;
 }
 
+// A confirmed row the user cannot switch explains where it is managed instead of rendering
+// nothing, so externally linked entries (skills installed as symlinks by other tools) no longer
+// look broken. https://github.com/ItsDalk-Lane/Scribe/issues/5
 export function getExtensionDotState(item: AgentExtensionItem): ExtensionDotState {
-  if (isAvailabilityChecked(item)) return { enabled: true };
-  const reason =
-    item.unavailableReason ??
-    (item.availability === "needs-auth"
-      ? "Sign in before enabling this item."
-      : item.availability === "failed"
-        ? "Resolve the loading error before enabling this item."
-        : item.kind === "mcp" && item.toolCount === 0
-          ? "This server did not expose any callable tools."
-          : item.availability === "not_loaded" && item.enabled !== false
-            ? "This item could not be loaded in the selected scope."
-            : item.availability === "disabled" || item.enabled === false
-              ? item.parentPluginId
-                ? "Its plugin is not enabled in this scope."
-                : "This item is disabled in the current configuration."
-              : "Availability could not be confirmed. Check again.");
-  return { enabled: false, reason };
+  if (item.availability === "disabled" || item.enabled === false)
+    return {
+      enabled: false,
+      reason: item.parentPluginId
+        ? "Its plugin is not enabled in this scope."
+        : "This item is disabled in the current configuration.",
+    };
+  const dot = dotRendering(item);
+  if (dot) return { enabled: false, connecting: dot.connecting, reason: dot.reason };
+  if (isAvailabilityChecked(item)) {
+    if (isExtensionToggleable(item)) return { enabled: true };
+    return {
+      enabled: true,
+      informational: true,
+      reason: item.parentPluginId
+        ? "Managed by its plugin; it cannot be switched independently."
+        : item.builtin
+          ? "Built-in; managed by its source"
+          : item.source === "runtime"
+            ? "Reported by the running session."
+            : "Read-only; manage at its source",
+    };
+  }
+  return {
+    enabled: false,
+    reason: "Availability could not be confirmed. Check again.",
+  };
 }

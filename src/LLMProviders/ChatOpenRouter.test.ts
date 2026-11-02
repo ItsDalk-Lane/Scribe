@@ -174,5 +174,49 @@ describe("ChatOpenRouter", () => {
         expect(params.reasoning).toEqual({ effort: "high" });
       });
     });
+    describe("_streamResponseChunks()", () => {
+      function streamModel(create: jest.Mock): ChatOpenRouter {
+        const model = createModel();
+        (
+          model as unknown as {
+            openaiClient: { chat: { completions: { create: jest.Mock } } };
+          }
+        ).openaiClient = { chat: { completions: { create } } };
+        return model;
+      }
+
+      function chunks(model: ChatOpenRouter, signal: AbortSignal): AsyncGenerator<unknown> {
+        return (
+          model as unknown as {
+            _streamResponseChunks: (
+              messages: BaseMessage[],
+              options: { signal?: AbortSignal }
+            ) => AsyncGenerator<unknown>;
+          }
+        )._streamResponseChunks([new HumanMessage("hi")], { signal });
+      }
+
+      it("passes the caller's abort signal to the network request", async () => {
+        const create = jest.fn().mockResolvedValue((async function* () {})());
+        const model = streamModel(create);
+        const controller = new AbortController();
+
+        await chunks(model, controller.signal).next();
+
+        expect(create.mock.calls[0][1]).toEqual({ signal: controller.signal });
+      });
+
+      it("fails before opening the stream when the caller already stopped", async () => {
+        const create = jest.fn();
+        const model = streamModel(create);
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(chunks(model, controller.signal).next()).rejects.toMatchObject({
+          name: "AbortError",
+        });
+        expect(create).not.toHaveBeenCalled();
+      });
+    });
   });
 });

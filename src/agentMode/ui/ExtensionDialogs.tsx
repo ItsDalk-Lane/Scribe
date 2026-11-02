@@ -24,7 +24,7 @@ import React from "react";
 export class ExtensionModal extends ReactModal {
   constructor(
     app: App,
-    title: string,
+    title: string | undefined,
     private readonly renderBody: (close: () => void) => React.ReactElement
   ) {
     super(app, title);
@@ -296,7 +296,8 @@ export function ExtensionDetailsView({
   };
   return (
     <div className="tw-group/settings tw-space-y-4 tw-text-normal">
-      <div className="tw-flex tw-items-start tw-justify-between tw-gap-3">
+      {/* The button hugs the name instead of the row end so it stays clear of the modal close button. https://github.com/ItsDalk-Lane/Scribe/issues/2 */}
+      <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-x-2 tw-gap-y-1">
         <span className="tw-min-w-0 tw-break-words tw-text-ui-medium tw-font-medium">
           {item.name}
         </span>

@@ -235,6 +235,7 @@ describe("permissionBridge", () => {
           sessionId: "session-1",
           requestId: "toolu_test_id",
           questions,
+          signal: ctx.signal,
         });
 
         fake.resolve({ "Pick a fruit": "Pear" });
@@ -242,6 +243,23 @@ describe("permissionBridge", () => {
         expect(result).toEqual({
           behavior: "allow",
           updatedInput: { questions, answers: { "Pick a fruit": "Pear" } },
+        });
+      });
+
+      it("denies a waiting permission when the SDK cancels the request", async () => {
+        const controller = new AbortController();
+        const bridge = makeBridge(() => new Promise<PermissionDecision>(() => {}));
+
+        const pending = bridge.canUseTool(
+          "Edit",
+          { file_path: "a.md" },
+          { ...ctx, signal: controller.signal }
+        );
+        controller.abort();
+
+        await expect(pending).resolves.toEqual({
+          behavior: "deny",
+          message: "User cancelled",
         });
       });
 
@@ -265,10 +283,12 @@ describe("permissionBridge", () => {
       describe("Write tool gating", () => {
         function makeBridgeWithPlanMatcher(
           isPlanModePlanFilePath: (p: string) => boolean,
-          prompter: ((req: PermissionPrompt) => Promise<PermissionDecision>) | null = null
+          prompter: ((req: PermissionPrompt) => Promise<PermissionDecision>) | null = null,
+          isPlanMode: () => boolean = () => true
         ) {
           return new PermissionBridge("session-1", {
             getPrompter: () => prompter,
+            isPlanMode,
             isPlanModePlanFilePath,
           });
         }
@@ -292,6 +312,26 @@ describe("permissionBridge", () => {
             });
           }
           expect(prompter).not.toHaveBeenCalled();
+        });
+
+        it("routes a plan-file Write through the prompter outside plan mode", async () => {
+          const prompter = jest.fn(async () => ({
+            outcome: { outcome: "selected" as const, optionId: "reject_once" as const },
+          }));
+          const bridge = makeBridgeWithPlanMatcher(
+            (p) => p.endsWith("/.claude/plans/foo.md"),
+            prompter,
+            () => false
+          );
+
+          const result = await bridge.canUseTool(
+            "Write",
+            { file_path: "/Users/x/.claude/plans/foo.md", content: "# plan" },
+            ctx
+          );
+
+          expect(prompter).toHaveBeenCalledTimes(1);
+          expect(result.behavior).toBe("deny");
         });
 
         it("routes non-plan Write through the permission prompter", async () => {

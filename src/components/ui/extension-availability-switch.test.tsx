@@ -54,7 +54,7 @@ describe("ExtensionAvailabilitySwitch", () => {
       expect(onToggle).not.toHaveBeenCalled();
     });
 
-    it.each(["checking", "unknown", "pending"] as const)(
+    it.each(["checking", "pending"] as const)(
       "keeps the last state and exposes an accessible icon while %s",
       (phase) => {
         const reason = "Availability could not be confirmed. Check again.";

@@ -1,4 +1,5 @@
 import type {
+  McpServerStatus,
   Query,
   SDKMessage,
   SDKResultMessage,
@@ -57,6 +58,16 @@ interface SkillsDialogQuery {
 }
 
 const SKILL_DIALOG_STATES = new Set(["on", "name-only", "user-invocable-only", "off"]);
+
+export function runtimeMcpServers(
+  statuses: readonly McpServerStatus[]
+): NonNullable<AgentExtensionRuntimeSnapshot["mcpServers"]> {
+  return statuses.map((server) => ({
+    name: server.name,
+    status: server.status,
+    ...(server.tools ? { toolCount: server.tools.length } : {}),
+  }));
+}
 
 export class ClaudeLiveQuery {
   readonly query: Query;
@@ -202,15 +213,12 @@ export class ClaudeLiveQuery {
               .filter((command) => !command.builtin && !builtinNames.has(command.name))
               .map((command) => command.name)
           : null,
-      mcpServers:
-        mcpServers.status === "fulfilled"
-          ? mcpServers.value.map((server) => ({
-              name: server.name,
-              status: server.status,
-              ...(server.tools ? { toolCount: server.tools.length } : {}),
-            }))
-          : null,
+      mcpServers: mcpServers.status === "fulfilled" ? runtimeMcpServers(mcpServers.value) : null,
     };
+  }
+
+  async getMcpServerStatus(): Promise<AgentExtensionRuntimeSnapshot["mcpServers"]> {
+    return runtimeMcpServers(await this.query.mcpServerStatus());
   }
 
   push(promptId: string, content: ClaudeUserContent): void {

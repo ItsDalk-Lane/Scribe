@@ -236,6 +236,31 @@ describe("providerTransport", () => {
       expect(requestHeaders(4).get("Authorization")).toBe("Bearer service-refreshed");
     });
 
+    it("times out a stalled token exchange so a later request can retry", async () => {
+      jest.useFakeTimers();
+      try {
+        safeFetch.mockImplementationOnce(() => new Promise<Response>(() => {}));
+        const fetcher = createProviderFetch(
+          model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
+        );
+        const first = fetcher("https://api.githubcopilot.com/responses");
+        const rejected = expect(first).rejects.toMatchObject({ name: "TimeoutError" });
+        await jest.advanceTimersByTimeAsync(15_000);
+        await rejected;
+
+        safeFetch.mockResolvedValueOnce(
+          jsonResponse({
+            token: "recovered-service-token",
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+          })
+        );
+        await fetcher("https://api.githubcopilot.com/responses");
+        expect(requestHeaders(2).get("Authorization")).toBe("Bearer recovered-service-token");
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("accepts an already-issued Copilot service token without exchanging it as a GitHub user token", async () => {
       await createProviderFetch(
         model({

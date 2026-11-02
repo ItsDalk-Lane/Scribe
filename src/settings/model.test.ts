@@ -65,6 +65,12 @@ describe("model", () => {
 
       expect(sanitized.split(",")).toEqual([encodeURIComponent("folder")]);
     });
+
+    it("keeps a malformed percent sequence instead of failing settings load", () => {
+      const sanitized = sanitizeQaExclusions("notes/100%");
+
+      expect(sanitized.split(",")).toEqual([encodeURIComponent("notes/100%")]);
+    });
   });
 
   describe("sanitizeSettings()", () => {

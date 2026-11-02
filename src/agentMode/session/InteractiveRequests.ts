@@ -23,6 +23,9 @@ import {
 const EMPTY_PERMISSIONS: PermissionPrompt[] = [];
 const EMPTY_QUESTIONS: AskUserQuestionPrompt[] = [];
 const EMPTY_ANSWERS: AgentQuestionAnswers = Object.freeze({});
+const CANCELLED_PERMISSION: PermissionDecision = Object.freeze({
+  outcome: Object.freeze({ outcome: "cancelled" }),
+});
 
 interface PendingPermission {
   request: PermissionPrompt;
@@ -67,8 +70,21 @@ export class InteractiveRequests {
     if (exitPlan) {
       this.publishGatedPlan(toolCallId, exitPlan);
     }
+    if (request.signal?.aborted) return Promise.resolve(CANCELLED_PERMISSION);
     return new Promise<PermissionDecision>((resolve) => {
       this.pendingPlanResolvers.set(toolCallId, { request, resolve });
+      request.signal?.addEventListener(
+        "abort",
+        () => {
+          const entry = this.pendingPlanResolvers.get(toolCallId);
+          if (!entry) return;
+          this.pendingPlanResolvers.delete(toolCallId);
+          entry.resolve(CANCELLED_PERMISSION);
+          this.deps.recomputeStatus();
+          this.deps.notifyMessages();
+        },
+        { once: true }
+      );
       this.deps.recomputeStatus();
       this.deps.notifyMessages();
     });
@@ -179,8 +195,21 @@ export class InteractiveRequests {
 
   handleToolPermission(request: PermissionPrompt): Promise<PermissionDecision> {
     const toolCallId = request.toolCall.toolCallId;
+    if (request.signal?.aborted) return Promise.resolve(CANCELLED_PERMISSION);
     return new Promise<PermissionDecision>((resolve) => {
       this.pendingToolResolvers.set(toolCallId, { request, resolve });
+      request.signal?.addEventListener(
+        "abort",
+        () => {
+          const entry = this.pendingToolResolvers.get(toolCallId);
+          if (!entry) return;
+          this.pendingToolResolvers.delete(toolCallId);
+          entry.resolve(CANCELLED_PERMISSION);
+          this.deps.recomputeStatus();
+          this.deps.notifyMessages();
+        },
+        { once: true }
+      );
       this.deps.recomputeStatus();
       this.deps.notifyMessages();
     });

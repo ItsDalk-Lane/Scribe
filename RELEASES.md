@@ -1,5 +1,35 @@
 # Release Notes
 
+# v1.0.2 - More reliable chats and extension checks
+
+This release makes Agent Chat safer around saving, stopping, permissions, and extension availability, and fixes a set of data-safety and startup problems found in a full repository review.
+
+## ✨ Enhancements
+
+- Extension pages (Plugins, Skills, Commands, Hooks, MCP servers, Subagents) now report what actually loaded in the selected scope. Each scope keeps its own list, plugin-provided entries stay grouped under their plugin, and the last check is remembered so reopening a page is instant.
+- Remote MCP servers that are still connecting show their progress, settle to a clear state, and no longer leave a page stuck on "Connecting…".
+- Extension sections collapse to keep long lists manageable. Searching expands them automatically, and read-only or plugin-managed entries show a status dot with the reason they cannot be switched.
+
+## 🛠️ Bug Fixes
+
+- Chat notes no longer split a message when its text contains `**user**:`, `**ai**:`, or a line that looks like a timestamp.
+- A failed automatic save is retried when the chat closes, so the note no longer stops before the last turn.
+- A message that the agent fails to accept after it was already shown now produces a clear error instead of disappearing silently.
+- Project migration keeps a project in settings when its fallback backup cannot be written, instead of clearing it anyway.
+- A malformed `%` in an old search-exclusion setting no longer stops Scribe from starting.
+- Sensitive Claude environment variables are stored in the operating system's keychain instead of plaintext in `data.json`.
+- Permission and question cards now disappear when the agent cancels the request, and writing a plan file is auto-approved only while Plan mode is active.
+- Stopping a reply now cancels the OpenRouter request before it starts billing. Provider token refreshes time out instead of hanging every chat that uses the model.
+- Hidden chats release their processes after background work finishes. Task history and chat transcript baselines stay bounded in long-running chats.
+- Counting the tokens in a vault no longer reads the whole vault into one growing string.
+- The informational availability dot is visible again, and full web-tab URLs no longer appear in the vault log.
+
+## ⚠️ Compatibility Notes
+
+- Requires Obsidian 1.11.4 or newer.
+
+---
+
 # v1.0.1 - Rebuilt on the Copilot 4.0.17 base
 
 Scribe now runs on the Obsidian Copilot 4.0.17 codebase, bringing its current chat and agent infrastructure into Scribe.

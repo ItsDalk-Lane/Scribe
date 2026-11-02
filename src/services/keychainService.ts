@@ -12,9 +12,11 @@ import {
 } from "@/services/settingsSecretTransforms";
 import { Notice } from "obsidian";
 import { md5 } from "@/utils/hash";
+import { getDeviceId } from "@/utils/deviceId";
 import { logError, logWarn } from "@/logger";
 
 const EXTRA_SECRET_KEYS: readonly string[] = [];
+const ENV_OVERRIDE_SETTINGS_PREFIX = "agentMode.backends.claude.envOverrides.";
 
 type ModelSecretField = (typeof MODEL_SECRET_FIELDS)[number];
 
@@ -131,6 +133,19 @@ export function providerKeychainName(
 
 export function isCopilotOwnedSecret(id: string): boolean {
   return id.startsWith("scribe-");
+}
+
+function envOverrideKeychainId(vaultId: string, name: string): string {
+  return toKeychainId(vaultId, `${ENV_OVERRIDE_SETTINGS_PREFIX}${name}`);
+}
+
+function sensitiveEnvOverrides(
+  env: Readonly<Record<string, string>> | undefined
+): Array<[string, string]> {
+  if (!env) return [];
+  return Object.entries(env).filter(
+    ([name, value]) => isSecretKey(name) && typeof value === "string"
+  );
 }
 
 export interface HydrateResult {
@@ -251,6 +266,53 @@ export class KeychainService {
     hydrated.activeModels = modelResult.models;
     hadFailures = hadFailures || modelResult.hadFailures;
 
+    const agentMode = hydrated.agentMode;
+    const deviceId = getDeviceId(this.app);
+    const flatEnv = agentMode?.backends?.claude?.envOverrides;
+    const profile = agentMode?.deviceProfiles?.[deviceId];
+    const profileEnv = profile?.claude?.envOverrides;
+    const envValues = new Map<string, string>();
+    for (const env of [flatEnv, profileEnv]) {
+      for (const [name] of sensitiveEnvOverrides(env)) {
+        let keychainValue: string | null;
+        try {
+          keychainValue = this.getSecret(`${ENV_OVERRIDE_SETTINGS_PREFIX}${name}`);
+        } catch (e) {
+          logWarn(`Keychain read failed for environment variable "${name}".`, e);
+          hadFailures = true;
+          continue;
+        }
+        if (keychainValue !== null) envValues.set(name, keychainValue);
+      }
+    }
+    if (agentMode && envValues.size > 0) {
+      const withValues = (env: Readonly<Record<string, string>>): Record<string, string> =>
+        Object.fromEntries(
+          Object.entries(env).map(([name, value]) => [name, envValues.get(name) ?? value])
+        );
+      const nextBackends = flatEnv
+        ? {
+            ...agentMode.backends,
+            claude: { ...agentMode.backends?.claude, envOverrides: withValues(flatEnv) },
+          }
+        : agentMode.backends;
+      const nextProfiles =
+        profile && profileEnv
+          ? {
+              ...agentMode.deviceProfiles,
+              [deviceId]: {
+                ...profile,
+                claude: { ...profile.claude, envOverrides: withValues(profileEnv) },
+              },
+            }
+          : agentMode.deviceProfiles;
+      hydrated.agentMode = {
+        ...agentMode,
+        backends: nextBackends,
+        ...(nextProfiles ? { deviceProfiles: nextProfiles } : {}),
+      };
+    }
+
     if (hadFailures) {
       logWarn("Keychain hydrate: some keychain reads failed — values left as-is.");
     }
@@ -284,6 +346,18 @@ export class KeychainService {
       prevSettings?.activeModels,
       clearedSecretIds
     );
+    const env = settings.agentMode?.backends?.claude?.envOverrides;
+    const prevEnv = prevSettings?.agentMode?.backends?.claude?.envOverrides;
+    for (const [name, value] of sensitiveEnvOverrides(env)) {
+      const id = envOverrideKeychainId(this.vaultId, name);
+      if (value.length > 0) secretEntries.push([id, value]);
+      else if (typeof prevEnv?.[name] === "string" && prevEnv[name].length > 0)
+        clearedSecretIds.push(id);
+    }
+    for (const [name] of sensitiveEnvOverrides(prevEnv)) {
+      if (env && name in env) continue;
+      clearedSecretIds.push(envOverrideKeychainId(this.vaultId, name));
+    }
     const keychainIdsToDelete = [
       ...this.getDeletedModelKeysForScope(
         "chat",
