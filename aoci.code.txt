@@ -1,7 +1,7 @@
 #AOCI-CODE-VOLUME: 1
 
 ===/Users/study_superior/Desktop/Code/Scribe/===
-.gitignore[FC4T]: F:Keeps build outputs, environment files, local settings, and AOCI tooling out of version control | R:- | A:- | S:-
+.gitignore[FC4T]: F:Keeps build outputs, environment files, local settings, and local agent session state out of version control | R:- | A:- | S:-
 AGENTS.md[SG8M]: F:Defines agent workflows, source boundaries, upstream tracking and repository cognition policy | R:- | A:- | S:Do not change AI prompt content without explicit instruction; RELEASES.md changes belong only to release PRs; empty slices use frozen constants
 CONTRIBUTING.md[SQ4S]: F:Contribution workflow covering issue reporting, dev environment setup, and the Obsidian review preflight | R:- | A:- | S:-
 LICENSE[SZ1L]: F:Full GNU Affero General Public License v3 text governing the project | R:- | A:- | S:-

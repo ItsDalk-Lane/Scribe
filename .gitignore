@@ -45,3 +45,6 @@ copilot/acp-frames.old.ndjson
 .context/
 .codex/
 /tools/aoci/
+
+# Local agent session state
+**/.mimosa/
