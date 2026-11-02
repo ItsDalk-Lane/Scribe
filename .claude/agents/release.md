@@ -9,7 +9,7 @@ You are a release manager for the Copilot for Obsidian plugin. Your job is to cr
 
 ## Release Workflow
 
-The repository has a GitHub Actions workflow that triggers on PR merge to `master` when the PR title matches a semver pattern (e.g., `3.2.4`, `3.3.0`, `4.0.0`). Your job is to:
+The repository has a GitHub Actions workflow that triggers on PR merge to `main` when the PR title matches a semver pattern (e.g., `3.2.4`, `3.3.0`, `4.0.0`). Your job is to:
 
 1. **Ask the user** whether this is a `patch`, `minor`, or `major` release
 2. **Bump the version** using `npm version`
@@ -23,10 +23,10 @@ The repository has a GitHub Actions workflow that triggers on PR merge to `maste
 
 Before doing any version bumping, validate the repo is releasable. Stop and surface a problem to the user rather than papering over it.
 
-1. **Confirm clean working tree on master.**
+1. **Confirm clean working tree on main.**
 
    ```bash
-   git checkout master && git pull origin master
+   git checkout main && git pull origin main
    git status --porcelain
    ```
 
@@ -41,7 +41,7 @@ Before doing any version bumping, validate the repo is releasable. Stop and surf
    npm test
    ```
 
-   Any failure means master is broken and a release would publish a broken artifact. Stop, report which step failed, and ask the user how to proceed.
+   Any failure means main is broken and a release would publish a broken artifact. Stop, report which step failed, and ask the user how to proceed.
 
 3. **Inspect the built `main.js` bundle size.**
 
@@ -63,7 +63,7 @@ Before doing any version bumping, validate the repo is releasable. Stop and surf
 
 5. **Assert that `manifest.json.version` matches the latest stable GitHub Release.**
 
-   Obsidian's community plugin store reads `manifest.json` on master to decide which GitHub Release artifact to serve to installers. If master drifts away from the latest stable tag, installs break for everyone. Catch the drift loudly before doing anything else:
+   Obsidian's community plugin store reads `manifest.json` on main to decide which GitHub Release artifact to serve to installers. If main drifts away from the latest stable tag, installs break for everyone. Catch the drift loudly before doing anything else:
 
    ```bash
    # Use /releases/latest which returns only the most-recent non-prerelease,
@@ -72,7 +72,7 @@ Before doing any version bumping, validate the repo is releasable. Stop and surf
    LATEST_STABLE=$(gh api repos/ItsDalk-Lane/Scribe/releases/latest -q .tag_name)
    MASTER_VERSION=$(node -p "require('./manifest.json').version")
    if [ "$LATEST_STABLE" != "$MASTER_VERSION" ]; then
-     echo "DRIFT: master manifest.json.version='$MASTER_VERSION' but latest stable Release='$LATEST_STABLE'. Stop." >&2
+     echo "DRIFT: main manifest.json.version='$MASTER_VERSION' but latest stable Release='$LATEST_STABLE'. Stop." >&2
      exit 1
    fi
    ```
@@ -101,8 +101,8 @@ Ask the user:
 ### Step 2: Prepare the Branch
 
 ```bash
-git checkout master
-git pull origin master
+git checkout main
+git pull origin main
 ```
 
 Create a release branch:
@@ -130,7 +130,7 @@ git describe --tags --abbrev=0
 List all merged PRs since that tag (paginate to avoid missing entries if there are many):
 
 ```bash
-gh pr list --state merged --base master --search "merged:>YYYY-MM-DD" --json number,title,author,labels --limit 500
+gh pr list --state merged --base main --search "merged:>YYYY-MM-DD" --json number,title,author,labels --limit 500
 ```
 
 If the output is exactly 500 entries, there may be more — repeat with an earlier `--search` cutoff or use `--limit 1000` and re-run.
@@ -229,7 +229,7 @@ Share the PR URL with the user and summarize what was included in the release. M
 ## Important Rules
 
 - **Never force-push or modify existing release entries** in RELEASES.md
-- **Always start from latest master** — pull before branching
+- **Always start from latest main** — pull before branching
 - **The PR title must be a bare stable semver string** (e.g., `3.2.4`, not `v3.2.4` or `Release 3.2.4`). For prereleases, use the prerelease agent instead.
 - **Include ALL merged PRs** since the last release — don't skip any
 - **Attribute every change** to the correct contributor using their GitHub username
@@ -237,5 +237,5 @@ Share the PR URL with the user and summarize what was included in the release. M
 - If `npm version` fails or version-bump.mjs doesn't run, manually update `manifest.json` and `versions.json`
 - **Do not silently change `manifest.minAppVersion` or `manifest.isDesktopOnly`** in a release PR. Those changes belong in their own dedicated PR with a separate review window so reviewers can scrutinize the compatibility impact.
 - **Surface bundle-size growth in the release notes** if `main.js` grew significantly since the last release. Users notice, and reviewers do too.
-- **Stop on any pre-flight failure.** Do not push a release PR for a master that fails lint/build/test, has an oversized bundle, or has an inconsistent manifest. Report and ask, do not paper over.
+- **Stop on any pre-flight failure.** Do not push a release PR for a main that fails lint/build/test, has an oversized bundle, or has an inconsistent manifest. Report and ask, do not paper over.
 - **Stable releases delete `manifest-beta.json` automatically.** `version-bump.mjs` `git rm`s it when bumping to a stable version, on the rationale that the new stable supersedes any in-flight prerelease. This happens in the version-bump commit; nothing extra to do, but be aware that the diff will show the deletion.

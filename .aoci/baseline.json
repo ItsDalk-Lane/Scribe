@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-01T23:49:12Z",
+  "updated_at": "2026-11-02T00:11:37Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -17,15 +17,15 @@
     },
     ".claude/agents/prerelease.md": {
       "role": "index",
-      "sha256": "1752563eba56c8d20adf8b82ffbf888b3fff11e33fd0213ac0bcdef4ed6ddc67",
-      "size": 12812,
-      "normalized_sha256": "1752563eba56c8d20adf8b82ffbf888b3fff11e33fd0213ac0bcdef4ed6ddc67"
+      "sha256": "4faee0ee8c509a4154b5801cbad758e42e8e86dbb7707b966f76959939445f5d",
+      "size": 12778,
+      "normalized_sha256": "4faee0ee8c509a4154b5801cbad758e42e8e86dbb7707b966f76959939445f5d"
     },
     ".claude/agents/release.md": {
       "role": "index",
-      "sha256": "c80036e669ef5b497a0422cf19c8fc22d92d7851ec052aae9ac3ceae7c872432",
-      "size": 10243,
-      "normalized_sha256": "c80036e669ef5b497a0422cf19c8fc22d92d7851ec052aae9ac3ceae7c872432"
+      "sha256": "d3e2dc5b52fbd1f1117020c6d218cd87c2cb947f203ab92c1156ecde14c138ae",
+      "size": 10217,
+      "normalized_sha256": "d3e2dc5b52fbd1f1117020c6d218cd87c2cb947f203ab92c1156ecde14c138ae"
     },
     ".claude/settings.json": {
       "role": "index",
@@ -95,9 +95,9 @@
     },
     ".github/workflows/release.yml": {
       "role": "index",
-      "sha256": "b27ebf3ee9b198e69605c88fac5ae3ee1f3a9bdf8b932b9a4b28b526253da7ea",
-      "size": 11115,
-      "normalized_sha256": "b27ebf3ee9b198e69605c88fac5ae3ee1f3a9bdf8b932b9a4b28b526253da7ea"
+      "sha256": "10a9ec24014d571c692f86859fa32174acf73ad6e82df8c85ca341f84ab6afbd",
+      "size": 11101,
+      "normalized_sha256": "10a9ec24014d571c692f86859fa32174acf73ad6e82df8c85ca341f84ab6afbd"
     },
     ".github/workflows/windows-tests.yml": {
       "role": "index",
@@ -131,9 +131,9 @@
     },
     "CONTRIBUTING.md": {
       "role": "index",
-      "sha256": "0aa8ff82b389a26315d0529f4ed7625d922908625bac8e5ee7b3800249f00433",
-      "size": 9302,
-      "normalized_sha256": "0aa8ff82b389a26315d0529f4ed7625d922908625bac8e5ee7b3800249f00433"
+      "sha256": "0590a3bd70d5bdd0c8f3a7362151134e0b28373a57a09750278acf90f6731b2f",
+      "size": 9300,
+      "normalized_sha256": "0590a3bd70d5bdd0c8f3a7362151134e0b28373a57a09750278acf90f6731b2f"
     },
     "LICENSE": {
       "role": "index",
@@ -179,9 +179,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "3cd251de8dccfc0981755c40e934bab851bb18d1c9b8276a652793f7536242f2",
-      "size": 156442,
-      "normalized_sha256": "3cd251de8dccfc0981755c40e934bab851bb18d1c9b8276a652793f7536242f2"
+      "sha256": "a3d077dff614b509769e75d8090db891af96182332c00cfb45139602138c2183",
+      "size": 156486,
+      "normalized_sha256": "a3d077dff614b509769e75d8090db891af96182332c00cfb45139602138c2183"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -299,9 +299,9 @@
     },
     "docs/README.md": {
       "role": "index",
-      "sha256": "6b4d7cc43f26e68003ca7d1d991c4a6835b28932721866ff9c90b992f70c840a",
-      "size": 2886,
-      "normalized_sha256": "6b4d7cc43f26e68003ca7d1d991c4a6835b28932721866ff9c90b992f70c840a"
+      "sha256": "06246c864a532a6437bcff981cd6d5b7ccba416462032319a227f69b61afaeba",
+      "size": 2884,
+      "normalized_sha256": "06246c864a532a6437bcff981cd6d5b7ccba416462032319a227f69b61afaeba"
     },
     "docs/agent-mode-and-tools.md": {
       "role": "index",
@@ -341,9 +341,9 @@
     },
     "docs/getting-started.md": {
       "role": "index",
-      "sha256": "9ed1381293e4ab344cf14c291003a293c2f90133aa0e414b6f816c9ae66bec14",
-      "size": 4989,
-      "normalized_sha256": "9ed1381293e4ab344cf14c291003a293c2f90133aa0e414b6f816c9ae66bec14"
+      "sha256": "e48a0c225dad040efd3ffa36096b1ad43011d50fe11b6e1b61433d9949b29710",
+      "size": 5598,
+      "normalized_sha256": "e48a0c225dad040efd3ffa36096b1ad43011d50fe11b6e1b61433d9949b29710"
     },
     "docs/index.md": {
       "role": "index",
@@ -551,9 +551,9 @@
     },
     "manifest.json": {
       "role": "index",
-      "sha256": "7bc57d1374f39485270e293be3d34a6d527483aaa50025208150aaa0859068e5",
-      "size": 320,
-      "normalized_sha256": "7bc57d1374f39485270e293be3d34a6d527483aaa50025208150aaa0859068e5"
+      "sha256": "1cdd297d181177a95a03ddf687781b3dd0013a71b3d467d1cf2ddfb2ddaeb016",
+      "size": 328,
+      "normalized_sha256": "1cdd297d181177a95a03ddf687781b3dd0013a71b3d467d1cf2ddfb2ddaeb016"
     },
     "nodeModuleShim.mjs": {
       "role": "index",
@@ -8525,9 +8525,9 @@
     },
     "versions.json": {
       "role": "index",
-      "sha256": "b4c42bafd8aa8fa24ddd5f1521545cab605f48fec7932eaa347f346cd2b6b6b7",
-      "size": 43,
-      "normalized_sha256": "b4c42bafd8aa8fa24ddd5f1521545cab605f48fec7932eaa347f346cd2b6b6b7"
+      "sha256": "00b65aa2553fb0ea52871f3c40b5ec51642637ec98922b5e9e6ec4f3bd626276",
+      "size": 45,
+      "normalized_sha256": "00b65aa2553fb0ea52871f3c40b5ec51642637ec98922b5e9e6ec4f3bd626276"
     },
     "wasmPlugin.mjs": {
       "role": "index",

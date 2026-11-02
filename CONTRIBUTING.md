@@ -104,7 +104,7 @@ Requires macOS with Obsidian installed at `/Applications/Obsidian.app`.
 
 ## Commit Signing
 
-Commits to `master` must be signed and verified by GitHub. The easiest path is SSH signing using your existing SSH key.
+Commits to `main` must be signed and verified by GitHub. The easiest path is SSH signing using your existing SSH key.
 
 1. Configure git to sign with your SSH key:
 

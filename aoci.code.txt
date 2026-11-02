@@ -30,7 +30,7 @@ versions.json[FV3T]: F:Maps Scribe release versions to the minimum supported Obs
 wasmPlugin.mjs[XV3T]: F:Esbuild plugin loading WebAssembly modules | R:- | A:wasmPlugin | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/workflows/===
-release.yml[OV7M]: F:Publishes GitHub releases from semver-titled PRs, stable or prerelease, with attested build artifacts | R:- | A:- | S:Non-semver PR titles exit silently; the committed manifest.json must stay pinned to the latest stable release because the Obsidian store reads it to serve installs
+release.yml[OV7M]: F:Publishes GitHub releases from semver-titled PRs merged to the default branch, stable or prerelease, with attested build artifacts | R:- | A:- | S:Non-semver PR titles exit silently; the committed manifest.json must stay pinned to the latest stable release because the Obsidian store reads it to serve installs
 canary.yml[OV6M]: F:Publishes the head of a stable release PR as a canary prerelease when a maintainer comments /canary | R:code:.github/workflows/release.yml | A:- | S:issue_comment runs always execute the master copy of this workflow, so edits take effect only after they merge; closing the release PR deletes the canary
 node.js.yml[OQ5S]: F:Pull-request and push CI running sharded Jest, lint, Obsidian review gate, and bundle smoke tests | R:- | A:- | S:-
 pr-size.yml[OQ3T]: F:Labels pull requests by production-code churn while excluding tests, stories, mocks, and fixtures | R:- | A:- | S:PR code is never checked out or executed
@@ -47,7 +47,7 @@ agents-md-examples.md[SU3T]: F:Starter AGENTS.md examples and patterns for vault
 astro.config.mjs[FV4T]: F:Starlight docs site configuration with sidebar sections and published-docs processing | R:code:docs/src/remark-published-docs.mjs | A:- | S:-
 context-and-mentions.md[SU4T]: F:Guide to context lifetimes for attachments, mentions, badges, and active-note or web-tab capture | R:- | A:- | S:-
 custom-commands.md[SU4T]: F:Guide to saved commands, variables, model selection, and Quick Ask usage | R:- | A:- | S:-
-getting-started.md[SU5T]: F:Installation and first-chat walkthrough including language behavior and Claude connection | R:code:docs/agent-mode-and-tools.md | A:- | S:-
+getting-started.md[SU5T]: F:Installation and first-chat walkthrough including BRAT updates, language behavior, and Claude connection | R:code:docs/agent-mode-and-tools.md | A:- | S:-
 index.md[SU3T]: F:Docs landing page pointing to installation and Agent Chat setup | R:code:docs/getting-started.md | A:- | S:-
 install-claude-agent-mode-windows.ps1[XW3T]: F:PowerShell installer that installs Claude Code, extends PATH, and verifies login on Windows | R:- | A:- | S:-
 llm-providers.md[SU5S]: F:Guide to model sources: BYOK providers versus the Claude Code account, with connection testing semantics | R:- | A:- | S:Fetch models only reads a directory; only an actual chat reply marks the connection verified

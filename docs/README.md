@@ -33,7 +33,7 @@ Create a separate Vercel project for this site with these settings:
 - **Framework Preset:** Astro
 - **Build Command:** `npm run build`
 - **Output Directory:** `dist`
-- **Production Branch:** `master`
+- **Production Branch:** `main`
 - **Node.js Version:** `22.x`
 
 Attach `docs.obsidiancopilot.com` to that project. No environment variables are required to build

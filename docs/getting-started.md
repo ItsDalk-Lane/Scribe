@@ -11,6 +11,17 @@ Agent Chat is available in Obsidian on desktop. Scribe Commands, Quick Command, 
 
 Scribe starts with its own settings and data; it does not automatically import Copilot settings or chats.
 
+### Install or update with BRAT
+
+If you install plugins from GitHub with [BRAT](https://github.com/tfthacker/obsidian42-brat):
+
+1. Install and enable **Obsidian42 - BRAT** from Obsidian's community plugins.
+2. Run **BRAT: Add a beta plugin for testing** from the command palette.
+3. Enter `ItsDalk-Lane/Scribe` and confirm. Scribe installs from the latest GitHub release.
+4. Use BRAT's **Check for updates** to receive new Scribe releases.
+
+BRAT downloads the release files Scribe publishes, so updates do not need the manual copy above. A new release can take a few minutes to appear after it is published.
+
 ## Interface language / 界面语言
 
 Scribe automatically follows Obsidian's interface language. Chinese language settings use Simplified Chinese; other languages use English. If Obsidian's language cannot be read, Scribe uses the device language instead. There is no separate Scribe language setting. After changing Obsidian's language, use Obsidian's relaunch option to apply the change to both apps. Changes to the device language take effect the next time Scribe loads and only apply when Obsidian's language is unavailable.
