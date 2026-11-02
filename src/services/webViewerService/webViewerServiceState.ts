@@ -152,7 +152,6 @@ export class WebViewerStateManager {
         logWarn(
           "[WebViewerStateManager] Multiple leaves matched URL + title; returning first match.",
           {
-            url: targetRaw,
             title: titleHint,
             matches: titleMatchedLeaves.length,
           }
@@ -174,7 +173,6 @@ export class WebViewerStateManager {
     logWarn(
       "[WebViewerStateManager] Multiple leaves matched URL; returning first match as fallback.",
       {
-        url: targetRaw,
         matches: matchedLeaves.length,
       }
     );

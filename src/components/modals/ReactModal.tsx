@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { type Root } from "react-dom/client";
 
 export const FULL_BLEED_MODAL_CLASS = "copilot-modal-full-bleed";
+export const UNTITLED_MODAL_CLASS = "copilot-modal-untitled";
 
 export abstract class ReactModal extends Modal {
   private root: Root | null = null;
@@ -12,6 +13,8 @@ export abstract class ReactModal extends Modal {
     super(app);
     if (title) {
       this.titleEl.setText(title);
+    } else {
+      this.modalEl.addClass(UNTITLED_MODAL_CLASS);
     }
     if (modalClass) {
       this.modalEl.addClass(modalClass);

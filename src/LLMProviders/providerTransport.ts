@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n";
 import type { CustomModel } from "@/aiParams";
+import { TimeoutError } from "@/error";
 import { safeFetchNoThrow } from "@/utils";
 import { isRecord } from "@/utils/obsidianInternals";
 import { v4 as uuidv4 } from "uuid";
@@ -11,6 +12,7 @@ interface ProviderToken {
 }
 
 const CLIENT_ID = "obsidian-scribe/4";
+const PROVIDER_TOKEN_TIMEOUT_MS = 15_000;
 
 function copilotHost(url: URL): boolean {
   return (
@@ -22,7 +24,11 @@ function copilotHost(url: URL): boolean {
   );
 }
 
-async function requestProviderToken(model: CustomModel, apiKey: string): Promise<ProviderToken> {
+async function requestProviderToken(
+  model: CustomModel,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<ProviderToken> {
   const copilot = model.providerCatalogId === "github-copilot";
   const response = await safeFetchNoThrow(
     copilot
@@ -31,6 +37,7 @@ async function requestProviderToken(model: CustomModel, apiKey: string): Promise
     copilot
       ? {
           method: "GET",
+          signal,
           headers: {
             Authorization: `Bearer ${apiKey}`,
             Accept: "application/json",
@@ -42,6 +49,7 @@ async function requestProviderToken(model: CustomModel, apiKey: string): Promise
         }
       : {
           method: "POST",
+          signal,
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
             Accept: "application/json",
@@ -165,13 +173,25 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       return { value: apiKey, expiresAt: Infinity };
     }
     if (token && token.expiresAt > Date.now() + 60_000) return token;
-    pendingToken ??= requestProviderToken(model, apiKey);
-    try {
-      token = await pendingToken;
-      return token;
-    } finally {
-      pendingToken = undefined;
-    }
+    pendingToken ??= (() => {
+      const controller = new AbortController();
+      let timer: number | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = window.setTimeout(() => {
+          controller.abort();
+          reject(new TimeoutError("Provider token request", PROVIDER_TOKEN_TIMEOUT_MS));
+        }, PROVIDER_TOKEN_TIMEOUT_MS);
+      });
+      return Promise.race([
+        requestProviderToken(model, apiKey, controller.signal),
+        timeout,
+      ]).finally(() => {
+        window.clearTimeout(timer);
+        pendingToken = undefined;
+      });
+    })();
+    token = await pendingToken;
+    return token;
   }
 
   async function vertexToken(signal?: AbortSignal): Promise<string> {

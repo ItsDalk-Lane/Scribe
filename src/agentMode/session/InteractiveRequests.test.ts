@@ -81,6 +81,21 @@ describe("InteractiveRequests", () => {
         expect(recomputeStatus).toHaveBeenCalled();
         expect(notifyMessages).toHaveBeenCalled();
       });
+
+      it("withdraws the plan card and cancels when the SDK aborts the request", async () => {
+        const { requests } = makeRequests();
+        const controller = new AbortController();
+        const request = {
+          ...planPermissionRequest("tc-plan-abort", PLAN_INFO),
+          signal: controller.signal,
+        };
+
+        const decision = requests.handlePlanProposalPermission(request);
+        controller.abort();
+
+        await expect(decision).resolves.toEqual({ outcome: { outcome: "cancelled" } });
+        expect(requests.hasPendingPlanPermission()).toBe(false);
+      });
     });
 
     describe("resolvePlanProposalPermission()", () => {
@@ -240,6 +255,20 @@ describe("InteractiveRequests", () => {
         void requests.handleToolPermission(request);
 
         expect(requests.getPendingToolPermissions()).toEqual([request]);
+        expect(recomputeStatus).toHaveBeenCalled();
+        expect(notifyMessages).toHaveBeenCalled();
+      });
+
+      it("withdraws the card and cancels when the SDK aborts the request", async () => {
+        const { requests, recomputeStatus, notifyMessages } = makeRequests();
+        const controller = new AbortController();
+        const request = { ...writePermissionRequest(), signal: controller.signal };
+
+        const decision = requests.handleToolPermission(request);
+        controller.abort();
+
+        await expect(decision).resolves.toEqual({ outcome: { outcome: "cancelled" } });
+        expect(requests.getPendingToolPermissions()).toHaveLength(0);
         expect(recomputeStatus).toHaveBeenCalled();
         expect(notifyMessages).toHaveBeenCalled();
       });

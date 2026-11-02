@@ -420,6 +420,20 @@ describe("TurnTracker", () => {
 
         await expect(turn).rejects.toThrow("overloaded");
       });
+
+      it("tells the user when a delivered prompt fails without a disconnect", async () => {
+        const { deps, tracker } = setup();
+        jest.mocked(Notice).mockClear();
+        runningTurn(tracker, "p1", "t1");
+        const turn = tracker.queue(ALSO, async () => () => TEXT);
+        await deps.whenSent(ALSO.id);
+        tracker.deliverPrompt(ALSO.id);
+
+        tracker.endTurn({ turnId: "t1", stopReason: "end_turn", error: new Error("overloaded") });
+
+        await expect(turn).rejects.toThrow("overloaded");
+        expect(Notice).toHaveBeenCalledWith("Failed to send message. Please try again.");
+      });
     });
 
     describe("withdrawQueued()", () => {

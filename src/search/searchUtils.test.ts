@@ -8,6 +8,7 @@ import {
   getMatchingPatterns,
   getPropertyPattern,
   getSystemExcludedFolders,
+  getVaultCharacterCount,
   isInternalExcludedPath,
   parsePropertyPattern,
   shouldIndexFile,
@@ -567,6 +568,23 @@ describe("searchUtils", () => {
         copilotFolder: "team-ai",
       });
       expect(isInternalExcludedPath("team-ai/projects/my-project/notes.md")).toBe(false);
+    });
+  });
+
+  describe("getVaultCharacterCount()", () => {
+    it("sums indexed note lengths without materializing the whole vault text", async () => {
+      const first = createTestFile("a.md");
+      const second = createTestFile("b.md");
+      const app = {
+        vault: {
+          getMarkdownFiles: () => [first, second],
+          cachedRead: jest.fn(async (file: { path: string }) =>
+            file.path === "a.md" ? "hello" : "world!"
+          ),
+        },
+      } as unknown as Parameters<typeof getVaultCharacterCount>[0];
+
+      await expect(getVaultCharacterCount(app)).resolves.toBe(5 + 6 + 2);
     });
   });
 

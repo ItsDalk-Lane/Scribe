@@ -50,6 +50,19 @@ export function hasPersistedSecrets(rawData: Record<string, unknown>): boolean {
   return false;
 }
 
+function stripEnvOverrides(
+  env: Readonly<Record<string, string>>
+): Readonly<Record<string, string>> {
+  let changed = false;
+  const out = { ...env };
+  for (const key of Object.keys(out)) {
+    if (!isSensitiveKey(key) || out[key] === "") continue;
+    out[key] = "";
+    changed = true;
+  }
+  return changed ? out : env;
+}
+
 export function stripKeychainFields(settings: CopilotSettings): CopilotSettings {
   const out = asRecord({ ...settings });
 
@@ -61,6 +74,41 @@ export function stripKeychainFields(settings: CopilotSettings): CopilotSettings 
   if ("activeModels" in out) {
     out.activeModels = stripModelSecrets(settings.activeModels ?? []);
   }
+
+  const agentMode = settings.agentMode;
+  if (agentMode) {
+    const claude = agentMode.backends?.claude;
+    const flatEnv = claude?.envOverrides;
+    let nextBackends = agentMode.backends;
+    if (flatEnv) {
+      const stripped = stripEnvOverrides(flatEnv);
+      if (stripped !== flatEnv)
+        nextBackends = { ...agentMode.backends, claude: { ...claude, envOverrides: stripped } };
+    }
+
+    let nextProfiles = agentMode.deviceProfiles;
+    if (agentMode.deviceProfiles) {
+      let changed = false;
+      const entries = Object.entries(agentMode.deviceProfiles).map(([id, profile]) => {
+        const env = profile.claude?.envOverrides;
+        if (!env) return [id, profile] as const;
+        const stripped = stripEnvOverrides(env);
+        if (stripped === env) return [id, profile] as const;
+        changed = true;
+        return [id, { ...profile, claude: { ...profile.claude, envOverrides: stripped } }] as const;
+      });
+      if (changed) nextProfiles = Object.fromEntries(entries);
+    }
+
+    if (nextBackends !== agentMode.backends || nextProfiles !== agentMode.deviceProfiles) {
+      out.agentMode = {
+        ...agentMode,
+        backends: nextBackends,
+        ...(nextProfiles ? { deviceProfiles: nextProfiles } : {}),
+      };
+    }
+  }
+
   return out as unknown as CopilotSettings;
 }
 

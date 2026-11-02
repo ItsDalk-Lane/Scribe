@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@/lib/story";
 import { MoreVertical } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { ExtensionAvailabilityDot } from "@/components/ui/extension-availability-dot";
 import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { SkillRowLayout, type SkillRowLayoutProps } from "./SkillRowLayout";
 
@@ -92,9 +93,11 @@ export const Unconfirmed: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
     controls: (
-      <ExtensionAvailabilitySwitch
-        label="Enable writing-review"
-        state={{ checked: false, disabled: true, phase: "unknown" }}
+      <ExtensionAvailabilityDot
+        state={{
+          enabled: false,
+          reason: "Availability could not be confirmed. Check again.",
+        }}
       />
     ),
   },

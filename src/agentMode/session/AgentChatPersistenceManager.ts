@@ -37,6 +37,20 @@ import { v5 as uuidv5 } from "uuid";
 
 const SAFE_FILENAME_BYTE_LIMIT = 100;
 const AGENT_FILENAME_PREFIX = "agent__";
+const MAX_LOADED_TRANSCRIPTS = 50;
+const TRANSCRIPT_ESCAPE = String.fromCharCode(0x200b);
+const ESCAPED_SENDER = new RegExp(`\\*\\*(user|ai)${TRANSCRIPT_ESCAPE}\\*\\*: `, "g");
+const ESCAPED_TIMESTAMP = new RegExp(`^\\[Timestamp:${TRANSCRIPT_ESCAPE} `, "gm");
+
+function escapeTranscriptBody(body: string): string {
+  return body
+    .replace(/\*\*(user|ai)\*\*: /g, `**$1${TRANSCRIPT_ESCAPE}**: `)
+    .replace(/^\[Timestamp: /gm, `[Timestamp:${TRANSCRIPT_ESCAPE} `);
+}
+
+function unescapeTranscriptBody(body: string): string {
+  return body.replace(ESCAPED_SENDER, "**$1**: ").replace(ESCAPED_TIMESTAMP, "[Timestamp: ");
+}
 
 function parseLinkableEpoch(raw: string | undefined): number | undefined {
   const epoch = Number(raw);
@@ -83,7 +97,13 @@ export class AgentChatPersistenceManager {
       render,
       this.loadedTranscripts.get(key)
     );
+    this.loadedTranscripts.delete(key);
     this.loadedTranscripts.set(key, baseline);
+    while (this.loadedTranscripts.size > MAX_LOADED_TRANSCRIPTS) {
+      const oldest = this.loadedTranscripts.keys().next();
+      if (oldest.done) break;
+      this.loadedTranscripts.delete(oldest.value);
+    }
   }
 
   async saveSession(
@@ -227,6 +247,8 @@ export class AgentChatPersistenceManager {
   async deleteFile(fileId: string): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(fileId);
     if (!file) throw new Error("Chat file not found.");
+    this.loadedTranscripts.delete(file);
+    this.loadedTranscripts.delete(fileId);
     await trashFile(this.app, file);
   }
 
@@ -239,7 +261,7 @@ export class AgentChatPersistenceManager {
     return messages
       .map((m) => {
         const ts = m.timestamp ? m.timestamp.display : "Unknown time";
-        const body = m.message;
+        const body = escapeTranscriptBody(m.message);
         return `**${m.sender}**: ${body}\n[Timestamp: ${ts}]`;
       })
       .join("\n\n");
@@ -252,7 +274,7 @@ export class AgentChatPersistenceManager {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(body)) !== null) {
       const sender = match[1] === "user" ? USER_SENDER : AI_SENDER;
-      const fullContent = match[2].trim();
+      const fullContent = unescapeTranscriptBody(match[2].trim());
 
       const lines = fullContent.split("\n");
       let endIndex = lines.length;

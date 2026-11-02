@@ -17,20 +17,25 @@ export interface PatternCategory {
   propertyPatterns?: string[];
 }
 
-export async function getAllQAMarkdownContent(app: App): Promise<string> {
-  let allContent = "";
+const VAULT_READ_BATCH_SIZE = 32;
 
+export async function getVaultCharacterCount(app: App): Promise<number> {
   const { inclusions, exclusions } = getMatchingPatterns();
 
   const filteredFiles = app.vault.getMarkdownFiles().filter((file) => {
     return shouldIndexFile(app, file, inclusions, exclusions);
   });
 
-  await Promise.all(filteredFiles.map((file) => app.vault.cachedRead(file))).then((contents) =>
-    contents.map((c) => (allContent += c + " "))
-  );
-
-  return allContent;
+  let total = 0;
+  for (let start = 0; start < filteredFiles.length; start += VAULT_READ_BATCH_SIZE) {
+    const contents = await Promise.all(
+      filteredFiles
+        .slice(start, start + VAULT_READ_BATCH_SIZE)
+        .map((file) => app.vault.cachedRead(file))
+    );
+    for (const content of contents) total += content.length;
+  }
+  return total + filteredFiles.length;
 }
 
 export function getDecodedPatterns(value: string): string[] {

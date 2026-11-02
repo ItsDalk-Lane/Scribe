@@ -25,16 +25,6 @@ export const Checking: StoryObj<Props> = {
     state: { checked: false, disabled: true, phase: "checking", reason: "Checking availability…" },
   },
 };
-export const Unknown: StoryObj<Props> = {
-  args: {
-    state: {
-      checked: false,
-      disabled: true,
-      phase: "unknown",
-      reason: "Availability could not be confirmed. Check again.",
-    },
-  },
-};
 export const WaitingForTask: StoryObj<Props> = {
   args: { state: { checked: true, disabled: false }, busy: true },
 };

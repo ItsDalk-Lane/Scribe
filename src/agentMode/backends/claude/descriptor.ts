@@ -40,6 +40,10 @@ import type {
   ModelSelection,
   ModelWireCodec,
 } from "@/agentMode/session/types";
+import {
+  hasPendingMcpServers,
+  markPendingMcpServersUnconfirmed,
+} from "@/agentMode/session/extensionInventory";
 import { ClaudeInstallModal } from "./ClaudeInstallModal";
 import ClaudeLogo from "./logo.svg";
 import { ClaudeSettingsPanel } from "./ClaudeSettingsPanel";
@@ -49,6 +53,9 @@ import {
 } from "./claudeCompatibilityStore";
 
 const ABSENT_INSTALL_STATE: InstallState = Object.freeze({ kind: "absent" });
+
+export const MCP_SETTLE_TIMEOUT_MS = 15_000;
+export const MCP_SETTLE_POLL_MS = 3_000;
 
 export interface ClaudeDescriptor extends BackendDescriptor {
   auth: BackendAuth;
@@ -213,7 +220,7 @@ export const ClaudeBackendDescriptor: ClaudeDescriptor = {
       })
     );
   },
-  async checkExtensions({ plugin, cwd, scope, signal }) {
+  async checkExtensions({ plugin, cwd, scope, signal, onUpdate }) {
     signal?.throwIfAborted();
     const temporary = ClaudeBackendDescriptor.createBackendProcess({
       plugin,
@@ -227,16 +234,50 @@ export const ClaudeBackendDescriptor: ClaudeDescriptor = {
       closing ??= temporary.shutdown();
     };
     signal?.addEventListener("abort", shutdown, { once: true });
+    const finish = (): void => {
+      signal?.removeEventListener("abort", shutdown);
+      shutdown();
+      void closing;
+    };
     try {
       const { sessionId } = await temporary.newSession({ cwd });
       signal?.throwIfAborted();
-      const runtime = await temporary.getExtensionRuntime?.({ sessionId, startIfNeeded: true });
+      const runtime =
+        (await temporary.getExtensionRuntime?.({ sessionId, startIfNeeded: true })) ?? null;
       signal?.throwIfAborted();
-      return runtime ?? null;
-    } finally {
-      signal?.removeEventListener("abort", shutdown);
-      shutdown();
+      if (!runtime || !onUpdate || !hasPendingMcpServers(runtime)) {
+        finish();
+        return runtime;
+      }
+      // The check answers immediately, so the panel renders while a remote server is still
+      // connecting; this continuation reports refreshed server statuses until they settle, then
+      // marks whatever is still pending unconfirmed and shuts the session down. Only the server
+      // statuses are patched in: a full re-read without reloadPlugins reports no plugins and
+      // would clobber the loaded state the initial check already confirmed.
+      // https://github.com/ItsDalk-Lane/Scribe/issues/3
+      const deadline = Date.now() + MCP_SETTLE_TIMEOUT_MS;
+      let current = runtime;
+      void (async () => {
+        while (!signal?.aborted && hasPendingMcpServers(current) && Date.now() < deadline) {
+          await new Promise((resolve) => window.setTimeout(resolve, MCP_SETTLE_POLL_MS));
+          if (signal?.aborted) return;
+          const statuses = await temporary.getMcpServerStatus?.({ sessionId });
+          if (statuses) current = { ...current, mcpServers: statuses };
+          if (hasPendingMcpServers(current) && Date.now() >= deadline)
+            current = markPendingMcpServersUnconfirmed(current);
+          onUpdate(current);
+        }
+      })()
+        .catch((e: unknown) => {
+          logWarn("[AgentMode] MCP settle check failed", e);
+          if (hasPendingMcpServers(current)) onUpdate(markPendingMcpServersUnconfirmed(current));
+        })
+        .finally(finish);
+      return runtime;
+    } catch (error) {
+      finish();
       await closing;
+      throw error;
     }
   },
   displayName: "Claude",

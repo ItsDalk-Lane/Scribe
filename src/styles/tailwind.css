@@ -44,6 +44,17 @@ If your plugin does not need CSS, delete this file.
   display: none;
 }
 
+/* Native header markup React does not own: a title-less modal collapses its
+   empty header so no blank strip sits above its content. The close button is
+   a sibling of the header, so it stays available. */
+.modal.copilot-modal-untitled .modal-header {
+  margin-bottom: 0;
+}
+
+.modal.copilot-modal-untitled .modal-title {
+  display: none;
+}
+
 /* Single-side dividers. Preflight is off, so `tw-border-b tw-border-solid`
    leaks `border-style: solid` to all sides and renders all four borders. */
 .copilot-divider-b {

@@ -433,6 +433,23 @@ describe("claudeLiveQuery", () => {
       });
     });
 
+    describe("getMcpServerStatus()", () => {
+      it("maps the raw statuses to runtime entries with tool counts (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+        const { live, fake } = startLive();
+        fake.mcpServerStatus.mockResolvedValue([
+          { name: "zread", status: "connected", tools: [{ name: "read", description: "" }] },
+          { name: "slow", status: "pending" },
+        ]);
+
+        expect(await live.getMcpServerStatus()).toEqual([
+          { name: "zread", status: "connected", toolCount: 1 },
+          { name: "slow", status: "pending" },
+        ]);
+        expect(fake.inputs).toEqual([]);
+        live.close();
+      });
+    });
+
     describe("push()", () => {
       it("sends each prompt as a user message whose uuid is the prompt id, on the one open query", async () => {
         const { live, fake } = startLive();

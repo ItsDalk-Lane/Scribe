@@ -24,9 +24,9 @@ nodeModuleShim.mjs[XV5T]: F:Esbuild plugin shimming Node built-ins for the brows
 stylelint.config.mjs[XQ3T]: F:Stylelint rules for source CSS | R:- | A:- | S:-
 stylelint.packaged.config.mjs[XQ3T]: F:Stylelint rules for the packaged stylesheet | R:- | A:- | S:-
 svgrPlugin.mjs[XV3T]: F:Esbuild plugin compiling SVG imports to React components | R:- | A:svgrPlugin | S:-
-tailwind.config.js[FV6M]: F:Tailwind theme: colors, fonts, and container queries with the opacity plugin | R:code:src/lib/plugins/colorOpacityPlugin.ts | A:- | S:-
+tailwind.config.js[FV6M]: F:Tailwind theme: colors, fonts, and container queries with the opacity plugin | R:code:src/lib/plugins/colorOpacityPlugin.ts | A:- | S:backgroundColor.faint supplies the plain bg-faint used by informational availability dots
 version-bump.mjs[XV6T]: F:Writes release versions into the manifests during npm version | R:code:manifest.json | A:- | S:Prerelease versions write manifest-beta.json only; stable versions write manifest.json and versions.json
-versions.json[FV3T]: F:Maps Scribe release versions to the minimum supported Obsidian version | R:code:manifest.json | A:- | S:-
+versions.json[FV3T]: F:Maps Scribe release versions to the minimum supported Obsidian version | R:code:manifest.json | A:- | S:Stable bumps delete manifest-beta.json
 wasmPlugin.mjs[XV3T]: F:Esbuild plugin loading WebAssembly modules | R:- | A:wasmPlugin | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/workflows/===
@@ -41,7 +41,7 @@ projects.md[SU5T]: F:Guide to Projects: per-project instructions, context, and c
 .gitignore[FC1T]: F:Keeps docs site build output and Astro cache out of version control | R:- | A:- | S:-
 .nvmrc[FC2T]: F:Pins Node 22 for docs site tooling, which the plugin build does not share | R:- | A:- | S:-
 README.md[SO5T]: F:Explains docs site architecture, build, and Vercel deployment for the published guides | R:code:docs/astro.config.mjs | A:- | S:The guides beside this README are the single source of truth; the site adapts them at build time and never edits them
-agent-mode-and-tools.md[SU6M]: F:Explains Claude setup, chats, permissions, extension availability checks, and drawing tools | R:code:docs/settings.md | A:- | S:-
+agent-mode-and-tools.md[SU6M]: F:Explains Claude setup, chats, permissions, extension availability checks, and drawing tools | R:code:docs/settings.md | A:- | S:An extension check reports connecting, unconfirmed, and read-only states without sending a chat prompt
 agent-mode-windows-setup.md[SU4T]: F:Windows-specific Claude Code setup and skill link troubleshooting guide | R:code:docs/agent-mode-and-tools.md | A:- | S:-
 agents-md-examples.md[SU3T]: F:Starter AGENTS.md examples and patterns for vault instructions | R:- | A:- | S:-
 astro.config.mjs[FV4T]: F:Starlight docs site configuration with sidebar sections and published-docs processing | R:code:docs/src/remark-published-docs.mjs | A:- | S:-
@@ -165,11 +165,11 @@ data.legacy-byok.json[TQ4S]: F:Legacy BYOK settings fixture with top-level keys,
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/LLMProviders/===
 ChatLMStudio.ts[IB4T]: F:ChatOpenAI subclass for LM Studio that strips null tool params and forces text output format | R:code:src/LLMProviders/chatModelManager.ts | A:ChatLMStudio | S:-
-ChatOpenRouter.ts[IN6L]: F:OpenRouter chat model adding reasoning effort, prompt caching, and usage extraction | R:code:src/LLMProviders/chatModelManager.ts | A:ChatOpenRouter, ChatOpenRouterInput | S:-
+ChatOpenRouter.ts[IN6L]: F:OpenRouter chat model adding reasoning effort, prompt caching, and usage extraction | R:code:src/LLMProviders/chatModelManager.ts | A:ChatOpenRouter, ChatOpenRouterInput | S:Stop passes the abort signal to the OpenAI request; an already-aborted stream fails with AbortError before the request opens
 chatModelManager.ts[IB7M]: F:Maps providers to chat model constructors and centralizes safety settings and token estimation | R:code:src/LLMProviders/createProviderChatModel.ts | A:- | S:getNumTokens is overridden to estimate text length divided by four without a tokenizer call
 createProviderChatModel.ts[IB6T]: F:Builds the chat model for a custom model, choosing native SDKs or LangChain constructors | R:code:src/LLMProviders/providerTransport.ts | A:createProviderChatModel | S:-
 providerSession.ts[IN3T]: F:Issues stable per-conversation session headers for the opencode inference endpoints | R:code:src/LLMProviders/providerTransport.ts | A:getProviderSessionOptions, resetProviderSession | S:-
-providerTransport.ts[II6M]: F:Provider fetch transport with GitHub Copilot and IBM token exchange, caching, and refresh | R:code:src/LLMProviders/createProviderChatModel.ts | A:createProviderFetch | S:-
+providerTransport.ts[II6M]: F:Provider fetch transport with GitHub Copilot and IBM token exchange, caching, and refresh | R:code:src/LLMProviders/createProviderChatModel.ts | A:createProviderFetch | S:Token exchange times out after 15s and clears the in-flight promise so a later request retries
 testProviderConnection.ts[IV5S]: F:Runs one short provider verification chat with timeout and abort propagation | R:code:src/LLMProviders/chatModelManager.ts | A:testProviderConnection | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/LLMProviders/chainRunner/utils/===
@@ -183,10 +183,10 @@ LazyProviderChatModel.ts[IC4T]: F:Defers native model construction until the fir
 NativeSdkChatModel.ts[IC6M]: F:LangChain chat adapter over AI SDK language models with streaming and usage metadata | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:NativeSdkChatModel, NativeSdkCallOptions | S:-
 SapLanguageModel.ts[IC5S]: F:SAP AI Core HTTP language model handling completion, SSE streaming, and reasoning content | R:code:src/LLMProviders/nativeSdk/createSapLanguageModel.ts | A:createSapHttpModel | S:-
 cohereSdk.ts[IC2T]: F:Re-exports the Cohere provider factory from the AI SDK | R:- | A:createCohere | S:-
-createGitlabAccessToken.ts[IS4T]: F:Fetches and caches GitLab Duo direct-access tokens with single-flight refresh | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:createGitlabAccessToken | S:-
+createGitlabAccessToken.ts[IS4T]: F:Fetches and caches GitLab Duo direct-access tokens with single-flight refresh | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:createGitlabAccessToken | S:A shared refresh uses its own 15s timeout, so one caller stopping never cancels another chat's token
 createNativeSdkChatModel.ts[IC6M]: F:Factory for native provider models: GitLab, SAP, Vertex, Google, and Cohere | R:code:src/LLMProviders/nativeSdk/NativeSdkChatModel.ts | A:createNativeSdkChatModel | S:-
-createSapLanguageModel.ts[IC5S]: F:Builds the SAP model resolver with OAuth token caching and deployment discovery | R:code:src/LLMProviders/nativeSdk/SapLanguageModel.ts | A:createSapLanguageModel | S:-
-createVertexAccessToken.ts[IS4T]: F:Signs RS256 service-account JWTs and exchanges them for Vertex access tokens with caching | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:createVertexAccessToken | S:-
+createSapLanguageModel.ts[IC5S]: F:Builds the SAP model resolver with OAuth token caching and deployment discovery | R:code:src/LLMProviders/nativeSdk/SapLanguageModel.ts | A:createSapLanguageModel | S:A shared token refresh uses its own 15s timeout and ignores caller aborts
+createVertexAccessToken.ts[IS4T]: F:Signs RS256 service-account JWTs and exchanges them for Vertex access tokens with caching | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:createVertexAccessToken | S:A shared refresh uses its own 15s timeout and ignores caller aborts
 gitlabModelMappings.LICENSE[SZ1T]: F:GitLab MIT license text covering the vendored model mappings | R:- | A:- | S:-
 gitlabModelMappings.md[SZ3T]: F:Provenance notes for the vendored GitLab model mappings and their regeneration command | R:code:src/LLMProviders/nativeSdk/gitlabModelMappings.ts | A:- | S:-
 gitlabModelMappings.ts[LZ3S]: F:Verbatim model alias to provider mapping table from gitlab-ai-provider 6.23.1 | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:gitlabModelMappings | S:-
@@ -211,9 +211,9 @@ claudeCompatibilityStore.ts[IR4T]: F:Caches per-path Claude install-state checks
 claudeUpdateDetail.ts[EU2T]: F:Chooses the update hint text for an unsupported Claude installation | R:- | A:claudeUpdateDetail | S:-
 claudeVersion.ts[IR5S]: F:Probes the Claude version and enforces the minimum supported release | R:code:src/agentMode/backends/claude/claudeCompatibilityStore.ts | A:probeClaudeVersion, assertClaudeVersionSupported, CLAUDE_MIN_VERSION | S:Minimum 2.1.281 because that release loads AGENTS.md on every provider including Bedrock and gateways
 cliSetup.ts[XV3T]: F:Builds the Claude install and terminal sign-in commands per platform | R:code:src/agentMode/backends/claude/claudeAuth.ts | A:CLAUDE_INSTALL_COMMAND, claudeSignInCommand | S:-
-descriptor.ts[EC8L]: F:Wires Claude setup, auth, scoped extension checks and SDK process construction | R:code:src/agentMode/sdk/ClaudeSdkBackendProcess.ts | A:getClaudeInstallState, refreshClaudeInstallState, updateClaudeFields, resolveClaudeAutoModePermission | S:Extension checks use a temporary process and always shut it down; they never send a chat prompt
-discoverExtensions.ts[IE5M]: F:Discovers scoped Claude extensions, merges CLI installation records and attaches plugin component metadata | R:code:src/agentMode/backends/shared/extensionInventory.ts | A:discoverClaudeExtensions | S:A missing optional manifest is not proof of a broken install; a missing cache directory is
-extensionManagement.ts[IE7L]: F:Lists and manages scoped Claude extensions, preserving installation ownership, plugin detail children, and local plugin directories | R:code:src/agentMode/backends/claude/discoverExtensions.ts | A:ClaudeExtensionManager | S:Writes use revision checks and per-path queues; model hooks accept only allowed SDK events; a local plugin delete removes the referenced directory only when it still has a plugin manifest
+descriptor.ts[EC8L]: F:Wires Claude setup, auth, scoped extension checks and SDK process construction | R:code:src/agentMode/sdk/ClaudeSdkBackendProcess.ts | A:getClaudeInstallState, refreshClaudeInstallState, updateClaudeFields, resolveClaudeAutoModePermission | S:The check returns while remote MCP servers connect, streams status-only updates, marks still-pending servers unconfirmed, and always shuts its temporary process down
+discoverExtensions.ts[IE5M]: F:Discovers scoped Claude extensions, merges CLI installation records and attaches plugin component metadata | R:code:src/agentMode/backends/shared/extensionInventory.ts | A:discoverClaudeExtensions | S:A project list carries only plugins installed for that project; an explicit project enabledPlugins override becomes a toggle-only row
+extensionManagement.ts[IE7L]: F:Lists and manages scoped Claude extensions, preserving installation ownership, plugin detail children, and local plugin directories | R:code:src/agentMode/backends/claude/discoverExtensions.ts | A:ClaudeExtensionManager | S:Each scope's list drops entries whose write target lives in another scope; writes use revision checks and per-path queues
 logo.svg[FZ1T]: F:Claude logo asset used in the config UI | R:- | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/backends/claude/ui/===
@@ -254,15 +254,15 @@ SignInAction.stories.tsx[TQ3T]: F:Gallery stories for the sign-in action states 
 SignInAction.tsx[EU4T]: F:Sign-in button with in-progress, URL, failure, and signed-in states | R:- | A:SignInAction | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/sdk/===
-ClaudeSdkBackendProcess.ts[IC8L]: F:Adapts Claude SDK sessions, streaming, permissions, scoped runtime checks and process cleanup | R:code:src/agentMode/session/types.ts | A:ClaudeSdkBackendProcess, runSubagentsInBackground, promptInputToAnthropicContent | S:Background subagents outlive their parent turn. User-only probes run in an owned temporary cwd while preserving relative config-directory meaning
+ClaudeSdkBackendProcess.ts[IC8L]: F:Adapts Claude SDK sessions, streaming, permissions, scoped runtime checks and process cleanup | R:code:src/agentMode/session/types.ts | A:ClaudeSdkBackendProcess, runSubagentsInBackground, promptInputToAnthropicContent | S:Plan-file writes are auto-allowed only while the session mode is plan; extension checks can read MCP statuses without a prompt; background subagents outlive their parent turn
 asyncPushQueue.ts[DB3T]: F:Minimal async push queue bridging callbacks to an async iterator | R:- | A:AsyncPushQueue | S:-
-claudeLiveQuery.ts[IC7L]: F:Drives live turns and reads actual extension, hook and MCP reports without sending prompts | R:code:src/agentMode/sdk/sdkMessageTranslator.ts | A:ClaudeLiveQuery, CLAUDE_DISCONNECTED_MESSAGE | S:Missing optional reports stay unknown; silent streams end a turn after sixty seconds
+claudeLiveQuery.ts[IC7L]: F:Drives live turns and reads actual extension, hook and MCP reports without sending prompts | R:code:src/agentMode/sdk/sdkMessageTranslator.ts | A:ClaudeLiveQuery, CLAUDE_DISCONNECTED_MESSAGE | S:getMcpServerStatus reports the SDK statuses without a prompt; missing optional reports stay unknown; silent streams end a turn after sixty seconds
 claudePlanUsage.ts[IV5S]: F:Reads the experimental Claude usage API into plan usage windows | R:code:src/agentMode/session/planUsage.ts | A:readClaudePlanUsage | S:The usage method is marked experimental and may disappear; absence degrades to unknown usage
 claudeQueryControls.ts[IC3T]: F:Exposes the SDK cancel control for queued messages | R:- | A:cancelQueuedMessage | S:-
 claudeTaskProtocol.ts[DB5M]: F:Tracks Claude background task protocol frames into session task events | R:code:src/agentMode/session/types.ts | A:ClaudeTaskTracker | S:-
 claudeTodoPlan.ts[DB5S]: F:Turns todo tool calls into ordered plan entries and diffs them into updates | R:code:src/agentMode/session/types.ts | A:createClaudeTaskPlanState, planUpdateFromClaudeToolUse, planUpdateFromClaudeToolResult | S:-
 effortOption.ts[IV4S]: F:Synthesizes the effort config option from the SDK model catalog and probes SDK capabilities | R:code:src/lib/model-effort.ts | A:synthesizeEffortConfigOption, probeClaudeSdkCatalog, resolveSeedModelId | S:-
-permissionBridge.ts[IC6M]: F:Bridges SDK permission requests to prompts and question dialogs with typed decisions | R:code:src/agentMode/session/types.ts | A:PermissionBridge, Prompter, AskUserQuestionPrompter | S:-
+permissionBridge.ts[IC6M]: F:Bridges SDK permission requests to prompts and question dialogs with typed decisions | R:code:src/agentMode/session/types.ts | A:PermissionBridge, Prompter, AskUserQuestionPrompter | S:A cancelled signal denies the request; plan-file writes auto-allow only when isPlanMode() is true; a prompt rejection is treated as cancellation
 sdkDebugTap.ts[DO4T]: F:Frame-level debug logging of SDK traffic through the debug sink | R:code:src/agentMode/session/debugSink.ts | A:logSdkInbound, logSdkError, SDK_FRAME_TAG | S:-
 sdkMessageTranslator.ts[IC8L]: F:Translates SDK messages into session updates, including full transcript replay | R:code:src/agentMode/sdk/claudeTaskProtocol.ts | A:translateSdkMessage, mapStopReason, replayClaudeTranscript, createTranslatorState | S:Translator state is replayable: a recorded transcript rebuilds the same event sequence
 sdkStreamStallGuard.ts[IR4T]: F:Watchdog that ends a turn when the SDK stream emits no content events for sixty seconds | R:- | A:SdkStreamStallGuard | S:-
@@ -284,32 +284,32 @@ fakeClaudeQuery.ts[TQ4S]: F:Scriptable fake of the SDK query for backend process
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/session/===
 AgentChatBackend.ts[EC6T]: F:UI-facing chat backend contract: messaging, queuing, withdrawal, and permissions | R:code:src/agentMode/session/types.ts | A:AgentChatBackend | S:-
-AgentChatPersistenceManager.ts[DP6L]: F:Persists agent chats as vault Markdown notes with frontmatter, images, and byte-limit handling | R:code:src/utils/chatImagePersistence.ts | A:AgentChatPersistenceManager | S:-
+AgentChatPersistenceManager.ts[DP6L]: F:Persists agent chats as vault Markdown notes with frontmatter, images, and byte-limit handling | R:code:src/utils/chatImagePersistence.ts | A:AgentChatPersistenceManager | S:Sender markers and timestamp-like lines inside a body are escaped before writing, so a round-trip never splits a message; the transcript baseline cache is LRU-bounded and cleared on delete
 AgentChatUIState.ts[EU6M]: F:Subscribeable UI-state adapter over an AgentSession implementing the chat backend contract | R:code:src/agentMode/session/AgentSession.ts | A:AgentChatUIState | S:-
 AgentInputDraftStore.ts[DU4T]: F:Per-input draft and queued-message store keyed by chat input id | R:code:src/agentMode/session/types.ts | A:AgentInputDraftStore | S:-
 AgentMessageStore.ts[DD6L]: F:Owns the chat message list, merging part updates and tracking pending tool calls | R:code:src/agentMode/session/types.ts | A:AgentMessageStore | S:-
 AgentModelPreloader.ts[AP5L]: F:Warms backend processes ahead of use so model catalogs load before the first chat | R:code:src/agentMode/session/types.ts | A:AgentModelPreloader, WarmBackend | S:-
-AgentSession.ts[DB9L]: F:The agent session: turns, messages, branching, tasks, permissions, and plan decisions | R:code:src/agentMode/session/TurnTracker.ts | A:AgentSession, AgentBranchState, AgentTask, ATTENTION_TRIGGER_STATUSES, DEFAULT_TITLE_PREFIX | S:Edits snapshot files beforehand and can revert them; the compact command is handled inline rather than sent to the backend
+AgentSession.ts[DB9L]: F:The agent session: turns, messages, branching, tasks, permissions, and plan decisions | R:code:src/agentMode/session/TurnTracker.ts | A:AgentSession, AgentBranchState, AgentTask, ATTENTION_TRIGGER_STATUSES, DEFAULT_TITLE_PREFIX | S:Only the 20 most recent completed tasks keep their task record and content; a task's file changes are captured before pruning; edits snapshot files beforehand and the compact command is handled inline
 AgentSessionIndex.ts[DD6M]: F:Persistent session index with entries, tombstones, and pluggable storage | R:code:src/agentMode/session/nodeFileStorage.ts | A:AgentSessionIndexEntry, AgentSessionIndexStorage | S:-
-AgentSessionManager.ts[AA9L]: F:Owns agent chats, projects, history, notifications and deferred scope-specific configuration updates | R:code:src/agentMode/session/AgentSession.ts | A:AgentSessionManager, PermissionPrompter, PinnedChat, ReplaceSessionOptions | S:Global chats use the vault root; project chats use their project folder. Extension changes wait for main and background tasks; aborting UI waits does not discard saved changes
+AgentSessionManager.ts[AA9L]: F:Owns agent chats, projects, history, notifications and deferred scope-specific configuration updates | R:code:src/agentMode/session/AgentSession.ts | A:AgentSessionManager, PermissionPrompter, PinnedChat, ReplaceSessionOptions | S:A failed autosave stays dirty and is retried on close; hidden process-per-chat sessions are rechecked when tasks end or a session idles; snapshots poll live tasks once. Global chats use the vault root; project chats use their project folder
 AgentSessionSnapshots.ts[DD5S]: F:Saves and loads session snapshots with deterministic ids and task messages | R:code:src/agentMode/session/AgentSessionIndex.ts | A:AgentSessionSnapshot, SavedAgentTask | S:-
-InteractiveRequests.ts[DB6M]: F:Routes permission prompts, plan decisions, and questions between session events and the UI | R:code:src/agentMode/session/types.ts | A:- | S:-
+InteractiveRequests.ts[DB6M]: F:Routes permission prompts, plan decisions, and questions between session events and the UI | R:code:src/agentMode/session/types.ts | A:- | S:A permission or plan card resolves as cancelled when the SDK aborts its signal
 SessionHistoryReplay.ts[DD5S]: F:Replays recorded session events into the message store | R:code:src/agentMode/session/messageParts.ts | A:SessionHistoryReplayDeps | S:-
-TurnTracker.ts[DB7L]: F:Drives one turn end to end: prompt build, queueing, failure notices, and outcome recording | R:code:src/agentMode/session/promptEnvelope.ts | A:TurnOutcome, TurnSend | S:A turn that ends with no assistant output produces an explicit retry notice instead of silent success
+TurnTracker.ts[DB7L]: F:Drives one turn end to end: prompt build, queueing, failure notices, and outcome recording | R:code:src/agentMode/session/promptEnvelope.ts | A:TurnOutcome, TurnSend | S:A delivered prompt that fails still shows the failure notice; a turn with no assistant output produces an explicit retry notice
 UsageTracker.ts[DO4T]: F:Keeps session and plan usage snapshots for display | R:code:src/agentMode/session/planUsage.ts | A:UsageTracker | S:-
 agentChatYaml.ts[DC4T]: F:Escapes YAML scalars and merges chat frontmatter safely | R:- | A:escapeYamlString, unescapeYamlString, mergeFrontmatter | S:-
 chatHistoryMerge.ts[DD4T]: F:Merges Markdown chat notes with native session index entries and derives titles | R:code:src/agentMode/session/AgentSessionIndex.ts | A:deriveChatTitleFromMessages, mergeChatHistoryItems | S:-
 conversationHistory.ts[DB5S]: F:Builds the earlier-conversation context block with a character cap and read-only framing | R:- | A:buildConversationHistoryBlock, buildBranchHistoryContent, CONVERSATION_HISTORY_MAX_CHARS | S:-
 copilotMcpServer.ts[IN6M]: F:Loopback MCP server exposing the send_feedback tool to agent backends | R:code:src/utils/loopbackServer.ts | A:createCopilotMcpServer, SEND_FEEDBACK_TOOL_NAME, COPILOT_MCP_SERVER_NAME | S:Request bodies are capped at 16MB and only known protocol versions are accepted
 debugSink.ts[DO5L]: F:Appends framed request and response records to a rotating ndjson debug log | R:- | A:frameSink, setFrameSinkVaultBasePath, FrameRecord | S:-
-descriptor.ts[EG5M]: F:Defines backend setup, authentication, model selection and scoped extension-check contracts | R:code:src/agentMode/session/types.ts | A:BackendDescriptor, InstallState | S:-
+descriptor.ts[EG5M]: F:Defines backend setup, authentication, model selection and scoped extension-check contracts | R:code:src/agentMode/session/types.ts | A:BackendDescriptor, InstallState | S:checkExtensions may stream status-only updates through onUpdate and always shuts its temporary process down
 editTargets.ts[DD4T]: F:Extracts vault-relative edit targets from tool inputs and diff outputs | R:- | A:diffTargetPaths, editTargetPaths, toVaultTargetPath | S:-
 enabledModelSelection.ts[DB3T]: F:Picks an enabled model, waiting for the catalog when the seed model has not appeared yet | R:code:src/agentMode/session/translateBackendState.ts | A:pickEnabledModel, EMPTY_ENABLED_MODELS | S:-
 errors.ts[EG3T]: F:MethodUnsupportedError and AuthRequiredError for backend contract gaps | R:- | A:MethodUnsupportedError, AuthRequiredError | S:-
 expandCustomCommandPrefix.ts[DW3T]: F:Expands a typed command into its prompt text with variables filled | R:code:src/commands/resolveCustomCommandPrefix.ts | A:expandCustomCommandPrefix | S:-
-extensionInventory.ts[EG4T]: F:Defines extension identities, installation records, runtime reports and per-direction control capabilities | R:- | A:AgentExtensionItem, AgentExtensionRuntimeSnapshot, AgentPluginInstallation | S:-
+extensionInventory.ts[EG4S]: F:Defines extension identities, installation records, runtime reports and per-direction control capabilities | R:- | A:AgentExtensionItem, AgentExtensionRuntimeSnapshot, AgentPluginInstallation, hasPendingMcpServers, markPendingMcpServersUnconfirmed | S:An MCP status left pending after the settle window is stored as unconfirmed, never as connected
 extensionManagement.ts[EG4T]: F:Defines scoped extension management, revision-bound edits, plugin actions and detail component contracts | R:- | A:AgentExtensionManager, AgentExtensionDetails, AgentExtensionScope | S:-
-mergeExtensionRuntime.ts[DB5S]: F:Matches runtime extensions to inventory entries and preserves unknown, disabled, and partial-loading evidence | R:code:src/agentMode/session/extensionInventory.ts | A:mergeExtensionRuntime | S:Missing reports remain unknown; absence from a complete plugin list can prove not loaded; a disabled plugin hides its children from the other tabs
+mergeExtensionRuntime.ts[DB5M]: F:Matches runtime extensions to inventory entries and preserves unknown, disabled, and partial-loading evidence | R:code:src/agentMode/session/extensionInventory.ts | A:mergeExtensionRuntime, MergeExtensionRuntimeOptions | S:appendRuntimeEntries=false keeps runtime-only rows out of a scope-isolated list; a disabled plugin hides its children
 messageParts.ts[DB5S]: F:Converts tool calls, plans, and compactions into display message parts | R:code:src/agentMode/session/types.ts | A:toolCallToPart, planToPart, mergeToolCallUpdate | S:-
 modeApply.ts[DA3T]: F:Applies a mode change spec as sequential mode or config steps | R:code:src/agentMode/session/AgentSession.ts | A:applyModeSpec | S:-
 nodeFileStorage.ts[PD4T]: F:Node filesystem implementations of the session index and snapshot storage | R:code:src/agentMode/session/AgentSessionIndex.ts | A:createNodeFileStorage, createNodeSnapshotStorage | S:-
@@ -327,10 +327,11 @@ toolName.ts[DB3T]: F:Parses mcp tool names into server and tool parts | R:- | A:
 translateBackendState.ts[DA7M]: F:Translates raw backend state into the canonical BackendState with canonical mode ordering | R:code:src/agentMode/session/types.ts | A:translateBackendState, findModelEntry, modelStateSignature, modelCatalogSignature | S:Model, mode, and catalog signatures gate change detection so redundant updates are dropped
 translateCommandToAgentText.ts[DB3T]: F:Rewrites command variables into wikilinks and web-tab markers | R:code:src/agentMode/session/resolveActiveNoteToken.ts | A:translateCommandToAgentText | S:-
 turnFileChanges.ts[DD5T]: F:Captures pre-edit file snapshots, builds turn diffs, and reverts patches | R:code:src/agentMode/session/editTargets.ts | A:buildTurnFileChange, revertFilePatch, filePatchesByVaultPath | S:-
-types.ts[EG8L]: F:The backend-agnostic session contract: processes, events, messages, models, and permissions | R:- | A:BackendProcess, SessionEvent, AgentChatMessage, BackendState, PermissionPrompt | S:BackendProcess and BackendDescriptor anchor every layer; UI and SDK code depend on these types, never on a backend implementation
+types.ts[EG8L]: F:The backend-agnostic session contract: processes, events, messages, models, and permissions | R:- | A:BackendProcess, SessionEvent, AgentChatMessage, BackendState, PermissionPrompt | S:A PermissionPrompt carries the SDK abort signal; getMcpServerStatus is an optional backend read used only to settle MCP statuses
 useBackendAuthState.ts[EU5M]: F:React hook subscribing to a backend auth object's sign-in state with operation deduplication | R:code:src/agentMode/session/descriptor.ts | A:useBackendAuthState | S:-
 useBackendInstallStates.ts[EU4T]: F:React hook aggregating every backend's install state with a stable signature | R:code:src/agentMode/session/descriptor.ts | A:useBackendInstallStates, installStateSignature | S:-
-extensionAvailability.ts[DB6T]: F:Derives confirmed, locked, and uncertain switch states from runtime availability and control prerequisites | R:code:src/agentMode/session/extensionInventory.ts | A:getExtensionSwitchState, getExtensionDotState, isExtensionToggleable, ExtensionSwitchState, ExtensionDotState | S:A connected MCP server without a tool report stays unknown; zero tools cannot establish callability
+extensionAvailability.ts[DB6S]: F:Derives confirmed, locked, and uncertain switch states from runtime availability and control prerequisites | R:code:src/agentMode/session/extensionInventory.ts | A:getExtensionSwitchState, getExtensionDotState, isExtensionToggleable, ExtensionSwitchState, ExtensionDotState | S:Pending, unconfirmed, failed, needs-auth, and not-loaded entries render dots; an informational dot marks a confirmed read-only entry; only confirmed toggleable entries render switches
+extensionCheckCache.ts[DP5S]: F:Caches extension checks by configuration fingerprint and the last rendered view for an instant reopen | R:code:src/agentMode/ui/AgentExtensionsSettings.tsx,code:src/agentMode/session/extensionInventory.ts | A:extensionCheckCacheKey, extensionCheckCacheIdentity, readCachedExtensionCheck, storeCachedExtensionCheck, readCachedExtensionView, storeCachedExtensionView | S:A snapshot with pending MCP servers is never cached; checks and views are capped at 20 and 8 entries in localStorage; a disabled backend never reuses a check
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/session/feedback/===
 feedbackOffer.ts[EG3T]: F:Feedback offer types binding an error or agent trigger to a draft report | R:code:src/agentMode/session/copilotMcpServer.ts | A:FeedbackOffer | S:-
@@ -383,7 +384,7 @@ SkillEditorModal.tsx[EU4S]: F:Modal wrapping the editor form for create and edit
 SkillLoadIssues.stories.tsx[TQ3S]: F:Gallery stories for the skill load issues dialog | R:code:src/agentMode/skills/ui/SkillLoadIssues.tsx | A:- | S:-
 SkillLoadIssues.tsx[EU4S]: F:Dialog listing skills that failed to load with evidence and a repair prompt | R:code:src/agentMode/skills/skillRepairPrompt.ts | A:SkillLoadIssuesDialog | S:-
 SkillRow.tsx[EU6L]: F:Displays skill availability switches and retains editing, properties, migration and deletion actions | R:code:src/agentMode/skills/ui/skillRuntimeItem.ts | A:SkillRow | S:Migration remains a separate action; availability switches cannot silently migrate a skill
-SkillRowLayout.stories.tsx[TQ3S]: F:Previews shared skill row layout with available, uncertain, locked and pending switches | R:code:src/agentMode/skills/ui/SkillRowLayout.tsx | A:- | S:-
+SkillRowLayout.stories.tsx[TQ3S]: F:Previews shared skill row layout with canonical, checking, mirrored, waiting, disabled and unconfirmed states | R:code:src/agentMode/skills/ui/SkillRowLayout.tsx | A:- | S:-
 SkillRowLayout.tsx[EU3T]: F:Shared row layout for skill tables | R:- | A:SkillRowLayout | S:-
 SkillsSettings.tsx[EU7L]: F:Combines managed and built-in skill lists with runtime usability, management actions and load-issue recovery | R:code:src/agentMode/skills/SkillManager.ts | A:SkillsSettings | S:Built-ins reconcile on entry; repair prepares a draft and never sends it
 skillRuntimeItem.ts[DB4T]: F:Matches managed skill files to runtime evidence and derives safe direction-specific toggle capabilities | R:code:src/agentMode/skills/toggleDecision.ts | A:skillRuntimeItem | S:-
@@ -401,9 +402,9 @@ AgentContextMeter.stories.tsx[TQ4S]: F:Gallery stories for the context usage met
 AgentContextMeter.tsx[EU5S]: F:Session and plan usage meters with expiry-aware windows | R:code:src/agentMode/session/planUsage.ts | A:AgentContextMeter | S:-
 AgentContextSection.tsx[EU5S]: F:Project context editor section with sources and badge list | R:code:src/components/project/ProjectContextSourceEditor.tsx | A:AgentContextSection | S:-
 AgentDetailModal.tsx[EU4T]: F:Base React modal that reopens by detail key across view refreshes | R:code:src/components/modals/ReactModal.tsx | A:AgentDetailModal | S:-
-AgentExtensionsPanel.stories.tsx[TQ4M]: F:Previews extension lists with confirmed, failed, unknown, locked, and pending availability including plugin versions | R:code:src/agentMode/ui/AgentExtensionsPanel.tsx | A:- | S:-
-AgentExtensionsPanel.tsx[EU5M]: F:Displays grouped extension rows with availability switches, plugin versions, and management actions | R:code:src/agentMode/session/extensionAvailability.ts | A:AgentExtensionsPanel, EXTENSION_LABELS | S:-
-AgentExtensionsSettings.tsx[EU6L]: F:Orchestrates six scoped extension pages, automatic checks, mutations, and runtime-backed plugin details | R:code:src/agentMode/session/mergeExtensionRuntime.ts | A:AgentExtensionsSettings | S:Checks send no chat messages; pending changes follow the selected scope across tabs and wait for active tasks; local-directory plugins delete their directory and never offer an update action
+AgentExtensionsPanel.stories.tsx[TQ4M]: F:Previews extension lists across skills, collapsed sections, MCP states, plugin availability, built-ins and failed checks | R:code:src/agentMode/ui/AgentExtensionsPanel.tsx | A:- | S:-
+AgentExtensionsPanel.tsx[EU5M]: F:Displays collapsible grouped extension rows with availability switches, plugin versions, and management actions | R:code:src/agentMode/session/extensionAvailability.ts | A:AgentExtensionsPanel, EXTENSION_LABELS | S:Collapse choices last only for the app session; a search query forces every section open
+AgentExtensionsSettings.tsx[EU6L]: F:Orchestrates six scoped extension pages, automatic checks, mutations, and runtime-backed plugin details | R:code:src/agentMode/session/mergeExtensionRuntime.ts | A:AgentExtensionsSettings | S:Checks are cached by configuration fingerprint; MCP settle updates repaint the page; a scope-isolated list never gains runtime rows from other scopes; local-directory plugins delete their directory
 AgentHome.tsx[EU7L]: F:Agent Chat home screen combining transcript, composer, context, and landing states | R:code:src/agentMode/ui/AgentChatInput.tsx | A:- | S:With no messages the landing stack renders in place of the transcript while the composer stays
 AgentHomeSection.tsx[EU4S]: F:Home section scaffolding with scroll area and create row anchored to a trigger | R:- | A:AgentHomeCreateRow | S:-
 AgentHomeShelf.stories.tsx[TQ3T]: F:Gallery stories for the home shelf tabs | R:code:src/agentMode/ui/AgentHomeShelf.tsx | A:- | S:-
@@ -441,7 +442,7 @@ CompactionRow.tsx[EU3T]: F:Row showing compaction progress or outcome | R:- | A:
 CopilotAgentView.tsx[EC6T]: F:Obsidian ItemView hosting the Agent Chat React root | R:code:src/agentMode/ui/AgentModeChat.tsx | A:CopilotAgentView | S:-
 CreateProjectPanel.tsx[EU4S]: F:Anchored panel hosting the project creation form | R:code:src/agentMode/ui/AgentProjectCreateForm.tsx | A:CreateProjectPanel | S:-
 ExtensionDialogs.stories.tsx[TQ4S]: F:Previews install, import, and plugin detail dialogs with component, ownership, and missing-file states | R:code:src/agentMode/ui/ExtensionDialogs.tsx | A:- | S:-
-ExtensionDialogs.tsx[EU5L]: F:Renders extension install and import forms plus versioned plugin details and component availability | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:ExtensionModal, PluginInstallForm, ExtensionImportForm, ExtensionDetailsView | S:-
+ExtensionDialogs.tsx[EU5L]: F:Renders extension install and import forms plus versioned plugin details and component availability | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:ExtensionModal, PluginInstallForm, ExtensionImportForm, ExtensionDetailsView | S:A details modal may omit its native title so the name and copy button start the content
 ExtensionEditor.stories.tsx[TQ4S]: F:Gallery stories for the extension editor fields | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:- | S:-
 ExtensionEditor.tsx[EU5L]: F:Field primitives and form body for editing extension drafts | R:code:src/agentMode/session/extensionManagement.ts | A:ExtensionField, ExtensionSelect | S:-
 FeedbackCard.stories.tsx[TQ3T]: F:Gallery stories for the feedback offer card | R:code:src/agentMode/ui/FeedbackCard.tsx | A:- | S:-
@@ -561,7 +562,7 @@ customCommandChatEngine.ts[DB4T]: F:Builds the quick-command chat chain with mem
 customCommandManager.ts[DP6M]: F:Creates, updates, deletes, and reorders command notes with frontmatter | R:code:src/commands/customCommandUtils.ts | A:CustomCommandManager | S:-
 customCommandRegister.ts[DA5M]: F:Registers commands with Obsidian and keeps them current on file changes | R:code:src/commands/customCommandUtils.ts | A:- | S:-
 customCommandUtils.ts[DB6L]: F:Parses, serializes, validates, and expands command notes and prompts | R:code:src/commands/constants.ts | A:getCommandId, loadAllCustomCommands, parseCustomCommandFile, processCommandPrompt | S:-
-index.ts[EC6M]: F:Registers command palette, editor, and slash entries at plugin load | R:code:src/commands/customCommandRegister.ts | A:- | S:-
+index.ts[EC6M]: F:Registers command palette, editor, and slash entries at plugin load | R:code:src/commands/customCommandRegister.ts | A:- | S:The vault token count sums character lengths in batches instead of building the whole vault text
 migrator.ts[DD5S]: F:Migrates legacy command settings into note frontmatter | R:code:src/commands/customCommandManager.ts | A:- | S:-
 quickCommandPrompts.ts[DB4T]: F:Quick command system prompt fixing the assistant's response style | R:- | A:QUICK_COMMAND_SYSTEM_PROMPT | S:-
 resolveCustomCommandPrefix.ts[DB3T]: F:Resolves the typed slash prefix to a matching command | R:code:src/commands/type.ts | A:resolveCustomCommandPrefix | S:-
@@ -692,7 +693,7 @@ CopilotFolderMigration.tsx[EU3T]: F:Notice offering to rename a hidden data fold
 FolderSearchModal.tsx[EU3T]: F:Fuzzy folder picker excluding ignored paths | R:code:src/search/searchUtils.ts | A:FolderSearchModal | S:-
 ProjectFileSelectModal.tsx[EU4S]: F:Picker scoped to a project folder's files | R:code:src/components/modals/BaseNoteModal.tsx | A:ProjectFileSelectModal | S:-
 PropertySearchModal.tsx[EU3T]: F:Picker over note property keys with selectable-key rules | R:code:src/search/searchUtils.ts | A:PropertySearchModal | S:-
-ReactModal.tsx[EU4T]: F:Obsidian modal hosting a React root, with a full-bleed variant | R:code:src/utils/react/createPluginRoot.ts | A:ReactModal, FullBleedReactModal, FULL_BLEED_MODAL_CLASS | S:-
+ReactModal.tsx[EU4T]: F:Obsidian modal hosting a React root, with a full-bleed variant | R:code:src/utils/react/createPluginRoot.ts | A:ReactModal, FullBleedReactModal, FULL_BLEED_MODAL_CLASS, UNTITLED_MODAL_CLASS | S:A missing title adds the untitled class so the empty header collapses while the close button stays available
 ResetSettingsConfirmModal.tsx[EU2T]: F:Confirmation for resetting settings | R:code:src/components/modals/ConfirmModal.tsx | A:ResetSettingsConfirmModal | S:-
 TagSearchModal.tsx[EU2T]: F:Picker over tags collected from notes | R:- | A:TagSearchModal | S:-
 
@@ -784,9 +785,10 @@ table.tsx[EU3T]: F:Table layout primitives | R:- | A:Table, TableBody, TableCell
 textarea.tsx[EU2T]: F:Multiline text input | R:- | A:Textarea | S:-
 tooltip.tsx[EU2T]: F:Tooltip primitives | R:- | A:Tooltip, TooltipContent, TooltipTrigger | S:-
 truncated-text.tsx[EU2T]: F:Text that ellipsizes and tooltips on overflow | R:- | A:TruncatedText | S:-
-extension-availability-switch.stories.tsx[TQ3T]: F:Previews availability switches across usable, unavailable, checking, unknown, pending and locked states | R:code:src/components/ui/extension-availability-switch.tsx | A:- | S:-
-extension-availability-switch.tsx[EU4T]: F:Renders accessible availability switches with locked behavior, pending icons and reason tooltips | R:code:src/components/ui/setting-switch.tsx | A:ExtensionAvailabilitySwitch | S:-
-extension-availability-dot.tsx[EU3T]: F:Marks an extension unavailable in the current scope with a red dot and a reason tooltip | R:code:src/agentMode/session/extensionAvailability.ts | A:ExtensionAvailabilityDot | S:-
+extension-availability-switch.stories.tsx[TQ3T]: F:Previews availability switches across available, unavailable, checking, waiting and locked states | R:code:src/components/ui/extension-availability-switch.tsx | A:- | S:-
+extension-availability-switch.tsx[EU4T]: F:Renders accessible availability switches with loading, pending, and reason tooltips | R:code:src/components/ui/setting-switch.tsx | A:ExtensionAvailabilitySwitch | S:An unknown phase is no longer rendered by the switch; unverifiable rows use the availability dot instead
+extension-availability-dot.tsx[EU3T]: F:Renders failed, connecting, informational, or unconfirmed availability as a colored dot with a reason tooltip | R:code:src/agentMode/session/extensionAvailability.ts | A:ExtensionAvailabilityDot | S:Connecting dots pulse; informational dots show
+extension-availability-dot.stories.tsx[TQ3T]: F:Previews failed, connecting, informational and unconfirmed availability dots | R:code:src/components/ui/extension-availability-dot.tsx | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/context/===
 ChatHistoryCompactor.ts[DB5T]: F:Compacts earlier chat context blocks for token budgets | R:code:src/context/contextBlockRegistry.ts | A:- | S:-
@@ -968,7 +970,7 @@ constants.ts[DC3T]: F:Project defaults and frontmatter property names | R:- | A:
 legacyAgentsResidue.ts[DP4T]: F:Reconciles leftover files from the legacy project layout | R:code:src/instructions/agentsFile.ts | A:reconcileLegacyAgentsResidue | S:-
 moveProjectPrompt.ts[DP3T]: F:Moves a project prompt into its AGENTS.md | R:code:src/projects/ProjectFileManager.ts | A:moveProjectPromptToAgentsFile | S:-
 projectContextSignature.ts[DB4T]: F:Builds a change signature over project context sources | R:code:src/projects/projectPaths.ts | A:- | S:-
-projectMigration.ts[DP6L]: F:Migrates legacy project records into the current layout | R:code:src/projects/legacyAgentsResidue.ts | A:- | S:-
+projectMigration.ts[DP6L]: F:Migrates legacy project records into the current layout | R:code:src/projects/legacyAgentsResidue.ts | A:- | S:A project whose fallback backup cannot be written stays in projectList and is retried; an identical existing backup counts as success
 projectPaths.ts[DP5S]: F:Path helpers for project folders and config files | R:code:src/settings/copilotFolder.ts | A:getProjectsFolder, getProjectAnchorFromConfigPath | S:-
 projectRegister.ts[DA6M]: F:Watches the projects folder and keeps project state current | R:code:src/projects/ProjectFileManager.ts | A:ProjectRegister | S:-
 projectUtils.ts[DP6M]: F:Parses and serializes project frontmatter and records | R:code:src/projects/constants.ts | A:- | S:-
@@ -976,7 +978,7 @@ state.ts[DD5S]: F:Jotai store caching project records | R:code:src/projects/type
 type.ts[EG2T]: F:Project file record type | R:- | A:ProjectFileRecord | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/search/===
-searchUtils.ts[DB6M]: F:Pattern matching, categorization, and ignore rules for context indexing | R:code:src/settings/copilotFolder.ts | A:getMatchingPatterns, shouldIndexFile, categorizePatterns | S:-
+searchUtils.ts[DB6M]: F:Pattern matching, categorization, and vault character counting for context indexing | R:code:src/settings/copilotFolder.ts | A:getMatchingPatterns, shouldIndexFile, categorizePatterns, getVaultCharacterCount | S:Vault counting reads notes in batches and sums lengths, never building the whole text; a malformed exclusion pattern falls back to its raw form
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/selection/===
 selectionStore.ts[DD4T]: F:Jotai store of reported text selections | R:- | A:reportSelection, subscribeSelection, clearSelection | S:-
@@ -984,10 +986,10 @@ selectionWatcher.ts[DA5S]: F:Watches editor and web selections and reports them 
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/services/===
 interfaceLanguage.ts[CL3T]: F:Initializes the interface language from Obsidian and system | R:code:src/lib/i18n.ts | A:initializeInterfaceLanguage | S:-
-keychainService.ts[IS8L]: F:Stores provider credentials in the Obsidian keychain | R:code:src/services/settingsPersistence.ts | A:KeychainService | S:Credentials live in Obsidian SecretStorage, never in the vault data file
+keychainService.ts[IS8L]: F:Stores provider credentials and sensitive Claude environment variables in the Obsidian keychain | R:code:src/services/settingsPersistence.ts | A:KeychainService | S:Sensitive env override values are stripped from flat and per-device settings; hydration restores only this device's profile; credentials never live in the vault data file
 legacyCredentialBackup.ts[DP4T]: F:Writes a hashed backup file before credential migration | R:code:src/services/settingsSecretTransforms.ts | A:legacyBackupFilename, LEGACY_BACKUP_PREFIX | S:-
 settingsPersistence.ts[DP7M]: F:Saves and loads settings, splitting secrets into the keychain | R:code:src/services/keychainService.ts | A:- | S:Secrets are stripped from settings before they are written to the vault data file
-settingsSecretTransforms.ts[DS5T]: F:Identifies and strips secret fields from persisted settings | R:code:src/constants.ts | A:isSensitiveKey, stripKeychainFields, cleanupLegacyFields | S:-
+settingsSecretTransforms.ts[DS5S]: F:Identifies and strips secret fields, including sensitive Claude env overrides in flat and device profiles, from persisted settings | R:code:src/constants.ts | A:isSensitiveKey, stripKeychainFields, cleanupLegacyFields | S:Stripping returns a copy and leaves the live settings untouched; sensitive env names reuse isSensitiveKey
 startupMigration.ts[DV4T]: F:Startup migration status types and helpers | R:- | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/services/obsidianCli/===
@@ -1000,7 +1002,7 @@ webViewerServiceActions.ts[IA5M]: F:Actions over web viewer leaves: open, naviga
 webViewerServiceHelpers.ts[DB5M]: F:Converts page HTML to markdown and resolves leaves | R:- | A:- | S:-
 webViewerServiceSelection.ts[DB5M]: F:Tracks text selection inside web pages | R:code:src/selection/selectionStore.ts | A:- | S:-
 webViewerServiceSingleton.ts[IC3T]: F:Returns the shared web viewer service instance | R:code:src/services/webViewerService/webViewerService.ts | A:getWebViewerService | S:-
-webViewerServiceState.ts[DD6L]: F:State machine tracking the active web tab and its content | R:code:src/services/webViewerService/webViewerServiceHelpers.ts | A:- | S:-
+webViewerServiceState.ts[DD6L]: F:State machine tracking the active web tab and its content | R:code:src/services/webViewerService/webViewerServiceHelpers.ts | A:- | S:Multi-leaf fallback logs record the match count and title but never the full URL
 webViewerServiceTypes.ts[EG4S]: F:Web viewer service types and view type constant | R:- | A:WEB_VIEWER_VIEW_TYPE | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/settings/===
@@ -1011,7 +1013,7 @@ copilotFolder.ts[DC5S]: F:Resolves effective Scribe folder roots for data, chats
 copilotRootChange.ts[DC4T]: F:Handles a changed data root without moving existing files | R:code:src/settings/copilotFolder.ts | A:- | S:-
 copilotSaveData.ts[DP3T]: F:Builds the settings save callback writing through persistence | R:code:src/services/settingsPersistence.ts | A:getCopilotSaveData | S:-
 deviceProfiles.ts[DC4T]: F:Per-device settings segments kept out of synced fields | R:code:src/settings/model.ts | A:- | S:-
-model.ts[DC8L]: F:Settings model: defaults, sanitize, store, and subscriptions | R:code:src/constants.ts | A:DEFAULT_SETTINGS, getSettings, setSettings, sanitizeSettings | S:Sanitization fills missing fields with defaults and drops unknown ones; the settings atom is the single shared store
+model.ts[DC8L]: F:Settings model: defaults, sanitize, store, and subscriptions | R:code:src/constants.ts | A:DEFAULT_SETTINGS, getSettings, setSettings, sanitizeSettings | S:A malformed percent sequence in qaExclusions falls back to the raw pattern; sanitization fills missing fields and drops unknown ones; the settings atom is the single shared store
 openSettings.ts[DA4T]: F:Opens the plugin settings to a requested tab | R:code:src/settings/settingsTabs.ts | A:consumeRequestedCopilotSettingsTab | S:-
 revealCopilotFolder.ts[DP4T]: F:Detects hidden data folders and offers a rename | R:- | A:HiddenFolderMigration | S:-
 settingsTabs.ts[EG2T]: F:Settings tab identifiers | R:- | A:COPILOT_SETTINGS_TAB_IDS | S:-
@@ -1073,7 +1075,7 @@ QuickToolsModelSettings.tsx[EU2T]: F:Model settings row group for quick tools | 
 vaultDataAtoms.ts[DD4S]: F:Jotai atoms caching vault notes and folders | R:- | A:notesAtom, foldersAtom | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/styles/===
-tailwind.css[FU6L]: F:Tailwind source stylesheet with theme tokens and component classes | R:code:tailwind.config.js | A:- | S:-
+tailwind.css[FU6L]: F:Tailwind source stylesheet with theme tokens and component classes | R:code:tailwind.config.js | A:- | S:The untitled-modal rule hides only the empty title so the native close button stays usable
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/system-prompts/===
 constants.ts[DC2T]: F:Prompt frontmatter property names | R:- | A:COPILOT_SYSTEM_PROMPT_CREATED | S:-

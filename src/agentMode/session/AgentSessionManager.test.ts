@@ -698,7 +698,11 @@ function readPersistedDefault(
 function savedNoteFixture(autosave = false) {
   jest.useFakeTimers();
   getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: autosave });
-  const saveSession = jest.fn(async () => ({ path: "chats/saved.md" }));
+  const saveSession = jest.fn(
+    async (): Promise<{ path: string } | null> => ({
+      path: "chats/saved.md",
+    })
+  );
   const setPinnedAt = jest.fn(async () => undefined);
   return {
     mgr: buildManager({ persistence: { saveSession, setPinnedAt } }),
@@ -992,6 +996,7 @@ describe("AgentSessionManager", () => {
           },
         ];
         jest.spyOn(session, "getTaskSnapshots").mockReturnValue(captured);
+        jest.spyOn(session, "getTasks").mockReturnValue(captured.map((entry) => entry.task));
         jest.spyOn(session, "rememberTaskOutput").mockImplementation((_id, output) => {
           captured[0].task.savedOutput = output;
         });
@@ -1899,6 +1904,22 @@ describe("AgentSessionManager", () => {
         );
         await mgr.shutdown();
       });
+
+      it("retries a failed autosave when the chat closes", async () => {
+        const { mgr, saveSession } = savedNoteFixture(true);
+        const session = await mgr.createSession();
+        const messages = [{ message: "Last turn" }];
+        getSessionTestHandle(session).setMessages(messages, true);
+        saveSession.mockResolvedValueOnce(null);
+
+        await jest.advanceTimersByTimeAsync(2000);
+        expect(saveSession).toHaveBeenCalledTimes(1);
+
+        await mgr.replaceSessionInPlace(session.internalId);
+        await jest.advanceTimersByTimeAsync(0);
+        expect(saveSession).toHaveBeenCalledTimes(2);
+        await mgr.shutdown();
+      });
     });
 
     describe("forkSessionAtMessage()", () => {
@@ -2619,6 +2640,24 @@ describe("AgentSessionManager", () => {
 
         expect(closedSessions()).toEqual([]);
         expect(mgr.getSessions()).toEqual(expect.arrayContaining(chats));
+      });
+
+      it("closes the over-cap chat once a busy hidden chat stops running for https://github.com/Brevilabs/obsidian-copilot-private/issues/175", async () => {
+        const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
+        const chats = [];
+        for (let i = 0; i < 4; i++) {
+          const chat = await mgr.createSession();
+          getSessionTestHandle(chat).setTaskStatuses(["running"]);
+          chats.push(chat);
+        }
+        for (const chat of chats) mgr.detachSessionFromTab(chat.internalId);
+
+        const closed = untilClosed(mgr, chats[0]);
+        getSessionTestHandle(chats[0]).setTaskStatuses(["completed"]);
+        await closed;
+
+        expect(closedSessions()).toEqual([chats[0]]);
+        expect(mgr.getSessions()).toEqual(expect.arrayContaining(chats.slice(1)));
       });
 
       it("never closes hidden chats of a backend that shares one process across its chats for https://github.com/Brevilabs/obsidian-copilot-private/issues/175", async () => {

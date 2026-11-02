@@ -51,7 +51,7 @@ async function saveFailedProjectToUnsupported(
           const jsonMatch = existingContent.match(/```json\s*\n([\s\S]*?)\n```/);
           if (jsonMatch) {
             const backedUpProject = JSON.parse(jsonMatch[1]);
-            if (JSON.stringify(backedUpProject) === JSON.stringify(project)) return false;
+            if (JSON.stringify(backedUpProject) === JSON.stringify(project)) return true;
           }
         } catch (error) {
           logWarn(`[Projects] Could not compare with existing backup "${filePath}"`, error);
@@ -188,26 +188,27 @@ async function migrateProjectsFromSettingsToVault(app: App): Promise<StartupMigr
   logInfo(`[Projects] Migrating ${legacyProjects.length} legacy projects to vault files...`);
 
   const migratedEntries: ProjectConfig[] = [];
+  const unprotectedProjects: ProjectConfig[] = [];
   const seenIds = new Set<string>();
   const seenFolderNames = new Map<string, string>();
+
+  const recordFailure = async (project: ProjectConfig, reason: string): Promise<void> => {
+    if (!(await saveFailedProjectToUnsupported(vault, project, reason, passProjectsFolder)))
+      unprotectedProjects.push(project);
+  };
 
   for (const project of legacyProjects) {
     const id = (project.id || "").trim();
 
     if (!id) {
       logWarn("[Projects] Skip migrating project with empty id");
-      await saveFailedProjectToUnsupported(vault, project, "empty project id", passProjectsFolder);
+      await recordFailure(project, "empty project id");
       continue;
     }
 
     if (seenIds.has(id)) {
       logWarn(`[Projects] Skip migrating duplicate project id: ${id}`);
-      await saveFailedProjectToUnsupported(
-        vault,
-        project,
-        `duplicate project id: ${id}`,
-        passProjectsFolder
-      );
+      await recordFailure(project, `duplicate project id: ${id}`);
       continue;
     }
     seenIds.add(id);
@@ -221,11 +222,9 @@ async function migrateProjectsFromSettingsToVault(app: App): Promise<StartupMigr
         `[Projects] Skip migrating project id="${id}": folder name "${folderName}" ` +
           `collides with id="${firstIdForFolder}"`
       );
-      await saveFailedProjectToUnsupported(
-        vault,
+      await recordFailure(
         project,
-        `folder name collision: "${folderName}" already used by id="${firstIdForFolder}"`,
-        passProjectsFolder
+        `folder name collision: "${folderName}" already used by id="${firstIdForFolder}"`
       );
       continue;
     }
@@ -289,11 +288,9 @@ async function migrateProjectsFromSettingsToVault(app: App): Promise<StartupMigr
         }
 
         logWarn(`[Projects] Migration verify failed on existing file for id=${id} at ${filePath}`);
-        await saveFailedProjectToUnsupported(
-          vault,
+        await recordFailure(
           project,
-          `existing file content mismatch at ${filePath} (delete/rename the file and re-run migration)`,
-          passProjectsFolder
+          `existing file content mismatch at ${filePath} (delete/rename the file and re-run migration)`
         );
         continue;
       }
@@ -301,11 +298,9 @@ async function migrateProjectsFromSettingsToVault(app: App): Promise<StartupMigr
       logWarn(
         `[Projects] Migration conflict: ${filePath} exists with id="${existingId}" but expected "${id}"`
       );
-      await saveFailedProjectToUnsupported(
-        vault,
+      await recordFailure(
         project,
-        `target file exists at ${filePath} with mismatched id="${existingId}"`,
-        passProjectsFolder
+        `target file exists at ${filePath} with mismatched id="${existingId}"`
       );
       continue;
     }
@@ -317,23 +312,18 @@ async function migrateProjectsFromSettingsToVault(app: App): Promise<StartupMigr
       if (!verified) {
         const folderPath = `${passProjectsFolder}/${folderName}`;
         await rollbackCreatedFile(app, file.path, folderPath);
-        await saveFailedProjectToUnsupported(
-          vault,
-          project,
-          "content verification mismatch",
-          passProjectsFolder
-        );
+        await recordFailure(project, "content verification mismatch");
       } else {
         migratedEntries.push(project);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logError(`[Projects] Failed to migrate project id=${id}`, error);
-      await saveFailedProjectToUnsupported(vault, project, msg, passProjectsFolder);
+      await recordFailure(project, msg);
     }
   }
 
-  updateSetting("projectList", []);
+  updateSetting("projectList", unprotectedProjects);
 
   const successCount = migratedEntries.length;
   const failedCount = legacyProjects.length - successCount;

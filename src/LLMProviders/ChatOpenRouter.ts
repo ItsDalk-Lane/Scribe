@@ -106,22 +106,27 @@ export class ChatOpenRouter extends ChatOpenAI {
   ): AsyncGenerator<ChatGenerationChunk> {
     const params = this.invocationParams(options);
     const openaiMessages = this.toOpenRouterMessages(messages);
+    if (options.signal?.aborted)
+      throw options.signal.reason ?? new DOMException("Aborted", "AbortError");
 
-    const stream = (await this.openaiClient.chat.completions.create({
-      ...params,
-      messages: openaiMessages,
-      stream: true,
-      stream_options: {
-        ...(params.stream_options ?? {}),
-        include_usage: true,
-      },
-    } as Parameters<
-      typeof this.openaiClient.chat.completions.create
-    >[0])) as unknown as AsyncIterable<OpenRouterChatChunk>;
+    const stream = (await this.openaiClient.chat.completions.create(
+      {
+        ...params,
+        messages: openaiMessages,
+        stream: true,
+        stream_options: {
+          ...(params.stream_options ?? {}),
+          include_usage: true,
+        },
+      } as unknown as Parameters<typeof this.openaiClient.chat.completions.create>[0],
+      { signal: options.signal }
+    )) as unknown as AsyncIterable<OpenRouterChatChunk>;
 
     let usageSummary: OpenRouterUsage | undefined;
 
     for await (const rawChunk of stream) {
+      if (options.signal?.aborted)
+        throw options.signal.reason ?? new DOMException("Aborted", "AbortError");
       if (rawChunk.usage) {
         usageSummary = rawChunk.usage;
       }
@@ -166,9 +171,8 @@ export class ChatOpenRouter extends ChatOpenAI {
       yield this.buildUsageGenerationChunk(usageSummary);
     }
 
-    if (options.signal?.aborted) {
-      throw new Error("AbortError");
-    }
+    if (options.signal?.aborted)
+      throw options.signal.reason ?? new DOMException("Aborted", "AbortError");
   }
 
   private toOpenRouterMessages(messages: BaseMessage[]): OpenRouterMessageParam[] {

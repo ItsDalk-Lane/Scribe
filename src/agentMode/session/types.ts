@@ -364,6 +364,7 @@ export interface PermissionPrompt {
   requester?: PermissionRequester;
   toolCall: ToolCallSnapshot;
   options: PermissionOption[];
+  signal?: AbortSignal;
 }
 
 export interface PermissionDecision {
@@ -480,6 +481,12 @@ export interface BackendProcess {
     sessionId: SessionId;
     startIfNeeded?: boolean;
   }): Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot | null>;
+  // A status-only read for the MCP settle continuation: without reloadPlugins the full snapshot
+  // reports no plugins, so the continuation patches only this list into the initial snapshot.
+  // https://github.com/ItsDalk-Lane/Scribe/issues/3
+  getMcpServerStatus?(params: {
+    sessionId: SessionId;
+  }): Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot["mcpServers"] | null>;
   start?(): Promise<void>;
   isRunning(): boolean;
   onExit(listener: () => void): () => void;

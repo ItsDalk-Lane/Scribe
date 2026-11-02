@@ -799,6 +799,31 @@ describe("ClaudeSdkBackendProcess", () => {
       });
     });
 
+    describe("getMcpServerStatus()", () => {
+      it("answers null until the session's query has started, then reports the mapped statuses (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+        queryMock.mockImplementation(silent());
+        const proc = makeProc();
+        const { sessionId } = await proc.newSession({ cwd: "/vault" });
+
+        expect(await proc.getMcpServerStatus({ sessionId })).toBeNull();
+        expect(await proc.getMcpServerStatus({ sessionId: "unknown" })).toBeNull();
+
+        await proc.getExtensionRuntime({ sessionId, startIfNeeded: true });
+        const fake = fakes[0];
+        fake.mcpServerStatus.mockResolvedValue([
+          { name: "zread", status: "connected", tools: [{ name: "read", description: "" }] },
+          { name: "slow", status: "pending" },
+        ]);
+
+        expect(await proc.getMcpServerStatus({ sessionId })).toEqual([
+          { name: "zread", status: "connected", toolCount: 1 },
+          { name: "slow", status: "pending" },
+        ]);
+        expect(fake.inputs).toEqual([]);
+        await proc.shutdown();
+      });
+    });
+
     describe("newSession()", () => {
       it("returns BackendState with current model + effort options from the cached catalog", async () => {
         const proc = makeProc();

@@ -1,9 +1,13 @@
-import { AgentExtensionsPanel } from "@/agentMode/ui/AgentExtensionsPanel";
+import {
+  AgentExtensionsPanel,
+  resetExpandedExtensionSectionsForTests,
+} from "@/agentMode/ui/AgentExtensionsPanel";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 describe("AgentExtensionsPanel", () => {
   describe("AgentExtensionsPanel()", () => {
+    beforeEach(() => resetExpandedExtensionSectionsForTests());
     it("groups plugin entries by their recorded owner and allows management only for user entries (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
       const open = jest.fn(),
         toggle = jest.fn(),
@@ -20,6 +24,7 @@ describe("AgentExtensionsPanel", () => {
         <AgentExtensionsPanel
           agentName="Claude Code"
           loading={false}
+          forceExpanded
           onRefresh={jest.fn()}
           onOpen={open}
           onToggle={toggle}
@@ -69,6 +74,7 @@ describe("AgentExtensionsPanel", () => {
         <AgentExtensionsPanel
           agentName="Claude Code"
           loading={false}
+          forceExpanded
           onRefresh={jest.fn()}
           onOpen={jest.fn()}
           onToggle={jest.fn()}
@@ -106,6 +112,7 @@ describe("AgentExtensionsPanel", () => {
           <AgentExtensionsPanel
             agentName="Claude Code"
             loading={false}
+            forceExpanded
             onRefresh={jest.fn()}
             onOpen={jest.fn()}
             onToggle={jest.fn()}
@@ -141,6 +148,7 @@ describe("AgentExtensionsPanel", () => {
         <AgentExtensionsPanel
           agentName="Claude Code"
           loading={false}
+          forceExpanded
           onRefresh={jest.fn()}
           groups={[
             {
@@ -178,9 +186,13 @@ describe("AgentExtensionsPanel", () => {
       expect(screen.queryByText("Discovered; loading not checked")).toBeNull();
       expect(screen.queryByText("Connection failed")).toBeNull();
       expect(screen.queryByText("Connected · 3 tools")).toBeNull();
-      expect(screen.getByRole("switch", { name: "Enable a" }).getAttribute("aria-disabled")).toBe(
-        "true"
-      );
+      const unconfirmed = screen.getByRole("article", { name: "a" });
+      expect(within(unconfirmed).queryByRole("switch")).toBeNull();
+      expect(
+        within(unconfirmed).getByRole("img", {
+          name: "Availability could not be confirmed. Check again.",
+        })
+      ).toBeTruthy();
       const failed = screen.getByRole("article", { name: "b" });
       expect(within(failed).queryByRole("switch")).toBeNull();
       expect(
@@ -190,7 +202,11 @@ describe("AgentExtensionsPanel", () => {
       ).toBeTruthy();
       const loaded = screen.getByRole("article", { name: "c" });
       expect(within(loaded).queryByRole("switch")).toBeNull();
-      expect(within(loaded).queryByRole("img")).toBeNull();
+      expect(
+        within(loaded).getByRole("img", {
+          name: "Managed by its plugin; it cannot be switched independently.",
+        })
+      ).toBeTruthy();
     });
     it("shows loading, failure and an empty subagent list as distinct states", () => {
       const refresh = jest.fn();
@@ -219,6 +235,79 @@ describe("AgentExtensionsPanel", () => {
         />
       );
       expect(screen.getByText("No entries found in the checked sources.")).toBeTruthy();
+    });
+
+    const skillGroup = [
+      {
+        kind: "skill",
+        status: "partial",
+        warnings: [],
+        items: [
+          {
+            id: "personal",
+            name: "personal",
+            source: "user",
+            enabled: true,
+            availability: "loaded",
+            capabilities: { edit: true, delete: true, toggle: true },
+          },
+        ],
+      },
+    ] as const;
+
+    it("collapses every section by default and expands it from its whole header row (https://github.com/ItsDalk-Lane/Scribe/issues/4)", () => {
+      render(
+        <AgentExtensionsPanel
+          agentName="Claude Code"
+          loading={false}
+          onRefresh={jest.fn()}
+          groups={skillGroup}
+        />
+      );
+      expect(screen.queryByRole("article")).toBeNull();
+      const header = screen.getByRole("button", { name: /Installed/ });
+      expect(header.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(header);
+      expect(screen.getByRole("article", { name: "personal" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Installed/ }).getAttribute("aria-expanded")).toBe(
+        "true"
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Installed/ }));
+      expect(screen.queryByRole("article")).toBeNull();
+    });
+    it("keeps an expanded section open when the panel remounts within the same session (https://github.com/ItsDalk-Lane/Scribe/issues/4)", () => {
+      const first = render(
+        <AgentExtensionsPanel
+          agentName="Claude Code"
+          loading={false}
+          onRefresh={jest.fn()}
+          groups={skillGroup}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Installed/ }));
+      first.unmount();
+
+      render(
+        <AgentExtensionsPanel
+          agentName="Claude Code"
+          loading={false}
+          onRefresh={jest.fn()}
+          groups={skillGroup}
+        />
+      );
+      expect(screen.getByRole("article", { name: "personal" })).toBeTruthy();
+    });
+    it("forces every section open while a search query filters the list (https://github.com/ItsDalk-Lane/Scribe/issues/4)", () => {
+      render(
+        <AgentExtensionsPanel
+          agentName="Claude Code"
+          loading={false}
+          forceExpanded
+          onRefresh={jest.fn()}
+          groups={skillGroup}
+        />
+      );
+      expect(screen.getByRole("article", { name: "personal" })).toBeTruthy();
     });
   });
 });

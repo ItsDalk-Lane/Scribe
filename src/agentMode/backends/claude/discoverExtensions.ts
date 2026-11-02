@@ -13,6 +13,7 @@ export async function discoverClaudeExtensions(
   installedPlugins?: readonly unknown[]
 ): Promise<readonly AgentExtensionGroup[]> {
   const reader = new ExtensionInventoryReader(input);
+  const projectPluginOverrides = new Set<string>();
   const configDir = input.env.CLAUDE_CONFIG_DIR
     ? reader.path.resolve(input.cwd ?? input.home, input.env.CLAUDE_CONFIG_DIR)
     : reader.path.join(input.home, ".claude");
@@ -29,6 +30,9 @@ export async function discoverClaudeExtensions(
       : ["settings.json"]) {
       const path = reader.path.join(folder, name);
       const config = await reader.config(path);
+      if (source === "project")
+        for (const key of Object.keys(object(config.enabledPlugins)))
+          projectPluginOverrides.add(key);
       reader.named("plugin", config.enabledPlugins, source, undefined, "", "", path, [
         "enabledPlugins",
       ]);
@@ -90,7 +94,25 @@ export async function discoverClaudeExtensions(
     if (data && typeof data.installPath === "string") {
       const scope = input.cwd ? "project" : "user";
       const applicable = installations.length > 0;
-      const available = applicable && (await reader.directoryExists(data.installPath));
+      // Strict scope isolation: the project list carries only plugins installed into this
+      // project; user-scope installations stay in the user list. An override the project's
+      // settings write explicitly remains as a toggle-only entry without install ownership.
+      // https://github.com/ItsDalk-Lane/Scribe/issues/6
+      const installedInScope =
+        scope === "user"
+          ? applicable
+          : installations.some((data) => data.scope === "project" || data.scope === "local");
+      if (!installedInScope) {
+        if (scope === "project" && projectPluginOverrides.has(id))
+          reader.add("plugin", {
+            id,
+            name: id,
+            source: scope,
+            capabilities: { edit: false, delete: false, toggle: true },
+          });
+        continue;
+      }
+      const available = await reader.directoryExists(data.installPath);
       const allInstallations: AgentPluginInstallation[] = await Promise.all(
         records.map(async (record) => ({
           scope: record.scope === "local" || record.scope === "project" ? record.scope : "user",
@@ -106,21 +128,15 @@ export async function discoverClaudeExtensions(
         source: scope,
         installationScope: data.scope === "local" || data.scope === "project" ? data.scope : "user",
         ...(typeof data.version === "string" ? { version: data.version } : {}),
-        ...(installedPlugins
-          ? { enabled: applicable && data.enabled === true }
-          : applicable
-            ? {}
-            : { enabled: false }),
+        ...(installedPlugins ? { enabled: data.enabled === true } : {}),
         installations: allInstallations,
         canEnable: available,
-        canDisable: applicable,
-        ...(!applicable
-          ? { unavailableReason: "Installed only for other projects; unavailable in this scope." }
-          : !available
-            ? { unavailableReason: "Installed plugin files are missing." }
-            : !installedPlugins
-              ? { unavailableReason: "Could not read Claude plugin status." }
-              : {}),
+        canDisable: true,
+        ...(!available
+          ? { unavailableReason: "Installed plugin files are missing." }
+          : !installedPlugins
+            ? { unavailableReason: "Could not read Claude plugin status." }
+            : {}),
         target: {
           path: reader.path.join(
             scope === "project" && input.cwd ? reader.path.join(input.cwd, ".claude") : configDir,
@@ -135,10 +151,7 @@ export async function discoverClaudeExtensions(
         },
       });
       const ownsInstallation =
-        applicable &&
-        (data.scope === "user" || data.scope === undefined
-          ? scope === "user"
-          : scope === "project");
+        data.scope === "user" || data.scope === undefined ? scope === "user" : scope === "project";
       reader.add("plugin", {
         ...plugin,
         capabilities: {

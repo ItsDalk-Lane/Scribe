@@ -6256,6 +6256,30 @@ describe("AgentSession", () => {
         expect(session.getTaskSnapshots()).toBe(first);
         expect(Object.isFrozen(first)).toBe(true);
       });
+      it("keeps only the most recent completed task records", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+
+        for (let i = 0; i < 25; i++) {
+          mock.emitUpdate({
+            sessionUpdate: "task_started",
+            toolCallId: `tool-${i}`,
+            taskId: `t${i}`,
+            kind: "subagent",
+            description: `Task ${i}`,
+          });
+          mock.emitUpdate({
+            sessionUpdate: "task_ended",
+            taskId: `t${i}`,
+            status: "completed",
+          });
+        }
+
+        expect(session.getTasks()).toHaveLength(20);
+        expect(session.getTaskSnapshots()).toHaveLength(20);
+        expect(session.getTasks()[0].taskId).toBe("t5");
+      });
+
       it("captures each task and its own messages independently from the main reply", () => {
         const mock = makeMockBackend();
         const session = makeSession(mock);

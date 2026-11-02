@@ -1,6 +1,8 @@
 import { discoverClaudeExtensions } from "@/agentMode/backends/claude/discoverExtensions";
 import { input, skill } from "@/agentMode/backends/shared/extensionInventoryFixtures";
 
+jest.mock("path", () => jest.requireActual<typeof import("path")>("path").posix);
+
 describe("discoverExtensions", () => {
   describe("discoverClaudeExtensions()", () => {
     it("lists user and project skills, configured servers, enabled plugins and hook events without returning credentials", async () => {
@@ -41,7 +43,9 @@ describe("discoverExtensions", () => {
           "/home/.claude/skills/check/SKILL.md": skill("check"),
           "/home/.claude/plugins/installed_plugins.json": JSON.stringify({
             plugins: {
-              "research-alias@team": [{ scope: "user", installPath: "/plugins/research" }],
+              "research-alias@team": [
+                { scope: "project", projectPath: "/vault", installPath: "/plugins/research" },
+              ],
             },
           }),
           "/plugins/research/.claude-plugin/plugin.json": JSON.stringify({
@@ -70,7 +74,7 @@ describe("discoverExtensions", () => {
       });
       expect(JSON.stringify(result)).not.toContain("credential-canary");
     });
-    it("preserves disabled plugin state and marks other projects' installations as unavailable", async () => {
+    it("preserves disabled plugin state and hides installations from other scopes (https://github.com/ItsDalk-Lane/Scribe/issues/6)", async () => {
       const result = await discoverClaudeExtensions(
         input({
           "/home/.claude/settings.json": JSON.stringify({
@@ -90,16 +94,9 @@ describe("discoverExtensions", () => {
         })
       );
       const plugins = result.find((group) => group.kind === "plugin")!.items;
-      expect(plugins).toHaveLength(2);
+      expect(plugins).toHaveLength(1);
       expect(plugins[0]).toMatchObject({ name: "review@local", enabled: false });
-      expect(plugins[1]).toMatchObject({
-        name: "other@local",
-        enabled: false,
-        canEnable: false,
-        canDisable: false,
-        installations: [{ projectPath: "/other" }],
-      });
-      expect(result.find((group) => group.kind === "skill")!.items[0].enabled).toBe(false);
+      expect(result.find((group) => group.kind === "skill")!.items).toEqual([]);
     });
   });
 });

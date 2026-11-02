@@ -24,9 +24,16 @@ function withoutDisabledChildren(
   return items.length === group.items.length ? group : { ...group, items };
 }
 
+export interface MergeExtensionRuntimeOptions {
+  // A scope-isolated list must not gain rows for entries the check saw only because other
+  // scopes are active in the same session. https://github.com/ItsDalk-Lane/Scribe/issues/6
+  appendRuntimeEntries?: boolean;
+}
+
 export function mergeExtensionRuntime(
   groups: readonly AgentExtensionGroup[],
-  runtime: AgentExtensionRuntimeSnapshot | null
+  runtime: AgentExtensionRuntimeSnapshot | null,
+  options: MergeExtensionRuntimeOptions = {}
 ): readonly AgentExtensionGroup[] {
   if (!runtime) {
     const disabledParents = disabledPluginIds(groups);
@@ -185,7 +192,12 @@ export function mergeExtensionRuntime(
               "Claude reported plugin errors; details for each plugin were not provided.",
             ]
           : group.warnings,
-      items: [...items, ...reported.filter((item) => !matched.has(item))],
+      items: [
+        ...items,
+        ...(options.appendRuntimeEntries === false
+          ? []
+          : reported.filter((item) => !matched.has(item))),
+      ],
     };
   });
   const disabledParents = disabledPluginIds(merged);

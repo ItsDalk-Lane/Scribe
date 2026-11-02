@@ -34,6 +34,32 @@ export interface PermissionBridgeOptions {
   getPrompter: () => Prompter | null;
   getAskUserQuestionPrompter?: () => AskUserQuestionPrompter | null;
   isPlanModePlanFilePath?: (absolutePath: string) => boolean;
+  isPlanMode?: () => boolean;
+}
+
+const CANCELLED: PermissionDecision = Object.freeze({
+  outcome: Object.freeze({ outcome: "cancelled" as const }),
+});
+
+function waitForDecision(
+  decision: Promise<PermissionDecision>,
+  signal: AbortSignal
+): Promise<PermissionDecision> {
+  if (signal.aborted) return Promise.resolve(CANCELLED);
+  return new Promise<PermissionDecision>((resolve) => {
+    const onAbort = (): void => resolve(CANCELLED);
+    signal.addEventListener("abort", onAbort, { once: true });
+    decision.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      () => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(CANCELLED);
+      }
+    );
+  });
 }
 
 export class PermissionBridge {
@@ -56,7 +82,11 @@ export class PermissionBridge {
 
     if (toolName === "Write") {
       const filePath = typeof input.file_path === "string" ? input.file_path : null;
-      if (filePath && this.opts.isPlanModePlanFilePath?.(filePath)) {
+      if (
+        filePath &&
+        this.opts.isPlanMode?.() === true &&
+        this.opts.isPlanModePlanFilePath?.(filePath)
+      ) {
         const result: PermissionResult = { behavior: "allow", updatedInput: input };
         logSdkOutbound("canUseTool:response:auto-allow-plan", result, sessionId);
         return result;
@@ -68,7 +98,7 @@ export class PermissionBridge {
       return this.deny("canUseTool:response", "No permission prompter available", sessionId);
     }
     const prompt = synthesizePermissionPrompt(toolName, input, sessionId, ctx);
-    const decision = await prompter(prompt);
+    const decision = await waitForDecision(prompter(prompt), ctx.signal);
     const result = mapDecisionToSdk(decision, ctx.suggestions, input);
     logSdkOutbound("canUseTool:response", result, sessionId);
     return result;
@@ -93,6 +123,7 @@ export class PermissionBridge {
         sessionId,
         requestId: ctx.toolUseID,
         questions: input.questions,
+        signal: ctx.signal,
       });
       if (Object.keys(answers).length === 0) {
         return this.deny("askUserQuestion:response", "User cancelled the question", sessionId);
@@ -214,6 +245,7 @@ function synthesizePermissionPrompt(
       ...vendorMetaFields(name, undefined, mcpServer),
     },
     options: permissionOptions(ctx.suggestions),
+    signal: ctx.signal,
   };
 }
 

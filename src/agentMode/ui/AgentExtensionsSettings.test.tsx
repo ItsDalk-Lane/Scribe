@@ -3,9 +3,26 @@ import type {
   AgentExtensionGroup,
   AgentExtensionItem,
 } from "@/agentMode/session/extensionInventory";
-import { AgentExtensionsSettings } from "@/agentMode/ui/AgentExtensionsSettings";
+import { resetExtensionCheckCacheForTests } from "@/agentMode/session/extensionCheckCache";
+import { resetExpandedExtensionSectionsForTests } from "@/agentMode/ui/AgentExtensionsPanel";
+import { AgentExtensionsSettings, EXTENSION_KINDS } from "@/agentMode/ui/AgentExtensionsSettings";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
+
+// Sections start collapsed, so tests that exercise entries click every collapsible header first.
+// The headers appear once the inventory loads, so the click pass retries until then.
+// https://github.com/ItsDalk-Lane/Scribe/issues/4
+const expandAllSections = async () => {
+  await waitFor(() => {
+    const triggers = screen
+      .getAllByRole("button")
+      .filter((trigger) => trigger.getAttribute("aria-expanded") !== null);
+    expect(triggers.length).toBeGreaterThan(0);
+    for (const trigger of triggers) {
+      if (trigger.getAttribute("aria-expanded") === "false") fireEvent.click(trigger);
+    }
+  });
+};
 
 const mockItem: AgentExtensionItem = {
   id: "test",
@@ -45,8 +62,15 @@ const mockDescriptor = {
   readExtensions: mockRead,
   checkExtensions: mockCheck,
 };
+const mockLocalStorage = new Map<string, unknown>();
+const mockApp = {
+  loadLocalStorage: (key: string) => mockLocalStorage.get(key) ?? null,
+  saveLocalStorage: (key: string, data: unknown) => {
+    mockLocalStorage.set(key, data);
+  },
+};
 const mockPlugin = {
-  app: {},
+  app: mockApp,
   skills: { refresh: jest.fn().mockResolvedValue(undefined) },
   agentSessionManager: {
     getSessions: () => [],
@@ -100,6 +124,9 @@ describe("AgentExtensionsSettings", () => {
   describe("AgentExtensionsSettings()", () => {
     beforeEach(() => {
       jest.clearAllMocks();
+      resetExtensionCheckCacheForTests();
+      resetExpandedExtensionSectionsForTests();
+      mockLocalStorage.clear();
       mockPending = false;
       mockManagerListeners.clear();
       mockManagedSkills.length = 0;
@@ -123,6 +150,7 @@ describe("AgentExtensionsSettings", () => {
     });
     it("automatically checks availability on entry and repeats the no-message check on refresh", async () => {
       render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
       await screen.findByRole("article", { name: "notes" });
       expect(mockList).toHaveBeenCalledWith("mcp", { kind: "user" });
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
@@ -143,6 +171,7 @@ describe("AgentExtensionsSettings", () => {
     );
     it("keeps switches pending across page changes until existing chats have updated", async () => {
       const { rerender } = render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
       await screen.findByRole("article", { name: "notes" });
       act(() => {
         mockPending = true;
@@ -152,29 +181,28 @@ describe("AgentExtensionsSettings", () => {
         screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-disabled")
       ).toBe("true");
       rerender(<AgentExtensionsSettings kind="command" />);
+      await expandAllSections();
       await screen.findByRole("article", { name: "notes" });
-      expect(
-        screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-disabled")
-      ).toBe("true");
       act(() => {
         mockPending = false;
         mockManagerListeners.forEach((listener) => listener());
       });
       rerender(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
       await waitFor(() =>
         expect(
           screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-disabled")
         ).toBe("false")
       );
     });
-    it("keeps a failed check unknown and confirms availability only after a successful retry", async () => {
+    it("shows the unconfirmed dot after a failed check and confirms the switch only after a successful retry (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
       mockCheck.mockRejectedValueOnce(new Error("check unavailable"));
       render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
       await screen.findByRole("article", { name: "notes" });
-      const control = screen.getByRole("switch", { name: "Enable notes" });
-      expect(control.getAttribute("aria-disabled")).toBe("true");
+      expect(screen.queryByRole("switch", { name: "Enable notes" })).toBeNull();
       expect(
-        screen.getByLabelText("Availability could not be confirmed. Check again.")
+        screen.getByRole("img", { name: "Availability could not be confirmed. Check again." })
       ).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
       await waitFor(() =>
@@ -183,14 +211,96 @@ describe("AgentExtensionsSettings", () => {
         ).toBe("true")
       );
     });
-    it("writes a toggle using fresh details and marks configuration for the next natural agent start", async () => {
+    it("writes a toggle using fresh details and marks configuration for the next natural agent start without repeating an unchanged check (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
       render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
       fireEvent.click(await screen.findByRole("switch", { name: "Enable notes" }));
       await waitFor(() =>
         expect(mockToggle).toHaveBeenCalledWith(expect.objectContaining({ revision: "v1" }), false)
       );
       await waitFor(() => expect(mockChanged).toHaveBeenCalledWith("claude"));
+      await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * EXTENSION_KINDS.length));
+      expect(mockCheck).toHaveBeenCalledTimes(1);
+    });
+    it("answers from the cached check while the configuration is unchanged and rechecks on an explicit refresh (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      const first = render(<AgentExtensionsSettings kind="mcp" />);
+      await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
+      await expandAllSections();
+      expect(
+        screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
+      ).toBe("true");
+      first.unmount();
+
+      render(<AgentExtensionsSettings kind="mcp" />);
+      expect(screen.queryByText("Loading extensions…")).toBeNull();
+      await screen.findByRole("article", { name: "notes" });
+      expect(
+        screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
+      ).toBe("true");
+      expect(mockCheck).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
+    });
+    it("shows the saved answer immediately after a plugin reload instead of a loading state and starts no check (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      const first = render(<AgentExtensionsSettings kind="mcp" />);
+      await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
+      await expandAllSections();
+      first.unmount();
+      resetExtensionCheckCacheForTests();
+
+      render(<AgentExtensionsSettings kind="mcp" />);
+      expect(screen.queryByText("Loading extensions…")).toBeNull();
+      await expandAllSections();
+      expect(
+        screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
+      ).toBe("true");
+      await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * EXTENSION_KINDS.length));
+      expect(mockCheck).toHaveBeenCalledTimes(1);
+    });
+    it("checks again when the saved answer no longer matches the configuration (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      const first = render(<AgentExtensionsSettings kind="mcp" />);
+      await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
+      first.unmount();
+      mockList.mockResolvedValue([{ ...mockItem, id: "added", name: "added" }]);
+
+      render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
+      await screen.findByRole("article", { name: "added" });
+      await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
+    });
+    it("shows the connecting dot and replaces it with the switch once the settle continuation reports (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      let deliver!: (runtime: unknown) => void;
+      mockCheck.mockImplementation(async ({ onUpdate }) => {
+        deliver = (runtime: unknown) => onUpdate(runtime);
+        return {
+          skills: [],
+          commands: [],
+          plugins: [],
+          failedPlugins: [],
+          mcpServers: [{ name: "notes", status: "pending" }],
+        };
+      });
+      render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
+      await screen.findByRole("article", { name: "notes" });
+      expect(screen.queryByRole("switch", { name: "Enable notes" })).toBeNull();
+      expect(screen.getByRole("img", { name: "Connecting…" })).toBeTruthy();
+
+      await act(async () => {
+        deliver({
+          skills: [],
+          commands: [],
+          plugins: [],
+          failedPlugins: [],
+          mcpServers: [{ name: "notes", status: "connected", toolCount: 2 }],
+        });
+      });
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
+        ).toBe("true")
+      );
     });
     it("preserves a plugin's local installation scope when the update action is opened from the current vault", async () => {
       const plugin: AgentExtensionItem = {
@@ -206,6 +316,7 @@ describe("AgentExtensionsSettings", () => {
       mockDetails.mockResolvedValue({ item: plugin, revision: "v1", config: {} });
       render(<AgentExtensionsSettings kind="plugin" />);
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
+      await expandAllSections();
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
       const details = mockModalContent.mock.calls[0][0] as React.ReactElement<{
@@ -240,6 +351,7 @@ describe("AgentExtensionsSettings", () => {
       mockDetails.mockResolvedValue({ item: plugin, revision: "v1", config: {} });
       render(<AgentExtensionsSettings kind="plugin" />);
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
+      await expandAllSections();
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
       const details = mockModalContent.mock.calls[0][0] as React.ReactElement<{
@@ -264,6 +376,7 @@ describe("AgentExtensionsSettings", () => {
       mockDetails.mockResolvedValue({ item: plugin, revision: "v1", config: {} });
       render(<AgentExtensionsSettings kind="plugin" />);
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
+      await expandAllSections();
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
       const details = mockModalContent.mock.calls[0][0] as React.ReactElement<{
@@ -293,6 +406,7 @@ describe("AgentExtensionsSettings", () => {
       };
       mockList.mockResolvedValue([userItem]);
       render(<AgentExtensionsSettings kind="mcp" />);
+      await expandAllSections();
       await screen.findByRole("article", { name: "personal" });
       fireEvent.click(screen.getByRole("switch", { name: "Enable personal" }));
       await waitFor(() =>
@@ -348,6 +462,7 @@ describe("AgentExtensionsSettings", () => {
       render(<AgentExtensionsSettings kind="skill" />);
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
+      await expandAllSections();
       expect(screen.getByRole("article", { name: "linked-skill" })).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
       await waitFor(() =>
@@ -378,6 +493,7 @@ describe("AgentExtensionsSettings", () => {
       render(<AgentExtensionsSettings kind="skill" />);
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
+      await expandAllSections();
       expect(screen.getAllByRole("article", { name: "review" })).toHaveLength(1);
       fireEvent.click(screen.getByRole("article", { name: "review" }));
       await waitFor(() =>
@@ -408,12 +524,25 @@ describe("AgentExtensionsSettings", () => {
       );
       render(<AgentExtensionsSettings kind="mcp" />);
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
+      await expandAllSections();
       await screen.findByRole("article", { name: "personal" });
       resolveOld([mockItem]);
       await waitFor(() =>
         expect(mockList).toHaveBeenCalledWith("mcp", { kind: "project", cwd: "/vault" })
       );
       expect(screen.queryByRole("article", { name: "notes" })).toBeNull();
+    });
+    it("reveals matching entries without manual expansion once a search query filters the list (https://github.com/ItsDalk-Lane/Scribe/issues/4)", async () => {
+      render(<AgentExtensionsSettings kind="mcp" />);
+      await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("switch", { name: "Enable notes" })).toBeNull();
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "notes" } });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
+        ).toBe("true")
+      );
+      expect(mockCheck).toHaveBeenCalledTimes(1);
     });
   });
 });

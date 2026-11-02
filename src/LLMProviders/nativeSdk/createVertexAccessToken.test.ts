@@ -32,7 +32,8 @@ describe("createVertexAccessToken", () => {
       expect(await getToken(controller.signal)).toBe("verified-token");
       const [url, init] = (transport.mock.calls as unknown as Array<[string, RequestInit]>)[0];
       expect(url).toBe("https://oauth2.googleapis.com/token");
-      expect(init.signal).toBe(controller.signal);
+      expect(init.signal).not.toBe(controller.signal);
+      expect(init.signal).toBeInstanceOf(AbortSignal);
       expect(init.method).toBe("POST");
       const form = new URLSearchParams(init.body as string);
       expect(form.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:jwt-bearer");
@@ -77,6 +78,30 @@ describe("createVertexAccessToken", () => {
       } finally {
         clock.mockRestore();
       }
+    });
+    it("shares one authorization attempt even when a waiting caller aborts", async () => {
+      let release: ((value: Response) => void) | undefined;
+      let started: (() => void) | undefined;
+      const transportStarted = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const transport = jest.fn(() => {
+        started?.();
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      });
+      const controller = new AbortController();
+      const getToken = createVertexAccessToken("fixture@example.invalid", privateKey, transport);
+
+      const first = getToken(controller.signal);
+      const second = getToken();
+      await transportStarted;
+      controller.abort();
+      release?.(response({ access_token: "shared-token", expires_in: 3600 }));
+
+      await expect(Promise.all([first, second])).resolves.toEqual(["shared-token", "shared-token"]);
+      expect(transport).toHaveBeenCalledTimes(1);
     });
     it("clears failed authorization work so the following request can succeed", async () => {
       const transport = jest

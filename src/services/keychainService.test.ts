@@ -42,6 +42,7 @@ import {
   isSecretKey,
   providerKeychainName,
 } from "./keychainService";
+import { stripKeychainFields } from "./settingsSecretTransforms";
 
 function makeSettings(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
   return {
@@ -138,6 +139,39 @@ describe("keychainService", () => {
 
     it.each(["temperature", "defaultModelKey"])("returns false for the plain setting %s", (key) => {
       expect(isSecretKey(key)).toBe(false);
+    });
+  });
+
+  describe("stripKeychainFields()", () => {
+    it("blanks sensitive Claude environment variables in the flat config and every device profile", () => {
+      const settings = makeSettings({
+        agentMode: {
+          backends: {
+            claude: {
+              envOverrides: { ANTHROPIC_API_KEY: "sk-env", HTTPS_PROXY: "https://proxy" },
+            },
+          },
+          deviceProfiles: {
+            dev: {
+              claude: {
+                envOverrides: { ANTHROPIC_API_KEY: "sk-env", CLAUDE_CONFIG_DIR: "/config" },
+              },
+            },
+          },
+        } as unknown as CopilotSettings["agentMode"],
+      });
+
+      const stripped = stripKeychainFields(settings);
+
+      expect(stripped.agentMode?.backends?.claude?.envOverrides).toEqual({
+        ANTHROPIC_API_KEY: "",
+        HTTPS_PROXY: "https://proxy",
+      });
+      expect(stripped.agentMode?.deviceProfiles?.dev?.claude?.envOverrides).toEqual({
+        ANTHROPIC_API_KEY: "",
+        CLAUDE_CONFIG_DIR: "/config",
+      });
+      expect(settings.agentMode?.backends?.claude?.envOverrides?.ANTHROPIC_API_KEY).toBe("sk-env");
     });
   });
 
@@ -462,6 +496,47 @@ describe("keychainService", () => {
           "legacy-value"
         );
       });
+
+      it("restores this device's sensitive Claude environment variables", async () => {
+        const app = makeApp();
+        const service = KeychainService.getInstance(app);
+        const persisted = service.persistSecrets(
+          makeSettings({
+            agentMode: {
+              backends: {
+                claude: { envOverrides: { ANTHROPIC_API_KEY: "sk-env" } },
+              },
+            } as unknown as CopilotSettings["agentMode"],
+          })
+        );
+        const secretId = persisted.secretEntries.find(([, value]) => value === "sk-env")![0];
+        const secretStorage = makeSecretStorage();
+        secretStorage.getSecret.mockImplementation((id: string) =>
+          id === secretId ? "sk-hydrated" : null
+        );
+        KeychainService.resetInstance();
+        const hydrating = KeychainService.getInstance(makeApp({ secretStorage }));
+
+        const result = await hydrating.hydrateFromKeychain(
+          makeSettings({
+            agentMode: {
+              backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "" } } },
+              deviceProfiles: {
+                unknown: {
+                  claude: {
+                    envOverrides: { ANTHROPIC_API_KEY: "", HTTPS_PROXY: "https://proxy" },
+                  },
+                },
+              },
+            } as unknown as CopilotSettings["agentMode"],
+          })
+        );
+
+        expect(result.settings.agentMode?.deviceProfiles?.unknown?.claude?.envOverrides).toEqual({
+          ANTHROPIC_API_KEY: "sk-hydrated",
+          HTTPS_PROXY: "https://proxy",
+        });
+      });
     });
 
     describe("persistSecrets()", () => {
@@ -497,6 +572,40 @@ describe("keychainService", () => {
         expect(current.activeModels[0].apiKey).toBe("chat-secret");
         expect(prev.openAIApiKey).toBe("sk-prev");
         expect(prev.activeModels[0].apiKey).toBe("chat-prev");
+      });
+
+      it("stores sensitive Claude environment variables and tombstones removed ones", () => {
+        const service = KeychainService.getInstance(makeApp());
+        const current = makeSettings({
+          agentMode: {
+            backends: {
+              claude: {
+                envOverrides: { ANTHROPIC_API_KEY: "sk-env", HTTPS_PROXY: "https://proxy" },
+              },
+            },
+          } as unknown as CopilotSettings["agentMode"],
+        });
+        const prev = makeSettings({
+          agentMode: {
+            backends: {
+              claude: {
+                envOverrides: {
+                  ANTHROPIC_API_KEY: "sk-old",
+                  ANTHROPIC_AUTH_TOKEN: "token-old",
+                },
+              },
+            },
+          } as unknown as CopilotSettings["agentMode"],
+        });
+
+        const result = service.persistSecrets(current, prev);
+        const authId = service
+          .persistSecrets(prev)
+          .secretEntries.find(([, value]) => value === "token-old")![0];
+
+        expect(result.secretEntries.some(([, value]) => value === "sk-env")).toBe(true);
+        expect(result.secretEntries.some(([, value]) => value === "https://proxy")).toBe(false);
+        expect(result.keychainIdsToDelete).toContain(authId);
       });
     });
 

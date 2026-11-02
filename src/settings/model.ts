@@ -162,12 +162,21 @@ export function setSettings(
   });
 }
 
+function decodeExclusionPattern(pattern: string): string {
+  const trimmed = pattern.trim();
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
 export function sanitizeQaExclusions(rawValue: unknown): string {
   const rawValueString = typeof rawValue === "string" ? rawValue : DEFAULT_QA_EXCLUSIONS_SETTING;
 
   const decodedPatterns: string[] = rawValueString
     .split(",")
-    .map((pattern: string) => decodeURIComponent(pattern.trim()))
+    .map(decodeExclusionPattern)
     .filter((pattern: string) => pattern.length > 0);
 
   const canonicalToOriginalPattern = new Map<string, string>();

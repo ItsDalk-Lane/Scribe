@@ -14,6 +14,8 @@ import { probeClaudeVersion } from "./claudeVersion";
 import {
   ClaudeBackendDescriptor,
   getClaudeInstallState,
+  MCP_SETTLE_POLL_MS,
+  MCP_SETTLE_TIMEOUT_MS,
   refreshClaudeInstallState,
   resolveClaudeAutoModePermission,
   subscribeClaudeInstallState,
@@ -383,6 +385,209 @@ describe("descriptor", () => {
       ).rejects.toMatchObject({ name: "AbortError" });
 
       expect(create).not.toHaveBeenCalled();
+    });
+
+    it("returns the still-connecting snapshot and shuts the session down when no update listener is attached (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      const pendingRuntime = {
+        commands: [],
+        skills: null,
+        plugins: null,
+        failedPlugins: null,
+        mcpServers: [{ name: "zread", status: "pending" }],
+      };
+      const temporary = {
+        newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),
+        getExtensionRuntime: jest.fn().mockResolvedValue(pendingRuntime),
+        shutdown: jest.fn().mockResolvedValue(undefined),
+      };
+      const plugin = {
+        app: {},
+        manifest: { version: "4.0.0" },
+      } as unknown as import("@/main").default;
+      jest
+        .spyOn(ClaudeBackendDescriptor, "createBackendProcess")
+        .mockReturnValue(temporary as unknown as BackendProcess);
+
+      const result = await ClaudeBackendDescriptor.checkExtensions!({ plugin, cwd: "/project" });
+
+      expect(result).toBe(pendingRuntime);
+      expect(temporary.getExtensionRuntime).toHaveBeenCalledTimes(1);
+      expect(temporary.shutdown).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the session only while an update listener settles the pending servers (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      jest.useFakeTimers();
+      try {
+        const pendingRuntime = {
+          commands: [],
+          skills: null,
+          plugins: null,
+          failedPlugins: null,
+          mcpServers: [{ name: "zread", status: "pending" }],
+        };
+        const temporary = {
+          newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),
+          getExtensionRuntime: jest.fn().mockResolvedValue(pendingRuntime),
+          getMcpServerStatus: jest.fn().mockResolvedValue([{ name: "zread", status: "pending" }]),
+          shutdown: jest.fn().mockResolvedValue(undefined),
+        };
+        const plugin = {
+          app: {},
+          manifest: { version: "4.0.0" },
+        } as unknown as import("@/main").default;
+        jest
+          .spyOn(ClaudeBackendDescriptor, "createBackendProcess")
+          .mockReturnValue(temporary as unknown as BackendProcess);
+        const onUpdate = jest.fn();
+
+        const result = await ClaudeBackendDescriptor.checkExtensions!({
+          plugin,
+          cwd: "/project",
+          onUpdate,
+        });
+
+        expect(result).toBe(pendingRuntime);
+        expect(temporary.shutdown).not.toHaveBeenCalled();
+        await jest.advanceTimersByTimeAsync(MCP_SETTLE_TIMEOUT_MS);
+        expect(temporary.getExtensionRuntime).toHaveBeenCalledTimes(1);
+        expect(temporary.getMcpServerStatus).toHaveBeenCalledTimes(
+          MCP_SETTLE_TIMEOUT_MS / MCP_SETTLE_POLL_MS
+        );
+        expect(temporary.shutdown).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("patches only the server statuses into the confirmed snapshot, keeping the loaded plugins the initial check saw (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      jest.useFakeTimers();
+      try {
+        const pendingRuntime = {
+          commands: ["review"],
+          skills: ["notes"],
+          plugins: [{ name: "ponytail", path: "/plugins/ponytail" }],
+          failedPlugins: null,
+          mcpServers: [{ name: "zread", status: "pending" }],
+        };
+        const temporary = {
+          newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),
+          getExtensionRuntime: jest.fn().mockResolvedValue(pendingRuntime),
+          getMcpServerStatus: jest
+            .fn()
+            .mockResolvedValue([{ name: "zread", status: "connected", toolCount: 3 }]),
+          shutdown: jest.fn().mockResolvedValue(undefined),
+        };
+        const plugin = {
+          app: {},
+          manifest: { version: "4.0.0" },
+        } as unknown as import("@/main").default;
+        jest
+          .spyOn(ClaudeBackendDescriptor, "createBackendProcess")
+          .mockReturnValue(temporary as unknown as BackendProcess);
+        const onUpdate = jest.fn();
+
+        const result = await ClaudeBackendDescriptor.checkExtensions!({
+          plugin,
+          cwd: "/project",
+          onUpdate,
+        });
+        expect(result).toBe(pendingRuntime);
+
+        await jest.advanceTimersByTimeAsync(MCP_SETTLE_POLL_MS);
+
+        expect(onUpdate).toHaveBeenCalledWith({
+          commands: ["review"],
+          skills: ["notes"],
+          plugins: [{ name: "ponytail", path: "/plugins/ponytail" }],
+          failedPlugins: null,
+          mcpServers: [{ name: "zread", status: "connected", toolCount: 3 }],
+        });
+        expect(temporary.shutdown).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("marks pending servers unconfirmed when a status read fails", async () => {
+      jest.useFakeTimers();
+      try {
+        const pendingRuntime = {
+          commands: [],
+          skills: null,
+          plugins: null,
+          failedPlugins: null,
+          mcpServers: [{ name: "slow", status: "pending" }],
+        };
+        const temporary = {
+          newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),
+          getExtensionRuntime: jest.fn().mockResolvedValue(pendingRuntime),
+          getMcpServerStatus: jest.fn().mockRejectedValue(new Error("query closed")),
+          shutdown: jest.fn().mockResolvedValue(undefined),
+        };
+        const plugin = {
+          app: {},
+          manifest: { version: "4.0.0" },
+        } as unknown as import("@/main").default;
+        jest
+          .spyOn(ClaudeBackendDescriptor, "createBackendProcess")
+          .mockReturnValue(temporary as unknown as BackendProcess);
+        const onUpdate = jest.fn();
+
+        await ClaudeBackendDescriptor.checkExtensions!({ plugin, cwd: "/project", onUpdate });
+        await jest.advanceTimersByTimeAsync(MCP_SETTLE_POLL_MS);
+
+        expect(onUpdate).toHaveBeenCalledWith({
+          commands: [],
+          skills: null,
+          plugins: null,
+          failedPlugins: null,
+          mcpServers: [{ name: "slow", status: "unconfirmed" }],
+        });
+        expect(temporary.shutdown).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("marks a server that never connects unconfirmed when the settle window closes (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+      jest.useFakeTimers();
+      try {
+        const pendingRuntime = {
+          commands: [],
+          skills: null,
+          plugins: null,
+          failedPlugins: null,
+          mcpServers: [{ name: "slow", status: "pending" }],
+        };
+        const temporary = {
+          newSession: jest.fn().mockResolvedValue({ sessionId: "extension-check" }),
+          getExtensionRuntime: jest.fn().mockResolvedValue(pendingRuntime),
+          getMcpServerStatus: jest.fn().mockResolvedValue([{ name: "slow", status: "pending" }]),
+          shutdown: jest.fn().mockResolvedValue(undefined),
+        };
+        const plugin = {
+          app: {},
+          manifest: { version: "4.0.0" },
+        } as unknown as import("@/main").default;
+        jest
+          .spyOn(ClaudeBackendDescriptor, "createBackendProcess")
+          .mockReturnValue(temporary as unknown as BackendProcess);
+        const onUpdate = jest.fn();
+
+        await ClaudeBackendDescriptor.checkExtensions!({ plugin, cwd: "/project", onUpdate });
+        await jest.advanceTimersByTimeAsync(MCP_SETTLE_TIMEOUT_MS);
+
+        expect(onUpdate).toHaveBeenCalledWith({
+          commands: [],
+          skills: null,
+          plugins: null,
+          failedPlugins: null,
+          mcpServers: [{ name: "slow", status: "unconfirmed" }],
+        });
+        expect(temporary.shutdown).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

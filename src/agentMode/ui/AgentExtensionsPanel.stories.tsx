@@ -21,6 +21,15 @@ const groups: readonly AgentExtensionGroup[] = [
         capabilities: { edit: true, delete: true, toggle: true },
       },
       {
+        id: "meeting-notes",
+        name: "meeting-notes",
+        description: "整理会议记录，提炼结论并列出后续需要跟进的事项。",
+        source: "user",
+        enabled: true,
+        availability: "loaded",
+        capabilities: { edit: true, delete: true, toggle: true },
+      },
+      {
         id: "builtin",
         name: "obsidian-markdown",
         description: "内置技能保留独立的加载状态，不能单独修改。",
@@ -45,6 +54,7 @@ const args: AgentExtensionsPanelProps = {
   agentName: "Claude Code",
   groups,
   loading: false,
+  forceExpanded: true,
   onRefresh: () => {},
   onOpen: () => {},
   onToggle: () => {},
@@ -57,6 +67,9 @@ const meta = {
 } satisfies Meta<AgentExtensionsPanelProps>;
 export default meta;
 export const Skills: StoryObj<AgentExtensionsPanelProps> = { args };
+export const CollapsedSections: StoryObj<AgentExtensionsPanelProps> = {
+  args: { ...args, forceExpanded: false },
+};
 export const VaultLinkedSkill: StoryObj<AgentExtensionsPanelProps> = {
   args: {
     ...args,

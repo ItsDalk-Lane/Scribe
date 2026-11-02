@@ -56,6 +56,7 @@ export type AgentExtensionAvailability =
   | "failed"
   | "needs-auth"
   | "pending"
+  | "unconfirmed"
   | "disabled";
 
 export interface AgentExtensionRuntimeSnapshot {
@@ -84,8 +85,27 @@ export interface AgentExtensionRuntimeSnapshot {
   mcpServers:
     | readonly {
         name: string;
-        status: "connected" | "failed" | "needs-auth" | "pending" | "disabled";
+        status: "connected" | "failed" | "needs-auth" | "pending" | "unconfirmed" | "disabled";
         toolCount?: number;
       }[]
     | null;
+}
+
+export function hasPendingMcpServers(runtime: AgentExtensionRuntimeSnapshot): boolean {
+  return runtime.mcpServers?.some((server) => server.status === "pending") ?? false;
+}
+
+// A pending status means the remote server never finished dialing in within the settle window,
+// so the terminal snapshot records it as unconfirmed instead of eternally connecting.
+// https://github.com/ItsDalk-Lane/Scribe/issues/3
+export function markPendingMcpServersUnconfirmed(
+  runtime: AgentExtensionRuntimeSnapshot
+): AgentExtensionRuntimeSnapshot {
+  if (!runtime.mcpServers?.some((server) => server.status === "pending")) return runtime;
+  return {
+    ...runtime,
+    mcpServers: runtime.mcpServers.map((server) =>
+      server.status === "pending" ? { ...server, status: "unconfirmed" } : server
+    ),
+  };
 }
