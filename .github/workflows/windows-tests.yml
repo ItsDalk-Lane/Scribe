@@ -5,7 +5,7 @@ name: Windows tests
 # https://github.com/Brevilabs/obsidian-copilot-private/issues/479
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
   workflow_call:
     inputs:

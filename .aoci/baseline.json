@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-02T00:20:06Z",
+  "updated_at": "2026-11-02T00:21:38Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -101,9 +101,9 @@
     },
     ".github/workflows/windows-tests.yml": {
       "role": "index",
-      "sha256": "1f72b456de570144f9328c4d1b9ec59537b52e041721e7b336c2fefd2ee82169",
-      "size": 4236,
-      "normalized_sha256": "1f72b456de570144f9328c4d1b9ec59537b52e041721e7b336c2fefd2ee82169"
+      "sha256": "2e4d91e1d847811ad05bd680da9a560a3272f37b653103a5bdb15c4e947af8fc",
+      "size": 4234,
+      "normalized_sha256": "2e4d91e1d847811ad05bd680da9a560a3272f37b653103a5bdb15c4e947af8fc"
     },
     ".gitignore": {
       "role": "index",
