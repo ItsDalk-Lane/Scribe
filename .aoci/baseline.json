@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-02T00:58:11Z",
+  "updated_at": "2026-11-02T01:07:10Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -179,9 +179,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "201e028e0c429b628bf2ad32d33db83dc7603135eef4c2c5c16deb55d5b9306e",
-      "size": 156507,
-      "normalized_sha256": "201e028e0c429b628bf2ad32d33db83dc7603135eef4c2c5c16deb55d5b9306e"
+      "sha256": "1e5e22eff3cce293464406b22900faacb2f22e506f1c3c8177cd61be1d479190",
+      "size": 156268,
+      "normalized_sha256": "1e5e22eff3cce293464406b22900faacb2f22e506f1c3c8177cd61be1d479190"
     },
     "aoci.meta.txt": {
       "role": "index",

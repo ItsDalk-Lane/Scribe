@@ -110,9 +110,6 @@ gallery.css[FU3T]: F:Gallery chrome styles for fixed canvas widths and side divi
 main.ts[EU7L]: F:Gallery plugin entry hosting the React view and exposing the list, show, and audit automation API | R:code:dev/gallery/Gallery.tsx | A:GALLERY_VIEWTYPE | S:window.__gallery is the stable automation surface consumed by gallery tooling; changing its shape breaks the audit and screenshot workflows
 manifest.json[FC3T]: F:Dev-only plugin manifest identifying the gallery build, not for distribution | R:- | A:- | S:-
 
-===/Users/study_superior/Desktop/Code/Scribe/docs/.mimosa/hook-status/===
-sess_24307597-5565-4164-ad24-d2551a160fbd-8ab83f6e3b.json[ZO1T]: F:Mimosa security hook status record for one tool call, disposable machine state | R:- | A:- | S:-
-
 ===/Users/study_superior/Desktop/Code/Scribe/docs/plans/archive/===
 2026-06-16-fix-copy-all-text-parts-agent-response.md[SZ2S]: F:Archived approved plan for collecting all text parts into agentResponseText for copy and insert | R:- | A:- | S:-
 
