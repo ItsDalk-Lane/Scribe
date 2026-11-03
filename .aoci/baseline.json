@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-02T10:12:11Z",
+  "updated_at": "2026-11-03T03:48:11Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -179,9 +179,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "49eac2d6ec52ca99201db7b5aa292b6a4314636d58f2d26729675452ebb691b6",
-      "size": 160204,
-      "normalized_sha256": "49eac2d6ec52ca99201db7b5aa292b6a4314636d58f2d26729675452ebb691b6"
+      "sha256": "6b15f7ddce44c5dd3b4722746e4c4d4b22ee9f7b0463c82b052e4fc2604b5d41",
+      "size": 161440,
+      "normalized_sha256": "6b15f7ddce44c5dd3b4722746e4c4d4b22ee9f7b0463c82b052e4fc2604b5d41"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -1193,9 +1193,9 @@
     },
     "src/agentMode/backends/shared/agentSystemPrompt.test.ts": {
       "role": "observe",
-      "sha256": "d2486b753054299ee6a2b113a30d5e07f737e7fc0e4679e4996bd3da1b1f1612",
-      "size": 10620,
-      "normalized_sha256": "d2486b753054299ee6a2b113a30d5e07f737e7fc0e4679e4996bd3da1b1f1612"
+      "sha256": "f0b83bd7a72a91de7d175034aa32fc28820a6196e3c584ca25d5c8d02b3e2e0a",
+      "size": 10761,
+      "normalized_sha256": "f0b83bd7a72a91de7d175034aa32fc28820a6196e3c584ca25d5c8d02b3e2e0a"
     },
     "src/agentMode/backends/shared/agentSystemPrompt.ts": {
       "role": "index",
@@ -2207,15 +2207,15 @@
     },
     "src/agentMode/skills/SkillManager.test.ts": {
       "role": "observe",
-      "sha256": "d4781902b0b1274ff2582751b8e5f6c2a2261eceff0c63476fa7e1c3ae380c02",
-      "size": 35773,
-      "normalized_sha256": "d4781902b0b1274ff2582751b8e5f6c2a2261eceff0c63476fa7e1c3ae380c02"
+      "sha256": "5df65afe6a1acfdff1789b751b265a855eeb2a7e45ab7cdf39dfcc2e8c4331e8",
+      "size": 35882,
+      "normalized_sha256": "5df65afe6a1acfdff1789b751b265a855eeb2a7e45ab7cdf39dfcc2e8c4331e8"
     },
     "src/agentMode/skills/SkillManager.ts": {
       "role": "index",
-      "sha256": "747cf3a727ad2e3276f8c30e59c00c213844464c496357efdac7b6738daba1be",
-      "size": 35891,
-      "normalized_sha256": "747cf3a727ad2e3276f8c30e59c00c213844464c496357efdac7b6738daba1be"
+      "sha256": "8aa11ab6369cff4cb8a4aa43b8a86f03e4d3c11c3f2b004ce54016de3648f233",
+      "size": 36771,
+      "normalized_sha256": "8aa11ab6369cff4cb8a4aa43b8a86f03e4d3c11c3f2b004ce54016de3648f233"
     },
     "src/agentMode/skills/agentPaths.ts": {
       "role": "index",
@@ -2249,9 +2249,9 @@
     },
     "src/agentMode/skills/builtin/reconcileBuiltinSkills.test.ts": {
       "role": "observe",
-      "sha256": "4473002f2dfef31789db6b0c70c1495ff1ba8b241fce27bbd0ddfc566e5a9a03",
-      "size": 8515,
-      "normalized_sha256": "4473002f2dfef31789db6b0c70c1495ff1ba8b241fce27bbd0ddfc566e5a9a03"
+      "sha256": "c9a861991af12fcb4d1fb40db9f48a0bc13ff57bca6b7bc53a61db786bb60ba2",
+      "size": 8368,
+      "normalized_sha256": "c9a861991af12fcb4d1fb40db9f48a0bc13ff57bca6b7bc53a61db786bb60ba2"
     },
     "src/agentMode/skills/builtin/reconcileBuiltinSkills.ts": {
       "role": "index",
@@ -2471,15 +2471,15 @@
     },
     "src/agentMode/skills/ui/BuiltinSkillsTable.test.tsx": {
       "role": "observe",
-      "sha256": "275992899b608f1d05c95a27b037a53a922bcf15b458c5ea3db5713d7b0e4e7c",
-      "size": 3820,
-      "normalized_sha256": "275992899b608f1d05c95a27b037a53a922bcf15b458c5ea3db5713d7b0e4e7c"
+      "sha256": "62983de1daabf78b45ccb41aee1e0851da66dac8d9bf4c384b3f7bdb784e0b34",
+      "size": 5158,
+      "normalized_sha256": "62983de1daabf78b45ccb41aee1e0851da66dac8d9bf4c384b3f7bdb784e0b34"
     },
     "src/agentMode/skills/ui/BuiltinSkillsTable.tsx": {
       "role": "index",
-      "sha256": "0501f985f8d8affecb426a79c22cea0fc2230e9ff047aad07cc667d7f5014cfb",
-      "size": 4388,
-      "normalized_sha256": "0501f985f8d8affecb426a79c22cea0fc2230e9ff047aad07cc667d7f5014cfb"
+      "sha256": "9383d601160d7acbf084033fcb7ea50d23906bd04d6e4bc364e6e7bd973f341a",
+      "size": 5597,
+      "normalized_sha256": "9383d601160d7acbf084033fcb7ea50d23906bd04d6e4bc364e6e7bd973f341a"
     },
     "src/agentMode/skills/ui/DeleteConfirmDialog.tsx": {
       "role": "index",
@@ -2567,15 +2567,15 @@
     },
     "src/agentMode/skills/ui/SkillRow.test.tsx": {
       "role": "observe",
-      "sha256": "9bf102c9e11917b37a74012a4a5513098354ad8263396a08820ce8dcd535cd7b",
-      "size": 6631,
-      "normalized_sha256": "9bf102c9e11917b37a74012a4a5513098354ad8263396a08820ce8dcd535cd7b"
+      "sha256": "12ffa0e019ac492bc0bcc56f1236781aaf7a28dceff74fbb28373f4d3e2404a0",
+      "size": 7325,
+      "normalized_sha256": "12ffa0e019ac492bc0bcc56f1236781aaf7a28dceff74fbb28373f4d3e2404a0"
     },
     "src/agentMode/skills/ui/SkillRow.tsx": {
       "role": "index",
-      "sha256": "9e7cf911c266120b4fcf7d2fd94bd334d61a62e4654d819fb6531a79107248cf",
-      "size": 20613,
-      "normalized_sha256": "9e7cf911c266120b4fcf7d2fd94bd334d61a62e4654d819fb6531a79107248cf"
+      "sha256": "eff4b35111b2a24ee9e2eefdcf18e6f5a5d7bbf62ea8de3ba789f8442f609f3e",
+      "size": 21322,
+      "normalized_sha256": "eff4b35111b2a24ee9e2eefdcf18e6f5a5d7bbf62ea8de3ba789f8442f609f3e"
     },
     "src/agentMode/skills/ui/SkillRowLayout.stories.tsx": {
       "role": "index",
@@ -2597,27 +2597,27 @@
     },
     "src/agentMode/skills/ui/SkillsSettings.test.tsx": {
       "role": "observe",
-      "sha256": "29688ad18c814308f15a7afbc7b50d8bf95f7f80c2623c6056209940a8f5c321",
-      "size": 16700,
-      "normalized_sha256": "29688ad18c814308f15a7afbc7b50d8bf95f7f80c2623c6056209940a8f5c321"
+      "sha256": "d07cef973f800cf05450e790c616f0ba4f3e2c5981f00201c44456f916831730",
+      "size": 16701,
+      "normalized_sha256": "d07cef973f800cf05450e790c616f0ba4f3e2c5981f00201c44456f916831730"
     },
     "src/agentMode/skills/ui/SkillsSettings.tsx": {
       "role": "index",
-      "sha256": "791d20796a26cb47900a86f251c0aa24514b0dee5cb827b725562990545806c7",
-      "size": 17450,
-      "normalized_sha256": "791d20796a26cb47900a86f251c0aa24514b0dee5cb827b725562990545806c7"
+      "sha256": "e31c6e53c39224df64b1e65b39db18c4df6b688eef720b6663714beda1285322",
+      "size": 18212,
+      "normalized_sha256": "e31c6e53c39224df64b1e65b39db18c4df6b688eef720b6663714beda1285322"
     },
     "src/agentMode/skills/ui/skillRuntimeItem.test.ts": {
       "role": "observe",
-      "sha256": "f54f7b4f60f222a97710a350bc2b9a095d8dce167485dcedca8a6a3c2a7e3691",
-      "size": 2274,
-      "normalized_sha256": "f54f7b4f60f222a97710a350bc2b9a095d8dce167485dcedca8a6a3c2a7e3691"
+      "sha256": "9117bec393b67dda8f813351c645b058c36742c3a04e0a7d7929bf7599a70a27",
+      "size": 3346,
+      "normalized_sha256": "9117bec393b67dda8f813351c645b058c36742c3a04e0a7d7929bf7599a70a27"
     },
     "src/agentMode/skills/ui/skillRuntimeItem.ts": {
       "role": "index",
-      "sha256": "9d2f8fa244784f427788949c720b53922e08298515ca41b013bc5320c6399e9d",
-      "size": 1753,
-      "normalized_sha256": "9d2f8fa244784f427788949c720b53922e08298515ca41b013bc5320c6399e9d"
+      "sha256": "88a3ef60577b2581e70ddf06eb2ca681169c05cc37927dd4dd2bfc45b8a6b41b",
+      "size": 2418,
+      "normalized_sha256": "88a3ef60577b2581e70ddf06eb2ca681169c05cc37927dd4dd2bfc45b8a6b41b"
     },
     "src/agentMode/skills/updateProperties.test.ts": {
       "role": "observe",
@@ -2777,21 +2777,21 @@
     },
     "src/agentMode/ui/AgentExtensionsPanel.tsx": {
       "role": "index",
-      "sha256": "983d7f058435c54d01aba860f1d5f3e65d5d0eb1814d026d31f4f130626ef5c0",
-      "size": 13013,
-      "normalized_sha256": "983d7f058435c54d01aba860f1d5f3e65d5d0eb1814d026d31f4f130626ef5c0"
+      "sha256": "5de1a4a334d153f8616ea4c605cc17ea82d752cee2786b220de2be2d711f6ce2",
+      "size": 13088,
+      "normalized_sha256": "5de1a4a334d153f8616ea4c605cc17ea82d752cee2786b220de2be2d711f6ce2"
     },
     "src/agentMode/ui/AgentExtensionsSettings.test.tsx": {
       "role": "observe",
-      "sha256": "e387212e1032e7a8916b93419a4ccbfc3fcb8480ccd4e7347456596241f30288",
-      "size": 24064,
-      "normalized_sha256": "e387212e1032e7a8916b93419a4ccbfc3fcb8480ccd4e7347456596241f30288"
+      "sha256": "b788111d3460c89db153a4f62ed55deb0dcdf9543709185f37b9a0c95da722e7",
+      "size": 24355,
+      "normalized_sha256": "b788111d3460c89db153a4f62ed55deb0dcdf9543709185f37b9a0c95da722e7"
     },
     "src/agentMode/ui/AgentExtensionsSettings.tsx": {
       "role": "index",
-      "sha256": "e8b26577582c62d680788740d50cf5540aa26e9c33f6922c79bcee6da4f10f7b",
-      "size": 24539,
-      "normalized_sha256": "e8b26577582c62d680788740d50cf5540aa26e9c33f6922c79bcee6da4f10f7b"
+      "sha256": "a790f023928f2bd9cfbd4bbe1078b4a84573036f39839edb2a920bfac69e5507",
+      "size": 26518,
+      "normalized_sha256": "a790f023928f2bd9cfbd4bbe1078b4a84573036f39839edb2a920bfac69e5507"
     },
     "src/agentMode/ui/AgentHome.tsx": {
       "role": "index",
@@ -3131,21 +3131,21 @@
     },
     "src/agentMode/ui/ExtensionDialogs.stories.tsx": {
       "role": "index",
-      "sha256": "315c56277cb6593adca1f370f6f30dbd46dfee1b58d8c633381d8631b4bed465",
-      "size": 5096,
-      "normalized_sha256": "315c56277cb6593adca1f370f6f30dbd46dfee1b58d8c633381d8631b4bed465"
+      "sha256": "92e523a510456a2e2ce2a6d0d0ef42b8123b986cd775671d039b8c691b7afa0d",
+      "size": 5132,
+      "normalized_sha256": "92e523a510456a2e2ce2a6d0d0ef42b8123b986cd775671d039b8c691b7afa0d"
     },
     "src/agentMode/ui/ExtensionDialogs.test.tsx": {
       "role": "observe",
-      "sha256": "8e955879870992bdd2ccac646c7880971f8562173f28021d1acf996a21396468",
-      "size": 15506,
-      "normalized_sha256": "8e955879870992bdd2ccac646c7880971f8562173f28021d1acf996a21396468"
+      "sha256": "2aa48f67191cd0d28c795508bac249626d8ce6314d541ccdf7fe06a597993f0d",
+      "size": 15871,
+      "normalized_sha256": "2aa48f67191cd0d28c795508bac249626d8ce6314d541ccdf7fe06a597993f0d"
     },
     "src/agentMode/ui/ExtensionDialogs.tsx": {
       "role": "index",
-      "sha256": "5f2942a96946813d3aecab279b03e699a784d57d988e242f200b0e9f76e3bbc5",
-      "size": 17712,
-      "normalized_sha256": "5f2942a96946813d3aecab279b03e699a784d57d988e242f200b0e9f76e3bbc5"
+      "sha256": "7aa5fdf31820211dec10228909c4fcc7360cbbae57fd3bcfce4aa1f322401367",
+      "size": 18065,
+      "normalized_sha256": "7aa5fdf31820211dec10228909c4fcc7360cbbae57fd3bcfce4aa1f322401367"
     },
     "src/agentMode/ui/ExtensionEditor.stories.tsx": {
       "role": "index",
@@ -4043,15 +4043,15 @@
     },
     "src/builtinSkills/builtinSkills.test.ts": {
       "role": "observe",
-      "sha256": "e062bcb9414703708340d23827136bf2dc0279ad572c809fa91292677983f3b9",
-      "size": 3653,
-      "normalized_sha256": "e062bcb9414703708340d23827136bf2dc0279ad572c809fa91292677983f3b9"
+      "sha256": "367ae252db4281d60bcc1a1b0719df70ce69d6bf3c2d28f3c7f01c320ef00e97",
+      "size": 3633,
+      "normalized_sha256": "367ae252db4281d60bcc1a1b0719df70ce69d6bf3c2d28f3c7f01c320ef00e97"
     },
     "src/builtinSkills/builtinSkills.ts": {
       "role": "index",
-      "sha256": "061cfbcd4ab3bc8f0e9940b8382e00a7555f06c85a0e368c9adffbf48f34cc12",
-      "size": 1383,
-      "normalized_sha256": "061cfbcd4ab3bc8f0e9940b8382e00a7555f06c85a0e368c9adffbf48f34cc12"
+      "sha256": "b2d9d24acb1610de173c5e675291fc3e719230bd04e23410e624da7dc9d1397f",
+      "size": 1618,
+      "normalized_sha256": "b2d9d24acb1610de173c5e675291fc3e719230bd04e23410e624da7dc9d1397f"
     },
     "src/builtinSkills/obsidianSkills.test.ts": {
       "role": "observe",
@@ -5231,21 +5231,21 @@
     },
     "src/components/ui/AgentConfigurationHeader.stories.tsx": {
       "role": "index",
-      "sha256": "44bd572f9e148b84726a2644d2a62f8bc4e4e42d0157c22f77215f7ab6f8ba2c",
-      "size": 1795,
-      "normalized_sha256": "44bd572f9e148b84726a2644d2a62f8bc4e4e42d0157c22f77215f7ab6f8ba2c"
+      "sha256": "5daa270bebf902462791f14e93dc9fe1d05101925f655383c56968c9575c8136",
+      "size": 1437,
+      "normalized_sha256": "5daa270bebf902462791f14e93dc9fe1d05101925f655383c56968c9575c8136"
     },
     "src/components/ui/AgentConfigurationHeader.test.tsx": {
       "role": "observe",
-      "sha256": "8f30ec21988237563e25bacfe9a2b480d0151b2d41a0a76cc96f12ca7305ee26",
-      "size": 2344,
-      "normalized_sha256": "8f30ec21988237563e25bacfe9a2b480d0151b2d41a0a76cc96f12ca7305ee26"
+      "sha256": "f08d1c32c30a520a749c0a829ab211c3d6bb48d507ba5a9473716f5529f8233e",
+      "size": 2032,
+      "normalized_sha256": "f08d1c32c30a520a749c0a829ab211c3d6bb48d507ba5a9473716f5529f8233e"
     },
     "src/components/ui/AgentConfigurationHeader.tsx": {
       "role": "index",
-      "sha256": "1a5da2338571829a485a85af2334e560deb70e0a2860b30047fcfe7f15011ad4",
-      "size": 4474,
-      "normalized_sha256": "1a5da2338571829a485a85af2334e560deb70e0a2860b30047fcfe7f15011ad4"
+      "sha256": "0d18862ba84fde5c6a789a0bc5f5a83bd9f5ab926ece8bf95e8cff7b9cfbf5c6",
+      "size": 2710,
+      "normalized_sha256": "0d18862ba84fde5c6a789a0bc5f5a83bd9f5ab926ece8bf95e8cff7b9cfbf5c6"
     },
     "src/components/ui/AgentModelList.stories.tsx": {
       "role": "index",
@@ -6293,9 +6293,9 @@
     },
     "src/lib/locales/settings.ts": {
       "role": "index",
-      "sha256": "95d2e8c8ef6ea1e0187f3d789cb778cffdfbf2462030fa027801480b0ebe06ba",
-      "size": 36479,
-      "normalized_sha256": "95d2e8c8ef6ea1e0187f3d789cb778cffdfbf2462030fa027801480b0ebe06ba"
+      "sha256": "3914034438ee0ebe8ac20b6ca6a1af57602169dc9eafdb54724f977a73f9fa69",
+      "size": 36504,
+      "normalized_sha256": "3914034438ee0ebe8ac20b6ca6a1af57602169dc9eafdb54724f977a73f9fa69"
     },
     "src/lib/model-effort.test.ts": {
       "role": "observe",
@@ -6569,9 +6569,9 @@
     },
     "src/modelManagement/providers/adapters/anthropicAdapter.ts": {
       "role": "index",
-      "sha256": "053569201f13886ac311faf2ebc0ff240c77940e1a511f9539644e51a2b490f6",
-      "size": 1582,
-      "normalized_sha256": "053569201f13886ac311faf2ebc0ff240c77940e1a511f9539644e51a2b490f6"
+      "sha256": "4b80f3f97e73e9871d95a8fcef0c1cf4ddbcab7f005fea6e6532e1cf5ef862f9",
+      "size": 1573,
+      "normalized_sha256": "4b80f3f97e73e9871d95a8fcef0c1cf4ddbcab7f005fea6e6532e1cf5ef862f9"
     },
     "src/modelManagement/providers/adapters/googleAdapter.test.ts": {
       "role": "observe",
@@ -6581,9 +6581,9 @@
     },
     "src/modelManagement/providers/adapters/googleAdapter.ts": {
       "role": "index",
-      "sha256": "053252622a8b3a0d31aef16413c8b16ce2e2657253e003e299a5058001db4cc3",
-      "size": 1440,
-      "normalized_sha256": "053252622a8b3a0d31aef16413c8b16ce2e2657253e003e299a5058001db4cc3"
+      "sha256": "d80d0353e989893b402066af77b936de1e817ffe24c2401360264f1301cb87c3",
+      "size": 1431,
+      "normalized_sha256": "d80d0353e989893b402066af77b936de1e817ffe24c2401360264f1301cb87c3"
     },
     "src/modelManagement/providers/adapters/listAnthropicModels.test.ts": {
       "role": "observe",
@@ -6647,15 +6647,15 @@
     },
     "src/modelManagement/providers/adapters/openaiCompatibleAdapter.test.ts": {
       "role": "observe",
-      "sha256": "f04f0c4ba818a86bfa5004f133da9ab8ea8fd023104c2d8162798b35255c1fec",
-      "size": 8378,
-      "normalized_sha256": "f04f0c4ba818a86bfa5004f133da9ab8ea8fd023104c2d8162798b35255c1fec"
+      "sha256": "de437e11a518b3f6a0b77c2b0a4ad282cdb8da100cbe504fe8850c82c82ce887",
+      "size": 8731,
+      "normalized_sha256": "de437e11a518b3f6a0b77c2b0a4ad282cdb8da100cbe504fe8850c82c82ce887"
     },
     "src/modelManagement/providers/adapters/openaiCompatibleAdapter.ts": {
       "role": "index",
-      "sha256": "b2d90aebdee5b1180b86ab8985a852fd8adef1c6b8174cda3cf70a80c4953c75",
-      "size": 2674,
-      "normalized_sha256": "b2d90aebdee5b1180b86ab8985a852fd8adef1c6b8174cda3cf70a80c4953c75"
+      "sha256": "c23781ab7bbf9eacf10b21ceb83511df8c77832c3bd6291df32b5d3f2f833f6b",
+      "size": 2655,
+      "normalized_sha256": "c23781ab7bbf9eacf10b21ceb83511df8c77832c3bd6291df32b5d3f2f833f6b"
     },
     "src/modelManagement/providers/adapters/openaiCompatibleModelsUrl.test.ts": {
       "role": "observe",

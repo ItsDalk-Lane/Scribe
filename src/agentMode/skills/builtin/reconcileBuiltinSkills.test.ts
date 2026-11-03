@@ -171,15 +171,12 @@ describe("reconcileBuiltinSkills", () => {
         f.options.settings.agentMode.skills.builtinPreferences?.[BUILTIN_SKILLS[0].name]
       ).toBeUndefined();
     });
-    it("keeps every built-in skill enabled despite old whole-skill and agent opt-outs", async () => {
+    it("leaves an opted-out built-in skill unseeded for its disabled agents", async () => {
       const skill = BUILTIN_SKILLS[0];
       const f = fixture({ [skill.name]: { disabled: true, disabledAgents: ["claude"] } });
       f.options.availableAgents = ["claude"];
       await reconcileBuiltinSkills(f.options);
-      expect(f.files.has(f.path(skill.name))).toBe(true);
-      expect(
-        parseSkillFile(f.files.get(f.path(skill.name))!, skill.name).frontmatter.enabledAgents
-      ).toContain("claude");
+      expect(f.files.has(f.path(skill.name))).toBe(false);
     });
 
     it(`uses defaults for a newly bundled skill without adding or changing preferences ${ISSUE}`, async () => {

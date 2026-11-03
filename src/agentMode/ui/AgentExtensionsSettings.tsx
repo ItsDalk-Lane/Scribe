@@ -22,7 +22,7 @@ import {
 import { resolveScopeCwd } from "@/agentMode/session/sessionScope";
 import { useManagedSkills } from "@/agentMode/skills/SkillManager";
 import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
-import { SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
+import { openNewSkillModal, SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
 import { AgentExtensionsPanel, EXTENSION_LABELS } from "@/agentMode/ui/AgentExtensionsPanel";
 import { ExtensionEditor } from "@/agentMode/ui/ExtensionEditor";
 import {
@@ -79,6 +79,29 @@ function savedInventoryState(
     : null;
 }
 
+function mergeScopeInventories(
+  inventories: readonly (readonly AgentExtensionGroup[])[]
+): AgentExtensionGroup[] {
+  const base = inventories[0] ?? [];
+  return base.map((group) => {
+    const items = new Map<string, AgentExtensionItem>();
+    const warnings = new Set<string>();
+    for (const inventory of inventories) {
+      const entry = inventory.find((candidate) => candidate.kind === group.kind);
+      if (!entry) continue;
+      for (const warning of entry.warnings) warnings.add(warning);
+      for (const item of entry.items) {
+        const target = item.target?.scope;
+        const key = target
+          ? `${target.kind}:${target.kind === "project" ? normalizeAbsPath(target.cwd) : ""}:${item.id}`
+          : `${item.source}:${item.id}`;
+        if (!items.has(key)) items.set(key, item);
+      }
+    }
+    return { ...group, warnings: [...warnings], items: [...items.values()] };
+  });
+}
+
 export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSettingsProps) {
   const plugin = usePlugin();
   const settings = useSettingsValue();
@@ -87,42 +110,63 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
   const descriptors = backendDisplayOrder();
   const [selectedAgent, setSelectedAgent] = React.useState(descriptors[0].id);
   const descriptor = descriptors.find((item) => item.id === selectedAgent) ?? descriptors[0];
-  const [source, setSource] = React.useState("user");
   const [query, setQuery] = React.useState("");
   const [operation, setOperation] = React.useState<{
     context: string;
     controller: AbortController;
   } | null>(null);
   const vaultBase = getVaultBase(plugin.app);
-  const sources = [
-    { value: "user", label: t("Local · User") },
-    { value: "vault", label: t("Current vault") },
-    ...projects.map((project) => ({
-      value: project.id,
-      label: `${t("Project")} · ${project.name}`,
-    })),
-  ];
-  const selection = sources.some((item) => item.value === source) ? source : "user";
-  const cwd = React.useMemo(
-    () =>
-      vaultBase
-        ? selection === "user" || selection === "vault"
-          ? vaultBase
-          : resolveScopeCwd(vaultBase, selection)
-        : null,
-    [vaultBase, selection]
+  const scopeEntries = React.useMemo<
+    { scope: AgentExtensionScope; cwd: string; label: string }[]
+  >(() => {
+    if (!vaultBase) return [];
+    return [
+      {
+        scope: { kind: "project" as const, cwd: vaultBase },
+        cwd: vaultBase,
+        label: t("Current vault"),
+      },
+      ...projects.flatMap((project) => {
+        try {
+          const projectCwd = resolveScopeCwd(vaultBase, project.id);
+          return [
+            {
+              scope: { kind: "project" as const, cwd: projectCwd },
+              cwd: projectCwd,
+              label: `${t("Project")} · ${project.name}`,
+            },
+          ];
+        } catch {
+          return [];
+        }
+      }),
+    ];
+  }, [vaultBase, projects]);
+  const scanScopes = React.useMemo<AgentExtensionScope[]>(
+    () => [{ kind: "user" }, ...scopeEntries.map((entry) => entry.scope)],
+    [scopeEntries]
   );
+  const primary = scopeEntries[0];
   const scope = React.useMemo<AgentExtensionScope>(
-    () => (selection === "user" ? { kind: "user" } : { kind: "project", cwd: cwd ?? "" }),
-    [selection, cwd]
+    () => primary?.scope ?? { kind: "user" },
+    [primary]
   );
+  const cwd = primary?.cwd ?? null;
+  const scopeLabelFor = (target: AgentExtensionScope): string => {
+    if (target.kind === "user") return t("Local · User");
+    const normalized = normalizeAbsPath(target.cwd);
+    return (
+      scopeEntries.find((entry) => normalizeAbsPath(entry.cwd) === normalized)?.label ??
+      `${t("Project")} · ${target.cwd}`
+    );
+  };
   const management = React.useMemo(
     () => descriptor.createExtensionManager?.({ settings, cwd }) ?? null,
     [descriptor, settings, cwd]
   );
   const requestId = React.useRef(0);
   const mutationController = React.useRef<AbortController | null>(null);
-  const context = JSON.stringify([descriptor.id, selection, cwd, kind]);
+  const context = JSON.stringify([descriptor.id, scanScopes, kind]);
   const cacheIdentity = React.useMemo(
     () =>
       extensionCheckCacheIdentity({
@@ -178,20 +222,25 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       });
       try {
         if (!management || !cwd) throw new Error("Configuration is unavailable");
-        const [inventory, discovered] = await Promise.all([
+        const [inventories, discovered] = await Promise.all([
           Promise.all(
-            EXTENSION_KINDS.map(
-              async (entryKind): Promise<AgentExtensionGroup> => ({
-                kind: entryKind,
-                status: "partial",
-                warnings: [],
-                items: await management.list(entryKind, scope),
-              })
+            scanScopes.map((scanScope) =>
+              Promise.all(
+                EXTENSION_KINDS.map(
+                  async (entryKind): Promise<AgentExtensionGroup> => ({
+                    kind: entryKind,
+                    status: "partial",
+                    warnings: [],
+                    items: await management.list(entryKind, scanScope),
+                  })
+                )
+              )
             )
           ),
           descriptor.readExtensions?.({ settings, cwd: scope.kind === "user" ? null : cwd }) ??
             Promise.resolve([]),
         ]);
+        const inventory = mergeScopeInventories(inventories);
         const inventoryWithWarnings = inventory.map((group) => ({
           ...group,
           warnings:
@@ -210,7 +259,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         const cached = enabled && !force ? readCachedExtensionCheck(plugin.app, key) : null;
         // A scope-isolated view keeps only its own entries: runtime rows would reintroduce the
         // other scopes the check session also loaded. https://github.com/ItsDalk-Lane/Scribe/issues/6
-        const mergeOptions = { appendRuntimeEntries: scope.kind === "user" } as const;
+        const mergeOptions = { appendRuntimeEntries: true };
         let runtime: AgentExtensionRuntimeSnapshot | null = cached;
         let failed = false;
         if (!cached && enabled && descriptor.checkExtensions) {
@@ -273,7 +322,18 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         }
       }
     },
-    [management, cwd, descriptor, scope, settings, enabled, plugin, context, cacheIdentity]
+    [
+      management,
+      cwd,
+      descriptor,
+      scope,
+      scanScopes,
+      settings,
+      enabled,
+      plugin,
+      context,
+      cacheIdentity,
+    ]
   );
   const loadRef = React.useRef(load);
   loadRef.current = load;
@@ -284,7 +344,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       mutationController.current?.abort();
     };
   }, [context, enabled]);
-  const mutate = async (action: (manager: AgentExtensionManager) => Promise<void>) => {
+  const mutate = async (
+    action: (manager: AgentExtensionManager) => Promise<void>,
+    actionScope: AgentExtensionScope = scope
+  ) => {
     if (!management) throw new Error(t("Configuration is unavailable."));
     const mutation = new AbortController();
     setOperation({ context, controller: mutation });
@@ -292,7 +355,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     try {
       await action(management);
       if (sessionManager?.applyExtensionChanges)
-        await sessionManager.applyExtensionChanges(descriptor.id, scope, mutation.signal);
+        await sessionManager.applyExtensionChanges(descriptor.id, actionScope, mutation.signal);
       else sessionManager?.noteExtensionsChanged(descriptor.id);
       try {
         await plugin.skills?.refresh();
@@ -319,7 +382,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       plugin.app,
       async () => {
         try {
-          await mutate(async (manager) => manager.delete(await manager.details(item)));
+          await mutate(
+            async (manager) => manager.delete(await manager.details(item)),
+            item.target?.scope ?? scope
+          );
           close?.();
         } catch (error) {
           showError(error);
@@ -332,7 +398,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       t("Delete")
     ).open();
   };
-  const openEditor = (original?: AgentExtensionDetails) => {
+  const openEditor = (
+    original?: AgentExtensionDetails,
+    editorScope: AgentExtensionScope = scope
+  ) => {
     if (kind === "plugin") return;
     new ExtensionModal(
       plugin.app,
@@ -342,10 +411,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       (close) => (
         <ExtensionEditor
           kind={kind}
-          scope={scope}
+          scope={editorScope}
           original={original}
           onClose={close}
-          onSave={(draft) => mutate((manager) => manager.save(draft))}
+          onSave={(draft) => mutate((manager) => manager.save(draft), draft.scope)}
           onTest={
             kind === "mcp"
               ? async (draft) => {
@@ -400,13 +469,14 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         ...(children ? { children } : {}),
       };
       if (item.capabilities?.edit && kind !== "plugin") {
-        openEditor(details);
+        openEditor(details, item.target?.scope ?? scope);
         return;
       }
       // The details view renders the name itself beside its copy button; a native modal title would duplicate it. https://github.com/ItsDalk-Lane/Scribe/issues/2
       new ExtensionModal(plugin.app, undefined, (close) => (
         <ExtensionDetailsView
           details={details}
+          scopeLabel={scopeLabelFor(item.target?.scope ?? scope)}
           onClose={close}
           onUpdate={
             kind === "plugin" &&
@@ -414,14 +484,16 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
             item.capabilities?.update !== false &&
             item.target?.keyPath?.[0] !== "localPlugins"
               ? () =>
-                  mutate((manager) =>
-                    manager.pluginAction({
-                      action: "update",
-                      scope,
-                      plugin: item.id,
-                      local: item.id.startsWith("local:"),
-                      installationScope: item.installationScope,
-                    })
+                  mutate(
+                    (manager) =>
+                      manager.pluginAction({
+                        action: "update",
+                        scope: item.target?.scope ?? scope,
+                        plugin: item.id,
+                        local: item.id.startsWith("local:"),
+                        installationScope: item.installationScope,
+                      }),
+                    item.target?.scope ?? scope
                   )
               : undefined
           }
@@ -454,7 +526,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         kind={kind}
         scope={scope}
         onClose={close}
-        onImport={(input) => mutate((manager) => manager.import(input))}
+        onImport={(input) => mutate((manager) => manager.import(input), input.scope)}
       />
     )).open();
   const q = query.trim().toLowerCase();
@@ -478,12 +550,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       .map((group) => ({
         ...group,
         items: group.items.filter((item) => {
-          if (
-            kind === "skill" &&
-            selection === "vault" &&
-            !item.parentPluginId &&
-            item.source !== "plugin"
-          ) {
+          if (kind === "skill" && !item.parentPluginId && item.source !== "plugin") {
             if (managedFiles.has(normalizeAbsPath(item.target?.path ?? item.location ?? "")))
               return false;
             if (item.source === "runtime" && managedNames.has(item.name)) return false;
@@ -494,7 +561,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         }),
       })) ?? null;
   const inactive = enabled ? {} : { inert: "" };
-  const ownsSkills = kind === "skill" && selection === "vault";
+  const ownsSkills = kind === "skill";
   const hideEmpty =
     ownsSkills &&
     !currentState.loading &&
@@ -514,9 +581,10 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         busy={busy || pending}
         onOpen={(item) => void openItem(item)}
         onToggle={(item, next) => {
-          void mutate(async (manager) => manager.toggle(await manager.details(item), next)).catch(
-            showError
-          );
+          void mutate(
+            async (manager) => manager.toggle(await manager.details(item), next),
+            item.target?.scope ?? scope
+          ).catch(showError);
         }}
         onDelete={(item) => remove(item)}
       />
@@ -531,23 +599,9 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         }))}
         selectedAgent={descriptor.id}
         onSelectAgent={(id) => setSelectedAgent(id)}
-        source={selection}
-        sources={sources}
-        onSourceChange={setSource}
         query={query}
         onQueryChange={setQuery}
         searchPlaceholder={t("Search {name}…", { name: t(EXTENSION_LABELS[kind]) })}
-        label={t("Installed")}
-        count={
-          (groups?.reduce(
-            (sum, group) =>
-              sum +
-              group.items.filter(
-                (item) => !item.parentPluginId && !item.builtin && item.source !== "runtime"
-              ).length,
-            0
-          ) ?? 0) + (ownsSkills ? managedSkills.filter((item) => !item.builtin).length : 0)
-        }
         actions={
           <>
             <Button
@@ -578,7 +632,15 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
                 {t("Import")}
               </Button>
             )}
-            {!ownsSkills && (
+            {ownsSkills ? (
+              <Button
+                disabled={busy || pending || !enabled}
+                onClick={() => openNewSkillModal(plugin.app, () => loadRef.current())}
+              >
+                <Plus className="tw-size-4" />
+                {t("New skill")}
+              </Button>
+            ) : (
               <Button
                 disabled={busy || pending || !enabled}
                 onClick={() => (kind === "plugin" ? void installPlugin() : openEditor())}

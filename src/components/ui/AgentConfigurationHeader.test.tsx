@@ -4,19 +4,12 @@ import React from "react";
 
 describe("AgentConfigurationHeader", () => {
   describe("AgentConfigurationHeader()", () => {
-    it("keeps the agent tabs above source selection and search", () => {
-      const selectSource = jest.fn();
+    it("keeps the label, search, and actions on one row below the agent tabs", () => {
       const search = jest.fn();
       render(
         <AgentConfigurationHeader
           agents={[{ id: "claude", label: "Claude Code" }]}
           selectedAgent="claude"
-          source="user"
-          sources={[
-            { value: "user", label: "User" },
-            { value: "vault", label: "Current vault" },
-          ]}
-          onSourceChange={selectSource}
           query=""
           onQueryChange={search}
           searchPlaceholder="Search skills"
@@ -28,8 +21,6 @@ describe("AgentConfigurationHeader", () => {
       expect(screen.getByRole("tab", { name: "Claude Code" }).getAttribute("aria-selected")).toBe(
         "true"
       );
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
-      expect(selectSource).toHaveBeenCalledWith("vault");
       fireEvent.change(screen.getByPlaceholderText("Search skills"), {
         target: { value: "notes" },
       });
@@ -37,8 +28,9 @@ describe("AgentConfigurationHeader", () => {
       const label = screen.getByText("Skills");
       expect(label.parentElement?.contains(screen.getByRole("button", { name: "New" }))).toBe(true);
       expect(label.parentElement?.contains(screen.getByPlaceholderText("Search skills"))).toBe(
-        false
+        true
       );
+      expect(screen.queryByRole("combobox")).toBeNull();
       expect(screen.queryByRole("heading")).toBeNull();
     });
 

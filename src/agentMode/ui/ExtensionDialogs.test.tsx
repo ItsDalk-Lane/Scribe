@@ -202,6 +202,17 @@ describe("ExtensionDialogs", () => {
     });
   });
   describe("ExtensionDetailsView()", () => {
+    it("shows the extension's scope beside its availability", () => {
+      render(
+        <ExtensionDetailsView
+          details={pluginDetails}
+          scopeLabel="Project · Notes"
+          onClose={jest.fn()}
+        />
+      );
+      expect(screen.getByText("Scope")).toBeTruthy();
+      expect(screen.getByText("Project · Notes")).toBeTruthy();
+    });
     it("copies the extension name to the clipboard when its button is clicked (https://github.com/ItsDalk-Lane/Scribe/issues/2)", async () => {
       const writeText = jest.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", {

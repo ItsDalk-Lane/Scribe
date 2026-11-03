@@ -87,10 +87,16 @@ const mockSettings = {};
 let mockPending = false;
 const mockManagerListeners = new Set<() => void>();
 const mockManagedSkills: Array<{ name: string; filePath: string; builtin?: boolean }> = [];
+const mockOpenNewSkill = jest.fn();
 const mockModalContent = jest.fn<void, [React.ReactElement]>();
 jest.mock("@/agentMode/backends/registry", () => ({ backendDisplayOrder: () => [mockDescriptor] }));
 jest.mock("@/contexts/PluginContext", () => ({ usePlugin: () => mockPlugin }));
-jest.mock("@/projects/state", () => ({ useProjects: () => [] }));
+const mockProjects: Array<{ id: string; name: string }> = [];
+const LISTS_PER_LOAD = 2 * EXTENSION_KINDS.length;
+jest.mock("@/projects/state", () => ({ useProjects: () => mockProjects }));
+jest.mock("@/agentMode/session/sessionScope", () => ({
+  resolveScopeCwd: (base: string, id: string) => `${base}/${id}`,
+}));
 jest.mock("@/settings/model", () => ({ useSettingsValue: () => mockSettings }));
 jest.mock("@/utils/vaultPath", () => ({ getVaultBase: () => "/vault" }));
 jest.mock("@/agentMode/skills/SkillManager", () => ({ useManagedSkills: () => mockManagedSkills }));
@@ -102,6 +108,7 @@ jest.mock("@/agentMode/skills/ui/SkillsSettings", () => ({
       {children}
     </>
   ),
+  openNewSkillModal: (...args: unknown[]) => mockOpenNewSkill(...args),
 }));
 jest.mock("@/settings/v2/components/CommandSettings", () => ({
   CommandSettings: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -130,6 +137,7 @@ describe("AgentExtensionsSettings", () => {
       mockPending = false;
       mockManagerListeners.clear();
       mockManagedSkills.length = 0;
+      mockProjects.length = 0;
       mockList.mockResolvedValue([mockItem]);
       mockRead.mockResolvedValue([
         { kind: "mcp", status: "partial", warnings: [], items: [mockItem] },
@@ -152,13 +160,31 @@ describe("AgentExtensionsSettings", () => {
       render(<AgentExtensionsSettings kind="mcp" />);
       await expandAllSections();
       await screen.findByRole("article", { name: "notes" });
-      expect(mockList).toHaveBeenCalledWith("mcp", { kind: "user" });
+      expect(mockList).toHaveBeenCalledWith("mcp", { kind: "project", cwd: "/vault" });
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
       expect(
         screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
       ).toBe("true");
       fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
+    });
+    it("reads the current vault and every configured project in one merged list", async () => {
+      mockProjects.push({ id: "proj-1", name: "Notes" });
+      render(<AgentExtensionsSettings kind="mcp" />);
+      await waitFor(() =>
+        expect(mockList).toHaveBeenCalledWith("mcp", { kind: "project", cwd: "/vault" })
+      );
+      await waitFor(() =>
+        expect(mockList).toHaveBeenCalledWith("mcp", {
+          kind: "project",
+          cwd: "/vault/proj-1",
+        })
+      );
+    });
+    it("offers the new-skill action beside refresh on the skills page", async () => {
+      render(<AgentExtensionsSettings kind="skill" />);
+      fireEvent.click(await screen.findByRole("button", { name: "New skill" }));
+      expect(mockOpenNewSkill).toHaveBeenCalledTimes(1);
     });
     it.each(["plugin", "skill", "command", "hook", "mcp", "subagent"] as const)(
       "checks %s on entry without repeating on search",
@@ -219,7 +245,7 @@ describe("AgentExtensionsSettings", () => {
         expect(mockToggle).toHaveBeenCalledWith(expect.objectContaining({ revision: "v1" }), false)
       );
       await waitFor(() => expect(mockChanged).toHaveBeenCalledWith("claude"));
-      await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * EXTENSION_KINDS.length));
+      await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * LISTS_PER_LOAD));
       expect(mockCheck).toHaveBeenCalledTimes(1);
     });
     it("answers from the cached check while the configuration is unchanged and rechecks on an explicit refresh (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
@@ -254,7 +280,7 @@ describe("AgentExtensionsSettings", () => {
       expect(
         screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
       ).toBe("true");
-      await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * EXTENSION_KINDS.length));
+      await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * LISTS_PER_LOAD));
       expect(mockCheck).toHaveBeenCalledTimes(1);
     });
     it("checks again when the saved answer no longer matches the configuration (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
@@ -315,7 +341,6 @@ describe("AgentExtensionsSettings", () => {
       ]);
       mockDetails.mockResolvedValue({ item: plugin, revision: "v1", config: {} });
       render(<AgentExtensionsSettings kind="plugin" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await expandAllSections();
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
@@ -350,7 +375,6 @@ describe("AgentExtensionsSettings", () => {
       ]);
       mockDetails.mockResolvedValue({ item: plugin, revision: "v1", config: {} });
       render(<AgentExtensionsSettings kind="plugin" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await expandAllSections();
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
@@ -375,7 +399,6 @@ describe("AgentExtensionsSettings", () => {
       ]);
       mockDetails.mockResolvedValue({ item: plugin, revision: "v1", config: {} });
       render(<AgentExtensionsSettings kind="plugin" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await expandAllSections();
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
@@ -429,7 +452,6 @@ describe("AgentExtensionsSettings", () => {
       mockList.mockResolvedValue([]);
       mockRead.mockResolvedValue([{ kind: "skill", status: "partial", warnings: [], items: [] }]);
       render(<AgentExtensionsSettings kind="skill" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
       expect(screen.getByText("Managed skill items")).toBeTruthy();
       expect(screen.queryByText("No entries found in the checked sources.")).toBeNull();
@@ -460,7 +482,6 @@ describe("AgentExtensionsSettings", () => {
         mcpServers: [],
       });
       render(<AgentExtensionsSettings kind="skill" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
       await expandAllSections();
       expect(screen.getByRole("article", { name: "linked-skill" })).toBeTruthy();
@@ -491,7 +512,6 @@ describe("AgentExtensionsSettings", () => {
         { kind: "skill", status: "partial", warnings: [], items: skills },
       ]);
       render(<AgentExtensionsSettings kind="skill" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
       await expandAllSections();
       expect(screen.getAllByRole("article", { name: "review" })).toHaveLength(1);
@@ -503,34 +523,26 @@ describe("AgentExtensionsSettings", () => {
       );
     });
 
-    it("changes the selected source without attributing the old source's entries to it", async () => {
-      mockCheck.mockResolvedValue({
-        skills: [],
-        commands: [],
-        plugins: [],
-        failedPlugins: [],
-        mcpServers: [],
-      });
-      let resolveOld!: (value: readonly AgentExtensionItem[]) => void;
-      const oldInventory = new Promise<readonly AgentExtensionItem[]>((resolve) => {
-        resolveOld = resolve;
-      });
-      mockList.mockImplementation((kind, scope) =>
-        scope.kind === "user"
-          ? oldInventory
-          : Promise.resolve(
-              kind === "mcp" ? [{ ...mockItem, id: "user", name: "personal", source: "user" }] : []
-            )
+    it("keeps entries from different scopes side by side", async () => {
+      const userItem: AgentExtensionItem = {
+        ...mockItem,
+        id: "global",
+        name: "global",
+        source: "user",
+        target: {
+          path: "/home/.mcp.json",
+          format: "json",
+          keyPath: ["mcpServers", "global"],
+          scope: { kind: "user" },
+        },
+      };
+      mockList.mockImplementation(async (_entryKind, scope) =>
+        scope.kind === "user" ? [userItem] : [{ ...mockItem, id: "personal", name: "personal" }]
       );
       render(<AgentExtensionsSettings kind="mcp" />);
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "vault" } });
       await expandAllSections();
-      await screen.findByRole("article", { name: "personal" });
-      resolveOld([mockItem]);
-      await waitFor(() =>
-        expect(mockList).toHaveBeenCalledWith("mcp", { kind: "project", cwd: "/vault" })
-      );
-      expect(screen.queryByRole("article", { name: "notes" })).toBeNull();
+      expect(await screen.findByRole("article", { name: "global" })).toBeTruthy();
+      expect(await screen.findByRole("article", { name: "personal" })).toBeTruthy();
     });
     it("reveals matching entries without manual expansion once a search query filters the list (https://github.com/ItsDalk-Lane/Scribe/issues/4)", async () => {
       render(<AgentExtensionsSettings kind="mcp" />);

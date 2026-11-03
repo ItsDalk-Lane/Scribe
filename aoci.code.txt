@@ -341,7 +341,7 @@ fakeTurnTrackerDeps.ts[TQ3T]: F:Jest mocks implementing the TurnTracker dependen
 permissionPrompts.ts[TQ3T]: F:Reusable permission prompt fixtures for session tests | R:code:src/agentMode/session/types.ts | A:writePermissionRequest | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/skills/===
-SkillManager.ts[IE7L]: F:Manages the skill canonical store: creation, import, deletion, and per-agent symlinks | R:code:src/agentMode/session/extensionInventory.ts | A:SkillManager, getManagedSkills | S:Per-agent enablement is implemented with folder links; Windows may require developer mode to create them
+SkillManager.ts[IE7L]: F:Manages the skill canonical store: creation, import, deletion, and per-agent symlinks | R:code:src/agentMode/session/extensionInventory.ts | A:SkillManager, getManagedSkills | S:Per-agent enablement uses folder links (Windows may need developer mode); built-in enablement is saved as preferences and re-applied on refresh, never by editing their files
 agentPaths.ts[RG2T]: F:Joins the vault root with a project's relative skills directory | R:- | A:agentSkillsDirAbs | S:-
 concurrency.ts[DB3T]: F:Runs a worker over items with a bounded parallelism limit | R:- | A:mapWithConcurrency | S:-
 denyListComposer.ts[DB3T]: F:Composes the skill deny list for cross-discovered agent folders | R:code:src/agentMode/skills/types.ts | A:composeDenyList | S:-
@@ -372,7 +372,7 @@ seedBuiltinSkills.ts[IE5S]: F:Seeds and updates builtin skill folders based on v
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/skills/ui/===
 BuiltinSkillsTable.stories.tsx[TQ3T]: F:Previews confirmed, checking, unknown and unavailable built-in skill rows | R:code:src/agentMode/skills/ui/BuiltinSkillsTable.tsx | A:- | S:-
-BuiltinSkillsTable.tsx[EU4S]: F:Displays built-in skill previews and locked availability switches matched to their actual source files | R:code:src/agentMode/session/extensionAvailability.ts | A:BuiltinSkillsTable | S:-
+BuiltinSkillsTable.tsx[EU4S]: F:Displays built-in skill previews with one availability switch per agent | R:code:src/agentMode/session/extensionAvailability.ts | A:BuiltinSkillsTable | S:Without a toggle callback the switches stay locked and the row is marked built-in and read-only; otherwise each switch saves a per-agent preference
 DeleteConfirmDialog.tsx[EU4S]: F:Confirmation dialog listing affected agent links before deleting a skill | R:- | A:DeleteConfirmDialog | S:-
 EmptyPlaceholder.stories.tsx[TQ2T]: F:Gallery story for the skills empty state | R:code:src/agentMode/skills/ui/EmptyPlaceholder.tsx | A:- | S:-
 EmptyPlaceholder.tsx[EU2T]: F:Empty state pointing at the skills folder | R:- | A:EmptyPlaceholder | S:-
@@ -383,11 +383,11 @@ SkillEditorForm.tsx[EU4T]: F:Form for editing skill name, description, and body 
 SkillEditorModal.tsx[EU4S]: F:Modal wrapping the editor form for create and edit flows | R:code:src/agentMode/skills/SkillManager.ts | A:SkillEditorModal | S:-
 SkillLoadIssues.stories.tsx[TQ3S]: F:Gallery stories for the skill load issues dialog | R:code:src/agentMode/skills/ui/SkillLoadIssues.tsx | A:- | S:-
 SkillLoadIssues.tsx[EU4S]: F:Dialog listing skills that failed to load with evidence and a repair prompt | R:code:src/agentMode/skills/skillRepairPrompt.ts | A:SkillLoadIssuesDialog | S:-
-SkillRow.tsx[EU6L]: F:Displays skill availability switches and retains editing, properties, migration and deletion actions | R:code:src/agentMode/skills/ui/skillRuntimeItem.ts | A:SkillRow | S:Migration remains a separate action; availability switches cannot silently migrate a skill
+SkillRow.tsx[EU6L]: F:Displays skill availability switches and retains editing, properties, migration and deletion actions | R:code:src/agentMode/skills/ui/skillRuntimeItem.ts | A:SkillRow | S:Migration remains a separate action; a canonical skill's switch follows local enablement and stays usable regardless of the last check's verdict
 SkillRowLayout.stories.tsx[TQ3S]: F:Previews shared skill row layout with canonical, checking, mirrored, waiting, disabled and unconfirmed states | R:code:src/agentMode/skills/ui/SkillRowLayout.tsx | A:- | S:-
 SkillRowLayout.tsx[EU3T]: F:Shared row layout for skill tables | R:- | A:SkillRowLayout | S:-
-SkillsSettings.tsx[EU7L]: F:Combines managed and built-in skill lists with runtime usability, management actions and load-issue recovery | R:code:src/agentMode/skills/SkillManager.ts | A:SkillsSettings | S:Built-ins reconcile on entry; repair prepares a draft and never sends it
-skillRuntimeItem.ts[DB4T]: F:Matches managed skill files to runtime evidence and derives safe direction-specific toggle capabilities | R:code:src/agentMode/skills/toggleDecision.ts | A:skillRuntimeItem | S:-
+SkillsSettings.tsx[EU7L]: F:Combines managed and built-in skill lists with runtime usability, management actions and load-issue recovery | R:code:src/agentMode/skills/SkillManager.ts | A:SkillsSettings, openNewSkillModal | S:Built-ins reconcile on entry; repair prepares a draft and never sends it; embedding hides the new-skill button; built-in switches save a per-agent preference and refresh
+skillRuntimeItem.ts[DB4T]: F:Matches managed skill files to runtime evidence and derives safe direction-specific toggle capabilities | R:code:src/agentMode/skills/toggleDecision.ts | A:skillRuntimeItem, sameSkillPath | S:File identity compares resolved real paths so linked copies match; an unconfirmed managed skill stays switchable and reports as manual_only
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/ui/===
 ActionCard.tsx[EU4S]: F:Tool call card showing status, target, and rendered diff output | R:code:src/agentMode/ui/diffRender.tsx | A:- | S:-
@@ -403,8 +403,8 @@ AgentContextMeter.tsx[EU5S]: F:Session and plan usage meters with expiry-aware w
 AgentContextSection.tsx[EU5S]: F:Project context editor section with sources and badge list | R:code:src/components/project/ProjectContextSourceEditor.tsx | A:AgentContextSection | S:-
 AgentDetailModal.tsx[EU4T]: F:Base React modal that reopens by detail key across view refreshes | R:code:src/components/modals/ReactModal.tsx | A:AgentDetailModal | S:-
 AgentExtensionsPanel.stories.tsx[TQ4M]: F:Previews extension lists across skills, collapsed sections, MCP states, plugin availability, built-ins and failed checks | R:code:src/agentMode/ui/AgentExtensionsPanel.tsx | A:- | S:-
-AgentExtensionsPanel.tsx[EU5M]: F:Displays collapsible grouped extension rows with availability switches, plugin versions, and management actions | R:code:src/agentMode/session/extensionAvailability.ts | A:AgentExtensionsPanel, EXTENSION_LABELS | S:Collapse choices last only for the app session; a search query forces every section open
-AgentExtensionsSettings.tsx[EU6L]: F:Orchestrates six scoped extension pages, automatic checks, mutations, and runtime-backed plugin details | R:code:src/agentMode/session/mergeExtensionRuntime.ts | A:AgentExtensionsSettings | S:Checks are cached by configuration fingerprint; MCP settle updates repaint the page; a scope-isolated list never gains runtime rows from other scopes; local-directory plugins delete their directory
+AgentExtensionsPanel.tsx[EU5M]: F:Displays collapsible grouped extension rows with availability switches, plugin versions, and management actions | R:code:src/agentMode/session/extensionAvailability.ts | A:AgentExtensionsPanel, EXTENSION_LABELS | S:Collapse choices last only for the app session; a search query forces every section open; row keys pair each id with its owning scope so same-named entries from different scopes stay separate
+AgentExtensionsSettings.tsx[EU6L]: F:Renders the six extension pages by merging user, current-vault, and per-project configurations into one list | R:code:src/agentMode/session/mergeExtensionRuntime.ts | A:AgentExtensionsSettings | S:Project listings drop user entries, so the user scope is also listed; mutations use the entry scope; duplicates drop only within scope and id; the skills page new-skill button sits in the header
 AgentHome.tsx[EU7L]: F:Agent Chat home screen combining transcript, composer, context, and landing states | R:code:src/agentMode/ui/AgentChatInput.tsx | A:- | S:With no messages the landing stack renders in place of the transcript while the composer stays
 AgentHomeSection.tsx[EU4S]: F:Home section scaffolding with scroll area and create row anchored to a trigger | R:- | A:AgentHomeCreateRow | S:-
 AgentHomeShelf.stories.tsx[TQ3T]: F:Gallery stories for the home shelf tabs | R:code:src/agentMode/ui/AgentHomeShelf.tsx | A:- | S:-
@@ -442,7 +442,7 @@ CompactionRow.tsx[EU3T]: F:Row showing compaction progress or outcome | R:- | A:
 CopilotAgentView.tsx[EC6T]: F:Obsidian ItemView hosting the Agent Chat React root | R:code:src/agentMode/ui/AgentModeChat.tsx | A:CopilotAgentView | S:-
 CreateProjectPanel.tsx[EU4S]: F:Anchored panel hosting the project creation form | R:code:src/agentMode/ui/AgentProjectCreateForm.tsx | A:CreateProjectPanel | S:-
 ExtensionDialogs.stories.tsx[TQ4S]: F:Previews install, import, and plugin detail dialogs with component, ownership, and missing-file states | R:code:src/agentMode/ui/ExtensionDialogs.tsx | A:- | S:-
-ExtensionDialogs.tsx[EU5L]: F:Renders extension install and import forms plus versioned plugin details and component availability | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:ExtensionModal, PluginInstallForm, ExtensionImportForm, ExtensionDetailsView | S:A details modal may omit its native title so the name and copy button start the content
+ExtensionDialogs.tsx[EU5L]: F:Renders extension install and import forms plus versioned plugin details and component availability | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:ExtensionModal, PluginInstallForm, ExtensionImportForm, ExtensionDetailsView | S:A details modal may omit its native title so the name and copy button start the content; an optional scope label renders between the name and the availability row
 ExtensionEditor.stories.tsx[TQ4S]: F:Gallery stories for the extension editor fields | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:- | S:-
 ExtensionEditor.tsx[EU5L]: F:Field primitives and form body for editing extension drafts | R:code:src/agentMode/session/extensionManagement.ts | A:ExtensionField, ExtensionSelect | S:-
 FeedbackCard.stories.tsx[TQ3T]: F:Gallery stories for the feedback offer card | R:code:src/agentMode/ui/FeedbackCard.tsx | A:- | S:-
@@ -545,7 +545,7 @@ nativeModalFixture.ts[TQ3T]: F:Fixture attaching a React modal host for tests | 
 taskFixtures.ts[TQ2T]: F:Reusable agent task fixtures | R:code:src/agentMode/session/AgentSession.ts | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/builtinSkills/===
-builtinSkills.ts[IE4T]: F:Builtin skill registry with per-agent enablement preferences | R:code:src/builtinSkills/obsidianSkills.ts | A:BUILTIN_SKILLS, isBuiltinSkillEnabledFor, builtinSkillUnavailableReason | S:-
+builtinSkills.ts[IE4T]: F:Builtin skill registry with per-agent enablement preferences | R:code:src/builtinSkills/obsidianSkills.ts | A:BUILTIN_SKILLS, isBuiltinSkillEnabledFor, builtinSkillUnavailableReason | S:Enablement honors disabled and disabledAgents from settings; a name outside the registry is disabled
 obsidianSkills.ts[LZ5L]: F:Vendored builtin Obsidian skill contents with upstream revision and license | R:code:src/builtinSkills/builtinSkills.ts | A:OBSIDIAN_SKILLS, OBSIDIAN_SKILLS_UPSTREAM_REVISION | S:Content ships from one pinned upstream revision; per-agent disable flags ride beside each skill
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/cache/===
@@ -724,7 +724,7 @@ useQuickAskSession.ts[EU5S]: F:Hook running the quick ask chat turns against a m
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/components/ui/===
 AgentConfigurationHeader.stories.tsx[TQ3T]: F:Gallery stories for the agent configuration header | R:code:src/components/ui/AgentConfigurationHeader.tsx | A:- | S:-
-AgentConfigurationHeader.tsx[EU4S]: F:Header selecting an agent with a model search bar | R:code:src/components/ui/SearchBar.tsx | A:AgentConfigurationHeader | S:-
+AgentConfigurationHeader.tsx[EU4T]: F:Agent tab strip below which a label and left-aligned search bar share a row with right-aligned action buttons | R:code:src/components/ui/SearchBar.tsx | A:AgentConfigurationHeader | S:-
 AgentModelList.stories.tsx[TQ3T]: F:Gallery stories for the agent model list | R:code:src/components/ui/AgentModelList.tsx | A:- | S:-
 AgentModelList.tsx[EU4S]: F:Collapsible grouped list enabling agent models | R:code:src/components/ui/ModelEnableList.tsx | A:AgentModelList | S:-
 AssistantResponseFooter.stories.tsx[TQ3T]: F:Gallery stories for the assistant response footer | R:code:src/components/ui/AssistantResponseFooter.tsx | A:- | S:-
@@ -911,14 +911,14 @@ modelsDevProviderInventory.json[TQ2T]: F:Recorded provider catalog fixture for a
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/providers/adapters/===
 ProviderAdapter.ts[EG4T]: F:Provider adapter interface: listing, verification, and chat construction | R:- | A:ProviderAdapter | S:-
 ProviderAdapterRegistry.ts[IC4T]: F:Registry resolving the adapter for a provider type | R:code:src/modelManagement/providers/adapters/ProviderAdapter.ts | A:ProviderAdapterRegistry | S:-
-anthropicAdapter.ts[IC4T]: F:Anthropic adapter: model listing and verification | R:code:src/utils/providerBaseUrl.ts | A:anthropicAdapter | S:-
-googleAdapter.ts[IC4T]: F:Google adapter: model listing and verification | R:code:src/utils/providerBaseUrl.ts | A:googleAdapter | S:-
+anthropicAdapter.ts[IC4T]: F:Anthropic adapter: model listing and verification | R:code:src/utils/providerBaseUrl.ts | A:anthropicAdapter | S:Extras schema strips unknown keys instead of rejecting them, so provider metadata the plugin writes never fails verification
+googleAdapter.ts[IC4T]: F:Google adapter: model listing and verification | R:code:src/utils/providerBaseUrl.ts | A:googleAdapter | S:Extras schema strips unknown keys instead of rejecting them, so provider metadata the plugin writes never fails verification
 listAnthropicModels.ts[IC4T]: F:Lists Anthropic models over its API | R:code:src/modelManagement/providers/adapters/listModelsHttp.ts | A:- | S:-
 listGoogleModels.ts[IC4T]: F:Lists Google models over its API | R:code:src/modelManagement/providers/adapters/listModelsHttp.ts | A:- | S:-
 listModelsHttp.ts[IN5S]: F:HTTP listing of provider models with timeouts and body caps | R:code:src/utils/index.ts | A:fetchListModels | S:-
 listOpenAICompatibleModels.ts[IC4T]: F:Lists models from an OpenAI-compatible endpoint | R:code:src/modelManagement/providers/adapters/listModelsHttp.ts | A:- | S:-
 listProviderModels.ts[IC3T]: F:Dispatches model listing to the right adapter path | R:- | A:listProviderModels | S:-
-openaiCompatibleAdapter.ts[IC4T]: F:Adapter for OpenAI-compatible providers | R:code:src/modelManagement/providers/adapters/ProviderAdapter.ts | A:openaiCompatibleAdapter | S:-
+openaiCompatibleAdapter.ts[IC4T]: F:Adapter for OpenAI-compatible providers | R:code:src/modelManagement/providers/adapters/ProviderAdapter.ts | A:openaiCompatibleAdapter | S:Extras schema strips unknown keys instead of rejecting them, so catalog metadata the plugin stores (npm, catalogBaseUrl) never fails verification
 openaiCompatibleModelsUrl.ts[IC2T]: F:Joins a base URL with the models path | R:- | A:- | S:-
 openaiCompatibleVerifyPath.ts[IC2T]: F:Chooses the verification endpoint path | R:- | A:- | S:-
 verifyViaListModels.ts[IV5S]: F:Verifies a provider by listing its models | R:code:src/modelManagement/providers/adapters/listModelsHttp.ts | A:verifyViaListModels, ListModelsTimeoutError | S:-

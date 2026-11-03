@@ -394,18 +394,41 @@ export class SkillManager {
   }
 
   async setBuiltinSkillEnabled(
-    _name: string,
-    _enabled: boolean
+    name: string,
+    enabled: boolean
   ): Promise<SkillOperationResult<"fs-error">> {
-    return fsFailure("Built-in skills are always enabled and read-only.");
+    return this.saveBuiltinPreference((current) => ({
+      ...current,
+      [name]: enabled
+        ? { ...current[name], disabled: false, disabledAgents: [] }
+        : { ...current[name], disabled: true },
+    }));
   }
 
   async setBuiltinAgentEnabled(
-    _name: string,
-    _agent: string,
-    _enabled: boolean
+    name: string,
+    agent: string,
+    enabled: boolean
   ): Promise<SkillOperationResult<"fs-error">> {
-    return fsFailure("Built-in skills are always enabled and read-only.");
+    return this.saveBuiltinPreference((current) => {
+      const disabledAgents = new Set(current[name]?.disabledAgents ?? []);
+      if (enabled) disabledAgents.delete(agent);
+      else disabledAgents.add(agent);
+      return { ...current, [name]: { ...current[name], disabledAgents: [...disabledAgents] } };
+    });
+  }
+
+  private async saveBuiltinPreference(
+    update: (current: BuiltinPreferences) => BuiltinPreferences
+  ): Promise<SkillOperationResult<"fs-error">> {
+    if (!this.builtinRuntime) return fsFailure("Built-in skills cannot be changed on this device.");
+    try {
+      await this.builtinRuntime.savePreferences(update);
+      await this.refreshAfterSave();
+      return { ok: true };
+    } catch (error) {
+      return fsFailure(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async toggleAgent(skill: Skill, agent: BackendId, enabled: boolean): Promise<ToggleAgentResult> {

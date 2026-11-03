@@ -142,7 +142,7 @@ describe("SkillsSettings", () => {
       expect(screen.queryByText("translate")).toBeNull();
       expect(screen.queryByRole("tablist")).toBeNull();
       expect(screen.getByText("Plugin skills")).toBeTruthy();
-      expect(screen.getByRole("button", { name: "New skill" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "New skill" })).toBeNull();
     });
 
     it("shares checked availability with the managed and built-in skill lists", async () => {
@@ -188,15 +188,15 @@ describe("SkillsSettings", () => {
       });
       expect(
         screen.getByRole("switch", { name: "Enable review-notes" }).getAttribute("aria-disabled")
-      ).toBe("true");
+      ).toBe("false");
       expect(
         screen.getByRole("switch", { name: "Enable review-notes" }).getAttribute("aria-checked")
-      ).toBe("false");
+      ).toBe("true");
       expect(
         screen
           .getByRole("switch", { name: "Enable obsidian-markdown" })
           .getAttribute("aria-disabled")
-      ).toBe("true");
+      ).toBe("false");
       expect(
         screen
           .getByRole("switch", { name: "Enable obsidian-markdown" })

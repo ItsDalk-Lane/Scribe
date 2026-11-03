@@ -136,29 +136,32 @@ describe("agentSystemPrompt", () => {
       expect(buildAgentSystemPrompt(AGENT, APP)).toContain(COPILOT_OBSIDIAN_CLI_STEERING);
     });
 
-    it(`keeps the existing format steering despite legacy builtin opt-outs (${ISSUE_726})`, () => {
+    it(`drops opted-out builtin skills from the format steering (${ISSUE_726})`, () => {
       setBuiltinPreferences({
         "obsidian-markdown": { disabledAgents: [AGENT] },
         "obsidian-bases": { disabled: true },
       });
-      expect(buildAgentSystemPrompt(AGENT, APP)).toContain(ALL_OBSIDIAN_FORMAT_SKILLS_LINE);
+      const prompt = buildAgentSystemPrompt(AGENT, APP);
+      expect(prompt).toContain("json-canvas for .canvas files");
+      expect(prompt).not.toContain("obsidian-markdown for");
+      expect(prompt).not.toContain("obsidian-bases for");
 
       setBuiltinPreferences({
         "obsidian-markdown": { disabled: true },
         "obsidian-bases": { disabled: true },
         "json-canvas": { disabledAgents: [AGENT] },
       });
-      expect(buildAgentSystemPrompt(AGENT, APP)).toContain(ALL_OBSIDIAN_FORMAT_SKILLS_LINE);
+      expect(buildAgentSystemPrompt(AGENT, APP)).not.toContain("Before writing Obsidian syntax");
     });
 
-    it(`keeps the existing CLI steering despite legacy builtin opt-outs (${ISSUE_726})`, () => {
+    it(`drops the CLI steering when the builtin skill is opted out (${ISSUE_726})`, () => {
       setBuiltinPreferences({});
       expect(buildAgentSystemPrompt(AGENT, APP)).toContain(
         "Obsidian is running: the obsidian-cli skill reaches its live state and index (open tabs, daily notes, backlinks, broken links, Bases results, templates) and link-aware renames. Prefer it over searching files for links and Bases results."
       );
 
       setBuiltinPreferences({ "obsidian-cli": { disabledAgents: [AGENT] } });
-      expect(buildAgentSystemPrompt(AGENT, APP)).toContain(COPILOT_OBSIDIAN_CLI_STEERING);
+      expect(buildAgentSystemPrompt(AGENT, APP)).not.toContain(COPILOT_OBSIDIAN_CLI_STEERING);
     });
 
     it(`drops the obsidian-cli line while Obsidian's command line interface is off, keeping the format skills (${ISSUE_726})`, () => {

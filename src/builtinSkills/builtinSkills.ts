@@ -25,9 +25,13 @@ export function builtinSkillUnavailableReason(skillName: string): string | undef
 }
 
 export function isBuiltinSkillEnabledFor(
-  _settings: CopilotSettings,
+  settings: CopilotSettings,
   skillName: string,
-  _agentId: string
+  agentId: string
 ): boolean {
-  return BUILTIN_SKILLS.some((skill) => skill.name === skillName);
+  if (!BUILTIN_SKILLS.some((skill) => skill.name === skillName)) return false;
+  const preference = settings.agentMode.skills.builtinPreferences?.[skillName];
+  if (!preference) return true;
+  if (preference.disabled === true) return false;
+  return !(preference.disabledAgents ?? []).includes(agentId);
 }

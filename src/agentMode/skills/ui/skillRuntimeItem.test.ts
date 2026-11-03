@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { skillRuntimeItem } from "./skillRuntimeItem";
 import type { Skill } from "@/agentMode/skills/types";
 import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
@@ -28,9 +31,25 @@ describe("skillRuntimeItem", () => {
         canDisable: true,
       });
     });
-    it("does not attribute another file with the same name to the managed skill", () => {
+    it("attributes a symlinked copy of the managed file to the managed skill", () => {
+      const root = mkdtempSync(join(tmpdir(), "scribe-skill-"));
+      const canonical = join(root, "skills", "review", "SKILL.md");
+      mkdirSync(dirname(canonical), { recursive: true });
+      writeFileSync(canonical, "x");
+      const linkRoot = join(root, ".claude", "skills");
+      mkdirSync(linkRoot, { recursive: true });
+      symlinkSync(dirname(canonical), join(linkRoot, "review"));
+      const linked = join(linkRoot, "review", "SKILL.md");
+      expect(
+        skillRuntimeItem({ ...skill, filePath: canonical, dirPath: dirname(canonical) }, "claude", [
+          { ...observed, location: linked },
+        ]).availability
+      ).toBe("loaded");
+      rmSync(root, { recursive: true, force: true });
+    });
+    it("does not let another file with the same name claim the managed skill's availability", () => {
       const other = { ...observed, id: "other", location: "/elsewhere/review/SKILL.md" };
-      expect(skillRuntimeItem(skill, "claude", [other]).availability).toBeUndefined();
+      expect(skillRuntimeItem(skill, "claude", [other]).availability).toBe("manual_only");
     });
     it("accepts an unambiguous runtime-only name when no file path was reported", () => {
       expect(
@@ -39,8 +58,11 @@ describe("skillRuntimeItem", () => {
         ]).availability
       ).toBe("loaded");
     });
-    it("keeps a configured skill unknown when runtime evidence is unavailable", () => {
-      expect(skillRuntimeItem(skill, "claude").availability).toBeUndefined();
+    it("keeps a configured managed skill switchable as manual when runtime evidence is unavailable", () => {
+      expect(skillRuntimeItem(skill, "claude")).toMatchObject({
+        availability: "manual_only",
+        canDisable: true,
+      });
     });
     it("allows an unshared managed skill to be enabled after a completed check", () => {
       expect(skillRuntimeItem({ ...skill, enabledAgents: [] }, "claude", [])).toMatchObject({

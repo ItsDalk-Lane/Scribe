@@ -35,6 +35,36 @@ describe("BuiltinSkillsTable", () => {
       expect(screen.queryByText("Always enabled")).toBeNull();
       expect(screen.queryByText("Read-only")).toBeNull();
     });
+    it("switches a built-in skill per agent through the page-provided toggle", () => {
+      const onToggle = jest.fn().mockResolvedValue(undefined);
+      const isEnabled = jest.fn(() => true);
+      render(<BuiltinSkillsTable {...props()} isEnabled={isEnabled} onToggle={onToggle} />);
+      const control = screen.getByRole("switch");
+      expect(control.getAttribute("aria-disabled")).toBe("false");
+      expect(control.getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(control);
+      expect(onToggle).toHaveBeenCalledWith("obsidian-markdown", "claude", false);
+    });
+    it("gives each agent its own built-in switch state", () => {
+      const isEnabled = jest.fn((_name: string, agent: string) => agent === "claude");
+      render(
+        <BuiltinSkillsTable
+          {...props()}
+          agents={[
+            { id: "claude", displayName: "Claude", Icon: Bot },
+            { id: "codex", displayName: "Codex", Icon: Bot },
+          ]}
+          availableAgents={["claude", "codex"]}
+          isEnabled={isEnabled}
+          onToggle={jest.fn().mockResolvedValue(undefined)}
+        />
+      );
+      expect(screen.getAllByRole("switch")).toHaveLength(2);
+      expect(screen.getAllByRole("switch").map((s) => s.getAttribute("aria-checked"))).toEqual([
+        "true",
+        "false",
+      ]);
+    });
     it("shows the real unavailable reason without claiming a skill is loaded", () => {
       render(
         <BuiltinSkillsTable

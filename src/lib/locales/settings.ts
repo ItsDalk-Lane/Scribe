@@ -521,6 +521,7 @@ export const settingsTranslations: Record<string, string> = {
   "Waiting for configuration changes to take effect.": "正在等待当前任务结束并应用更改。",
   "Available in this scope": "在此范围内可用",
   "Unavailable in this scope": "在此范围内不可用",
+  Scope: "作用范围",
   "Availability in this scope": "当前范围内的可用性",
   "Installation address": "安装地址",
   Installations: "安装记录",

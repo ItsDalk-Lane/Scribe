@@ -258,6 +258,7 @@ const INSTALLATION_SCOPE_LABELS = {
 
 export interface ExtensionDetailsViewProps {
   details: AgentExtensionDetails;
+  scopeLabel?: string;
   onClose: () => void;
   onUpdate?: () => Promise<void>;
   onDelete?: () => void;
@@ -265,6 +266,7 @@ export interface ExtensionDetailsViewProps {
 
 export function ExtensionDetailsView({
   details,
+  scopeLabel,
   onClose,
   onUpdate,
   onDelete,
@@ -311,6 +313,14 @@ export function ExtensionDetailsView({
           <Copy className="tw-size-4" />
         </Button>
       </div>
+      {scopeLabel && (
+        <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
+          <span className="tw-text-ui-small">{t("Scope")}</span>
+          <span className="tw-min-w-0 tw-truncate tw-text-ui-small tw-text-muted">
+            {scopeLabel}
+          </span>
+        </div>
+      )}
       <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
         <span className="tw-text-ui-small">{t("Availability in this scope")}</span>
         <span className="tw-inline-flex tw-min-w-0 tw-items-center tw-gap-2">

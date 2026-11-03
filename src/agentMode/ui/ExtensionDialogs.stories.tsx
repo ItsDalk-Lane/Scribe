@@ -81,6 +81,7 @@ export const PluginDetails: StoryObj = {
   render: () => (
     <ExtensionDetailsView
       details={plugin}
+      scopeLabel="本机 · 用户"
       onClose={() => {}}
       onUpdate={async () => {}}
       onDelete={() => {}}

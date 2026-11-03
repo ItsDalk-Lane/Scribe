@@ -233,13 +233,13 @@ describe("SkillManager", () => {
           "obsidian-cli",
         ]);
       });
-      it(`keeps required built-ins enabled while reporting a file update failure ${ISSUE}`, async () => {
+      it(`applies built-in opt-outs even when the file update fails ${ISSUE}`, async () => {
         const f = builtinFixture();
         preferences[builtinSkill.name] = { disabledAgents: ["opencode"] };
         f.prepare.mockRejectedValue(new Error("cleanup failed"));
         const result = await f.manager.refresh();
         expect(result.reconcileError).toBe("cleanup failed");
-        expect(getManagedSkills()[0].enabledAgents).toEqual(["claude", "opencode"]);
+        expect(getManagedSkills()[0].enabledAgents).toEqual(["claude"]);
       });
       it(`seeds before discovery on every refresh entry point ${ISSUE}`, async () => {
         const f = builtinFixture();
@@ -391,12 +391,12 @@ describe("SkillManager", () => {
         expect(getManagedSkills()[0].enabledAgents).toEqual(["claude"]);
       });
 
-      it(`rejects builtin toggles without changing settings or files ${ISSUE}`, async () => {
+      it(`records a builtin agent toggle as a preference without touching files ${ISSUE}`, async () => {
         const f = builtinFixture();
         expect(await f.manager.toggleAgent(builtinSkill, "opencode", false)).toMatchObject({
-          ok: false,
+          ok: true,
         });
-        expect(preferences).toEqual({});
+        expect(preferences[builtinSkill.name]?.disabledAgents).toEqual(["opencode"]);
         expect(runToggleAgent).not.toHaveBeenCalled();
       });
     });
@@ -739,21 +739,22 @@ describe("SkillManager", () => {
       });
     });
     describe("setBuiltinSkillEnabled()", () => {
-      it("refuses built-in enablement changes without saving preferences", async () => {
+      it("disables a built-in skill by saving the preference", async () => {
         const f = builtinFixture();
         expect(await f.manager.setBuiltinSkillEnabled(builtinSkill.name, false)).toMatchObject({
-          ok: false,
+          ok: true,
         });
-        expect(f.savePreferences).not.toHaveBeenCalled();
+        expect(f.savePreferences).toHaveBeenCalled();
+        expect(preferences[builtinSkill.name]).toEqual({ disabled: true });
       });
     });
     describe("setBuiltinAgentEnabled()", () => {
-      it("refuses per-agent changes to required built-in skills", async () => {
+      it("records a per-agent opt-out for a built-in skill", async () => {
         const f = builtinFixture();
         expect(
           await f.manager.setBuiltinAgentEnabled(builtinSkill.name, "claude", false)
-        ).toMatchObject({ ok: false });
-        expect(f.savePreferences).not.toHaveBeenCalled();
+        ).toMatchObject({ ok: true });
+        expect(preferences[builtinSkill.name]?.disabledAgents).toEqual(["claude"]);
       });
     });
 

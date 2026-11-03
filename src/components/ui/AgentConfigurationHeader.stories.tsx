@@ -17,12 +17,6 @@ export const Skills: StoryObj<AgentConfigurationHeaderProps> = {
   args: {
     agents: [{ id: "claude", label: "Claude Code" }],
     selectedAgent: "claude",
-    source: "user",
-    sources: [
-      { value: "user", label: "本机 · 用户" },
-      { value: "vault", label: "当前库" },
-    ],
-    onSourceChange: () => {},
     query: "",
     onQueryChange: () => {},
     searchPlaceholder: "搜索技能…",
@@ -37,11 +31,6 @@ export const AgentOnly: StoryObj<AgentConfigurationHeaderProps> = {
 export const ConfigurationActions: StoryObj<AgentConfigurationHeaderProps> = {
   args: {
     ...Skills.args,
-    source: "project",
-    sources: [
-      { value: "user", label: "本机 · 用户" },
-      { value: "project", label: "项目 · 本季度资料整理与长期笔记归档" },
-    ],
     actions: (
       <>
         <Button size="icon" variant="secondary" aria-label="刷新并检查">

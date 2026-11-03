@@ -185,7 +185,7 @@ export function AgentExtensionsPanel({
                       {items.map((item) => {
                         return (
                           <article
-                            key={item.id}
+                            key={`${item.id}:${item.target?.scope.kind === "project" ? item.target.scope.cwd : ""}`}
                             aria-label={item.name}
                             onClick={(event) => {
                               if (!(event.target as HTMLElement).closest("button, [role=switch]"))

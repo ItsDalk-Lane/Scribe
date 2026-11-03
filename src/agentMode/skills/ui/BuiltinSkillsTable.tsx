@@ -7,6 +7,7 @@ import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availabil
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { SkillRowLayout } from "./SkillRowLayout";
+import { sameSkillPath } from "./skillRuntimeItem";
 
 export interface BuiltinSkillRow {
   name: string;
@@ -23,6 +24,8 @@ export interface BuiltinSkillsTableProps {
   runtimeItems?: readonly AgentExtensionItem[];
   checking?: boolean;
   error?: string;
+  isEnabled?: (name: string, agent: string) => boolean;
+  onToggle?: (name: string, agent: string, enabled: boolean) => Promise<void>;
 }
 
 export function BuiltinSkillsTable({
@@ -33,6 +36,8 @@ export function BuiltinSkillsTable({
   runtimeItems,
   checking,
   error,
+  isEnabled,
+  onToggle,
 }: BuiltinSkillsTableProps) {
   return (
     <section aria-label={t("Built-in skills")} className="tw-group/settings tw-space-y-3">
@@ -51,8 +56,11 @@ export function BuiltinSkillsTable({
             skill={skill}
             unavailableReason={unavailableReasons?.[skill.name]}
             available={agents.some((agent) => availableAgents.includes(agent.id))}
+            agents={agents}
             runtimeItems={runtimeItems}
             checking={checking}
+            isEnabled={isEnabled}
+            onToggle={onToggle}
           />
         ))}
         {skills.length === 0 && (
@@ -69,42 +77,58 @@ interface BuiltinSkillItemProps {
   skill: BuiltinSkillRow;
   unavailableReason?: string;
   available: boolean;
+  agents: readonly AgentBrand[];
   runtimeItems?: readonly AgentExtensionItem[];
   checking?: boolean;
+  isEnabled?: (name: string, agent: string) => boolean;
+  onToggle?: (name: string, agent: string, enabled: boolean) => Promise<void>;
 }
 
 const BuiltinSkillItem = React.memo(function BuiltinSkillItem({
   skill,
   unavailableReason,
   available,
+  agents,
   runtimeItems,
   checking,
+  isEnabled,
+  onToggle,
 }: BuiltinSkillItemProps) {
+  const enabledFor = (agent: string): boolean => isEnabled?.(skill.name, agent) ?? true;
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const matches = runtimeItems?.filter(
     (item) =>
       !item.parentPluginId &&
       (item.runtimeName ?? item.name) === skill.name &&
       (skill.filePath
-        ? (item.location ?? item.target?.path) === skill.filePath
+        ? sameSkillPath(item.location ?? item.target?.path, skill.filePath)
         : !item.location && !item.target?.path)
   );
   const observed = matches?.length === 1 ? matches[0] : undefined;
   const reason =
     unavailableReason ?? (!available ? t("Set up Claude Code to use this skill.") : undefined);
-  const item: AgentExtensionItem = {
-    ...observed,
-    id: `builtin:${skill.name}`,
-    name: skill.name,
-    kind: "skill",
-    source: "project",
-    builtin: true,
-    readOnly: true,
-    availability: reason ? "disabled" : observed?.availability,
-    unavailableReason: reason,
-    canEnable: false,
-    canDisable: false,
-    capabilities: { edit: false, delete: false, toggle: false },
+  const itemFor = (agent: string): AgentExtensionItem => {
+    const enabled = enabledFor(agent);
+    return {
+      ...observed,
+      id: `builtin:${skill.name}`,
+      name: skill.name,
+      kind: "skill",
+      source: "project",
+      builtin: !onToggle,
+      readOnly: !onToggle,
+      availability: reason
+        ? "disabled"
+        : onToggle
+          ? enabled
+            ? (observed?.availability ?? "manual_only")
+            : "disabled"
+          : observed?.availability,
+      unavailableReason: reason,
+      canEnable: !enabled,
+      canDisable: enabled,
+      capabilities: { edit: false, delete: false, toggle: Boolean(onToggle) },
+    };
   };
   return (
     <div>
@@ -112,10 +136,18 @@ const BuiltinSkillItem = React.memo(function BuiltinSkillItem({
         name={skill.name}
         description={skill.description}
         controls={
-          <ExtensionAvailabilitySwitch
-            label={t("Enable {name}", { name: skill.name })}
-            state={getExtensionSwitchState(item, checking)}
-          />
+          <div className="tw-flex tw-items-center tw-gap-1.5">
+            {agents.map((agent) => (
+              <ExtensionAvailabilitySwitch
+                key={agent.id}
+                label={t("Enable {name}", { name: skill.name })}
+                state={getExtensionSwitchState(itemFor(agent.id), checking)}
+                onToggle={
+                  onToggle ? (next) => void onToggle(skill.name, agent.id, next) : undefined
+                }
+              />
+            ))}
+          </div>
         }
         actions={
           <Button

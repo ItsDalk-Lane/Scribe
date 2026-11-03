@@ -76,16 +76,16 @@ describe("builtinSkills", () => {
     it("enables a supplied skill for each agent by default", () => {
       expect(isBuiltinSkillEnabledFor(settingsWith({}), "obsidian-markdown", "claude")).toBe(true);
     });
-    it("keeps supplied skills enabled despite legacy global and per-agent opt outs", () => {
+    it("honors a whole-skill opt-out and a per-agent opt-out", () => {
       expect(
         isBuiltinSkillEnabledFor(
           settingsWith({ "obsidian-markdown": { disabled: true } }),
           "obsidian-markdown",
           "claude"
         )
-      ).toBe(true);
+      ).toBe(false);
       const settings = settingsWith({ "obsidian-markdown": { disabledAgents: ["codex"] } });
-      expect(isBuiltinSkillEnabledFor(settings, "obsidian-markdown", "codex")).toBe(true);
+      expect(isBuiltinSkillEnabledFor(settings, "obsidian-markdown", "codex")).toBe(false);
       expect(isBuiltinSkillEnabledFor(settings, "obsidian-markdown", "claude")).toBe(true);
     });
 

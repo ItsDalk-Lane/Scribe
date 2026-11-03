@@ -13,7 +13,10 @@ import { Notice, type App } from "obsidian";
 import React from "react";
 import type { AgentBrand, BackendId } from "@/agentMode/session/types";
 import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
-import { getExtensionSwitchState } from "@/agentMode/session/extensionAvailability";
+import {
+  getExtensionSwitchState,
+  type ExtensionSwitchState,
+} from "@/agentMode/session/extensionAvailability";
 import { Button } from "@/components/ui/button";
 import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { useApp } from "@/context";
@@ -42,6 +45,21 @@ interface SkillRowProps {
   runtimeItems?: readonly AgentExtensionItem[];
   checking?: boolean;
   onChanged?: () => Promise<void>;
+}
+
+function switchable(
+  state: ExtensionSwitchState,
+  item: AgentExtensionItem,
+  checking: boolean | undefined,
+  configured: boolean
+): ExtensionSwitchState {
+  const checked = configured || state.checked;
+  const allowed = checked ? item.canDisable !== false : item.canEnable !== false;
+  return {
+    ...state,
+    checked,
+    disabled: Boolean(checking) || !allowed || !item.capabilities?.toggle,
+  };
 }
 
 export const SkillRow: React.FC<SkillRowProps> = ({
@@ -176,11 +194,17 @@ export const SkillRow: React.FC<SkillRowProps> = ({
         <div className="tw-flex tw-items-center tw-gap-1.5">
           {agents.map((agent) => {
             const item = skillRuntimeItem(skill, agent.id, runtimeItems);
+            const state = getExtensionSwitchState(item, checking);
+            const configured = skill.enabledAgents.includes(agent.id);
             return (
               <ExtensionAvailabilitySwitch
                 key={agent.id}
                 label={t("Enable {name}", { name: skill.name })}
-                state={getExtensionSwitchState(item, checking)}
+                state={
+                  skill.location.kind === "canonical"
+                    ? switchable(state, item, checking, configured)
+                    : state
+                }
                 busy={busy}
                 onToggle={(next) => {
                   void handleToggleAgent(agent.id, next);

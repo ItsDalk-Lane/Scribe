@@ -1,7 +1,12 @@
 import { t } from "@/lib/i18n";
+import { logError } from "@/logger";
 import { availableBuiltinAgents } from "@/agentMode/skills/builtin/reconcileBuiltinSkills";
 import { useBackendInstallStates } from "@/agentMode/session/useBackendInstallStates";
-import { BUILTIN_SKILLS, builtinSkillUnavailableReason } from "@/builtinSkills/builtinSkills";
+import {
+  BUILTIN_SKILLS,
+  builtinSkillUnavailableReason,
+  isBuiltinSkillEnabledFor,
+} from "@/builtinSkills/builtinSkills";
 import { parseSkillFile } from "@/agentMode/skills/skillFormat";
 import { BuiltinSkillsTable } from "./BuiltinSkillsTable";
 import { formatSkillDisplayName } from "@/agentMode/skills/mergeDiscovery";
@@ -61,6 +66,16 @@ const BUILTIN_ROWS = BUILTIN_SKILLS.map((skill) => ({
   description: parseSkillFile(skill.skillMd, skill.name).frontmatter.description,
   content: skill.skillMd,
 }));
+
+export function openNewSkillModal(app: App, onCreated?: () => Promise<void>): void {
+  new SkillEditorModal(app, {
+    onSave: async (name, content) => {
+      const result = await SkillManager.getInstance().createSkill(name, content);
+      if (result.ok) await onCreated?.();
+      return result;
+    },
+  }).open();
+}
 
 export interface SkillsSettingsProps {
   embedded?: boolean;
@@ -128,6 +143,24 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
     ...skill,
     filePath: skills.find((managed) => managed.builtin && managed.name === skill.name)?.filePath,
   }));
+
+  const builtinEnabledFor = useCallback(
+    (name: string, agent: string) => isBuiltinSkillEnabledFor(settings, name, agent),
+    [settings]
+  );
+
+  const handleBuiltinToggle = useCallback(
+    async (name: string, agent: string, enabled: boolean) => {
+      const result = await SkillManager.getInstance().setBuiltinAgentEnabled(name, agent, enabled);
+      if (!result.ok) {
+        logError("Could not change a built-in skill", result.message);
+        new Notice(result.message);
+        return;
+      }
+      await onChanged?.();
+    },
+    [onChanged]
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -324,22 +357,14 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
           </div>
         )}
 
-        <div className="tw-group/extension-actions tw-mt-4 tw-flex tw-justify-end">
-          <Button
-            onClick={() =>
-              new SkillEditorModal(app, {
-                onSave: async (name, content) => {
-                  const result = await SkillManager.getInstance().createSkill(name, content);
-                  if (result.ok) await onChanged?.();
-                  return result;
-                },
-              }).open()
-            }
-          >
-            <Plus className="tw-mr-2 tw-size-4" />
-            {t("New skill")}
-          </Button>
-        </div>
+        {!embedded && (
+          <div className="tw-group/extension-actions tw-mt-4 tw-flex tw-justify-end">
+            <Button onClick={() => openNewSkillModal(app, onChanged)}>
+              <Plus className="tw-mr-2 tw-size-4" />
+              {t("New skill")}
+            </Button>
+          </div>
+        )}
 
         <div className="tw-mt-4" role="region" aria-label={t("Your skills")}>
           <div
@@ -393,6 +418,8 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
         availableAgents={availableAgents}
         runtimeItems={runtimeItems}
         checking={checking}
+        isEnabled={builtinEnabledFor}
+        onToggle={handleBuiltinToggle}
       />
       {children}
     </div>

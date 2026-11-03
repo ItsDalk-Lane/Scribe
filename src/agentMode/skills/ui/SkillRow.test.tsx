@@ -168,14 +168,32 @@ describe("SkillRow", () => {
       expect(control.getAttribute("aria-disabled")).toBe("false");
     });
 
-    it("keeps configured skills unconfirmed when no runtime check result exists", () => {
+    it("keeps a configured managed skill switchable when no runtime check result exists", () => {
       renderRow(jest.fn(), {
         agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
         skill: { ...canonicalSkill, enabledAgents: ["claude"] },
       });
       const control = screen.getByRole("switch", { name: "Enable writing-helper" });
-      expect(control.getAttribute("aria-disabled")).toBe("true");
-      expect(control.getAttribute("aria-checked")).toBe("false");
+      expect(control.getAttribute("aria-disabled")).toBe("false");
+      expect(control.getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("keeps a managed skill switchable when the backend reports it as not loaded", () => {
+      renderRow(jest.fn(), {
+        agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
+        skill: { ...canonicalSkill, enabledAgents: ["claude"] },
+        runtimeItems: [
+          {
+            id: canonicalSkill.filePath,
+            name: canonicalSkill.name,
+            source: "project",
+            location: canonicalSkill.filePath,
+            availability: "not_loaded",
+          },
+        ],
+      });
+      const control = screen.getByRole("switch", { name: "Enable writing-helper" });
+      expect(control.getAttribute("aria-disabled")).toBe("false");
     });
 
     it("confirms migration into the folder derived from the Scribe root, not the retired skills field", () => {
