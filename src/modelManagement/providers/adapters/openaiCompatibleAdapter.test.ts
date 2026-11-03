@@ -237,4 +237,15 @@ describe("openaiCompatibleAdapter", () => {
       }
     );
   });
+
+  describe("extrasSchema", () => {
+    it("accepts the catalog metadata stored beside a provider's extras", () => {
+      expect(() =>
+        openaiCompatibleAdapter.extrasSchema.parse({
+          npm: "@ai-sdk/openai-compatible",
+          catalogBaseUrl: "https://opencode.ai/inference/go/openai/v1",
+        })
+      ).not.toThrow();
+    });
+  });
 });

@@ -10,11 +10,9 @@ import type { AdapterBuildContext, AdapterVerifyContext, ProviderAdapter } from 
 import { verifyPathForCatalogProviderId } from "./openaiCompatibleVerifyPath";
 import { verifyViaListModels } from "./verifyViaListModels";
 
-const extrasSchema = z
-  .object({
-    openAIOrgId: z.string().optional(),
-  })
-  .strict();
+const extrasSchema = z.object({
+  openAIOrgId: z.string().optional(),
+});
 
 type Extras = z.infer<typeof extrasSchema>;
 

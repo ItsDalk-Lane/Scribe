@@ -10,7 +10,7 @@ import { verifyViaListModels } from "./verifyViaListModels";
 
 const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
 
-const extrasSchema = z.object({}).strict();
+const extrasSchema = z.object({});
 
 type Extras = z.infer<typeof extrasSchema>;
 

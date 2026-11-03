@@ -11,7 +11,7 @@ import { verifyViaListModels } from "./verifyViaListModels";
 const DEFAULT_BASE_URL = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
 
-const extrasSchema = z.object({}).strict();
+const extrasSchema = z.object({});
 
 type Extras = z.infer<typeof extrasSchema>;
 
