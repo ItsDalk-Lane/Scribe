@@ -148,7 +148,7 @@ function isObsidianBrowserExternal(id) {
   return id.startsWith("@codemirror/") || id.startsWith("@lezer/");
 }
 
-function createObsidianStub() {
+function createObsidianStub(requestUrl = async () => ({ json: {}, text: "", status: 200 })) {
   class Component {
     registerEvent() {}
     registerDomEvent() {}
@@ -249,7 +249,7 @@ function createObsidianStub() {
     parseYaml() {
       return {};
     },
-    requestUrl: async () => ({ json: {}, text: "", status: 200 }),
+    requestUrl,
     stringifyYaml() {
       return "";
     },
@@ -285,46 +285,38 @@ class SmokeEventTarget {
   }
 }
 
-function runBundleEvaluationSmoke() {
-  const bundlePath = path.join(repoRoot, "main.js");
-  if (!fs.existsSync(bundlePath)) {
-    fail("main.js is missing. Run npm run build before the mobile-load smoke test.");
-    return;
-  }
-
-  const source = fs.readFileSync(bundlePath, "utf8");
+function createMobileContext(requestUrl, fetch) {
   const module = { exports: {} };
   const context = {
     AbortController,
+    AbortSignal,
+    DOMException,
+    atob,
+    btoa,
     clearInterval,
     clearTimeout,
     console,
-    crypto: {
-      getRandomValues(array) {
-        array.fill(7);
-        return array;
-      },
-      randomUUID() {
-        return "00000000-0000-4000-8000-000000000000";
-      },
-    },
+    crypto: require("node:crypto").webcrypto,
     CustomEvent: SmokeCustomEvent,
     Event: SmokeEvent,
     EventTarget: SmokeEventTarget,
-    fetch: async () => ({ ok: true, json: async () => ({}), text: async () => "", body: null }),
+    fetch:
+      fetch ??
+      (async () => ({ ok: true, json: async () => ({}), text: async () => "", body: null })),
     Blob,
     module,
     exports: module.exports,
     FormData,
     Headers,
     navigator: { userAgent: "ObsidianMobileSmoke/1.0" },
+    performance,
     Promise,
     queueMicrotask,
     ReadableStream,
     Request,
     Response,
     require(id) {
-      if (id === "obsidian") return createObsidianStub();
+      if (id === "obsidian") return createObsidianStub(requestUrl);
       if (isObsidianBrowserExternal(id)) return createCallableStub(id);
       if (nodeModuleIds.has(id)) return createPoisonModule(id);
       throw new Error(`mobile-load-smoke: unexpected external require '${id}'.`);
@@ -341,6 +333,17 @@ function runBundleEvaluationSmoke() {
   context.globalThis = context;
   context.self = context;
   context.window = context;
+  return context;
+}
+
+function runBundleEvaluationSmoke() {
+  const bundlePath = path.join(repoRoot, "main.js");
+  if (!fs.existsSync(bundlePath)) {
+    fail("main.js is missing. Run npm run build before the mobile-load smoke test.");
+    return;
+  }
+  const source = fs.readFileSync(bundlePath, "utf8");
+  const context = createMobileContext();
 
   try {
     vm.runInNewContext(source, context, {
@@ -352,21 +355,209 @@ function runBundleEvaluationSmoke() {
     return;
   }
 
-  const pluginExport = module.exports.default ?? module.exports;
+  const pluginExport = context.module.exports.default ?? context.module.exports;
   if (typeof pluginExport !== "function") {
     fail("main.js did not export the plugin class.");
   }
 }
 
-checkAgentModeImportBoundaries();
-runBundleEvaluationSmoke();
-
-if (failures.length > 0) {
-  console.error("Mobile load smoke test failed:");
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
+async function runByokFirstUseSmoke() {
+  const { default: nodeModuleShim, nodeBuiltinExternals } = await import("../nodeModuleShim.mjs");
+  const { default: svgrPlugin } = await import("../svgrPlugin.mjs");
+  // Loading alone misses SDKs that touch Node globals only on the first request. https://github.com/ItsDalk-Lane/Scribe/issues/8
+  const build = await require("esbuild").build({
+    stdin: {
+      contents:
+        'export { createProviderChatModel } from "./src/LLMProviders/createProviderChatModel"; export { fixtureSse } from "./src/LLMProviders/testing/piFixtures";',
+      resolveDir: repoRoot,
+      sourcefile: "mobile-byok-smoke.ts",
+      loader: "ts",
+    },
+    bundle: true,
+    format: "cjs",
+    platform: "browser",
+    target: "es2020",
+    write: false,
+    external: ["obsidian", "electron", "@codemirror/*", "@lezer/*", ...nodeBuiltinExternals],
+    plugins: [nodeModuleShim, svgrPlugin],
+    define: {
+      global: "window",
+      "process.env.NODE_ENV": '"production"',
+      "import.meta.url": '"file:///mobile-byok-smoke.js"',
+    },
+  });
+  const anthropic = {
+    id: "fixture",
+    type: "message",
+    role: "assistant",
+    model: "fixture",
+    content: [{ type: "text", text: "OK" }],
+    stop_reason: "end_turn",
+    usage: { input_tokens: 1, output_tokens: 1 },
+  };
+  const google = { candidates: [{ content: { parts: [{ text: "OK" }] }, finishReason: "STOP" }] };
+  const crypto = require("node:crypto").webcrypto;
+  const keys = await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign", "verify"]
+  );
+  const privateKey = Buffer.from(await crypto.subtle.exportKey("pkcs8", keys.privateKey)).toString(
+    "base64"
+  );
+  const serviceAccount = JSON.stringify({
+    client_email: "fixture@example.invalid",
+    private_key: `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`,
+  });
+  const fixtures = [
+    {
+      npm: "@ai-sdk/openai-compatible",
+      payload: { choices: [{ index: 0, message: { content: "OK" }, finish_reason: "stop" }] },
+    },
+    {
+      npm: "@ai-sdk/openai",
+      payload: {
+        id: "r",
+        object: "response",
+        status: "completed",
+        output: [
+          {
+            id: "m",
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "OK", annotations: [] }],
+          },
+        ],
+        usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+      },
+    },
+    { npm: "@ai-sdk/anthropic", payload: anthropic },
+    { npm: "@ai-sdk/google", payload: google },
+    {
+      npm: "@ai-sdk/cohere",
+      payload: { finish_reason: "COMPLETE", message: { content: [{ text: "OK" }] } },
+    },
+    { npm: "gitlab-ai-provider", name: "duo-chat-sonnet-4-6", payload: anthropic },
+    {
+      npm: "@ai-sdk/google-vertex",
+      payload: google,
+      providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+    },
+    {
+      npm: "@ai-sdk/google-vertex",
+      payload: google,
+      apiKey: serviceAccount,
+      providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+    },
+    {
+      npm: "@ai-sdk/google-vertex/anthropic",
+      payload: anthropic,
+      providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+    },
+    {
+      npm: "@jerome-benoit/sap-ai-provider-v2",
+      apiKey: JSON.stringify({
+        clientid: "fixture",
+        clientsecret: "fixture",
+        url: "https://auth.fixture.invalid",
+        serviceurls: { AI_API_URL: "https://sap.fixture.invalid" },
+      }),
+      providerOptions: { AICORE_DEPLOYMENT_ID: "fixture-deployment" },
+      raw: 'data: {"final_result":{"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}}\n\ndata: [DONE]\n\n',
+    },
+    {
+      npm: "scribe-ollama",
+      raw: '{"message":{"content":"OK"},"done":true,"done_reason":"stop"}\n',
+    },
+  ];
+  for (const enableCors of [false, true]) {
+    for (const fixture of fixtures) {
+      let nativeCalls = 0;
+      let compatibleCalls = 0;
+      let api;
+      const respond = (url) => {
+        const address = String(url);
+        if (address.endsWith("/direct_access"))
+          return new Response(JSON.stringify({ token: "fixture-token", headers: {} }));
+        if (address.endsWith("/oauth/token") || address === "https://oauth2.googleapis.com/token")
+          return new Response(JSON.stringify({ access_token: "fixture-token", expires_in: 3600 }));
+        return new Response(fixture.raw ?? api.fixtureSse(fixture.payload), {
+          headers: { "content-type": "text/event-stream" },
+        });
+      };
+      const context = createMobileContext(
+        async (request) => {
+          compatibleCalls++;
+          const response = respond(request.url);
+          const text = await response.text();
+          return {
+            status: 200,
+            text,
+            json: text.startsWith("{") ? JSON.parse(text) : {},
+            headers: Object.fromEntries(response.headers),
+            arrayBuffer: new TextEncoder().encode(text).buffer,
+          };
+        },
+        async (url) => {
+          nativeCalls++;
+          return respond(url);
+        }
+      );
+      vm.runInNewContext(build.outputFiles[0].text, context, {
+        filename: "mobile-byok-smoke.js",
+        timeout: 5000,
+      });
+      api = context.module.exports;
+      const model = await api.createProviderChatModel({
+        name: fixture.name ?? "private-model",
+        provider: "3rd party (openai-format)",
+        providerNpm: fixture.npm,
+        baseUrl: "https://fixture.invalid",
+        enabled: true,
+        enableCors,
+        apiKey: fixture.apiKey ?? "fixture-key",
+        providerOptions: fixture.providerOptions,
+      });
+      if (nativeCalls || compatibleCalls)
+        throw new Error(`${fixture.npm}: construction sent a request`);
+      let text = "";
+      let done = false;
+      for await (const event of model.stream(
+        {
+          messages: [{ role: "user", content: "Reply with OK.", timestamp: 0 }],
+        },
+        { maxRetries: 0 }
+      )) {
+        if (event.type === "text_delta") text += event.delta;
+        if (event.type === "done") done = true;
+      }
+      if (text !== "OK" || !done) throw new Error(`${fixture.npm}: first request did not complete`);
+      if (enableCors ? !compatibleCalls || nativeCalls : !nativeCalls || compatibleCalls)
+        throw new Error(`${fixture.npm}: first request used the wrong transport`);
+    }
   }
-  process.exit(1);
 }
 
-console.log("Mobile load smoke test passed.");
+async function main() {
+  checkAgentModeImportBoundaries();
+  runBundleEvaluationSmoke();
+  try {
+    await runByokFirstUseSmoke();
+  } catch (error) {
+    fail(`BYOK first-use mobile smoke failed: ${formatError(error)}`);
+  }
+  if (failures.length > 0) {
+    console.error("Mobile load smoke test failed:");
+    for (const failure of failures) console.error(`- ${failure}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log("Mobile load and BYOK first-use smoke tests passed (10 protocols, both transports).");
+}
+
+void main();

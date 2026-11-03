@@ -1,14 +1,15 @@
 import { ChatModelProviders } from "@/constants";
 import type { CustomModel } from "@/aiParams";
 import { createProviderChatModel } from "./createProviderChatModel";
-import { createNativeSdkChatModel } from "./nativeSdk/createNativeSdkChatModel";
+import { createHttpProviderChatModel } from "./createHttpProviderChatModel";
+import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidian from "obsidian";
 
-jest.mock("./nativeSdk/createNativeSdkChatModel", () => ({
-  createNativeSdkChatModel: jest.fn().mockResolvedValue({}),
+jest.mock("./createHttpProviderChatModel", () => ({
+  createHttpProviderChatModel: jest.fn().mockResolvedValue({}),
 }));
-const nativeFactory = createNativeSdkChatModel as jest.MockedFunction<
-  typeof createNativeSdkChatModel
+const nativeFactory = createHttpProviderChatModel as jest.MockedFunction<
+  typeof createHttpProviderChatModel
 >;
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidian as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -32,7 +33,7 @@ const wire = (overrides: Partial<CustomModel> = {}): CustomModel => ({
   ...overrides,
 });
 
-function reply(request: Request): unknown {
+function reply(request: Request): Record<string, unknown> {
   if (request.url.includes("iam.cloud.ibm.com"))
     return { access_token: "iam-fixture-token", expires_in: 3600 };
   if (request.url.endsWith("/messages"))
@@ -84,8 +85,12 @@ describe("createProviderChatModel", () => {
         return Promise.resolve({
           status: 200,
           json,
-          text: JSON.stringify(json),
-          headers: { "content-type": "application/json" },
+          text: request.url.includes("iam.cloud.ibm.com") ? JSON.stringify(json) : fixtureSse(json),
+          headers: {
+            "content-type": request.url.includes("iam.cloud.ibm.com")
+              ? "application/json"
+              : "text/event-stream",
+          },
           arrayBuffer: new ArrayBuffer(0),
         });
       });
@@ -94,7 +99,7 @@ describe("createProviderChatModel", () => {
       "uses the configured compatible transport for %s",
       async (providerNpm) => {
         const model = await createProviderChatModel(wire({ providerNpm }));
-        expect((await model.invoke("hi")).text).toBe("ok");
+        expect(await collectText(model)).toBe("ok");
         expect(requests[0].url).toBe("https://provider.invalid/v1/chat/completions");
         expect(new Headers(requests[0].headers).get("authorization")).toBe("Bearer fixture-key");
       }
@@ -106,21 +111,56 @@ describe("createProviderChatModel", () => {
       const model = await createProviderChatModel(
         wire({ providerNpm: "@ai-sdk/openai", apiShape })
       );
-      expect((await model.invoke("hi")).text).toBe("ok");
+      expect(await collectText(model)).toBe("ok");
       expect(requests[0].url).toBe(`https://provider.invalid/v1${path}`);
     });
     it("uses the native OpenAI default Responses API when the model gives no override", async () => {
       const model = await createProviderChatModel(wire({ providerNpm: "@ai-sdk/openai" }));
-      await model.invoke("hi");
+      await collectText(model);
       expect(requests[0].url.endsWith("/responses")).toBe(true);
     });
-    it("normalizes a versioned Anthropic proxy and preserves the user message", async () => {
+    it("normalizes a versioned Anthropic proxy and preserves the stable URL and user message (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
       const model = await createProviderChatModel(
         wire({ providerNpm: "@ai-sdk/anthropic", baseUrl: "https://proxy.invalid/anthropic/v1" })
       );
-      expect((await model.invoke("original text")).text).toBe("ok");
+      expect(await collectText(model, "original text")).toBe("ok");
       expect(requests[0].url).toBe("https://proxy.invalid/anthropic/v1/messages");
       expect(requests[0].body).toContain("original text");
+    });
+    it.each([
+      ["claude-sonnet-4-6", undefined, 16384],
+      ["claude-3-7-sonnet-latest", undefined, 8192],
+      ["private-model", undefined, 4096],
+      ["claude-sonnet-4-6", 512, 512],
+    ] as const)(
+      "preserves Anthropic's existing omitted or explicit limit for %s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      async (name, maxTokens, limit) => {
+        const model = await createProviderChatModel(
+          wire({ name, providerNpm: "@ai-sdk/anthropic", maxTokens })
+        );
+        await collectText(model);
+        expect(JSON.parse(requests[0].body!).max_tokens).toBe(limit);
+      }
+    );
+    it("requires a real legacy custom-provider address instead of sending credentials to an example host (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+      await expect(
+        createProviderChatModel(wire({ providerNpm: undefined, baseUrl: undefined }))
+      ).rejects.toThrow("A base URL is required");
+      expect(requests).toHaveLength(0);
+    });
+    it("keeps an OAuth-looking BYOK key from rewriting the system prompt or client identity (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+      const model = await createProviderChatModel(
+        wire({ providerNpm: "@ai-sdk/anthropic", apiKey: "sk-ant-oat-fixture" })
+      );
+      await collectText(model, {
+        systemPrompt: "Keep the original instruction.",
+        messages: [{ role: "user", content: "Question", timestamp: 0 }],
+      });
+      expect(JSON.parse(requests[0].body!).system).toEqual([
+        { type: "text", text: "Keep the original instruction." },
+      ]);
+      expect(new Headers(requests[0].headers).get("x-api-key")).toBe("sk-ant-oat-fixture");
+      expect(requests[0].body).not.toContain("Claude Code");
     });
     it("gives Go auxiliary invocations its required client and session identity", async () => {
       const model = await createProviderChatModel(
@@ -129,7 +169,7 @@ describe("createProviderChatModel", () => {
           baseUrl: "https://opencode.ai/inference/go/openai/v1",
         })
       );
-      await model.invoke("hi");
+      await collectText(model);
       const headers = new Headers(requests[0].headers);
       expect(headers.get("user-agent")).toBe("obsidian-scribe/4");
       expect(headers.get("x-opencode-session")).toBeTruthy();
@@ -143,12 +183,12 @@ describe("createProviderChatModel", () => {
           providerOptions: { WATSONX_AI_PROJECT_ID: "project" },
         })
       );
-      expect((await model.invoke("hi")).text).toBe("ok");
+      expect(await collectText(model)).toBe("ok");
       expect(requests[0]).toMatchObject({
         url: "https://iam.cloud.ibm.com/identity/token",
         contentType: "application/x-www-form-urlencoded",
       });
-      expect(requests[1].url).toContain("/ml/v1/text/chat?");
+      expect(requests[1].url).toContain("/ml/v1/text/chat_stream?");
       expect(JSON.parse(requests[1].body!)).toMatchObject({
         model_id: "test-model",
         project_id: "project",
@@ -166,7 +206,9 @@ describe("createProviderChatModel", () => {
       async (providerNpm) => {
         const configured = wire({ providerNpm });
         await createProviderChatModel(configured);
-        expect(nativeFactory).toHaveBeenCalledWith(configured);
+        expect(nativeFactory.mock.calls[0][0]).toMatchObject(configured);
+        expect(nativeFactory.mock.calls[0][1]).toMatchObject({ id: configured.name });
+        expect(nativeFactory.mock.calls[0][2].fetch).toBeInstanceOf(Function);
         expect(requests).toHaveLength(0);
       }
     );
@@ -174,7 +216,7 @@ describe("createProviderChatModel", () => {
       const model = await createProviderChatModel(
         wire({ apiKey: undefined, requiresApiKey: false })
       );
-      expect((await model.invoke("keyless original message")).text).toBe("ok");
+      expect(await collectText(model, "keyless original message")).toBe("ok");
       expect(new Headers(requests[0].headers).get("Authorization")).toBeNull();
     });
     it("refuses an incomplete compatible endpoint instead of sending its credential to OpenAI by default", async () => {

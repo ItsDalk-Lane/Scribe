@@ -20,6 +20,28 @@ need unit tests; use end-to-end tests when unit tests can't answer the question.
 - For how to structure code so it's unit-testable — dependency injection, pure
   leaf modules, the litmus test — see [`STYLE_GUIDE.md`](./STYLE_GUIDE.md).
 
+### BYOK transport regression checks
+
+The pi-ai provider and session suites run without user credentials or paid calls:
+
+```bash
+npm test -- --runInBand src/LLMProviders src/modelManagement src/hooks/use-streaming-chat-session.test.tsx src/commands/customCommandChatEngine.test.ts
+npm run test:mobile-load
+```
+
+`localStreaming.integration.test.ts` uses an ephemeral loopback HTTP server to
+prove that text arrives before the response ends, Stop closes the native socket,
+and accepted partial history is sent on the next turn. These are protocol fixtures,
+not running Ollama or LM Studio models. Buffered `requestUrl` tests instead prove
+prompt local cancellation and isolation of late results.
+
+The mobile smoke check evaluates the production bundle and exercises first-use
+provider requests with Node modules unavailable, including Vertex service-account
+signing through WebCrypto. It uses simulated endpoints in a browser-like VM; a
+physical iOS/Android device and real provider authentication still need separate
+validation. Do not equate the catalog's simulated provider coverage with successful
+requests to real accounts.
+
 ### Test design workflow
 
 Unit tests are executable specifications. A developer or agent should be able to

@@ -230,6 +230,13 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     }
     const headers = new Headers(request?.headers);
     new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
+    // pi-ai uses Anthropic's beta client even for stable Messages; existing proxies require the stable URL. https://github.com/ItsDalk-Lane/Scribe/issues/8
+    if (
+      (model.providerNpm === "@ai-sdk/anthropic" || model.providerNpm === "gitlab-ai-provider") &&
+      url.pathname.endsWith("/messages") &&
+      url.searchParams.get("beta") === "true"
+    )
+      url.searchParams.delete("beta");
     // 本机无密钥服务不能收到客户端为初始化而填入的占位凭据。https://github.com/logancyang/obsidian-copilot/issues/2946
     if (
       model.requiresApiKey === false &&

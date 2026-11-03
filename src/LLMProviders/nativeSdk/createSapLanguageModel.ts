@@ -2,7 +2,8 @@ import { t } from "@/lib/i18n";
 import type { CustomModel } from "@/aiParams";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
 import { createSapHttpModel } from "./SapLanguageModel";
-import type { NativeLanguageModel, NativeSdkCallOptions } from "./NativeSdkChatModel";
+import type { ProviderStreams } from "@earendil-works/pi-ai";
+import type { ChatStreamOptions } from "@/LLMProviders/piChatModel";
 
 interface SapCredentials {
   clientId: string;
@@ -16,7 +17,7 @@ interface SapCredentials {
 export function createSapLanguageModel(
   model: CustomModel,
   credentials: SapCredentials
-): (options: NativeSdkCallOptions) => Promise<NativeLanguageModel> {
+): (options: ChatStreamOptions) => Promise<ProviderStreams["stream"]> {
   const transport = createProviderFetch(model);
   let cachedToken: { value: string; expiresAt: number } | undefined;
   let pendingToken: Promise<string> | undefined;
@@ -98,10 +99,8 @@ export function createSapLanguageModel(
         );
     }
     return createSapHttpModel(
-      model.name,
       `${base}/inference/deployments/${encodeURIComponent(deploymentId)}/v2/completion`,
-      headers,
-      transport
+      headers
     );
   };
 }

@@ -18,6 +18,11 @@ BYOK lets you connect Scribe directly to an AI provider, a compatible gateway,
 or a model server on your computer. For cloud providers, usage and billing stay
 with that provider.
 
+BYOK uses pi-ai as its internal connection engine. Quick Ask, Quick Command,
+provider settings, model selection, saved configuration, and key storage stay
+the same; existing providers do not need to be recreated. Agent Chat and Claude
+Code authentication are separate and unchanged.
+
 1. Open **Settings → Scribe → 模型**.
 2. Click **Add a provider**.
 3. Choose a provider, **Ollama**, **LM Studio**, or **Add a custom provider**.
@@ -60,6 +65,17 @@ addresses and extra settings are retained. URL placeholders are filled only when
 a request is made; the original template is kept. New providers enable **CORS
 compatibility** by default. Existing explicit choices are retained. With this
 setting enabled, replies normally appear after completion instead of word by word.
+
+With compatibility off, a server that allows browser access can deliver text as
+it is generated, and **Stop** cancels the streaming request. With compatibility
+on, **Stop** ends the local turn and ignores any late reply, but cannot cancel a
+request already sent to the server; provider-side work or billing may continue.
+Accepted partial text remains available for follow-up questions.
+
+Automated checks cover incremental HTTP replies, cancellation, follow-ups,
+connection errors, and mobile startup and first requests, including service-account
+signing. They use fixture services, not live model accounts or physical iOS/Android
+devices; test your actual endpoint on each device you use.
 
 New chat models are enabled for Quick tools by default. Image, speech, embedding, and reranking models remain saved but are marked separately and are not offered as chat choices.
 

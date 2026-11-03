@@ -3,10 +3,8 @@ import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/provide
 import { t } from "@/lib/i18n";
 import * as z from "zod";
 
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-
 import type { VerificationResult } from "@/modelManagement/types/runtime";
-import type { AdapterBuildContext, AdapterVerifyContext, ProviderAdapter } from "./ProviderAdapter";
+import type { AdapterVerifyContext, ProviderAdapter } from "./ProviderAdapter";
 import { verifyPathForCatalogProviderId } from "./openaiCompatibleVerifyPath";
 import { verifyViaListModels } from "./verifyViaListModels";
 
@@ -19,12 +17,6 @@ type Extras = z.infer<typeof extrasSchema>;
 export const openaiCompatibleAdapter: ProviderAdapter<Extras> = {
   providerType: "openai-compatible",
   extrasSchema,
-
-  buildLangChainClient(ctx: AdapterBuildContext<Extras>): BaseChatModel {
-    throw new Error(
-      "[modelManagement] openaiCompatibleAdapter.buildLangChainClient not implemented yet"
-    );
-  },
 
   verifyCredentials(ctx: AdapterVerifyContext<Extras>): Promise<VerificationResult> {
     const baseUrl = ctx.provider.baseUrl?.trim();

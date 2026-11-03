@@ -1,6 +1,7 @@
-import { createNativeSdkChatModel } from "./createNativeSdkChatModel";
+import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
+import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
+import { collectText, collectReply, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import type { CustomModel } from "@/aiParams";
-import type { NativeSdkCallOptions } from "./NativeSdkChatModel";
 import * as obsidianModule from "obsidian";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import { generateKeyPairSync, webcrypto } from "node:crypto";
@@ -69,9 +70,9 @@ const GITLAB_CATALOG_MODELS = [
   "duo-chat-sonnet-5-5",
 ];
 
-describe("createNativeSdkChatModel", () => {
-  describe("createNativeSdkChatModel()", () => {
-    it("uses the real Google SDK and Obsidian transport for a normal reply", async () => {
+describe("createHttpProviderChatModel", () => {
+  describe("createHttpProviderChatModel()", () => {
+    it("uses the Google streaming protocol and Obsidian transport for a normal reply", async () => {
       let url = "";
       setRequestUrlImpl(async (request: { url: string }) => {
         url = request.url;
@@ -86,21 +87,21 @@ describe("createNativeSdkChatModel", () => {
         };
         return {
           status: 200,
-          text: JSON.stringify(payload),
+          text: fixtureSse(payload),
           json: payload,
           headers: { "content-type": "application/json" },
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("@ai-sdk/google", {
           name: "gemini-2.0-flash",
           baseUrl: "https://google.fixture.invalid/v1beta",
         })
       );
-      expect((await client.invoke("Original fixture input")).content).toBe("Google fixture reply");
+      expect(await collectText(client, "Original fixture input")).toBe("Google fixture reply");
       expect(url).toBe(
-        "https://google.fixture.invalid/v1beta/models/gemini-2.0-flash:generateContent"
+        "https://google.fixture.invalid/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse"
       );
     });
     it("uses the real Cohere v2 response and streaming protocols", async () => {
@@ -150,13 +151,15 @@ describe("createNativeSdkChatModel", () => {
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("@ai-sdk/cohere", { name: "command-a-03-2025" })
       );
-      expect((await client.invoke("Original Cohere input")).content).toBe("Cohere fixture reply");
+      expect(await collectText(client, "Original Cohere input")).toBe("Cohere fixture reply");
       const chunks = [];
-      for await (const chunk of await client.stream("Original Cohere input"))
-        chunks.push(typeof chunk.content === "string" ? chunk.content : "");
+      for await (const event of client.stream({
+        messages: [{ role: "user", content: "Original Cohere input", timestamp: 0 }],
+      }))
+        if (event.type === "text_delta") chunks.push(event.delta);
       expect(chunks.join("")).toBe("Cohere fixture reply");
       expect(requests.map((request) => request.url)).toEqual([
         "https://api.cohere.com/v2/chat",
@@ -188,10 +191,10 @@ describe("createNativeSdkChatModel", () => {
             status: 200,
             headers: new Headers({ "content-type": "application/json" }),
             json: async () => payload,
-            text: async () => JSON.stringify(payload),
+            text: async () => fixtureSse(payload),
             body: new ReadableStream({
               start(controller) {
-                controller.enqueue(new TextEncoder().encode(JSON.stringify(payload)));
+                controller.enqueue(new TextEncoder().encode(fixtureSse(payload)));
                 controller.close();
               },
             }),
@@ -199,10 +202,10 @@ describe("createNativeSdkChatModel", () => {
       );
       window.fetch = nativeFetch;
       try {
-        const client = await createNativeSdkChatModel(
+        const client = await createProviderChatModel(
           model("@ai-sdk/google", { name: "gemini-2.0-flash", enableCors: false })
         );
-        expect((await client.invoke("Fixture input")).content).toBe("Native fixture reply");
+        expect(await collectText(client, "Fixture input")).toBe("Native fixture reply");
         expect(nativeFetch).toHaveBeenCalledTimes(1);
         expect(usedObsidian).toBe(false);
       } finally {
@@ -235,14 +238,14 @@ describe("createNativeSdkChatModel", () => {
               };
         return {
           status: 200,
-          text: JSON.stringify(payload),
+          text: fixtureSse(payload),
           json: payload,
           headers: { "content-type": "application/json" },
           arrayBuffer: new ArrayBuffer(0),
         };
       });
       try {
-        const client = await createNativeSdkChatModel(
+        const client = await createProviderChatModel(
           model("@ai-sdk/google-vertex", {
             name: "gemini-2.0-flash",
             apiKey: JSON.stringify({
@@ -254,17 +257,15 @@ describe("createNativeSdkChatModel", () => {
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
         );
-        expect((await client.invoke("Original mobile question")).content).toBe(
-          "Mobile Vertex reply"
-        );
-        expect((await client.invoke("Second mobile question")).content).toBe("Mobile Vertex reply");
+        expect(await collectText(client, "Original mobile question")).toBe("Mobile Vertex reply");
+        expect(await collectText(client, "Second mobile question")).toBe("Mobile Vertex reply");
         expect(
           requests.filter((request) => request.url === "https://oauth2.googleapis.com/token")
         ).toHaveLength(1);
         expect(requests.some((request) => request.url.includes("untrusted.invalid"))).toBe(false);
-        expect(requests.filter((request) => request.url.includes(":generateContent"))).toHaveLength(
-          2
-        );
+        expect(
+          requests.filter((request) => request.url.includes(":streamGenerateContent"))
+        ).toHaveLength(2);
       } finally {
         jest.mocked(isDesktopRuntime).mockReturnValue(true);
         if (originalSubtle) Object.defineProperty(window.crypto, "subtle", originalSubtle);
@@ -272,7 +273,7 @@ describe("createNativeSdkChatModel", () => {
       }
     });
 
-    it("uses the real Vertex Google SDK with a supplied OAuth token and project route", async () => {
+    it("uses the Vertex Google stream with a supplied OAuth token and project route", async () => {
       let captured: { url?: string; headers?: Record<string, string> } = {};
       setRequestUrlImpl(async (request: { url: string; headers: Record<string, string> }) => {
         captured = request;
@@ -286,13 +287,13 @@ describe("createNativeSdkChatModel", () => {
         };
         return {
           status: 200,
-          text: JSON.stringify(payload),
+          text: fixtureSse(payload),
           json: payload,
           headers: { "content-type": "application/json" },
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("@ai-sdk/google-vertex", {
           name: "gemini-2.0-flash",
           apiKey: "Bearer supplied-vertex-token",
@@ -303,16 +304,16 @@ describe("createNativeSdkChatModel", () => {
           },
         })
       );
-      expect((await client.invoke("Original Vertex input")).content).toBe("Vertex fixture reply");
+      expect(await collectText(client, "Original Vertex input")).toBe("Vertex fixture reply");
       expect(captured.url).toBe(
-        "https://us-central1-aiplatform.googleapis.com/v1/projects/fixture-project/locations/us-central1/publishers/google/models/gemini-2.0-flash:generateContent"
+        "https://us-central1-aiplatform.googleapis.com/v1/projects/fixture-project/locations/us-central1/publishers/google/models/gemini-2.0-flash:streamGenerateContent?alt=sse"
       );
       expect(new Headers(captured.headers).get("authorization")).toBe(
         "Bearer supplied-vertex-token"
       );
     });
 
-    it("uses the real Anthropic SDK with Vertex rawPredict routing and supplied token", async () => {
+    it("uses pi-ai Anthropic streaming with Vertex streamRawPredict routing and supplied token", async () => {
       let captured: { url?: string; headers?: Record<string, string>; body?: string } = {};
       setRequestUrlImpl(async (request: typeof captured) => {
         captured = request;
@@ -327,24 +328,24 @@ describe("createNativeSdkChatModel", () => {
         };
         return {
           status: 200,
-          text: JSON.stringify(payload),
+          text: fixtureSse(payload),
           json: payload,
           headers: { "content-type": "application/json" },
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("@ai-sdk/google-vertex/anthropic", {
           name: "claude-sonnet-4-6",
           apiKey: "supplied-vertex-token",
           providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
         })
       );
-      expect((await client.invoke("Original Claude input")).content).toBe(
+      expect(await collectText(client, "Original Claude input")).toBe(
         "Vertex Claude fixture reply"
       );
       expect(captured.url).toBe(
-        "https://aiplatform.googleapis.com/v1/projects/fixture-project/locations/global/publishers/anthropic/models/claude-sonnet-4-6:rawPredict"
+        "https://aiplatform.googleapis.com/v1/projects/fixture-project/locations/global/publishers/anthropic/models/claude-sonnet-4-6:streamRawPredict"
       );
       expect(new Headers(captured.headers).get("authorization")).toBe(
         "Bearer supplied-vertex-token"
@@ -369,7 +370,7 @@ describe("createNativeSdkChatModel", () => {
         setRequestUrlImpl(requests);
         jest.mocked(isDesktopRuntime).mockReturnValue(desktop);
         try {
-          const client = await createNativeSdkChatModel(
+          const client = await createProviderChatModel(
             model(npm, {
               apiKey: JSON.stringify({
                 type: "service_account",
@@ -383,8 +384,8 @@ describe("createNativeSdkChatModel", () => {
               },
             })
           );
-          expect(client._llmType()).toBe(
-            npm.endsWith("/anthropic") ? "authenticated-provider" : "native-provider-sdk"
+          expect(client.model.api).toBe(
+            npm.endsWith("/anthropic") ? "anthropic-messages" : "google-generative-ai"
           );
           expect(requests).not.toHaveBeenCalled();
         } finally {
@@ -447,7 +448,7 @@ describe("createNativeSdkChatModel", () => {
           };
         });
         try {
-          const client = await createNativeSdkChatModel(
+          const client = await createProviderChatModel(
             model(npm, {
               name: sap ? "gpt-4.1" : "duo-chat-gpt-5-4",
               apiKey: sap
@@ -461,10 +462,12 @@ describe("createNativeSdkChatModel", () => {
               providerOptions: { AICORE_DEPLOYMENT_ID: "mobile-deployment" },
             })
           );
-          expect((await client.invoke("Original mobile input")).content).toBe("Mobile reply");
+          expect(await collectText(client, "Original mobile input")).toBe("Mobile stream reply");
           const chunks: string[] = [];
-          for await (const chunk of await client.stream("Original mobile input"))
-            chunks.push(chunk.text);
+          for await (const event of client.stream({
+            messages: [{ role: "user", content: "Original mobile input", timestamp: 0 }],
+          }))
+            if (event.type === "text_delta") chunks.push(event.delta);
           expect(chunks.join("")).toBe("Mobile stream reply");
         } finally {
           jest.mocked(isDesktopRuntime).mockReturnValue(true);
@@ -476,7 +479,7 @@ describe("createNativeSdkChatModel", () => {
       "rejects malformed %s JSON without disclosing secret text",
       async (npm) => {
         const secret = '{"private_key":"DO-NOT-LOG-THIS';
-        const error = await createNativeSdkChatModel(
+        const error = await createProviderChatModel(
           model(npm, {
             apiKey: secret,
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
@@ -489,13 +492,13 @@ describe("createNativeSdkChatModel", () => {
     );
 
     it("requires Vertex project parameters before a request can be attempted", async () => {
-      await expect(createNativeSdkChatModel(model("@ai-sdk/google-vertex"))).rejects.toThrow(
+      await expect(createProviderChatModel(model("@ai-sdk/google-vertex"))).rejects.toThrow(
         "GOOGLE_VERTEX_PROJECT"
       );
     });
     it("rejects incomplete Google service-account JSON without echoing its fields", async () => {
       await expect(
-        createNativeSdkChatModel(
+        createProviderChatModel(
           model("@ai-sdk/google-vertex", {
             apiKey: '{"client_email":"fixture@example.invalid"}',
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
@@ -505,7 +508,7 @@ describe("createNativeSdkChatModel", () => {
     });
     it("rejects missing Vertex credentials before a request can be attempted", async () => {
       await expect(
-        createNativeSdkChatModel(
+        createProviderChatModel(
           model("@ai-sdk/google-vertex", {
             apiKey: "",
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
@@ -519,7 +522,7 @@ describe("createNativeSdkChatModel", () => {
       '{"clientid":"fixture-id","clientsecret":"secret","url":"https://auth.example.invalid"}',
     ])("rejects incomplete SAP service credentials %s", async (apiKey) => {
       await expect(
-        createNativeSdkChatModel(model("@jerome-benoit/sap-ai-provider-v2", { apiKey }))
+        createProviderChatModel(model("@jerome-benoit/sap-ai-provider-v2", { apiKey }))
       ).rejects.toThrow(/JSON object|requires clientid|requires serviceurls/);
     });
     it("uses public GitLab direct access with a browser-safe Anthropic child and cached tokens", async () => {
@@ -542,20 +545,20 @@ describe("createNativeSdkChatModel", () => {
             };
         return {
           status: 200,
-          text: JSON.stringify(payload),
+          text: fixtureSse(payload),
           json: payload,
           headers: { "content-type": "application/json" },
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("gitlab-ai-provider", {
           name: "duo-chat-sonnet-4-6",
           apiKey: "fixture-gitlab-user-token",
         })
       );
-      expect((await client.invoke("Original GitLab input")).content).toBe("GitLab fixture reply");
-      expect((await client.invoke("Second input")).content).toBe("GitLab fixture reply");
+      expect(await collectText(client, "Original GitLab input")).toBe("GitLab fixture reply");
+      expect(await collectText(client, "Second input")).toBe("GitLab fixture reply");
       expect(requests.filter((request) => request.url.endsWith("direct_access"))).toHaveLength(1);
       const inference = requests.filter((request) => !request.url.endsWith("direct_access"));
       expect(inference).toHaveLength(2);
@@ -592,19 +595,19 @@ describe("createNativeSdkChatModel", () => {
         path = request.url;
         return {
           status: 200,
-          text: JSON.stringify(payload),
+          text: fixtureSse(payload),
           json: payload,
           headers: { "content-type": "application/json" },
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("gitlab-ai-provider", {
           name: "duo-chat-gpt-5-6-terra",
           apiKey: "fixture-user-token",
         })
       );
-      expect((await client.invoke("Original OpenAI input")).content).toEqual(
+      expect((await collectReply(client, "Original OpenAI input")).content).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ type: "text", text: "GitLab OpenAI reply" }),
         ])
@@ -612,7 +615,7 @@ describe("createNativeSdkChatModel", () => {
       expect(path).toBe("https://cloud.gitlab.com/ai/v1/proxy/openai/v1/responses");
     });
 
-    it("streams GitLab OpenAI chat replies and forwards both session header forms", async () => {
+    it("streams GitLab OpenAI chat replies and forwards each conversation's session headers", async () => {
       const requests: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
       setRequestUrlImpl(async (request: (typeof requests)[number]) => {
         requests.push(request);
@@ -666,31 +669,21 @@ describe("createNativeSdkChatModel", () => {
           arrayBuffer: new ArrayBuffer(0),
         };
       });
-      const client = await createNativeSdkChatModel(
+      const client = await createProviderChatModel(
         model("gitlab-ai-provider", { name: "duo-chat-gpt-5-4" })
       );
       expect(
-        (
-          await client.invoke("Original input", {
-            headers: { "x-opencode-session": "invoke-fixture" },
-          } as NativeSdkCallOptions)
-        ).content
-      ).toBe("GitLab chat reply");
+        await collectText(client, "Original input", {
+          headers: { "x-opencode-session": "invoke-fixture" },
+        })
+      ).toBe("GitLab stream reply");
       const chunks: string[] = [];
-      const tokens: string[] = [];
-      for await (const chunk of await client.stream("Original input", {
-        options: { headers: { "x-opencode-session": "stream-fixture" } },
-        callbacks: [
-          {
-            handleLLMNewToken: (token: string) => {
-              tokens.push(token);
-            },
-          },
-        ],
-      } as NativeSdkCallOptions))
-        chunks.push(chunk.text);
+      for await (const event of client.stream(
+        { messages: [{ role: "user", content: "Original input", timestamp: 0 }] },
+        { headers: { "x-opencode-session": "stream-fixture" } }
+      ))
+        if (event.type === "text_delta") chunks.push(event.delta);
       expect(chunks.join("")).toBe("GitLab stream reply");
-      expect(tokens.join("")).toBe("GitLab stream reply");
       const inference = requests.filter((request) => !request.url.endsWith("direct_access"));
       expect(inference.every((request) => request.url.endsWith("/chat/completions"))).toBe(true);
       expect(new Headers(inference[0].headers).get("x-opencode-session")).toBe("invoke-fixture");
@@ -700,21 +693,24 @@ describe("createNativeSdkChatModel", () => {
     it.each(GITLAB_CATALOG_MODELS)(
       "accepts the published GitLab model mapping %s",
       async (name) => {
-        const client = await createNativeSdkChatModel(model("gitlab-ai-provider", { name }));
-        expect(client._llmType()).toBe("authenticated-provider");
+        const client = await createProviderChatModel(model("gitlab-ai-provider", { name }));
+        expect(["anthropic-messages", "openai-responses", "openai-completions"]).toContain(
+          client.model.api
+        );
       }
     );
 
     it("reports unknown GitLab model mappings before requesting access", async () => {
       await expect(
-        createNativeSdkChatModel(model("gitlab-ai-provider", { name: "unknown-gitlab-model" }))
+        createProviderChatModel(model("gitlab-ai-provider", { name: "unknown-gitlab-model" }))
       ).rejects.toThrow("Unsupported GitLab chat model");
     });
 
     it("reports unsupported provider packages instead of routing them as OpenAI", async () => {
-      await expect(createNativeSdkChatModel(model("unsupported-sdk"))).rejects.toThrow(
-        "Unsupported native provider package"
-      );
+      const descriptor = (await createProviderChatModel(model("@ai-sdk/google"))).model;
+      await expect(
+        createHttpProviderChatModel(model("unsupported-sdk"), descriptor, { fetch: jest.fn() })
+      ).rejects.toThrow("Unsupported native provider package");
     });
   });
 });

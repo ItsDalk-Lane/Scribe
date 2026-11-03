@@ -19,13 +19,16 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/src/$1",
     "^obsidian$": "<rootDir>/__mocks__/obsidian.js",
     "^yaml$": "<rootDir>/node_modules/yaml/dist/index.js",
-    "^@anthropic-ai/sdk/lib/(.*)$": "<rootDir>/node_modules/@anthropic-ai/sdk/lib/$1.js",
+    "^@earendil-works/pi-ai/(.*)$": "<rootDir>/node_modules/@earendil-works/pi-ai/dist/$1.js",
+    "^@earendil-works/pi-schema$": "<rootDir>/node_modules/@earendil-works/pi-schema/dist/index.js",
+    "^@earendil-works/pi-telemetry$":
+      "<rootDir>/node_modules/@earendil-works/pi-telemetry/dist/index.js",
     "^@anthropic-ai/claude-agent-sdk$": "<rootDir>/__mocks__/@anthropic-ai/claude-agent-sdk.js",
     "^react-resizable-panels$": "<rootDir>/__mocks__/react-resizable-panels.js",
   },
   testRegex: ".*\\.test\\.(jsx?|tsx?)$",
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   testPathIgnorePatterns: ["/node_modules/"],
-  transformIgnorePatterns: ["/node_modules/(?!(?:@ai-sdk/|@workflow/serde/|eventsource-parser/))"],
+  transformIgnorePatterns: ["/node_modules/(?!@earendil-works/)"],
   setupFiles: ["<rootDir>/jest.setup.js"],
 };

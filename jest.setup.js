@@ -1,8 +1,20 @@
 import "web-streams-polyfill/dist/polyfill.min.js";
 import { TextEncoder, TextDecoder } from "util";
+import { MessagePort } from "worker_threads";
 
 window.TextEncoder = TextEncoder;
 window.TextDecoder = TextDecoder;
+
+// jsdom lacks the Fetch classes required by pi-ai's browser SDKs. https://github.com/ItsDalk-Lane/Scribe/issues/8
+window.MessagePort = MessagePort;
+const { Response, Request, Headers } = jest.requireActual("undici");
+Object.assign(window, { Response, Request, Headers });
+Object.defineProperty(AbortSignal.prototype, "throwIfAborted", {
+  configurable: true,
+  value() {
+    if (this.aborted) throw this.reason;
+  },
+});
 
 if (typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {

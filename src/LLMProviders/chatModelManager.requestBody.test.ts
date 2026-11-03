@@ -5,6 +5,7 @@ import { getSettings, setSettings } from "@/settings/model";
 import * as obsidianModule from "obsidian";
 
 import ChatModelManager from "./chatModelManager";
+import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidianModule as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -80,10 +81,10 @@ function captureRequest(responseText: string): () => CapturedRequest {
     };
     return Promise.resolve({
       status: 200,
-      text: responseText,
+      text: fixtureSse(parsedResponse),
       json: parsedResponse,
       arrayBuffer: new ArrayBuffer(0),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "text/event-stream" },
     });
   });
   return () => captured;
@@ -122,13 +123,15 @@ function respondWithBadRequest(message: string): void {
 
 async function send(model: CustomModel): Promise<void> {
   const instance = await ChatModelManager.getInstance().createModelInstanceFromBridged(model);
-  await instance.invoke("hi");
+  await collectText(instance);
 }
 
 async function sendWithTools(model: CustomModel): Promise<void> {
   const instance = await ChatModelManager.getInstance().createModelInstanceFromBridged(model);
-  if (!instance.bindTools) throw new Error(`${model.name} cannot bind tools`);
-  await instance.bindTools([LOOKUP_TOOL]).invoke("hi");
+  await collectText(instance, {
+    tools: [LOOKUP_TOOL.function],
+    messages: [{ role: "user", content: "hi", timestamp: 0 }],
+  });
 }
 
 describe("chatModelManager", () => {

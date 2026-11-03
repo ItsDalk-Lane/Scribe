@@ -1,5 +1,6 @@
 import { testProviderConnection } from "./testProviderConnection";
 import type { Provider } from "@/modelManagement";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 
 const mockCreateModel = jest.fn();
 jest.mock("@/LLMProviders/chatModelManager", () => ({
@@ -28,8 +29,8 @@ describe("testProviderConnection", () => {
     });
     it("sends only the connection prompt through the same model factory and waits for actual reply text", async () => {
       const stream = jest.fn().mockImplementation(async function* () {
-        yield { content: "O" };
-        yield { content: "K" };
+        yield { type: "text_delta", delta: "O" };
+        yield { type: "text_delta", delta: "K" };
       });
       mockCreateModel.mockResolvedValue({ stream });
       const result = await testProviderConnection(input);
@@ -44,17 +45,15 @@ describe("testProviderConnection", () => {
           enableCors: true,
         })
       );
-      expect(stream.mock.calls[0][0]).toEqual(
-        expect.arrayContaining([expect.objectContaining({ content: "Reply with OK." })])
-      );
+      expect(stream.mock.calls[0][0]).toEqual({
+        messages: [expect.objectContaining({ content: "Reply with OK." })],
+      });
     });
     it("keeps a permission refusal distinct from an invalid key and redacts the supplied secret", async () => {
       mockCreateModel.mockResolvedValue({
-        stream: jest
-          .fn()
-          .mockRejectedValue(
-            Object.assign(new Error("permission denied test-secret"), { status: 403 })
-          ),
+        stream: jest.fn().mockImplementation(() => {
+          throw Object.assign(new Error("permission denied test-secret"), { status: 403 });
+        }),
       });
       expect(await testProviderConnection(input)).toMatchObject({
         ok: false,
@@ -66,9 +65,9 @@ describe("testProviderConnection", () => {
     });
     it("reports invalid credentials for an actual 401 chat response", async () => {
       mockCreateModel.mockResolvedValue({
-        stream: jest
-          .fn()
-          .mockRejectedValue(Object.assign(new Error("Unauthorized"), { statusCode: 401 })),
+        stream: jest.fn().mockImplementation(() => {
+          throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
+        }),
       });
       expect(await testProviderConnection(input)).toMatchObject({
         ok: false,
@@ -85,7 +84,7 @@ describe("testProviderConnection", () => {
     it("does not mark an empty model response as a verified chat", async () => {
       mockCreateModel.mockResolvedValue({
         stream: async function* () {
-          yield { content: "" };
+          yield { type: "text_delta", delta: "" };
         },
       });
       expect(await testProviderConnection(input)).toMatchObject({
@@ -104,11 +103,15 @@ describe("testProviderConnection", () => {
     });
     it("times out a nonresponsive model without starting another request", async () => {
       jest.useFakeTimers();
-      mockCreateModel.mockResolvedValue({ stream: () => new Promise(() => {}) });
+      const stream = createAssistantMessageEventStream();
+      mockCreateModel.mockResolvedValue({
+        stream: () => stream,
+      });
       const result = testProviderConnection(input);
       await jest.advanceTimersByTimeAsync(90000);
       expect(await result).toMatchObject({ ok: false, code: "timeout" });
       expect(mockCreateModel).toHaveBeenCalledTimes(1);
+      stream.end();
       jest.useRealTimers();
     });
   });

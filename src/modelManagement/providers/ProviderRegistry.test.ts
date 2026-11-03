@@ -39,9 +39,6 @@ function makeFakeApp(): { app: App; secrets: SecretStore } {
 const anthropicStub: ProviderAdapter = {
   providerType: "anthropic",
   extrasSchema: z.object({}).strict(),
-  buildLangChainClient: () => {
-    throw new Error("not used in test");
-  },
   verifyCredentials: async () => ({
     ok: true,
     message: "stub-ok",

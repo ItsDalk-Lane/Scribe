@@ -1,4 +1,5 @@
 import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
+import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidianModule from "obsidian";
 
 jest.mock("@/logger");
@@ -82,9 +83,9 @@ describe("resolveProviderConnection", () => {
                 };
           return Promise.resolve({
             status: success ? 200 : 404,
-            text: JSON.stringify(json),
+            text: success ? fixtureSse(json) : JSON.stringify(json),
             json,
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": success ? "text/event-stream" : "application/json" },
             arrayBuffer: new ArrayBuffer(0),
           });
         });
@@ -113,7 +114,7 @@ describe("resolveProviderConnection", () => {
           enabled: true,
           stream: false,
         });
-        expect((await client.invoke("fixture input")).text).toBe("fixture reply");
+        expect(await collectText(client, "fixture input")).toBe("fixture reply");
         expect(requests).toEqual([expectedUrl]);
         expect(connection.npm).toBe(expectedNpm);
       }
