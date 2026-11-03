@@ -11,6 +11,7 @@ interface GoogleChunk {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string; thought?: boolean }> };
     finishReason?: string;
+    continuationToken?: string;
   }>;
   promptFeedback?: { blockReason?: string };
   error?: { message?: string };
@@ -107,31 +108,55 @@ export function streamGoogle(
               });
         return { role: message.role === "assistant" ? "model" : "user", parts };
       });
-    const response = await postChatRequest(
-      model,
-      `/models/${encodeURIComponent(model.id)}:streamGenerateContent?alt=sse`,
-      {
-        contents,
-        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-        ...(options?.maxTokens === undefined
-          ? {}
-          : { generationConfig: { maxOutputTokens: options.maxTokens } }),
-      },
-      options
-    );
-    for await (const raw of readJsonStream(response, options?.signal)) {
-      const chunk = raw as GoogleChunk;
-      if (chunk.error || chunk.promptFeedback?.blockReason)
-        throw new Error(
-          chunk.error?.message || chunk.promptFeedback?.blockReason || t("Unexpected response")
-        );
-      const candidate = chunk.candidates?.[0];
-      for (const part of candidate?.content?.parts ?? []) {
-        if (part.text) yield part.thought ? { thinking: part.text } : { text: part.text };
-      }
-      if (chunk.usageMetadata)
-        yield {
-          usage: {
+    // Gemma 只接受用户和模型两种角色；资源名按路径段编码，避免改变已配置的目标地址。https://github.com/ItsDalk-Lane/Scribe/issues/8
+    const supportsSystemInstruction = !model.id.split("/").pop()?.startsWith("gemma-");
+    if (system && !supportsSystemInstruction && contents[0]?.role === "user")
+      contents[0].parts.unshift({ text: `${system}\n\n` });
+    const resourcePath = /^(?:models|tunedModels|projects|publishers)\//.test(model.id)
+      ? model.id.split("/").map(encodeURIComponent).join("/")
+      : `models/${encodeURIComponent(model.id)}`;
+    // Vertex 的完整资源名复用版本或网关前缀，不重复项目路径，也不更改配置的主机。https://github.com/ItsDalk-Lane/Scribe/issues/8
+    const resourceRoot = /^(projects|publishers)\//.exec(model.id)?.[1];
+    let requestModel = model;
+    if (resourceRoot) {
+      const baseUrl = new URL(model.baseUrl);
+      baseUrl.pathname = baseUrl.pathname.split(`/${resourceRoot}/`)[0];
+      requestModel = { ...model, baseUrl: baseUrl.toString() };
+    }
+    const body = {
+      contents,
+      ...(system && supportsSystemInstruction
+        ? { systemInstruction: { parts: [{ text: system }] } }
+        : {}),
+      ...(options?.maxTokens === undefined
+        ? {}
+        : { generationConfig: { maxOutputTokens: options.maxTokens } }),
+    };
+    const seenContinuationTokens = new Set<string>();
+    const completedUsage = { input: 0, output: 0, reasoning: 0, cacheRead: 0, totalTokens: 0 };
+    let continuationToken: string | undefined;
+    do {
+      if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      const response = await postChatRequest(
+        requestModel,
+        `/${resourcePath}:streamGenerateContent?alt=sse`,
+        continuationToken ? { ...body, continuationToken } : body,
+        options
+      );
+      continuationToken = undefined;
+      let requestUsage = { input: 0, output: 0, reasoning: 0, cacheRead: 0, totalTokens: 0 };
+      for await (const raw of readJsonStream(response, options?.signal)) {
+        const chunk = raw as GoogleChunk;
+        if (chunk.error || chunk.promptFeedback?.blockReason)
+          throw new Error(
+            chunk.error?.message || chunk.promptFeedback?.blockReason || t("Unexpected response")
+          );
+        const candidate = chunk.candidates?.[0];
+        for (const part of candidate?.content?.parts ?? []) {
+          if (part.text) yield part.thought ? { thinking: part.text } : { text: part.text };
+        }
+        if (chunk.usageMetadata) {
+          requestUsage = {
             input: Math.max(
               0,
               (chunk.usageMetadata.promptTokenCount ?? 0) -
@@ -143,14 +168,36 @@ export function streamGoogle(
             reasoning: chunk.usageMetadata.thoughtsTokenCount ?? 0,
             cacheRead: chunk.usageMetadata.cachedContentTokenCount ?? 0,
             totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-          },
-        };
-      if (candidate?.finishReason) {
-        if (candidate.finishReason !== "STOP" && candidate.finishReason !== "MAX_TOKENS")
-          throw new Error(candidate.finishReason);
-        yield { finishReason: candidate.finishReason === "MAX_TOKENS" ? "length" : "stop" };
+          };
+          yield {
+            usage: {
+              input: completedUsage.input + requestUsage.input,
+              output: completedUsage.output + requestUsage.output,
+              reasoning: completedUsage.reasoning + requestUsage.reasoning,
+              cacheRead: completedUsage.cacheRead + requestUsage.cacheRead,
+              totalTokens: completedUsage.totalTokens + requestUsage.totalTokens,
+            },
+          };
+        }
+        if (candidate?.finishReason === "CONTINUATION") {
+          // 沿用原请求续传，限制异常令牌或无限续传，防止重复发送已显示的正文。https://github.com/ItsDalk-Lane/Scribe/issues/8
+          const token = candidate.continuationToken;
+          if (!token) throw new Error("Google continuation token is missing.");
+          if (seenContinuationTokens.has(token))
+            throw new Error("Google continuation token was repeated.");
+          if (seenContinuationTokens.size >= 32)
+            throw new Error("Google continuation request limit exceeded.");
+          seenContinuationTokens.add(token);
+          continuationToken = token;
+        } else if (candidate?.finishReason) {
+          if (candidate.finishReason !== "STOP" && candidate.finishReason !== "MAX_TOKENS")
+            throw new Error(candidate.finishReason);
+          yield { finishReason: candidate.finishReason === "MAX_TOKENS" ? "length" : "stop" };
+        }
       }
-    }
+      for (const key of Object.keys(completedUsage) as Array<keyof typeof completedUsage>)
+        completedUsage[key] += requestUsage[key];
+    } while (continuationToken);
   });
 }
 

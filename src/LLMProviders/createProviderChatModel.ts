@@ -101,6 +101,8 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
             : responses
               ? "openai-responses"
               : "openai-completions";
+  const openRouterOptions =
+    openRouter || (legacy && provider === ChatModelProviders.LM_STUDIO && !responses);
   const descriptor: Model<Api> = {
     id: model.name,
     name: model.displayName || model.name,
@@ -109,18 +111,22 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     baseUrl: model.baseUrl || "",
     input: ["text", "image"],
     reasoning: model.capabilities?.includes(ModelCapability.REASONING) ?? false,
+    // 未选择推理强度时沿用供应商默认值，避免 pi-ai 自动发送 none。https://github.com/ItsDalk-Lane/Scribe/issues/8
+    thinkingLevelMap: { off: null },
     contextWindow: model.numCtx ?? DEFAULT_OLLAMA_NUM_CTX,
     maxTokens:
       model.maxTokens ??
-      (anthropic
+      (npm === "@ai-sdk/anthropic"
         ? (ANTHROPIC_OUTPUT_DEFAULTS.find(([prefix]) => model.name.startsWith(prefix))?.[1] ?? 4096)
-        : 0),
+        : anthropic
+          ? 4096
+          : 0),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     // Keep saved protocol settings authoritative instead of adopting pi-ai's catalog defaults. https://github.com/ItsDalk-Lane/Scribe/issues/8
     compat: {
-      supportsDeveloperRole: false,
+      supportsDeveloperRole: api === "openai-responses" && npm === "@ai-sdk/openai",
       supportsStore: false,
-      supportsUsageInStreaming: openRouter || (model.streamUsage ?? false),
+      supportsUsageInStreaming: openRouterOptions || (model.streamUsage ?? false),
       supportsReasoningEffort: false,
       maxTokensField: "max_tokens",
       thinkingFormat: "openai",
@@ -131,10 +137,21 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     fetch: createProviderFetch(model),
     maxRetries: 3,
     cacheRetention: "none",
+    ...((api === "openai-responses" || npm === "gitlab-ai-provider") && model.reasoningEffort
+      ? { reasoningEffort: model.reasoningEffort }
+      : {}),
     ...(model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens }),
   };
-  if (anthropic || npm === "gitlab-ai-provider") {
-    // Opaque BYOK credentials must not trigger pi-ai's Claude Code OAuth prompt/identity rewriting. https://github.com/ItsDalk-Lane/Scribe/issues/8
+  if (
+    anthropic ||
+    npm === "gitlab-ai-provider" ||
+    npm === "@ai-sdk/google-vertex" ||
+    npm === "watsonx-ai-provider" ||
+    model.providerCatalogId === "google-vertex" ||
+    model.providerCatalogId === "google-vertex-anthropic" ||
+    model.providerCatalogId === "watsonx"
+  ) {
+    // 托管秘密只交给认证传输层，也避免 SDK 将密钥识别为 OAuth 并改写提示。https://github.com/ItsDalk-Lane/Scribe/issues/8
     defaults.apiKey = "provider-managed-auth";
   }
   if (legacy && provider === ChatModelProviders.GOOGLE) {
@@ -164,7 +181,7 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
   defaults.onPayload = (payload) => {
     if (!isRecord(payload)) throw new Error(t("Unexpected response"));
     // Existing OpenRouter budgets and cache controls must not gain a top-level output cap. https://github.com/ItsDalk-Lane/Scribe/issues/8
-    if (openRouter || (legacy && provider === ChatModelProviders.LM_STUDIO && !responses)) {
+    if (openRouterOptions) {
       if (descriptor.reasoning)
         payload.reasoning = model.reasoningEffort
           ? {
@@ -172,7 +189,12 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
                 model.reasoningEffort === ReasoningEffort.MINIMAL ? "low" : model.reasoningEffort,
             }
           : { max_tokens: 1024 };
-      if (model.enablePromptCaching ?? true) payload.cache_control = { type: "ephemeral" };
+      // 自建网关沿用推理和用量设置，缓存字段仅发送给官方主机。https://github.com/ItsDalk-Lane/Scribe/issues/8
+      if (
+        (model.enablePromptCaching ?? true) &&
+        new URL(descriptor.baseUrl).hostname === "openrouter.ai"
+      )
+        payload.cache_control = { type: "ephemeral" };
     }
     if (legacy && provider === ChatModelProviders.LM_STUDIO && responses) {
       payload.text = { format: { type: "text" } };

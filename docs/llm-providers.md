@@ -72,6 +72,15 @@ on, **Stop** ends the local turn and ignores any late reply, but cannot cancel a
 request already sent to the server; provider-side work or billing may continue.
 Accepted partial text remains available for follow-up questions.
 
+If a chat is still waiting for sign-in to finish when you press **Stop**, Scribe
+does not send its note content afterward. Other chats can finish signing in and
+continue normally. Leaving reasoning effort unset uses the provider's default.
+
+Google model IDs can be entered with or without the `models/` prefix. Gemma
+receives the same instructions within the conversation, and supported Google
+services can continue a long reply without losing its earlier text. For Vertex
+Anthropic, an omitted output limit remains 4096; an explicit limit takes priority.
+
 Automated checks cover incremental HTTP replies, cancellation, follow-ups,
 connection errors, and mobile startup and first requests, including service-account
 signing. They use fixture services, not live model accounts or physical iOS/Android

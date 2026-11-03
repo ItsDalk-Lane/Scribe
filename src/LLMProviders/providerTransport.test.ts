@@ -13,7 +13,12 @@ const {
 };
 
 jest.mock("@/utils", () => ({ safeFetchNoThrow: jest.fn() }));
-jest.mock("./nativeSdk/createVertexAccessToken", () => ({ createVertexAccessToken: jest.fn() }));
+jest.mock("./nativeSdk/createVertexAccessToken", () => ({
+  ...jest.requireActual<typeof import("./nativeSdk/createVertexAccessToken")>(
+    "./nativeSdk/createVertexAccessToken"
+  ),
+  createVertexAccessToken: jest.fn(),
+}));
 
 import { createVertexAccessToken } from "./nativeSdk/createVertexAccessToken";
 

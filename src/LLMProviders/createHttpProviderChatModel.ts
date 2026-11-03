@@ -4,7 +4,10 @@ import { createPiChatModel, type ProviderChatModel } from "@/LLMProviders/piChat
 import { streamCohere, streamGoogle, streamOllama } from "@/LLMProviders/httpChatApis";
 import { createSapLanguageModel } from "@/LLMProviders/nativeSdk/createSapLanguageModel";
 import { createGitlabAccessToken } from "@/LLMProviders/nativeSdk/createGitlabAccessToken";
-import { createVertexAccessToken } from "@/LLMProviders/nativeSdk/createVertexAccessToken";
+import {
+  createVertexAccessToken,
+  parseVertexCredentials,
+} from "@/LLMProviders/nativeSdk/createVertexAccessToken";
 import { gitlabModelMappings } from "@/LLMProviders/nativeSdk/gitlabModelMappings";
 import { t } from "@/lib/i18n";
 
@@ -87,9 +90,11 @@ export async function createHttpProviderChatModel(
       const secret = model.apiKey?.trim() ?? "";
       if (!secret)
         throw new Error(t("Google Vertex requires service-account JSON or an OAuth access token."));
-      let accessToken = async () => secret.replace(/^Bearer\s+/i, "");
-      if (secret.startsWith("{")) {
-        const credentials = secretObject(secret);
+      const credentials = parseVertexCredentials(secret);
+      let accessToken: (signal?: AbortSignal) => Promise<string>;
+      if (typeof credentials === "string") {
+        accessToken = async () => credentials;
+      } else {
         if (
           typeof credentials.client_email !== "string" ||
           typeof credentials.private_key !== "string"
@@ -153,6 +158,11 @@ export async function createHttpProviderChatModel(
           ? `${gateway}/ai/v1/proxy/anthropic`
           : `${gateway}/ai/v1/proxy/openai/v1`;
       descriptor.maxTokens = model.maxTokens ?? 8192;
+      descriptor.compat = {
+        ...descriptor.compat,
+        // GitLab 转发的 Responses 保留原有推理模型指令角色，其他协议仍使用 system。https://github.com/ItsDalk-Lane/Scribe/issues/8
+        supportsDeveloperRole: descriptor.api === "openai-responses",
+      };
       return createPiChatModel(descriptor, async (options) => {
         const token = await getToken(options.signal);
         const authenticatedFetch: typeof fetch = (input, init) => {
