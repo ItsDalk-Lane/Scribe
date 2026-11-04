@@ -101,6 +101,25 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.configuredModelId).toBe("cm1");
     });
 
+    it("carries the catalog context limit as the runtime context window and stays unset when the catalog has none (https://github.com/ItsDalk-Lane/Scribe/issues/15)", () => {
+      const known = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: { id: "small-model", displayName: "Small", limits: { context: 8192 } },
+        }),
+        apiKey: "fixture",
+      });
+      expect(known.numCtx).toBe(8192);
+      const unknown = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: { id: "opaque-model", displayName: "Opaque" },
+        }),
+        apiKey: "fixture",
+      });
+      expect(unknown.numCtx).toBeUndefined();
+    });
+
     it("caps an Anthropic model's published ceiling rather than passing it through (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),

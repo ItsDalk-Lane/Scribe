@@ -454,7 +454,9 @@ export function streamOllama(
         stream: true,
         think: options?.reasoning ?? model.reasoning,
         options: {
-          num_ctx: model.contextWindow,
+          // 窗口未知时不发 num_ctx，让 Ollama 使用自己的运行配置。
+          // https://github.com/ItsDalk-Lane/Scribe/issues/15
+          ...(model.contextWindow > 0 ? { num_ctx: model.contextWindow } : {}),
           repeat_penalty: 1.1,
           ...(options?.maxTokens === undefined ? {} : { num_predict: options.maxTokens }),
         },

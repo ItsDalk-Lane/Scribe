@@ -47,6 +47,20 @@ class PiStreamError extends Error {
   }
 }
 
+// 供应商错误正文可能原样回显请求凭据；进入会话、界面或日志前移除凭据，保留模型、协议与 HTTP 状态用于诊断。
+// 占位密钥不是真实凭据，脱敏时跳过。https://github.com/ItsDalk-Lane/Scribe/issues/9
+const NON_SECRET_KEYS = new Set(["keyless-endpoint", "provider-managed-auth", "default-key"]);
+
+function safeModelErrorDetail(detail: string, secrets: string[], status: number | undefined) {
+  let text = detail;
+  for (const secret of secrets) {
+    if (secret.length >= 8 && !NON_SECRET_KEYS.has(secret))
+      text = text.split(secret).join("[redacted]");
+  }
+  if (status !== undefined && !text.includes(String(status))) text = `HTTP ${status}: ${text}`;
+  return text.length > 600 ? `${text.slice(0, 600)}[truncated]` : text;
+}
+
 export function createAssistantMessage(model: Model<Api>): AssistantMessage {
   return {
     role: "assistant",
@@ -86,6 +100,10 @@ export function createPiChatModel(
   model: Model<Api>,
   resolveRequest: (options: SimpleStreamOptions) => Promise<PiRequest>
 ): ProviderChatModel {
+  // 本轮请求的凭据候选与 HTTP 状态，仅用于错误脱敏，绝不离开诊断文本。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/9
+  let errorSecrets: string[] = [];
+  let failureStatus: number | undefined;
   async function* run(
     context: Context,
     options: AgentStreamOptions = {}
@@ -94,27 +112,39 @@ export function createPiChatModel(
     const abort = () => controller.abort(options.signal?.reason);
     options.signal?.addEventListener("abort", abort, { once: true });
     if (options.signal?.aborted) abort();
-    let status: number | undefined;
     let transportError: unknown;
     try {
       // A stopped turn must not start a credential refresh or open another request. https://github.com/ItsDalk-Lane/Scribe/issues/8
       if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
-      const request = await raceWithAbortSignal(
-        resolveRequest({ ...options, signal: controller.signal }),
-        controller.signal
-      );
+      let request: PiRequest;
+      try {
+        request = await raceWithAbortSignal(
+          resolveRequest({ ...options, signal: controller.signal }),
+          controller.signal
+        );
+      } catch (error) {
+        const data = error as { status?: number; statusCode?: number } | null;
+        failureStatus = data?.status ?? data?.statusCode;
+        throw error;
+      }
+      errorSecrets = [
+        ...(typeof request.options.apiKey === "string" ? [request.options.apiKey] : []),
+        ...Object.values(request.options.headers ?? {}).filter(
+          (value): value is string => typeof value === "string"
+        ),
+      ];
       const transport = request.options.fetch;
       if (!transport) throw new Error("A provider transport is required.");
       const requestFetch: typeof fetch = async (input, init) => {
         try {
           const response = await raceWithAbortSignal(transport(input, init), controller.signal);
           // pi-ai 的错误事件只保留文字，认证失败状态也必须留在本轮请求中。https://github.com/ItsDalk-Lane/Scribe/issues/8
-          status = response.ok ? undefined : response.status;
+          failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
           return response;
         } catch (error) {
           const data = error as { status?: number; statusCode?: number } | null;
-          status = data?.status ?? data?.statusCode;
+          failureStatus = data?.status ?? data?.statusCode;
           transportError = error;
           throw error;
         }
@@ -223,7 +253,7 @@ export function createPiChatModel(
                 ? transportError
                 : new Error(event.error.errorMessage || "The model request failed.");
             if (event.reason === "aborted") error.name = "AbortError";
-            throw new PiStreamError(textSnapshot(event.error), status, error);
+            throw new PiStreamError(textSnapshot(event.error), failureStatus, error);
           }
           if (event.type === "text_start") {
             const text = initialText.shift() ?? "";
@@ -292,7 +322,11 @@ export function createPiChatModel(
           const message: AssistantMessage = {
             ...(error instanceof PiStreamError ? error.assistantMessage : partial),
             stopReason: reason,
-            errorMessage: `${model.id} (${model.api}), model stream: ${error instanceof Error ? error.message : String(error)}`,
+            errorMessage: `${model.id} (${model.api}), model stream: ${safeModelErrorDetail(
+              error instanceof Error ? error.message : String(error),
+              errorSecrets,
+              failureStatus
+            )}`,
           };
           events.push({ type: "error", reason, error: message });
         } finally {

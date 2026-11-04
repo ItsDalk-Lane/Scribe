@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, symlink, rm } from "node:fs/promises";
+import { access, mkdtemp, mkdir, writeFile, symlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileSystemAdapter } from "obsidian";
@@ -42,6 +42,26 @@ describe("nativeVaultPath", () => {
       await expect(resolveNativeVaultPath(adapter, outside)).rejects.toThrow(
         "inside the current vault"
       );
+    });
+    it("rejects a dangling end symlink instead of treating it as a missing in-vault file (https://github.com/ItsDalk-Lane/Scribe/issues/11)", async () => {
+      await symlink(join(outside, "not-created-yet.md"), join(root, "looks-safe.md"));
+      await expect(resolveNativeVaultPath(adapter, "looks-safe.md", true)).rejects.toThrow(
+        /dangling symbolic link/i
+      );
+      await expect(access(join(outside, "not-created-yet.md"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    });
+    it("rejects a missing path beneath a dangling symlinked parent directory (https://github.com/ItsDalk-Lane/Scribe/issues/11)", async () => {
+      await symlink(join(outside, "missing-dir"), join(root, "linked-dir"));
+      await expect(resolveNativeVaultPath(adapter, "linked-dir/new.md", true)).rejects.toThrow(
+        /dangling symbolic link/i
+      );
+      await expect(access(join(outside, "missing-dir"))).rejects.toMatchObject({ code: "ENOENT" });
+    });
+    it("resolves an in-vault symlink target that actually exists (https://github.com/ItsDalk-Lane/Scribe/issues/11)", async () => {
+      await symlink(join(root, "notes", "source.md"), join(root, "alias.md"));
+      expect(await resolveNativeVaultPath(adapter, "alias.md")).toBe("notes/source.md");
     });
   });
 

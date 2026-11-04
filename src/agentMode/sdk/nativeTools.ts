@@ -13,7 +13,11 @@ import type {
 } from "@/agentMode/session/types";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
-import { resolveNativeVaultPath, withNativeWriteLock } from "@/agentMode/sdk/nativeVaultPath";
+import {
+  resolveNativeVaultPath,
+  withNativeWriteLock,
+  writeNativeVaultTarget,
+} from "@/agentMode/sdk/nativeVaultPath";
 
 export interface NativeToolsOptions {
   app: App;
@@ -72,9 +76,8 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
     if (!proposal && options.getMode() === "plan") {
       throw new Error("Plan approval is required before changing files or running commands.");
     }
-    if (!proposal && toolCall.kind === "edit" && options.getMode() === "auto") {
-      return { outcome: { outcome: "selected", optionId: "allow_once" } };
-    }
+    // Auto 的自动放行与已保存的拒绝由共享的权限判定统一决定，工具侧不再短路。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/12
     const decision = await options.requestPermission({
       sessionId: options.sessionId,
       requester: options.requester,
@@ -138,7 +141,7 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
       signal?.throwIfAborted();
       if (options.getMode() === "plan")
         throw new Error("Plan approval is required before changing files or running commands.");
-      await adapter.write(path, after);
+      await writeNativeVaultTarget(vaultBase, path, after, before === null);
       options.emit({ sessionUpdate: "tool_call_update", toolCallId, status: "completed", content });
       return textResult(`Saved ${path}`, { path, before, after });
     });

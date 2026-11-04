@@ -154,6 +154,9 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       },
       storage: new NodeNativeSessionStorage(path.join(directory, "sessions")),
       getExtensionRuntime: readNativeExtensionRuntime,
+      // Auto 授权按实际配置目录判定敏感写入，覆盖用户自定义的 vault.configDir。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/10
+      getVaultConfigDir: () => app.vault.configDir,
       maxSteps: () => getSettings().agentMode.backends.native?.maxSteps,
     });
   },

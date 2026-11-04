@@ -268,5 +268,24 @@ describe("httpChatApis", () => {
       });
       expect(fetch.mock.calls[0][0]).toBe("https://fixture.invalid/api/chat");
     });
+    it("omits num_ctx when the context window is unknown so Ollama keeps its own runtime configuration (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+      const fetch = jest.fn(
+        async (_url: unknown, init?: { body?: string }) =>
+          new Response(
+            [{ message: { content: "reply" }, done: true, done_reason: "stop" }]
+              .map((chunk) => JSON.stringify(chunk))
+              .join("\n"),
+            { headers: { "content-type": "application/x-ndjson" } }
+          )
+      );
+      await streamOllama(
+        { ...model, contextWindow: 0 },
+        normalizeContext({ messages: [{ role: "user", content: "Input", timestamp: 0 }] }),
+        { fetch }
+      ).result();
+      expect(JSON.parse(fetch.mock.calls[0][1]?.body as string).options).toEqual({
+        repeat_penalty: 1.1,
+      });
+    });
   });
 });

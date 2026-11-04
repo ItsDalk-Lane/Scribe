@@ -115,5 +115,8 @@ export function configuredModelToCustomModel(params: {
     capabilities,
     maxTokens,
     openAIOrgId: extraString(extras, "openAIOrgId"),
+    // 目录里的真实窗口必须传给运行时；缺失时保持未设置，不得伪装成任何默认值。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/15
+    numCtx: info.limits?.context,
   };
 }

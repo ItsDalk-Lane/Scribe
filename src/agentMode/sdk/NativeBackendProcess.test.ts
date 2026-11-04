@@ -4,6 +4,7 @@ import type { AssistantMessageEventStream, Context, JsonObject } from "@earendil
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import {
   NativeBackendProcess,
+  OBSIDIAN_DEFAULT_CONFIG_DIR,
   type NativeSessionRecord,
   type NativeBackendProcessOptions,
   type NativeToolContext,
@@ -503,6 +504,116 @@ describe("NativeBackendProcess", () => {
         await f.send(id, "after-compact", "Continue");
         expect(JSON.stringify(contexts[2].messages)).toContain("Saved summary of the actual notes");
       });
+      it("keeps the original context when the manual compaction summary ends truncated (https://github.com/ItsDalk-Lane/Scribe/issues/14)", async () => {
+        const contexts: Context[] = [];
+        let round = 0;
+        const f = fixture((_model, context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          round++;
+          if (round === 1) return response("a secret hidden near end of source");
+          if (round === 2) {
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(model);
+            message.stopReason = "length";
+            message.content = [{ type: "text", text: "first two words before cutoff" }];
+            stream.push({ type: "done", reason: "length", message });
+            return stream;
+          }
+          return response("done");
+        });
+        const id = await f.open();
+        await f.send(id, "r1", "Keep the important source");
+        await f.send(id, "compact", "/compact");
+        expect(
+          f.events
+            .filter((event) => event.update.sessionUpdate === "compaction")
+            .map((event) => (event.update as { status?: string }).status)
+        ).toEqual(["in_progress", "failed"]);
+        await f.send(id, "r2", "continue");
+        expect(JSON.stringify(contexts.at(-1))).toContain("secret hidden near end");
+        expect(JSON.stringify(contexts.at(-1))).not.toContain("first two words before cutoff");
+      });
+      it("keeps the original context when the automatic compaction summary ends truncated (https://github.com/ItsDalk-Lane/Scribe/issues/14)", async () => {
+        const contexts: Context[] = [];
+        let round = 0;
+        const f = fixture(undefined, [], {
+          createModel: async () => ({
+            model: { ...model, contextWindow: 8192 },
+            stream: () => response("unused"),
+            agentStream: (context: Context) => {
+              contexts.push(JSON.parse(JSON.stringify(context)));
+              round++;
+              if (round === 1) {
+                const stream = createAssistantMessageEventStream();
+                const message = createAssistantMessage(model);
+                message.content = [{ type: "text", text: "large earlier answer" }];
+                message.stopReason = "stop";
+                message.usage.totalTokens = 7000;
+                stream.push({ type: "done", reason: "stop", message });
+                return stream;
+              }
+              if (round === 2) {
+                const stream = createAssistantMessageEventStream();
+                const message = createAssistantMessage(model);
+                message.stopReason = "length";
+                message.content = [{ type: "text", text: "cut short" }];
+                stream.push({ type: "done", reason: "length", message });
+                return stream;
+              }
+              return response("final answer");
+            },
+          }),
+        });
+        const id = await f.open();
+        await f.send(id, "r1", "unique marker 762");
+        await f.send(id, "r2", "next authorization");
+        const statuses = f.events
+          .filter((event) => event.update.sessionUpdate === "compaction")
+          .map((event) => (event.update as { status?: string }).status);
+        expect(statuses).toEqual(["in_progress", "failed"]);
+        expect(JSON.stringify(contexts.at(-1))).toContain("unique marker 762");
+      });
+      it("builds the compaction request from continuation-relevant text without assistant error details (https://github.com/ItsDalk-Lane/Scribe/issues/9)", async () => {
+        const contexts: Context[] = [];
+        const secret = "audit-secret-ONE-not-real";
+        let round = 0;
+        const f = fixture((_model, context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          if (++round === 1) {
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(model);
+            message.stopReason = "error";
+            message.errorMessage = `configured-model (openai-completions), model stream: HTTP 401: Invalid credential ${secret}`;
+            stream.push({ type: "error", reason: "error", error: message });
+            return stream;
+          }
+          if (round === 2) return response("Saved summary");
+          return response("done");
+        });
+        const id = await f.open();
+        await f.send(id, "p1", "Hello");
+        expect(JSON.stringify(f.records.get(id))).toContain(secret);
+        await f.send(id, "p2", "/compact");
+        const summaryRequest = JSON.stringify(contexts[1].messages);
+        expect(summaryRequest).toContain("Hello");
+        expect(summaryRequest).not.toContain(secret);
+        expect(summaryRequest).not.toContain("errorMessage");
+      });
+      it("reports an unknown context window instead of a fabricated one (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+        const f = fixture(undefined, [], {
+          createModel: async () => ({
+            model: { ...model, contextWindow: 0 },
+            stream: () => response("unused"),
+            agentStream: () => response("Hello"),
+          }),
+        });
+        const id = await f.open();
+        await f.send(id);
+        const usage = f.events.find((event) => event.update.sessionUpdate === "usage_update")
+          ?.update as { usage?: { usedTokens: number; contextWindow: number } } | undefined;
+        expect(usage?.usage).toMatchObject({ usedTokens: expect.any(Number) });
+        expect(usage?.usage?.contextWindow).toBeUndefined();
+      });
       it("delivers a prompt id once even when the caller submits it again after completion", async () => {
         const request = jest.fn(() => response("once"));
         const f = fixture(request);
@@ -685,6 +796,87 @@ describe("NativeBackendProcess", () => {
           f.events.filter((e) => e.update.sessionUpdate === "agent_message_chunk")
         ).toHaveLength(0);
       });
+      it("sends the unread queued message on its own after Send now cancels the running reply (https://github.com/ItsDalk-Lane/Scribe/issues/13)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const contexts: string[] = [];
+        const f = fixture((_model, context, options) => {
+          contexts.push(JSON.stringify(context.messages));
+          if (contexts.length === 1) {
+            const stream = createAssistantMessageEventStream();
+            started();
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                const message = createAssistantMessage(model);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            return stream;
+          }
+          return response("next reply");
+        });
+        const id = await f.open();
+        const running = f.send(id, "first", "first user turn");
+        await ready;
+        const queued = f.send(id, "queued", "Please read immediately");
+        await f.proc.cancel({ sessionId: id, keepUnread: true });
+        await Promise.all([running, queued]);
+        expect(contexts.at(-1)).toContain("Please read immediately");
+        expect(
+          f.events.filter(
+            (event) =>
+              event.update.sessionUpdate === "message_delivered" &&
+              event.update.promptId === "queued"
+          )
+        ).toHaveLength(1);
+        expect(
+          f.events
+            .filter((event) => event.update.sessionUpdate === "turn_ended")
+            .map((event) => event.update)
+        ).toEqual([
+          expect.objectContaining({ turnId: "first", stopReason: "cancelled" }),
+          expect.objectContaining({ turnId: "queued", stopReason: "end_turn" }),
+        ]);
+      });
+      it("does not resend a queued message that was withdrawn after Send now (https://github.com/ItsDalk-Lane/Scribe/issues/13)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const request = jest.fn(
+          (_model: unknown, _context: Context, options?: AgentStreamOptions) => {
+            const stream = createAssistantMessageEventStream();
+            started();
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                const message = createAssistantMessage(model);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            return stream;
+          }
+        );
+        const f = fixture(request);
+        const id = await f.open();
+        const running = f.send(id, "first", "first user turn");
+        await ready;
+        const queued = f.send(id, "queued", "Please read immediately");
+        await f.proc.cancel({ sessionId: id, keepUnread: true });
+        await f.proc.withdraw({ sessionId: id, promptId: "queued" });
+        await Promise.all([running, queued]);
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(
+          f.events.filter((event) => event.update.sessionUpdate === "message_delivered")
+        ).toHaveLength(1);
+      });
     });
 
     describe("withdraw()", () => {
@@ -856,6 +1048,86 @@ describe("NativeBackendProcess", () => {
         expect(permission).toHaveBeenCalledWith(
           expect.objectContaining({ ...prompt, requester: "main" })
         );
+      });
+      it("auto-approves an ordinary note edit in Auto mode without prompting (https://github.com/ItsDalk-Lane/Scribe/issues/10)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.proc.setSessionMode({ sessionId: id, modeId: "auto" });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const decision = await f.toolContexts[0].requestPermission({
+          sessionId: id,
+          toolCall: {
+            toolCallId: "auto-note",
+            title: "Edit",
+            kind: "edit",
+            rawInput: { path: "notes/ordinary.md" },
+            locations: [{ path: "notes/ordinary.md" }],
+          },
+          options: [],
+        });
+        expect(decision.outcome).toEqual({ outcome: "selected", optionId: "allow_once" });
+        expect(permission).not.toHaveBeenCalled();
+      });
+      it.each([
+        [
+          "the default config directory",
+          [OBSIDIAN_DEFAULT_CONFIG_DIR, "plugins", "fixture", "main.js"].join("/"),
+          undefined,
+        ],
+        ["a custom config directory", ".myconfig/workspace.json", ".myconfig"],
+      ])(
+        "still prompts in Auto mode for writes inside %s (https://github.com/ItsDalk-Lane/Scribe/issues/10)",
+        async (_label, path, configDir) => {
+          const f = fixture(undefined, [], {
+            ...(configDir ? { getVaultConfigDir: () => configDir } : {}),
+          });
+          const id = await f.open();
+          await f.proc.setSessionMode({ sessionId: id, modeId: "auto" });
+          const permission = jest.fn(async () => ({
+            outcome: { outcome: "selected" as const, optionId: "reject_once" },
+          }));
+          f.proc.setPermissionPrompter(permission);
+          const decision = await f.toolContexts[0].requestPermission({
+            sessionId: id,
+            toolCall: {
+              toolCallId: "config-write",
+              title: "Edit",
+              kind: "edit",
+              rawInput: { path },
+              locations: [{ path }],
+            },
+            options: [],
+          });
+          expect(decision.outcome).toEqual({ outcome: "selected", optionId: "reject_once" });
+          expect(permission).toHaveBeenCalledTimes(1);
+        }
+      );
+      it("honors a saved reject_always decision before Auto mode can auto-approve the same target (https://github.com/ItsDalk-Lane/Scribe/issues/12)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "reject_always" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const prompt = (toolCallId: string) => ({
+          sessionId: id,
+          toolCall: {
+            toolCallId,
+            title: "Edit",
+            kind: "edit" as const,
+            rawInput: { path: "protected.md" },
+            locations: [{ path: "protected.md" }],
+          },
+          options: [],
+        });
+        await f.toolContexts[0].requestPermission(prompt("deny-1"));
+        await f.proc.setSessionMode({ sessionId: id, modeId: "auto" });
+        const afterSwitch = await f.toolContexts[0].requestPermission(prompt("deny-2"));
+        expect(afterSwitch.outcome).toEqual({ outcome: "selected", optionId: "reject_once" });
+        expect(permission).toHaveBeenCalledTimes(1);
       });
     });
 

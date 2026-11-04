@@ -1,4 +1,13 @@
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { App, FileSystemAdapter } from "obsidian";
@@ -12,6 +21,7 @@ import type {
 import { createAssistantMessage, type ProviderChatModel } from "@/LLMProviders/piChatModel";
 import {
   NativeBackendProcess,
+  OBSIDIAN_DEFAULT_CONFIG_DIR,
   type NativeBackendProcessOptions,
 } from "@/agentMode/sdk/NativeBackendProcess";
 import { AgentSession } from "@/agentMode/session/AgentSession";
@@ -134,7 +144,10 @@ describe("NativeBackendProcess integration", () => {
     });
 
     function fixture(
-      responder: (context: TranscriptContext) => AssistantMessageEventStream,
+      responder: (
+        context: TranscriptContext,
+        options?: { signal?: AbortSignal }
+      ) => AssistantMessageEventStream,
       onEvent?: (event: SessionEvent) => void,
       maxSteps?: number,
       overrides: Partial<NativeBackendProcessOptions> = {}
@@ -143,11 +156,11 @@ describe("NativeBackendProcess integration", () => {
       const events: SessionEvent[] = [];
       const provider: ProviderChatModel = {
         model: MODEL,
-        stream: (context) => responder(normalizeContext(context)),
-        agentStream: (context) => {
+        stream: (context, options) => responder(normalizeContext(context), options),
+        agentStream: (context, options) => {
           const normalized = normalizeContext(context);
           contexts.push(JSON.parse(JSON.stringify(normalized)));
-          return responder(normalized);
+          return responder(normalized, options);
         },
       };
       const process = new NativeBackendProcess({
@@ -639,6 +652,178 @@ describe("NativeBackendProcess integration", () => {
         expect(JSON.stringify(parentResults[1])).toContain("Actual B");
         expect(JSON.stringify(parentResults[1])).toContain("Permission denied");
       });
+      const posix = process.platform === "win32" ? it.skip : it;
+      it("keeps an enabled plugin entrypoint byte-identical in Auto mode when every approval is denied (https://github.com/ItsDalk-Lane/Scribe/issues/10)", async () => {
+        const configEntry = [OBSIDIAN_DEFAULT_CONFIG_DIR, "plugins", "fixture"].join("/");
+        await mkdir(join(root, ...configEntry.split("/")), { recursive: true });
+        const pluginEntry = join(root, ...configEntry.split("/"), "main.js");
+        await writeFile(pluginEntry, "/* MANUAL ENTRY */");
+        let count = 0;
+        const prompts: string[] = [];
+        const f = fixture(() =>
+          ++count === 1
+            ? response("", [
+                {
+                  id: "write-code",
+                  name: "write_note",
+                  arguments: {
+                    path: `${configEntry}/main.js`,
+                    content: "/* replacement */",
+                  },
+                },
+                { id: "cmd-probe", name: "run_command", arguments: { command: "printf harmless" } },
+              ])
+            : response("done")
+        );
+        f.process.setPermissionPrompter(async (prompt) => {
+          prompts.push(prompt.toolCall.kind ?? "unknown");
+          return { outcome: { outcome: "selected", optionId: "reject_once" } };
+        });
+        const id = await f.open();
+        await f.process.setSessionMode({ sessionId: id, modeId: "auto" });
+        await f.send(id);
+        expect(await readFile(pluginEntry, "utf8")).toBe("/* MANUAL ENTRY */");
+        expect(prompts.sort()).toEqual(["edit", "execute"]);
+      });
+
+      posix(
+        "refuses to write through a dangling symlink that resolves outside the vault (https://github.com/ItsDalk-Lane/Scribe/issues/11)",
+        async () => {
+          const outsideFile = join(data, "uncreated.md");
+          await symlink(outsideFile, join(root, "looks-safe.md"));
+          let count = 0;
+          const f = fixture(() =>
+            ++count === 1
+              ? response("", [
+                  {
+                    id: "escape",
+                    name: "write_note",
+                    arguments: { path: "looks-safe.md", content: "OUTSIDE_MARKER" },
+                  },
+                ])
+              : response("done")
+          );
+          f.process.setPermissionPrompter(async () => ({
+            outcome: { outcome: "selected", optionId: "allow_once" },
+          }));
+          const id = await f.open();
+          await f.send(id);
+          await expect(access(outsideFile)).rejects.toMatchObject({ code: "ENOENT" });
+          await expect(access(join(root, "looks-safe.md"))).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        }
+      );
+
+      posix(
+        "keeps the write bound to the approved target when the path is replaced while approval is pending (https://github.com/ItsDalk-Lane/Scribe/issues/11)",
+        async () => {
+          const outsideFile = join(data, "stolen.md");
+          await writeFile(outsideFile, "ORIGINAL-OUTSIDE");
+          await writeFile(join(root, "target.md"), "ORIGINAL-INSIDE");
+          let count = 0;
+          const f = fixture(() =>
+            ++count === 1
+              ? response("", [
+                  {
+                    id: "swap",
+                    name: "write_note",
+                    arguments: { path: "target.md", content: "REPLACEMENT" },
+                  },
+                ])
+              : response("done")
+          );
+          f.process.setPermissionPrompter(async () => {
+            await rm(join(root, "target.md"));
+            await symlink(outsideFile, join(root, "target.md"));
+            return { outcome: { outcome: "selected", optionId: "allow_once" } };
+          });
+          const id = await f.open();
+          await f.send(id);
+          expect(await readFile(outsideFile, "utf8")).toBe("ORIGINAL-OUTSIDE");
+        }
+      );
+
+      it("keeps a persisted always-deny effective in Auto mode for the identical in-vault target (https://github.com/ItsDalk-Lane/Scribe/issues/12)", async () => {
+        let attempt = 0;
+        const f = fixture(() =>
+          ++attempt % 2
+            ? response("", [
+                {
+                  id: `call-${attempt}`,
+                  name: "write_note",
+                  arguments: { path: "protected.md", content: "SYNTHETIC-DATA" },
+                },
+              ])
+            : response("Finished")
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "reject_always" },
+        }));
+        f.process.setPermissionPrompter(permission);
+        const id = await f.open();
+        const send = (promptId: string) =>
+          f.process.prompt({
+            sessionId: id,
+            promptId,
+            prompt: [{ type: "text", text: promptId }],
+          });
+        await send("first");
+        expect(permission).toHaveBeenCalledTimes(1);
+        await f.process.setSessionMode({ sessionId: id, modeId: "auto" });
+        await send("retry");
+        await expect(access(join(root, "protected.md"))).rejects.toMatchObject({ code: "ENOENT" });
+        expect(permission).toHaveBeenCalledTimes(1);
+      });
+
+      it("delivers the queued message to the model exactly once after Send now cancels the running reply (https://github.com/ItsDalk-Lane/Scribe/issues/13)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let round = 0;
+        const f = fixture((_context: TranscriptContext, options?: { signal?: AbortSignal }) => {
+          round++;
+          if (round === 1) {
+            const stream = createAssistantMessageEventStream();
+            started();
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                const message = createAssistantMessage(MODEL);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            return stream;
+          }
+          return response(`answer ${round}`);
+        });
+        const id = await f.open();
+        const running = f.process.prompt({
+          sessionId: id,
+          promptId: "first",
+          prompt: [{ type: "text", text: "first user turn" }],
+        });
+        await ready;
+        const queued = f.process.prompt({
+          sessionId: id,
+          promptId: "queued",
+          prompt: [{ type: "text", text: "Please read immediately" }],
+        });
+        await f.process.cancel({ sessionId: id, keepUnread: true });
+        await Promise.all([running, queued]);
+        expect(f.contexts.length).toBeGreaterThanOrEqual(2);
+        expect(JSON.stringify(f.contexts.at(-1))).toContain("Please read immediately");
+        expect(
+          f.events.filter(
+            (event) =>
+              event.update.sessionUpdate === "message_delivered" &&
+              event.update.promptId === "queued"
+          )
+        ).toHaveLength(1);
+      });
     });
 
     describe("stopTask()", () => {
@@ -812,6 +997,167 @@ describe("NativeBackendProcess integration", () => {
             }),
           })
         );
+      });
+    });
+
+    describe("context window wiring", () => {
+      async function wiredProcess(
+        catalogModels: unknown,
+        modelId: string
+      ): Promise<{ provider: ProviderChatModel; process: NativeBackendProcess }> {
+        const { transformWireToCatalog } =
+          await import("@/modelManagement/catalog/catalogTransform");
+        const { getSettings, setSettings } = await import("@/settings/model");
+        const { configuredModelToCustomModel } = await import("@/modelManagement");
+        const { createProviderChatModel } = await import("@/LLMProviders/createProviderChatModel");
+        const { fixtureSse } = await import("@/LLMProviders/testing/piFixtures");
+        const { __setRequestUrlImpl } = (await import("obsidian")) as unknown as {
+          __setRequestUrlImpl: (impl: unknown) => void;
+        };
+        __setRequestUrlImpl(async () => ({
+          status: 200,
+          text: fixtureSse({
+            id: "reply",
+            object: "chat.completion",
+            model: modelId,
+            created: 1,
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: "response" },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { prompt_tokens: 6998, completion_tokens: 2, total_tokens: 7000 },
+          }),
+          headers: { "content-type": "text/event-stream" },
+          json: {},
+          arrayBuffer: new ArrayBuffer(0),
+        }));
+        const base = getSettings();
+        const info = transformWireToCatalog({ fixture: catalogModels })[0].models[modelId];
+        const settings = {
+          ...base,
+          providers: {
+            fixture: {
+              providerId: "fixture",
+              providerType: "openai-compatible",
+              origin: { kind: "byok" },
+              baseUrl: "https://endpoint.invalid/v1",
+              addedAt: 1,
+              displayName: "fixture",
+              requiresApiKey: false,
+              enableCors: true,
+            },
+          } as typeof base.providers,
+          configuredModels: [
+            { configuredModelId: modelId, providerId: "fixture", info, configuredAt: 1 },
+          ],
+          backends: { chat: { enabledModels: [modelId] } } as typeof base.backends,
+          agentMode: { ...base.agentMode, backends: {} },
+        };
+        setSettings(settings);
+        const provider = await createProviderChatModel(
+          configuredModelToCustomModel({
+            provider: settings.providers.fixture,
+            configuredModel: settings.configuredModels[0],
+            apiKey: "synthetic-key",
+          })
+        );
+        const process = new NativeBackendProcess({
+          getModels: () => [
+            { baseModelId: modelId, name: modelId, provider: "fixture", effortOptions: [] },
+          ],
+          createModel: async () => provider,
+          getDefaultModelId: () => modelId,
+          getSystemPrompt: async () => "Audit assistant",
+          createTools: () => ({ tools: [] }),
+          storage: {
+            list: async () => [],
+            load: async () => null,
+            save: async () => {},
+          },
+        });
+        processes.push(process);
+        return { provider, process };
+      }
+
+      it("uses the configured catalog window for usage and the auto-compaction threshold through the real model factories (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+        const { getSettings, setSettings } = await import("@/settings/model");
+        const previous = getSettings();
+        try {
+          const { provider, process } = await wiredProcess(
+            {
+              id: "fixture",
+              name: "Fixture",
+              models: {
+                audited: {
+                  id: "audited",
+                  name: "audited",
+                  reasoning: true,
+                  limit: { context: 8192 },
+                  reasoningEfforts: ["low", "medium", "high"],
+                },
+              },
+            },
+            "audited"
+          );
+          expect(provider.model.contextWindow).toBe(8192);
+          const { sessionId } = await process.newSession({ cwd: root });
+          const updates: SessionEvent["update"][] = [];
+          process.registerSessionHandler(sessionId, (event) => updates.push(event.update));
+          for (const promptId of ["turn-one", "turn-two"]) {
+            await process.prompt({
+              sessionId,
+              promptId,
+              prompt: [{ type: "text", text: promptId }],
+            });
+          }
+          const usage = updates.find(
+            (update) => update.sessionUpdate === "usage_update"
+          ) as unknown as { usage: { usedTokens: number; contextWindow: number } };
+          expect(usage.usage).toMatchObject({ usedTokens: 7000, contextWindow: 8192 });
+          expect(
+            updates
+              .filter((update) => update.sessionUpdate === "compaction")
+              .map((update) => (update as { status: string }).status)
+          ).toEqual(["in_progress", "completed"]);
+        } finally {
+          setSettings(previous);
+        }
+      });
+
+      it("keeps an unknown window unreported and skips auto-compaction for it (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+        const { getSettings, setSettings } = await import("@/settings/model");
+        const previous = getSettings();
+        try {
+          const { provider, process } = await wiredProcess(
+            {
+              id: "fixture",
+              name: "Fixture",
+              models: { opaque: { id: "opaque", name: "opaque" } },
+            },
+            "opaque"
+          );
+          expect(provider.model.contextWindow).toBe(0);
+          const { sessionId } = await process.newSession({ cwd: root });
+          const updates: SessionEvent["update"][] = [];
+          process.registerSessionHandler(sessionId, (event) => updates.push(event.update));
+          for (const promptId of ["turn-one", "turn-two"]) {
+            await process.prompt({
+              sessionId,
+              promptId,
+              prompt: [{ type: "text", text: promptId }],
+            });
+          }
+          const usage = updates.find(
+            (update) => update.sessionUpdate === "usage_update"
+          ) as unknown as { usage: { contextWindow: number | undefined } };
+          expect(usage.usage.contextWindow).toBeUndefined();
+          expect(updates.filter((update) => update.sessionUpdate === "compaction")).toEqual([]);
+        } finally {
+          setSettings(previous);
+        }
       });
     });
   });

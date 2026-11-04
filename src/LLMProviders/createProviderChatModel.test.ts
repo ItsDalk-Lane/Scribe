@@ -104,6 +104,12 @@ describe("createProviderChatModel", () => {
         expect(new Headers(requests[0].headers).get("authorization")).toBe("Bearer fixture-key");
       }
     );
+    it("uses the configured context window and reports a genuinely unknown window as zero (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+      const known = await createProviderChatModel(wire({ numCtx: 8192 }));
+      expect(known.model.contextWindow).toBe(8192);
+      const unknown = await createProviderChatModel(wire({}));
+      expect(unknown.model.contextWindow).toBe(0);
+    });
     it.each([
       ["responses", "/responses"],
       ["completions", "/chat/completions"],

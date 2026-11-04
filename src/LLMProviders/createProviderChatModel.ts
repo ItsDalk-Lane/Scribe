@@ -1,12 +1,6 @@
 import type { Api, Model, StreamOptions } from "@earendil-works/pi-ai";
 import type { CustomModel } from "@/aiParams";
-import {
-  ChatModelProviders,
-  DEFAULT_OLLAMA_NUM_CTX,
-  ModelCapability,
-  ProviderInfo,
-  ReasoningEffort,
-} from "@/constants";
+import { ChatModelProviders, ModelCapability, ProviderInfo, ReasoningEffort } from "@/constants";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
 import { createPiChatModel, type ProviderChatModel } from "@/LLMProviders/piChatModel";
 import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
@@ -113,7 +107,9 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     reasoning: model.capabilities?.includes(ModelCapability.REASONING) ?? false,
     // 未选择推理强度时沿用供应商默认值，避免 pi-ai 自动发送 none。https://github.com/ItsDalk-Lane/Scribe/issues/8
     thinkingLevelMap: { off: null },
-    contextWindow: model.numCtx ?? DEFAULT_OLLAMA_NUM_CTX,
+    // 窗口只信显式配置；0 表示未知，用量环与自动压缩按缺数处理，不得伪装成 Ollama 默认值。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/15
+    contextWindow: model.numCtx ?? 0,
     maxTokens:
       model.maxTokens ??
       (npm === "@ai-sdk/anthropic"

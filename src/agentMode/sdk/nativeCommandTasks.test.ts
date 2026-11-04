@@ -1,8 +1,21 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import type { SessionUpdate } from "@/agentMode/session/types";
+
+async function waitForFile(path: string): Promise<string> {
+  const deadline = Date.now() + 3000;
+  for (;;) {
+    const text = await readFile(path, "utf8").catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+      return "";
+    });
+    if (text) return text;
+    if (Date.now() > deadline) throw new Error(`Expected file signal was not observed: ${path}`);
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+  }
+}
 
 describe("nativeCommandTasks", () => {
   describe("NativeCommandTasks", () => {
@@ -179,6 +192,90 @@ describe("nativeCommandTasks", () => {
           expect.objectContaining({ sessionUpdate: "task_ended", taskId: second.taskId })
         );
       });
+      const posix = process.platform === "win32" ? it.skip : it;
+      posix(
+        "kills a descendant that left the process group before reporting stopped and leaves an unrelated task running (https://github.com/ItsDalk-Lane/Scribe/issues/16)",
+        async () => {
+          const worker = join(directory, "worker.cjs");
+          const wrapper = join(directory, "parent.cjs");
+          const ready = join(directory, "pid");
+          const gate = join(directory, "release");
+          const afterStop = join(directory, "AFTER_STOP");
+          await writeFile(
+            worker,
+            [
+              "const fs=require('node:fs');",
+              "setTimeout(()=>process.exit(1),8000);",
+              `fs.writeFileSync(${JSON.stringify(ready)},String(process.pid));`,
+              `setInterval(()=>{if(!fs.existsSync(${JSON.stringify(gate)}))return;`,
+              `fs.writeFileSync(${JSON.stringify(afterStop)},'worker survived');process.exit(0)},10);`,
+            ].join("")
+          );
+          await writeFile(
+            wrapper,
+            [
+              "const cp=require('node:child_process');",
+              `cp.spawn(process.execPath,[${JSON.stringify(worker)}],{stdio:'ignore',detached:true}).unref();`,
+              "setTimeout(()=>process.exit(),8000);",
+            ].join("")
+          );
+          const ended: string[] = [];
+          const runner = new NativeCommandTasks({
+            cwd: directory,
+            sessionId: "detached-audit",
+            outputDirectory: join(directory, "detached-output"),
+            emit: (update) => {
+              if (update.sessionUpdate === "task_ended")
+                ended.push(`${update.taskId}:${update.status}`);
+            },
+          });
+          const other = await runner.run({
+            toolCallId: "other",
+            command: `"${process.execPath}" -e "setInterval(() => {},1000)"`,
+            background: true,
+          });
+          let pid = 0;
+          let cleanupFailure: unknown;
+          try {
+            const job = await runner.run({
+              toolCallId: "probe",
+              background: true,
+              command: `"${process.execPath}" ${JSON.stringify(wrapper)}`,
+            });
+            pid = Number(await waitForFile(ready));
+            await runner.stop(job.taskId);
+            expect(ended).toEqual([`${job.taskId}:stopped`]);
+            // 任务报告已停止时，脱离进程组的后代必须已经终止，释放信号后不可能再写文件。
+            // https://github.com/ItsDalk-Lane/Scribe/issues/16
+            const deadline = Date.now() + 3000;
+            for (;;) {
+              try {
+                process.kill(pid, 0);
+                if (Date.now() > deadline) throw new Error("descendant survived the stop");
+                await new Promise((resolve) => window.setTimeout(resolve, 20));
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+                break;
+              }
+            }
+            await writeFile(gate, "release");
+            await expect(access(afterStop)).rejects.toMatchObject({ code: "ENOENT" });
+            await runner.stop(other.taskId);
+            expect(ended).toHaveLength(2);
+          } finally {
+            if (pid > 0) {
+              try {
+                process.kill(pid, "SIGKILL");
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ESRCH") cleanupFailure = error;
+              }
+            }
+            await runner.shutdown();
+          }
+          if (cleanupFailure instanceof Error) throw cleanupFailure;
+        },
+        15000
+      );
     });
 
     describe("shutdown()", () => {

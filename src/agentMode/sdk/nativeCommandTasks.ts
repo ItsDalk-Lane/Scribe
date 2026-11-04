@@ -35,6 +35,55 @@ interface RunningCommand {
   stop(): void;
 }
 
+// 只收集属于目标任务的后代进程；脱离进程组的子孙也在其中，别的任务的进程不受影响。
+// https://github.com/ItsDalk-Lane/Scribe/issues/16
+function collectDescendants(
+  pid: number | undefined,
+  childProcess: typeof import("node:child_process"),
+  fs: typeof import("node:fs"),
+  processRuntime: typeof import("node:process")
+): number[] {
+  if (!pid || processRuntime.platform === "win32") return [];
+  const children = (parent: number): number[] => {
+    try {
+      if (processRuntime.platform === "darwin") {
+        const output = childProcess.execFileSync("pgrep", ["-P", String(parent)], {
+          encoding: "utf8",
+          windowsHide: true,
+        });
+        return output
+          .split("\n")
+          .map((line) => Number(line.trim()))
+          .filter((candidate) => candidate > 0);
+      }
+      const descendants: number[] = [];
+      for (const entry of fs.readdirSync("/proc")) {
+        if (!/^\d+$/.test(entry)) continue;
+        const stat = fs.readFileSync(`/proc/${entry}/stat`, "utf8");
+        const fields = stat.slice(stat.lastIndexOf(")") + 2).split(/\s+/);
+        if (Number(fields[1]) === parent) descendants.push(Number(entry));
+      }
+      return descendants;
+    } catch {
+      return [];
+    }
+  };
+  const found: number[] = [];
+  const queue = [pid];
+  const seen = new Set([pid]);
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const child of children(current)) {
+      if (!seen.has(child)) {
+        seen.add(child);
+        found.push(child);
+        queue.push(child);
+      }
+    }
+  }
+  return found;
+}
+
 export class NativeCommandTasks {
   private readonly tasks = new Map<string, RunningCommand>();
   private closed = false;
@@ -96,11 +145,29 @@ export class NativeCommandTasks {
         }
       }
     };
+    let descendants: number[] = [];
+    const killDescendants = (signal: NodeJS.Signals): void => {
+      for (const pid of descendants) {
+        try {
+          processRuntime.kill(pid, signal);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH")
+            failure = error instanceof Error ? error : new Error(String(error));
+        }
+      }
+    };
     const stop = (): void => {
       if (stopped) return;
       stopped = true;
+      // 先收集后代快照再开始终止：进程被杀并回收后父链会断开，事后就找不到这棵树了。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/16
+      descendants = collectDescendants(child.pid, childProcess, fs, processRuntime);
       killGroup("SIGTERM");
-      killTimer = window.setTimeout(() => killGroup("SIGKILL"), 1000);
+      killDescendants("SIGTERM");
+      killTimer = window.setTimeout(() => {
+        killGroup("SIGKILL");
+        killDescendants("SIGKILL");
+      }, 1000);
     };
     const abort = (): void => stop();
     const record = (chunk: Uint8Array): void => {
@@ -131,7 +198,12 @@ export class NativeCommandTasks {
     child.once("close", (exitCode) => {
       if (killTimer) window.clearTimeout(killTimer);
       output = (output + decoder.decode()).slice(-65_536);
-      if (stopped && processRuntime.platform !== "win32") killGroup("SIGKILL");
+      // 主进程退出不代表脱离进程组的后代也停了；确认终止后代之后才允许报告 stopped。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/16
+      if (stopped) {
+        killDescendants("SIGKILL");
+        if (processRuntime.platform !== "win32") killGroup("SIGKILL");
+      }
       input.signal?.removeEventListener("abort", abort);
       fs.closeSync(fd);
       this.tasks.delete(taskId);

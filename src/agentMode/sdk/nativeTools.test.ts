@@ -338,13 +338,44 @@ describe("nativeTools", () => {
       expect(await readFile(join(root, "notes/source.md"), "utf8")).toContain("second edit");
     });
 
-    it("uses the auto permission mode for file edits while still requesting command approval", async () => {
+    it("routes auto-mode file edits through the shared permission decision while commands still request approval (https://github.com/ItsDalk-Lane/Scribe/issues/10)", async () => {
       mode = "auto";
       await execute("write_note", { path: "auto.md", content: "Approved by selected mode" });
-      expect(options.requestPermission).not.toHaveBeenCalled();
-      await execute("run_command", { command: `"${process.execPath}" -p "42"` });
       expect(options.requestPermission).toHaveBeenCalledTimes(1);
+      await execute("run_command", { command: `"${process.execPath}" -p "42"` });
+      expect(options.requestPermission).toHaveBeenCalledTimes(2);
     });
+
+    const posix = process.platform === "win32" ? it.skip : it;
+    posix(
+      "refuses to write through a dangling symbolic link and leaves the outside target uncreated (https://github.com/ItsDalk-Lane/Scribe/issues/11)",
+      async () => {
+        const outsideFile = join(outside, "never-created.md");
+        await symlink(outsideFile, join(root, "looks-safe.md"));
+        await expect(
+          execute("write_note", { path: "looks-safe.md", content: "OUTSIDE_MARKER" })
+        ).rejects.toThrow(/symbolic link/i);
+        await expect(access(outsideFile)).rejects.toMatchObject({ code: "ENOENT" });
+        expect(options.requestPermission).not.toHaveBeenCalled();
+      }
+    );
+    posix(
+      "keeps the write bound to the approved target when the path is replaced while approval is pending (https://github.com/ItsDalk-Lane/Scribe/issues/11)",
+      async () => {
+        const outsideFile = join(outside, "stolen.md");
+        await writeFile(outsideFile, "ORIGINAL-OUTSIDE");
+        await writeFile(join(root, "target.md"), "ORIGINAL-INSIDE");
+        options.requestPermission = async () => {
+          await rm(join(root, "target.md"));
+          await symlink(outsideFile, join(root, "target.md"));
+          return { outcome: { outcome: "selected", optionId: "allow_once" } };
+        };
+        await expect(
+          execute("write_note", { path: "target.md", content: "REPLACEMENT" })
+        ).rejects.toThrow(/symbolic link|vault/i);
+        expect(await readFile(outsideFile, "utf8")).toBe("ORIGINAL-OUTSIDE");
+      }
+    );
 
     it("requires an unambiguous replacement unless replacing every occurrence was requested", async () => {
       await writeFile(join(root, "repeated.md"), "same / same");

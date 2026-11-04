@@ -63,8 +63,6 @@ export enum ReasoningEffort {
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 20_000;
 
-export const DEFAULT_OLLAMA_NUM_CTX = 131072;
-
 export enum ChatModelProviders {
   OPENROUTERAI = "openrouterai",
   OPENAI = "openai",

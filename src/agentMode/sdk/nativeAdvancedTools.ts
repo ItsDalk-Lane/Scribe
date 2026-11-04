@@ -161,26 +161,26 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
             if (writes) {
               if (options.getMode() === "plan")
                 throw new Error("Plan approval is required before changing drawings.");
-              if (options.getMode() !== "auto") {
-                const decision = await options.requestPermission({
-                  sessionId: options.sessionId,
-                  requester: options.requester,
-                  toolCall: {
-                    toolCallId,
-                    title: `Edit ${path}`,
-                    kind: "edit",
-                    rawInput: input,
-                    locations: [{ path }],
-                  },
-                  options: [...NATIVE_PERMISSION_OPTIONS],
-                  signal,
-                });
-                if (
-                  decision.outcome.outcome !== "selected" ||
-                  decision.outcome.optionId !== "allow_once"
-                )
-                  throw new Error(decision.denyMessage || "Permission denied.");
-              }
+              // Auto 的自动放行与已保存的拒绝由共享的权限判定统一决定。
+              // https://github.com/ItsDalk-Lane/Scribe/issues/12
+              const decision = await options.requestPermission({
+                sessionId: options.sessionId,
+                requester: options.requester,
+                toolCall: {
+                  toolCallId,
+                  title: `Edit ${path}`,
+                  kind: "edit",
+                  rawInput: input,
+                  locations: [{ path }],
+                },
+                options: [...NATIVE_PERMISSION_OPTIONS],
+                signal,
+              });
+              if (
+                decision.outcome.outcome !== "selected" ||
+                decision.outcome.optionId !== "allow_once"
+              )
+                throw new Error(decision.denyMessage || "Permission denied.");
               signal?.throwIfAborted();
               if (options.getMode() === "plan")
                 throw new Error("Plan approval is required before changing drawings.");

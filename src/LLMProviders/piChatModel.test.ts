@@ -111,6 +111,48 @@ describe("piChatModel", () => {
         expect(events).toEqual(["error"]);
       });
 
+      it.each([
+        {
+          name: "an echoed request credential is redacted while model, protocol, and HTTP status stay diagnosable",
+          body: JSON.stringify({
+            error: { message: "Invalid credential audit-secret-ONE-not-real" },
+          }),
+          secret: "audit-secret-ONE-not-real",
+          expects: (errorMessage: string) => {
+            expect(errorMessage).toContain("private-model (openai-completions)");
+            expect(errorMessage).toContain("401");
+            expect(errorMessage).not.toContain("audit-secret-ONE-not-real");
+          },
+        },
+        {
+          name: "an ordinary 401 body stays diagnosable",
+          body: JSON.stringify({ error: { message: "Expired subscription" } }),
+          secret: "unrelated-key-value-424242",
+          expects: (errorMessage: string) => {
+            expect(errorMessage).toContain("401");
+            expect(errorMessage).toContain("Expired subscription");
+          },
+        },
+      ])(
+        "redacts provider error bodies before they persist: $name (https://github.com/ItsDalk-Lane/Scribe/issues/9)",
+        async ({ body, secret, expects }) => {
+          const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+          const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
+            async () =>
+              new Response(body, { status: 401, headers: { "content-type": "application/json" } })
+          );
+          const chat = createPiChatModel(model, async () => ({
+            stream,
+            options: { apiKey: secret, fetch, maxRetries: 0 },
+          }));
+          const result = await chat
+            .agentStream({ messages: [{ role: "user", content: "Question", timestamp: 0 }] })
+            .result();
+          expect(result.stopReason).toBe("error");
+          expects(result.errorMessage ?? "");
+        }
+      );
+
       it("preserves the terminal provider message, refusal reason, usage, and diagnostics when no partial was emitted", async () => {
         const reply = createAssistantMessage(model);
         reply.stopReason = "error";
