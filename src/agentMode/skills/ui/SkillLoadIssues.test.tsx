@@ -70,11 +70,11 @@ describe("SkillLoadIssues", () => {
           issues={[
             makeIssue(),
             makeIssue({
-              location: ".claude/skills/without-fix/SKILL.md",
+              location: ".scribe/skills/without-fix/SKILL.md",
               offendingText: "description: [unfinished",
             }),
             makeIssue({
-              location: ".claude/skills/third/SKILL.md",
+              location: ".scribe/skills/third/SKILL.md",
               reason: "Missing name.",
               offendingText: undefined,
             }),
@@ -87,7 +87,7 @@ describe("SkillLoadIssues", () => {
       expect(screen.getAllByRole("article")).toHaveLength(3);
       expect(screen.getByText(makeIssue().location)).not.toBeNull();
       expect(screen.getByText(makeIssue().offendingText as string)).not.toBeNull();
-      expect(screen.getByText(".claude/skills/without-fix/SKILL.md")).not.toBeNull();
+      expect(screen.getByText(".scribe/skills/without-fix/SKILL.md")).not.toBeNull();
       expect(screen.getByText("description: [unfinished")).not.toBeNull();
       expect(screen.getAllByText(makeIssue().reason)).toHaveLength(2);
       expect(screen.getByText("Missing name.")).not.toBeNull();
@@ -103,7 +103,7 @@ describe("SkillLoadIssues", () => {
               onOpen: () => order.push("open"),
               onReveal: () => order.push("reveal"),
             }),
-            makeIssue({ location: ".claude/skills/second/SKILL.md" }),
+            makeIssue({ location: ".scribe/skills/second/SKILL.md" }),
           ]}
           onFixAll={() => order.push("fix-all")}
           onClose={() => order.push("close")}
@@ -175,7 +175,7 @@ describe("SkillLoadIssues", () => {
 
 function makeIssue(overrides: Partial<SkillLoadIssue> = {}): SkillLoadIssue {
   return {
-    location: ".claude/skills/broken-skill/SKILL.md",
+    location: ".scribe/skills/broken-skill/SKILL.md",
     reason: 'The description contains ": " and must be quoted.',
     offendingText: "description: Use this skill for: reviewing notes",
     revealLabel: "Show in folder",

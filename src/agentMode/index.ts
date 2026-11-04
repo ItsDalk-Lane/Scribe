@@ -1,7 +1,7 @@
 import { type App, Platform, TFile } from "obsidian";
 import type CopilotPlugin from "@/main";
 import { logError } from "@/logger";
-import { getSettings, subscribeToSettingsChange, type CopilotSettings } from "@/settings/model";
+import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { deriveSkillsFolder } from "@/settings/copilotFolder";
 import { copilotAppDataDir, getVaultId } from "@/utils/appPaths";
@@ -15,12 +15,6 @@ import { AgentSessionIndex } from "./session/AgentSessionIndex";
 import { createNodeFileStorage, createNodeSnapshotStorage } from "./session/nodeFileStorage";
 import { AgentSessionSnapshots } from "./session/AgentSessionSnapshots";
 import { AgentSessionManager } from "./session/AgentSessionManager";
-import {
-  createCopilotMcpServer,
-  SEND_FEEDBACK_TOOL_NAME,
-} from "@/agentMode/session/copilotMcpServer";
-import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
-import { createExcalidrawTools, EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
 import { SkillManager } from "./skills";
 import {
   availableBuiltinAgents,
@@ -60,26 +54,6 @@ function collectAgentSkillsDirsProjectRel(): Record<string, string> {
     out[descriptor.id] = descriptor.skillsProjectDir;
   }
   return out;
-}
-
-function backendEnvOverridesKey(settings: CopilotSettings, backendId: BackendId): string {
-  const backends = settings.agentMode?.backends as
-    | Partial<Record<BackendId, { envOverrides?: Record<string, string> }>>
-    | undefined;
-  const env = backends?.[backendId]?.envOverrides ?? {};
-  return JSON.stringify(Object.entries(env).sort(([a], [b]) => a.localeCompare(b)));
-}
-
-// The Excalidraw tools follow the Excalidraw plugin rather than a setting, so they appear only where drawings can be made.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
-export function isCopilotToolOn(toolName: string, settings: CopilotSettings, app: App): boolean {
-  if (toolName === SEND_FEEDBACK_TOOL_NAME) {
-    return settings.agentMode.offerFeedbackCards;
-  }
-  if (EXCALIDRAW_TOOL_NAMES.has(toolName)) {
-    return getExcalidrawApi(app) !== null;
-  }
-  return true;
 }
 
 export function createAgentSessionManager(app: App, plugin: CopilotPlugin): AgentSessionManager {
@@ -161,26 +135,8 @@ export function createAgentSessionManager(app: App, plugin: CopilotPlugin): Agen
     persistenceManager,
     sessionSnapshots,
     sessionIndex,
-    copilotMcpServer: createCopilotMcpServer(
-      (toolName) => isCopilotToolOn(toolName, getSettings(), app),
-      [...createExcalidrawTools(() => getExcalidrawApi(app))]
-    ),
   });
   managerRef = manager;
-  subscribeToSettingsChange((prev, next) => {
-    for (const descriptor of listBackendDescriptors()) {
-      if (
-        backendEnvOverridesKey(prev, descriptor.id) === backendEnvOverridesKey(next, descriptor.id)
-      ) {
-        continue;
-      }
-      void manager
-        .noteSpawnConfigChanged(descriptor.id, "env overrides changed")
-        .catch((error) =>
-          logError(`[AgentMode] restart after env overrides change failed: ${descriptor.id}`, error)
-        );
-    }
-  });
   const seedManagedBuiltins = async (): Promise<void> => {
     seededWithCli = isObsidianCliEnabled();
     await skillManager.refresh(true);
@@ -235,7 +191,6 @@ export function createAgentSessionManager(app: App, plugin: CopilotPlugin): Agen
   return manager;
 }
 
-export { AgentBackendHeader } from "./backends/shared/ui/AgentBackendHeader";
 export { AgentConfigurationCard } from "./backends/shared/ui/AgentConfigurationCard";
 
 export { useBackendAuthState } from "./session/useBackendAuthState";

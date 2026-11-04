@@ -10,8 +10,8 @@ const args: BuiltinSkillsTableProps = {
       content: "# Obsidian Markdown\n\nCreate notes with links, embeds and callouts.",
     },
   ],
-  agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
-  availableAgents: ["claude"],
+  agents: [{ id: "native", displayName: "Scribe", Icon: Bot }],
+  availableAgents: ["native"],
   runtimeItems: [
     {
       id: "runtime:obsidian-markdown",
@@ -31,7 +31,9 @@ export default meta;
 export const AlwaysEnabled: StoryObj<BuiltinSkillsTableProps> = {};
 export const Checking: StoryObj<BuiltinSkillsTableProps> = { args: { checking: true } };
 export const Unconfirmed: StoryObj<BuiltinSkillsTableProps> = { args: { runtimeItems: undefined } };
-export const NotInstalled: StoryObj<BuiltinSkillsTableProps> = { args: { availableAgents: [] } };
+export const NoModelConfiguration: StoryObj<BuiltinSkillsTableProps> = {
+  args: { availableAgents: [] },
+};
 export const NameCollision: StoryObj<BuiltinSkillsTableProps> = {
   args: {
     unavailableReasons: {

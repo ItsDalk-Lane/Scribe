@@ -1,6 +1,7 @@
 import "web-streams-polyfill/dist/polyfill.min.js";
 import { TextEncoder, TextDecoder } from "util";
 import { MessagePort } from "worker_threads";
+import { deserialize, serialize } from "v8";
 
 window.TextEncoder = TextEncoder;
 window.TextDecoder = TextDecoder;
@@ -150,3 +151,4 @@ if (typeof window.activeDocument === "undefined") {
 if (typeof window.activeWindow === "undefined") {
   window.activeWindow = window;
 }
+window.structuredClone = (value) => deserialize(serialize(value));

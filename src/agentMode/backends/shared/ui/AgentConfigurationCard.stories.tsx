@@ -12,11 +12,11 @@ const meta = {
 } satisfies Meta<AgentConfigurationCardProps>;
 export default meta;
 const args: AgentConfigurationCardProps = {
-  displayName: "Claude Code",
+  displayName: "Scribe",
   Icon: Bot,
-  installState: { kind: "ready", source: "custom", version: "2.1.281" },
+  installState: { kind: "ready", source: "managed" },
   managedInstall: { kind: "idle" },
-  resolvedPath: "/local/claude",
+  resolvedPath: null,
   onConfigure: () => {},
   enabled: true,
   onEnabledChange: () => {},
@@ -35,7 +35,7 @@ export const Missing: StoryObj<AgentConfigurationCardProps> = {
 export const DetectionError: StoryObj<AgentConfigurationCardProps> = {
   args: {
     ...args,
-    installState: { kind: "error", message: "暂时无法检测 Claude Code，请检查安装配置后重试。" },
+    installState: { kind: "error", message: "请配置聊天模型后重试。" },
     resolvedPath: null,
   },
 };

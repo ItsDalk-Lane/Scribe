@@ -74,17 +74,17 @@ describe("settingsMigrations", () => {
   });
 
   describe("runSettingsMigrations()", () => {
-    it("removes obsolete default model reasoning and builtin opt-outs while preserving agent configuration", async () => {
+    it("clears obsolete builtin opt-outs while preserving the native model and permission configuration", async () => {
       const settings = seedVault({
         settingsVersion: 17,
         agentMode: {
           ...DEFAULT_SETTINGS.agentMode,
           backends: {
-            claude: {
+            native: {
               enabled: false,
-              defaultModel: { baseModelId: "opus", effort: "high" },
-              enableThinking: true,
-              envOverrides: { API_HOST: "https://example.com" },
+              defaultModel: { baseModelId: "custom-model", effort: "high" },
+              defaultMode: "plan",
+              maxSteps: 75,
             },
           },
           skills: {
@@ -98,10 +98,11 @@ describe("settingsMigrations", () => {
       });
       const { api } = makeApi();
       await runSettingsMigrations(api);
-      expect(getSettings().agentMode.backends.claude).toEqual({
+      expect(getSettings().agentMode.backends.native).toEqual({
         enabled: false,
-        enableThinking: true,
-        envOverrides: { API_HOST: "https://example.com" },
+        defaultModel: { baseModelId: "custom-model", effort: "high" },
+        defaultMode: "plan",
+        maxSteps: 75,
       });
       expect(getSettings().agentMode.skills.builtinPreferences).toEqual({});
       expect(getSettings().configuredModels).toEqual(settings.configuredModels);
@@ -199,7 +200,7 @@ describe("settingsMigrations", () => {
 
       await runSettingsMigrations(api);
 
-      expect(getSettings().agentMode.activeBackend).toBe("claude");
+      expect(getSettings().agentMode.activeBackend).toBe("native");
       expect(getSettings().providers).toEqual({});
       expect(getSettings().configuredModels).toEqual([]);
       expect(getSettings().backends).toEqual({});

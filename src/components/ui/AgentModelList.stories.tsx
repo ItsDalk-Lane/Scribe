@@ -31,19 +31,19 @@ const meta = {
 } satisfies Meta<AgentModelListProps>;
 export default meta;
 export const Collapsed: StoryObj<AgentModelListProps> = {
-  args: { rows, onToggle: () => {}, agentName: "Claude Code" },
+  args: { rows, onToggle: () => {}, agentName: "Scribe" },
 };
 export const FullList: StoryObj<AgentModelListProps> = {
-  args: { rows, onToggle: () => {}, agentName: "Claude Code", defaultOpen: true },
+  args: { rows, onToggle: () => {}, agentName: "Scribe", defaultOpen: true },
 };
 export const Empty: StoryObj<AgentModelListProps> = {
-  args: { rows: [], onToggle: () => {}, agentName: "Claude Code", defaultOpen: true },
+  args: { rows: [], onToggle: () => {}, agentName: "Scribe", defaultOpen: true },
 };
 export const Disabled: StoryObj<AgentModelListProps> = {
   args: {
     rows: rows.map((row) => ({ ...row, enabled: false })),
     onToggle: () => {},
-    agentName: "Claude Code",
+    agentName: "Scribe",
     defaultOpen: true,
   },
 };
@@ -53,14 +53,14 @@ export const LongNames: StoryObj<AgentModelListProps> = {
     rows: [
       {
         id: "long-model",
-        label: "Claude Code 自动报告的长名称模型入口",
+        label: "Scribe 自动报告的长名称模型入口",
         wireId: "claude-model-with-a-long-version-and-endpoint-identifier",
         description: "完整保留模型说明，较窄的设置窗口中名称和代号应换行显示，右侧开关保持可用。",
         enabled: true,
       },
     ],
     onToggle: () => {},
-    agentName: "Claude Code",
+    agentName: "Scribe",
     defaultOpen: true,
   },
 };

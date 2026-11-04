@@ -4,7 +4,7 @@
   "version": "1.0.2",
   "minAppVersion": "1.11.4",
   "isDesktopOnly": false,
-  "description": "Run Claude Code inside your vault. Turn your second brain into a smart assistant that gets knowledge work done.",
+  "description": "An AI notes assistant that runs inside Obsidian with your own models and tools.",
   "author": "ItsDalk-Lane",
   "authorUrl": "https://github.com/ItsDalk-Lane"
 }

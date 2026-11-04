@@ -27,7 +27,7 @@ export const EmptyPlaceholder: React.FC<EmptyPlaceholderProps> = ({ folder }) =>
       <div className="tw-text-smaller tw-font-medium tw-text-muted">{t("No skills yet")}</div>
       <div className="tw-max-w-[420px] tw-break-words tw-text-center tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
         {t("Skills you create or save into your shared folder show up here. Skills under")}{" "}
-        <code>.claude/skills/</code> {t("show up here automatically too.")}
+        <code>.scribe/skills/</code> {t("show up here automatically too.")}
       </div>
       <div className="tw-mt-3 tw-max-w-full tw-break-all tw-text-center tw-font-mono tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
         {t("shared home ·")}

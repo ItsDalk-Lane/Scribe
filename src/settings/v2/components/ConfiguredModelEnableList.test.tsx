@@ -6,6 +6,10 @@ import React from "react";
 
 const mockEnable = jest.fn().mockResolvedValue(undefined),
   mockDisable = jest.fn().mockResolvedValue(undefined);
+const mockSetEnabled = jest.fn().mockResolvedValue(undefined);
+let mockBackends: Record<string, { enabledModels: string[] }> = {
+  claude: { enabledModels: ["first"] },
+};
 const mockModels = [
   {
     configuredModelId: "first",
@@ -36,22 +40,57 @@ jest.mock("@/modelManagement", () => ({
   providersAtom: "providers",
   backendsAtom: "backends",
   capabilitiesFromConfiguredInfo: () => [],
+  isChatModelInfo: () => true,
   useModelManagement: () => ({
-    backendConfigRegistry: { enableModel: mockEnable, disableModel: mockDisable },
+    backendConfigRegistry: {
+      enableModel: mockEnable,
+      disableModel: mockDisable,
+      setEnabledModels: mockSetEnabled,
+    },
   }),
 }));
 jest.mock("jotai", () => ({
   useAtomValue: (atom: string) =>
-    atom === "models"
-      ? mockModels
-      : atom === "providers"
-        ? mockProviders
-        : { claude: { enabledModels: ["first"] } },
+    atom === "models" ? mockModels : atom === "providers" ? mockProviders : mockBackends,
 }));
 jest.mock("@/settings/model", () => ({ settingsStore: {} }));
 
 describe("ConfiguredModelEnableList", () => {
   describe("ConfiguredModelEnableList()", () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockBackends = { claude: { enabledModels: ["first"] }, chat: { enabledModels: ["other"] } };
+    });
+
+    it("uses existing BYOK chat selections for native visibility and preserves the inherited list when its first switch changes", async () => {
+      render(
+        <ConfiguredModelEnableList
+          descriptor={{ id: "native", displayName: "Scribe" } as BackendDescriptor}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Visible models/ }));
+      expect(screen.getByText("BYOK model")).toBeTruthy();
+      expect(screen.queryByText("Same model")).toBeNull();
+      const toggle = screen.getByRole("switch", { name: /byok-code/ });
+      expect(toggle.getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(toggle);
+      await waitFor(() => expect(mockSetEnabled).toHaveBeenCalledWith("native", []));
+    });
+
+    it("keeps an explicitly empty native model list disabled instead of inheriting chat selections again", async () => {
+      mockBackends.native = { enabledModels: [] };
+      render(
+        <ConfiguredModelEnableList
+          descriptor={{ id: "native", displayName: "Scribe" } as BackendDescriptor}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Visible models/ }));
+      const toggle = screen.getByRole("switch", { name: /byok-code/ });
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(toggle);
+      await waitFor(() => expect(mockSetEnabled).toHaveBeenCalledWith("native", ["other"]));
+    });
+
     it("uses every entry registered for this agent while excluding BYOK models and preserving entry identities", async () => {
       render(
         <ConfiguredModelEnableList

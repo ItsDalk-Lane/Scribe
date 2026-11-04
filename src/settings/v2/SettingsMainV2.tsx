@@ -23,7 +23,7 @@ const LazyExtensionsSettings = React.lazy(() =>
 );
 
 interface ExtensionsSettingsPanelProps {
-  kind: "plugin" | "skill" | "command" | "hook" | "mcp" | "subagent";
+  kind: "skill" | "command" | "subagent";
 }
 
 const ExtensionsSettingsPanel: React.FC<ExtensionsSettingsPanelProps> = ({ kind }) => {
@@ -51,11 +51,8 @@ const components: Record<CopilotSettingsTabId, React.FC> = {
   basic: GeneralSettings,
   quickActions: QuickActionsSettings,
   agents: AgentSettingsPanel,
-  plugins: () => <ExtensionsSettingsPanel kind="plugin" />,
   command: () => <ExtensionsSettingsPanel kind="command" />,
   skills: () => <ExtensionsSettingsPanel kind="skill" />,
-  hooks: () => <ExtensionsSettingsPanel kind="hook" />,
-  mcp: () => <ExtensionsSettingsPanel kind="mcp" />,
   subagents: () => <ExtensionsSettingsPanel kind="subagent" />,
 };
 
@@ -63,11 +60,8 @@ const TAB_LABELS: Record<CopilotSettingsTabId, string> = {
   basic: "Common",
   quickActions: "Quick actions",
   agents: "Agents",
-  plugins: "Plugins",
   command: "Commands",
   skills: "Skills",
-  hooks: "Hooks",
-  mcp: "MCP",
   subagents: "Subagents",
 };
 

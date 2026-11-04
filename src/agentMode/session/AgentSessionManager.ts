@@ -245,7 +245,6 @@ export class AgentSessionManager {
       snapshotTimer?: number;
       snapshotSaving?: Promise<void>;
       snapshotFailureReported?: boolean;
-      snapshotAliases?: string[];
     }
   >();
 
@@ -816,6 +815,13 @@ export class AgentSessionManager {
         if (alias !== ref.sessionId) await index.deleteSession(ref.backendId, alias);
       await index.flushOrThrow();
     }
+    if (ref) {
+      const descriptor = this.opts.resolveDescriptor(ref.backendId);
+      if (descriptor) {
+        const backend = await this.ensureBackend(ref.backendId, descriptor);
+        for (const sessionId of snapshotIds) await backend.deleteSession?.({ sessionId });
+      }
+    }
     const notePaths = new Set(native ? savedPaths : [fileId, ...savedPaths]);
     if (persistence) {
       for (const path of notePaths) await persistence.deleteFile(path);
@@ -844,11 +850,7 @@ export class AgentSessionManager {
   private cancelPendingIndexTouch(backendId: BackendId, sessionId: string): void {
     for (const session of this.sessions.values()) {
       if (session.backendId !== backendId) continue;
-      if (
-        session.getBackendSessionId() !== sessionId &&
-        !this.sessionState.get(session.internalId)?.snapshotAliases?.includes(sessionId)
-      )
-        continue;
+      if (session.getBackendSessionId() !== sessionId) continue;
       const state = this.sessionState.get(session.internalId);
       if (state?.indexTimer) {
         window.clearTimeout(state.indexTimer);
@@ -1017,16 +1019,13 @@ export class AgentSessionManager {
       throw new Error("AgentSessionManager has been shut down");
     }
 
-    const requestedId = backendId ?? getSettings().agentMode?.activeBackend ?? "claude";
-    const resolvedId = this.opts.resolveDescriptor(requestedId) ? requestedId : "claude";
+    const resolvedId = backendId ?? getSettings().agentMode?.activeBackend ?? "native";
     const errorSeqAtStart = this.lastErrorSeq;
     const descriptor = this.resolveDescriptor(resolvedId);
     if (!this.isBackendEnabled(resolvedId)) {
       throw new Error("This agent is disabled. Enable it in Agent settings to continue.");
     }
-    const resolvedSeed =
-      this.getSeedSelection(resolvedId, resolvedId === requestedId ? seedSelection : undefined) ??
-      undefined;
+    const resolvedSeed = this.getSeedSelection(resolvedId, seedSelection) ?? undefined;
     if (!resolvedSeed && (descriptor.usesConfiguredModels || descriptor.getEnabledModelEntries)) {
       const message = `Enable a model for ${descriptor.displayName} in Scribe's model settings to start a chat.`;
       this.setLastError(message);
@@ -2089,9 +2088,8 @@ export class AgentSessionManager {
     const previousActiveId = this.activeSessionId;
 
     const loaded = await this.opts.persistenceManager.loadFile(file);
-    const snapshot = loaded.sessionId
-      ? await this.readSessionSnapshot(loaded.backendId, loaded.sessionId)
-      : null;
+    this.resolveDescriptor(loaded.backendId);
+    if (!loaded.sessionId) throw new Error("The saved chat has no native session identity.");
     const projectId = loaded.projectId;
     if (projectId !== GLOBAL_SCOPE && !getCachedProjectRecordById(projectId)) {
       new Notice(t("This chat belongs to a project that no longer exists."));
@@ -2101,34 +2099,23 @@ export class AgentSessionManager {
     const scopeSeq = this.setActiveScope(projectId);
 
     let session: AgentSession;
-    let resumed: AgentSession | null;
     try {
-      resumed = loaded.sessionId
-        ? await this.tryResumeSessionFromHistory(loaded.backendId, loaded.sessionId, projectId)
-        : null;
-      session =
-        resumed ??
-        (await this.createSession(
-          loaded.backendId,
-          projectId,
-          snapshot?.selection,
-          snapshot?.chatId
-        ));
+      const resumed = await this.tryResumeSessionFromHistory(
+        loaded.backendId,
+        loaded.sessionId,
+        projectId
+      );
+      if (!resumed)
+        throw new Error(
+          `Could not resume session ${loaded.sessionId} from the ${loaded.backendId} session store.`
+        );
+      session = resumed;
     } catch (err) {
       this.rollbackOptimisticScopeSwitch(previousActiveProjectId, scopeSeq);
       throw err;
     }
 
-    this.restoreFromNote(session, resumed !== null, file, loaded);
-    if (
-      !resumed &&
-      snapshot &&
-      snapshot.projectId === projectId &&
-      snapshot.messages.filter((message) => message.sender === USER_SENDER).length >=
-        loaded.messages.filter((message) => message.sender === USER_SENDER).length
-    ) {
-      this.restoreSessionSnapshot(session, snapshot, resumed !== null);
-    }
+    this.restoreFromNote(session, file, loaded);
     if (loaded.label) session.setLabel(loaded.label);
     if (loaded.sessionId) {
       void this.opts.sessionIndex?.touch(loaded.backendId, loaded.sessionId);
@@ -2141,18 +2128,11 @@ export class AgentSessionManager {
     return session;
   }
 
-  private restoreFromNote(
-    session: AgentSession,
-    resumed: boolean,
-    file: TFile,
-    loaded: LoadedAgentChat
-  ): void {
+  private restoreFromNote(session: AgentSession, file: TFile, loaded: LoadedAgentChat): void {
     // A reattached session replays the chat with its tool calls and thinking, which the note's text-only copy lacks; turns that never reach the agent (local refusals) live only in the note, so a replay with fewer user turns leaves the note as the source. https://github.com/Brevilabs/obsidian-copilot-private/issues/671
     const replayedUserTurns = session.store
       .getDisplayMessages()
       .filter((m) => m.sender === USER_SENDER).length;
-    // Claude's transcript keeps /compact only as command bookkeeping, which its replay drops.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/635
     const savedUserTurns = loaded.messages.filter(
       (m) => m.isVisible && m.sender === USER_SENDER && !isCompactCommand(m.message)
     ).length;
@@ -2160,9 +2140,6 @@ export class AgentSessionManager {
       session.store.fillMissingTimestamps(loaded.messages);
     } else {
       session.loadDisplayMessages(loaded.messages);
-      // The agent never saw this note's turns when its saved session is gone from this device.
-      // https://github.com/logancyang/obsidian-copilot/issues/3643
-      if (!resumed) session.resendSavedHistoryOnNextTurn();
     }
     session.seedSessionUsage(loaded.usage);
     this.getSessionState(session.internalId).source = file;
@@ -2219,6 +2196,7 @@ export class AgentSessionManager {
     backendId: BackendId,
     sessionId: SessionId
   ): Promise<{ entry: AgentSessionIndexEntry | null; projectId: ProjectScopeId }> {
+    this.resolveDescriptor(backendId);
     const index = this.opts.sessionIndex;
     const entry = index ? await index.getEntry(backendId, sessionId) : null;
     const snapshot = !entry ? await this.readSessionSnapshot(backendId, sessionId) : null;
@@ -2236,34 +2214,7 @@ export class AgentSessionManager {
     entry: AgentSessionIndexEntry | null,
     projectId: ProjectScopeId
   ): Promise<AgentSession> {
-    let session = await this.tryResumeSessionFromHistory(backendId, sessionId, projectId);
-    if (!session) {
-      const snapshot = await this.readSessionSnapshot(backendId, sessionId);
-      if (snapshot && snapshot.projectId === projectId) {
-        session = await this.createSession(
-          backendId,
-          projectId,
-          snapshot.selection,
-          snapshot.chatId,
-          false
-        );
-        await session.ready;
-        this.restoreSessionSnapshot(session, snapshot, false);
-        this.getSessionState(session.internalId).snapshotAliases = [
-          ...new Set([
-            sessionId,
-            ...(snapshot.aliases ?? []),
-            ...(snapshot.currentSessionId ? [snapshot.currentSessionId] : []),
-          ]),
-        ];
-        await this.flushSessionSnapshot(session);
-        await this.flushIndexTouch(session);
-        await this.opts.sessionIndex?.deleteSession(backendId, sessionId);
-        await this.opts.sessionIndex?.flushOrThrow();
-        this.attachAutoSave(session);
-        this.attachAttentionTracking(session);
-      }
-    }
+    const session = await this.tryResumeSessionFromHistory(backendId, sessionId, projectId);
     if (!session) {
       throw new Error(`Could not resume session ${sessionId} from the ${backendId} session store.`);
     }
@@ -2280,7 +2231,7 @@ export class AgentSessionManager {
     chatInputId?: string,
     seedSelection?: ModelSelection
   ): Promise<AgentSession | null> {
-    if (!this.opts.resolveDescriptor(backendId)) return null;
+    this.resolveDescriptor(backendId);
     const existing = this.findLiveSession(backendId, sessionId);
     if (existing) return existing;
 
@@ -2318,15 +2269,6 @@ export class AgentSessionManager {
     const descriptor = this.resolveDescriptor(backendId);
 
     const saved = await this.readSessionSnapshot(backendId, sessionId);
-    if (saved?.currentSessionId && saved.currentSessionId !== sessionId) {
-      return this.tryResumeSessionFromHistory(
-        backendId,
-        saved.currentSessionId,
-        projectId,
-        chatInputId ?? saved.chatId,
-        seedSelection ?? saved.selection
-      );
-    }
     const snapshot = saved?.projectId === projectId ? saved : null;
     seedSelection =
       this.getSeedSelection(backendId, seedSelection ?? snapshot?.selection) ?? undefined;
@@ -2401,9 +2343,7 @@ export class AgentSessionManager {
         resumeResult = await backend.resumeSession(openInput);
       } catch (err) {
         if (err instanceof MethodUnsupportedError) {
-          logInfo(
-            `[AgentMode] backend ${backendId} does not support session resume; falling back to fresh session`
-          );
+          logInfo(`[AgentMode] backend ${backendId} does not support session resume`);
         } else {
           logWarn(`[AgentMode] resumeSession failed for ${sessionId}`, err);
         }
@@ -2445,7 +2385,7 @@ export class AgentSessionManager {
     if (projectId !== GLOBAL_SCOPE) {
       this.lastSeenProjectContentEpochBySession.set(internalId, RESUMED_SESSION_BEHIND_EPOCH);
     }
-    if (snapshot) this.restoreSessionSnapshot(session, snapshot, true);
+    if (snapshot) this.restoreSessionSnapshot(session, snapshot);
     this.sessions.set(session.internalId, session);
     this.chatUIStates.set(session.internalId, new AgentChatUIState(session));
     this.detachedFromTabIds.delete(session.internalId);
@@ -2527,13 +2467,8 @@ export class AgentSessionManager {
           messages: session.store.getDisplayMessages(),
           tasks: [...session.getTaskSnapshots()],
           branch: session.getBranchState(),
-          ...(state.snapshotAliases?.length ? { aliases: state.snapshotAliases } : {}),
         };
         await snapshots.save(snapshot);
-        for (const alias of state.snapshotAliases ?? []) {
-          if (alias !== sessionId)
-            await snapshots.save({ ...snapshot, sessionId: alias, currentSessionId: sessionId });
-        }
         state.snapshotFailureReported = false;
       })
       .catch((error: unknown) => {
@@ -2567,21 +2502,14 @@ export class AgentSessionManager {
     }
   }
 
-  private restoreSessionSnapshot(
-    session: AgentSession,
-    snapshot: AgentSessionSnapshot,
-    resumed: boolean
-  ): void {
-    if (snapshot.aliases?.length)
-      this.getSessionState(session.internalId).snapshotAliases = snapshot.aliases;
+  private restoreSessionSnapshot(session: AgentSession, snapshot: AgentSessionSnapshot): void {
     const replay = session.store.getDisplayMessages();
     const inheritedCount = snapshot.branch?.inheritedMessageCount ?? 0;
     session.loadDisplayMessages(mergeSnapshotReplay(snapshot.messages, replay, inheritedCount));
-    if (!resumed) session.resendSavedHistoryOnNextTurn();
     if (snapshot.branch) {
       session.restoreBranchState({
         ...snapshot.branch,
-        historyPending: !resumed || snapshot.branch.historyPending,
+        historyPending: snapshot.branch.historyPending,
       });
     }
     session.restoreTaskSnapshots(snapshot.tasks);
@@ -3115,7 +3043,7 @@ export class AgentSessionManager {
             );
             const resumed = rebuilt.getBackendSessionId() === replacement.resumableSessionId;
             const note = this.app.vault.getAbstractFileByPath(replacement.notePath);
-            if (note instanceof TFile && this.opts.persistenceManager) {
+            if (resumed && note instanceof TFile && this.opts.persistenceManager) {
               // A saved chat comes back the way Recent Chats reopens it, or the next autosave writes a duplicate note stamped with the replay time.
               // https://github.com/Brevilabs/obsidian-copilot-private/issues/742
               // One unreadable note must not abort the loop and drop every later tab on this backend.
@@ -3124,7 +3052,7 @@ export class AgentSessionManager {
                 logWarn(`[AgentMode] reloading ${note.path} after ${backendId} restart failed`, e);
                 return null;
               });
-              if (loaded) this.restoreFromNote(rebuilt, resumed, note, loaded);
+              if (loaded) this.restoreFromNote(rebuilt, note, loaded);
             }
             if (resumed && replacement.recoveryMessages?.length) {
               // A fresh fallback has no backend history for these messages;

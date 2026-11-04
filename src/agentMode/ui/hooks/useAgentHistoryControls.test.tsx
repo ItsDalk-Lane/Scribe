@@ -211,9 +211,9 @@ describe("useAgentHistoryControls", () => {
       expect(manager.getChatHistoryItems).toHaveBeenCalledWith("project-1");
     });
 
-    it.each([["claude", "Claude Code"]])(
-      "shows one notice saying %s may keep its own copy after a successful delete",
-      async (backendId, agent) => {
+    it.each([["native"]])(
+      "shows one completion notice after deleting a %s chat",
+      async (backendId) => {
         const manager = makeManager();
         manager.getChatHistoryItems.mockResolvedValue([item("a", backendId)]);
         const { result } = renderControls(manager);
@@ -227,9 +227,7 @@ describe("useAgentHistoryControls", () => {
         });
 
         expect(Notice).toHaveBeenCalledTimes(1);
-        expect(Notice).toHaveBeenCalledWith(
-          `Chat deleted from Scribe. ${agent} may keep its own copy.`
-        );
+        expect(Notice).toHaveBeenCalledWith("Chat deleted from Scribe.");
       }
     );
 

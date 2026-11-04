@@ -93,9 +93,9 @@ describe("searchUtils", () => {
       expect(shouldIndexFile(window.app, file, null, null)).toBe(true);
     });
 
-    it("excludes canonical instruction files from search and indexing", () => {
+    it("excludes Scribe instructions while keeping other files as ordinary searchable content", () => {
       expect(shouldIndexFile(window.app, createTestFile("AGENTS.md"), null, null)).toBe(false);
-      expect(shouldIndexFile(window.app, createTestFile("CLAUDE.md"), null, null)).toBe(false);
+      expect(shouldIndexFile(window.app, createTestFile("CLAUDE.md"), null, null)).toBe(true);
 
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",

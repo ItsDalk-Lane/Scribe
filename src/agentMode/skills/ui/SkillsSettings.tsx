@@ -319,8 +319,8 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
       <section>
         {!embedded && (
           <AgentConfigurationHeader
-            agents={[{ id: "claude", label: "Claude Code" }]}
-            selectedAgent="claude"
+            agents={[{ id: "native", label: "Scribe" }]}
+            selectedAgent="native"
             query={searchValue}
             onQueryChange={setSearchValue}
             searchPlaceholder={t("Search skills…")}

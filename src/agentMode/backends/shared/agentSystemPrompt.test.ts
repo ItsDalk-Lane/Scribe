@@ -26,7 +26,7 @@ const mockIsObsidianCliEnabled = jest.mocked(isObsidianCliEnabled);
 const ISSUE_441 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/441";
 const ISSUE_726 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/726";
 const ISSUE_3868 = "https://github.com/logancyang/obsidian-copilot/issues/3868";
-const AGENT = "claude";
+const AGENT = "native";
 const APP = {} as App;
 const EXCALIDRAW_APP = {
   plugins: {
@@ -87,8 +87,8 @@ describe("agentSystemPrompt", () => {
     });
 
     it("tells each agent to edit vault files with its own edit tools so Copilot can show a diff (https://github.com/Brevilabs/obsidian-copilot-private/issues/701)", () => {
-      expect(buildAgentSystemPrompt("claude", APP)).toContain(
-        "Edit vault files with your Edit/Write tools so Scribe shows a diff"
+      expect(buildAgentSystemPrompt("native", APP)).toContain(
+        "Edit vault files with your edit_note/write_note tools so Scribe shows a diff"
       );
     });
 
@@ -99,13 +99,13 @@ describe("agentSystemPrompt", () => {
     });
 
     it("https://github.com/Brevilabs/obsidian-copilot-private/issues/741 leaves the 200-line write cap out of every agent's shared prompt, so skills' own write instructions stand", () => {
-      for (const backendId of ["claude"] as const) {
+      for (const backendId of ["native"] as const) {
         expect(buildAgentSystemPrompt(backendId, APP)).not.toContain("200 lines");
       }
     });
 
     it(`tells every agent to keep backups and scratch files out of the vault or off .md, so they don't become duplicate notes (${ISSUE_3868})`, () => {
-      for (const backendId of ["claude"] as const) {
+      for (const backendId of ["native"] as const) {
         expect(buildAgentSystemPrompt(backendId, APP)).toContain(
           "Keep backups and scratch files out of the vault, or use a non-.md extension like .md.bak, so they don't show up as notes."
         );
@@ -126,7 +126,7 @@ describe("agentSystemPrompt", () => {
 
     it(`tells every agent to load the matching Obsidian skill before writing Obsidian Markdown, .base or .canvas files (${ISSUE_726})`, () => {
       setBuiltinPreferences({});
-      for (const agent of ["claude"]) {
+      for (const agent of ["native"]) {
         expect(buildAgentSystemPrompt(agent, APP)).toContain(ALL_OBSIDIAN_FORMAT_SKILLS_LINE);
       }
     });

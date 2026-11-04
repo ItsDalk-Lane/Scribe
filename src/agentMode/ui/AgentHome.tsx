@@ -525,6 +525,10 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       backend={backend}
       plugin={plugin}
       chatInputId={chatInputId}
+      skillScope={{
+        cwd: manager.getSession(sessionId)?.cwd ?? null,
+        projectDirectory: descriptor.skillsProjectDir,
+      }}
       draft={draft}
       app={app}
       updateUserMessageHistory={updateUserMessageHistory}

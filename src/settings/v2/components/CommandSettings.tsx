@@ -212,8 +212,8 @@ export const CommandSettings: React.FC<CommandSettingsProps> = ({
     <div className="tw-space-y-5">
       {!embedded && (
         <AgentConfigurationHeader
-          agents={[{ id: "claude", label: "Claude Code" }]}
-          selectedAgent="claude"
+          agents={[{ id: "native", label: "Scribe" }]}
+          selectedAgent="native"
           query={query ?? localQuery}
           onQueryChange={setLocalQuery}
           searchPlaceholder={t("Search commands…")}

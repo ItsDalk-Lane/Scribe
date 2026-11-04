@@ -146,15 +146,15 @@ describe("SkillsSettings", () => {
     });
 
     it("shares checked availability with the managed and built-in skill lists", async () => {
-      mockAgents = [{ id: "claude", displayName: "Claude", Icon: Bot }];
-      mockInstallStates = { claude: { kind: "ready", source: "custom" } };
+      mockAgents = [{ id: "native", displayName: "Scribe", Icon: Bot }];
+      mockInstallStates = { native: { kind: "ready", source: "custom" } };
       const managed: Skill = {
         name: "review-notes",
         description: "Review notes",
         body: "Review",
         filePath: "/vault/copilot/skills/review-notes/SKILL.md",
         dirPath: "/vault/copilot/skills/review-notes",
-        enabledAgents: ["claude"],
+        enabledAgents: ["native"],
         location: { kind: "canonical" },
       };
       const builtin = {
@@ -276,7 +276,7 @@ describe("SkillsSettings", () => {
       expect(screen.getByText("The skills have format errors.")).not.toBeNull();
       expect(screen.getByRole("button", { name: "View details" })).not.toBeNull();
       expect(screen.queryByText("broken-skill")).toBeNull();
-      expect(screen.queryByText(".claude/skills/broken-skill/")).toBeNull();
+      expect(screen.queryByText(".scribe/skills/broken-skill/")).toBeNull();
       expect(screen.queryByText("0 loaded")).toBeNull();
       expect(screen.getByText(/No skills are loaded yet/)).not.toBeNull();
       expect(screen.queryByText("No skills yet")).toBeNull();
@@ -291,7 +291,7 @@ describe("SkillsSettings", () => {
       fireEvent.click(screen.getByRole("button", { name: "View details" }));
       expect(mockOpenSkillLoadIssuesModal).toHaveBeenCalledTimes(1);
       expect(mockCapturedLoadIssues[0]).toMatchObject({
-        location: ".claude/skills/broken-skill/SKILL.md",
+        location: ".scribe/skills/broken-skill/SKILL.md",
         reason: 'The description contains ": " and must be quoted.',
         offendingText: "description: Use this skill for: reviewing notes",
       });
@@ -300,9 +300,9 @@ describe("SkillsSettings", () => {
 
       expect(openVaultPath).toHaveBeenCalledWith(
         expect.anything(),
-        "/vault/.claude/skills/broken-skill/SKILL.md"
+        "/vault/.scribe/skills/broken-skill/SKILL.md"
       );
-      expect(openWithSystemDefault).toHaveBeenCalledWith("/vault/.claude/skills/broken-skill");
+      expect(openWithSystemDefault).toHaveBeenCalledWith("/vault/.scribe/skills/broken-skill");
     });
 
     it("opens review-before-send Agent drafts for one or all rejected skills for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
@@ -326,7 +326,7 @@ describe("SkillsSettings", () => {
       expect(mockCloseSettings).toHaveBeenCalledTimes(2);
       expect(mockNewAgentChatWithDraft).toHaveBeenCalledTimes(2);
       expect(mockNewAgentChatWithDraft.mock.calls[0][0]).toContain(
-        'File: ".claude/skills/broken-skill/SKILL.md"'
+        'File: ".scribe/skills/broken-skill/SKILL.md"'
       );
       expect(mockNewAgentChatWithDraft.mock.calls[0][0]).not.toContain("Change to");
       expect(mockNewAgentChatWithDraft.mock.calls[1][0]).toContain(
@@ -431,8 +431,8 @@ function makeApp(indexRejectedSkill = false): App {
 function makeRejectedSkill(overrides: Partial<RejectedSkill> = {}): RejectedSkill {
   return {
     name: "broken-skill",
-    filePath: "/vault/.claude/skills/broken-skill/SKILL.md",
-    dirPath: "/vault/.claude/skills/broken-skill",
+    filePath: "/vault/.scribe/skills/broken-skill/SKILL.md",
+    dirPath: "/vault/.scribe/skills/broken-skill",
     reason: 'The description contains ": " and must be quoted.',
     offendingText: "description: Use this skill for: reviewing notes",
     ...overrides,

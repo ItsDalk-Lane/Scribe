@@ -15,6 +15,7 @@ import {
   Brain,
   type LucideIcon,
 } from "lucide-react";
+import { toolPresentationName } from "@/agentMode/session/toolName";
 
 const VENDOR_ICONS: Record<string, LucideIcon> = {
   Read: FileText,
@@ -48,8 +49,8 @@ const KIND_ICONS: Record<string, LucideIcon> = {
 };
 
 export function pickToolIcon(opts: { vendorToolName?: string; toolKind?: string }): LucideIcon {
-  if (opts.vendorToolName && VENDOR_ICONS[opts.vendorToolName]) {
-    return VENDOR_ICONS[opts.vendorToolName];
+  if (opts.vendorToolName && VENDOR_ICONS[toolPresentationName(opts.vendorToolName)]) {
+    return VENDOR_ICONS[toolPresentationName(opts.vendorToolName)];
   }
   if (opts.toolKind && KIND_ICONS[opts.toolKind]) {
     return KIND_ICONS[opts.toolKind];

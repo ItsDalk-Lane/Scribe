@@ -1,15 +1,34 @@
-import type { Api, Message, Model, StreamOptions, TranscriptContext } from "@earendil-works/pi-ai";
+import type {
+  Api,
+  JsonObject,
+  Message,
+  Model,
+  SimpleStreamOptions,
+  StreamOptions,
+  TranscriptContext,
+} from "@earendil-works/pi-ai";
+import { thinkingBudgetForLevel } from "@earendil-works/pi-ai/api/simple-options";
 import {
   getCurrentSystemPrompt,
   collapseSystemMessages,
+  getCurrentTools,
 } from "@earendil-works/pi-ai/utils/transcript";
 import { readJsonStream, streamHttpCompletion } from "@/LLMProviders/piHttpStream";
 import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
 import { t } from "@/lib/i18n";
 
+interface GooglePart {
+  text?: string;
+  thought?: boolean;
+  thoughtSignature?: string;
+  inlineData?: { mimeType: string; data: string };
+  functionCall?: { id?: string; name?: string; args?: JsonObject };
+  functionResponse?: { id: string; name: string; response: { error?: string; output?: string } };
+}
+
 interface GoogleChunk {
   candidates?: Array<{
-    content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+    content?: { parts?: GooglePart[] };
     finishReason?: string;
     continuationToken?: string;
   }>;
@@ -26,16 +45,27 @@ interface GoogleChunk {
 
 interface CohereChunk {
   type?: string;
+  index?: number;
   message?: string;
   delta?: {
-    message?: { content?: { text?: string; thinking?: string } };
+    message?: {
+      content?: { text?: string; thinking?: string };
+      tool_calls?: { id?: string; function?: { name?: string; arguments?: string } };
+    };
     finish_reason?: string;
     usage?: { tokens?: { input_tokens?: number; output_tokens?: number } };
   };
 }
 
 interface OllamaChunk {
-  message?: { content?: string; thinking?: string };
+  message?: {
+    content?: string;
+    thinking?: string;
+    tool_calls?: Array<{
+      id?: string;
+      function: { index?: number; name: string; arguments: JsonObject };
+    }>;
+  };
   error?: string;
   done?: boolean;
   done_reason?: string;
@@ -84,30 +114,53 @@ export function textContent(message: Message): string {
 export function streamGoogle(
   model: Model<Api>,
   context: TranscriptContext,
-  options?: StreamOptions
+  options?: SimpleStreamOptions
 ) {
   return streamHttpCompletion(model, options, async function* () {
     const system = getCurrentSystemPrompt(context.messages);
-    const contents = collapseSystemMessages(context)
-      .messages.filter((message) => message.role !== "system")
-      .map((message) => {
-        if (message.role === "toolResult")
-          throw new Error(
-            t("Unsupported native model message role: {role}", { role: message.role })
-          );
-        const parts =
-          typeof message.content === "string"
-            ? [{ text: message.content }]
-            : (message.content ?? []).map((part) => {
-                if (part.type === "text") return { text: part.text };
-                if (part.type === "image")
-                  return { inlineData: { mimeType: part.mimeType, data: part.data } };
-                throw new Error(
-                  t("Unsupported native model message content: {type}", { type: part.type })
-                );
-              });
-        return { role: message.role === "assistant" ? "model" : "user", parts };
-      });
+    const contents: Array<{ role: string; parts: GooglePart[] }> = [];
+    for (const message of collapseSystemMessages(context).messages) {
+      if (message.role === "system") continue;
+      if (message.role === "toolResult") {
+        const part: GooglePart = {
+          functionResponse: {
+            id: message.toolCallId,
+            name: message.toolName,
+            response: message.isError
+              ? { error: textContent(message) }
+              : { output: textContent(message) },
+          },
+        };
+        const previous = contents.at(-1);
+        if (previous?.role === "user" && previous.parts.some((part) => part.functionResponse))
+          previous.parts.push(part);
+        else contents.push({ role: "user", parts: [part] });
+        for (const image of message.content.filter((part) => part.type === "image"))
+          contents
+            .at(-1)!
+            .parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
+        continue;
+      }
+      const parts: GooglePart[] =
+        typeof message.content === "string"
+          ? [{ text: message.content }]
+          : (message.content ?? []).map((part) => {
+              if (part.type === "text") return { text: part.text };
+              if (part.type === "image")
+                return { inlineData: { mimeType: part.mimeType, data: part.data } };
+              if (part.type === "toolCall")
+                return {
+                  functionCall: { id: part.id, name: part.name, args: part.arguments },
+                  ...(part.thoughtSignature ? { thoughtSignature: part.thoughtSignature } : {}),
+                };
+              return {
+                text: part.thinking,
+                thought: true,
+                ...(part.thinkingSignature ? { thoughtSignature: part.thinkingSignature } : {}),
+              };
+            });
+      contents.push({ role: message.role === "assistant" ? "model" : "user", parts });
+    }
     // Gemma 只接受用户和模型两种角色；资源名按路径段编码，避免改变已配置的目标地址。https://github.com/ItsDalk-Lane/Scribe/issues/8
     const supportsSystemInstruction = !model.id.split("/").pop()?.startsWith("gemma-");
     if (system && !supportsSystemInstruction && contents[0]?.role === "user")
@@ -125,16 +178,47 @@ export function streamGoogle(
     }
     const body = {
       contents,
+      ...(getCurrentTools(context.messages).length
+        ? {
+            tools: [
+              {
+                functionDeclarations: getCurrentTools(context.messages).map((tool) => ({
+                  name: tool.name,
+                  description: tool.description,
+                  parametersJsonSchema: tool.parameters,
+                })),
+              },
+            ],
+          }
+        : {}),
       ...(system && supportsSystemInstruction
         ? { systemInstruction: { parts: [{ text: system }] } }
         : {}),
-      ...(options?.maxTokens === undefined
+      ...(options?.maxTokens === undefined && options?.reasoning === undefined
         ? {}
-        : { generationConfig: { maxOutputTokens: options.maxTokens } }),
+        : {
+            generationConfig: {
+              ...(options?.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
+              ...(options?.reasoning !== undefined
+                ? {
+                    thinkingConfig: {
+                      includeThoughts: true,
+                      thinkingBudget: Math.min(
+                        thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
+                        options.maxTokens === undefined
+                          ? Infinity
+                          : Math.max(0, options.maxTokens - 1024)
+                      ),
+                    },
+                  }
+                : {}),
+            },
+          }),
     };
     const seenContinuationTokens = new Set<string>();
     const completedUsage = { input: 0, output: 0, reasoning: 0, cacheRead: 0, totalTokens: 0 };
     let continuationToken: string | undefined;
+    let toolIndex = 0;
     do {
       if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const response = await postChatRequest(
@@ -154,6 +238,16 @@ export function streamGoogle(
         const candidate = chunk.candidates?.[0];
         for (const part of candidate?.content?.parts ?? []) {
           if (part.text) yield part.thought ? { thinking: part.text } : { text: part.text };
+          if (part.functionCall)
+            yield {
+              toolCall: {
+                index: toolIndex++,
+                id: part.functionCall.id,
+                name: part.functionCall.name,
+                arguments: part.functionCall.args ?? {},
+                thoughtSignature: part.thoughtSignature,
+              },
+            };
         }
         if (chunk.usageMetadata) {
           requestUsage = {
@@ -204,11 +298,23 @@ export function streamGoogle(
 export function streamCohere(
   model: Model<Api>,
   context: TranscriptContext,
-  options?: StreamOptions
+  options?: SimpleStreamOptions
 ) {
   return streamHttpCompletion(model, options, async function* () {
     const messages = collapseSystemMessages(context).messages.map((message) => ({
-      role: message.role,
+      role: message.role === "toolResult" ? "tool" : message.role,
+      ...(message.role === "toolResult" ? { tool_call_id: message.toolCallId } : {}),
+      ...(message.role === "assistant" && message.content.some((part) => part.type === "toolCall")
+        ? {
+            tool_calls: message.content
+              .filter((part) => part.type === "toolCall")
+              .map((part) => ({
+                id: part.id,
+                type: "function",
+                function: { name: part.name, arguments: JSON.stringify(part.arguments) },
+              })),
+          }
+        : {}),
       content:
         message.role === "user" && Array.isArray(message.content)
           ? message.content.map((part) =>
@@ -227,7 +333,30 @@ export function streamCohere(
       {
         model: model.id,
         messages,
+        ...(getCurrentTools(context.messages).length
+          ? {
+              tools: getCurrentTools(context.messages).map((tool) => ({
+                type: "function",
+                function: {
+                  name: tool.name,
+                  description: tool.description,
+                  parameters: tool.parameters,
+                },
+              })),
+            }
+          : {}),
         stream: true,
+        ...(options?.reasoning !== undefined
+          ? {
+              thinking: {
+                type: "enabled",
+                token_budget: Math.min(
+                  thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
+                  options.maxTokens === undefined ? Infinity : Math.max(0, options.maxTokens - 1024)
+                ),
+              },
+            }
+          : {}),
         ...(options?.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
       },
       options
@@ -238,13 +367,30 @@ export function streamCohere(
       if (chunk.delta?.message?.content?.text) yield { text: chunk.delta.message.content.text };
       if (chunk.delta?.message?.content?.thinking)
         yield { thinking: chunk.delta.message.content.thinking };
+      if (chunk.delta?.message?.tool_calls) {
+        const call = chunk.delta.message.tool_calls;
+        yield {
+          toolCall: {
+            index: chunk.index ?? 0,
+            id: call.id,
+            name: call.function?.name,
+            arguments: call.function?.arguments,
+          },
+        };
+      }
       if (chunk.type === "message-end") {
         const reason = chunk.delta?.finish_reason;
-        if (reason !== "COMPLETE" && reason !== "STOP_SEQUENCE" && reason !== "MAX_TOKENS")
+        if (
+          reason !== "COMPLETE" &&
+          reason !== "STOP_SEQUENCE" &&
+          reason !== "MAX_TOKENS" &&
+          reason !== "TOOL_CALL"
+        )
           throw new Error(reason || t("Unexpected response"));
         const usage = chunk.delta?.usage?.tokens;
         yield {
-          finishReason: reason === "MAX_TOKENS" ? "length" : "stop",
+          finishReason:
+            reason === "MAX_TOKENS" ? "length" : reason === "TOOL_CALL" ? "toolUse" : "stop",
           usage: {
             input: usage?.input_tokens ?? 0,
             output: usage?.output_tokens ?? 0,
@@ -259,12 +405,26 @@ export function streamCohere(
 export function streamOllama(
   model: Model<Api>,
   context: TranscriptContext,
-  options?: StreamOptions
+  options?: SimpleStreamOptions
 ) {
   return streamHttpCompletion(model, options, async function* () {
     const messages = collapseSystemMessages(context).messages.map((message) => ({
-      role: message.role,
+      role: message.role === "toolResult" ? "tool" : message.role,
       content: textContent(message),
+      ...(message.role === "toolResult"
+        ? { tool_name: message.toolName, tool_call_id: message.toolCallId }
+        : {}),
+      ...(message.role === "assistant" && message.content.some((part) => part.type === "toolCall")
+        ? {
+            tool_calls: message.content
+              .filter((part) => part.type === "toolCall")
+              .map((part) => ({
+                id: part.id,
+                type: "function",
+                function: { name: part.name, arguments: part.arguments },
+              })),
+          }
+        : {}),
       ...(message.role === "user" && Array.isArray(message.content)
         ? {
             images: message.content
@@ -279,16 +439,42 @@ export function streamOllama(
       {
         model: model.id,
         messages,
+        ...(getCurrentTools(context.messages).length
+          ? {
+              tools: getCurrentTools(context.messages).map((tool) => ({
+                type: "function",
+                function: {
+                  name: tool.name,
+                  description: tool.description,
+                  parameters: tool.parameters,
+                },
+              })),
+            }
+          : {}),
         stream: true,
-        think: model.reasoning,
-        options: { num_ctx: model.contextWindow, repeat_penalty: 1.1 },
+        think: options?.reasoning ?? model.reasoning,
+        options: {
+          num_ctx: model.contextWindow,
+          repeat_penalty: 1.1,
+          ...(options?.maxTokens === undefined ? {} : { num_predict: options.maxTokens }),
+        },
       },
       options
     );
+    let toolIndex = 0;
     for await (const raw of readJsonStream(response, options?.signal, true)) {
       const chunk = raw as OllamaChunk;
       if (chunk.error) throw new Error(chunk.error);
       yield { text: chunk.message?.content, thinking: chunk.message?.thinking };
+      for (const call of chunk.message?.tool_calls ?? [])
+        yield {
+          toolCall: {
+            index: call.function.index ?? toolIndex++,
+            id: call.id,
+            name: call.function.name,
+            arguments: call.function.arguments,
+          },
+        };
       if (chunk.done)
         yield {
           finishReason: chunk.done_reason === "length" ? "length" : "stop",

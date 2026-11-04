@@ -20,6 +20,39 @@ function tool(overrides: Partial<ToolCallPart> = {}): ToolCallPart {
 
 describe("toolSummaries", () => {
   describe("lookupToolSummary()", () => {
+    it.each([
+      ["read_note", "Read"],
+      ["list_directory", "LS"],
+      ["find_paths", "Glob"],
+      ["search_content", "Grep"],
+      ["write_note", "Write"],
+      ["edit_note", "Edit"],
+      ["run_command", "Bash"],
+      ["delegate_task", "Agent"],
+      ["ask_user", "AskUserQuestion"],
+      ["propose_plan", "ExitPlanMode"],
+      ["update_todos", "TodoWrite"],
+      ["web_search", "WebSearch"],
+      ["fetch_url", "WebFetch"],
+      ["invoke_skill", "Skill"],
+    ])("presents native %s using the existing %s tool summary", (name, category) => {
+      const native = tool({
+        vendorToolName: name,
+        input: {
+          path: "notes/test.md",
+          command: "pwd",
+          prompt: "Review notes",
+          description: "Review",
+          query: "notes",
+          skill: "obsidian-markdown",
+        },
+      });
+      const previous = { ...native, vendorToolName: category };
+      const summary = lookupToolSummary(native);
+      const expected = lookupToolSummary(previous);
+      expect(summary.icon).toBe(expected.icon);
+      expect(summary.collapsedLine(native, CTX)).toBe(expected.collapsedLine(previous, CTX));
+    });
     it("uses Read entry when vendorToolName is Read", () => {
       const t = tool({
         vendorToolName: "Read",

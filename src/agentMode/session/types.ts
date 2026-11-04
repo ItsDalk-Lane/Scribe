@@ -398,6 +398,7 @@ export interface AgentMcpServer {
 
 export interface OpenSessionInput {
   cwd: string;
+  modelId?: string;
   projectId?: ProjectScopeId;
   mcpServers?: ReadonlyArray<AgentMcpServer>;
 }
@@ -502,6 +503,7 @@ export interface BackendProcess {
   withdraw?(params: WithdrawInput): Promise<boolean>;
   stopTask?(params: StopTaskInput): Promise<void>;
   closeSession?(params: { sessionId: SessionId }): Promise<void>;
+  deleteSession?(params: { sessionId: SessionId }): Promise<void>;
   setSessionModel(params: { sessionId: SessionId; modelId: string }): Promise<BackendState>;
   isSetSessionModelSupported(): boolean | null;
   setSessionMode(params: { sessionId: SessionId; modeId: string }): Promise<BackendState>;

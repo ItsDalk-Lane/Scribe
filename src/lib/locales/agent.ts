@@ -1,25 +1,21 @@
 export const agentTranslations: Record<string, string> = {
+  "Always allow this action in this chat": "在此聊天中始终允许此操作",
+  "Always deny this action in this chat": "在此聊天中始终拒绝此操作",
+  "Only this file or exact command, in this folder, chat, and requester.":
+    "仅限当前文件或完全相同的命令，且只对当前目录、聊天和发起者有效。",
+  "Agent configuration": "代理配置",
+  "Runs inside Scribe": "由 Scribe 内置运行",
+  "Model settings": "模型设置",
   "Connection not completed in this check": "本次检查尚未连通",
   "Check extensions": "检查扩展",
   "Checking extensions…": "正在检查扩展…",
   "Could not check agent extensions. Try again.": "无法检查代理扩展，请重试。",
-  "Starting Claude loads your configuration, connects extension services, and may run configured startup hooks.":
-    "启动 Claude 时会读取您的配置、连接扩展服务，也可能运行您配置的启动钩子。",
-  "Checks what Claude loaded and connected without sending a chat message or testing each tool.":
-    "检查 Claude 已加载和已连接的扩展，不发送聊天消息，也不逐个调用工具测试。",
-  "Click Check extensions to start Claude and check extensions. No chat message is needed.":
-    "点击“检查扩展”即可启动 Claude 检查扩展，无需先发送消息。",
-  "These results describe this check, which may use a temporary Claude instance. Check again after configuration changes.":
-    "结果来自本次检查，可能由临时启动的 Claude 提供。更改配置后请重新检查。",
   "Some check results could not be read. Missing status does not mean an extension was not loaded.":
     "部分检查结果未能读取。没有读到状态，不代表扩展未加载。",
   "Could not read check results. Missing status does not mean an extension was not loaded. Try checking again.":
     "无法读取检查结果。没有读到状态，不代表扩展未加载。请重新检查。",
   "Loaded or connected does not guarantee that each execution succeeds.":
     "已加载或已连接，不代表每次执行都会成功。",
-  "Claude may omit hidden skills from its report. Not reported does not mean unavailable.":
-    "未报告不代表不可用；隐藏技能可能不出现在清单中。",
-  "Agent report": "Claude报告",
   Loaded: "已加载",
   "Loaded; manual invocation only": "已加载，仅手动调用",
   "Claude reported plugin errors; details for each plugin were not provided.":
@@ -27,7 +23,6 @@ export const agentTranslations: Record<string, string> = {
   "Loaded with component errors": "已加载，部分组件异常",
   Registered: "已注册",
   "Not loaded in this check": "本次检查未加载",
-  "Claude did not report this entry": "Claude 未报告此项",
   Connected: "已连接",
   "Connection failed": "连接失败",
   "Sign-in required": "需要登录",
@@ -55,27 +50,13 @@ export const agentTranslations: Record<string, string> = {
   "Failed to load saved chat details. The saved record has been preserved.":
     "无法读取已保存的聊天详情，原记录已保留。",
   Context: "上下文",
-  "Claude CLI path saved.": "Claude CLI 路径已保存。",
-  "Claude CLI override cleared. Auto-detection will be used.":
-    "已清除 Claude CLI 自定义路径，将使用自动检测。",
   "Show extended thinking": "显示深度思考",
   "Show the model's reasoning as it works. Uses more tokens.":
     "显示模型工作时的思考过程，会消耗更多 token。",
   "Auto mode permissions": "自动模式权限",
-  "Auto lets Claude judge each request and still ask about risky ones, Accept edits auto-approves file edits only, and Bypass permissions skips every check.":
-    "自动模式由 Claude 判断每个请求，遇到风险仍会询问；接受编辑仅自动批准文件编辑；跳过权限则不进行任何检查。",
   "Accept edits": "接受编辑",
   "Bypass permissions": "跳过权限检查",
   Auto: "自动",
-  "Configure Claude": "配置 Claude",
-  "Claude Code installation": "Claude Code 安装",
-  "Scribe uses Claude Code installed on this computer. Auto-detect looks in the usual install locations.":
-    "Scribe 使用本机安装的 Claude Code，自动检测会查找常用安装位置。",
-  "Install Claude Code": "安装 Claude Code",
-  "Claude Code wasn't found. Install it with the command below, then select Auto-detect again.":
-    "未找到 Claude Code。请使用下方命令安装，然后再次选择自动检测。",
-  "Set up a supported version of Claude Code above to sign in.":
-    "请先在上方配置受支持的 Claude Code 版本，再登录。",
   "Scribe supports": "Scribe 支持",
   "or newer. You manage its updates; Auto-detect checks the usual npm locations and your PATH.":
     "或更新版本。更新由您管理；自动检测会检查常用 npm 安装位置和 PATH。",
@@ -168,10 +149,8 @@ export const agentTranslations: Record<string, string> = {
   Description: "说明",
   "Allowed tools": "允许的工具",
   "Model override": "指定模型",
-  "Don&apos;t let Claude invoke this on its own": "不允许 Claude 自行调用此技能",
   "Hide from slash menu": "从斜杠菜单中隐藏",
   Save: "保存",
-  "Claude Code only": "仅适用于 Claude Code",
   "Name is required.": "请填写名称。",
   "Lowercase a–z, 0–9, and hyphens only — no leading, trailing, or consecutive hyphens.":
     "只能使用小写字母 a–z、数字 0–9 和连字符；连字符不能位于开头、结尾或连续出现。",
@@ -430,13 +409,9 @@ export const agentTranslations: Record<string, string> = {
   "Where to begin?": "从哪里开始？",
   "What shall we dig into?": "我们来研究什么？",
   "Ask me anything.": "随时向我提问。",
-  "Anthropic models, billed to your Claude Code subscription. Runs the claude CLI already on your machine.":
-    "使用 Anthropic 模型，通过您的 Claude Code 订阅计费，运行本机已有的 claude CLI。",
   "Any model on your own provider key. Scribe can download and manage the binary for you.":
     "使用您自己的服务商密钥连接模型，Scribe 可为您下载和管理程序。",
-  "The server set in your Claude Code settings": "Claude Code 设置中指定的服务器",
   "The server set in OPENAI_BASE_URL": "OPENAI_BASE_URL 中指定的服务器",
-  "Install Claude Code before signing out.": "请先安装 Claude Code，再退出登录。",
   "Covers what this option names, until this chat ends. Start a new chat to undo.":
     "权限范围以此选项说明为准，有效期至当前聊天结束。新建聊天即可撤销。",
   "Block Always": "始终拒绝",
@@ -692,7 +667,6 @@ export const agentTranslations: Record<string, string> = {
   configuration: "配置",
   "A skill named “": "已有名为“",
   "” already exists.": "”的技能。",
-  "Don't let Claude invoke this on its own": "不允许 Claude 自行调用此技能",
   "Skills are saved instructions your agents can follow - things like “review a diff” or “write a release note”. Skills you put under your shared folder, or directly inside an agent’s own skills folder, show up here automatically.":
     "技能是保存下来的指令，代理可以按它执行，例如“审查改动”或“撰写更新说明”。放入共享文件夹或代理自身技能文件夹中的技能都会自动显示在这里。",
   "No skills match “": "没有技能匹配“",
@@ -710,8 +684,6 @@ export const agentTranslations: Record<string, string> = {
     "请更新已保存路径中的程序，或清除自定义路径以使用自动检测到的安装。",
   "Update it with the install command below, then reopen this dialog.":
     "请使用下方安装命令更新，然后重新打开此窗口。",
-  "or set agentMode.claudeCli.path in settings.": "或在设置中填写 agentMode.claudeCli.path。",
-  "Unable to verify Claude authentication status.": "无法验证 Claude 登录状态。",
   "Agent Chat requires Obsidian on desktop.": "代理聊天需要桌面版 Obsidian。",
   "Scribe installs it under ~/.obsidian-scribe; check that your account has a valid home directory.":
     "Scribe 会安装到 ~/.obsidian-scribe，请确认您的账号具有有效的用户主目录。",
@@ -727,13 +699,6 @@ export const agentTranslations: Record<string, string> = {
   "{p0} v{p1} is not supported. Scribe requires {p2} v{p3} or newer.":
     "不支持 {p0} v{p1}，Scribe 需要 {p2} v{p3} 或更新版本。",
   "{p0} is not installed. Configure an installation.": "尚未安装 {p0}，请先配置安装。",
-  "Could not verify the installed Claude Code version. Scribe requires Claude Code {p0} or newer.":
-    "无法验证已安装的 Claude Code 版本。Scribe 需要 Claude Code {p0} 或更新版本。",
-  "Could not read the installed Claude Code version. Scribe requires Claude Code {p0} or newer.":
-    "无法读取已安装的 Claude Code 版本。Scribe 需要 Claude Code {p0} 或更新版本。",
-  "Claude Code {p0} is not supported. Scribe requires Claude Code {p1} or newer.":
-    "不支持 Claude Code {p0}，Scribe 需要 Claude Code {p1} 或更新版本。",
-  "Claude CLI not found. Install with: {p0}, ": "未找到 Claude CLI。请使用以下命令安装：{p0}，",
   "Your own binary is now in use, but Scribe could not remove its managed downloads: {p0}":
     "已切换为您自己的程序，但 Scribe 无法移除其管理的下载文件：{p0}",
   "Missing tarball or sha512 integrity for {p0}@{p1}.":
@@ -754,17 +719,10 @@ export const agentTranslations: Record<string, string> = {
   "Allow once": "允许一次",
   "Allow always": "始终允许",
   "Deny once": "拒绝一次",
-  "Claude Code's suggested rule": "Claude Code 建议的规则",
   "Covers {covers} until this chat ends. Start a new chat to undo.":
     "范围为 {covers}，有效期至当前聊天结束。新建聊天即可撤销。",
   "Covers {covers}. Saved to {destination}. Remove it there to undo.":
     "范围为 {covers}。保存到 {destination}。可在那里移除以撤销。",
-  "settings.json in your Claude Code config folder (~/.claude by default), for all your Claude Code projects":
-    "Claude Code 配置文件夹（默认为 ~/.claude）中的 settings.json，适用于您的全部 Claude Code 项目",
-  ".claude/settings.json in the vault folder (for a project chat, the project note's folder), for later chats there":
-    ".claude/settings.json，位于库文件夹中（项目聊天则为项目笔记所在文件夹），适用于该位置的后续聊天",
-  ".claude/settings.local.json in the vault folder (for a project chat, the project note's folder), for later chats there":
-    ".claude/settings.local.json，位于库文件夹中（项目聊天则为项目笔记所在文件夹），适用于该位置的后续聊天",
   "all file edits": "全部文件编辑",
   "{mode} mode": "{mode} 模式",
   "access to {path}": "访问 {path}",

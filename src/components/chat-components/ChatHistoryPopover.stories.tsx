@@ -62,8 +62,8 @@ const BACKEND_HISTORY: ChatHistoryItem[] = [
 ];
 
 const DELETE_SUMMARIES: Record<string, string> = {
-  "claude-chat": describeChatDelete({ displayName: "Claude", agentProductName: "Claude Code" }),
-  "codex-chat": describeChatDelete({ displayName: "Codex" }),
+  "claude-chat": describeChatDelete(),
+  "codex-chat": describeChatDelete(),
 };
 
 const ConfirmingDeletePopover: React.FC<{ row: number }> = ({ row }) => {

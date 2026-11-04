@@ -1,25 +1,25 @@
 import type { CopilotSettings } from "@/settings/model";
-import { ClaudeBackendDescriptor } from "./claude/descriptor";
+import { NativeBackendDescriptor } from "./native/descriptor";
 import type { BackendDescriptor, BackendId } from "@/agentMode/session/types";
 
 export const backendRegistry: Record<BackendId, BackendDescriptor> = {
-  claude: ClaudeBackendDescriptor,
+  native: NativeBackendDescriptor,
 };
 
-export const RECOMMENDED_BACKEND_ID: BackendId = "claude";
+export const RECOMMENDED_BACKEND_ID: BackendId = "native";
 
 let displayOrderCache: BackendDescriptor[] | null = null;
 
 export function backendDisplayOrder(): BackendDescriptor[] {
   if (!displayOrderCache) {
-    displayOrderCache = [ClaudeBackendDescriptor];
+    displayOrderCache = [NativeBackendDescriptor];
   }
   return displayOrderCache;
 }
 
 export function getActiveBackendDescriptor(settings: CopilotSettings): BackendDescriptor {
-  const id = settings.agentMode?.activeBackend ?? "claude";
-  return backendRegistry[id] ?? ClaudeBackendDescriptor;
+  const id = settings.agentMode?.activeBackend ?? "native";
+  return backendRegistry[id] ?? NativeBackendDescriptor;
 }
 
 export function listBackendDescriptors(): BackendDescriptor[] {

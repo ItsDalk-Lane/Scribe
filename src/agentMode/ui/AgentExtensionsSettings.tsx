@@ -25,12 +25,7 @@ import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { openNewSkillModal, SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
 import { AgentExtensionsPanel, EXTENSION_LABELS } from "@/agentMode/ui/AgentExtensionsPanel";
 import { ExtensionEditor } from "@/agentMode/ui/ExtensionEditor";
-import {
-  ExtensionDetailsView,
-  ExtensionImportForm,
-  ExtensionModal,
-  PluginInstallForm,
-} from "@/agentMode/ui/ExtensionDialogs";
+import { ExtensionDetailsView, ExtensionModal } from "@/agentMode/ui/ExtensionDialogs";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { AgentConfigurationHeader } from "@/components/ui/AgentConfigurationHeader";
 import { Button } from "@/components/ui/button";
@@ -41,7 +36,7 @@ import { useProjects } from "@/projects/state";
 import { useSettingsValue } from "@/settings/model";
 import { getVaultBase } from "@/utils/vaultPath";
 import { normalizeAbsPath } from "@/utils/pathUtils";
-import { Plus, RefreshCw, Download } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { Notice, type App } from "obsidian";
 import React from "react";
 
@@ -102,7 +97,7 @@ function mergeScopeInventories(
   });
 }
 
-export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSettingsProps) {
+export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsProps) {
   const plugin = usePlugin();
   const settings = useSettingsValue();
   const projects = useProjects();
@@ -377,7 +372,6 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     new Notice(error instanceof Error ? error.message : t("Could not save configuration."));
   };
   const remove = (item: AgentExtensionItem, close?: () => void) => {
-    const localPlugin = item.kind === "plugin" && item.target?.keyPath?.[0] === "localPlugins";
     new ConfirmModal(
       plugin.app,
       async () => {
@@ -391,9 +385,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
           showError(error);
         }
       },
-      localPlugin
-        ? t("Delete {name} and its plugin directory?", { name: item.name })
-        : t("Remove {name} from this configuration?", { name: item.name }),
+      t("Remove {name} from this configuration?", { name: item.name }),
       t("Delete {name}", { name: item.name }),
       t("Delete")
     ).open();
@@ -402,7 +394,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     original?: AgentExtensionDetails,
     editorScope: AgentExtensionScope = scope
   ) => {
-    if (kind === "plugin") return;
+    if (kind !== "command") return;
     new ExtensionModal(
       plugin.app,
       t(original ? "Edit {name}" : "New {name}", {
@@ -415,26 +407,6 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
           original={original}
           onClose={close}
           onSave={(draft) => mutate((manager) => manager.save(draft), draft.scope)}
-          onTest={
-            kind === "mcp"
-              ? async (draft) => {
-                  if (!management) throw new Error(t("Configuration is unavailable."));
-                  const result = await management.testConnection(draft);
-                  return (
-                    result.message ??
-                    t(
-                      result.status === "connected"
-                        ? "Connected"
-                        : result.status === "needs-auth"
-                          ? "Sign-in required"
-                          : result.status === "pending"
-                            ? "Connection not completed in this check"
-                            : "Connection failed"
-                    )
-                  );
-                }
-              : undefined
-          }
         />
       )
     ).open();
@@ -443,60 +415,16 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
     try {
       const originalDetails =
         item.target && management ? await management.details(item) : { item, revision: "" };
-      const allItems = state.groups?.flatMap((group) => group.items) ?? [];
-      // Children of a disabled plugin carry no observed availability, so the detail view marks them disabled to explain their dot. https://github.com/ItsDalk-Lane/Scribe/issues/1
-      const pluginDisabled = item.enabled === false || item.availability === "disabled";
-      const children = originalDetails.children?.map((child) => {
-        if (pluginDisabled) return { ...child, availability: "disabled" as const };
-        const observed = allItems.find(
-          (entry) =>
-            entry.id === child.id &&
-            entry.kind === child.kind &&
-            entry.parentPluginId === child.parentPluginId
-        );
-        return observed
-          ? {
-              ...child,
-              availability: observed.availability,
-              toolCount: observed.toolCount,
-              unavailableReason: observed.unavailableReason,
-            }
-          : child;
-      });
-      const details: AgentExtensionDetails = {
-        ...originalDetails,
-        item,
-        ...(children ? { children } : {}),
-      };
-      if (item.capabilities?.edit && kind !== "plugin") {
+      const details = { ...originalDetails, item };
+      if (item.capabilities?.edit && kind === "command") {
         openEditor(details, item.target?.scope ?? scope);
         return;
       }
-      // The details view renders the name itself beside its copy button; a native modal title would duplicate it. https://github.com/ItsDalk-Lane/Scribe/issues/2
       new ExtensionModal(plugin.app, undefined, (close) => (
         <ExtensionDetailsView
           details={details}
           scopeLabel={scopeLabelFor(item.target?.scope ?? scope)}
           onClose={close}
-          onUpdate={
-            kind === "plugin" &&
-            !item.readOnly &&
-            item.capabilities?.update !== false &&
-            item.target?.keyPath?.[0] !== "localPlugins"
-              ? () =>
-                  mutate(
-                    (manager) =>
-                      manager.pluginAction({
-                        action: "update",
-                        scope: item.target?.scope ?? scope,
-                        plugin: item.id,
-                        local: item.id.startsWith("local:"),
-                        installationScope: item.installationScope,
-                      }),
-                    item.target?.scope ?? scope
-                  )
-              : undefined
-          }
           onDelete={item.capabilities?.delete ? () => remove(item, close) : undefined}
         />
       )).open();
@@ -504,31 +432,6 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       showError(error);
     }
   };
-  const installPlugin = async () => {
-    try {
-      if (!management) throw new Error(t("Configuration is unavailable."));
-      const marketplaces = await management.marketplaces();
-      new ExtensionModal(plugin.app, t("Add plugin"), (close) => (
-        <PluginInstallForm
-          scope={scope}
-          marketplaces={marketplaces}
-          onClose={close}
-          onInstall={(action) => mutate((manager) => manager.pluginAction(action))}
-        />
-      )).open();
-    } catch (error) {
-      showError(error);
-    }
-  };
-  const importConfiguration = () =>
-    new ExtensionModal(plugin.app, t("Import"), (close) => (
-      <ExtensionImportForm
-        kind={kind}
-        scope={scope}
-        onClose={close}
-        onImport={(input) => mutate((manager) => manager.import(input), input.scope)}
-      />
-    )).open();
   const q = query.trim().toLowerCase();
   const currentState: InventoryState =
     state.context === context
@@ -595,7 +498,7 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
       <AgentConfigurationHeader
         agents={descriptors.map((item) => ({
           id: item.id,
-          label: item.id === "claude" ? "Claude Code" : item.displayName,
+          label: item.displayName,
         }))}
         selectedAgent={descriptor.id}
         onSelectAgent={(id) => setSelectedAgent(id)}
@@ -613,25 +516,6 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
             >
               <RefreshCw className="tw-size-4" />
             </Button>
-            {kind === "plugin" && (
-              <Button
-                variant="secondary"
-                disabled={busy || pending || !enabled}
-                onClick={() => void installPlugin()}
-              >
-                {t("Browse plugin marketplace")}
-              </Button>
-            )}
-            {kind === "mcp" && (
-              <Button
-                variant="secondary"
-                disabled={busy || pending || !enabled}
-                onClick={importConfiguration}
-              >
-                <Download className="tw-size-4" />
-                {t("Import")}
-              </Button>
-            )}
             {ownsSkills ? (
               <Button
                 disabled={busy || pending || !enabled}
@@ -640,21 +524,12 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
                 <Plus className="tw-size-4" />
                 {t("New skill")}
               </Button>
-            ) : (
-              <Button
-                disabled={busy || pending || !enabled}
-                onClick={() => (kind === "plugin" ? void installPlugin() : openEditor())}
-              >
+            ) : kind === "command" ? (
+              <Button disabled={busy || pending || !enabled} onClick={() => openEditor()}>
                 <Plus className="tw-size-4" />
-                {t(
-                  kind === "plugin"
-                    ? "Add plugin"
-                    : kind === "command"
-                      ? "New agent command"
-                      : "New"
-                )}
+                {t("New agent command")}
               </Button>
-            )}
+            ) : null}
           </>
         }
       />
@@ -689,12 +564,12 @@ export function AgentExtensionsSettings({ kind = "plugin" }: AgentExtensionsSett
         <div className="tw-space-y-2 tw-pt-2">
           <p>
             {t(
-              "Checks what Claude loaded and connected without sending a chat message or testing each tool."
+              "Checks the registered Scribe skills, commands, and subagents without sending a chat message."
             )}
           </p>
           <p>
             {t(
-              "Starting Claude loads your configuration, connects extension services, and may run configured startup hooks."
+              "Scribe uses its own registered tools and extensions. External agent plugins, hooks, and MCP services are not loaded."
             )}
           </p>
           <p>{t("Loaded or connected does not guarantee that each execution succeeds.")}</p>

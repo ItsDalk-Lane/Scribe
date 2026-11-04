@@ -132,7 +132,12 @@ const PlanPreviewRoot: React.FC<PlanPreviewRootProps> = ({ app, state }) => {
     if (!state.chatBackend || !currentPlan) return;
     const proposalId = currentPlan.id;
     try {
-      await state.chatBackend.resolvePlanProposal(proposalId, decision);
+      await state.chatBackend.resolvePlanProposal(
+        proposalId,
+        decision,
+        undefined,
+        currentPlan.revision
+      );
       if (decision === "approve") closePlanPreview(app, proposalId);
     } catch (e) {
       logWarn("[PlanPreviewView] resolvePlanProposal failed", e);

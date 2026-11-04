@@ -48,9 +48,7 @@ export const MirroredLocation: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
     annotations: (
-      <span className="tw-truncate tw-text-ui-smaller tw-text-faint">
-        mirrored in .claude, .agents
-      </span>
+      <span className="tw-truncate tw-text-ui-smaller tw-text-faint">mirrored in .scribe</span>
     ),
   },
 };

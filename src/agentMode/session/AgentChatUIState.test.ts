@@ -115,6 +115,34 @@ describe("AgentChatUIState", () => {
   }
 
   describe("resolvePlanProposal()", () => {
+    it("keeps the newer plan pending when a button from an older revision is clicked", async () => {
+      const review = planReview();
+      const next = {
+        ...review.request,
+        toolCall: {
+          ...review.request.toolCall,
+          toolCallId: "plan-revision-2",
+          rawInput: { plan: "# Revised plan" },
+        },
+      };
+      const nextPermission = review.session.handlePlanProposalPermission(next);
+      await review.chat.resolvePlanProposal(
+        review.plan.id,
+        "approve",
+        undefined,
+        review.plan.revision
+      );
+      expect(review.chat.getCurrentPlan()?.revision).toBe(2);
+      expect(review.session.hasPendingPlanPermission()).toBe(true);
+      const current = review.chat.getCurrentPlan()!;
+      await review.chat.resolvePlanProposal(current.id, "reject", undefined, current.revision);
+      expect((await nextPermission).outcome).toEqual({
+        outcome: "selected",
+        optionId: "revise_plan",
+      });
+      review.finishFirstTurn();
+      await review.firstTurn;
+    });
     it.each([
       ["approve", "Approved plan"],
       ["reject", "Rejected plan"],

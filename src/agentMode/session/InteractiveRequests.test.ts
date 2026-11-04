@@ -447,7 +447,7 @@ describe("InteractiveRequests", () => {
     });
 
     describe("publishGatedPlan()", () => {
-      it("keeps the plan revision but tracks the new pending tool call when an identical plan body is proposed again", () => {
+      it("advances the approval revision for a new request even when the proposed text is identical", () => {
         const { requests } = makeRequests();
         const planBody = "# proposed plan body";
 
@@ -461,7 +461,7 @@ describe("InteractiveRequests", () => {
         const second = requests.getCurrentPlan();
         expect(second?.pendingToolCallId).toBe("tc-plan-B");
         expect(second?.permissionGated).toBe(true);
-        expect(second?.revision).toBe(1);
+        expect(second?.revision).toBe(2);
       });
 
       it("titles a new plan from its markdown and bumps the revision when its body changes", () => {

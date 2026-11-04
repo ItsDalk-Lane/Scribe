@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model, ToolCall } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { createAssistantMessage, createPiChatModel } from "@/LLMProviders/piChatModel";
 import { collectText } from "@/LLMProviders/testing/piFixtures";
@@ -35,6 +35,107 @@ describe("piChatModel", () => {
   });
 
   describe("createPiChatModel()", () => {
+    describe("agentStream()", () => {
+      it("provides the same tool events and final result through Pi's event-stream contract", async () => {
+        const reply = createAssistantMessage(model);
+        reply.stopReason = "toolUse";
+        const tool: ToolCall = {
+          type: "toolCall",
+          id: "call-one",
+          name: "read_note",
+          arguments: { path: "note.md" },
+        };
+        reply.content = [tool];
+        const client = createPiChatModel(model, async () => ({
+          options: { fetch: jest.fn() },
+          stream: () => {
+            const source = createAssistantMessageEventStream();
+            source.push({ type: "toolcall_start", contentIndex: 0, partial: reply });
+            source.push({
+              type: "toolcall_end",
+              contentIndex: 0,
+              partial: reply,
+              toolCall: tool,
+            });
+            source.push({ type: "done", reason: "toolUse", message: reply });
+            source.end();
+            return source;
+          },
+        }));
+        const source = client.agentStream({ messages: [] });
+        expect(await source.result()).toMatchObject(reply);
+        const types = [];
+        for await (const event of source) types.push(event.type);
+        expect(types).toEqual(["toolcall_start", "toolcall_end", "done"]);
+      });
+
+      it("returns cancellation while credentials are pending and never starts the model afterwards", async () => {
+        let release!: () => void;
+        let started!: () => void;
+        const resolving = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const credentials = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const stream = jest.fn(() => createAssistantMessageEventStream());
+        const controller = new AbortController();
+        const client = createPiChatModel(model, async () => {
+          started();
+          await credentials;
+          return { stream, options: { fetch: jest.fn() } };
+        });
+        const pending = client
+          .agentStream({ messages: [] }, { signal: controller.signal })
+          .result();
+        await resolving;
+        controller.abort();
+        expect(await pending).toMatchObject({ stopReason: "aborted" });
+        release();
+        await credentials;
+        expect(stream).not.toHaveBeenCalled();
+      });
+
+      it("returns a diagnosable Pi error instead of completing an unsuccessful request", async () => {
+        const client = createPiChatModel(model, async () => {
+          throw new Error("Tool declarations rejected");
+        });
+        const source = client.agentStream({ messages: [] });
+        expect(await source.result()).toMatchObject({
+          stopReason: "error",
+          errorMessage:
+            "private-model (openai-completions), model stream: Tool declarations rejected",
+        });
+        const events = [];
+        for await (const event of source) events.push(event.type);
+        expect(events).toEqual(["error"]);
+      });
+
+      it("preserves the terminal provider message, refusal reason, usage, and diagnostics when no partial was emitted", async () => {
+        const reply = createAssistantMessage(model);
+        reply.stopReason = "error";
+        reply.rawStopReason = "content_filter";
+        reply.errorMessage = "Provider finish_reason: content_filter";
+        reply.usage.input = 17;
+        reply.diagnostics = [{ type: "provider", timestamp: 0, details: { filter: "blocked" } }];
+        const client = createPiChatModel(model, async () => ({
+          options: { fetch: jest.fn() },
+          stream: () => {
+            const source = createAssistantMessageEventStream();
+            source.push({ type: "error", reason: "error", error: reply });
+            source.end();
+            return source;
+          },
+        }));
+        expect(await client.agentStream({ messages: [] }).result()).toMatchObject({
+          rawStopReason: "content_filter",
+          usage: { input: 17 },
+          diagnostics: reply.diagnostics,
+        });
+        await expect(collectText(client)).rejects.toThrow("Provider finish_reason: content_filter");
+      });
+    });
+
     it(`does not start credential resolution for an already stopped turn (${issue})`, async () => {
       const resolve = jest.fn(async () => ({
         options: { fetch: jest.fn() },

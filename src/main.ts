@@ -53,7 +53,6 @@ import { WebSelectionTracker } from "@/services/webViewerService/webViewerServic
 import { runSettingsMigrations } from "@/settings/migrations";
 import { CopilotSettingTab } from "@/settings/SettingsPage";
 import {
-  type CopilotSettings,
   getSettings,
   setSettings,
   subscribeToSettingsChange,
@@ -62,7 +61,6 @@ import {
 import { ensureCopilotSubfolders } from "@/settings/copilotFolder";
 import { revealHiddenCopilotFolder } from "@/settings/revealCopilotFolder";
 import { buildUpgradeRelocationEntries } from "@/settings/upgradeNotice";
-import { dehydrateDeviceProfile, hydrateDeviceProfile } from "@/settings/deviceProfiles";
 import { getDeviceId } from "@/utils/deviceId";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import { disposeNotificationSound } from "@/utils/notificationSound";
@@ -118,7 +116,6 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
   skills?: SkillManager;
   private CopilotAgentView?: typeof import("@/agentMode").CopilotAgentView;
   private PlanPreviewView?: typeof import("@/agentMode").PlanPreviewView;
-  private agentModelDiscoveryUnsubscriber?: () => void;
   modelManagement!: ModelManagementApi;
   private ribbonIconEl?: HTMLElement;
   quickAskController: QuickAskController;
@@ -228,9 +225,7 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
         ).open();
       });
     }
-    const agentMode = isDesktopRuntime()
-      ? await Promise.all([import("@/agentMode"), import("@/agentMode/agentModelDiscovery")])
-      : null;
+    const agentMode = isDesktopRuntime() ? await import("@/agentMode") : null;
     if (!this.pluginLifecycleActive) return;
 
     const isLegacyUpgrade = getSettings().upgradedToV8FromLegacy;
@@ -240,20 +235,17 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
     logFileManager.setApp(this.app);
 
     if (agentMode) {
-      const [
-        {
-          CopilotAgentView,
-          PlanPreviewView,
-          closeAgentDetailModals,
-          closeRestoredTurnDiffs,
-          registerTurnDiffCommands,
-          acpFrameSink,
-          createAgentSessionManager,
-          setFrameSinkVaultBasePath,
-          SkillManager,
-        },
-        { wireAgentModelDiscovery },
-      ] = agentMode;
+      const {
+        CopilotAgentView,
+        PlanPreviewView,
+        closeAgentDetailModals,
+        closeRestoredTurnDiffs,
+        registerTurnDiffCommands,
+        acpFrameSink,
+        createAgentSessionManager,
+        setFrameSinkVaultBasePath,
+        SkillManager,
+      } = agentMode;
       this.CopilotAgentView = CopilotAgentView;
       this.PlanPreviewView = PlanPreviewView;
       closeRestoredTurnDiffs(this.app.workspace);
@@ -270,10 +262,6 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
 
       this.agentSessionManager = createAgentSessionManager(this.app, this);
       this.skills = SkillManager.getInstance();
-      this.agentModelDiscoveryUnsubscriber = wireAgentModelDiscovery(
-        this,
-        this.agentSessionManager
-      );
     }
 
     const vaultDataManager = VaultDataManager.getInstance();
@@ -520,7 +508,6 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
 
     this.chatSelectionHighlightController?.cleanup();
 
-    this.agentModelDiscoveryUnsubscriber?.();
     await this.agentSessionManager?.shutdown();
 
     const vaultDataManager = VaultDataManager.getInstance();
@@ -744,13 +731,6 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
   async loadSettings() {
     const rawData = (await this.loadData()) as unknown;
     this.loadedCopilotFolder = (rawData as { copilotFolder?: unknown } | null)?.copilotFolder;
-    // The keychain bootstrap may persist a sparse snapshot of the raw on-disk
-    // data (vaultId backfill) before settings are hydrated. That snapshot is
-    // already in dehydrated, on-disk shape, so it must bypass the
-    // `dehydrateDeviceProfile` override below via `super.saveData` — routing it
-    // through `this.saveData` would read the absent flat fields as "cleared"
-    // and delete this device's `deviceProfiles` segment
-    // (https://github.com/logancyang/obsidian-copilot/issues/2539).
     const settings = await loadSettingsWithKeychain(
       this.app,
       rawData,
@@ -763,14 +743,7 @@ export default class CopilotPlugin extends Plugin implements CopilotStartup {
         }),
       (item) => this.startupMigrationItems.push(item)
     );
-    setSettings(hydrateDeviceProfile(settings, getDeviceId(this.app)));
-  }
-
-  // Single choke point for persisted writes; the load-time keychain bootstrap bypasses it via
-  // `super.saveData` (see `loadSettings`).
-  // https://github.com/logancyang/obsidian-copilot/issues/2539
-  async saveData(data: unknown): Promise<void> {
-    return super.saveData(dehydrateDeviceProfile(data as CopilotSettings, getDeviceId(this.app)));
+    setSettings(settings);
   }
 
   private async touchChatHistoryLastAccessedAt(file: TFile): Promise<void> {

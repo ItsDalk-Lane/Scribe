@@ -1,6 +1,6 @@
 # Getting Started with Scribe V4
 
-Scribe V4 is built around **Agent Chat**, a desktop workspace where Claude Code can read your vault, use tools, and complete multi-step work with the permissions you choose.
+Scribe V4 is built around **Agent Chat**, a desktop workspace where Scribe can read your vault, use tools, and complete multi-step work with the permissions you choose.
 
 Agent Chat is available in Obsidian on desktop. Scribe Commands, Quick Command, and Quick Ask remain available for shorter tasks and on mobile.
 
@@ -34,22 +34,12 @@ Language changes affect interface text only. Notes, chat history, custom command
 
 ## Set Up Your First Agent Chat
 
-打开 **Settings → Scribe → 代理** 配置 Claude Code。目前只提供 Claude Code 代理。
-
-### Connect Claude Code
-
-If Claude Code is already installed, Scribe checks its common install locations automatically and marks **Claude** as installed. If it is not found:
-
-1. Open **代理 → Claude Code → Configure**.
-2. Select **Auto-detect**, or enter the path to the `claude` binary.
-3. Sign in when prompted.
-
-Claude uses the account held by the Claude Code CLI. You do not paste that account's key into Scribe.
+打开 **Settings → Scribe → 快捷操作 → 模型**，配置供应商或本机模型，再到 **代理 → Scribe** 启用聊天模型。已有模型、密钥和自定义地址继续使用，无需安装或登录外部代理程序。
 
 ## Start Your First Agent Chat
 
 1. Click the **Agent Chat** ribbon icon, or run **Open Scribe Agent Chat window** from the command palette.
-2. Claude opens automatically when it is ready. If setup is required, select **Configure** and connect Claude Code.
+2. 没有配置模型时，使用聊天提供的设置入口完成模型配置。
 3. Pick a model and permission setting beside the message box, then describe the outcome you want.
 
 Try a concrete first request such as: “Review the unfinished tasks in this vault and make a short plan.” With **Default** selected, Agent Chat shows its work and asks before actions that need your approval.
@@ -60,11 +50,11 @@ Try a concrete first request such as: “Review the unfinished tasks in this vau
 
 From Agent Chat Home, open **Projects** and select **New project**. A project keeps its own instructions, reusable context, and chat history, so work for one client or topic stays together. See [Projects](projects.md) for supported context sources and setup.
 
-### Use Skills with Claude
+### Use Skills
 
-Skills are reusable instruction packets for jobs such as reviewing a change or drafting a release note. Open **Settings → Scribe → Skills** to see skills from Scribe's shared skills folder and Claude's native skills folder. Enable each skill for Claude; Scribe creates the needed folder links for you.
+在 **Settings → Scribe → Skills** 管理自己的技能，并为 Scribe 启用。输入 `/` 选择允许手动调用的技能；已允许模型调用的技能也可由模型按任务选择。项目技能限定在对应项目中使用。
 
-Type `/` in Agent Chat to choose an available skill. Scribe also includes skills for Obsidian Markdown, Bases, Canvas, and the Obsidian CLI. Learn more in [Skills with Claude](agent-mode-and-tools.md#skills-with-claude).
+Scribe 也包含 Obsidian Markdown、Bases、Canvas 等说明技能。更多信息见 [Skills](agent-mode-and-tools.md#skills)。
 
 ### Reuse Scribe Commands
 
@@ -79,5 +69,5 @@ Run **Quick Ask** from the command palette, or assign it a hotkey under **Obsidi
 - [Agent Chat](agent-mode-and-tools.md): agents, permissions, context, models, and skills
 - [Projects](projects.md): focused agent workspaces
 - [Scribe Commands and Quick Ask](custom-commands.md): reusable prompts and in-editor help
-- [Model Sources and BYOK](llm-providers.md): BYOK setup for Quick tools
+- [Model Sources and BYOK](llm-providers.md): Agent Chat 和快捷工具共用的模型连接
 - [Scribe Settings](settings.md): every settings tab explained

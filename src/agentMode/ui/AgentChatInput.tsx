@@ -1,5 +1,7 @@
 import { t } from "@/lib/i18n";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import { filterSkillsForScope } from "@/agentMode/session/scopedSkills";
+import { useManagedSkills } from "@/agentMode/skills/SkillManager";
 import { expandCustomCommandPrefix } from "@/agentMode/session/expandCustomCommandPrefix";
 import { resolveActiveNoteToken } from "@/agentMode/session/resolveActiveNoteToken";
 import type { QueuedAgentMessage } from "@/agentMode/session/AgentInputDraftStore";
@@ -42,6 +44,7 @@ interface AgentChatInputProps {
   backend: AgentChatBackend;
   plugin: CopilotPlugin;
   chatInputId: string;
+  skillScope?: { cwd: string | null; projectDirectory: string };
   draft: AgentInputDraftControls;
   app: App;
   updateUserMessageHistory: (newMessage: string) => void;
@@ -142,6 +145,7 @@ export const AgentChatInput = memo(function AgentChatInput({
   backend,
   plugin,
   chatInputId,
+  skillScope,
   draft,
   app,
   updateUserMessageHistory,
@@ -157,6 +161,16 @@ export const AgentChatInput = memo(function AgentChatInput({
   disabled = false,
 }: AgentChatInputProps) {
   const eventTarget = useContext(EventTargetContext);
+  const managedSkills = useManagedSkills();
+  const scopeCwd = skillScope?.cwd;
+  const scopeProjectDirectory = skillScope?.projectDirectory;
+  const slashSkills = React.useMemo(
+    () =>
+      scopeCwd !== undefined && scopeProjectDirectory !== undefined
+        ? filterSkillsForScope(managedSkills, scopeCwd, scopeProjectDirectory)
+        : undefined,
+    [managedSkills, scopeCwd, scopeProjectDirectory]
+  );
   const chatInputRef = useRef<ChatInputHandle>(null);
   const preparationQueues = useRef(new WeakMap<AgentChatBackend, MessagePreparationQueue>());
   const activeChatInputId = useRef(chatInputId);
@@ -504,6 +518,7 @@ export const AgentChatInput = memo(function AgentChatInput({
         <ChatInput
           ref={chatInputRef}
           key={chatInputId}
+          slashSkills={slashSkills}
           placeholder={t("Ask anything • @ to add context • / for commands")}
           inputMessage={inputMessage}
           setInputMessage={setInputMessage}

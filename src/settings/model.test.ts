@@ -7,7 +7,6 @@ import {
 import {
   normalizeRootFolders,
   resetSettings,
-  sanitizeEnvOverrides,
   sanitizeBuiltinPreferences,
   sanitizeQaExclusions,
   sanitizeSettings,
@@ -18,18 +17,6 @@ import {
   CopilotSettings,
 } from "@/settings/model";
 import { CustomModel } from "@/aiParams";
-
-function sanitizeClaudeSlice(autoModePermission: unknown): CopilotSettings {
-  return sanitizeSettings({
-    ...DEFAULT_SETTINGS,
-    agentMode: {
-      enabled: true,
-      byok: {},
-      activeBackend: "claude",
-      backends: { claude: { autoModePermission } },
-    },
-  } as unknown as CopilotSettings);
-}
 
 describe("model", () => {
   describe("sanitizeQaExclusions()", () => {
@@ -74,16 +61,71 @@ describe("model", () => {
   });
 
   describe("sanitizeSettings()", () => {
+    it("preserves the native agent model, permission mode and step limit without changing BYOK connections", () => {
+      const result = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          activeBackend: "native",
+          backends: {
+            native: {
+              enabled: true,
+              defaultModel: { baseModelId: "custom-model", effort: "high" },
+              defaultMode: "plan",
+              maxSteps: 75,
+            },
+          },
+        },
+        backends: {
+          chat: { enabledModels: ["custom-model"] },
+          native: { enabledModels: ["custom-model"] },
+        },
+      } as unknown as CopilotSettings);
+      expect(result.agentMode.backends).toEqual({
+        native: {
+          enabled: true,
+          defaultModel: { baseModelId: "custom-model", effort: "high" },
+          defaultMode: "plan",
+          maxSteps: 75,
+        },
+      });
+      expect(result.backends).toEqual({
+        chat: { enabledModels: ["custom-model"] },
+        native: { enabledModels: ["custom-model"] },
+      });
+    });
+
+    it("drops invalid native model, permission mode, step limit and external runtime fields", () => {
+      const result = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          backends: {
+            native: {
+              defaultModel: { baseModelId: "" },
+              defaultMode: "unrestricted",
+              maxSteps: -1,
+              cliPath: "/external-agent",
+              envOverrides: { SECRET: "not-native" },
+            },
+          },
+        },
+      } as unknown as CopilotSettings);
+      expect(result.agentMode.backends).toEqual({
+        native: { defaultModel: undefined, defaultMode: undefined, maxSteps: undefined },
+      });
+    });
+
     it.each([true, false])("preserves the agent enabled choice %s", (enabled) => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        agentMode: { ...DEFAULT_SETTINGS.agentMode, backends: { claude: { enabled } } },
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, backends: { native: { enabled } } },
       });
-      expect(sanitized.agentMode.backends.claude?.enabled).toBe(enabled);
+      expect(sanitized.agentMode.backends.native?.enabled).toBe(enabled);
     });
 
     it.each(["claude", "opencode", "codex"])(
-      "keeps only Claude agent settings when loading a %s default",
+      "keeps native settings and ignores retired runtime configuration when loading a %s default",
       (activeBackend) => {
         const sanitized = sanitizeSettings({
           ...DEFAULT_SETTINGS,
@@ -91,7 +133,8 @@ describe("model", () => {
             ...DEFAULT_SETTINGS.agentMode,
             activeBackend,
             backends: {
-              claude: { defaultModel: { baseModelId: "sonnet", effort: "high" } },
+              native: { defaultModel: { baseModelId: "selected-model", effort: "high" } },
+              claude: { defaultModel: { baseModelId: "legacy-model", effort: null } },
               opencode: { binaryPath: "/legacy/opencode" },
               codex: { binaryPath: "/legacy/codex" },
             },
@@ -106,20 +149,17 @@ describe("model", () => {
           },
         } as unknown as CopilotSettings);
 
-        expect(sanitized.agentMode.activeBackend).toBe("claude");
-        expect(Object.keys(sanitized.agentMode.backends)).toEqual(["claude"]);
-        expect(sanitized.agentMode.backends.claude?.defaultModel).toEqual({
-          baseModelId: "sonnet",
+        expect(sanitized.agentMode.activeBackend).toBe("native");
+        expect(Object.keys(sanitized.agentMode.backends)).toEqual(["native"]);
+        expect(sanitized.agentMode.backends.native?.defaultModel).toEqual({
+          baseModelId: "selected-model",
           effort: "high",
         });
-        expect(sanitized.agentMode.deviceProfiles?.laptop).toEqual({
-          claudeCliPath: "/bin/claude",
-          claude: { envOverrides: { ANTHROPIC_BASE_URL: "https://example.com" } },
-        });
+        expect("deviceProfiles" in sanitized.agentMode).toBe(false);
       }
     );
 
-    it("removes retired agent models and references while preserving Claude and ordinary chat providers", () => {
+    it("removes retired agent models and references while preserving ordinary chat providers", () => {
       const provider = (providerId: string, origin: unknown) => ({
         providerId,
         providerType: "openai-compatible",
@@ -157,14 +197,12 @@ describe("model", () => {
 
       const sanitized = sanitizeSettings(input);
 
-      expect(Object.keys(sanitized.providers)).toEqual(["claude", "Codex BYOK"]);
+      expect(Object.keys(sanitized.providers)).toEqual(["Codex BYOK"]);
       expect(sanitized.configuredModels.map((record) => record.configuredModelId)).toEqual([
-        "sonnet",
         "gpt-5.2-codex",
       ]);
       expect(sanitized.backends).toEqual({
         chat: { enabledModels: ["gpt-5.2-codex"] },
-        claude: { enabledModels: ["sonnet"] },
       });
       expect(Object.keys(input.providers)).toHaveLength(4);
       expect(input.configuredModels).toHaveLength(4);
@@ -221,7 +259,7 @@ describe("model", () => {
       });
       expect(sanitized.agentMode).toEqual({
         byok: {},
-        activeBackend: "claude",
+        activeBackend: "native",
         backends: {},
         debugFullFrames: true,
         offerFeedbackCards: true,
@@ -240,7 +278,7 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
         },
       } as unknown as CopilotSettings);
@@ -252,7 +290,7 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSoundId: "doorbell",
         },
@@ -263,7 +301,7 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSoundId: "removed-sound",
         },
@@ -278,7 +316,7 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSound: false,
         },
@@ -291,7 +329,7 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           debugFullFrames: false,
         },
@@ -300,7 +338,7 @@ describe("model", () => {
     });
 
     it("offers feedback cards to an install that never saved the setting, and keeps an explicit opt-out", () => {
-      const base = { byok: {}, activeBackend: "claude", backends: {} };
+      const base = { byok: {}, activeBackend: "native", backends: {} };
       const fresh = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: base,
@@ -319,7 +357,7 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           debugFullFrames: "yes" as unknown as boolean,
         },
@@ -363,26 +401,6 @@ describe("model", () => {
         } as unknown as CopilotSettings["agentMode"],
       });
       expect(sanitized.agentMode.welcomeDismissed).toBe(false);
-    });
-
-    it("drops invalid envOverrides keys from the Claude backend slice while keeping valid ones", () => {
-      const settings = {
-        ...DEFAULT_SETTINGS,
-        agentMode: {
-          enabled: true,
-          byok: {},
-          activeBackend: "claude",
-          backends: {
-            claude: { envOverrides: { CLAUDE_CONFIG_DIR: "/x", "BAD KEY": "y" } },
-          },
-        },
-      } as unknown as CopilotSettings;
-
-      const sanitized = sanitizeSettings(settings);
-
-      expect(sanitized.agentMode.backends.claude?.envOverrides).toEqual({
-        CLAUDE_CONFIG_DIR: "/x",
-      });
     });
 
     it("preserves valid built-in opt-outs and drops malformed preference values https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
@@ -480,18 +498,6 @@ describe("model", () => {
       expect(sanitized).toMatchObject(storedFields);
     });
 
-    it("keeps a Claude auto permission mode the SDK understands", () => {
-      const sanitized = sanitizeClaudeSlice("acceptEdits");
-
-      expect(sanitized.agentMode.backends.claude?.autoModePermission).toBe("acceptEdits");
-    });
-
-    it("drops an unsupported Claude auto permission mode so the descriptor default applies", () => {
-      const sanitized = sanitizeClaudeSlice("dontAsk");
-
-      expect(sanitized.agentMode.backends.claude?.autoModePermission).toBeUndefined();
-    });
-
     it("falls back to the default copilotFolder when it is whitespace-only", () => {
       const out = sanitizeSettings({
         ...DEFAULT_SETTINGS,
@@ -569,91 +575,6 @@ describe("model", () => {
       }
       const kept = sanitizeSettings({ ...DEFAULT_SETTINGS, copilotFolder: "team/ai" });
       expect(kept.copilotFolder).toBe("team/ai");
-    });
-
-    it("preserves a valid deviceProfiles map and drops empty or invalid entries", () => {
-      const raw = {
-        agentMode: {
-          deviceProfiles: {
-            "device-a": {
-              claudeCliPath: "/a/claude",
-              opencode: { binaryPath: "/a/oc", binaryVersion: "1", binarySource: "custom" },
-              codex: { envOverrides: { GOOD: "1", "bad-key": "x" } },
-            },
-            "device-b": {},
-            "": { claudeCliPath: "/x" },
-          },
-        },
-      };
-
-      const out = sanitizeSettings(raw as unknown as CopilotSettings);
-      const profiles = out.agentMode.deviceProfiles ?? {};
-
-      expect(profiles["device-a"]?.claudeCliPath).toBe("/a/claude");
-      expect(Object.keys(profiles["device-a"] ?? {})).toEqual(["claudeCliPath"]);
-      expect(profiles["device-b"]).toBeUndefined();
-      expect(profiles[""]).toBeUndefined();
-    });
-  });
-
-  describe("sanitizeEnvOverrides()", () => {
-    it("returns undefined for non-objects", () => {
-      expect(sanitizeEnvOverrides(undefined)).toBeUndefined();
-      expect(sanitizeEnvOverrides(null)).toBeUndefined();
-      expect(sanitizeEnvOverrides("foo")).toBeUndefined();
-      expect(sanitizeEnvOverrides(42)).toBeUndefined();
-      expect(sanitizeEnvOverrides([1, 2])).toBeUndefined();
-    });
-
-    it("returns undefined when no valid entries remain", () => {
-      expect(sanitizeEnvOverrides({})).toBeUndefined();
-      expect(sanitizeEnvOverrides({ "": "v", "1FOO": "v", "BAR=BAZ": "v" })).toBeUndefined();
-    });
-
-    it("keeps valid POSIX identifiers and string values", () => {
-      expect(
-        sanitizeEnvOverrides({
-          CLAUDE_CONFIG_DIR: "/tmp/claude",
-          _PRIVATE: "x",
-          myVar2: "y",
-        })
-      ).toEqual({
-        CLAUDE_CONFIG_DIR: "/tmp/claude",
-        _PRIVATE: "x",
-        myVar2: "y",
-      });
-    });
-
-    it("drops keys with leading digits, equals signs, whitespace, or invalid characters", () => {
-      expect(
-        sanitizeEnvOverrides({
-          "1FOO": "v",
-          "FOO BAR": "v",
-          "FOO=BAR": "v",
-          "FOO-BAR": "v",
-          VALID: "v",
-        })
-      ).toEqual({ VALID: "v" });
-    });
-
-    it("drops entries whose value isn't a string or contains control chars", () => {
-      expect(
-        sanitizeEnvOverrides({
-          OK: "fine",
-          NUM: 42,
-          NULLED: null,
-          UNDEF: undefined,
-          TABS: "ok\twith\ttabs",
-          NEWLINE: "ok\nnewline",
-        })
-      ).toEqual({ OK: "fine" });
-    });
-
-    it("caps at 64 entries to bound persisted size", () => {
-      const big: Record<string, string> = {};
-      for (let i = 0; i < 100; i++) big[`VAR_${i}`] = String(i);
-      const sanitized = sanitizeEnvOverrides(big);
-      expect(sanitized && Object.keys(sanitized).length).toBe(64);
     });
   });
 
@@ -953,7 +874,7 @@ describe("model", () => {
         },
         backends: {
           chat: { enabledModels: ["model-1", "model-2"] },
-          claude: { enabledModels: ["model-3"] },
+          native: { enabledModels: ["model-3"] },
         },
       });
 

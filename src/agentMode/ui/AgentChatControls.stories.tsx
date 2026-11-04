@@ -64,7 +64,6 @@ const meta = {
       <UsageMeter
         usage={{ usedTokens: 48_000, contextWindow: 200_000, updatedAt: TIMESTAMP.getTime() }}
         contextWindow={200_000}
-        planUsage={null}
       />
     ),
     ...withBookmarkState("not-bookmarked"),

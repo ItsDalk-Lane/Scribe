@@ -36,13 +36,9 @@ jest.mock("@/hooks/useChatBackendModelOptions", () => ({
 const Icon: React.FC<{ className?: string }> = () => <svg data-testid="icon" />;
 
 const installStates: Record<string, { kind: string; [key: string]: unknown }> = {
-  claude: { kind: "ready", source: "custom" },
+  native: { kind: "ready", source: "custom" },
 };
 const managedInstallStates: Record<string, { kind: string; [key: string]: unknown }> = {};
-
-let resolvedPaths: Record<string, string | null> = {};
-
-const MANAGED_BINARY_PATH = "/usr/local/bin/claude";
 
 const installStateListeners = new Set<() => void>();
 function publishInstallState() {
@@ -53,16 +49,14 @@ function makeDescriptor(id: string, displayName: string) {
   return {
     id,
     displayName,
-    auth: {},
     Icon,
     getInstallState: () => installStates[id],
-    getResolvedBinaryPath: () => resolvedPaths[id] ?? null,
     openInstallUI: jest.fn(),
     SettingsPanel: () => <div data-testid={`panel-${id}`}>settings panel</div>,
   };
 }
 
-const DESCRIPTORS = [makeDescriptor("claude", "Claude")];
+const DESCRIPTORS = [makeDescriptor("native", "Scribe")];
 
 const mockGetCachedModelCatalog = jest.fn();
 const mockPreloadModels = jest.fn();
@@ -129,10 +123,10 @@ describe("AgentSettings", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       mockEnabled = true;
-      mockAuthStatuses.claude = { signedIn: true };
+      mockAuthStatuses.native = { signedIn: true };
       mockSettings = {
         agentMode: {
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSound: true,
           notificationSoundId: "piano",
@@ -140,34 +134,15 @@ describe("AgentSettings", () => {
       };
       (setSettings as jest.Mock).mockClear();
       (playNotificationSound as jest.Mock).mockClear();
-      installStates.claude = { kind: "ready", source: "custom" };
+      installStates.native = { kind: "ready", source: "custom" };
       mockGetCachedModelCatalog.mockReset().mockReturnValue({ availableModels: [] });
       mockPreloadModels.mockReset().mockResolvedValue(undefined);
-      resolvedPaths = {};
     });
-
-    it.each(["claude"])(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/379 reflects %s account readiness in the settings header",
-      (id) => {
-        mockSettings.agentMode.activeBackend = id;
-        mockAuthStatuses[id] = { signedIn: false };
-        const view = render(<AgentSettings />);
-        fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
-        expect(screen.getByText("Sign in required")).toBeTruthy();
-        expect(screen.queryByText("Ready")).toBeNull();
-        mockAuthStatuses[id] = null;
-        view.rerender(<AgentSettings />);
-        expect(screen.getByText("Checking sign-in…")).toBeTruthy();
-        mockAuthStatuses[id] = { signedIn: true };
-        view.rerender(<AgentSettings />);
-        expect(screen.getByText("Ready")).toBeTruthy();
-      }
-    );
 
     it("skips model preload when the shared catalog is already available", async () => {
       render(<AgentSettings />);
 
-      await waitFor(() => expect(mockGetCachedModelCatalog).toHaveBeenCalledWith("claude"));
+      await waitFor(() => expect(mockGetCachedModelCatalog).toHaveBeenCalledWith("native"));
       expect(mockPreloadModels).not.toHaveBeenCalled();
     });
 
@@ -176,16 +151,16 @@ describe("AgentSettings", () => {
 
       render(<AgentSettings />);
 
-      await waitFor(() => expect(mockPreloadModels).toHaveBeenCalledWith("claude"));
+      await waitFor(() => expect(mockPreloadModels).toHaveBeenCalledWith("native"));
     });
 
-    it("shows only the Claude Code configuration tab", () => {
+    it("shows only the Scribe configuration tab", () => {
       render(<AgentSettings />);
       const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-      expect(tabs).toEqual(["Claude Code"]);
+      expect(tabs).toEqual(["Scribe"]);
     });
 
-    it("omits the default agent picker because Claude is the only agent", () => {
+    it("omits the default agent picker because Scribe is the only agent", () => {
       render(<AgentSettings />);
       const tablist = screen.getByRole("tablist");
       expect(within(tablist).queryByText("Default agent")).toBeNull();
@@ -221,15 +196,15 @@ describe("AgentSettings", () => {
 
     it("shows the real model list without the retired default-model and Quick tools controls", () => {
       render(<AgentSettings />);
-      expect(screen.getByTestId("model-list-claude")).toBeTruthy();
-      expect(screen.queryByTestId("default-model-claude")).toBeNull();
+      expect(screen.getByTestId("model-list-native")).toBeTruthy();
+      expect(screen.queryByTestId("default-model-native")).toBeNull();
       expect(screen.queryByText("Quick tools")).toBeNull();
     });
 
     it("changes agent enablement through the session manager and prevents preloading while disabled", async () => {
       const view = render(<AgentSettings />);
-      fireEvent.click(screen.getByRole("switch", { name: "Enable Claude Code" }));
-      await waitFor(() => expect(mockSetBackendEnabled).toHaveBeenCalledWith("claude", false));
+      fireEvent.click(screen.getByRole("switch", { name: "Enable Scribe" }));
+      await waitFor(() => expect(mockSetBackendEnabled).toHaveBeenCalledWith("native", false));
       await screen.findByText("Disabled; configuration kept");
       expect(view.container.querySelector("[inert]")).toBeTruthy();
       mockGetCachedModelCatalog.mockReturnValue(null);
@@ -237,53 +212,48 @@ describe("AgentSettings", () => {
       expect(mockPreloadModels).not.toHaveBeenCalled();
     });
 
-    it("shows an incompatible-version message and hides ready-only model controls", () => {
-      const message =
-        "Claude Code 2.1.205 is not supported. Scribe requires Claude Code 2.1.206 or newer.";
-      installStates.claude = {
-        kind: "incompatible",
-        source: "custom",
-        currentVersion: "2.1.205",
-        minVersion: "2.1.206",
+    it("shows a model-configuration error and hides ready-only model controls", () => {
+      const message = "Configure a chat model in the existing BYOK settings.";
+      installStates.native = {
+        kind: "error",
         message,
       };
 
       render(<AgentSettings />);
-      fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Scribe" }));
 
-      fireEvent.click(screen.getByRole("button", { name: "Installation and sign-in settings" }));
+      fireEvent.click(screen.getByRole("button", { name: "Agent configuration" }));
       expect(screen.getByText(message)).toBeTruthy();
-      expect(screen.queryByTestId("model-list-claude")).toBeNull();
+      expect(screen.queryByTestId("model-list-native")).toBeNull();
     });
 
     it.each(DESCRIPTORS)(
-      "opens $displayName configuration while the binary is absent",
+      "opens $displayName model settings when no model has been configured",
       (descriptor) => {
-        installStates[descriptor.id] = { kind: "absent" };
+        installStates[descriptor.id] = { kind: "error", message: "Choose a chat model" };
         render(<AgentSettings />);
-        fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
-        fireEvent.click(screen.getByRole("button", { name: "Installation and sign-in settings" }));
+        fireEvent.click(screen.getByRole("tab", { name: "Scribe" }));
+        fireEvent.click(screen.getByRole("button", { name: "Agent configuration" }));
         fireEvent.click(screen.getByRole("button", { name: "Configure" }));
         expect(descriptor.openInstallUI).toHaveBeenCalledTimes(1);
         expect(screen.queryByText("Recommended")).toBeNull();
       }
     );
 
-    it("shows the resolved binary when configuration finishes installing Claude", async () => {
-      installStates.claude = { kind: "absent" };
+    it("restores model controls when BYOK configuration becomes ready", async () => {
+      installStates.native = { kind: "error", message: "Choose a chat model" };
       render(<AgentSettings />);
-      fireEvent.click(screen.getByRole("button", { name: "Installation and sign-in settings" }));
+      fireEvent.click(screen.getByRole("button", { name: "Agent configuration" }));
       fireEvent.click(screen.getByRole("button", { name: "Configure" }));
       expect(DESCRIPTORS[0].openInstallUI).toHaveBeenCalledTimes(1);
 
       act(() => {
-        installStates.claude = { kind: "ready", source: "custom" };
-        resolvedPaths.claude = MANAGED_BINARY_PATH;
+        installStates.native = { kind: "ready", source: "custom" };
         publishInstallState();
       });
 
       expect(await screen.findByText("Ready")).not.toBeNull();
-      expect(screen.getByText(MANAGED_BINARY_PATH)).not.toBeNull();
+      expect(screen.getByTestId("model-list-native")).not.toBeNull();
       expect(screen.getByRole("button", { name: "Configure" })).not.toBeNull();
     });
   });

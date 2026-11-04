@@ -79,12 +79,8 @@ export interface CopilotSettings {
     byok: { anthropic?: string; openai?: string; google?: string };
     activeBackend: string;
     backends: {
-      claude?: ClaudeBackendSettings;
+      native?: NativeBackendSettings;
     };
-    // Keyed by device id because binary paths must not sync across devices:
-    // https://github.com/logancyang/obsidian-copilot/issues/2539
-    deviceProfiles?: Record<string, DeviceAgentProfile>;
-    claudeCli?: { path?: string };
     debugFullFrames: boolean;
     offerFeedbackCards: boolean;
     notificationSound: boolean;
@@ -101,22 +97,11 @@ export interface CopilotSettings {
   backends: Partial<Record<BackendType, BackendConfig>>;
 }
 
-export type ClaudeAutoModePermission = "acceptEdits" | "auto" | "bypassPermissions";
-
-export interface ClaudeBackendSettings {
+export interface NativeBackendSettings {
   enabled?: boolean;
   defaultModel?: ModelSelection | null;
   defaultMode?: CopilotMode | null;
-  autoModePermission?: ClaudeAutoModePermission;
-  enableThinking?: boolean;
-  envOverrides?: Record<string, string>;
-}
-
-export interface DeviceAgentProfile {
-  claudeCliPath?: string;
-  claude?: {
-    envOverrides?: Record<string, string>;
-  };
+  maxSteps?: number;
 }
 
 export const settingsStore = createStore();
@@ -444,7 +429,7 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     providerEntries
       .filter(
         ([, provider]) =>
-          provider.origin?.kind === "agent" && provider.origin.agentType !== "claude"
+          provider.origin?.kind === "agent" && provider.origin.agentType !== "native"
       )
       .map(([id]) => id)
   );
@@ -473,7 +458,7 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
       cleanedBackends.length > 0 ? Object.fromEntries(cleanedBackends) : EMPTY_BACKENDS;
   }
   const retainedBackends = Object.entries(sanitizedSettings.backends).filter(
-    ([id]) => id === "chat" || id === "claude"
+    ([id]) => id === "chat" || id === "native"
   );
   if (retainedBackends.length !== Object.keys(sanitizedSettings.backends).length) {
     sanitizedSettings.backends =
@@ -496,11 +481,8 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
 
   const backendsRaw =
     r.backends && typeof r.backends === "object" ? (r.backends as Record<string, unknown>) : {};
-  const existingClaude = backendsRaw.claude as Record<string, unknown> | undefined;
   const backends: CopilotSettings["agentMode"]["backends"] = {};
-  if (existingClaude) backends.claude = sanitizeClaudeBackendSettings(existingClaude);
-
-  const deviceProfiles = sanitizeDeviceProfiles(r.deviceProfiles);
+  if (backendsRaw.native) backends.native = sanitizeNativeBackendSettings(backendsRaw.native);
 
   const debugFullFrames =
     typeof r.debugFullFrames === "boolean"
@@ -528,14 +510,6 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
     typeof r.welcomeDismissed === "boolean"
       ? r.welcomeDismissed
       : DEFAULT_SETTINGS.agentMode.welcomeDismissed;
-
-  const claudeCliRaw =
-    r.claudeCli && typeof r.claudeCli === "object"
-      ? (r.claudeCli as Record<string, unknown>)
-      : null;
-  const claudeCliPath =
-    claudeCliRaw && typeof claudeCliRaw.path === "string" ? claudeCliRaw.path : undefined;
-  const claudeCli = claudeCliPath ? { path: claudeCliPath } : undefined;
 
   const skillsRaw =
     r.skills && typeof r.skills === "object" ? (r.skills as Record<string, unknown>) : null;
@@ -565,8 +539,6 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
     notificationSoundId,
     welcomeDismissed,
     skills,
-    ...(claudeCli ? { claudeCli } : {}),
-    ...(deviceProfiles ? { deviceProfiles } : {}),
   };
 }
 
@@ -717,10 +689,6 @@ export function validateCopilotFolder(
   return { ok: true, folder: cleaned };
 }
 
-function nonEmptyString(v: unknown): string | undefined {
-  return typeof v === "string" && v ? v : undefined;
-}
-
 function sanitizeDefaultModel(raw: unknown): ModelSelection | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const r = raw as Record<string, unknown>;
@@ -737,72 +705,19 @@ function sanitizeDefaultMode(raw: unknown): CopilotMode | undefined {
     : undefined;
 }
 
-export const ENV_VAR_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-export function sanitizeEnvOverrides(raw: unknown): Record<string, string> | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof k !== "string") continue;
-    if (!ENV_VAR_NAME_RE.test(k)) continue;
-    if (typeof v !== "string") continue;
-    if (CONTROL_CHAR_RE.test(v)) continue;
-    out[k] = v;
-    if (Object.keys(out).length >= 64) break;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-const CLAUDE_AUTO_MODE_PERMISSIONS: readonly ClaudeAutoModePermission[] = [
-  "acceptEdits",
-  "auto",
-  "bypassPermissions",
-];
-function sanitizeClaudeAutoModePermission(raw: unknown): ClaudeAutoModePermission | undefined {
-  return typeof raw === "string" &&
-    (CLAUDE_AUTO_MODE_PERMISSIONS as readonly string[]).includes(raw)
-    ? (raw as ClaudeAutoModePermission)
-    : undefined;
-}
-
-function sanitizeClaudeBackendSettings(raw: unknown): ClaudeBackendSettings {
-  if (!raw || typeof raw !== "object") return {};
-  const r = raw as Record<string, unknown>;
+function sanitizeNativeBackendSettings(raw: unknown): NativeBackendSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const value = raw as Record<string, unknown>;
   return {
-    ...(typeof r.enabled === "boolean" ? { enabled: r.enabled } : {}),
-    defaultModel: sanitizeDefaultModel(r.defaultModel),
-    defaultMode: sanitizeDefaultMode(r.defaultMode),
-    autoModePermission: sanitizeClaudeAutoModePermission(r.autoModePermission),
-    enableThinking: typeof r.enableThinking === "boolean" ? r.enableThinking : undefined,
-    envOverrides: sanitizeEnvOverrides(r.envOverrides),
+    ...(typeof value.enabled === "boolean" ? { enabled: value.enabled } : {}),
+    defaultModel: sanitizeDefaultModel(value.defaultModel),
+    defaultMode: sanitizeDefaultMode(value.defaultMode),
+    maxSteps:
+      typeof value.maxSteps === "number" &&
+      Number.isInteger(value.maxSteps) &&
+      value.maxSteps >= 1 &&
+      value.maxSteps <= 1000
+        ? value.maxSteps
+        : undefined,
   };
-}
-
-function sanitizeDeviceAgentProfile(raw: unknown): DeviceAgentProfile | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
-  const out: DeviceAgentProfile = {};
-
-  const claudeCliPath = nonEmptyString(r.claudeCliPath);
-  if (claudeCliPath) out.claudeCliPath = claudeCliPath;
-
-  const claudeRaw =
-    r.claude && typeof r.claude === "object" ? (r.claude as Record<string, unknown>) : null;
-  if (claudeRaw) {
-    const envOverrides = sanitizeEnvOverrides(claudeRaw.envOverrides);
-    if (envOverrides) out.claude = { envOverrides };
-  }
-
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function sanitizeDeviceProfiles(raw: unknown): Record<string, DeviceAgentProfile> | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const out: Record<string, DeviceAgentProfile> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof key !== "string" || key.length === 0) continue;
-    const profile = sanitizeDeviceAgentProfile(value);
-    if (profile) out[key] = profile;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
 }

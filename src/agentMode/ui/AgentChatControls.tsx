@@ -28,8 +28,7 @@ import {
 } from "lucide-react";
 import React, { useCallback, useState } from "react";
 
-const resolveDeleteSummary = (item: ChatHistoryItem) =>
-  describeChatDelete(item.backendId ? backendRegistry[item.backendId] : undefined);
+const resolveDeleteSummary = describeChatDelete;
 
 const resolveHistoryIcon = (item: ChatHistoryItem) =>
   item.backendId ? backendRegistry[item.backendId]?.Icon : undefined;

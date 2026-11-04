@@ -2,7 +2,7 @@ import { mockTFile } from "@/__tests__/mockObsidian";
 import { resolveEffort } from "@/lib/model-effort";
 import { logWarn } from "@/logger";
 import { AI_SENDER, USER_SENDER } from "@/constants";
-import { ClaudeBackendDescriptor } from "@/agentMode/backends/claude/descriptor";
+import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
 import { waitFor } from "@testing-library/react";
 import { FileSystemAdapter, Notice, type App } from "obsidian";
 import {
@@ -899,6 +899,17 @@ describe("AgentSession", () => {
         expect(mock.newSession).toHaveBeenCalledWith({ cwd: "/vault", projectId: GLOBAL_SCOPE });
       });
 
+      it("passes the explicitly selected model when creating the backend session", async () => {
+        const mock = makeMockBackend();
+        const session = startSession(mock, {
+          defaultModelSelection: { baseModelId: "selected-model", effort: null },
+        });
+        await session.ready;
+        expect(mock.newSession).toHaveBeenCalledWith(
+          expect.objectContaining({ modelId: "selected-model" })
+        );
+      });
+
       it("passes the plugin's MCP servers into the newSession payload", async () => {
         const mock = makeMockBackend();
         const mcpServers = [
@@ -918,14 +929,22 @@ describe("AgentSession", () => {
         );
       });
 
-      it("confirms a Claude-style seed against the backend-reported model", async () => {
+      it("confirms a configured-model seed against the backend-reported model", async () => {
         const mock = makeMockBackend();
         const stateWithSonnet = sonnetAndGpt5State();
         mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: stateWithSonnet });
         const session = startSession(mock, {
           backendId: "claude",
           defaultModelSelection: { baseModelId: "openai/gpt-5", effort: null },
-          getDescriptor: () => ClaudeBackendDescriptor,
+          getDescriptor: () => ({
+            ...NativeBackendDescriptor,
+            getEnabledModelEntries: () =>
+              stateWithSonnet.model!.availableModels.map((model) => ({
+                baseModelId: model.baseModelId,
+                name: model.name,
+                credentialState: "ok" as const,
+              })),
+          }),
         });
         await session.ready;
         expect(mock.setSessionModel).toHaveBeenCalledWith({
@@ -3709,7 +3728,7 @@ describe("AgentSession", () => {
     describe("cancel()", () => {
       it("https://github.com/Brevilabs/obsidian-copilot-private/issues/788 stops only the agent's reply, leaving running subagents and background commands to the running-tasks list", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { getDescriptor: () => ClaudeBackendDescriptor });
+        const session = makeSession(mock, { getDescriptor: () => NativeBackendDescriptor });
         const stopTask = jest.fn(async ({ taskId }: { taskId: string }) => {
           mock.emitUpdate({ sessionUpdate: "task_ended", taskId, status: "stopped" });
         });
@@ -4616,7 +4635,7 @@ describe("AgentSession", () => {
         const mock = makeMockBackend();
 
         expect(
-          makeSession(mock, { getDescriptor: () => ClaudeBackendDescriptor }).canWithdrawPrompts()
+          makeSession(mock, { getDescriptor: () => NativeBackendDescriptor }).canWithdrawPrompts()
         ).toBe(true);
         expect(
           makeSession(mock, { getDescriptor: makeWireOnlyDescriptor }).canWithdrawPrompts()
@@ -4629,7 +4648,7 @@ describe("AgentSession", () => {
         const mock = makeMockBackend();
 
         expect(
-          makeSession(mock, { getDescriptor: () => ClaudeBackendDescriptor }).canStopTasks()
+          makeSession(mock, { getDescriptor: () => NativeBackendDescriptor }).canStopTasks()
         ).toBe(true);
         expect(makeSession(mock, { getDescriptor: makeWireOnlyDescriptor }).canStopTasks()).toBe(
           false
@@ -4640,7 +4659,7 @@ describe("AgentSession", () => {
     describe("stopTask()", () => {
       it("https://github.com/Brevilabs/obsidian-copilot-private/issues/748 asks the backend to stop that task only, and the task ends when the backend reports it stopped", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { getDescriptor: () => ClaudeBackendDescriptor });
+        const session = makeSession(mock, { getDescriptor: () => NativeBackendDescriptor });
         for (const taskId of ["task-1", "task-2"]) {
           mock.emitUpdate({
             sessionUpdate: "task_started",

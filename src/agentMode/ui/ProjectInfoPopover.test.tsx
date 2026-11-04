@@ -31,7 +31,6 @@ jest.mock("@/agentMode/ui/AgentProjectRowActions", () => ({
 const openAgentsFile = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/instructions/agentsFile", () => ({
   openAgentsFile: (...args: unknown[]) => openAgentsFile(...args),
-  isClaudeImportOnly: jest.requireActual("@/instructions/agentsFile").isClaudeImportOnly,
 }));
 const moveProjectPromptToAgentsFile = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/projects/moveProjectPrompt", () => ({
@@ -111,10 +110,10 @@ describe("ProjectInfoPopover", () => {
     expect(screen.getByText("step C")).toBeTruthy();
   });
 
-  it("hides a CLAUDE.md that is only Scribe's @AGENTS.md wiring", async () => {
+  it("lists an old instruction file as an ordinary project file without interpreting its contents", async () => {
     renderPopover(null, ["CLAUDE.md", "draft.md"], { "CLAUDE.md": "@AGENTS.md\n" });
     expect(await screen.findByText("draft.md")).toBeTruthy();
-    expect(screen.queryByText("CLAUDE.md")).toBeNull();
+    expect(screen.getByText("CLAUDE.md")).toBeTruthy();
   });
 
   it("lists a CLAUDE.md that carries the user's own rules", async () => {

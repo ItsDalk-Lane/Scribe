@@ -4,14 +4,14 @@ import type { CopilotSettings } from "@/settings/model";
 describe("agentEnablement", () => {
   describe("isAgentBackendEnabled()", () => {
     it("keeps agents enabled when older settings have no explicit choice", () => {
-      expect(isAgentBackendEnabled({ agentMode: {} } as CopilotSettings, "claude")).toBe(true);
+      expect(isAgentBackendEnabled({ agentMode: {} } as CopilotSettings, "native")).toBe(true);
     });
 
     it.each([true, false])("returns the saved enabled choice %s", (enabled) => {
       const settings = {
-        agentMode: { backends: { claude: { enabled } } },
+        agentMode: { backends: { native: { enabled } } },
       } as CopilotSettings;
-      expect(isAgentBackendEnabled(settings, "claude")).toBe(enabled);
+      expect(isAgentBackendEnabled(settings, "native")).toBe(enabled);
     });
   });
 });

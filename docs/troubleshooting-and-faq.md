@@ -1,6 +1,6 @@
 # Troubleshooting Scribe V4
 
-Start in **Settings → Scribe → 代理** and check the status beside Claude.
+Start in **Settings → Scribe → 代理** and 检查 Scribe 的模型与权限状态。
 
 ## Scribe is starting or did not start
 
@@ -16,15 +16,11 @@ Scribe ran into an error while loading and stayed off for this session. To see t
 
 ## Agent Chat setup
 
-### Claude shows “Update required,” cannot be found, or is signed out
+### 没有可用模型或无法开始聊天
 
-- **Update required:** update Claude Code to the minimum version shown by Scribe, then run **Configure Claude → Auto-detect**. For a custom path, update that installation or choose **Clear**.
-- **Not found:** run the displayed install command, then choose **Auto-detect**, or enter the absolute path to `claude`.
-- **Signed out:** choose **Sign in**. If **Open sign-in page** appears, use it to finish authentication.
+先在 **快捷操作 → 模型** 配置供应商及模型，再到 **代理 → Scribe** 启用聊天模型。检查密钥、地址、服务可达性及供应商额度。原生代理无需安装或登录外部程序。
 
-Scribe uses your Claude Code login; there is no API key to paste here.
-
-See [Getting Started](getting-started.md) for the complete setup flow and [Windows setup for Agent Chat](agent-mode-windows-setup.md) for Windows-specific commands.
+参见 [Getting Started](getting-started.md) 和 [Models](models-and-parameters.md)。
 
 ## Models and API keys
 
@@ -35,7 +31,7 @@ Open **快捷操作 → 工具配置**, enable a model, and choose **Default qui
 - **Add API key:** edit that provider under **模型**.
 - **Not offered by agent:** the active agent no longer advertises that saved model. Select one it currently offers.
 
-Claude models come from its Claude Code account; BYOK serves Quick tools. See [Models](models-and-parameters.md) and [Providers](llm-providers.md).
+Agent Chat 和快捷工具共用原有自备模型连接。 See [Models](models-and-parameters.md) and [Providers](llm-providers.md).
 
 ### Keys disappeared, or “API Key Storage” says “Unavailable”
 
@@ -53,15 +49,13 @@ Do not delete `data.json`: it contains the vault's Keychain namespace. Use the i
 
 Look for **Permission required** or **Question from agent**. Review the inputs or diff, then choose an offered option. Another session tab may show an attention indicator.
 
-Permission choices depend on the active agent. **Stop** cancels the current turn and Claude's running subagents, including their unanswered requests. Review every persistent permission carefully.
+权限卡只处理对应操作。**Stop** 取消当前回复和其尚未回答的请求；后台任务从任务列表分别停止。
 
 ### A skill or skill command is missing
 
-In **Settings → Scribe → Skills**, confirm the skill has a valid `SKILL.md` and is enabled for your agent. Toggle the agent off and on to recreate its link.
+在 **Settings → Scribe → Skills** 确认技能可读取并已为 Scribe 启用。仅手动调用的技能需要从 `/` 菜单选择；项目技能只在对应项目的聊天中出现。命令还需要处于启用状态，允许显示于 `/` 菜单的条目才会出现在下拉列表。
 
-On Windows, **Turn on Windows Developer Mode to share skills with your agents** means you must enable **Settings → Privacy & security → For developers → Developer Mode** (or run Obsidian as administrator), then toggle again. The same repair works when vault sync replaces a link.
-
-Learn more in [Skills with Claude](agent-mode-and-tools.md#skills-with-claude).
+参见 [Skills](agent-mode-and-tools.md#skills)。
 
 ## Quick Ask does not open or has no model
 
@@ -130,7 +124,7 @@ Logs and screenshots can contain prompts, note contents, paths, and tool inputs.
 
 ## What works on mobile?
 
-Agent Chat, including Claude, Projects, and Skill execution, is desktop-only. On mobile, use Quick Ask, Quick Command, and saved editor commands. Agent settings display **Agent settings are available on desktop.**
+Agent Chat, Projects, and Skill execution are desktop-only. On mobile, use Quick Ask, Quick Command, and saved editor commands. Agent settings display **Agent settings are available on desktop.**
 
 ## Related
 

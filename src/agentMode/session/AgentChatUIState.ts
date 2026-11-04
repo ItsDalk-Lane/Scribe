@@ -215,10 +215,17 @@ export class AgentChatUIState implements AgentChatBackend {
   async resolvePlanProposal(
     proposalId: string,
     decision: PlanDecisionAction,
-    feedbackText?: string
+    feedbackText?: string,
+    expectedRevision?: number
   ): Promise<void> {
     const plan = this.session.getCurrentPlan();
-    if (!plan || plan.id !== proposalId || plan.decision !== "pending") return;
+    if (
+      !plan ||
+      plan.id !== proposalId ||
+      plan.decision !== "pending" ||
+      (expectedRevision !== undefined && plan.revision !== expectedRevision)
+    )
+      return;
     if (!plan.permissionGated || !plan.pendingToolCallId) {
       logWarn("[AgentChatUIState] non-gated plan card has no resolution path");
       return;

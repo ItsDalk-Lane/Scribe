@@ -91,7 +91,7 @@ import { SessionHistoryReplay } from "@/agentMode/session/SessionHistoryReplay";
 import { InteractiveRequests } from "@/agentMode/session/InteractiveRequests";
 import { UsageTracker } from "@/agentMode/session/UsageTracker";
 import { replayPersistedMode } from "@/agentMode/session/replayPersistedMode";
-import type { FeedbackDraft, FeedbackOfferResult } from "@/agentMode/session/copilotMcpServer";
+import type { FeedbackDraft, FeedbackOfferResult } from "@/agentMode/session/scribeToolDefinitions";
 import type {
   FeedbackEvidence,
   FeedbackOffer,
@@ -401,6 +401,7 @@ export class AgentSession {
     try {
       const resp = await backend.newSession({
         cwd,
+        ...(defaultModelSelection ? { modelId: defaultModelSelection.baseModelId } : {}),
         projectId: this.projectId,
         mcpServers: opts.mcpServers,
       });

@@ -171,7 +171,10 @@ export class InteractiveRequests {
     this.currentPlan = {
       ...prev,
       ...next,
-      revision: bodyChanged ? prev.revision + 1 : prev.revision,
+      revision:
+        bodyChanged || prev.pendingToolCallId !== next.pendingToolCallId
+          ? prev.revision + 1
+          : prev.revision,
       decision: "pending",
     };
     this.deps.notifyPlanChanged();

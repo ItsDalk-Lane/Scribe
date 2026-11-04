@@ -47,20 +47,33 @@ export function hasPersistedSecrets(rawData: Record<string, unknown>): boolean {
     }
   }
 
-  return false;
+  return hasNestedSecrets(rawData.agentMode);
 }
 
-function stripEnvOverrides(
-  env: Readonly<Record<string, string>>
-): Readonly<Record<string, string>> {
-  let changed = false;
-  const out = { ...env };
-  for (const key of Object.keys(out)) {
-    if (!isSensitiveKey(key) || out[key] === "") continue;
-    out[key] = "";
-    changed = true;
+function hasNestedSecrets(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(hasNestedSecrets);
+  return Object.entries(value).some(
+    ([key, nested]) =>
+      (isSensitiveKey(key) && typeof nested === "string" && nested.length > 0) ||
+      hasNestedSecrets(nested)
+  );
+}
+
+function stripNestedSecrets(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    const result = value.map(stripNestedSecrets);
+    return result.some((nested, index) => nested !== value[index]) ? result : value;
   }
-  return changed ? out : env;
+  const entries = Object.entries(value);
+  const result = entries.map(([key, nested]) => [
+    key,
+    isSensitiveKey(key) ? "" : stripNestedSecrets(nested),
+  ]);
+  return result.some((entry, index) => entry[1] !== entries[index][1])
+    ? Object.fromEntries(result)
+    : value;
 }
 
 export function stripKeychainFields(settings: CopilotSettings): CopilotSettings {
@@ -75,39 +88,7 @@ export function stripKeychainFields(settings: CopilotSettings): CopilotSettings 
     out.activeModels = stripModelSecrets(settings.activeModels ?? []);
   }
 
-  const agentMode = settings.agentMode;
-  if (agentMode) {
-    const claude = agentMode.backends?.claude;
-    const flatEnv = claude?.envOverrides;
-    let nextBackends = agentMode.backends;
-    if (flatEnv) {
-      const stripped = stripEnvOverrides(flatEnv);
-      if (stripped !== flatEnv)
-        nextBackends = { ...agentMode.backends, claude: { ...claude, envOverrides: stripped } };
-    }
-
-    let nextProfiles = agentMode.deviceProfiles;
-    if (agentMode.deviceProfiles) {
-      let changed = false;
-      const entries = Object.entries(agentMode.deviceProfiles).map(([id, profile]) => {
-        const env = profile.claude?.envOverrides;
-        if (!env) return [id, profile] as const;
-        const stripped = stripEnvOverrides(env);
-        if (stripped === env) return [id, profile] as const;
-        changed = true;
-        return [id, { ...profile, claude: { ...profile.claude, envOverrides: stripped } }] as const;
-      });
-      if (changed) nextProfiles = Object.fromEntries(entries);
-    }
-
-    if (nextBackends !== agentMode.backends || nextProfiles !== agentMode.deviceProfiles) {
-      out.agentMode = {
-        ...agentMode,
-        backends: nextBackends,
-        ...(nextProfiles ? { deviceProfiles: nextProfiles } : {}),
-      };
-    }
-  }
+  if (settings.agentMode) out.agentMode = stripNestedSecrets(settings.agentMode);
 
   return out as unknown as CopilotSettings;
 }
@@ -138,6 +119,17 @@ export function cleanupLegacyFields(settings: CopilotSettings): CopilotSettings 
   if (out.agentMode && typeof out.agentMode === "object" && !Array.isArray(out.agentMode)) {
     const agentMode = { ...(out.agentMode as Record<string, unknown>) };
     delete agentMode.mcpServers;
+    delete agentMode.claudeCli;
+    delete agentMode.deviceProfiles;
+    delete agentMode.byok;
+    if (
+      agentMode.backends &&
+      typeof agentMode.backends === "object" &&
+      !Array.isArray(agentMode.backends)
+    ) {
+      const { native } = agentMode.backends as Record<string, unknown>;
+      agentMode.backends = native ? { native } : {};
+    }
     out.agentMode = agentMode;
   }
   return out as unknown as CopilotSettings;

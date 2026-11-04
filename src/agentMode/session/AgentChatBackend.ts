@@ -50,7 +50,8 @@ export interface AgentChatBackend {
   resolvePlanProposal(
     proposalId: string,
     decision: PlanDecisionAction,
-    feedbackText?: string
+    feedbackText?: string,
+    expectedRevision?: number
   ): Promise<void>;
 
   getCurrentPlan(): CurrentPlan | null;

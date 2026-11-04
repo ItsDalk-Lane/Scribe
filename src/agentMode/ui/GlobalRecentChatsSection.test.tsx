@@ -791,9 +791,9 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.getByText("Saved chat")).toBeTruthy();
     });
 
-    it.each([["claude", "Claude Code"]])(
-      "https://github.com/logancyang/obsidian-copilot/issues/2888 says in the Delete chat dialog that the %s agent may keep its own copy",
-      async (backendId, agent) => {
+    it.each([["native"]])(
+      "https://github.com/logancyang/obsidian-copilot/issues/2888 asks to delete the %s chat from Scribe",
+      async (backendId) => {
         renderSection({
           items: [makeItem("chats/agent__a.md", { title: "Agent chat", backendId })],
         });
@@ -802,9 +802,7 @@ describe("GlobalRecentChatsSection", () => {
         act(() => chooseMenuItem(menu, "Delete"));
 
         expect(
-          within(lastModal().contentEl).getByText(
-            `Delete this chat from Scribe? ${agent} may keep its own copy of this conversation on this computer.`
-          )
+          within(lastModal().contentEl).getByText("Delete this chat from Scribe?")
         ).toBeTruthy();
       }
     );

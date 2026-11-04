@@ -18,6 +18,71 @@ const model: Model<"scribe-http"> = {
 
 describe("piHttpStream", () => {
   describe("streamHttpCompletion()", () => {
+    it("gives separate calls unique IDs when the endpoint omits IDs in simultaneous replies", async () => {
+      const clock = jest.spyOn(Date, "now").mockReturnValue(1);
+      try {
+        const reply = async () =>
+          streamHttpCompletion(model, undefined, async function* () {
+            yield { toolCall: { index: 0, name: "read_note", arguments: {} } };
+            yield { finishReason: "toolUse" };
+          }).result();
+        const [first, second] = await Promise.all([reply(), reply()]);
+        const firstCall = first.content[0];
+        const secondCall = second.content[0];
+        expect(firstCall.type).toBe("toolCall");
+        expect(secondCall.type).toBe("toolCall");
+        if (firstCall.type !== "toolCall" || secondCall.type !== "toolCall")
+          throw new Error("Expected calls");
+        expect(firstCall.id).not.toBe(secondCall.id);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
+    it("keeps split arguments unexecutable until the complete call is validated", async () => {
+      let release!: () => void;
+      const remaining = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const source = streamHttpCompletion(model, undefined, async function* () {
+        yield { toolCall: { index: 0, id: "call-one", name: "read_note", arguments: '{"path":' } };
+        await remaining;
+        yield { toolCall: { index: 0, arguments: '"note.md"}' } };
+        yield { finishReason: "toolUse" };
+      });
+      const iterator = source[Symbol.asyncIterator]();
+      expect((await iterator.next()).value?.type).toBe("start");
+      expect((await iterator.next()).value?.type).toBe("toolcall_start");
+      const delta: unknown = (await iterator.next()).value;
+      expect(delta).toMatchObject({
+        type: "toolcall_delta",
+        partial: { content: [{ arguments: {} }] },
+      });
+      release();
+      expect(await source.result()).toMatchObject({
+        stopReason: "toolUse",
+        content: [{ arguments: { path: "note.md" } }],
+      });
+    });
+
+    it("marks malformed complete arguments as invalid instead of executing a repaired partial prefix", async () => {
+      const source = streamHttpCompletion(model, undefined, async function* () {
+        yield {
+          toolCall: {
+            index: 0,
+            id: "call-one",
+            name: "read_note",
+            arguments: '{"path":"unfinished',
+          },
+        };
+        yield { finishReason: "toolUse" };
+      });
+      const result = await source.result();
+      expect(result).toMatchObject({ content: [{ arguments: {} }] });
+      const call = result.content[0];
+      expect(typeof (call.type === "toolCall" ? call.argumentsError : undefined)).toBe("string");
+    });
+
     it(`emits pi-ai deltas and a single terminal snapshot with reasoning and usage (${issue})`, async () => {
       const source = streamHttpCompletion(model, undefined, async function* () {
         yield { thinking: "Reason" };

@@ -12,7 +12,7 @@ const noop = (): void => {};
 
 const ISSUES: readonly SkillLoadIssue[] = [
   {
-    location: ".claude/skills/daily-note-review/SKILL.md",
+    location: ".scribe/skills/daily-note-review/SKILL.md",
     reason: 'The description contains ": " and must be quoted.',
     offendingText: "description: Use this skill for: reviewing daily notes",
     revealLabel: "Show in folder",
@@ -71,7 +71,7 @@ export const DetailsOverflow: StoryObj<SkillLoadIssuesProps> = {
     <SkillLoadIssuesModalContent
       issues={Array.from({ length: 12 }, (_, index) => ({
         ...ISSUES[index % ISSUES.length],
-        location: `.claude/skills/repair-${index + 1}/SKILL.md`,
+        location: `.scribe/skills/repair-${index + 1}/SKILL.md`,
       }))}
       onFixAll={noop}
       onClose={noop}

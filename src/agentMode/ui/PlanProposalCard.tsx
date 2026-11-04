@@ -50,7 +50,7 @@ export const PlanProposalCard: React.FC<PlanProposalCardProps> = ({ plan, app, c
     if (busy) return;
     setBusy(true);
     try {
-      await chatBackend.resolvePlanProposal(plan.id, decision, text);
+      await chatBackend.resolvePlanProposal(plan.id, decision, text, plan.revision);
       if (decision === "approve") closePlanPreview(app, plan.id);
     } finally {
       setBusy(false);

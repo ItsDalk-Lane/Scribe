@@ -11,7 +11,7 @@ import {
 import { settingsStore } from "@/settings/model";
 import { useAtomValue } from "jotai";
 import React from "react";
-import { partitionCandidates, toRow } from "./configuredModelGrouping";
+import { partitionCandidates, partitionChatCandidates, toRow } from "./configuredModelGrouping";
 
 interface ConfiguredModelEnableListProps {
   descriptor: BackendDescriptor;
@@ -30,32 +30,46 @@ export const ConfiguredModelEnableList: React.FC<ConfiguredModelEnableListProps>
   const backends = useAtomValue(backendsAtom, { store: settingsStore });
 
   const enabledIds = React.useMemo(() => {
-    const list = backends[agentType]?.enabledModels ?? EMPTY_ENABLED;
+    const list =
+      backends[agentType]?.enabledModels ??
+      (agentType === "native" ? backends.chat?.enabledModels : undefined) ??
+      EMPTY_ENABLED;
     return new Set(list);
   }, [backends, agentType]);
 
   const partition = React.useMemo(
-    () => partitionCandidates(configuredModels, providers, enabledIds, agentType),
+    () =>
+      agentType === "native"
+        ? partitionChatCandidates(configuredModels, providers, enabledIds)
+        : partitionCandidates(configuredModels, providers, enabledIds, agentType),
     [configuredModels, providers, enabledIds, agentType]
   );
 
-  const rows = React.useMemo(() => partition.agentOriginCandidates.map(toRow), [partition]);
+  const rows = React.useMemo(
+    () =>
+      (agentType === "native" ? partition.byokCandidates : partition.agentOriginCandidates).map(
+        toRow
+      ),
+    [partition, agentType]
+  );
 
   const handleToggle = React.useCallback(
     (id: string, enabled: boolean) => {
-      const run = enabled
-        ? api.backendConfigRegistry.enableModel(agentType, id)
-        : api.backendConfigRegistry.disableModel(agentType, id);
+      const run =
+        agentType === "native"
+          ? api.backendConfigRegistry.setEnabledModels(
+              "native",
+              enabled
+                ? [...new Set([...enabledIds, id])]
+                : [...enabledIds].filter((existing) => existing !== id)
+            )
+          : enabled
+            ? api.backendConfigRegistry.enableModel(agentType, id)
+            : api.backendConfigRegistry.disableModel(agentType, id);
       run.catch((err) => logError(`[AgentMode] toggle model ${id} for ${agentType} failed`, err));
     },
-    [api, agentType]
+    [api, agentType, enabledIds]
   );
 
-  return (
-    <AgentModelList
-      rows={rows}
-      onToggle={handleToggle}
-      agentName={descriptor.id === "claude" ? "Claude Code" : descriptor.displayName}
-    />
-  );
+  return <AgentModelList rows={rows} onToggle={handleToggle} agentName={descriptor.displayName} />;
 };

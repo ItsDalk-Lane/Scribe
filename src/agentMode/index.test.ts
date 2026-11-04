@@ -3,7 +3,7 @@ import type CopilotPlugin from "@/main";
 import type { CopilotSettings } from "@/settings/model";
 import type { InstallState } from "./session/types";
 import type { BuiltinSkillRuntime } from "./skills/SkillManager";
-import { createAgentSessionManager, isCopilotToolOn } from "./index";
+import { createAgentSessionManager } from "./index";
 import { AgentSessionManager } from "./session/AgentSessionManager";
 import { reconcileBuiltinSkills } from "./skills/builtin/reconcileBuiltinSkills";
 import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
@@ -69,7 +69,6 @@ jest.mock("@/components/ui/ModelEnableList", () => ({}));
 jest.mock("./ui/PlanPreviewView", () => ({}));
 jest.mock("./ui/ReportIssueModal", () => ({}));
 jest.mock("./session/debugSink", () => ({}));
-jest.mock("./backends/shared/ui/AgentBackendHeader", () => ({}));
 jest.mock("./session/useBackendAuthState", () => ({}));
 
 const ISSUE = "https://github.com/logancyang/obsidian-copilot/issues/3022";
@@ -81,9 +80,9 @@ let mockRuntime: BuiltinSkillRuntime;
 let mockState: InstallState;
 let mockInstallListener: () => void;
 const mockDescriptor = {
-  id: "claude",
+  id: "native",
   onPluginLoad: jest.fn(async (_plugin: CopilotPlugin) => {}),
-  skillsProjectDir: ".claude/skills",
+  skillsProjectDir: ".native/skills",
   getInstallState: () => mockState,
   subscribeInstallState: (_plugin: unknown, listener: () => void) => {
     mockInstallListener = listener;
@@ -134,7 +133,7 @@ describe("agentMode", () => {
         agentMode: { skills: {}, backends: {} },
         providers: {},
         configuredModels: [],
-        backends: { claude: { enabledModels: ["claude-haiku"] } },
+        backends: { native: { enabledModels: ["native-haiku"] } },
       } as unknown as CopilotSettings;
       plugin = {} as CopilotPlugin;
     });
@@ -144,34 +143,34 @@ describe("agentMode", () => {
     });
 
     it("skips startup model preloading when the agent is disabled", () => {
-      mockSettings.agentMode.backends.claude = { enabled: false };
+      mockSettings.agentMode.backends.native = { enabled: false };
       createAgentSessionManager({} as App, plugin);
       expect(mockManager.registerPreload).not.toHaveBeenCalled();
       expect(mockManager.preloadModels).not.toHaveBeenCalled();
     });
 
-    it(`waits for initial skill reconciliation before preloading Claude ${ISSUE}`, async () => {
+    it(`waits for initial skill reconciliation before preloading Scribe ${ISSUE}`, async () => {
       const gate = deferred();
       reconcile.mockReturnValue(gate.promise);
       expect(createAgentSessionManager({} as App, plugin)).toBe(mockManager);
       expect(reconcile).toHaveBeenCalledWith(
-        expect.objectContaining({ availableAgents: ["claude"], registeredAgents: ["claude"] })
+        expect.objectContaining({ availableAgents: ["native"], registeredAgents: ["native"] })
       );
       expect(mockManager.preloadModels).not.toHaveBeenCalled();
       gate.resolve();
       await mockManager.registerPreload.mock.calls[0][1];
       expect(mockManager.preloadModels).toHaveBeenCalledTimes(1);
-      expect(mockManager.preloadModels).toHaveBeenCalledWith("claude");
+      expect(mockManager.preloadModels).toHaveBeenCalledWith("native");
     });
 
-    it("waits for Claude installation checks before preloading its models https://github.com/Brevilabs/obsidian-copilot-private/issues/530", async () => {
+    it("waits for Scribe installation checks before preloading its models https://github.com/Brevilabs/obsidian-copilot-private/issues/530", async () => {
       const check = deferred();
       mockDescriptor.onPluginLoad.mockReturnValueOnce(check.promise);
       createAgentSessionManager({} as App, plugin);
       expect(mockManager.preloadModels).not.toHaveBeenCalled();
       check.resolve();
       await mockManager.registerPreload.mock.calls[0][1];
-      expect(mockManager.preloadModels).toHaveBeenCalledWith("claude");
+      expect(mockManager.preloadModels).toHaveBeenCalledWith("native");
     });
 
     it("does not refresh installation writes while startup owns the installation check https://github.com/Brevilabs/obsidian-copilot-private/issues/530", async () => {
@@ -184,53 +183,53 @@ describe("agentMode", () => {
       expect(mockManager.onInstallStateChanged).not.toHaveBeenCalled();
     });
 
-    it("preloads Claude when its startup check discovers a ready installation https://github.com/Brevilabs/obsidian-copilot-private/issues/530", async () => {
+    it("preloads Scribe when its startup check discovers a ready installation https://github.com/Brevilabs/obsidian-copilot-private/issues/530", async () => {
       mockState = { kind: "checking", source: "custom" };
       mockDescriptor.onPluginLoad.mockImplementationOnce(async () => {
         mockState = { kind: "ready", source: "custom" };
       });
       await startManager();
-      expect(mockManager.preloadModels).toHaveBeenCalledWith("claude");
+      expect(mockManager.preloadModels).toHaveBeenCalledWith("native");
     });
 
     it.each(["reported", "rejected"])(
-      `still preloads Claude after a %s initial refresh failure ${ISSUE}`,
+      `still preloads Scribe after a %s initial refresh failure ${ISSUE}`,
       async (failure) => {
         if (failure === "reported") mockRefresh.mockResolvedValueOnce({ ok: false });
         else mockRefresh.mockRejectedValueOnce(new Error("Disk unavailable"));
         await startManager();
-        expect(mockManager.preloadModels).toHaveBeenCalledWith("claude");
+        expect(mockManager.preloadModels).toHaveBeenCalledWith("native");
       }
     );
 
-    it(`does not preload models while Claude is unavailable ${ISSUE}`, async () => {
+    it(`does not preload models while Scribe is unavailable ${ISSUE}`, async () => {
       mockState = { kind: "absent" };
       await startManager();
       expect(mockManager.preloadModels).not.toHaveBeenCalled();
       expect(reconcile).toHaveBeenCalledWith(expect.objectContaining({ availableAgents: [] }));
     });
 
-    it("refreshes skills before Claude starts when Obsidian's command line interface toggle changes, and still starts if the refresh fails https://github.com/Brevilabs/obsidian-copilot-private/issues/726", async () => {
+    it("refreshes skills before Scribe starts when Obsidian's command line interface toggle changes, and still starts if the refresh fails https://github.com/Brevilabs/obsidian-copilot-private/issues/726", async () => {
       await startManager();
       const { beforeBackendStart } = jest.mocked(AgentSessionManager).mock.calls[0][2];
       const passes = reconcile.mock.calls.length;
 
-      await beforeBackendStart!("claude");
+      await beforeBackendStart!("native");
       expect(reconcile).toHaveBeenCalledTimes(passes);
 
       jest.mocked(isObsidianCliEnabled).mockReturnValue(true);
-      await beforeBackendStart!("claude");
+      await beforeBackendStart!("native");
       expect(reconcile).toHaveBeenCalledTimes(passes + 1);
 
-      await beforeBackendStart!("claude");
+      await beforeBackendStart!("native");
       expect(reconcile).toHaveBeenCalledTimes(passes + 1);
 
       mockRefresh.mockRejectedValueOnce(new Error("Disk unavailable"));
       jest.mocked(isObsidianCliEnabled).mockReturnValue(false);
-      await expect(beforeBackendStart!("claude")).resolves.toBeUndefined();
+      await expect(beforeBackendStart!("native")).resolves.toBeUndefined();
     });
 
-    it(`settles skills before refreshing a newly available Claude installation ${ISSUE}`, async () => {
+    it(`settles skills before refreshing a newly available Scribe installation ${ISSUE}`, async () => {
       mockState = { kind: "absent" };
       await startManager();
       const gate = deferred();
@@ -240,15 +239,15 @@ describe("agentMode", () => {
       mockState = { kind: "ready", source: "custom" };
       mockInstallListener();
       expect(reconcile).toHaveBeenLastCalledWith(
-        expect.objectContaining({ availableAgents: ["claude"] })
+        expect.objectContaining({ availableAgents: ["native"] })
       );
       expect(mockManager.onInstallStateChanged).not.toHaveBeenCalled();
       gate.resolve();
       await handled.promise;
-      expect(mockManager.onInstallStateChanged).toHaveBeenCalledWith("claude");
+      expect(mockManager.onInstallStateChanged).toHaveBeenCalledWith("native");
     });
 
-    it(`refreshes built-in skills after their preferences change without restarting Claude ${RELOAD_ISSUE}`, async () => {
+    it(`refreshes built-in skills after their preferences change without restarting Scribe ${RELOAD_ISSUE}`, async () => {
       await startManager();
       const refreshed = deferred();
       mockRefresh.mockImplementationOnce(async () => refreshed.resolve());
@@ -269,7 +268,7 @@ describe("agentMode", () => {
       expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
     });
 
-    it(`refreshes skills after the shared folder changes without restarting Claude ${RELOAD_ISSUE}`, async () => {
+    it(`refreshes skills after the shared folder changes without restarting Scribe ${RELOAD_ISSUE}`, async () => {
       await startManager();
       const refreshed = deferred();
       mockRefresh.mockImplementationOnce(async () => refreshed.resolve());
@@ -281,37 +280,19 @@ describe("agentMode", () => {
       expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
     });
 
-    it(`offers a Claude reload when its environment changes ${RELOAD_ISSUE}`, async () => {
-      await startManager();
-
-      emitSettingsChange({
-        ...mockSettings,
-        agentMode: {
-          ...mockSettings.agentMode,
-          backends: { claude: { envOverrides: { CLAUDE_CONFIG_DIR: "/test-profile" } } },
-        },
-      });
-
-      expect(mockManager.noteSpawnConfigChanged).toHaveBeenCalledTimes(1);
-      expect(mockManager.noteSpawnConfigChanged).toHaveBeenCalledWith(
-        "claude",
-        "env overrides changed"
-      );
-    });
-
-    it(`does not restart Claude for model lists or feedback-card preferences ${RELOAD_ISSUE}`, async () => {
+    it(`does not restart Scribe for model lists or feedback-card preferences ${RELOAD_ISSUE}`, async () => {
       await startManager();
 
       emitSettingsChange({
         ...mockSettings,
         agentMode: { ...mockSettings.agentMode, offerFeedbackCards: true },
-        backends: { ...mockSettings.backends, claude: { enabledModels: [] } },
+        backends: { ...mockSettings.backends, native: { enabledModels: [] } },
       });
 
       expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
     });
 
-    it(`retains Claude's available skills while rechecking a previously ready installation ${ISSUE}`, async () => {
+    it(`retains Scribe's available skills while rechecking a previously ready installation ${ISSUE}`, async () => {
       await startManager();
       mockState = { kind: "checking", source: "custom" };
       const handled = deferred();
@@ -319,51 +300,8 @@ describe("agentMode", () => {
       mockInstallListener();
       await handled.promise;
       expect(reconcile).toHaveBeenLastCalledWith(
-        expect.objectContaining({ availableAgents: ["claude"] })
+        expect.objectContaining({ availableAgents: ["native"] })
       );
     });
-  });
-
-  describe("isCopilotToolOn()", () => {
-    const appWith = (excalidraw: unknown): App =>
-      ({
-        plugins: {
-          getPlugin: (id: string) => (id === "obsidian-excalidraw-plugin" ? excalidraw : null),
-        },
-      }) as unknown as App;
-    const noExcalidraw = appWith(null);
-    const off = (update: Partial<CopilotSettings>): CopilotSettings =>
-      ({
-        agentMode: { offerFeedbackCards: false },
-        ...update,
-      }) as CopilotSettings;
-
-    it("enables regular Copilot tools independently of optional integrations", () => {
-      expect(isCopilotToolOn("read_note", off({}), noExcalidraw)).toBe(true);
-    });
-
-    it("follows the feedback-card setting for send_feedback", () => {
-      expect(
-        isCopilotToolOn(
-          "send_feedback",
-          off({ agentMode: { offerFeedbackCards: true } as CopilotSettings["agentMode"] }),
-          noExcalidraw
-        )
-      ).toBe(true);
-      expect(isCopilotToolOn("send_feedback", off({}), noExcalidraw)).toBe(false);
-    });
-
-    it.each([
-      ["Excalidraw 2.29 or later is enabled", { ea: { executeCLI: jest.fn() } }, true],
-      ["an Excalidraw older than 2.29 has no executeCLI", { ea: {} }, false],
-      ["Excalidraw is not enabled", null, false],
-    ])(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/787 offers the Excalidraw tools when %s",
-      (_state, excalidraw, on) => {
-        for (const name of ["excalidraw_read", "excalidraw_render", "excalidraw_write"]) {
-          expect(isCopilotToolOn(name, off({}), appWith(excalidraw))).toBe(on);
-        }
-      }
-    );
   });
 });

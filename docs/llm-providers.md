@@ -1,16 +1,13 @@
 # Model Sources and BYOK
 
-Scribe V4 can get models from your own provider key or local endpoint, or an agent account you already use. These options are separate.
-Adding a key does not change the models supplied by Claude Code.
-
-Settings show where each source sends your requests. Hover the small icon next to a provider name: a desktop for a server on this computer or your local network, and a cloud for any other service. The Claude tab in Agent settings shows the same icon next to the agent name, for example "Amazon Bedrock" when your Claude Code settings turn on Bedrock.
+Scribe 的 Agent Chat 和快捷工具共用现有的供应商、密钥及连接地址。你可以连接云端模型、兼容网关或本机服务，费用由对应模型服务收取。
 
 ## Choose a model source
 
-| Model source                        | Quick tools | Agent Chat |
-| ----------------------------------- | ----------- | ---------- |
-| **Your API key or endpoint (BYOK)** | Yes         | No         |
-| **Claude Code account**             | No          | Claude     |
+| 模型来源                   | Quick tools | Agent Chat |
+| -------------------------- | ----------- | ---------- |
+| 自备密钥或连接地址（BYOK） | 支持        | 支持       |
+| 本机模型服务               | 支持        | 支持       |
 
 ## Bring your own key (BYOK)
 
@@ -20,8 +17,7 @@ with that provider.
 
 BYOK uses pi-ai as its internal connection engine. Quick Ask, Quick Command,
 provider settings, model selection, saved configuration, and key storage stay
-the same; existing providers do not need to be recreated. Agent Chat and Claude
-Code authentication are separate and unchanged.
+the same; existing providers do not need to be recreated. Agent Chat 现在也沿用这些连接设置。
 
 1. Open **Settings → Scribe → 模型**.
 2. Click **Add a provider**.
@@ -174,17 +170,11 @@ check **CORS compatibility**, which is enabled by default for new providers.
 Responses then appear after completion. For LM Studio, enabling CORS in the local
 server can let you turn compatibility off and keep word-by-word streaming.
 
-## Claude Code account
+## Agent Chat model access
 
-Claude is the Agent Chat backend and uses its own account:
+Agent Chat 使用你在 **代理 → Scribe** 启用的自备模型。模型目录和纯文字聊天测试不能证明工具可用：只有模型确实返回结构化工具调用，并在收到对应工具结果后继续回复，才完成一次工具交互。端点拒绝工具时会保留错误；真实服务的模型访问权限和额度仍需你自己的账号验证。
 
-- **Claude** inherits authentication and models from the Claude Code CLI. Its
-  usage follows your Claude Code account or CLI environment.
-
-Scribe discovers the models reported by Claude Code and lets you enable them under **代理 → Claude Code**. Those models stay inside Agent Chat; they do not become Quick tools models.
-
-An OpenAI API key is different from a ChatGPT subscription, just as an
-Anthropic API key is different from a Claude Code subscription. Use **模型** for Quick tools API access and the Claude setup for Claude Code account access.
+聊天模型测试会消耗所选供应商的用量。Scribe 不使用外部代理的登录或订阅账户，也不另存一份 Agent 专用密钥。
 
 ## Where keys are stored
 

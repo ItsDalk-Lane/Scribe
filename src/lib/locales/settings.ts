@@ -1,4 +1,27 @@
 export const settingsTranslations: Record<string, string> = {
+  "Your configured chat models are listed here. Choose the default model below.":
+    "这里列出已配置的聊天模型。可在下方选择默认模型。",
+  "No chat models configured. Add one in model settings.":
+    "尚未配置聊天模型，请先在模型设置中添加。",
+
+  "Configure a chat model to use this skill.": "请先配置聊天模型，再使用此技能。",
+  "Skills use this chat's model and permissions.": "技能使用当前聊天的模型与权限。",
+  "Don't let the model invoke this on its own": "不让模型自行调用此技能",
+
+  "Checks the registered Scribe skills, commands, and subagents without sending a chat message.":
+    "核对 Scribe 已注册的技能、命令和子代理，不发送聊天消息。",
+  "Scribe uses its own registered tools and extensions. External agent plugins, hooks, and MCP services are not loaded.":
+    "Scribe 使用自己注册的工具和扩展，不加载外部代理的插件、钩子或 MCP 服务。",
+  "Unavailable model: {id}": "模型不可用：{id}",
+  "Use the chat default model": "沿用聊天默认模型",
+  "Default permission mode": "默认权限模式",
+  "Ask before acting": "询问后执行",
+  "Plan first": "先制定计划",
+  "Automatically allow note edits": "自动允许笔记编辑",
+  "Maximum steps per turn": "每轮最多执行步数",
+  "Choose 1–1000 steps. Send another message to continue after the limit.":
+    "可设置为 1–1000。达到上限后停止，可发送新消息继续。",
+
   "Skill saved, but syncing with the agent failed: {reason}. Reopen Skills after fixing the problem to retry.":
     "技能已保存，但同步到代理失败：{reason}。修复后重新打开技能页即可重试，无需再次新建。",
   "Some plugin components require an agent check to be listed.":
@@ -19,7 +42,6 @@ export const settingsTranslations: Record<string, string> = {
     "配置已保存，请刷新技能列表以查看最新状态。",
   "Scribe built-in skills are always enabled and read-only.": "Scribe 内置技能始终启用，只能查看。",
   "Always enabled": "始终启用",
-  "Set up Claude Code to use this skill.": "请先配置 Claude Code，以便使用此技能。",
   "View {p0} (read-only)": "查看 {p0}（只读）",
   "Loading…": "正在读取…",
   "Edit skill": "编辑技能",
@@ -534,7 +556,6 @@ export const settingsTranslations: Record<string, string> = {
   "Installed plugin files are missing.": "插件安装文件已缺失。",
   "Installed only for other projects; unavailable in this scope.":
     "仅安装于其他项目，在此范围内不可用。",
-  "Could not read Claude plugin status.": "无法读取 Claude 的插件状态。",
   "Move this skill to the shared folder before changing its availability.":
     "请先将此技能迁移到共享文件夹，再切换可用性。",
   "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":

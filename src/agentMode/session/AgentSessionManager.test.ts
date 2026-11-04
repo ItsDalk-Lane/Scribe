@@ -77,7 +77,7 @@ jest.mock("@/utils/notificationSound", () => ({
 function mockDefaultSettings() {
   return {
     agentMode: {
-      activeBackend: "opencode",
+      activeBackend: "native",
       backends: {},
       notificationSound: mockNotificationSound,
       notificationSoundId: "piano",
@@ -104,8 +104,8 @@ function emitSettingsChange(prev: { agentMode: unknown }, next: { agentMode: unk
 function mockSavedDefault(saved: { baseModelId: string; effort: string | null } | null): void {
   getSettingsMock.mockReturnValue({
     agentMode: {
-      activeBackend: "opencode",
-      backends: { opencode: { defaultModel: saved } },
+      activeBackend: "native",
+      backends: { native: { defaultModel: saved } },
       notificationSound: false,
       notificationSoundId: "piano",
     },
@@ -118,8 +118,8 @@ function changeSavedDefault(
 ): void {
   mockSavedDefault(to);
   emitSettingsChange(
-    { agentMode: { backends: { opencode: { defaultModel: from } } } },
-    { agentMode: { backends: { opencode: { defaultModel: to } } } }
+    { agentMode: { backends: { native: { defaultModel: from } } } },
+    { agentMode: { backends: { native: { defaultModel: to } } } }
   );
 }
 
@@ -404,8 +404,8 @@ function buildApp(basePath = "/vault"): App {
 
 function buildDescriptor(overrides: Record<string, unknown> = {}): BackendDescriptor {
   return {
-    id: "opencode",
-    displayName: "opencode",
+    id: "native",
+    displayName: "native",
     summarizesSessionTitle: true,
     getInstallState: jest.fn(() => ({ kind: "ready" })),
     subscribeInstallState: jest.fn(),
@@ -832,7 +832,7 @@ function buildHistoryHarness(opts?: {
   };
   const indexStorage = opts?.indexStorage ?? makeIndexStorage();
   const index = new AgentSessionIndex(indexStorage, "plugins/copilot/index.json");
-  const backendId = opts?.backendId ?? "opencode";
+  const backendId = opts?.backendId ?? "native";
   const descriptor = buildDescriptor({
     id: backendId,
     getInstallState: jest.fn(() => opts?.installState ?? { kind: "ready", source: "custom" }),
@@ -877,7 +877,7 @@ function snapshotFixture(overrides: Partial<AgentSessionSnapshot> = {}): AgentSe
   return {
     version: 1,
     chatId: "stable-chat",
-    backendId: "opencode",
+    backendId: "native",
     sessionId: "saved-chat",
     projectId: GLOBAL_SCOPE,
     savedAtMs: 1000,
@@ -1062,9 +1062,9 @@ describe("AgentSessionManager", () => {
         await session.ready;
         const beforePrompt = sessionCreateSpy.mock.calls[0][0].beforePrompt!;
         getSessionTestHandle(session).setStatus("running");
-        manager.noteExtensionsChanged("opencode");
+        manager.noteExtensionsChanged("native");
         expect(create).toHaveBeenCalledTimes(1);
-        expect(stop).toHaveBeenCalledWith("opencode");
+        expect(stop).toHaveBeenCalledWith("native");
         expect(refresh).not.toHaveBeenCalled();
         beforePrompt();
         expect(refresh).not.toHaveBeenCalled();
@@ -1083,7 +1083,7 @@ describe("AgentSessionManager", () => {
         const manager = buildManager();
         const session = await manager.createSession();
         await session.ready;
-        expect(manager.isExtensionChangePending("opencode", { kind: "user" })).toBe(false);
+        expect(manager.isExtensionChangePending("native", { kind: "user" })).toBe(false);
       });
       it("reports a saved project change only for affected project chats", async () => {
         seedProjects("notes", "research");
@@ -1092,12 +1092,12 @@ describe("AgentSessionManager", () => {
         const other = await manager.createSession(undefined, "research");
         await Promise.all([selected.ready, other.ready]);
         getSessionTestHandle(selected).setStatus("running");
-        manager.noteExtensionsChanged("opencode", { kind: "project", cwd: selected.cwd! });
+        manager.noteExtensionsChanged("native", { kind: "project", cwd: selected.cwd! });
         expect(
-          manager.isExtensionChangePending("opencode", { kind: "project", cwd: selected.cwd! })
+          manager.isExtensionChangePending("native", { kind: "project", cwd: selected.cwd! })
         ).toBe(true);
         expect(
-          manager.isExtensionChangePending("opencode", { kind: "project", cwd: other.cwd! })
+          manager.isExtensionChangePending("native", { kind: "project", cwd: other.cwd! })
         ).toBe(false);
         expect(
           manager.isExtensionChangePending("claude", { kind: "project", cwd: selected.cwd! })
@@ -1110,18 +1110,18 @@ describe("AgentSessionManager", () => {
         getSessionTestHandle(session).setStatus("running");
         const controller = new AbortController();
         const applied = manager.applyExtensionChanges(
-          "opencode",
+          "native",
           { kind: "user" },
           controller.signal
         );
         controller.abort();
         await expect(applied).rejects.toMatchObject({ name: "AbortError" });
-        expect(manager.isExtensionChangePending("opencode", { kind: "user" })).toBe(true);
+        expect(manager.isExtensionChangePending("native", { kind: "user" })).toBe(true);
         expect(
-          manager.isExtensionChangePending("opencode", { kind: "project", cwd: session.cwd! })
+          manager.isExtensionChangePending("native", { kind: "project", cwd: session.cwd! })
         ).toBe(true);
         getSessionTestHandle(session).setStatus("idle");
-        expect(manager.isExtensionChangePending("opencode", { kind: "user" })).toBe(false);
+        expect(manager.isExtensionChangePending("native", { kind: "user" })).toBe(false);
       });
     });
 
@@ -1140,7 +1140,7 @@ describe("AgentSessionManager", () => {
         await session.ready;
         getSessionTestHandle(session).setStatus("error");
         jest.spyOn(session, "getBackendSessionId").mockReturnValue(null);
-        await manager.applyExtensionChanges("opencode", { kind: "user" });
+        await manager.applyExtensionChanges("native", { kind: "user" });
         expect(refresh).not.toHaveBeenCalled();
         expect(session.getStatus()).toBe("error");
       });
@@ -1157,7 +1157,7 @@ describe("AgentSessionManager", () => {
         const session = await manager.createSession();
         await session.ready;
         getSessionTestHandle(session).setStatus("running");
-        const applied = manager.applyExtensionChanges("opencode", { kind: "user" });
+        const applied = manager.applyExtensionChanges("native", { kind: "user" });
         expect(refresh).not.toHaveBeenCalled();
         getSessionTestHandle(session).setStatus("idle");
         await applied;
@@ -1178,7 +1178,7 @@ describe("AgentSessionManager", () => {
         await session.ready;
         const handle = getSessionTestHandle(session);
         handle.setTaskStatuses(["running"]);
-        const applied = manager.applyExtensionChanges("opencode", { kind: "user" });
+        const applied = manager.applyExtensionChanges("native", { kind: "user" });
         expect(refresh).not.toHaveBeenCalled();
         handle.setTaskStatuses(["completed"]);
         await applied;
@@ -1201,7 +1201,7 @@ describe("AgentSessionManager", () => {
         const other = await manager.createSession(undefined, "research");
         await Promise.all([selected.ready, other.ready]);
         getSessionTestHandle(other).setStatus("running");
-        await manager.applyExtensionChanges("opencode", { kind: "project", cwd: selected.cwd! });
+        await manager.applyExtensionChanges("native", { kind: "project", cwd: selected.cwd! });
         expect(refresh).toHaveBeenCalledTimes(1);
         expect(refresh).toHaveBeenCalledWith(selected.getBackendSessionId());
         getSessionTestHandle(other).setStatus("idle");
@@ -1222,7 +1222,7 @@ describe("AgentSessionManager", () => {
         const second = await manager.createSession(undefined, "research");
         await Promise.all([first.ready, second.ready]);
         getSessionTestHandle(second).setStatus("running");
-        const applied = manager.applyExtensionChanges("opencode", { kind: "user" });
+        const applied = manager.applyExtensionChanges("native", { kind: "user" });
         expect(refresh).toHaveBeenCalledWith(first.getBackendSessionId());
         expect(refresh).not.toHaveBeenCalledWith(second.getBackendSessionId());
         getSessionTestHandle(second).setStatus("idle");
@@ -1245,7 +1245,7 @@ describe("AgentSessionManager", () => {
         getSessionTestHandle(session).setStatus("running");
         const controller = new AbortController();
         const applied = manager.applyExtensionChanges(
-          "opencode",
+          "native",
           { kind: "user" },
           controller.signal
         );
@@ -1270,7 +1270,7 @@ describe("AgentSessionManager", () => {
         const controller = new AbortController();
         controller.abort();
         await expect(
-          manager.applyExtensionChanges("opencode", { kind: "user" }, controller.signal)
+          manager.applyExtensionChanges("native", { kind: "user" }, controller.signal)
         ).rejects.toMatchObject({ name: "AbortError" });
         sessionCreateSpy.mock.calls[0][0].beforePrompt!();
         expect(refresh).toHaveBeenCalledWith(session.getBackendSessionId());
@@ -1284,7 +1284,7 @@ describe("AgentSessionManager", () => {
           backends: {},
           agentMode: {
             ...mockDefaultSettings().agentMode,
-            backends: { opencode: { enabled: true } },
+            backends: { native: { enabled: true } },
           },
         };
         getSettingsMock.mockImplementation(() => current);
@@ -1307,7 +1307,7 @@ describe("AgentSessionManager", () => {
       function untilDisabled(manager: AgentSessionManager): Promise<void> {
         return new Promise((resolve) => {
           const unsubscribe = manager.subscribe(() => {
-            if (manager.isBackendDisablePending("opencode")) return;
+            if (manager.isBackendDisablePending("native")) return;
             unsubscribe();
             resolve();
           });
@@ -1324,16 +1324,16 @@ describe("AgentSessionManager", () => {
           ...draft,
           input: "unsent input",
         }));
-        await manager.setBackendEnabled("opencode", false);
-        expect(manager.isBackendEnabled("opencode")).toBe(false);
-        expect(manager.isBackendDisablePending("opencode")).toBe(false);
+        await manager.setBackendEnabled("native", false);
+        expect(manager.isBackendEnabled("native")).toBe(false);
+        expect(manager.isBackendDisablePending("native")).toBe(false);
         expect(session.isBackendSuspended()).toBe(true);
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
         for (const exit of mockBackendExitListeners) exit();
         expect(manager.getActiveSession()).toBe(session);
         expect(session.store.getDisplayMessages()).toEqual([{ message: "saved reply" }]);
         expect(manager.drafts.get(session.chatInputId)?.input).toBe("unsent input");
-        await manager.setBackendEnabled("opencode", true);
+        await manager.setBackendEnabled("native", true);
         expect(session.resumeBackend).toHaveBeenCalled();
         expect(session.isBackendSuspended()).toBe(false);
         expect(manager.getActiveSession()).toBe(session);
@@ -1347,8 +1347,8 @@ describe("AgentSessionManager", () => {
         await session.ready;
         const handle = getSessionTestHandle(session);
         handle.setStatus("running");
-        await manager.setBackendEnabled("opencode", false);
-        expect(manager.isBackendDisablePending("opencode")).toBe(true);
+        await manager.setBackendEnabled("native", false);
+        expect(manager.isBackendDisablePending("native")).toBe(true);
         expect(mockBackendShutdown).not.toHaveBeenCalled();
         expect(mockSessionCancel).not.toHaveBeenCalled();
         await expect(manager.createSession()).rejects.toThrow("disabled");
@@ -1367,7 +1367,7 @@ describe("AgentSessionManager", () => {
         await session.ready;
         const handle = getSessionTestHandle(session);
         handle.setTaskStatuses(["running"]);
-        await manager.setBackendEnabled("opencode", false);
+        await manager.setBackendEnabled("native", false);
         expect(mockBackendShutdown).not.toHaveBeenCalled();
         const disabled = untilDisabled(manager);
         handle.setTaskStatuses(["completed"]);
@@ -1425,26 +1425,24 @@ describe("AgentSessionManager", () => {
         expect(mgr.getChatUIState(session.internalId)).toBe(mgr.getActiveChatUIState());
       });
 
-      it("starts Claude when no default agent was saved", async () => {
+      it("starts the native agent when no default agent was saved", async () => {
         getSettingsMock.mockReturnValue({ agentMode: {} });
-        const manager = buildManager({ descriptor: buildDescriptor({ id: "claude" }) });
-
-        expect((await manager.createSession()).backendId).toBe("claude");
+        const manager = buildManager();
+        expect((await manager.createSession()).backendId).toBe("native");
       });
 
-      it.each(["opencode", "codex", "unavailable"])(
-        "starts Claude without carrying the removed %s agent's model selection",
+      it.each(["claude", "opencode", "codex", "unavailable"])(
+        "rejects the removed %s agent without creating a native replacement or carrying its model",
         async (backendId) => {
-          const manager = buildManager({ descriptor: buildDescriptor({ id: "claude" }) });
-          const session = await manager.createSession(backendId, GLOBAL_SCOPE, {
-            baseModelId: "retired-agent-model",
-            effort: "high",
-          });
-
-          expect(session.backendId).toBe("claude");
-          expect(sessionCreateSpy).toHaveBeenLastCalledWith(
-            expect.objectContaining({ backendId: "claude", defaultModelSelection: undefined })
-          );
+          const manager = buildManager();
+          await expect(
+            manager.createSession(backendId, GLOBAL_SCOPE, {
+              baseModelId: "retired-agent-model",
+              effort: "high",
+            })
+          ).rejects.toThrow("Unknown backend");
+          expect(sessionCreateSpy).not.toHaveBeenCalled();
+          expect(setSettingsMock).not.toHaveBeenCalled();
         }
       );
 
@@ -1477,7 +1475,7 @@ describe("AgentSessionManager", () => {
         const b = await mgr.createSession();
 
         const keys = copilotMcpServer.connect.mock.calls.map(([key]) => key);
-        expect(keys).toEqual([`opencode:${a.cwd}`, `opencode:${b.cwd}`]);
+        expect(keys).toEqual([`native:${a.cwd}`, `native:${b.cwd}`]);
         expect(keys[0]).toBe(keys[1]);
       });
 
@@ -1547,10 +1545,10 @@ describe("AgentSessionManager", () => {
         });
 
         await expect(mgr.createSession()).rejects.toThrow(
-          "Enable a model for opencode in Scribe's model settings to start a chat."
+          "Enable a model for native in Scribe's model settings to start a chat."
         );
         expect(mgr.getLastError()).toBe(
-          "Enable a model for opencode in Scribe's model settings to start a chat."
+          "Enable a model for native in Scribe's model settings to start a chat."
         );
         expect(mockBackendStart).not.toHaveBeenCalled();
         expect(mgr.getIsStarting()).toBe(false);
@@ -1559,8 +1557,8 @@ describe("AgentSessionManager", () => {
       it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 hands the saved mode to the new session so startup waits for that mode to arrive", async () => {
         getSettingsMock.mockReturnValue({
           agentMode: {
-            activeBackend: "opencode",
-            backends: { opencode: { defaultMode: "default" } },
+            activeBackend: "native",
+            backends: { native: { defaultMode: "default" } },
           },
         });
         const mgr = buildManager();
@@ -1677,19 +1675,19 @@ describe("AgentSessionManager", () => {
         );
         const descriptor = buildDescriptor();
         const mgr = buildManager({ descriptor, preloader: { preload, takeWarm } });
-        mgr.registerPreload("opencode", preloadGate.promise);
+        mgr.registerPreload("native", preloadGate.promise);
 
         const sessionPromise = mgr.createSession();
         await flushTimers();
 
-        expect(preload).toHaveBeenCalledWith("opencode");
+        expect(preload).toHaveBeenCalledWith("native");
         expect(descriptor.createBackendProcess).not.toHaveBeenCalled();
 
         preloadSettled = true;
         preloadGate.resolve();
         await sessionPromise;
 
-        expect(takeWarm).toHaveBeenCalledWith("opencode");
+        expect(takeWarm).toHaveBeenCalledWith("native");
         expect(descriptor.createBackendProcess).not.toHaveBeenCalled();
         expect(mockBackendStart).not.toHaveBeenCalled();
       });
@@ -1777,7 +1775,7 @@ describe("AgentSessionManager", () => {
           await mgr.createSession();
           for (let i = 0; i < 12; i++) await Promise.resolve();
 
-          expect(readPersistedDefault(setSettingsMock, "opencode")).toBeUndefined();
+          expect(readPersistedDefault(setSettingsMock, "native")).toBeUndefined();
         }
       );
 
@@ -2212,8 +2210,8 @@ describe("AgentSessionManager", () => {
         const mgr = buildManager();
         const a = await mgr.createSession();
         getSessionTestHandle(a).setTaskStatuses(["running"]);
-        await mgr.noteSpawnConfigChanged("opencode", "skills changed");
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.noteSpawnConfigChanged("native", "skills changed");
+        await mgr.applyHeldConfigChange("native");
         expect(mockBackendShutdown).not.toHaveBeenCalled();
 
         const shutDown = new Promise<void>((resolve) =>
@@ -2225,7 +2223,7 @@ describe("AgentSessionManager", () => {
         await mgr.closeSession(a.internalId, { releaseBackend: true });
         await shutDown;
 
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
       });
 
@@ -2403,17 +2401,17 @@ describe("AgentSessionManager", () => {
           return createSession(...args);
         });
 
-        const first = mgr.replaceSessionInPlace(source.internalId, "opencode", {
+        const first = mgr.replaceSessionInPlace(source.internalId, "native", {
           preserveChatInput: true,
           seedSelection: { baseModelId: "first-model", effort: null },
         });
-        const second = mgr.replaceSessionInPlace(source.internalId, "opencode", {
+        const second = mgr.replaceSessionInPlace(source.internalId, "native", {
           preserveChatInput: true,
           seedSelection: { baseModelId: "latest-model", effort: "high" },
         });
         const firstReplacement = await first;
         await secondStarted.promise;
-        const third = mgr.replaceSessionInPlace(firstReplacement.internalId, "opencode", {
+        const third = mgr.replaceSessionInPlace(firstReplacement.internalId, "native", {
           preserveChatInput: true,
           seedSelection: { baseModelId: "final-model", effort: "low" },
         });
@@ -2919,11 +2917,11 @@ describe("AgentSessionManager", () => {
         const mgr = buildManager();
         const session = await mgr.createSession();
 
-        await mgr.noteSpawnConfigChanged("opencode", "managed skills changed");
+        await mgr.noteSpawnConfigChanged("native", "managed skills changed");
 
         expect(mockBackendShutdown).not.toHaveBeenCalled();
         expect(mgr.getActiveSession()).toBe(session);
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(true);
+        expect(mgr.hasHeldConfigChange("native")).toBe(true);
       });
 
       it("restarts straight away when no session is open on the backend (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
@@ -2931,20 +2929,20 @@ describe("AgentSessionManager", () => {
         const session = await mgr.createSession();
         await mgr.closeSession(session.internalId);
 
-        await mgr.noteSpawnConfigChanged("opencode", "byok key saved");
+        await mgr.noteSpawnConfigChanged("native", "byok key saved");
 
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
       });
 
       it("refreshes a warm probe that no session has adopted (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
         const refresh = jest.fn(() => Promise.resolve());
         const mgr = buildManager({ preloader: { refresh } });
 
-        await mgr.noteSpawnConfigChanged("opencode", "byok key saved");
+        await mgr.noteSpawnConfigChanged("native", "byok key saved");
 
-        expect(refresh).toHaveBeenCalledWith("opencode");
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(refresh).toHaveBeenCalledWith("native");
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
       });
 
       it("reports one held change however many times config changes (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
@@ -2953,11 +2951,11 @@ describe("AgentSessionManager", () => {
         const listener = jest.fn();
         mgr.subscribe(listener);
 
-        await mgr.noteSpawnConfigChanged("opencode", "managed skills changed");
-        await mgr.noteSpawnConfigChanged("opencode", "provider config changed");
+        await mgr.noteSpawnConfigChanged("native", "managed skills changed");
+        await mgr.noteSpawnConfigChanged("native", "provider config changed");
 
         expect(listener).toHaveBeenCalledTimes(1);
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(true);
+        expect(mgr.hasHeldConfigChange("native")).toBe(true);
       });
     });
 
@@ -2965,21 +2963,21 @@ describe("AgentSessionManager", () => {
       it("restarts the backend and clears the offer (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
         const mgr = buildManager();
         const first = await mgr.createSession();
-        await mgr.noteSpawnConfigChanged("opencode", "managed skills changed");
+        await mgr.noteSpawnConfigChanged("native", "managed skills changed");
 
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.applyHeldConfigChange("native");
 
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
         expect(mgr.getActiveSession()).not.toBe(first);
-        expect(mgr.getActiveSession()?.backendId).toBe("opencode");
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.getActiveSession()?.backendId).toBe("native");
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
       });
 
       it("does nothing when the backend has no held change (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
         const mgr = buildManager();
         await mgr.createSession();
 
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.applyHeldConfigChange("native");
 
         expect(mockBackendShutdown).not.toHaveBeenCalled();
       });
@@ -2996,8 +2994,8 @@ describe("AgentSessionManager", () => {
         getSessionTestHandle(failed).setStatus("error");
         await flushTimers();
         expect(mgr.getLastError()).toContain("Invalid API key");
-        await mgr.noteSpawnConfigChanged("opencode", "key corrected");
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.noteSpawnConfigChanged("native", "key corrected");
+        await mgr.applyHeldConfigChange("native");
         await flushTimers();
         expect(mgr.getActiveSession()).not.toBe(failed);
         expect(mgr.getActiveSession()?.getStatus()).toBe("idle");
@@ -3007,33 +3005,33 @@ describe("AgentSessionManager", () => {
       it("reports the restart as pending until a running turn releases it (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
         const mgr = buildManager();
         const first = await mgr.createSession();
-        await mgr.noteSpawnConfigChanged("opencode", "managed skills changed");
+        await mgr.noteSpawnConfigChanged("native", "managed skills changed");
         getSessionTestHandle(first).setStatus("running");
         const listener = jest.fn();
         mgr.subscribe(listener);
 
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.applyHeldConfigChange("native");
 
         expect(mockBackendShutdown).not.toHaveBeenCalled();
-        expect(mgr.isBackendRestartPending("opencode")).toBe(true);
+        expect(mgr.isBackendRestartPending("native")).toBe(true);
         expect(listener).toHaveBeenCalled();
 
         getSessionTestHandle(first).setStatus("idle");
         await flushTimers();
 
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-        expect(mgr.isBackendRestartPending("opencode")).toBe(false);
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.isBackendRestartPending("native")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
       });
 
       it("clears the held config after a backend exit so retry does not offer another reload (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
         const mgr = buildManager();
         await mgr.createSession();
-        await mgr.noteSpawnConfigChanged("opencode", "key corrected");
+        await mgr.noteSpawnConfigChanged("native", "key corrected");
         for (const exit of mockBackendExitListeners) exit();
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
         const recovered = await mgr.getOrCreateActiveSession();
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.applyHeldConfigChange("native");
         expect(mgr.getActiveSession()).toBe(recovered);
         expect(mockBackendShutdown).not.toHaveBeenCalled();
       });
@@ -3052,8 +3050,8 @@ describe("AgentSessionManager", () => {
           const live = new Set(mgr.getLiveChatInputIds());
           for (const id of drafts.keys()) if (!live.has(id)) drafts.delete(id);
         });
-        await mgr.noteSpawnConfigChanged("opencode", "key corrected");
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.noteSpawnConfigChanged("native", "key corrected");
+        await mgr.applyHeldConfigChange("native");
         expect([...drafts.values()]).toEqual(["First unsent draft", "Second unsent draft"]);
         expect(mgr.getSessions().map((s) => s.chatInputId)).toEqual(ids);
         expect(mgr.getActiveSession()?.chatInputId).toBe(first.chatInputId);
@@ -3067,8 +3065,8 @@ describe("AgentSessionManager", () => {
         const global = mgr.getActiveSession()!;
         await mgr.enterProject(projectId);
         const landing = mgr.getActiveSession()!;
-        await mgr.noteSpawnConfigChanged("opencode", "models changed");
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.noteSpawnConfigChanged("native", "models changed");
+        await mgr.applyHeldConfigChange("native");
         expect(new Set(mgr.getLiveChatInputIds())).toEqual(
           new Set([old.chatInputId, global.chatInputId, landing.chatInputId])
         );
@@ -3084,7 +3082,7 @@ describe("AgentSessionManager", () => {
       it("returns false when the backend has not been started", async () => {
         const mgr = buildManager();
 
-        await expect(mgr.restartBackend("opencode", "skills changed")).resolves.toBe(false);
+        await expect(mgr.restartBackend("native", "skills changed")).resolves.toBe(false);
         expect(mockBackendShutdown).not.toHaveBeenCalled();
       });
 
@@ -3093,7 +3091,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         const proc = mgr.getBackendProcess(first.backendId)!;
 
-        await expect(mgr.restartBackend("opencode", "skills changed")).resolves.toBe(true);
+        await expect(mgr.restartBackend("native", "skills changed")).resolves.toBe(true);
 
         expect(proc.closeSession).not.toHaveBeenCalled();
         expect(mockSessionCancel).toHaveBeenCalledWith();
@@ -3101,15 +3099,15 @@ describe("AgentSessionManager", () => {
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
         expect(mgr.getSessions()).toHaveLength(1);
         expect(mgr.getActiveSession()).not.toBe(first);
-        expect(mgr.getActiveSession()?.backendId).toBe("opencode");
+        expect(mgr.getActiveSession()?.backendId).toBe("native");
       });
 
       it("refreshes a warm preload probe when the manager owns no process yet", async () => {
         const refresh = jest.fn(() => Promise.resolve());
         const mgr = buildManager({ preloader: { refresh } });
 
-        await expect(mgr.restartBackend("opencode", "byok key added")).resolves.toBe(true);
-        expect(refresh).toHaveBeenCalledWith("opencode");
+        await expect(mgr.restartBackend("native", "byok key added")).resolves.toBe(true);
+        expect(refresh).toHaveBeenCalledWith("native");
         expect(mockBackendShutdown).not.toHaveBeenCalled();
       });
 
@@ -3117,8 +3115,8 @@ describe("AgentSessionManager", () => {
         const refresh = jest.fn(() => null);
         const mgr = buildManager({ preloader: { refresh } });
 
-        await expect(mgr.restartBackend("opencode", "byok key added")).resolves.toBe(false);
-        expect(refresh).toHaveBeenCalledWith("opencode");
+        await expect(mgr.restartBackend("native", "byok key added")).resolves.toBe(false);
+        expect(refresh).toHaveBeenCalledWith("native");
       });
 
       it("re-probes after restart when no replacement session is created", async () => {
@@ -3128,10 +3126,10 @@ describe("AgentSessionManager", () => {
         await mgr.closeSession(session.internalId);
         preload.mockClear();
 
-        await expect(mgr.restartBackend("opencode", "byok save")).resolves.toBe(true);
+        await expect(mgr.restartBackend("native", "byok save")).resolves.toBe(true);
 
         expect(mockBackendShutdown).toHaveBeenCalled();
-        expect(preload).toHaveBeenCalledWith("opencode");
+        expect(preload).toHaveBeenCalledWith("native");
       });
 
       it("re-probes before creating the replacement so the effort catalog is rebuilt", async () => {
@@ -3141,18 +3139,18 @@ describe("AgentSessionManager", () => {
         preload.mockClear();
         sessionCreateSpy.mockClear();
 
-        await expect(
-          mgr.restartBackend("opencode", "backend enabled models changed")
-        ).resolves.toBe(true);
+        await expect(mgr.restartBackend("native", "backend enabled models changed")).resolves.toBe(
+          true
+        );
 
         expect(preload).toHaveBeenCalledTimes(1);
-        expect(preload).toHaveBeenCalledWith("opencode");
+        expect(preload).toHaveBeenCalledWith("native");
         expect(sessionCreateSpy).toHaveBeenCalledTimes(1);
         expect(preload.mock.invocationCallOrder[0]).toBeLessThan(
           sessionCreateSpy.mock.invocationCallOrder[0]
         );
         expect(mgr.getActiveSession()).not.toBe(first);
-        expect(mgr.getActiveSession()?.backendId).toBe("opencode");
+        expect(mgr.getActiveSession()?.backendId).toBe("native");
       });
 
       it("gives the replacement the replaced session's chat input so the composer draft survives (https://github.com/Brevilabs/obsidian-copilot-private/issues/473)", async () => {
@@ -3161,7 +3159,7 @@ describe("AgentSessionManager", () => {
         const chatInputId = first.chatInputId;
         mgr.drafts.update(chatInputId, (draft) => ({ ...draft, input: "half-written question" }));
 
-        await mgr.restartBackend("opencode", "byok key saved");
+        await mgr.restartBackend("native", "byok key saved");
 
         expect(mgr.getActiveSession()).not.toBe(first);
         expect(mgr.getActiveSession()?.chatInputId).toBe(chatInputId);
@@ -3180,7 +3178,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         const chatInputId = first.chatInputId;
 
-        await mgr.restartBackend("opencode", "byok key saved");
+        await mgr.restartBackend("native", "byok key saved");
 
         expect(liveDuringGap.at(-1)).toContain(chatInputId);
         expect(mgr.getLiveChatInputIds()).toEqual([chatInputId]);
@@ -3196,7 +3194,7 @@ describe("AgentSessionManager", () => {
         const backendSessionId = first.getBackendSessionId();
         const chatInputId = first.chatInputId;
 
-        await mgr.restartBackend("opencode", "managed skills changed");
+        await mgr.restartBackend("native", "managed skills changed");
 
         expect(loadSession).toHaveBeenCalledWith(
           expect.objectContaining({ sessionId: backendSessionId })
@@ -3216,7 +3214,7 @@ describe("AgentSessionManager", () => {
         const mgr = buildManagerWithReplay({ loadSession }, {}, buildCopilotMcpServer());
         await mgr.createSession();
 
-        await mgr.restartBackend("opencode", "managed skills changed");
+        await mgr.restartBackend("native", "managed skills changed");
 
         expect(loadSession).toHaveBeenCalledWith(
           expect.objectContaining({ mcpServers: [FEEDBACK_CHANNEL] })
@@ -3236,7 +3234,7 @@ describe("AgentSessionManager", () => {
         );
         await mgr.createSession();
 
-        await mgr.restartBackend("opencode", "managed skills changed");
+        await mgr.restartBackend("native", "managed skills changed");
 
         const reloadKey = copilotMcpServer.connect.mock.calls[1][0];
         expect(copilotMcpServer.disconnect).toHaveBeenCalledWith(reloadKey);
@@ -3261,7 +3259,7 @@ describe("AgentSessionManager", () => {
         });
         await mgr.createSession();
 
-        await mgr.restartBackend("opencode", "managed skills changed");
+        await mgr.restartBackend("native", "managed skills changed");
 
         expect(senderAndText(mgr.getActiveSession()!)).toEqual([
           [USER_SENDER, "list the notes"],
@@ -3297,7 +3295,7 @@ describe("AgentSessionManager", () => {
             persistence: {
               saveSession,
               loadFile: jest.fn(async () => ({
-                backendId: "opencode",
+                backendId: "native",
                 sessionId: first.getBackendSessionId(),
                 projectId: GLOBAL_SCOPE,
                 messages: noteTurns,
@@ -3310,7 +3308,7 @@ describe("AgentSessionManager", () => {
           if (opts.failed) getSessionTestHandle(first).setStatus("error");
           if (opts.saveFirst ?? true) await jest.advanceTimersByTimeAsync(2000);
 
-          await mgr.restartBackend("opencode", "managed skills changed");
+          await mgr.restartBackend("native", "managed skills changed");
           return { mgr, first, note, saveSession, rebuilt: mgr.getActiveSession()! };
         }
 
@@ -3398,7 +3396,7 @@ describe("AgentSessionManager", () => {
           await mgr.shutdown();
         });
 
-        it("keeps the note and sends its turns to a fresh session when the agent cannot resume the chat (https://github.com/Brevilabs/obsidian-copilot-private/issues/742)", async () => {
+        it("keeps an unavailable native chat's note separate from a blank retry after restart", async () => {
           const replay = buildReplayingBackend({
             loadSession: jest.fn(async () => {
               throw new MethodUnsupportedError("session/load");
@@ -3407,12 +3405,11 @@ describe("AgentSessionManager", () => {
               throw new MethodUnsupportedError("session/resume");
             }),
           });
-          const { mgr, first, note, rebuilt } = await restartSavedChat(replay);
-
+          const { mgr, first, rebuilt } = await restartSavedChat(replay);
           expect(rebuilt.getBackendSessionId()).not.toBe(first.getBackendSessionId());
-          expect(rebuilt.loadDisplayMessages).toHaveBeenCalledWith(noteTurns);
-          expect(rebuilt.resendSavedHistoryOnNextTurn).toHaveBeenCalled();
-          expect(mgr.getSessionSourcePath(rebuilt.internalId)).toBe(note.path);
+          expect(rebuilt.loadDisplayMessages).not.toHaveBeenCalled();
+          expect(rebuilt.resendSavedHistoryOnNextTurn).not.toHaveBeenCalled();
+          expect(mgr.getSessionSourcePath(rebuilt.internalId)).toBe("");
           await mgr.shutdown();
         });
 
@@ -3434,7 +3431,7 @@ describe("AgentSessionManager", () => {
               loadFile: jest.fn(async (file: TFile) => {
                 if (file === broken) throw new Error("Missing backendId in agent chat frontmatter");
                 return {
-                  backendId: "opencode",
+                  backendId: "native",
                   sessionId: undefined,
                   projectId: GLOBAL_SCOPE,
                   messages: noteTurns,
@@ -3456,7 +3453,7 @@ describe("AgentSessionManager", () => {
           }
           await jest.advanceTimersByTimeAsync(2000);
 
-          await mgr.restartBackend("opencode", "managed skills changed");
+          await mgr.restartBackend("native", "managed skills changed");
 
           const [first, second] = mgr.getSessions();
           expect(mgr.getSessions()).toHaveLength(2);
@@ -3471,7 +3468,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         first.restoreLabel("Refactor the importer", "user");
 
-        await mgr.restartBackend("opencode", "managed skills changed");
+        await mgr.restartBackend("native", "managed skills changed");
 
         expect(mgr.getActiveSession()?.getLabel()).toBe("Refactor the importer");
       });
@@ -3488,7 +3485,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         const chatInputId = first.chatInputId;
 
-        await mgr.restartBackend("opencode", "managed skills changed");
+        await mgr.restartBackend("native", "managed skills changed");
 
         const replacement = mgr.getActiveSession();
         expect(replacement).not.toBe(first);
@@ -3502,7 +3499,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         getSessionTestHandle(first).setStatus("running");
 
-        await expect(mgr.restartBackend("opencode", "skills changed")).resolves.toBe(true);
+        await expect(mgr.restartBackend("native", "skills changed")).resolves.toBe(true);
         expect(mockBackendShutdown).not.toHaveBeenCalled();
 
         getSessionTestHandle(first).setStatus("idle");
@@ -3510,7 +3507,7 @@ describe("AgentSessionManager", () => {
 
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
         expect(mgr.getActiveSession()).not.toBe(first);
-        expect(mgr.getActiveSession()?.backendId).toBe("opencode");
+        expect(mgr.getActiveSession()?.backendId).toBe("native");
       });
 
       it("restarts at once while only a background command runs, since a command may never end (https://github.com/Brevilabs/obsidian-copilot-private/issues/175)", async () => {
@@ -3518,7 +3515,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         getSessionTestHandle(first).setTaskStatuses(["running"], ["command"]);
 
-        await mgr.restartBackend("opencode", "skills changed");
+        await mgr.restartBackend("native", "skills changed");
 
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
       });
@@ -3528,12 +3525,12 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         const handle = getSessionTestHandle(first);
         handle.setTaskStatuses(["running", "running"], ["subagent", "command"]);
-        await mgr.noteSpawnConfigChanged("opencode", "skills changed");
+        await mgr.noteSpawnConfigChanged("native", "skills changed");
 
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.applyHeldConfigChange("native");
         handle.setTaskStatuses(["completed", "running"], ["subagent", "command"]);
         handle.setStatus("running");
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(true);
+        expect(mgr.hasHeldConfigChange("native")).toBe(true);
 
         const shutDown = new Promise<void>((resolve) =>
           mockBackendShutdown.mockImplementationOnce(async () => {
@@ -3544,7 +3541,7 @@ describe("AgentSessionManager", () => {
         handle.setStatus("idle");
         await shutDown;
 
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
       });
 
@@ -3553,8 +3550,8 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         const handle = getSessionTestHandle(first);
         handle.setTaskStatuses(["running"]);
-        await mgr.noteSpawnConfigChanged("opencode", "skills changed");
-        await mgr.applyHeldConfigChange("opencode");
+        await mgr.noteSpawnConfigChanged("native", "skills changed");
+        await mgr.applyHeldConfigChange("native");
         expect(mockBackendShutdown).not.toHaveBeenCalled();
 
         const shutDown = new Promise<void>((resolve) =>
@@ -3567,7 +3564,7 @@ describe("AgentSessionManager", () => {
         handle.disconnect();
         await shutDown;
 
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
       });
 
@@ -3577,7 +3574,7 @@ describe("AgentSessionManager", () => {
         getSessionTestHandle(first).setStatus("running");
 
         await expect(
-          mgr.restartBackend("opencode", "agent configuration changed", { deferWhileBusy: false })
+          mgr.restartBackend("native", "agent configuration changed", { deferWhileBusy: false })
         ).resolves.toBe(true);
 
         expect(mockSessionCancel).toHaveBeenCalledWith();
@@ -3589,13 +3586,13 @@ describe("AgentSessionManager", () => {
         const mgr = buildManager();
         await mgr.createSession();
 
-        await mgr.noteSpawnConfigChanged("opencode", "managed skills changed");
-        await mgr.restartBackend("opencode", "agent configuration changed", {
+        await mgr.noteSpawnConfigChanged("native", "managed skills changed");
+        await mgr.restartBackend("native", "agent configuration changed", {
           deferWhileBusy: false,
         });
 
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-        expect(mgr.hasHeldConfigChange("opencode")).toBe(false);
+        expect(mgr.hasHeldConfigChange("native")).toBe(false);
       });
 
       it("queues a second concurrent restart so the latest settings are not lost", async () => {
@@ -3603,9 +3600,9 @@ describe("AgentSessionManager", () => {
         await mgr.createSession();
         const shutdown = holdNextBackendShutdown();
 
-        const first = mgr.restartBackend("opencode", "byok save #1");
+        const first = mgr.restartBackend("native", "byok save #1");
         await shutdown.started;
-        const second = mgr.restartBackend("opencode", "byok save #2");
+        const second = mgr.restartBackend("native", "byok save #2");
         shutdown.release();
         await Promise.all([first, second]);
         await flushTimers();
@@ -3628,9 +3625,9 @@ describe("AgentSessionManager", () => {
         });
         const shutdown = holdNextBackendShutdown();
 
-        const ordinaryRestart = mgr.restartBackend("opencode", "managed env changed");
+        const ordinaryRestart = mgr.restartBackend("native", "managed env changed");
         await shutdown.started;
-        const privacyRestart = mgr.restartBackend("opencode", "agent configuration changed", {
+        const privacyRestart = mgr.restartBackend("native", "agent configuration changed", {
           deferWhileBusy: false,
         });
         shutdown.release();
@@ -3720,7 +3717,7 @@ describe("AgentSessionManager", () => {
         const first = await mgr.createSession();
         getSessionTestHandle(first).setMessages([{ message: "Local draft transcript" }]);
 
-        await mgr.restartBackend("opencode", "models changed");
+        await mgr.restartBackend("native", "models changed");
 
         expect(mgr.getActiveSession()?.store.getDisplayMessages()).toEqual([]);
       });
@@ -3771,9 +3768,9 @@ describe("AgentSessionManager", () => {
           installState: { kind: "ready", source: "custom" },
         });
 
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
-        expect(preloader.preload).toHaveBeenCalledWith("opencode");
+        expect(preloader.preload).toHaveBeenCalledWith("native");
         expect(preloader.clearCached).not.toHaveBeenCalled();
         expect(mockBackendShutdown).not.toHaveBeenCalled();
       });
@@ -3784,9 +3781,9 @@ describe("AgentSessionManager", () => {
           refreshResult: Promise.resolve(),
         });
 
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
-        expect(preloader.refresh).toHaveBeenCalledWith("opencode");
+        expect(preloader.refresh).toHaveBeenCalledWith("native");
         expect(preloader.preload).not.toHaveBeenCalled();
       });
 
@@ -3798,10 +3795,10 @@ describe("AgentSessionManager", () => {
         mockBackendShutdown.mockClear();
         preloader.preload.mockClear();
 
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
         expect(mockBackendShutdown).toHaveBeenCalled();
-        expect(preloader.preload).toHaveBeenCalledWith("opencode");
+        expect(preloader.preload).toHaveBeenCalledWith("native");
       });
 
       it("tears down and drops the warm probe when the binary is no longer available", async () => {
@@ -3813,11 +3810,11 @@ describe("AgentSessionManager", () => {
         sessionCreateSpy.mockClear();
 
         setInstallState({ kind: "absent" });
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
         expect(mockBackendShutdown).toHaveBeenCalled();
         expect(sessionCreateSpy).not.toHaveBeenCalled();
-        expect(preloader.clearCached).toHaveBeenCalledWith("opencode");
+        expect(preloader.clearCached).toHaveBeenCalledWith("native");
         expect(preloader.preload).not.toHaveBeenCalled();
       });
 
@@ -3825,21 +3822,21 @@ describe("AgentSessionManager", () => {
         const { mgr, setInstallState } = buildInstallStateManager({
           installState: { kind: "ready", source: "custom" },
         });
-        mgr.registerPreload("opencode", Promise.resolve());
+        mgr.registerPreload("native", Promise.resolve());
         await Promise.resolve();
-        expect(mgr.getPreloadStatus("opencode")).toBe("ready");
+        expect(mgr.getPreloadStatus("native")).toBe("ready");
 
         setInstallState({ kind: "absent" });
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
-        expect(mgr.getPreloadStatus("opencode")).toBe("absent");
+        expect(mgr.getPreloadStatus("native")).toBe("absent");
       });
 
       it("keeps the preload status when the backend becomes incompatible", async () => {
         const { mgr, setInstallState } = buildInstallStateManager({
           installState: { kind: "ready", source: "custom" },
         });
-        mgr.registerPreload("opencode", Promise.resolve());
+        mgr.registerPreload("native", Promise.resolve());
         await Promise.resolve();
 
         setInstallState({
@@ -3849,9 +3846,9 @@ describe("AgentSessionManager", () => {
           minVersion: "2.0.0",
           message: "too old",
         });
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
-        expect(mgr.getPreloadStatus("opencode")).toBe("ready");
+        expect(mgr.getPreloadStatus("native")).toBe("ready");
       });
 
       it("keeps live and warm backend state while a compatibility check is in flight", async () => {
@@ -3861,7 +3858,7 @@ describe("AgentSessionManager", () => {
         await mgr.createSession();
         mockBackendShutdown.mockClear();
 
-        await mgr.onInstallStateChanged("opencode");
+        await mgr.onInstallStateChanged("native");
 
         expect(mockBackendShutdown).not.toHaveBeenCalled();
         expect(preloader.clearCached).not.toHaveBeenCalled();
@@ -3877,39 +3874,39 @@ describe("AgentSessionManager", () => {
         const promise = new Promise<void>((res) => {
           resolve = res;
         });
-        mgr.registerPreload("opencode", promise);
-        expect(mgr.getPreloadStatus("opencode")).toBe("pending");
-        expect(mgr.isPreloadReady("opencode")).toBe(false);
+        mgr.registerPreload("native", promise);
+        expect(mgr.getPreloadStatus("native")).toBe("pending");
+        expect(mgr.isPreloadReady("native")).toBe(false);
         resolve();
         await promise;
         await Promise.resolve();
-        expect(mgr.getPreloadStatus("opencode")).toBe("ready");
-        expect(mgr.isPreloadReady("opencode")).toBe(true);
+        expect(mgr.getPreloadStatus("native")).toBe("ready");
+        expect(mgr.isPreloadReady("native")).toBe(true);
       });
 
       it("moves a backend from pending to error when the preload rejects yet still reports ready so chat unblocks", async () => {
         const mgr = buildManager();
         mgr.registerPreload(
-          "opencode",
+          "native",
           Promise.reject(new Error("preload failed")).catch((e) => {
             throw e;
           })
         );
         await flushTimers();
-        expect(mgr.getPreloadStatus("opencode")).toBe("error");
-        expect(mgr.isPreloadReady("opencode")).toBe(true);
+        expect(mgr.getPreloadStatus("native")).toBe("error");
+        expect(mgr.isPreloadReady("native")).toBe(true);
       });
     });
 
     describe("isPreloadReady()", () => {
       it("treats a backend with no registered preload as ready", () => {
-        expect(buildManager().isPreloadReady("opencode")).toBe(true);
+        expect(buildManager().isPreloadReady("native")).toBe(true);
       });
     });
 
     describe("getPreloadStatus()", () => {
       it("reports absent for a backend with no registered preload", () => {
-        expect(buildManager().getPreloadStatus("opencode")).toBe("absent");
+        expect(buildManager().getPreloadStatus("native")).toBe("absent");
       });
     });
 
@@ -3918,7 +3915,7 @@ describe("AgentSessionManager", () => {
         const catalog = modelCatalog("catalog");
         const mgr = buildManager({ preloader: { getCachedModelCatalog: jest.fn(() => catalog) } });
 
-        expect(mgr.getCachedModelCatalog("opencode")).toBe(catalog);
+        expect(mgr.getCachedModelCatalog("native")).toBe(catalog);
       });
     });
 
@@ -3928,8 +3925,8 @@ describe("AgentSessionManager", () => {
         const first = buildManager({ preloader: { getCachedModelCatalog: () => catalog } });
         const second = buildManager({ preloader: { getCachedModelCatalog: () => catalog } });
 
-        expect(first.getModelCacheSignature("opencode")).toBe(
-          second.getModelCacheSignature("opencode")
+        expect(first.getModelCacheSignature("native")).toBe(
+          second.getModelCacheSignature("native")
         );
       });
 
@@ -3941,8 +3938,8 @@ describe("AgentSessionManager", () => {
           preloader: { getCachedModelCatalog: () => modelCatalog("second-catalog") },
         });
 
-        expect(first.getModelCacheSignature("opencode")).not.toBe(
-          second.getModelCacheSignature("opencode")
+        expect(first.getModelCacheSignature("native")).not.toBe(
+          second.getModelCacheSignature("native")
         );
       });
     });
@@ -3951,7 +3948,7 @@ describe("AgentSessionManager", () => {
       it("no-ops when no session is active", async () => {
         const mgr = buildManager();
         await expect(
-          mgr.applySelection({ effort: "high" }, { expectBackendId: "opencode" })
+          mgr.applySelection({ effort: "high" }, { expectBackendId: "native" })
         ).resolves.toBeUndefined();
       });
 
@@ -3989,12 +3986,12 @@ describe("AgentSessionManager", () => {
         const session = await mgr.createSession();
 
         setSettingsMock.mockClear();
-        await mgr.applySelection({ effort: "high" }, { expectBackendId: "opencode" });
+        await mgr.applySelection({ effort: "high" }, { expectBackendId: "native" });
         expect(applySelection).toHaveBeenCalledWith(session, {
           baseModelId: "anthropic/sonnet",
           effort: "high",
         });
-        expect(readPersistedDefault(setSettingsMock, "opencode")).toBeUndefined();
+        expect(readPersistedDefault(setSettingsMock, "native")).toBeUndefined();
 
         applySelection.mockClear();
         setSettingsMock.mockClear();
@@ -4003,7 +4000,7 @@ describe("AgentSessionManager", () => {
           baseModelId: "anthropic/opus",
           effort: null,
         });
-        expect(readPersistedDefault(setSettingsMock, "opencode")).toBeUndefined();
+        expect(readPersistedDefault(setSettingsMock, "native")).toBeUndefined();
       });
     });
 
@@ -4159,11 +4156,16 @@ describe("AgentSessionManager", () => {
       it("uses the loaded conversation file before any save https://github.com/Brevilabs/obsidian-copilot-private/issues/539", async () => {
         const file = mockTFile({ path: "chat/Loaded.md" });
         const loadFile = jest.fn().mockResolvedValue({
-          backendId: "opencode",
+          backendId: "native",
+          sessionId: "saved-native-source",
           projectId: GLOBAL_SCOPE,
           messages: [{ message: "Loaded" }],
         });
-        const mgr = buildManager({ persistence: { loadFile } });
+        const replay = buildReplayingBackend();
+        const mgr = buildManager({
+          persistence: { loadFile },
+          descriptor: buildDescriptor({ createBackendProcess: () => replay.backend }),
+        });
         const loaded = await mgr.loadSessionFromHistory(file);
         expect(mgr.getSessionSourcePath(loaded.internalId)).toBe(file.path);
         file.path = "archive/Loaded.md";
@@ -4178,21 +4180,21 @@ describe("AgentSessionManager", () => {
             "chats/agent__a.md": {
               epoch: 1_000,
               topic: "Saved chat",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "s1",
               lastAccessedAt: 2_000,
             },
           },
         });
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Saved chat",
           createdAtMs: 1_000,
           lastAccessedAtMs: 5_000,
         });
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s2",
           title: "Native only chat",
           createdAtMs: 3_000,
@@ -4205,20 +4207,20 @@ describe("AgentSessionManager", () => {
         expect(markdown).toBeDefined();
         expect(markdown?.lastAccessedAt.getTime()).toBe(5_000);
         const native = items.find((i) => i.id !== "chats/agent__a.md");
-        expect(native?.id).toBe(buildNativeChatId("opencode", "s2"));
+        expect(native?.id).toBe(buildNativeChatId("native", "s2"));
         expect(native?.title).toBe("Native only chat");
-        expect(native?.backendId).toBe("opencode");
+        expect(native?.backendId).toBe("native");
       });
 
       it("https://github.com/logancyang/obsidian-copilot/issues/3195 reports when saved chats were pinned, including notes in hidden folders outside the metadata cache", async () => {
         const { manager } = buildHistoryHarness({
           files: {
-            "chats/agent__pinned.md": { epoch: 1_000, backendId: "opencode", pinnedAt: 4_000 },
-            "chats/agent__unpinned.md": { epoch: 1_000, backendId: "opencode" },
+            "chats/agent__pinned.md": { epoch: 1_000, backendId: "native", pinnedAt: 4_000 },
+            "chats/agent__unpinned.md": { epoch: 1_000, backendId: "native" },
           },
           hiddenFiles: {
             ".copilot/chats/agent__hidden.md":
-              "---\nepoch: 1000\nmode: agent\nbackendId: opencode\npinnedAt: 5000\n---\n\n**user**: hi",
+              "---\nepoch: 1000\nmode: agent\nbackendId: native\npinnedAt: 5000\n---\n\n**user**: hi",
           },
         });
 
@@ -4235,11 +4237,11 @@ describe("AgentSessionManager", () => {
         const { manager, index } = buildHistoryHarness({
           hiddenFiles: {
             ".copilot/chats/agent__hidden.md":
-              '---\nepoch: 1000\nmode: agent\nbackendId: opencode\nsessionId: "s1"\n---\n\n**user**: hi',
+              '---\nepoch: 1000\nmode: agent\nbackendId: native\nsessionId: "s1"\n---\n\n**user**: hi',
           },
         });
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Hidden twin",
           createdAtMs: 1_000,
@@ -4281,7 +4283,7 @@ describe("AgentSessionManager", () => {
             "chats/agent__a.md": {
               epoch: 1_000,
               topic: "Unknowable",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "s1",
             },
           },
@@ -4299,13 +4301,13 @@ describe("AgentSessionManager", () => {
             "chats/agent__local.md": {
               epoch: 2_000,
               topic: "Made here",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "local",
             },
             "chats/agent__foreign.md": {
               epoch: 1_000,
               topic: "Made elsewhere",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "foreign",
             },
           },
@@ -4324,14 +4326,14 @@ describe("AgentSessionManager", () => {
             "chats/agent__foreign.md": {
               epoch: 1_000,
               topic: "Made elsewhere",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "foreign",
             },
           },
           warmSessionExistsLocally: jest.fn(async () => false),
         });
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "foreign",
           title: "Made elsewhere",
           createdAtMs: 1_000,
@@ -4340,7 +4342,7 @@ describe("AgentSessionManager", () => {
 
         const items = await manager.getChatHistoryItems();
         expect(items).toHaveLength(0);
-        expect(await index.isTombstoned("opencode", "foreign")).toBe(true);
+        expect(await index.isTombstoned("native", "foreign")).toBe(true);
       });
 
       it("probes a project chat's resumability with its project cwd, not the vault root", async () => {
@@ -4353,7 +4355,7 @@ describe("AgentSessionManager", () => {
             "chats/agent__p.md": {
               epoch: 2_000,
               topic: "Project chat",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "proj-sess",
               projectId: HISTORY_PROJECT_ID,
             },
@@ -4377,13 +4379,13 @@ describe("AgentSessionManager", () => {
             "chats/agent__g.md": {
               epoch: 2_000,
               topic: "Global chat",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "g-sess",
             },
             "chats/agent__p.md": {
               epoch: 1_000,
               topic: "Project chat",
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "p-sess",
               projectId: HISTORY_PROJECT_ID,
             },
@@ -4415,7 +4417,7 @@ describe("AgentSessionManager", () => {
         const items = await manager.getChatHistoryItems();
         expect(warmListSessions).toHaveBeenCalledWith({ cwd: "/vault" });
         expect(items).toHaveLength(1);
-        expect(items[0]?.id).toBe(buildNativeChatId("opencode", "pre-existing"));
+        expect(items[0]?.id).toBe(buildNativeChatId("native", "pre-existing"));
       });
 
       it("sweeps running backends' listSessions into history, scoped to the vault cwd", async () => {
@@ -4444,13 +4446,13 @@ describe("AgentSessionManager", () => {
           ],
         }));
         const { manager } = buildHistoryHarness({ listSessions, probeSessionId: "probe-1" });
-        await manager.createSession("opencode");
+        await manager.createSession("native");
 
         const items = await manager.getChatHistoryItems();
         expect(listSessions).toHaveBeenCalledWith({ cwd: "/vault" });
         const native = items.filter((i) => i.id.startsWith("scribe-agent-session://"));
         expect(native).toHaveLength(1);
-        expect(native[0]?.id).toBe(buildNativeChatId("opencode", "in-vault"));
+        expect(native[0]?.id).toBe(buildNativeChatId("native", "in-vault"));
         expect(native[0]?.title).toBe("Real chat");
         expect(native[0]?.lastAccessedAt.getTime()).toBe(7_000);
       });
@@ -4467,7 +4469,7 @@ describe("AgentSessionManager", () => {
           ],
         }));
         const { manager } = buildHistoryHarness({ listSessions, summarizesSessionTitle: false });
-        await manager.createSession("opencode");
+        await manager.createSession("native");
 
         const items = await manager.getChatHistoryItems();
         expect(listSessions).not.toHaveBeenCalled();
@@ -4476,18 +4478,40 @@ describe("AgentSessionManager", () => {
     });
 
     describe("deleteChatHistory()", () => {
+      it("removes the backend's stored native transcript before removing its saved note", async () => {
+        const deleted: string[] = [];
+        const deleteSession = jest.fn(async ({ sessionId }: { sessionId: string }) => {
+          deleted.push(sessionId);
+        });
+        const { manager, index } = buildHistoryHarness({
+          backendId: "native",
+          createBackendProcess: jest.fn(() => ({ ...makeMockBackendProcess(), deleteSession })),
+        });
+        await index.recordSession({
+          backendId: "native",
+          sessionId: "native-session-7",
+          title: "Delete",
+          createdAtMs: 1000,
+          lastAccessedAtMs: 2000,
+        });
+        await manager.deleteChatHistory(buildNativeChatId("native", "native-session-7"));
+        expect(deleted).toEqual(["native-session-7"]);
+        expect(
+          (await manager.getChatHistoryItems()).some((item) => item.id.includes("native-session-7"))
+        ).toBe(false);
+      });
       it("tombstones a native entry without touching persistence", async () => {
         const { manager, index, persistence } = buildHistoryHarness();
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Doomed",
           createdAtMs: 1_000,
           lastAccessedAtMs: 2_000,
         });
-        await manager.deleteChatHistory(buildNativeChatId("opencode", "s1"));
+        await manager.deleteChatHistory(buildNativeChatId("native", "s1"));
         expect(await manager.getChatHistoryItems()).toHaveLength(0);
-        expect(await index.isTombstoned("opencode", "s1")).toBe(true);
+        expect(await index.isTombstoned("native", "s1")).toBe(true);
         expect(persistence.deleteFile).not.toHaveBeenCalled();
       });
 
@@ -4496,13 +4520,13 @@ describe("AgentSessionManager", () => {
           files: {
             "chats/agent__a.md": {
               epoch: 1_000,
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "s1",
             },
           },
         });
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Twin",
           createdAtMs: 1_000,
@@ -4510,15 +4534,15 @@ describe("AgentSessionManager", () => {
         });
         await manager.deleteChatHistory("chats/agent__a.md");
         expect(persistence.deleteFile).toHaveBeenCalledWith("chats/agent__a.md");
-        expect(await index.isTombstoned("opencode", "s1")).toBe(true);
+        expect(await index.isTombstoned("native", "s1")).toBe(true);
       });
 
       it("https://github.com/logancyang/obsidian-copilot/issues/2888 touches only Copilot's own copy of the chat", async () => {
         const { manager, index, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "opencode", sessionId: "s1" } },
+          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native", sessionId: "s1" } },
         });
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Doomed",
           createdAtMs: 1_000,
@@ -4529,13 +4553,13 @@ describe("AgentSessionManager", () => {
 
         expect(persistence.deleteFile).toHaveBeenCalledTimes(1);
         expect(persistence.deleteFile).toHaveBeenCalledWith("chats/agent__a.md");
-        expect(await index.getEntry("opencode", "s1")).toBeNull();
+        expect(await index.getEntry("native", "s1")).toBeNull();
       });
 
       async function persistedNoteFixture() {
         const notePath = "chats/agent__a.md";
         const content =
-          "---\nbackendId: opencode\nsessionId: s1\nepoch: 1000\n---\nSaved conversation";
+          "---\nbackendId: native\nsessionId: s1\nepoch: 1000\n---\nSaved conversation";
         const notes: Record<string, string> = { [notePath]: content };
         const indexStorage = makeIndexStorage();
         const reload = () => {
@@ -4549,7 +4573,7 @@ describe("AgentSessionManager", () => {
         };
         const harness = reload();
         await harness.index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Saved conversation",
           createdAtMs: 1000,
@@ -4589,14 +4613,14 @@ describe("AgentSessionManager", () => {
         expect((await manager.getChatHistoryItems()).map((item) => item.id)).toContain(notePath);
 
         const reloaded = reload();
-        expect(await reloaded.index.isTombstoned("opencode", "s1")).toBe(false);
+        expect(await reloaded.index.isTombstoned("native", "s1")).toBe(false);
         expect((await reloaded.manager.getChatHistoryItems()).map((item) => item.id)).toContain(
           notePath
         );
         await reloaded.manager.deleteChatHistory(notePath);
         expect(notes[notePath]).toBeUndefined();
         expect(await reload().manager.getChatHistoryItems()).toEqual([]);
-        expect(await reload().index.isTombstoned("opencode", "s1")).toBe(true);
+        expect(await reload().index.isTombstoned("native", "s1")).toBe(true);
       });
 
       it("https://github.com/logancyang/obsidian-copilot/issues/2888 keeps a note visible after file-removal failure and reload despite its persisted marker, and allows retry", async () => {
@@ -4608,7 +4632,7 @@ describe("AgentSessionManager", () => {
         expect(notes[notePath]).toBe(content);
         expect((await manager.getChatHistoryItems()).map((item) => item.id)).toContain(notePath);
         const reloaded = reload();
-        expect(await reloaded.index.isTombstoned("opencode", "s1")).toBe(true);
+        expect(await reloaded.index.isTombstoned("native", "s1")).toBe(true);
         expect((await reloaded.manager.getChatHistoryItems()).map((item) => item.id)).toContain(
           notePath
         );
@@ -4623,10 +4647,10 @@ describe("AgentSessionManager", () => {
 
         async function openChat() {
           const harness = buildHistoryHarness();
-          const session = await harness.manager.createSession("opencode");
+          const session = await harness.manager.createSession("native");
           const sessionId = session.getBackendSessionId()!;
           await harness.index.recordSession({
-            backendId: "opencode",
+            backendId: "native",
             sessionId,
             title: "Open",
             createdAtMs: 1_000,
@@ -4636,7 +4660,7 @@ describe("AgentSessionManager", () => {
             ...harness,
             session,
             sessionId,
-            chatId: buildNativeChatId("opencode", sessionId),
+            chatId: buildNativeChatId("native", sessionId),
           };
         }
 
@@ -4646,7 +4670,7 @@ describe("AgentSessionManager", () => {
           await manager.deleteChatHistory(chatId);
 
           expect(manager.getSessions()).toEqual([]);
-          expect(await index.isTombstoned("opencode", sessionId)).toBe(true);
+          expect(await index.isTombstoned("native", sessionId)).toBe(true);
         });
 
         it.each(["a held autosave", "a held earlier autosave", "a held manual save"])(
@@ -4699,12 +4723,12 @@ describe("AgentSessionManager", () => {
             files: {
               "chats/duplicate.md": {
                 epoch: 1_000,
-                backendId: "opencode",
+                backendId: "native",
                 sessionId: sharedSessionId,
               },
             },
           });
-          const session = await manager.createSession("opencode");
+          const session = await manager.createSession("native");
           expect(session.getBackendSessionId()).toBe(sharedSessionId);
           getSessionTestHandle(session).setMessages([{ message: "First turn" }], true);
           await manager.saveActiveSession();
@@ -4734,19 +4758,19 @@ describe("AgentSessionManager", () => {
       it("updates the index title of a native entry", async () => {
         const { manager, index } = buildHistoryHarness();
         await index.recordSession({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "s1",
           title: "Old title",
           createdAtMs: 1_000,
           lastAccessedAtMs: 2_000,
         });
-        await manager.updateChatTitle(buildNativeChatId("opencode", "s1"), "New title");
-        expect((await index.getEntry("opencode", "s1"))?.title).toBe("New title");
+        await manager.updateChatTitle(buildNativeChatId("native", "s1"), "New title");
+        expect((await index.getEntry("native", "s1"))?.title).toBe("New title");
       });
 
       it("matches the live session by backend, not session id alone", async () => {
         const { manager, index } = buildHistoryHarness();
-        const live = await manager.createSession("opencode");
+        const live = await manager.createSession("native");
         const liveId = live.getBackendSessionId()!;
         await index.recordSession({
           backendId: "codex",
@@ -4765,7 +4789,7 @@ describe("AgentSessionManager", () => {
     describe("ensureChatNote()", () => {
       it("returns the note path of a saved chat without saving it again", async () => {
         const { manager, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "opencode" } },
+          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native" } },
         });
 
         await expect(manager.ensureChatNote("chats/agent__a.md")).resolves.toBe(
@@ -4797,13 +4821,13 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        await expect(manager.ensureChatNote(buildNativeChatId("opencode", "closed"))).resolves.toBe(
+        await expect(manager.ensureChatNote(buildNativeChatId("native", "closed"))).resolves.toBe(
           "chats/agent__saved.md"
         );
 
         expect(persistence.saveSession).toHaveBeenCalledWith(
           [expect.objectContaining({ sender: USER_SENDER, message: "closed question" })],
-          "opencode",
+          "native",
           expect.objectContaining({ sessionId: "closed" })
         );
         expect(manager.getActiveSession()).toBeNull();
@@ -4822,8 +4846,8 @@ describe("AgentSessionManager", () => {
         const saveGate = deferred<{ path: string }>();
         persistence.saveSession.mockImplementationOnce(() => saveGate.promise);
 
-        const saving = manager.ensureChatNote(buildNativeChatId("opencode", "closed"));
-        const opened = await manager.loadNativeSessionFromHistory("opencode", "closed");
+        const saving = manager.ensureChatNote(buildNativeChatId("native", "closed"));
+        const opened = await manager.loadNativeSessionFromHistory("native", "closed");
         saveGate.resolve({ path: "chats/agent__saved.md" });
 
         await expect(saving).resolves.toBe("chats/agent__saved.md");
@@ -4842,7 +4866,7 @@ describe("AgentSessionManager", () => {
         });
 
         await expect(
-          manager.ensureChatNote(buildNativeChatId("opencode", "unreachable"))
+          manager.ensureChatNote(buildNativeChatId("native", "unreachable"))
         ).rejects.toThrow();
         expect(persistence.saveSession).not.toHaveBeenCalled();
       });
@@ -4862,7 +4886,7 @@ describe("AgentSessionManager", () => {
 
       it("pins a saved chat by writing the current time to its note and returns the pinned row", async () => {
         const { manager, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "opencode" } },
+          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native" } },
         });
         freezeNow();
 
@@ -4874,7 +4898,7 @@ describe("AgentSessionManager", () => {
 
       it("unpins a saved chat by clearing the pin from its note", async () => {
         const { manager, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "opencode", pinnedAt: 4_000 } },
+          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native", pinnedAt: 4_000 } },
         });
 
         const unpinned = await manager.setChatPinned("chats/agent__a.md", false);
@@ -4912,14 +4936,14 @@ describe("AgentSessionManager", () => {
         });
         freezeNow();
 
-        const pinned = await manager.setChatPinned(buildNativeChatId("opencode", "closed"), true);
+        const pinned = await manager.setChatPinned(buildNativeChatId("native", "closed"), true);
 
         expect(persistence.saveSession).toHaveBeenCalledWith(
           [
             expect.objectContaining({ sender: USER_SENDER, message: "closed question" }),
             expect.objectContaining({ sender: AI_SENDER, message: "closed answer" }),
           ],
-          "opencode",
+          "native",
           expect.objectContaining({ sessionId: "closed" })
         );
         expect(persistence.setPinnedAt).toHaveBeenCalledWith("chats/agent__saved.md", PINNED_AT);
@@ -4937,7 +4961,7 @@ describe("AgentSessionManager", () => {
         });
 
         await expect(
-          manager.setChatPinned(buildNativeChatId("opencode", "unreachable"), true)
+          manager.setChatPinned(buildNativeChatId("native", "unreachable"), true)
         ).rejects.toThrow();
 
         expect(persistence.saveSession).not.toHaveBeenCalled();
@@ -4949,7 +4973,7 @@ describe("AgentSessionManager", () => {
       const savedAt = formatDateTime(new Date("2026-01-02T03:04:05Z"));
       const savedChat = (messages: AgentChatMessage[]) =>
         jest.fn().mockResolvedValue({
-          backendId: "opencode",
+          backendId: "native",
           sessionId: "native-1",
           projectId: GLOBAL_SCOPE,
           messages,
@@ -4979,35 +5003,27 @@ describe("AgentSessionManager", () => {
           descriptor: buildDescriptor({ createBackendProcess: () => replay.backend }),
         }).loadSessionFromHistory(mockTFile({ path: "chat/Saved.md" }));
 
-      it.each(["opencode", "codex"])(
-        "opens a saved %s note in Claude with its messages preserved",
+      it.each(["claude", "opencode", "codex"])(
+        "rejects a saved %s note without starting a replacement or changing its contents",
         async (backendId) => {
           const replay = buildReplayingBackend();
+          const saved = {
+            backendId,
+            sessionId: "retired-session",
+            projectId: GLOBAL_SCOPE,
+            messages: savedTurn,
+          };
           const manager = buildManager({
-            descriptor: buildDescriptor({
-              id: "claude",
-              createBackendProcess: () => replay.backend,
-            }),
-            persistence: {
-              loadFile: async () => ({
-                backendId,
-                sessionId: "retired-session",
-                projectId: GLOBAL_SCOPE,
-                messages: savedTurn,
-              }),
-            },
+            descriptor: buildDescriptor({ createBackendProcess: () => replay.backend }),
+            persistence: { loadFile: async () => saved },
           });
-
-          const session = await manager.loadSessionFromHistory(
-            mockTFile({ path: "chat/Saved.md" })
-          );
-
-          expect(session.backendId).toBe("claude");
-          expect(senderAndText(session)).toEqual([
-            [USER_SENDER, "saved question"],
-            [AI_SENDER, "saved answer"],
-          ]);
+          await expect(
+            manager.loadSessionFromHistory(mockTFile({ path: "chat/Saved.md" }))
+          ).rejects.toThrow("Unknown backend");
+          expect(saved.messages).toEqual(savedTurn);
           expect(replay.backend.loadSession).not.toHaveBeenCalled();
+          expect(sessionCreateSpy).not.toHaveBeenCalled();
+          expect(manager.getSessions()).toEqual([]);
         }
       );
 
@@ -5038,7 +5054,7 @@ describe("AgentSessionManager", () => {
           persistence: {
             loadFile: async () => ({
               messages: snapshot.messages,
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "saved-chat",
               projectId: GLOBAL_SCOPE,
             }),
@@ -5102,21 +5118,15 @@ describe("AgentSessionManager", () => {
         ]);
       });
 
-      it("https://github.com/logancyang/obsidian-copilot/issues/3643 opens a fresh session that sends the note's turns to the agent when the backend's store does not know the saved session", async () => {
+      it("preserves a saved note and reports a missing native record without importing it into a replacement", async () => {
         const replay = buildReplayingBackend({
           loadSession: jest.fn(async () => {
-            throw new Error("Invalid params: session not found: native-1");
+            throw new Error("Native session not found");
           }),
         });
-
-        const session = await openSavedChat(replay);
-
-        expect(session.getBackendSessionId()).not.toBe("native-1");
-        expect(senderAndText(session)).toEqual([
-          [USER_SENDER, "saved question"],
-          [AI_SENDER, "saved answer"],
-        ]);
-        expect(session.resendSavedHistoryOnNextTurn).toHaveBeenCalledTimes(1);
+        await expect(openSavedChat(replay)).rejects.toThrow("Could not resume");
+        expect(savedTurn).toHaveLength(2);
+        expect(sessionCreateSpy).not.toHaveBeenCalled();
       });
 
       it("https://github.com/logancyang/obsidian-copilot/issues/3643 does not resend the note's turns when the saved session reattaches", async () => {
@@ -5141,7 +5151,7 @@ describe("AgentSessionManager", () => {
         await buildManager({
           persistence: {
             loadFile: jest.fn().mockResolvedValue({
-              backendId: "opencode",
+              backendId: "native",
               sessionId: "native-1",
               projectId: "proj-ctx",
               messages: savedTurn,
@@ -5252,8 +5262,8 @@ describe("AgentSessionManager", () => {
     });
 
     describe("loadNativeSessionFromHistory()", () => {
-      it.each(["opencode", "codex"])(
-        "opens a saved %s snapshot in Claude without its old model or runtime",
+      it.each(["claude", "opencode", "codex"])(
+        "rejects a saved %s snapshot and preserves the original record",
         async (backendId) => {
           const { snapshots } = snapshotHarness();
           const snapshot = snapshotFixture({
@@ -5263,59 +5273,37 @@ describe("AgentSessionManager", () => {
           await snapshots.save(snapshot);
           const replay = buildReplayingBackend();
           const { manager } = buildHistoryHarness({
-            backendId: "claude",
             sessionSnapshots: snapshots,
             createBackendProcess: jest.fn(() => replay.backend),
           });
-
-          const session = await manager.loadNativeSessionFromHistory(backendId, "saved-chat");
-
-          expect(session.backendId).toBe("claude");
-          expect(session.chatInputId).toBe(snapshot.chatId);
-          expect(session.store.getDisplayMessages()).toEqual(snapshot.messages);
+          await expect(
+            manager.loadNativeSessionFromHistory(backendId, "saved-chat")
+          ).rejects.toThrow("Unknown backend");
           expect(replay.backend.loadSession).not.toHaveBeenCalled();
-          expect(sessionCreateSpy).toHaveBeenLastCalledWith(
-            expect.objectContaining({ backendId: "claude", defaultModelSelection: undefined })
-          );
-          expect(await snapshots.load(backendId, "saved-chat")).toMatchObject(snapshot);
+          expect(sessionCreateSpy).not.toHaveBeenCalled();
+          expect(await snapshots.load(backendId, "saved-chat")).toEqual(snapshot);
         }
       );
 
-      it("reuses a snapshot-backed replacement when the original native history is gone and keeps old links current", async () => {
+      it("preserves the display snapshot and reports a missing native record without creating alias history", async () => {
         const { snapshots } = snapshotHarness();
-        await snapshots.save(snapshotFixture());
-        const loadSession = jest.fn(async ({ sessionId }: { sessionId: string }) => {
-          if (sessionId === "saved-chat") throw new Error("Native history missing");
-          return { sessionId, state: { model: null, mode: null } };
+        const snapshot = snapshotFixture();
+        await snapshots.save(snapshot);
+        const replay = buildReplayingBackend({
+          loadSession: jest.fn(async () => {
+            throw new Error("Native history missing");
+          }),
         });
-        const replay = buildReplayingBackend({ loadSession });
-        const { manager, index } = buildHistoryHarness({
+        const { manager } = buildHistoryHarness({
           sessionSnapshots: snapshots,
           createBackendProcess: jest.fn(() => replay.backend),
         });
-
-        const first = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
-        const reopened = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
-
-        expect(reopened).toBe(first);
-        expect(manager.getSessions()).toHaveLength(1);
-        expect(first.chatInputId).toBe("stable-chat");
-        getSessionTestHandle(first).setMessages([
-          ...snapshotFixture().messages,
-          {
-            id: "u2",
-            sender: USER_SENDER,
-            message: "New continuation",
-            timestamp: null,
-            isVisible: true,
-          },
-        ]);
-        await manager.flushSessionSnapshot(first);
-        const oldLink = await snapshots.load("opencode", "saved-chat");
-        expect(oldLink!.messages[2].message).toBe("New continuation");
-        expect(oldLink!.currentSessionId).toBe(first.getBackendSessionId());
-        expect(await index.getEntry("opencode", "saved-chat")).toBeNull();
-        expect(await index.getEntry("opencode", first.getBackendSessionId()!)).not.toBeNull();
+        await expect(manager.loadNativeSessionFromHistory("native", "saved-chat")).rejects.toThrow(
+          "Could not resume"
+        );
+        expect(await snapshots.load("native", "saved-chat")).toEqual(snapshot);
+        expect(manager.getSessions()).toEqual([]);
+        expect(sessionCreateSpy).not.toHaveBeenCalled();
       });
 
       it("restores stable chat identity, every reply's duration, file changes and completed tasks after reopening", async () => {
@@ -5338,7 +5326,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        const session = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        const session = await manager.loadNativeSessionFromHistory("native", "saved-chat");
 
         expect(session.chatInputId).toBe("stable-chat");
         expect(session.store.getDisplayMessages()).toEqual(snapshot.messages);
@@ -5378,7 +5366,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        const session = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        const session = await manager.loadNativeSessionFromHistory("native", "saved-chat");
 
         expect(senderAndText(session)).toEqual([
           [USER_SENDER, "Review"],
@@ -5413,7 +5401,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        const session = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        const session = await manager.loadNativeSessionFromHistory("native", "saved-chat");
 
         expect(senderAndText(session)).toEqual([
           [USER_SENDER, "Review"],
@@ -5434,7 +5422,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        const session = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        const session = await manager.loadNativeSessionFromHistory("native", "saved-chat");
         replay.emit("saved-chat", replayChunk("agent_message_chunk", "second", "a1"));
 
         expect(senderAndText(session)).toEqual([
@@ -5486,7 +5474,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        await manager.loadNativeSessionFromHistory("native", "saved-chat");
 
         expect(replay.handlerCountAtOpen.load).toBe(1);
       });
@@ -5501,7 +5489,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        await manager.loadNativeSessionFromHistory("native", "saved-chat");
 
         expect(replay.backend.resumeSession).toHaveBeenCalledTimes(1);
         expect(replay.handlerCountAtOpen.resume).toBe(1);
@@ -5517,7 +5505,7 @@ describe("AgentSessionManager", () => {
           createBackendProcess: jest.fn(() => replay.backend),
         });
 
-        const session = await manager.loadNativeSessionFromHistory("opencode", "saved-chat");
+        const session = await manager.loadNativeSessionFromHistory("native", "saved-chat");
         replay.emit("saved-chat", replayChunk("agent_message_chunk", "background", "a1"));
 
         expect(senderAndText(session)).toEqual([]);
@@ -5550,7 +5538,7 @@ describe("AgentSessionManager", () => {
           });
 
           await expect(
-            manager.loadNativeSessionFromHistory("opencode", "saved-chat")
+            manager.loadNativeSessionFromHistory("native", "saved-chat")
           ).rejects.toThrow("Could not resume");
 
           expect(replay.unregister).toHaveBeenCalledTimes(1);
@@ -5560,12 +5548,10 @@ describe("AgentSessionManager", () => {
 
       it("matches live sessions by the (backendId, sessionId) pair, not session id alone", async () => {
         const { manager } = buildHistoryHarness();
-        const session = await manager.createSession("opencode");
+        const session = await manager.createSession("native");
         const liveId = session.getBackendSessionId()!;
 
-        await expect(manager.loadNativeSessionFromHistory("opencode", liveId)).resolves.toBe(
-          session
-        );
+        await expect(manager.loadNativeSessionFromHistory("native", liveId)).resolves.toBe(session);
 
         await expect(manager.loadNativeSessionFromHistory("codex", liveId)).rejects.toThrow();
         expect(manager.getActiveSession()).toBe(session);
@@ -5583,9 +5569,9 @@ describe("AgentSessionManager", () => {
           },
           createBackendProcess,
         });
-        await expect(
-          manager.loadNativeSessionFromHistory("opencode", "saved-chat")
-        ).rejects.toThrow("Could not resume");
+        await expect(manager.loadNativeSessionFromHistory("native", "saved-chat")).rejects.toThrow(
+          "Could not resume"
+        );
         expect(createBackendProcess).not.toHaveBeenCalled();
         expect(manager.getActiveSession()).toBeNull();
         expect(manager.getLastError()).toContain("Update required");

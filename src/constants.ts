@@ -311,7 +311,7 @@ export const DEFAULT_SETTINGS: CopilotSettings = {
   defaultSystemPromptTitle: "",
   agentMode: {
     byok: {},
-    activeBackend: "claude",
+    activeBackend: "native",
     backends: {},
     debugFullFrames: true,
     offerFeedbackCards: true,

@@ -71,7 +71,6 @@ jest.mock("@/agentMode", () => ({
   PlanPreviewView: class {},
   closeAgentDetailModals: jest.fn(),
 }));
-jest.mock("@/agentMode/agentModelDiscovery", () => ({ wireAgentModelDiscovery: jest.fn() }));
 
 import CopilotPlugin from "@/main";
 import { QuickAskController } from "@/editor";
@@ -111,7 +110,6 @@ function createPluginUnderTest(calls: string[]) {
   Object.assign(plugin, {
     app: { workspace: { getLeavesOfType: jest.fn(() => []) } },
     chatSelectionHighlightController: { cleanup: jest.fn(() => calls.push("highlight")) },
-    agentModelDiscoveryUnsubscriber: jest.fn(() => calls.push("modelDiscovery")),
     agentSessionManager: {
       shutdown: jest.fn(async () => {
         calls.push("sessions");
@@ -852,7 +850,7 @@ describe("main", () => {
 
         plugin.onunload();
 
-        expect(calls).toEqual(["audio", "highlight", "modelDiscovery"]);
+        expect(calls).toEqual(["audio", "highlight"]);
         releaseSessions();
         await flushTeardown();
       });
@@ -872,7 +870,6 @@ describe("main", () => {
 
         expect(calls).toEqual([
           "highlight",
-          "modelDiscovery",
           "sessions",
           "customCommands",
           "projects",
@@ -889,7 +886,6 @@ describe("main", () => {
         const plugin = createPluginUnderTest(calls);
         Object.assign(plugin, {
           chatSelectionHighlightController: undefined,
-          agentModelDiscoveryUnsubscriber: undefined,
           agentSessionManager: undefined,
           customCommandRegister: undefined,
           projectRegister: undefined,

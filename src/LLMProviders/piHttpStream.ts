@@ -4,18 +4,29 @@ import type {
   Model,
   StopReason,
   StreamOptions,
+  ToolCall,
+  JsonObject,
 } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
+import { parseToolCallArguments } from "@earendil-works/pi-ai/utils/json-parse";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import { logWarn } from "@/logger";
 import { t } from "@/lib/i18n";
+import { v4 as uuidv4 } from "uuid";
 
 export interface HttpChatDelta {
   text?: string;
   thinking?: string;
   usage?: Partial<AssistantMessage["usage"]>;
   finishReason?: Extract<StopReason, "stop" | "length" | "toolUse">;
+  toolCall?: {
+    index: number;
+    id?: string;
+    name?: string;
+    arguments?: string | JsonObject;
+    thoughtSignature?: string;
+  };
 }
 
 export function streamHttpCompletion(
@@ -28,9 +39,46 @@ export function streamHttpCompletion(
   void (async () => {
     try {
       let finishReason: HttpChatDelta["finishReason"];
+      const calls = new Map<number, { contentIndex: number; tool: ToolCall; json: string }>();
       events.push({ type: "start", partial: output });
       for await (const delta of read()) {
         if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (delta.toolCall) {
+          const incoming = delta.toolCall;
+          let call = calls.get(incoming.index);
+          if (!call) {
+            const tool: ToolCall = {
+              type: "toolCall",
+              id: incoming.id || uuidv4(),
+              name: incoming.name || "",
+              arguments: {},
+            };
+            call = { contentIndex: output.content.length, tool, json: "" };
+            calls.set(incoming.index, call);
+            output.content.push(tool);
+            events.push({
+              type: "toolcall_start",
+              contentIndex: call.contentIndex,
+              partial: output,
+            });
+          }
+          if (incoming.id) call.tool.id = incoming.id;
+          if (incoming.name) call.tool.name = incoming.name;
+          if (incoming.thoughtSignature) call.tool.thoughtSignature = incoming.thoughtSignature;
+          if (incoming.arguments !== undefined) {
+            const fragment =
+              typeof incoming.arguments === "string"
+                ? incoming.arguments
+                : JSON.stringify(incoming.arguments);
+            call.json = typeof incoming.arguments === "string" ? call.json + fragment : fragment;
+            events.push({
+              type: "toolcall_delta",
+              contentIndex: call.contentIndex,
+              delta: fragment,
+              partial: output,
+            });
+          }
+        }
         for (const type of ["thinking", "text"] as const) {
           const value = delta[type];
           if (!value) continue;
@@ -60,6 +108,14 @@ export function streamHttpCompletion(
       }
       // Disconnected custom-provider streams must not turn a partial answer into success. https://github.com/ItsDalk-Lane/Scribe/issues/8
       if (!finishReason) throw new Error(t("Unexpected response"));
+      if (calls.size && finishReason === "stop") finishReason = "toolUse";
+      if (finishReason === "toolUse" && !calls.size)
+        throw new Error("Tool completion did not contain a tool call.");
+      output.stopReason = finishReason;
+      for (const call of calls.values()) {
+        if (!call.tool.name) throw new Error("The provider returned a tool call without a name.");
+        Object.assign(call.tool, parseToolCallArguments(call.json));
+      }
       for (const [contentIndex, part] of output.content.entries()) {
         if (part.type === "text")
           events.push({ type: "text_end", contentIndex, content: part.text, partial: output });
@@ -70,6 +126,8 @@ export function streamHttpCompletion(
             content: part.thinking,
             partial: output,
           });
+        else if (part.type === "toolCall")
+          events.push({ type: "toolcall_end", contentIndex, toolCall: part, partial: output });
       }
       events.push({
         type: "done",

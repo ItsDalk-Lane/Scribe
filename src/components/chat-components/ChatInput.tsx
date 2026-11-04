@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n";
+import type { Skill } from "@/agentMode";
 import { ChatSendButton } from "@/components/ui/ChatSendButton";
 import { Button } from "@/components/ui/button";
 import { ModelSelector, type ModelSelectorEntry } from "@/components/ui/ModelSelector";
@@ -48,6 +49,7 @@ const DEFAULT_PLACEHOLDER =
   "Your AI assistant for Obsidian • @ to add context • / for custom prompts";
 
 export interface ChatInputProps {
+  slashSkills?: readonly Skill[];
   placeholder?: string;
   inputMessage: string;
   setInputMessage: (message: string) => void;
@@ -140,6 +142,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
     onRemoveSelectedText,
     onEscape,
     onShiftTab,
+    slashSkills,
   },
   ref
 ) {
@@ -508,6 +511,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
 
           <div className="tw-relative">
             <LexicalEditor
+              slashSkills={slashSkills}
               value={inputMessage}
               onChange={(value) => setInputMessage(value)}
               onSubmit={onSendMessage}

@@ -32,6 +32,19 @@ describe("settingsSecretTransforms", () => {
   });
 
   describe("hasPersistedSecrets()", () => {
+    it("detects nested retired runtime secrets so the existing backup runs before their settings are removed", () => {
+      expect(
+        hasPersistedSecrets({
+          agentMode: { backends: { retired: { envOverrides: { API_TOKEN: "retired-secret" } } } },
+        })
+      ).toBe(true);
+      expect(
+        hasPersistedSecrets({
+          agentMode: { retired: [{ API_KEY: "" }, { name: "Not a credential" }] },
+        })
+      ).toBe(false);
+    });
+
     it.each([
       {
         name: "detects a top-level secret",
@@ -69,6 +82,28 @@ describe("settingsSecretTransforms", () => {
   });
 
   describe("stripKeychainFields()", () => {
+    it("blanks secrets in unknown nested agent settings without changing native choices or the input", () => {
+      const settings = makeSettings({
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          backends: { native: { defaultModel: { baseModelId: "chosen-model", effort: "high" } } },
+          retiredConfiguration: {
+            entries: [{ apiKey: "synthetic-secret", name: "Preserved" }],
+            password: "secret",
+            empty: [],
+          },
+        } as unknown as CopilotSettings["agentMode"],
+      });
+      const result = stripKeychainFields(settings);
+      expect(JSON.stringify(result)).not.toContain("synthetic-secret");
+      expect(JSON.stringify(result)).not.toContain('"password":"secret"');
+      expect(JSON.stringify(settings)).toContain("synthetic-secret");
+      expect(result.agentMode.backends.native?.defaultModel).toEqual({
+        baseModelId: "chosen-model",
+        effort: "high",
+      });
+    });
+
     it("clears top-level and model secrets without mutating the input", () => {
       const settings = makeSettings({
         openAIApiKey: "sk-123",
@@ -96,6 +131,38 @@ describe("settingsSecretTransforms", () => {
   });
 
   describe("cleanupLegacyFields()", () => {
+    it("drops retired runtime configuration from persisted copies while keeping native settings and BYOK references", () => {
+      const settings = makeSettings({
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          byok: { anthropic: "retired-secret" },
+          claudeCli: { path: "/retired-agent" },
+          deviceProfiles: { oldDevice: { claude: { envOverrides: { API_TOKEN: "old-secret" } } } },
+          backends: {
+            native: { maxSteps: 75 },
+            claude: { envOverrides: { API_KEY: "old-secret" } },
+          },
+        } as unknown as CopilotSettings["agentMode"],
+        providers: {
+          saved: {
+            providerId: "saved",
+            providerType: "google",
+            displayName: "Saved",
+            apiKeyKeychainId: "existing-key",
+            origin: { kind: "byok" },
+            addedAt: 1,
+          },
+        },
+      });
+      const result = cleanupLegacyFields(settings);
+      expect(result.agentMode.backends).toEqual({ native: { maxSteps: 75 } });
+      expect("claudeCli" in result.agentMode).toBe(false);
+      expect("deviceProfiles" in result.agentMode).toBe(false);
+      expect("byok" in result.agentMode).toBe(false);
+      expect(result.providers.saved.apiKeyKeychainId).toBe("existing-key");
+      expect(JSON.stringify(settings)).toContain("retired-secret");
+    });
+
     it("removes retired settings without mutating the input", () => {
       const settings = makeSettings({
         _keychainVaultId: "abc12345",

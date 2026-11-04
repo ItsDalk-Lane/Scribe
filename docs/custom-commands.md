@@ -13,21 +13,21 @@ Commands appear when you type `/` in Agent Chat. Skills appear only in Agent Cha
 | **Scribe command** | A short, repeatable prompt with optional note variables                      | [**Settings → Scribe → Commands**](settings.md#command) |
 | **Skill**          | A reusable agent workflow that can include instructions and supporting files | [**Settings → Scribe → Skills**](settings.md#skills)    |
 
-Skills can be enabled for Claude. Commands stay inside Scribe and also work from the editor and Obsidian command palette. If a command and skill have the same name, the skill takes the slash-menu spot.
+Skills can be enabled for Scribe Agent Chat. Commands stay inside Scribe and also work from the editor and Obsidian command palette. If a command and skill have the same name, the skill takes the slash-menu spot.
 
 ## Create a command
 
 1. Open [**Settings → Scribe → Commands**](settings.md#command).
-2. Click **Add command**.
+2. Click **New**.
 3. Enter a **Name** and **Prompt**.
-4. Optionally choose **Model (optional)**, **Show in context menu**, and **Show in slash menu**.
+4. To adjust the model and menu preferences, use **快捷操作 → 我的命令**.
 5. Click **Save**.
 
 Choose **Default model** to use **Default quick command model** from **Settings → Scribe → Commands**. A command-specific model applies to editor and command-palette runs. A slash run uses the model selected for that Agent Chat.
 
 If a saved command’s selected model or the shared default is unavailable, configure it in **Settings → Scribe → Commands**, then rerun the command. Scribe does not substitute your chat model or another enabled model, and changing the popup picker does not retry the original command. Quick Ask and Quick Command keep your unsent input while you choose a model.
 
-**Commands** 页的“我的指令”在所有来源中共享，并继续支持编辑、复制、拖动排序、模型选择和变量填充。Claude 本地指令与插件指令在同页分组显示；插件提供的指令只能查看。列表使用分组卡片行显示指令摘要和两个菜单偏好标识；菜单偏好仍在编辑弹窗中调整。模型、变量填充、排序和默认指令生成收在列表下方默认折叠的“指令选项”中。
+**Commands** 页列出 Scribe 已注册的命令，支持新建、编辑、启停和删除。**快捷操作 → 我的命令** 继续提供复制、拖动排序、模型选择、变量填充和菜单偏好。模型、变量填充、排序和默认指令生成收在列表下方的“指令选项”中。
 
 每条 Scribe 指令都有独立的启用开关。关闭后不能从右键菜单、命令面板、快捷键或聊天 `/` 调用。**Show in context menu** 和 **Show in slash menu** 的偏好会保留，重新启用时恢复原样；仅隐藏某个菜单并不会停用整条指令。
 
@@ -70,7 +70,7 @@ Editor and command-palette runs open a result panel. You can refine the result, 
 3. Ask your question. Use the model picker if needed, and enable **Note** to include the full active note.
 4. Use **Copy to clipboard**, **Insert at cursor**, or **Replace selection** on the answer. You can continue with follow-up questions in the same panel.
 
-Quick Ask is an inline panel, not an Agent Chat session. It uses an enabled [BYOK](settings.md#models) model from **快捷操作 → 工具配置**, not the model selected in Agent Chat. It starts with **Default quick command model**, shared with **Trigger quick command** and saved commands set to **Default model**. Model changes in either popup apply only to that run; change the shared default in **Settings → Scribe → Commands**. The **Note** choice is remembered and shared.
+Quick Ask is an inline panel, not an Agent Chat session. It uses an enabled [BYOK](settings.md#models) model from **快捷操作 → 工具配置**, not the model selected in Agent Chat. It starts with **Default quick command model**, shared with **Trigger quick command** and saved commands set to **Default model**. Model changes in either popup apply only to that run; change the shared default in **Settings → Scribe → 快捷操作 → 工具配置**. The **Note** choice is remembered and shared.
 
 Quick Ask is unavailable in Source mode. **Replace selection** appears only when text was selected and stays available only while Scribe can safely identify the original text in the same note and editor pane.
 

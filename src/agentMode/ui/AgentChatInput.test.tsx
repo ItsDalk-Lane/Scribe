@@ -1,6 +1,7 @@
 import { expandCustomCommandPrefix } from "@/agentMode/session/expandCustomCommandPrefix";
 import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import type { Skill } from "@/agentMode/skills/types";
 import { AgentInputDraftStore } from "@/agentMode/session/AgentInputDraftStore";
 import type { QueuedPrompt } from "@/agentMode/session/types";
 import type { AgentInputDraftControls } from "@/agentMode/ui/hooks/useAgentInputDrafts";
@@ -17,6 +18,9 @@ import React from "react";
 
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix */
 const mockPrependContent = jest.fn();
+let mockManagedSkills: Skill[] = [];
+let mockComposerSkills: readonly Skill[] | undefined;
+jest.mock("@/agentMode/skills/SkillManager", () => ({ useManagedSkills: () => mockManagedSkills }));
 jest.mock("@/components/chat-components/ChatInput", () => ({
   __esModule: true,
   default: jest.requireActual<typeof React>("react").forwardRef(
@@ -26,9 +30,11 @@ jest.mock("@/components/chat-components/ChatInput", () => ({
         handleSendMessage?: () => void;
         onStopGenerating?: () => void;
         isGenerating?: boolean;
+        slashSkills?: readonly Skill[];
       },
       ref: React.ForwardedRef<import("@/components/chat-components/ChatInput").ChatInputHandle>
     ) => {
+      mockComposerSkills = props.slashSkills;
       React.useImperativeHandle(ref, () => ({
         prependContent: (text: string, webTabs: readonly WebTabContext[]) => {
           mockPrependContent(text, webTabs);
@@ -191,12 +197,48 @@ function setupCancellation() {
 
 describe("AgentChatInput", () => {
   beforeEach(() => {
+    mockManagedSkills = [];
+    mockComposerSkills = undefined;
     mockSelectedTextContexts = [];
     mockActiveWebTab = undefined;
     mockActiveFile = null;
   });
 
   describe("AgentChatInput()", () => {
+    it("limits slash-menu skills to the current chat project and updates them when the project changes", () => {
+      const shared: Skill = {
+        name: "shared",
+        description: "Shared",
+        filePath: "/vault/Scribe/skills/shared/SKILL.md",
+        dirPath: "/vault/Scribe/skills/shared",
+        body: "Shared body",
+        enabledAgents: ["native"],
+        location: { kind: "canonical" },
+      };
+      mockManagedSkills = [
+        shared,
+        {
+          ...shared,
+          name: "first",
+          dirPath: "/vault/first/.scribe/skills/first",
+          location: { kind: "project", agentDirs: ["native"] },
+        },
+        {
+          ...shared,
+          name: "second",
+          dirPath: "/vault/second/.scribe/skills/second",
+          location: { kind: "project", agentDirs: ["native"] },
+        },
+      ];
+      const backend = { takeWithdrawnPrompts: () => [] } as unknown as AgentChatBackend;
+      const draft = makeDraft();
+      const scope = (cwd: string) => ({ skillScope: { cwd, projectDirectory: ".scribe/skills" } });
+      const view = renderInput(backend, draft, scope("/vault/first"));
+      expect(mockComposerSkills?.map((skill) => skill.name)).toEqual(["shared", "first"]);
+      view.rerender(inputNode(backend, draft, scope("/vault/second")));
+      expect(mockComposerSkills?.map((skill) => skill.name)).toEqual(["shared", "second"]);
+    });
+
     it.each([
       {
         scenario: "the active note and its selection together",

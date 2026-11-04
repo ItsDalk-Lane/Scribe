@@ -43,11 +43,8 @@ describe("SettingsMainV2", () => {
         "通用",
         "快捷操作",
         "代理",
-        "插件",
         "技能",
         "命令",
-        "钩子",
-        "MCP",
         "子Agent",
       ]);
       expect(screen.getByRole("tab", { name: "快捷操作" }).getAttribute("aria-selected")).toBe(
@@ -79,11 +76,8 @@ describe("SettingsMainV2", () => {
         "Common",
         "Quick actions",
         "Agents",
-        "Plugins",
         "Skills",
         "Commands",
-        "Hooks",
-        "MCP",
         "Subagents",
       ]);
     });

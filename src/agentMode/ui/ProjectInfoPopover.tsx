@@ -5,7 +5,7 @@ import { ProjectConfig } from "@/aiParams";
 import { AddProjectModal } from "@/components/modals/project/AddProjectModal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { isClaudeImportOnly, openAgentsFile } from "@/instructions/agentsFile";
+import { openAgentsFile } from "@/instructions/agentsFile";
 import { moveProjectPromptToAgentsFile } from "@/projects/moveProjectPrompt";
 import { cn } from "@/lib/utils";
 import { logError } from "@/logger";
@@ -22,7 +22,7 @@ import {
   Settings,
 } from "lucide-react";
 import { App, Notice, TFile, TFolder } from "obsidian";
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 
 const HIDDEN_BASENAMES = new Set(["project.md", "agents.md"]);
 
@@ -102,7 +102,7 @@ export interface ProjectFileEntry {
 }
 
 export interface ProjectFilesListProps {
-  files: ProjectFileEntry[];
+  files: readonly ProjectFileEntry[];
   onOpenInstructions: () => void;
   onOpenFile: (path: string) => void;
   onReveal: () => void;
@@ -198,40 +198,24 @@ interface ProjectFilesSectionProps {
   onClose: () => void;
 }
 
+const EMPTY_PROJECT_FILES: readonly TFile[] = Object.freeze([]);
+
 function ProjectFilesSection({ app, project, onClose }: ProjectFilesSectionProps) {
-  const [files, setFiles] = useState<TFile[]>([]);
-  useEffect(() => {
+  const files = useMemo(() => {
     const record = getCachedProjectRecordById(project.id);
     const folderPath = record
       ? getProjectAnchorFromConfigPath(record.filePath).projectFolderPath
       : null;
     const folder = folderPath ? app.vault.getAbstractFileByPath(folderPath) : null;
-    let cancelled = false;
-    void (async () => {
-      if (!(folder instanceof TFolder)) {
-        if (!cancelled) setFiles([]);
-        return;
-      }
-      const list = folder.children.filter(
+    if (!(folder instanceof TFolder)) return EMPTY_PROJECT_FILES;
+    return folder.children
+      .filter(
         (child): child is TFile =>
           child instanceof TFile &&
           !child.name.startsWith(".") &&
-          !HIDDEN_BASENAMES.has(child.name.toLowerCase()) &&
-          child.name.toLowerCase() !== "claude.md"
-      );
-      const claude = folder.children.find(
-        (child): child is TFile =>
-          child instanceof TFile && child.name.toLowerCase() === "claude.md"
-      );
-      if (claude) {
-        const content = await app.vault.read(claude).catch(() => "");
-        if (!isClaudeImportOnly(content)) list.push(claude);
-      }
-      if (!cancelled) setFiles(list.sort((a, b) => a.name.localeCompare(b.name)));
-    })();
-    return () => {
-      cancelled = true;
-    };
+          !HIDDEN_BASENAMES.has(child.name.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [app, project.id]);
 
   const handleOpenFile = (path: string) => {

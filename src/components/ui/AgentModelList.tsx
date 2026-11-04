@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { ModelEnableRow } from "@/components/ui/ModelEnableList";
 import { SearchBar } from "@/components/ui/SearchBar";
@@ -24,7 +23,6 @@ export function AgentModelList({
   const [open, setOpen] = React.useState(defaultOpen);
   const [query, setQuery] = React.useState("");
   const enabled = rows.filter((row) => row.enabled);
-  const defaultId = enabled[0]?.id;
   const q = query.trim().toLowerCase();
   const visible = rows.filter((row) =>
     `${row.label}\n${row.wireId ?? ""}\n${row.description ?? ""}`.toLowerCase().includes(q)
@@ -60,9 +58,7 @@ export function AgentModelList({
       </CollapsibleTrigger>
       <CollapsibleContent className="tw-space-y-3 tw-border-0 tw-border-t tw-border-solid tw-border-border tw-p-4">
         <p className="tw-m-0 tw-text-ui-smaller tw-leading-normal tw-text-muted">
-          {t(
-            "Models are reported by this agent. The first enabled model is the default; reasoning uses the agent default."
-          )}
+          {t("Your configured chat models are listed here. Choose the default model below.")}
         </p>
         <SearchBar
           value={query}
@@ -80,7 +76,6 @@ export function AgentModelList({
                   <span className="tw-break-words tw-text-ui-small tw-font-medium">
                     {row.label}
                   </span>
-                  {row.id === defaultId && <Badge variant="accent">{t("Default")}</Badge>}
                 </div>
                 {row.wireId && (
                   <div className="tw-break-all tw-text-ui-smaller tw-leading-normal tw-text-muted">
@@ -105,9 +100,7 @@ export function AgentModelList({
           {visible.length === 0 && (
             <p role="status" className="tw-py-4 tw-text-center tw-text-ui-small tw-text-muted">
               {t(
-                q
-                  ? "No matching models."
-                  : "No models reported yet. Install and sign in to the agent to discover its models."
+                q ? "No matching models." : "No chat models configured. Add one in model settings."
               )}
             </p>
           )}

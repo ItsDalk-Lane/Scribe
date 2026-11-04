@@ -328,7 +328,7 @@ describe("AgentExtensionsSettings", () => {
         ).toBe("true")
       );
     });
-    it("preserves a plugin's local installation scope when the update action is opened from the current vault", async () => {
+    it("keeps old plugin details readable without offering marketplace installation or updates", async () => {
       const plugin: AgentExtensionItem = {
         ...mockItem,
         kind: "plugin",
@@ -345,16 +345,12 @@ describe("AgentExtensionsSettings", () => {
       fireEvent.click(await screen.findByRole("article", { name: "notes" }));
       await waitFor(() => expect(mockModalContent).toHaveBeenCalledTimes(1));
       const details = mockModalContent.mock.calls[0][0] as React.ReactElement<{
-        onUpdate: () => Promise<void>;
+        onUpdate?: () => Promise<void>;
       }>;
-      await act(async () => details.props.onUpdate());
-      expect(mockManagement.pluginAction).toHaveBeenCalledWith({
-        action: "update",
-        scope: { kind: "project", cwd: "/vault" },
-        plugin: "notes@team",
-        local: false,
-        installationScope: "local",
-      });
+      expect(details.props.onUpdate).toBeUndefined();
+      expect(screen.queryByRole("button", { name: "Browse plugin marketplace" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Add plugin" })).toBeNull();
+      expect(mockManagement.pluginAction).not.toHaveBeenCalled();
     });
     it("hides the update action for a local-directory plugin while keeping removal available", async () => {
       const plugin: AgentExtensionItem = {

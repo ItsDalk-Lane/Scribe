@@ -10,8 +10,8 @@ const sidebar = [
     label: "Agent Chat",
     items: [
       { label: "Agent Chat overview", link: "/agent-mode-and-tools/" },
-      { label: "Set up Claude", link: "/agent-mode-and-tools/#set-up-claude" },
-      { label: "Skills with Claude", link: "/agent-mode-and-tools/#skills-with-claude" },
+      { label: "Set up Scribe", link: "/agent-mode-and-tools/#set-up-scribe" },
+      { label: "Skills", link: "/agent-mode-and-tools/#skills" },
       { slug: "projects" },
       { slug: "context-and-mentions" },
       { slug: "system-prompts" },

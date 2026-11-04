@@ -20,10 +20,14 @@ module.exports = {
     "^obsidian$": "<rootDir>/__mocks__/obsidian.js",
     "^yaml$": "<rootDir>/node_modules/yaml/dist/index.js",
     "^@earendil-works/pi-ai/(.*)$": "<rootDir>/node_modules/@earendil-works/pi-ai/dist/$1.js",
+    "^@earendil-works/pi-ai$": "<rootDir>/node_modules/@earendil-works/pi-ai/dist/index.js",
     "^@earendil-works/pi-schema$": "<rootDir>/node_modules/@earendil-works/pi-schema/dist/index.js",
+    "^@earendil-works/pi-schema/formats$":
+      "<rootDir>/node_modules/@earendil-works/pi-schema/dist/formats/index.js",
+    "^@earendil-works/pi-agent-core$":
+      "<rootDir>/node_modules/@earendil-works/pi-agent-core/dist/index.js",
     "^@earendil-works/pi-telemetry$":
       "<rootDir>/node_modules/@earendil-works/pi-telemetry/dist/index.js",
-    "^@anthropic-ai/claude-agent-sdk$": "<rootDir>/__mocks__/@anthropic-ai/claude-agent-sdk.js",
     "^react-resizable-panels$": "<rootDir>/__mocks__/react-resizable-panels.js",
   },
   testRegex: ".*\\.test\\.(jsx?|tsx?)$",

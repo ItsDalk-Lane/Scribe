@@ -1,4 +1,4 @@
-import { COPILOT_MCP_SERVER_NAME } from "@/agentMode/session/copilotMcpServer";
+import { COPILOT_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
 import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
 
 export function excalidrawToolCall(

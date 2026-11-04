@@ -17,7 +17,7 @@ interface SapCredentials {
 export function createSapLanguageModel(
   model: CustomModel,
   credentials: SapCredentials
-): (options: ChatStreamOptions) => Promise<ProviderStreams["stream"]> {
+): (options: Pick<ChatStreamOptions, "signal">) => Promise<ProviderStreams["stream"]> {
   const transport = createProviderFetch(model);
   let cachedToken: { value: string; expiresAt: number } | undefined;
   let pendingToken: Promise<string> | undefined;

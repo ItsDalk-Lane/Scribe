@@ -252,7 +252,7 @@ function RecentChatMenu({
             new ConfirmModal(
               app,
               () => onDeleteChat(item.id),
-              describeChatDelete(item.backendId ? backendRegistry[item.backendId] : undefined),
+              describeChatDelete(),
               t("Delete chat"),
               t("Delete"),
               t("Cancel")

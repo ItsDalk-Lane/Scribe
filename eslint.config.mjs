@@ -488,7 +488,6 @@ export default [
   {
     files: [
       "**/*.cjs",
-      "scripts/patchRendererUnsafeUnref.js",
       "scripts/bundleSizeGuard.js",
       "scripts/bundleSizeGuard.test.js",
     ],

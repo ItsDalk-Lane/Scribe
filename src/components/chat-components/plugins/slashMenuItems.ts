@@ -41,7 +41,7 @@ const COMPACT_ITEM: SlashMenuItem = {
 };
 
 export function composeSlashMenuItems(
-  skills: Skill[],
+  skills: readonly Skill[],
   commands: CustomCommand[],
   activeBackend: BackendId | null,
   isAgentMode = false

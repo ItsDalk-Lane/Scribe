@@ -62,12 +62,9 @@ export async function runSettingsMigrations(api: ModelManagementApi): Promise<vo
 
   if (fromVersion < 18) {
     setSettings((current) => {
-      const claude = { ...current.agentMode.backends.claude };
-      delete claude.defaultModel;
       return {
         agentMode: {
           ...current.agentMode,
-          backends: { ...current.agentMode.backends, claude },
           skills: { ...current.agentMode.skills, builtinPreferences: {} },
         },
       };

@@ -47,7 +47,7 @@ export const COPILOT_PROMPT_BASE = `You are Obsidian Scribe, working in the user
 // stays on when the built-in prompt is disabled.
 // https://github.com/Brevilabs/obsidian-copilot-private/issues/701
 const FILE_EDIT_TOOLS: Readonly<Record<BackendId, string>> = {
-  claude: "Edit/Write",
+  native: "edit_note/write_note",
 };
 
 function buildFileEditPolicy(backendId: BackendId): string {

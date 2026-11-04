@@ -42,6 +42,83 @@ function chat(transport: typeof fetch, maxTokens?: number) {
 
 describe("SapLanguageModel", () => {
   describe("createSapHttpModel()", () => {
+    it("streams split tool arguments and returns results with the original call ID", async () => {
+      const transport = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
+        events([
+          {
+            final_result: {
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "sap-call",
+                        function: { name: "read_note", arguments: '{"path":' },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            final_result: {
+              choices: [
+                {
+                  delta: { tool_calls: [{ index: 0, function: { arguments: '"note.md"}' } }] },
+                  finish_reason: "tool_calls",
+                },
+              ],
+            },
+          },
+        ])
+      );
+      const tools = [
+        {
+          name: "read_note",
+          description: "Read note",
+          parameters: { type: "object", properties: { path: { type: "string" } } },
+        },
+      ];
+      const reply = await collectReply(chat(transport), { tools, messages: [] });
+      expect(reply).toMatchObject({
+        stopReason: "toolUse",
+        content: [
+          { type: "toolCall", id: "sap-call", name: "read_note", arguments: { path: "note.md" } },
+        ],
+      });
+      await collectReply(chat(transport), {
+        tools,
+        messages: [
+          reply,
+          {
+            role: "toolResult",
+            toolCallId: "sap-call",
+            toolName: "read_note",
+            content: [{ type: "text", text: "MARKER-42" }],
+            isError: false,
+            timestamp: 0,
+          },
+        ],
+      });
+      const body = JSON.parse(transport.mock.calls[1][1]?.body as string) as {
+        config: { modules: { prompt_templating: { prompt: unknown } } };
+      };
+      expect(body.config.modules.prompt_templating.prompt).toMatchObject({
+        tools: [{ type: "function", function: tools[0] }],
+        template: [
+          {
+            role: "assistant",
+            tool_calls: [
+              { id: "sap-call", function: { name: "read_note", arguments: '{"path":"note.md"}' } },
+            ],
+          },
+          { role: "tool", tool_call_id: "sap-call", content: "MARKER-42" },
+        ],
+      });
+    });
+
     it(`preserves prompt parameters, reasoning, Unicode text and reported usage across network boundaries (${issue})`, async () => {
       const transport = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
         events([
