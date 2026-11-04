@@ -132,6 +132,27 @@ describe("seedBuiltinSkills", () => {
       expect(fs.files.get(MD)).toMatch(/scribe-content-hash:/);
     });
 
+    it("keeps managing a folder seeded with legacy copilot markers and defers once (https://github.com/ItsDalk-Lane/Scribe/issues/29)", async () => {
+      const legacyMd = skill(1).skillMd.replace(/scribe-/g, "copilot-");
+      const fs = memFs({ [MD]: legacyMd, [SCRIPT]: "// script v1" });
+
+      const first = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+      expect(first.seeded).toEqual([]);
+      expect(fs.files.get(MD)).toContain("body v1");
+
+      const second = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+      expect(second.seeded).toEqual(["test-helper"]);
+      expect(fs.files.get(MD)).toContain("body v2");
+    });
+
     it("preserves user-modified scribe-enabled-agents when upgrading an unmodified builtin (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
       const fs = memFs();
       await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });

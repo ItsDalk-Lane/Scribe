@@ -39,9 +39,9 @@ export async function inspectBuiltinSkill(
   }
 }
 
-const ENABLED_AGENTS_RE = /^([ \t]*scribe-enabled-agents:[ \t]*)(.*)$/m;
-const CONTENT_HASH_RE = /^[ \t]*scribe-content-hash:[ \t]*.*$\n?/m;
-const BUILTIN_VERSION_RE = /^([ \t]*scribe-builtin-version:[ \t]*.*\n)/m;
+const ENABLED_AGENTS_RE = /^([ \t]*(?:scribe|copilot)-enabled-agents:[ \t]*)(.*)$/m;
+const CONTENT_HASH_RE = /^[ \t]*(?:scribe|copilot)-content-hash:[ \t]*.*$\n?/m;
+const BUILTIN_VERSION_RE = /^([ \t]*(?:scribe|copilot)-builtin-version:[ \t]*.*\n)/m;
 
 // 指纹覆盖 SKILL.md 全文但排除两处易变行（启用行、哈希行自身），
 // 使"改启用开关"不算用户编辑，改其余任何内容都算。
