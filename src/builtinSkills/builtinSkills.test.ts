@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from "@/constants";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
 import {
   BUILTIN_SKILLS,
@@ -15,9 +15,9 @@ jest.mock("@/services/obsidianCli/ObsidianCliClient", () => ({
 const mockIsObsidianCliEnabled = jest.mocked(isObsidianCliEnabled);
 
 function settingsWith(
-  builtinPreferences: NonNullable<CopilotSettings["agentMode"]["skills"]["builtinPreferences"]>,
-  overrides: Partial<CopilotSettings> = {}
-): CopilotSettings {
+  builtinPreferences: NonNullable<ScribeSettings["agentMode"]["skills"]["builtinPreferences"]>,
+  overrides: Partial<ScribeSettings> = {}
+): ScribeSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...overrides,
@@ -41,7 +41,7 @@ describe("builtinSkills", () => {
 
     it("keeps every SKILL.md frontmatter version in sync with the numeric version", () => {
       for (const skill of BUILTIN_SKILLS) {
-        expect(skill.skillMd).toContain(`copilot-builtin-version: "${skill.version}"`);
+        expect(skill.skillMd).toContain(`scribe-builtin-version: "${skill.version}"`);
       }
     });
   });
@@ -52,7 +52,7 @@ describe("builtinSkills", () => {
     });
   });
 
-  describe("builtinSkillUnavailableReason()", () => {
+  describe("builtinSkillUnavailableReason", () => {
     it("leaves every skill available while Obsidian's command line interface is on", () => {
       mockIsObsidianCliEnabled.mockReturnValue(true);
       for (const skill of BUILTIN_SKILLS) {
@@ -60,7 +60,7 @@ describe("builtinSkills", () => {
       }
     });
 
-    it("makes only obsidian-cli unavailable, naming the Obsidian setting, while the command line interface is off (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("makes only obsidian-cli unavailable, naming the Obsidian setting, while the command line interface is off", () => {
       mockIsObsidianCliEnabled.mockReturnValue(false);
       expect(builtinSkillUnavailableReason("obsidian-cli")).toBe(
         "Turn on Command line interface in Obsidian's Settings → General to use this skill."
@@ -72,7 +72,7 @@ describe("builtinSkills", () => {
     });
   });
 
-  describe("isBuiltinSkillEnabledFor()", () => {
+  describe("isBuiltinSkillEnabledFor", () => {
     it("enables a supplied skill for each agent by default", () => {
       expect(isBuiltinSkillEnabledFor(settingsWith({}), "obsidian-markdown", "claude")).toBe(true);
     });

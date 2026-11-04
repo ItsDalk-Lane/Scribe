@@ -2,8 +2,8 @@ import { logFileManager } from "@/logFileManager";
 import { getSettings } from "@/settings/model";
 import { Notice, type App } from "obsidian";
 
-jest.mock("@/settings/copilotFolder", () => ({
-  getEffectiveCopilotFolder: () => "copilot",
+jest.mock("@/settings/scribeFolder", () => ({
+  getEffectiveScribeFolder: () => "scribe",
 }));
 jest.mock("@/settings/model", () => ({
   getSettings: jest.fn(() => ({ debug: true, openAIApiKey: "sk-should-never-be-exported" })),
@@ -44,7 +44,7 @@ describe("logFileManager", () => {
   });
 
   describe("LogFileManager", () => {
-    describe("exportLogText()", () => {
+    describe("exportLogText", () => {
       it("returns an empty string before anything has been logged", () => {
         expect(logFileManager.exportLogText()).toBe("");
       });
@@ -59,7 +59,7 @@ describe("logFileManager", () => {
         expect(text.endsWith("\n")).toBe(true);
       });
 
-      it("omits the settings dump that openLogFile() attaches, so no keys can leak", async () => {
+      it("omits the settings dump that openLogFile attaches, so no keys can leak", async () => {
         await logFileManager.append("INFO", "hello");
         const text = logFileManager.exportLogText();
 
@@ -84,7 +84,7 @@ describe("logFileManager", () => {
       });
     });
 
-    describe("flush()", () => {
+    describe("flush", () => {
       it("writes the buffer when the log note already exists", async () => {
         const { app, vault } = fakeApp(true);
         logFileManager.setApp(app);
@@ -92,7 +92,7 @@ describe("logFileManager", () => {
 
         await logFileManager.flush();
         expect(vault.write).toHaveBeenCalledWith(
-          "copilot/scribe-log.md",
+          "scribe/scribe-log.md",
           expect.stringContaining("hello")
         );
       });
@@ -117,7 +117,7 @@ describe("logFileManager", () => {
       });
     });
 
-    describe("openLogFile()", () => {
+    describe("openLogFile", () => {
       it("creates the note with the buffer plus a sanitized settings block", async () => {
         const { app, vault } = fakeApp(false);
         logFileManager.setApp(app);
@@ -152,7 +152,7 @@ describe("logFileManager", () => {
         expect(content).toContain("Settings could not be serialized: TypeError");
       });
 
-      it("shows a notice when the note cannot be written, since the logger cannot log its own failure (https://github.com/Brevilabs/obsidian-copilot-private/issues/647)", async () => {
+      it("shows a notice when the note cannot be written, since the logger cannot log its own failure", async () => {
         const { app, vault } = fakeApp(false);
         vault.create.mockRejectedValueOnce(new Error("read-only vault"));
         logFileManager.setApp(app);
@@ -164,9 +164,9 @@ describe("logFileManager", () => {
       });
     });
 
-    describe("getLogPath()", () => {
+    describe("getLogPath", () => {
       it("resolves the note under the effective Scribe root folder", () => {
-        expect(logFileManager.getLogPath()).toBe("copilot/scribe-log.md");
+        expect(logFileManager.getLogPath()).toBe("scribe/scribe-log.md");
       });
     });
   });

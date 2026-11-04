@@ -9,8 +9,6 @@ import {
   type SkillLoadIssue,
 } from "./SkillLoadIssues";
 
-const ISSUE_URL = "https://github.com/Brevilabs/obsidian-copilot-private/issues/166";
-
 function stubContentDimensions(scrollHeightPx: number, clientHeightPx: number): () => void {
   const originalScrollHeight = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
@@ -43,8 +41,8 @@ function stubContentDimensions(scrollHeightPx: number, clientHeightPx: number): 
 }
 
 describe("SkillLoadIssues", () => {
-  describe("SkillLoadIssues()", () => {
-    it(`keeps rejected skills compact and links to their details for ${ISSUE_URL}`, () => {
+  describe("SkillLoadIssues", () => {
+    it(`keeps rejected skills compact and links to their details for`, () => {
       const onViewDetails = jest.fn();
       render(<SkillLoadIssues issues={[makeIssue()]} onViewDetails={onViewDetails} />);
 
@@ -56,7 +54,7 @@ describe("SkillLoadIssues", () => {
     });
   });
 
-  describe("SkillLoadIssuesModalContent()", () => {
+  describe("SkillLoadIssuesModalContent", () => {
     let restoreContentHeight: (() => void) | undefined;
 
     afterEach(() => {
@@ -64,17 +62,17 @@ describe("SkillLoadIssues", () => {
       restoreContentHeight = undefined;
     });
 
-    it(`lists each rejected skill's file path, reason, and rejected line in its own article for ${ISSUE_URL}`, () => {
+    it(`lists each rejected skill's file path, reason, and rejected line in its own article for`, () => {
       render(
         <SkillLoadIssuesModalContent
           issues={[
             makeIssue(),
             makeIssue({
-              location: ".claude/skills/without-fix/SKILL.md",
+              location: ".scribe/skills/without-fix/SKILL.md",
               offendingText: "description: [unfinished",
             }),
             makeIssue({
-              location: ".claude/skills/third/SKILL.md",
+              location: ".scribe/skills/third/SKILL.md",
               reason: "Missing name.",
               offendingText: undefined,
             }),
@@ -87,13 +85,13 @@ describe("SkillLoadIssues", () => {
       expect(screen.getAllByRole("article")).toHaveLength(3);
       expect(screen.getByText(makeIssue().location)).not.toBeNull();
       expect(screen.getByText(makeIssue().offendingText as string)).not.toBeNull();
-      expect(screen.getByText(".claude/skills/without-fix/SKILL.md")).not.toBeNull();
+      expect(screen.getByText(".scribe/skills/without-fix/SKILL.md")).not.toBeNull();
       expect(screen.getByText("description: [unfinished")).not.toBeNull();
       expect(screen.getAllByText(makeIssue().reason)).toHaveLength(2);
       expect(screen.getByText("Missing name.")).not.toBeNull();
     });
 
-    it(`closes the modal before running a row action or Fix All for ${ISSUE_URL}`, () => {
+    it(`closes the modal before running a row action or Fix All for`, () => {
       const order: string[] = [];
       render(
         <SkillLoadIssuesModalContent
@@ -103,7 +101,7 @@ describe("SkillLoadIssues", () => {
               onOpen: () => order.push("open"),
               onReveal: () => order.push("reveal"),
             }),
-            makeIssue({ location: ".claude/skills/second/SKILL.md" }),
+            makeIssue({ location: ".scribe/skills/second/SKILL.md" }),
           ]}
           onFixAll={() => order.push("fix-all")}
           onClose={() => order.push("close")}
@@ -127,7 +125,7 @@ describe("SkillLoadIssues", () => {
       ]);
     });
 
-    it(`collapses an overflowing rejected description until Show more is selected for ${ISSUE_URL}`, () => {
+    it(`collapses an overflowing rejected description until Show more is selected for`, () => {
       restoreContentHeight = stubContentDimensions(400, 100);
       const longDescription = `description: ${"Review long notes carefully. ".repeat(40)}`;
 
@@ -151,16 +149,16 @@ describe("SkillLoadIssues", () => {
   });
 
   describe("SkillLoadIssuesModal", () => {
-    describe("constructor()", () => {
-      it(`uses truthful singular native title copy for ${ISSUE_URL}`, () => {
+    describe("constructor", () => {
+      it(`uses truthful singular native title copy for`, () => {
         const modal = new SkillLoadIssuesModal(new App(), [makeIssue()], jest.fn());
 
         expect(modal.titleEl.textContent).toBe("1 skill could not be loaded");
       });
     });
 
-    describe("onOpen()", () => {
-      it(`renders the complete repair list for ${ISSUE_URL}`, async () => {
+    describe("onOpen", () => {
+      it(`renders the complete repair list for`, async () => {
         const modal = new SkillLoadIssuesModal(new App(), [makeIssue()], jest.fn());
         modal.contentEl.empty = () => modal.contentEl.replaceChildren();
 
@@ -175,7 +173,7 @@ describe("SkillLoadIssues", () => {
 
 function makeIssue(overrides: Partial<SkillLoadIssue> = {}): SkillLoadIssue {
   return {
-    location: ".claude/skills/broken-skill/SKILL.md",
+    location: ".scribe/skills/broken-skill/SKILL.md",
     reason: 'The description contains ": " and must be quoted.',
     offendingText: "description: Use this skill for: reviewing notes",
     revealLabel: "Show in folder",

@@ -31,7 +31,6 @@ jest.mock("@/agentMode/ui/AgentProjectRowActions", () => ({
 const openAgentsFile = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/instructions/agentsFile", () => ({
   openAgentsFile: (...args: unknown[]) => openAgentsFile(...args),
-  isClaudeImportOnly: jest.requireActual("@/instructions/agentsFile").isClaudeImportOnly,
 }));
 const moveProjectPromptToAgentsFile = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/projects/moveProjectPrompt", () => ({
@@ -52,10 +51,10 @@ const PROJECT = {
 
 function makeFolder(names: string[]) {
   const folder = new (TFolder as unknown as new (path: string) => TFolder)(
-    "copilot/projects/proj-1"
+    "scribe/projects/proj-1"
   );
   (folder as unknown as { children: unknown[] }).children = names.map(
-    (n) => new (TFile as unknown as new (path: string) => TFile)(`copilot/projects/proj-1/${n}`)
+    (n) => new (TFile as unknown as new (path: string) => TFile)(`scribe/projects/proj-1/${n}`)
   );
   return folder;
 }
@@ -67,7 +66,7 @@ function renderPopover(
 ) {
   getCachedProjectRecordById.mockReturnValue({
     folderName: "proj-1",
-    filePath: "copilot/projects/proj-1/project.md",
+    filePath: "scribe/projects/proj-1/project.md",
     project: PROJECT,
   });
   const openFile = jest.fn().mockResolvedValue(undefined);
@@ -111,10 +110,10 @@ describe("ProjectInfoPopover", () => {
     expect(screen.getByText("step C")).toBeTruthy();
   });
 
-  it("hides a CLAUDE.md that is only Scribe's @AGENTS.md wiring", async () => {
+  it("lists an old instruction file as an ordinary project file without interpreting its contents", async () => {
     renderPopover(null, ["CLAUDE.md", "draft.md"], { "CLAUDE.md": "@AGENTS.md\n" });
     expect(await screen.findByText("draft.md")).toBeTruthy();
-    expect(screen.queryByText("CLAUDE.md")).toBeNull();
+    expect(screen.getByText("CLAUDE.md")).toBeTruthy();
   });
 
   it("lists a CLAUDE.md that carries the user's own rules", async () => {
@@ -141,7 +140,7 @@ describe("ProjectInfoPopover", () => {
       expect.anything(),
       expect.objectContaining({ folderName: "proj-1" })
     );
-    expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), "copilot/projects/proj-1");
+    expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), "scribe/projects/proj-1");
   });
 
   it("reveals the project folder from the header button", async () => {

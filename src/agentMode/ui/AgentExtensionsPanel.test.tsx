@@ -6,9 +6,9 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 describe("AgentExtensionsPanel", () => {
-  describe("AgentExtensionsPanel()", () => {
+  describe("AgentExtensionsPanel", () => {
     beforeEach(() => resetExpandedExtensionSectionsForTests());
-    it("groups plugin entries by their recorded owner and allows management only for user entries (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("groups plugin entries by their recorded owner and allows management only for user entries", () => {
       const open = jest.fn(),
         toggle = jest.fn(),
         remove = jest.fn();
@@ -106,7 +106,7 @@ describe("AgentExtensionsPanel", () => {
       [true, "Availability could not be confirmed. Check again."],
       [false, "This item is disabled in the current configuration."],
     ])(
-      "labels a linked skill as read-only instead of built-in when enabled is %s (https://github.com/ItsDalk-Lane/Scribe/issues/1)",
+      "labels a linked skill as read-only instead of built-in when enabled is %s",
       (enabled, reason) => {
         render(
           <AgentExtensionsPanel
@@ -143,7 +143,7 @@ describe("AgentExtensionsPanel", () => {
         expect(item.queryByRole("button", { name: /Delete|Edit/ })).toBeNull();
       }
     );
-    it("does not equate discovered or unreported entries with successfully loaded extensions (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("does not equate discovered or unreported entries with successfully loaded extensions", () => {
       render(
         <AgentExtensionsPanel
           agentName="Claude Code"
@@ -255,7 +255,7 @@ describe("AgentExtensionsPanel", () => {
       },
     ] as const;
 
-    it("collapses every section by default and expands it from its whole header row (https://github.com/ItsDalk-Lane/Scribe/issues/4)", () => {
+    it("collapses every section by default and expands it from its whole header row", () => {
       render(
         <AgentExtensionsPanel
           agentName="Claude Code"
@@ -275,7 +275,7 @@ describe("AgentExtensionsPanel", () => {
       fireEvent.click(screen.getByRole("button", { name: /Installed/ }));
       expect(screen.queryByRole("article")).toBeNull();
     });
-    it("keeps an expanded section open when the panel remounts within the same session (https://github.com/ItsDalk-Lane/Scribe/issues/4)", () => {
+    it("keeps an expanded section open when the panel remounts within the same session", () => {
       const first = render(
         <AgentExtensionsPanel
           agentName="Claude Code"
@@ -297,7 +297,7 @@ describe("AgentExtensionsPanel", () => {
       );
       expect(screen.getByRole("article", { name: "personal" })).toBeTruthy();
     });
-    it("forces every section open while a search query filters the list (https://github.com/ItsDalk-Lane/Scribe/issues/4)", () => {
+    it("forces every section open while a search query filters the list", () => {
       render(
         <AgentExtensionsPanel
           agentName="Claude Code"

@@ -4,7 +4,7 @@ import {
   LEGACY_BACKUP_PREFIX,
 } from "@/services/legacyCredentialBackup";
 
-const PLUGIN_DIR = "vault-config/plugins/copilot";
+const PLUGIN_DIR = "vault-config/plugins/scribe";
 
 function backupPathFor(rawData: unknown): string {
   return `${PLUGIN_DIR}/${legacyBackupFilename(JSON.stringify(rawData, null, 2))}`;
@@ -70,6 +70,29 @@ describe("legacyCredentialBackup", () => {
 
       expect(io.write.mock.calls[0][1]).toContain("enc_desk_abc123");
       expect(result).toMatchObject({ status: "backed-up", encrypted: true });
+    });
+
+    it("backs up a file whose only credential is an Authorization-style pair (https://github.com/ItsDalk-Lane/Scribe/issues/17)", async () => {
+      const io = makeIO();
+      const rawData = {
+        agentMode: {
+          mcpServers: [
+            {
+              name: "private",
+              transport: "http",
+              headers: [{ name: "Authorization", value: "Bearer synthetic" }],
+            },
+          ],
+        },
+      };
+
+      const result = await backupLegacyCredentials(rawData, PLUGIN_DIR, io);
+
+      expect(result).toEqual({
+        status: "backed-up",
+        path: backupPathFor(rawData),
+        encrypted: false,
+      });
     });
 
     it("reports no backup needed when the file holds no credentials", async () => {

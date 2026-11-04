@@ -1,35 +1,20 @@
 # Windows setup for Agent Chat
 
-Agent Chat uses **Claude Code** in the Obsidian desktop app.
+Windows 上的 Agent Chat 直接在 Obsidian 桌面版内运行 Scribe 代理，不需要安装外部代理或登录其账户。
 
-## Connect Claude Code
+## Set up a model
 
-The Claude backend uses the Claude Code installation and account already on your computer.
+1. 在 **Settings → Scribe → 快捷操作 → 模型** 添加供应商或本地模型服务。
+2. 填写它需要的密钥、地址和额外信息；也可以手动输入模型 ID。
+3. 在 **代理 → Scribe** 启用模型，选择默认模型及权限模式。
+4. 打开 Agent Chat，发送任务。
 
-1. Open **Settings → Scribe → 代理 → Claude Code** and select **Configure**.
-2. If Claude Code is installed, select **Auto-detect** under **Claude Code installation**.
-3. If it is not installed, copy the current **Install it** command from the dialog and run it in PowerShell.
-4. Return to **Configure Claude** and select **Auto-detect** again. If detection still fails, enter the absolute path to `claude.exe` and select **Apply**.
-5. If the dialog shows **Sign in**, select it and complete the browser login.
+真实系统命令使用 Windows 的运行环境，并遵守 Scribe 权限卡。模型服务、本机命令和附加 Obsidian 插件各自需要在电脑上可用。
 
-You can also start the Claude Code login from PowerShell:
+## Skills
 
-```powershell
-claude auth login --claudeai
-```
+在 **Settings → Scribe → 技能** 启用 Scribe 技能，输入 `/` 选择允许手动调用的条目。项目技能只在对应项目的聊天中出现。
 
-Scribe uses Claude Code's credentials. Do not add an Anthropic API key to this dialog. If Scribe reports that the installed version is unsupported, update Claude Code and detect it again.
+`obsidian-cli` 技能仍要求在 Obsidian 的 **Settings → General → Command line interface** 开启命令行功能。
 
-## Use Skills with Claude
-
-Open [**Settings → Scribe → Skills**](settings.md#skills) and toggle the Claude icon for each Skill. Scribe keeps one shared copy and creates folder links into `.claude/skills/`.
-
-Windows may block creation of these links. Enable **Windows Settings → Privacy & security → For developers → Developer Mode**, or run Obsidian with administrator access, then toggle the affected agent off and on in the **Skills** tab.
-
-If a sync service replaces a folder link and a Skill disappears from an agent, toggle that agent off and on again to recreate the link.
-
-## Open Agent Chat
-
-Select the **Agent Chat** ribbon icon or run **Open Scribe Agent Chat window** from the command palette. Claude opens automatically when it is ready. Use **Configure** if setup is required.
-
-For models, effort, permissions, and Projects, see [Agent Chat](agent-mode-and-tools.md).
+更多说明见 [Agent Chat](agent-mode-and-tools.md)、[Model Sources and BYOK](llm-providers.md)。

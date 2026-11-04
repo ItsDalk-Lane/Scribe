@@ -3,8 +3,8 @@ import { App, Modal } from "obsidian";
 import type { ReactElement } from "react";
 import { type Root } from "react-dom/client";
 
-export const FULL_BLEED_MODAL_CLASS = "copilot-modal-full-bleed";
-export const UNTITLED_MODAL_CLASS = "copilot-modal-untitled";
+export const FULL_BLEED_MODAL_CLASS = "scribe-modal-full-bleed";
+export const UNTITLED_MODAL_CLASS = "scribe-modal-untitled";
 
 export abstract class ReactModal extends Modal {
   private root: Root | null = null;

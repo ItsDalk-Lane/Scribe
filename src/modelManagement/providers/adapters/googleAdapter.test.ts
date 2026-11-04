@@ -23,7 +23,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
 }
 
 describe("googleAdapter", () => {
-  describe("verifyCredentials()", () => {
+  describe("verifyCredentials", () => {
     beforeEach(() => {
       mockSafeFetch.mockReset();
       mockSafeFetch.mockResolvedValue({
@@ -74,7 +74,7 @@ describe("googleAdapter", () => {
     });
 
     it.each(["https://proxy.example/gateway/v1beta", " https://proxy.example/gateway/v1beta/// "])(
-      "normalizes the saved versioned URL %p before checking models (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "normalizes the saved versioned URL %p before checking models",
       async (baseUrl) => {
         await googleAdapter.verifyCredentials({
           provider: provider({ baseUrl }),

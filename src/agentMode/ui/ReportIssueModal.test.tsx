@@ -98,12 +98,12 @@ const prepared: PreparedReport = {
     idempotencyKey: "5d41c9b2-7e3a-4f8b-9c1d-2a6e8f4b0d37",
   },
   issueDraft: { title: "it exploded", body: "## What went wrong" },
-  manualIssueUrl: "https://github.com/logancyang/obsidian-copilot/issues/new?title=manual",
+  manualIssueUrl: "https://github.com/ItsDalk-Lane/Scribe/issues/new?title=manual",
   attachments: [],
 };
 
 const reportId = "9f3c1a7b2e4d5f60819a2b3c4d5e6f70";
-const issueUrl = "https://github.com/logancyang/obsidian-copilot/issues/new?title=linked";
+const issueUrl = "https://github.com/ItsDalk-Lane/Scribe/issues/new?title=linked";
 
 beforeEach(() => {
   noticeMock.mockClear();
@@ -127,7 +127,7 @@ beforeEach(() => {
 });
 
 describe("ReportIssueModal", () => {
-  describe("createReportDir()", () => {
+  describe("createReportDir", () => {
     const created: string[] = [];
 
     afterEach(async () => {
@@ -158,7 +158,7 @@ describe("ReportIssueModal", () => {
     });
   });
 
-  describe("discardReport()", () => {
+  describe("discardReport", () => {
     it("removes the report's directory, recursively and without failing on an absent one", async () => {
       rm.mockResolvedValue(undefined);
 
@@ -168,7 +168,7 @@ describe("ReportIssueModal", () => {
       expect(rm).toHaveBeenCalledWith(prepared.zipDir, { recursive: true, force: true });
     });
 
-    it("logs a directory that would not go and resolves anyway (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("logs a directory that would not go and resolves anyway", async () => {
       rm.mockRejectedValue(new Error("EBUSY: resource busy or locked"));
 
       await expect(discardReport(prepared)).resolves.toBeUndefined();
@@ -178,7 +178,7 @@ describe("ReportIssueModal", () => {
     });
   });
 
-  describe("uploadReport()", () => {
+  describe("uploadReport", () => {
     it("sends the packed attempt and builds the linked issue URL from the report id", async () => {
       const uploader: ReportUploader = jest.fn().mockResolvedValue({
         reportId,
@@ -217,7 +217,7 @@ describe("ReportIssueModal", () => {
     });
   });
 
-  describe("openIssuePageWith()", () => {
+  describe("openIssuePageWith", () => {
     it("resolves true once the browser has taken the page", async () => {
       await expect(openIssuePageWith({ openExternal }, issueUrl)).resolves.toBe(true);
 
@@ -243,7 +243,7 @@ describe("ReportIssueModal", () => {
     });
   });
 
-  describe("openReportIssueModal()", () => {
+  describe("openReportIssueModal", () => {
     beforeAll(() => {
       Object.assign(Modal.prototype, { setTitle: jest.fn() });
     });
@@ -297,7 +297,7 @@ describe("ReportIssueModal", () => {
       }) as ModalUnderTest;
     }
 
-    describe("onOpen()", () => {
+    describe("onOpen", () => {
       afterEach(() => {
         mockDesktopRuntime = true;
       });
@@ -313,7 +313,7 @@ describe("ReportIssueModal", () => {
       });
     });
 
-    describe("buildSources()", () => {
+    describe("buildSources", () => {
       const ids = (params: Record<string, unknown>) =>
         modalWith({
           params: { activeBackend: "claude", ...params },
@@ -344,17 +344,17 @@ describe("ReportIssueModal", () => {
 
       it("offers the Scribe log checked even with debug mode off", () => {
         setSettings({ debug: false });
-        const copilotLog = modalWith({
+        const scribeLog = modalWith({
           params: { activeBackend: "claude" },
         })
           .buildSources()
           .find((source) => source.id === "chatLog");
 
-        expect(copilotLog).toMatchObject({ label: "Scribe log", defaultChecked: true });
+        expect(scribeLog).toMatchObject({ label: "Scribe log", defaultChecked: true });
       });
     });
 
-    describe("prepare()", () => {
+    describe("prepare", () => {
       const created: string[] = [];
 
       afterEach(async () => {
@@ -398,7 +398,7 @@ describe("ReportIssueModal", () => {
         expect(report.uploadAttempt.idempotencyKey).not.toBe("");
       });
 
-      it("removes the directory and rethrows when the zip cannot be written (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("removes the directory and rethrows when the zip cannot be written", async () => {
         writeFile.mockRejectedValue(new Error("ENOSPC: no space left on device"));
 
         await expect(prepare(new Set())).rejects.toThrow("ENOSPC");
@@ -409,7 +409,7 @@ describe("ReportIssueModal", () => {
         await expect(realFs.stat(dir)).rejects.toThrow();
       });
 
-      it("goes on without the screenshot when the capture fails, and says so in the manifest (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("goes on without the screenshot when the capture fails, and says so in the manifest", async () => {
         captureWindowBehindDialogs.mockRejectedValue(new Error("the pane went away"));
 
         const report = await prepare(new Set(["screenshot"]));
@@ -452,14 +452,14 @@ describe("ReportIssueModal", () => {
         expect(bundleInput().screenshotPng).toBeNull();
       });
 
-      it("leaves the screenshot out of the assembler's input entirely when it was not selected (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("leaves the screenshot out of the assembler's input entirely when it was not selected", async () => {
         await prepare(new Set());
 
         expect(captureWindowBehindDialogs).not.toHaveBeenCalled();
         expect(bundleInput().screenshotPng).toBeUndefined();
       });
 
-      it("packs the activity log and the Copilot log it was asked for into the zip (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("packs the activity log and the Scribe log it was asked for into the zip", async () => {
         const frameDir = await realFs.mkdtemp(nodePath.join(nodeOs.tmpdir(), "acp-frames-"));
         created.push(frameDir);
         const framePath = nodePath.join(frameDir, "acp-frames.ndjson");
@@ -477,13 +477,13 @@ describe("ReportIssueModal", () => {
         expect(entryText("scribe-log.md")).toBe(chatLog);
       });
 
-      it("asks for the logs smallest-growing first, so a heavy session's frames cannot crowd the others out (https://github.com/Brevilabs/obsidian-copilot-private/issues/538)", async () => {
+      it("asks for the logs smallest-growing first, so a heavy session's frames cannot crowd the others out", async () => {
         await prepare(new Set(["activityLog", "chatLog"]));
 
         expect(bundleInput().logs.map((log) => log.id)).toEqual(["chatLog", "activityLog"]);
       });
 
-      it("reads no activity log, and says why, when it was selected while turned off (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("reads no activity log, and says why, when it was selected while turned off", async () => {
         const agentMode = getSettings().agentMode;
         setSettings({ agentMode: { ...agentMode, debugFullFrames: false } });
         try {
@@ -500,10 +500,10 @@ describe("ReportIssueModal", () => {
       });
     });
 
-    describe("upload()", () => {
+    describe("upload", () => {
       const uploaderResolving = () => jest.fn().mockResolvedValue({ reportId, expiresAt: "" });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/672 tells the feedback card a report landed, with its id and issue link, even after the dialog closed", async () => {
+      it("tells the feedback card a report landed, with its id and issue link, even after the dialog closed", async () => {
         const onReported = jest.fn();
         const open = modalWith({ params: { uploader: uploaderResolving(), onReported } });
         const closed = modalWith({
@@ -521,7 +521,7 @@ describe("ReportIssueModal", () => {
         });
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/672 leaves the feedback card untouched when the upload fails", async () => {
+      it("leaves the feedback card untouched when the upload fails", async () => {
         const onReported = jest.fn();
         const uploader = jest.fn().mockRejectedValue(new ReportUploadError("Upload failed"));
         const modal = modalWith({ params: { uploader, onReported } });
@@ -540,7 +540,7 @@ describe("ReportIssueModal", () => {
         expect(noticeMock).not.toHaveBeenCalled();
       });
 
-      it("announces the report id with a link to the issue when the upload lands after the dialog closed (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("announces the report id with a link to the issue when the upload lands after the dialog closed", async () => {
         const modal = modalWith({ params: { uploader: uploaderResolving() }, root: null });
 
         await modal.upload(prepared);
@@ -553,7 +553,7 @@ describe("ReportIssueModal", () => {
         expect(rm).not.toHaveBeenCalled();
       });
 
-      it("only logs an upload that fails after the dialog closed, and keeps the zip (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("only logs an upload that fails after the dialog closed, and keeps the zip", async () => {
         const uploader = jest.fn().mockRejectedValue(new ReportUploadError("Upload failed"));
         const modal = modalWith({ params: { uploader }, root: null });
 
@@ -565,7 +565,7 @@ describe("ReportIssueModal", () => {
       });
     });
 
-    describe("onUploaded()", () => {
+    describe("onUploaded", () => {
       it("opens the linked issue, closes the dialog and confirms the upload", async () => {
         const modal = modalWith({});
 
@@ -576,7 +576,7 @@ describe("ReportIssueModal", () => {
         expect(noticeText()).toBe("Report uploaded. Finish the issue in your browser.");
       });
 
-      it("still closes, and hands over the id and the issue link, when the browser cannot be opened (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("still closes, and hands over the id and the issue link, when the browser cannot be opened", async () => {
         openExternal.mockRejectedValue(new Error("no handler"));
         const modal = modalWith({});
 
@@ -597,9 +597,9 @@ describe("ReportIssueModal", () => {
       });
     });
 
-    describe("openIssuePage()", () => {
+    describe("openIssuePage", () => {
       it.each(["resolved", "rejected", "pending"])(
-        "preserves the manually handed-off zip through Cancel and close with a %s browser call (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
+        "preserves the manually handed-off zip through Cancel and close with a %s browser call",
         async (browserState) => {
           let finish: () => void = () => {};
           if (browserState === "rejected") openExternal.mockRejectedValue(new Error("no handler"));
@@ -639,14 +639,14 @@ describe("ReportIssueModal", () => {
       });
     });
 
-    describe("onClose()", () => {
+    describe("onClose", () => {
       it("cleans nothing up while the user is still on the details page", () => {
         modalWith({}).onClose();
 
         expect(rm).not.toHaveBeenCalled();
       });
 
-      it("discards a prepared report the user closed the dialog on instead of uploading (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("discards a prepared report the user closed the dialog on instead of uploading", async () => {
         const modal = modalWith({ prepared });
 
         modal.onClose();
@@ -665,7 +665,7 @@ describe("ReportIssueModal", () => {
         expect(rm).toHaveBeenCalledTimes(1);
       });
 
-      it("leaves an upload in flight alone so it can still land (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("leaves an upload in flight alone so it can still land", async () => {
         let finish: (result: { reportId: string; expiresAt: string }) => void = () => {};
         const uploader = jest.fn(
           () => new Promise<{ reportId: string; expiresAt: string }>((res) => (finish = res))

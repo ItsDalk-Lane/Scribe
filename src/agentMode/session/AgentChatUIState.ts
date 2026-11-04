@@ -140,9 +140,6 @@ export class AgentChatUIState implements AgentChatBackend {
 
   isTurnInFlight(): boolean {
     const status = this.session.getStatus();
-    // A plan decision can resume a turn after the composer has cleared its own
-    // loading flag, so the session remains the authority for active work.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/41
     return status === "running" || status === "awaiting_permission";
   }
 
@@ -215,24 +212,25 @@ export class AgentChatUIState implements AgentChatBackend {
   async resolvePlanProposal(
     proposalId: string,
     decision: PlanDecisionAction,
-    feedbackText?: string
+    feedbackText?: string,
+    expectedRevision?: number
   ): Promise<void> {
     const plan = this.session.getCurrentPlan();
-    if (!plan || plan.id !== proposalId || plan.decision !== "pending") return;
+    if (
+      !plan ||
+      plan.id !== proposalId ||
+      plan.decision !== "pending" ||
+      (expectedRevision !== undefined && plan.revision !== expectedRevision)
+    )
+      return;
     if (!plan.permissionGated || !plan.pendingToolCallId) {
       logWarn("[AgentChatUIState] non-gated plan card has no resolution path");
       return;
     }
-    // Codex publishes the card from its tool call before the permission request;
-    // finalizing earlier would hide the card and leave that request unanswered.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/551
     if (!this.session.hasPendingPlanPermission()) return;
     const trimmedFeedback = decision === "feedback" ? feedbackText?.trim() : undefined;
     const sendNextTurn = !!trimmedFeedback && this.session.planFeedbackDelivery === "next_turn";
     const pendingTurn = this.currentTurn;
-    // Some adapters end the turn on plan rejection without consuming a deny
-    // message. Their feedback must become a new user turn once this one settles.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/41
     this.session.resolvePlanProposalPermission(
       plan.pendingToolCallId,
       decision === "approve",

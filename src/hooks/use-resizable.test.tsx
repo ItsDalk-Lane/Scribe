@@ -40,7 +40,7 @@ function ResizablePanel({ onResize }: { onResize: (next: ResizeUpdate) => void }
 }
 
 describe("use-resizable", () => {
-  describe("useRafResizable()", () => {
+  describe("useRafResizable", () => {
     it("grows the panel by the distance a touch pointer drags its corner", () => {
       const onResize = jest.fn();
       render(<ResizablePanel onResize={onResize} />);
@@ -76,7 +76,7 @@ describe("use-resizable", () => {
       expect(screen.getByTestId("panel").dataset.resizing).toBe("false");
     });
 
-    it("ignores a second touch so it neither resizes nor releases the panel (https://github.com/Brevilabs/obsidian-copilot-private/issues/798)", () => {
+    it("ignores a second touch so it neither resizes nor releases the panel", () => {
       const onResize = jest.fn();
       render(<ResizablePanel onResize={onResize} />);
 

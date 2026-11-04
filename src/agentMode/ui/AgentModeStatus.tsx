@@ -8,13 +8,13 @@ import {
 } from "@/agentMode/ui/useBackendDescriptor";
 import { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { logError } from "@/logger";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { Notice } from "obsidian";
 import React from "react";
 
 interface Props {
   manager?: AgentSessionManager;
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   onInstallClick: () => void;
 }
 
@@ -31,10 +31,6 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
   }, [manager]);
 
   const heldConfigChange = manager?.hasHeldConfigChange(descriptor.id) ?? false;
-  // A reload waits for a running turn to finish, so read the queued restart
-  // rather than the click: the action then reports progress for exactly as
-  // long as the restart is actually outstanding.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
   const reloading = manager?.isBackendRestartPending(descriptor.id) ?? false;
 
   const handleReload = React.useCallback(() => {
@@ -61,11 +57,22 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
   }, [descriptor, plugin, managedInstall.kind]);
 
   if (installState.kind === "absent") {
+    // 配置驱动型后端没有"未安装"一说，缺的是模型；文案与选择面板保持一致。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/21
+    const usesConfiguredModels = descriptor.usesConfiguredModels ?? false;
     return (
       <AgentStatusCard
-        message={t("{p0} not installed", { p0: descriptor.displayName })}
+        message={
+          usesConfiguredModels
+            ? t("No chat model is enabled for {p0} yet. Add a provider and enable a model first.", {
+                p0: descriptor.displayName,
+              })
+            : t("{p0} not installed", { p0: descriptor.displayName })
+        }
         action={{
-          label: t("Install {p0}", { p0: descriptor.displayName }),
+          label: usesConfiguredModels
+            ? t("Configure")
+            : t("Install {p0}", { p0: descriptor.displayName }),
           onClick: onInstallClick,
         }}
       />
@@ -85,8 +92,6 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
     return (
       <AgentStatusCard
         tone={failed ? "error" : "warning"}
-        // State supplies the summary; never infer a cause by parsing the backend's full error.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/410
         summary={
           upgrading
             ? t("Updating {p0}…", { p0: descriptor.displayName })
@@ -151,11 +156,6 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
 
   const bootError = manager.getLastError();
   if (!bootError) {
-    // Settings the running agent was spawned with have changed since. Applying
-    // them restarts the backend and replaces this conversation, so the manager
-    // holds the restart and the choice of when to take it belongs here. A boot
-    // error keeps its recovery action, which also applies any held config.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
     if (!heldConfigChange) return null;
     return (
       <AgentStatusCard
@@ -171,9 +171,6 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
   }
 
   const handleRetry = (): void => {
-    // A failed session may remain active after startup rejects. Apply corrected
-    // settings before retrying so that session cannot mask the new config.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
     const retry = heldConfigChange
       ? manager.applyHeldConfigChange(descriptor.id)
       : manager.getOrCreateActiveSession();

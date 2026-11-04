@@ -1,0 +1,302 @@
+import type {
+  AgentExtensionGroup,
+  AgentExtensionItem,
+  AgentExtensionRuntimeSnapshot,
+} from "@/agentMode/session/extensionInventory";
+import type {
+  AgentExtensionDetails,
+  AgentExtensionManager,
+  AgentExtensionScope,
+} from "@/agentMode/session/extensionManagement";
+import { filterSkillsForScope } from "@/agentMode/session/scopedSkills";
+import { getManagedSkills } from "@/agentMode/skills/SkillManager";
+import type { Skill } from "@/agentMode/skills/types";
+import { CustomCommandManager } from "@/commands/customCommandManager";
+import { EMPTY_COMMAND } from "@/commands/constants";
+import { getCommandFilePath, validateCommandName } from "@/commands/customCommandUtils";
+import { getCachedCustomCommands } from "@/commands/state";
+import type { CustomCommand } from "@/commands/type";
+import { joinPosix, normalizeAbsPath } from "@/utils/pathUtils";
+import { sha256 } from "@/utils/hash";
+import { frozenOr } from "@/utils/sliceCache";
+
+export const NATIVE_SKILLS_PROJECT_DIR = ".scribe/skills";
+const EMPTY_ENTRIES: readonly never[] = Object.freeze([]);
+const READ_ONLY = Object.freeze({ edit: false, delete: false, toggle: false });
+const COMMAND_ACTIONS = Object.freeze({ edit: true, delete: true, toggle: true });
+const SUBAGENT = Object.freeze({
+  name: "delegate_task",
+  description:
+    "Delegate a task to an independent Scribe child agent using the current model and permission policy.",
+});
+const SUBAGENTS = Object.freeze([SUBAGENT]);
+const BUILTIN_COMMANDS = Object.freeze(["compact"]);
+
+export function getNativeScopedSkills(cwd: string | null): readonly Skill[] {
+  return filterSkillsForScope(getManagedSkills(), cwd, NATIVE_SKILLS_PROJECT_DIR);
+}
+
+function skillItem(skill: Skill, cwd: string | null): AgentExtensionItem {
+  const enabled = skill.enabledAgents.includes("native");
+  const available = enabled && (!skill.disableModelInvocation || skill.userInvocable !== false);
+  return {
+    id: `skill:${skill.filePath}`,
+    name: skill.name,
+    description: skill.description,
+    source: "project",
+    kind: "skill",
+    enabled,
+    location: skill.filePath,
+    runtimeName: skill.name,
+    builtin: skill.builtin,
+    availability: !enabled
+      ? "disabled"
+      : !available
+        ? "not_loaded"
+        : skill.disableModelInvocation
+          ? "manual_only"
+          : "loaded",
+    unavailableReason:
+      enabled && !available ? "This skill permits neither model nor manual invocation." : undefined,
+    readOnly: true,
+    capabilities: READ_ONLY,
+    ...(cwd
+      ? {
+          target: {
+            path: skill.filePath,
+            format: "markdown" as const,
+            scope: { kind: "project" as const, cwd },
+          },
+        }
+      : {}),
+  };
+}
+
+function commandItem(command: CustomCommand, cwd: string | null): AgentExtensionItem {
+  return {
+    id: `command:${command.title}`,
+    name: command.title,
+    source: "project",
+    kind: "command",
+    enabled: command.enabled !== false,
+    availability: command.enabled === false ? "disabled" : "loaded",
+    location: cwd
+      ? joinPosix(cwd, getCommandFilePath(command.title))
+      : getCommandFilePath(command.title),
+    capabilities: COMMAND_ACTIONS,
+    canEnable: true,
+    canDisable: true,
+    ...(cwd
+      ? {
+          target: {
+            path: joinPosix(cwd, getCommandFilePath(command.title)),
+            format: "markdown" as const,
+            scope: { kind: "project" as const, cwd },
+          },
+        }
+      : {}),
+  };
+}
+
+export function readNativeExtensions({
+  cwd,
+}: {
+  cwd: string | null;
+}): readonly AgentExtensionGroup[] {
+  return [
+    {
+      kind: "skill",
+      status: "partial",
+      warnings: EMPTY_ENTRIES,
+      items: frozenOr(
+        getNativeScopedSkills(cwd).map((skill) => skillItem(skill, cwd)),
+        EMPTY_ENTRIES
+      ),
+    },
+    {
+      kind: "command",
+      status: "partial",
+      warnings: EMPTY_ENTRIES,
+      items: frozenOr(
+        getCachedCustomCommands().map((command) => commandItem(command, cwd)),
+        EMPTY_ENTRIES
+      ),
+    },
+    {
+      kind: "subagent",
+      status: "partial",
+      warnings: EMPTY_ENTRIES,
+      items: [
+        {
+          id: "builtin:delegate_task",
+          ...SUBAGENT,
+          source: "runtime",
+          kind: "subagent",
+          availability: "loaded",
+          builtin: true,
+          readOnly: true,
+          capabilities: READ_ONLY,
+        },
+      ],
+    },
+  ];
+}
+
+export function readNativeExtensionRuntime(cwd: string | null): AgentExtensionRuntimeSnapshot {
+  const skills = getNativeScopedSkills(cwd);
+  return {
+    skills: frozenOr(
+      skills
+        .filter(
+          (skill) =>
+            skill.enabledAgents.includes("native") &&
+            (!skill.disableModelInvocation || skill.userInvocable !== false)
+        )
+        .map((skill) => skill.name),
+      EMPTY_ENTRIES
+    ),
+    disabledSkills: frozenOr(
+      skills.filter((skill) => !skill.enabledAgents.includes("native")).map((skill) => skill.name),
+      EMPTY_ENTRIES
+    ),
+    manualSkills: frozenOr(
+      skills
+        .filter(
+          (skill) =>
+            skill.enabledAgents.includes("native") &&
+            skill.disableModelInvocation &&
+            skill.userInvocable !== false
+        )
+        .map((skill) => skill.name),
+      EMPTY_ENTRIES
+    ),
+    commands: frozenOr(
+      getCachedCustomCommands()
+        .filter((command) => command.enabled !== false)
+        .map((command) => command.title),
+      EMPTY_ENTRIES
+    ),
+    builtinCommands: BUILTIN_COMMANDS,
+    subagents: SUBAGENTS,
+    hooks: EMPTY_ENTRIES,
+    hooksDisabled: true,
+    plugins: EMPTY_ENTRIES,
+    failedPlugins: EMPTY_ENTRIES,
+    mcpServers: EMPTY_ENTRIES,
+  };
+}
+
+async function unsupported(): Promise<never> {
+  throw new Error("This configuration is not supported by the native Scribe runtime.");
+}
+
+export function createNativeExtensionManager({
+  cwd,
+}: {
+  cwd: string | null;
+}): AgentExtensionManager {
+  function ownsScope(scope: AgentExtensionScope): boolean {
+    return (
+      scope.kind === "project" &&
+      cwd !== null &&
+      normalizeAbsPath(scope.cwd) === normalizeAbsPath(cwd)
+    );
+  }
+  function currentCommand(details: AgentExtensionDetails): CustomCommand {
+    const command = getCachedCustomCommands().find(
+      (entry) => `command:${entry.title}` === details.item.id
+    );
+    if (!command || details.revision !== sha256(JSON.stringify(command)))
+      throw new Error("The command changed; reopen it before saving.");
+    return command;
+  }
+  return {
+    async list(kind, scope) {
+      if (scope.kind === "user") return EMPTY_ENTRIES;
+      const group = readNativeExtensions({ cwd: scope.cwd }).find((entry) => entry.kind === kind);
+      if (!group) return EMPTY_ENTRIES;
+      if (kind !== "skill") return ownsScope(scope) ? group.items : EMPTY_ENTRIES;
+      return frozenOr(
+        group.items.filter(
+          (item) =>
+            ownsScope(scope) ||
+            getManagedSkills().find((skill) => `skill:${skill.filePath}` === item.id)?.location
+              .kind === "project"
+        ),
+        EMPTY_ENTRIES
+      );
+    },
+    async details(item) {
+      if (item.kind === "command") {
+        const command = getCachedCustomCommands().find(
+          (entry) => `command:${entry.title}` === item.id
+        );
+        if (!command) throw new Error("The command is no longer registered.");
+        return {
+          item: commandItem(command, cwd),
+          revision: sha256(JSON.stringify(command)),
+          content: command.content,
+          config: { ...command },
+        };
+      }
+      if (item.kind === "skill") {
+        const skill = getManagedSkills().find((entry) => `skill:${entry.filePath}` === item.id);
+        if (!skill) throw new Error("The skill is no longer registered.");
+        return {
+          item: skillItem(skill, cwd),
+          revision: skill.contentHash ?? sha256(skill.body),
+          content: skill.body,
+        };
+      }
+      if (item.kind === "subagent" && item.id === "builtin:delegate_task")
+        return { item, revision: "builtin:delegate_task", content: SUBAGENT.description };
+      return unsupported();
+    },
+    async save(draft) {
+      if (draft.kind !== "command" || !ownsScope(draft.scope)) return unsupported();
+      const previous = draft.original ? currentCommand(draft.original) : undefined;
+      const validation = validateCommandName(
+        draft.name,
+        getCachedCustomCommands(),
+        previous?.title
+      );
+      if (validation) throw new Error(validation);
+      const command = {
+        ...(previous ?? EMPTY_COMMAND),
+        title: draft.name,
+        content: draft.content ?? "",
+      };
+      const manager = CustomCommandManager.getInstance();
+      if (previous) await manager.updateCommand(command, previous.title, false, previous);
+      else await manager.createCommand(command);
+    },
+    async toggle(details, enabled) {
+      if (
+        details.item.kind !== "command" ||
+        !details.item.target ||
+        !ownsScope(details.item.target.scope)
+      )
+        return unsupported();
+      const previous = currentCommand(details);
+      await CustomCommandManager.getInstance().updateCommand(
+        { ...previous, enabled },
+        previous.title,
+        false,
+        previous
+      );
+    },
+    async delete(details) {
+      if (
+        details.item.kind !== "command" ||
+        !details.item.target ||
+        !ownsScope(details.item.target.scope)
+      )
+        return unsupported();
+      await CustomCommandManager.getInstance().deleteCommand(currentCommand(details));
+    },
+    import: unsupported,
+    pluginAction: unsupported,
+    marketplaces: unsupported,
+    testConnection: unsupported,
+  };
+}

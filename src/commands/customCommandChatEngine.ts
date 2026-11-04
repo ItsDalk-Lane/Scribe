@@ -1,50 +1,49 @@
-import { RunnableSequence } from "@langchain/core/runnables";
-import { BaseChatMemory, BufferMemory } from "@langchain/classic/memory";
-import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-  MessagesPlaceholder,
-  SystemMessagePromptTemplate,
-} from "@langchain/core/prompts";
+import type { Message } from "@earendil-works/pi-ai";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
-import { CustomModel } from "@/aiParams";
+import { createAssistantMessage, type ChatStreamOptions } from "@/LLMProviders/piChatModel";
+import type { CustomModel } from "@/aiParams";
 
-export function createChatMemory(): BufferMemory {
-  return new BufferMemory({
-    returnMessages: true,
-    memoryKey: "history",
-  });
+export interface ChatMemory {
+  chatHistory: { messages: Message[] };
+}
+
+export function createChatMemory(): ChatMemory {
+  return { chatHistory: { messages: [] } };
 }
 
 export async function createChatChain(
   selectedModel: CustomModel,
   systemPrompt: string,
-  memory: BaseChatMemory
-): Promise<RunnableSequence> {
+  memory: ChatMemory
+) {
   const chatModel =
     await ChatModelManager.getInstance().createModelInstanceFromBridged(selectedModel);
-
   const defaultSystemPrompt =
     "You are a helpful assistant. You'll help the user with their content editing needs.";
 
-  const chatPrompt = ChatPromptTemplate.fromMessages([
-    SystemMessagePromptTemplate.fromTemplate(systemPrompt || defaultSystemPrompt),
-    new MessagesPlaceholder("history"),
-    HumanMessagePromptTemplate.fromTemplate("{input}"),
-  ]);
-
-  return RunnableSequence.from([
-    {
-      input: (initialInput: { input: string }) => initialInput.input,
-      memory: () => memory.loadMemoryVariables({}),
+  return {
+    stream(input: string, options: ChatStreamOptions) {
+      return chatModel.stream(
+        {
+          systemPrompt: systemPrompt || defaultSystemPrompt,
+          messages: [
+            ...memory.chatHistory.messages,
+            { role: "user", content: input, timestamp: Date.now() },
+          ],
+        },
+        options
+      );
     },
-    {
-      input: (previousOutput: { input: string; memory: { history: unknown } }) =>
-        previousOutput.input,
-      history: (previousOutput: { input: string; memory: { history: unknown } }) =>
-        previousOutput.memory.history,
+    saveContext(input: string, output: string) {
+      const assistant = createAssistantMessage(chatModel.model);
+      assistant.content = [{ type: "text", text: output }];
+      assistant.stopReason = "stop";
+      memory.chatHistory.messages.push(
+        { role: "user", content: input, timestamp: Date.now() },
+        assistant
+      );
     },
-    chatPrompt,
-    chatModel,
-  ]);
+  };
 }
+
+export type ChatChain = Awaited<ReturnType<typeof createChatChain>>;

@@ -38,11 +38,11 @@ describe("translateCommandToAgentText", () => {
       );
     });
 
-    it("inlines selected text for {} and {copilot-selection}", () => {
+    it("inlines selected text for {} and {scribe-selection}", () => {
       expect(translateCommandToAgentText("Rewrite this: {}", "the selected paragraph", null)).toBe(
         "Rewrite this: the selected paragraph"
       );
-      expect(translateCommandToAgentText("Fix {copilot-selection}", "broken text", null)).toBe(
+      expect(translateCommandToAgentText("Fix {scribe-selection}", "broken text", null)).toBe(
         "Fix broken text"
       );
     });

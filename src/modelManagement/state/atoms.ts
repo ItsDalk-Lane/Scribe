@@ -52,7 +52,6 @@ export const chatBackendPickerAtom = atom<readonly EnabledBackendEntry[]>((get) 
   const entries: EnabledBackendEntry[] = [];
   for (const configuredModelId of config.enabledModels) {
     const configuredModel = models.find((m) => m.configuredModelId === configuredModelId);
-    // 旧启用记录可包含非聊天模型，保留配置但不把它显示为可聊天或损坏。https://github.com/logancyang/obsidian-copilot/issues/3147
     if (configuredModel && !isChatModelInfo(configuredModel.info)) continue;
     const provider = configuredModel ? providers[configuredModel.providerId] : undefined;
     if (configuredModel && provider) {

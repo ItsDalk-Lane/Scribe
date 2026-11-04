@@ -10,7 +10,7 @@ const deleted = (text: string): string => DEL_OPEN + text + DEL_CLOSE;
 const inserted = (text: string): string => INS_OPEN + text + INS_CLOSE;
 
 describe("tableDiff", () => {
-  describe("splitTableRow()", () => {
+  describe("splitTableRow", () => {
     it("returns the trimmed cells without the pipes that delimit the row", () => {
       expect(splitTableRow("| Region | Partners | Status |")).toEqual([
         "Region",
@@ -28,7 +28,7 @@ describe("tableDiff", () => {
     });
   });
 
-  describe("diffTableBlock()", () => {
+  describe("diffTableBlock", () => {
     const header = "| Region | Partners | Status |\n| --- | --- | --- |";
 
     it("marks only the cell that changed and leaves the rest of the table untouched", () => {
@@ -68,7 +68,7 @@ describe("tableDiff", () => {
       );
     });
 
-    it("shows a cell whose emphasis changed as the whole old cell and the whole new cell https://github.com/Brevilabs/obsidian-copilot-private/issues/349", () => {
+    it("shows a cell whose emphasis changed as the whole old cell and the whole new cell", () => {
       const merged = diffTableBlock(
         `${header}\n| EMEA | 2 | **Ready** |`,
         `${header}\n| EMEA | 2 | Ready |`
@@ -77,7 +77,7 @@ describe("tableDiff", () => {
       expect(merged).toBe(`${header}\n| EMEA | 2 | ${deleted("**Ready**")}${inserted("Ready")} |`);
     });
 
-    it("marks an emphasized cell of an added row as one insertion without an empty deletion https://github.com/Brevilabs/obsidian-copilot-private/issues/349", () => {
+    it("marks an emphasized cell of an added row as one insertion without an empty deletion", () => {
       const merged = diffTableBlock(
         `${header}\n| EMEA | 2 | Ready |`,
         `${header}\n| EMEA | 2 | Ready |\n| AMER | 4 | **New** |`
@@ -99,7 +99,7 @@ describe("tableDiff", () => {
       expect(merged).toBeNull();
     });
 
-    it("refuses to merge tables whose column alignment changed because the delimiter row has no cell to mark (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", () => {
+    it("refuses to merge tables whose column alignment changed because the delimiter row has no cell to mark", () => {
       const merged = diffTableBlock(
         `${header}\n| EMEA | 2 | Ready |`,
         "| Region | Partners | Status |\n| :--- | ---: | --- |\n| EMEA | 2 | Ready |"

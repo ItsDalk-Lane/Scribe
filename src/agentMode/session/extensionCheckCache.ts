@@ -7,20 +7,12 @@ import {
   type AgentExtensionRuntimeSnapshot,
 } from "./extensionInventory";
 
-// Reopening an extension page compares the configuration-derived fingerprint with the saved one and
-// answers from the stored check when they match, so the backend check runs only for a changed
-// configuration (and for an explicit refresh); the saved view is restored before the configuration
-// scan finishes, so the page paints the previous answer instead of a loading state.
-// https://github.com/ItsDalk-Lane/Scribe/issues/3
 const MAX_CACHE_ENTRIES = 20;
 const MAX_CACHED_VIEWS = 8;
 const STORAGE_KEY = "scribe:extension-check-cache:v1";
 
 export type ExtensionCheckRuntimeState = "not_started" | "checked" | "partial" | "error";
 
-// The last answer a page displayed for one backend and scope, saved so a later open can paint it
-// while the configuration scan re-derives the fingerprint.
-// https://github.com/ItsDalk-Lane/Scribe/issues/3
 export interface ExtensionCheckView {
   groups: readonly AgentExtensionGroup[];
   runtimeState: ExtensionCheckRuntimeState;
@@ -61,8 +53,6 @@ export function readCachedExtensionCheck(
   return checks.get(key) ?? null;
 }
 
-// A snapshot that still shows a connecting server is an in-flight answer, never a cached one.
-// https://github.com/ItsDalk-Lane/Scribe/issues/3
 export function storeCachedExtensionCheck(
   app: App | null | undefined,
   key: string,

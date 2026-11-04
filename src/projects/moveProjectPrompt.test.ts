@@ -48,7 +48,7 @@ function makeApp(initialFiles: Record<string, string> = {}) {
   return { app: app as unknown as App, files };
 }
 
-function makeRecord(systemPrompt: string, filePath = "copilot-projects/Research/project.md") {
+function makeRecord(systemPrompt: string, filePath = "scribe-projects/Research/project.md") {
   return {
     folderName: "Research",
     filePath,
@@ -56,7 +56,7 @@ function makeRecord(systemPrompt: string, filePath = "copilot-projects/Research/
   } as unknown as ProjectFileRecord;
 }
 
-const MIRROR_HEADER = "<!-- copilot:generated-agents-mirror v1 -->\n\n";
+const MIRROR_HEADER = "<!-- scribe:generated-agents-mirror v1 -->\n\n";
 
 describe("moveProjectPrompt", () => {
   describe("moveProjectPromptToAgentsFile()", () => {
@@ -70,7 +70,7 @@ describe("moveProjectPrompt", () => {
 
       await moveProjectPromptToAgentsFile(app, makeRecord("Cite every source."));
 
-      expect(files.get("copilot-projects/Research/AGENTS.md")).toBe("Cite every source.");
+      expect(files.get("scribe-projects/Research/AGENTS.md")).toBe("Cite every source.");
       expect(mockUpdateProject).toHaveBeenCalledWith(
         "p1",
         expect.objectContaining({ systemPrompt: "" })
@@ -82,7 +82,7 @@ describe("moveProjectPrompt", () => {
 
       await moveProjectPromptToAgentsFile(app, makeRecord("   "));
 
-      expect(files.has("copilot-projects/Research/AGENTS.md")).toBe(false);
+      expect(files.has("scribe-projects/Research/AGENTS.md")).toBe(false);
       expect(mockUpdateProject).not.toHaveBeenCalled();
     });
 
@@ -95,28 +95,28 @@ describe("moveProjectPrompt", () => {
       );
 
       expect(files.get("old-root/projects/Research/AGENTS.md")).toBe("Cite every source.");
-      expect(files.has("copilot-projects/Research/AGENTS.md")).toBe(false);
+      expect(files.has("scribe-projects/Research/AGENTS.md")).toBe(false);
     });
 
     it("converts a legacy generated mirror rather than treating it as the user's file", async () => {
       const { app, files } = makeApp({
-        "copilot-projects/Research/AGENTS.md": `${MIRROR_HEADER}stale generated body`,
+        "scribe-projects/Research/AGENTS.md": `${MIRROR_HEADER}stale generated body`,
       });
 
       await moveProjectPromptToAgentsFile(app, makeRecord("Cite every source."));
 
-      expect(files.get("copilot-projects/Research/AGENTS.md")).toBe("Cite every source.");
+      expect(files.get("scribe-projects/Research/AGENTS.md")).toBe("Cite every source.");
       expect(mockUpdateProject).toHaveBeenCalledTimes(1);
     });
 
     it("never overwrites an existing AGENTS.md, and leaves project.md alone when it cannot", async () => {
       const { app, files } = makeApp({
-        "copilot-projects/Research/AGENTS.md": "The user's own instructions",
+        "scribe-projects/Research/AGENTS.md": "The user's own instructions",
       });
 
       await moveProjectPromptToAgentsFile(app, makeRecord("Stale legacy text"));
 
-      expect(files.get("copilot-projects/Research/AGENTS.md")).toBe("The user's own instructions");
+      expect(files.get("scribe-projects/Research/AGENTS.md")).toBe("The user's own instructions");
       expect(mockUpdateProject).not.toHaveBeenCalled();
     });
 
@@ -127,7 +127,7 @@ describe("moveProjectPrompt", () => {
       await moveProjectPromptToAgentsFile(app, record);
       await moveProjectPromptToAgentsFile(app, record);
 
-      expect(files.get("copilot-projects/Research/AGENTS.md")).toBe("Cite every source.");
+      expect(files.get("scribe-projects/Research/AGENTS.md")).toBe("Cite every source.");
       expect(mockUpdateProject).toHaveBeenCalledTimes(1);
     });
 
@@ -149,7 +149,7 @@ describe("moveProjectPrompt", () => {
         moveProjectPromptToAgentsFile(app, makeRecord("Cite every source."))
       ).resolves.toBeUndefined();
 
-      expect(files.get("copilot-projects/Research/AGENTS.md")).toBe("Cite every source.");
+      expect(files.get("scribe-projects/Research/AGENTS.md")).toBe("Cite every source.");
     });
   });
 });

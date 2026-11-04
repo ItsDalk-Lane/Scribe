@@ -16,7 +16,7 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof RenameChatFor
 }
 
 describe("RenameChatModal", () => {
-  describe("RenameChatForm()", () => {
+  describe("RenameChatForm", () => {
     it("prefills the title field with the chat's current title", () => {
       renderForm();
 
@@ -78,7 +78,7 @@ describe("RenameChatModal", () => {
       return modal;
     }
 
-    describe("constructor()", () => {
+    describe("constructor", () => {
       it("titles the native dialog Rename chat", () => {
         const modal = new RenameChatModal(new App(), "Plan the fall launch", jest.fn());
 
@@ -86,7 +86,7 @@ describe("RenameChatModal", () => {
       });
     });
 
-    describe("onOpen()", () => {
+    describe("onOpen", () => {
       it("renames the chat and closes the dialog when the new title is saved", async () => {
         const onRename = jest.fn(async () => {});
         const modal = await openModal(onRename);
@@ -103,7 +103,7 @@ describe("RenameChatModal", () => {
         await act(async () => ReactModal.prototype.onClose.call(modal));
       });
 
-      it("https://github.com/logancyang/obsidian-copilot/issues/3040 keeps the dialog open with the draft when renaming fails", async () => {
+      it("keeps the dialog open with the draft when renaming fails", async () => {
         const onRename = jest.fn(async () => {
           throw new Error("rename failed");
         });

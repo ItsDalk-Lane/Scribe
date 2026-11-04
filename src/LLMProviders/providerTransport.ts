@@ -196,9 +196,11 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
 
   async function vertexToken(signal?: AbortSignal): Promise<string> {
     if (!apiKey) throw new Error(t("Provider credentials are missing."));
-    if (!apiKey.startsWith("{")) return apiKey;
     vertexAuth ??= (async () => {
-      const credentials: unknown = JSON.parse(apiKey);
+      const { createVertexAccessToken, parseVertexCredentials } =
+        await import("./nativeSdk/createVertexAccessToken");
+      const credentials = parseVertexCredentials(apiKey);
+      if (typeof credentials === "string") return async () => credentials;
       if (
         !isRecord(credentials) ||
         credentials.type !== "service_account" ||
@@ -207,7 +209,6 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       ) {
         throw new Error(t("A Google service account JSON or access token is required."));
       }
-      const { createVertexAccessToken } = await import("./nativeSdk/createVertexAccessToken");
       return createVertexAccessToken(
         credentials.client_email,
         credentials.private_key,
@@ -222,6 +223,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
 
   return async (input, init) => {
     const request = typeof input !== "string" && "url" in input ? input : undefined;
+    const signal = init?.signal !== undefined ? init.signal : request?.signal;
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const inputUrl =
       typeof input === "string" ? input : request ? request.url : (input as URL).href;
     const url = new URL(inputUrl);
@@ -230,7 +233,12 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     }
     const headers = new Headers(request?.headers);
     new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
-    // 本机无密钥服务不能收到客户端为初始化而填入的占位凭据。https://github.com/logancyang/obsidian-copilot/issues/2946
+    if (
+      (model.providerNpm === "@ai-sdk/anthropic" || model.providerNpm === "gitlab-ai-provider") &&
+      url.pathname.endsWith("/messages") &&
+      url.searchParams.get("beta") === "true"
+    )
+      url.searchParams.delete("beta");
     if (
       model.requiresApiKey === false &&
       !apiKey &&
@@ -321,18 +329,16 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       !(url.origin === "https://oauth2.googleapis.com" && url.pathname === "/token") &&
       (!bearer || bearer === "provider-managed-auth" || bearer.startsWith("{"))
     ) {
-      headers.set(
-        "Authorization",
-        `Bearer ${await vertexToken(init?.signal ?? request?.signal ?? undefined)}`
-      );
+      headers.set("Authorization", `Bearer ${await vertexToken(signal ?? undefined)}`);
     }
     const options: RequestInit = {
       ...init,
       method,
       headers,
       body,
-      signal: init?.signal !== undefined ? init.signal : request?.signal,
+      signal,
     };
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     return model.enableCors === false
       ? fetch(url.toString(), options)
       : safeFetchNoThrow(url.toString(), options);

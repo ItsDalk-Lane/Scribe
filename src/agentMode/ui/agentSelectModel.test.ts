@@ -24,7 +24,7 @@ const INCOMPATIBLE: InstallState = {
   source: "custom",
   currentVersion: "1.15.0",
   minVersion: "1.16.0",
-  message: "opencode v1.15.0 is not supported. Copilot requires opencode v1.16.0 or newer.",
+  message: "opencode v1.15.0 is not supported. Scribe requires opencode v1.16.0 or newer.",
 };
 const ERRORED: InstallState = { kind: "error", message: "opencode binary is not executable." };
 
@@ -36,12 +36,13 @@ function rowWith(overrides: Partial<AgentSelectRow> = {}): AgentSelectRow {
     status: "absent",
     recommended: false,
     statusMessage: null,
+    usesConfiguredModels: false,
     ...overrides,
   };
 }
 
 describe("agentSelectModel", () => {
-  describe("buildAgentSelectRows()", () => {
+  describe("buildAgentSelectRows", () => {
     it("reports a ready backend as installed with no status message", () => {
       const [row] = buildAgentSelectRows(
         [OPENCODE],
@@ -119,7 +120,7 @@ describe("agentSelectModel", () => {
     });
   });
 
-  describe("resolveAgentSelectCta()", () => {
+  describe("resolveAgentSelectCta", () => {
     it("keeps a checking agent non-actionable until its probe settles", () => {
       expect(resolveAgentSelectCta(rowWith({ status: "checking", name: "Claude" }))).toEqual({
         label: "Checking…",
@@ -156,7 +157,7 @@ describe("agentSelectModel", () => {
       });
     });
 
-    it("routes a signed-out agent to Configure with its sign-in reason (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("routes a signed-out agent to Configure with its sign-in reason", () => {
       expect(
         resolveAgentSelectCta(
           rowWith({ status: "signed-out", statusMessage: "Claude not signed in" })
@@ -174,6 +175,27 @@ describe("agentSelectModel", () => {
         note: "Codex isn't set up on this machine yet.",
         action: "configure",
       });
+    });
+
+    it("tells a configured-models backend to enable a model instead of claiming it isn't installed (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      expect(
+        resolveAgentSelectCta(
+          rowWith({ status: "absent", name: "Scribe", usesConfiguredModels: true })
+        )
+      ).toEqual({
+        label: "Configure",
+        note: "No chat model is enabled for Scribe yet. Add a provider and enable a model first.",
+        action: "configure",
+      });
+    });
+  });
+
+  describe("buildAgentSelectRows()", () => {
+    it("carries the configured-models flag onto the row (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      const native = descriptor("native", { usesConfiguredModels: true });
+      const [row] = buildAgentSelectRows([native], { native: { kind: "absent" } }, "native");
+
+      expect(row.usesConfiguredModels).toBe(true);
     });
   });
 });

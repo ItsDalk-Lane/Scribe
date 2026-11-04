@@ -19,7 +19,40 @@ function tool(overrides: Partial<ToolCallPart> = {}): ToolCallPart {
 }
 
 describe("toolSummaries", () => {
-  describe("lookupToolSummary()", () => {
+  describe("lookupToolSummary", () => {
+    it.each([
+      ["read_note", "Read"],
+      ["list_directory", "LS"],
+      ["find_paths", "Glob"],
+      ["search_content", "Grep"],
+      ["write_note", "Write"],
+      ["edit_note", "Edit"],
+      ["run_command", "Bash"],
+      ["delegate_task", "Agent"],
+      ["ask_user", "AskUserQuestion"],
+      ["propose_plan", "ExitPlanMode"],
+      ["update_todos", "TodoWrite"],
+      ["web_search", "WebSearch"],
+      ["fetch_url", "WebFetch"],
+      ["invoke_skill", "Skill"],
+    ])("presents native %s using the existing %s tool summary", (name, category) => {
+      const native = tool({
+        vendorToolName: name,
+        input: {
+          path: "notes/test.md",
+          command: "pwd",
+          prompt: "Review notes",
+          description: "Review",
+          query: "notes",
+          skill: "obsidian-markdown",
+        },
+      });
+      const previous = { ...native, vendorToolName: category };
+      const summary = lookupToolSummary(native);
+      const expected = lookupToolSummary(previous);
+      expect(summary.icon).toBe(expected.icon);
+      expect(summary.collapsedLine(native, CTX)).toBe(expected.collapsedLine(previous, CTX));
+    });
     it("uses Read entry when vendorToolName is Read", () => {
       const t = tool({
         vendorToolName: "Read",
@@ -83,13 +116,13 @@ describe("toolSummaries", () => {
         title: "Map user-facing features",
         input: {
           subagent_type: "Explore",
-          description: "Map user-facing features of obsidian-copilot",
+          description: "Map user-facing features of obsidian-scribe",
           prompt: "Explore the codebase…",
         },
       });
       const s = lookupToolSummary(t);
       expect(s.collapsedLine(t, CTX)).toBe(
-        'Explore · "Map user-facing features of obsidian-copilot"'
+        'Explore · "Map user-facing features of obsidian-scribe"'
       );
       const taskEquiv = lookupToolSummary({ ...t, vendorToolName: "Task" });
       expect(s).toBe(taskEquiv);
@@ -205,9 +238,9 @@ describe("toolSummaries", () => {
         vendorToolName: "Skill",
         title: "Skill",
         status: "completed",
-        input: { skill: "copilot-read-pdf", args: "notes/foo.pdf — read chapter one" },
+        input: { skill: "scribe-read-pdf", args: "notes/foo.pdf — read chapter one" },
       });
-      expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Ran skill copilot-read-pdf");
+      expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Ran skill scribe-read-pdf");
     });
 
     it("renders the skill in present tense while in flight", () => {
@@ -215,9 +248,9 @@ describe("toolSummaries", () => {
         vendorToolName: "Skill",
         title: "Skill",
         status: "in_progress",
-        input: { skill: "copilot-read-pdf" },
+        input: { skill: "scribe-read-pdf" },
       });
-      expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Running skill copilot-read-pdf");
+      expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Running skill scribe-read-pdf");
     });
 
     it("falls back to a generic skill line before input has streamed in", () => {
@@ -230,7 +263,7 @@ describe("toolSummaries", () => {
         vendorToolName: "Skill",
         title: "Skill",
         status: "completed",
-        input: { skill: "copilot-read-pdf", args: "notes/foo.pdf — read chapter one" },
+        input: { skill: "scribe-read-pdf", args: "notes/foo.pdf — read chapter one" },
       });
       expect(lookupToolSummary(t).expandedDetails?.(t)).toBe("notes/foo.pdf — read chapter one");
     });
@@ -252,7 +285,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(done).collapsedLine(done, CTX)).toBe("Edited draft.md");
     });
 
-    it("says Didn't edit when a Claude Edit fails or is denied (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't edit when a Claude Edit fails or is denied", () => {
       const failed = tool({
         vendorToolName: "Edit",
         title: "Edit",
@@ -262,7 +295,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't edit plan.md");
     });
 
-    it("says Didn't edit when a Claude Write is denied with no diff, since its whole-file content cannot tell a create from an overwrite (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't edit when a Claude Write is denied with no diff, since its whole-file content cannot tell a create from an overwrite", () => {
       const failed = tool({
         vendorToolName: "Write",
         title: "Write",
@@ -274,7 +307,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't edit notes.md");
     });
 
-    it("says Didn't edit when an OpenCode write of full content fails with no diff (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't edit when an OpenCode write of full content fails with no diff", () => {
       const failed = tool({
         toolKind: "edit",
         title: "notes.md",
@@ -284,7 +317,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't edit notes.md");
     });
 
-    it("says Didn't create when a Codex diff adds a new file and fails (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't create when a Codex diff adds a new file and fails", () => {
       const failed = tool({
         toolKind: "edit",
         title: "Editing files",
@@ -296,7 +329,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't create notes.md");
     });
 
-    it("says Didn't edit when a Write replacing existing text fails (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't edit when a Write replacing existing text fails", () => {
       const failed = tool({
         vendorToolName: "Write",
         title: "Write",
@@ -307,7 +340,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't edit plan.md");
     });
 
-    it("says Didn't edit for a failed Codex multi-file edit (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't edit for a failed Codex multi-file edit", () => {
       const failed = tool({
         toolKind: "edit",
         title: "Editing files",
@@ -320,7 +353,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't edit 2 files");
     });
 
-    it("says Didn't edit for a failed OpenCode edit (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("says Didn't edit for a failed OpenCode edit", () => {
       const failed = tool({
         toolKind: "edit",
         title: "plan.md",
@@ -330,7 +363,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(failed).collapsedLine(failed, CTX)).toBe("Didn't edit plan.md");
     });
 
-    it("uses Deleting, Deleted and Didn't delete across the delete lifecycle (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("uses Deleting, Deleted and Didn't delete across the delete lifecycle", () => {
       const inflight = tool({
         toolKind: "delete",
         title: "old.md",
@@ -347,7 +380,7 @@ describe("toolSummaries", () => {
       );
     });
 
-    it("keeps past-tense labels on failed tools that do not change files (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("keeps past-tense labels on failed tools that do not change files", () => {
       const bash = tool({
         vendorToolName: "Bash",
         status: "failed",
@@ -464,7 +497,7 @@ describe("toolSummaries", () => {
 
     it("expands a Bash call to its full untruncated command", () => {
       const longCmd =
-        "cd ~/Developer/obsidian-copilot && rg --multiline 'foo bar baz' src/**/*.ts | head -50";
+        "cd ~/Developer/obsidian-scribe && rg --multiline 'foo bar baz' src/**/*.ts | head -50";
       const t = tool({ vendorToolName: "Bash", input: { command: longCmd } });
       const s = lookupToolSummary(t);
       expect(s.collapsedLine(t, CTX).length).toBeLessThan(longCmd.length);
@@ -497,7 +530,7 @@ describe("toolSummaries", () => {
     });
   });
 
-  describe("displayTargetFromPath()", () => {
+  describe("displayTargetFromPath", () => {
     it("shows an in-vault target as its vault-relative path", () => {
       const t = tool({ input: { file_path: "/Users/me/vault/notes/today.md" } });
       expect(displayTargetFromPath(t, CTX.vaultBase)).toBe("notes/today.md");
@@ -513,7 +546,7 @@ describe("toolSummaries", () => {
     });
   });
 
-  describe("extractSubAgentReturnText()", () => {
+  describe("extractSubAgentReturnText", () => {
     it("strips opencode <task_result> wrapper", () => {
       const t = tool({
         output: [
@@ -549,7 +582,7 @@ describe("toolSummaries", () => {
     });
   });
 
-  describe("extractSubAgentInputPrompt()", () => {
+  describe("extractSubAgentInputPrompt", () => {
     it("returns the prompt string when present", () => {
       const t = tool({ input: { prompt: "  do the research  " } });
       expect(extractSubAgentInputPrompt(t)).toBe("do the research");

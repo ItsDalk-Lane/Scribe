@@ -6,9 +6,9 @@
 # remove only the seeded files.
 #
 # Usage:
-#   COPILOT_TEST_VAULT_PATH=/path/to/vault scripts/seed-skills-scenarios.sh
-#   COPILOT_TEST_VAULT_PATH=/path/to/vault scripts/seed-skills-scenarios.sh --clean
-#   COPILOT_TEST_VAULT_PATH=/path/to/vault scripts/seed-skills-scenarios.sh --list
+#   SCRIBE_TEST_VAULT_PATH=/path/to/vault scripts/seed-skills-scenarios.sh
+#   SCRIBE_TEST_VAULT_PATH=/path/to/vault scripts/seed-skills-scenarios.sh --clean
+#   SCRIBE_TEST_VAULT_PATH=/path/to/vault scripts/seed-skills-scenarios.sh --list
 #
 # Flags:
 #   --clean   Remove every seeded scenario, then exit. Does not seed.
@@ -39,20 +39,20 @@ done
 
 # ----- vault path --------------------------------------------------------
 
-if [[ -z "${COPILOT_TEST_VAULT_PATH:-}" ]]; then
-  echo "error: COPILOT_TEST_VAULT_PATH is not set." >&2
+if [[ -z "${SCRIBE_TEST_VAULT_PATH:-}" ]]; then
+  echo "error: SCRIBE_TEST_VAULT_PATH is not set." >&2
   echo "       Set it to the absolute path of an Obsidian vault." >&2
   exit 1
 fi
 
-VAULT="$COPILOT_TEST_VAULT_PATH"
+VAULT="$SCRIBE_TEST_VAULT_PATH"
 if [[ ! -d "$VAULT/.obsidian" ]]; then
   echo "error: $VAULT does not look like an Obsidian vault (no .obsidian/)." >&2
   exit 1
 fi
 
 # Folders (must match agentSkillsDirAbs() inputs in the plugin).
-CANONICAL_DIR="$VAULT/copilot/skills"
+CANONICAL_DIR="$VAULT/scribe/skills"
 CLAUDE_DIR="$VAULT/.claude/skills"
 
 # Scenario names — each one exercises a row in §14 of the design doc.
@@ -83,13 +83,13 @@ write_skill() {
 name: $name
 description: $desc
 metadata:
-  copilot-enabled-agents: "$agents"
+  scribe-enabled-agents: "$agents"
 ---
 $body
 EOF
 }
 
-# Project-managed skills do not need the copilot-enabled-agents key
+# Project-managed skills do not need the scribe-enabled-agents key
 # (the design infers enabled agents from folder location), but writing
 # an explicit empty string keeps the file valid under both the old and
 # new discovery paths and matches what agents typically emit.
@@ -196,7 +196,7 @@ write_skill \
   "" \
   "# Canonical only
 
-This skill exists only under copilot/skills/ and has zero enabled agents.
+This skill exists only under scribe/skills/ and has zero enabled agents.
 Use it to verify the baseline canonical row renders without any migration UI."
 echo "    + canonical-only          $CANONICAL_DIR/$S_CANONICAL_ONLY"
 
@@ -266,7 +266,7 @@ echo
 echo "Seeded ${#ALL_SCENARIOS[@]} scenarios. Reload the Skills tab to view."
 echo
 echo "Next steps:"
-echo "  - In Obsidian, run: 'Copilot: Open Copilot Chat' then go to Settings → Skills."
+echo "  - In Obsidian, run: 'Scribe: Open Scribe Chat' then go to Settings → Skills."
 echo "  - Use '$0 --list'  to see what is on disk."
 echo "  - Use '$0 --clean' to remove all seeded scenarios."
 echo "  - Re-run '$0' for a clean reseed."

@@ -1,17 +1,17 @@
 import { CURRENT_SETTINGS_VERSION } from "@/settings/migrations/version";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import type { StartupMigrationItem } from "@/services/startupMigration";
 
 if (typeof window.structuredClone === "undefined") {
   window.structuredClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 }
 
-function makeSettings(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return {
     activeModels: [],
     openAIApiKey: "",
     ...overrides,
-  } as unknown as CopilotSettings;
+  } as unknown as ScribeSettings;
 }
 
 const backedUp = jest.fn().mockResolvedValue({ status: "not-needed" });
@@ -25,8 +25,14 @@ async function loadModule(overrides: Record<string, unknown> = {}) {
     isAvailable: jest.fn().mockReturnValue(true),
     getVaultId: jest.fn().mockReturnValue("abcd1234"),
     setVaultId: jest.fn(),
-    migrateProviderNames: jest.fn((settings: CopilotSettings) => settings),
-    hydrateFromKeychain: jest.fn(async (settings: CopilotSettings) => ({
+    planProviderNames: jest.fn(
+      (settings: ScribeSettings): { settings: ScribeSettings; moves: unknown[] } => ({
+        settings,
+        moves: [],
+      })
+    ),
+    executeProviderNames: jest.fn(),
+    hydrateFromKeychain: jest.fn(async (settings: ScribeSettings) => ({
       settings,
       hadFailures: false,
     })),
@@ -43,7 +49,7 @@ async function loadModule(overrides: Record<string, unknown> = {}) {
   }));
   jest.doMock("@/logger", () => ({ logWarn: jest.fn() }));
   jest.doMock("@/settings/model", () => ({
-    sanitizeSettings: jest.fn((settings: CopilotSettings) => settings),
+    sanitizeSettings: jest.fn((settings: ScribeSettings) => settings),
   }));
   jest.doMock("@/utils/deviceId", () => ({ getDeviceId: jest.fn(() => DEVICE_ID) }));
 
@@ -52,7 +58,7 @@ async function loadModule(overrides: Record<string, unknown> = {}) {
 }
 
 describe("settingsPersistence", () => {
-  describe("resetPersistenceState()", () => {
+  describe("resetPersistenceState", () => {
     it("clears a pending one-shot persist suppression", async () => {
       const { module } = await loadModule();
       const saveData = jest.fn().mockResolvedValue(undefined);
@@ -65,7 +71,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("refreshLastPersistedSettings()", () => {
+  describe("refreshLastPersistedSettings", () => {
     it("sets the Keychain diff baseline for the next write", async () => {
       const { module, keychain } = await loadModule();
       const baseline = makeSettings({ openAIApiKey: "old-key" });
@@ -78,7 +84,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("suppressNextPersistOnce()", () => {
+  describe("suppressNextPersistOnce", () => {
     it("skips exactly one subscriber-driven save", async () => {
       const { module } = await loadModule();
       const saveData = jest.fn().mockResolvedValue(undefined);
@@ -91,7 +97,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("runPersistenceTransaction()", () => {
+  describe("runPersistenceTransaction", () => {
     it("keeps the queue usable after a transaction fails", async () => {
       const { module } = await loadModule();
       const failure = new Error("failed transaction");
@@ -108,7 +114,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("flushPersistence()", () => {
+  describe("flushPersistence", () => {
     it("waits for the active settings write", async () => {
       const { module } = await loadModule();
       let release!: () => void;
@@ -134,10 +140,10 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("loadSettingsWithKeychain()", () => {
+  describe("loadSettingsWithKeychain", () => {
     it("discards disk credentials and exposes only Keychain-hydrated values", async () => {
       const { module, keychain } = await loadModule();
-      keychain.hydrateFromKeychain.mockImplementation(async (settings: CopilotSettings) => ({
+      keychain.hydrateFromKeychain.mockImplementation(async (settings: ScribeSettings) => ({
         settings: { ...settings, openAIApiKey: "keychain-key" },
         hadFailures: false,
       }));
@@ -169,20 +175,20 @@ describe("settingsPersistence", () => {
       expect(saveData.mock.calls[0][0]).not.toHaveProperty("_keychainOnly");
     });
 
-    it("persists and loads the provider pointers the Keychain name migration rewrote (https://github.com/logancyang/obsidian-copilot/issues/3618)", async () => {
+    it("persists and loads the provider pointers the Keychain name migration rewrote", async () => {
       const { module, keychain } = await loadModule();
       const legacyRow = {
         providerId: "row-1",
         apiKeyKeychainId: "scribe-v1234abcd-provider-row-1",
       };
       const stableName = "scribe-v1234abcd-provider-anthropic-api-key";
-      keychain.migrateProviderNames.mockImplementation(
-        (settings: CopilotSettings) =>
-          ({
-            ...settings,
-            providers: { "row-1": { ...legacyRow, apiKeyKeychainId: stableName } },
-          }) as unknown as CopilotSettings
-      );
+      keychain.planProviderNames.mockImplementation((settings: ScribeSettings) => ({
+        settings: {
+          ...settings,
+          providers: { "row-1": { ...legacyRow, apiKeyKeychainId: stableName } },
+        } as unknown as ScribeSettings,
+        moves: [{ name: stableName, legacyIds: ["scribe-v1234abcd-provider-row-1"] }],
+      }));
       const saveData = jest.fn().mockResolvedValue(undefined);
 
       const loaded = await module.loadSettingsWithKeychain(
@@ -193,7 +199,7 @@ describe("settingsPersistence", () => {
       );
 
       expect(keychain.setVaultId.mock.invocationCallOrder[0]).toBeLessThan(
-        keychain.migrateProviderNames.mock.invocationCallOrder[0]
+        keychain.planProviderNames.mock.invocationCallOrder[0]
       );
       expect(saveData.mock.calls[0][0].providers["row-1"].apiKeyKeychainId).toBe(stableName);
       expect(loaded.providers["row-1"].apiKeyKeychainId).toBe(stableName);
@@ -205,7 +211,7 @@ describe("settingsPersistence", () => {
         providerId: "row-1",
         apiKeyKeychainId: "scribe-v1234abcd-provider-row-1",
       };
-      keychain.migrateProviderNames.mockImplementation(() => {
+      keychain.planProviderNames.mockImplementation(() => {
         throw new Error("keychain locked");
       });
 
@@ -270,7 +276,7 @@ describe("settingsPersistence", () => {
         saveData,
         jest.fn().mockResolvedValue({
           status: "backed-up",
-          path: "plugins/copilot/backup.json",
+          path: "plugins/scribe/backup.json",
           encrypted: false,
         })
       );
@@ -289,7 +295,7 @@ describe("settingsPersistence", () => {
         saveData,
         jest.fn().mockResolvedValue({
           status: "backed-up",
-          path: "config/plugins/copilot/backup.json",
+          path: "config/plugins/scribe/backup.json",
           encrypted: false,
         }),
         onMigration
@@ -302,14 +308,14 @@ describe("settingsPersistence", () => {
         expect.objectContaining({
           _pendingCredentialRecovery: {
             deviceId: DEVICE_ID,
-            path: "config/plugins/copilot/backup.json",
+            path: "config/plugins/scribe/backup.json",
             encrypted: false,
           },
         })
       );
       expect(result._pendingCredentialRecovery).toEqual({
         deviceId: DEVICE_ID,
-        path: "config/plugins/copilot/backup.json",
+        path: "config/plugins/scribe/backup.json",
         encrypted: false,
       });
     });
@@ -324,7 +330,7 @@ describe("settingsPersistence", () => {
           _keychainVaultId: "1234abcd",
           _pendingCredentialRecovery: {
             deviceId: DEVICE_ID,
-            path: "config/plugins/copilot/backup.json",
+            path: "config/plugins/scribe/backup.json",
             encrypted: false,
           },
         },
@@ -343,7 +349,7 @@ describe("settingsPersistence", () => {
       const onMigration = jest.fn();
       const recovery = {
         deviceId: "device-b",
-        path: "config/plugins/copilot/device-b-backup.json",
+        path: "config/plugins/scribe/device-b-backup.json",
         encrypted: false,
       };
 
@@ -370,7 +376,7 @@ describe("settingsPersistence", () => {
         jest.fn().mockResolvedValue(undefined),
         jest.fn().mockResolvedValue({
           status: "backed-up",
-          path: "config/plugins/copilot/backup.json",
+          path: "config/plugins/scribe/backup.json",
           encrypted: false,
         }),
         onMigration
@@ -423,7 +429,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("releaseLegacyCredentialHold()", () => {
+  describe("releaseLegacyCredentialHold", () => {
     it("resumes writing once a dedicated flow has stripped data.json", async () => {
       const { module } = await loadModule();
       await module.loadSettingsWithKeychain(
@@ -441,7 +447,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("persistSettingsWithinTransaction()", () => {
+  describe("persistSettingsWithinTransaction", () => {
     it("writes Keychain entries and strips the disk snapshot immediately", async () => {
       const { module, keychain } = await loadModule({
         persistSecrets: jest.fn().mockReturnValue({
@@ -464,7 +470,7 @@ describe("settingsPersistence", () => {
     });
   });
 
-  describe("persistSettings()", () => {
+  describe("persistSettings", () => {
     it("tombstones cleared credentials and never writes them to data.json", async () => {
       const { module, keychain } = await loadModule({
         persistSecrets: jest.fn().mockReturnValue({

@@ -3,7 +3,7 @@ import React from "react";
 import { QuickCommandModelSetting } from "./QuickCommandModelSetting";
 
 describe("QuickCommandModelSetting", () => {
-  describe("QuickCommandModelSetting()", () => {
+  describe("QuickCommandModelSetting", () => {
     it("shows the saved default and publishes a newly selected model", () => {
       const onChange = jest.fn();
       render(
@@ -20,7 +20,7 @@ describe("QuickCommandModelSetting", () => {
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "b" } });
       expect(onChange).toHaveBeenCalledWith("b");
     });
-    it("never lets the user pick Select model back once a default is chosen (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+    it("never lets the user pick Select model back once a default is chosen", () => {
       render(
         <QuickCommandModelSetting
           value="a"
@@ -32,7 +32,7 @@ describe("QuickCommandModelSetting", () => {
         true
       );
     });
-    it("asks for a choice when no default is available (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+    it("asks for a choice when no default is available", () => {
       render(
         <QuickCommandModelSetting
           value={undefined}

@@ -83,7 +83,7 @@ const RUNNING_TASK: AgentTask = {
 const msg = (id: string): AgentChatMessage => ({ id }) as unknown as AgentChatMessage;
 
 describe("useAgentChatRuntimeState", () => {
-  describe("useAgentChatRuntimeState()", () => {
+  describe("useAgentChatRuntimeState", () => {
     it("returns the backend's initial snapshot", () => {
       const fake = makeFakeBackend({ messages: [msg("a")], isStarting: true });
       const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
@@ -96,7 +96,7 @@ describe("useAgentChatRuntimeState", () => {
       expect(result.current.pendingToolPermissions).toEqual([]);
     });
 
-    it("shows an externally started plan implementation as running until the turn finishes (https://github.com/Brevilabs/obsidian-copilot-private/issues/41)", () => {
+    it("shows an externally started plan implementation as running until the turn finishes", () => {
       const fake = makeFakeBackend();
       const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
 

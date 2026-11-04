@@ -1,7 +1,7 @@
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { AgentSelectPanel } from "@/agentMode/ui/AgentSelectPanel";
 import type { AgentSelectState } from "@/agentMode/ui/useAgentSelect";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
@@ -14,6 +14,7 @@ const mockState: AgentSelectState = {
       status: "absent",
       recommended: true,
       statusMessage: null,
+      usesConfiguredModels: false,
     },
   ],
   selectedId: "opencode",
@@ -35,7 +36,7 @@ jest.mock("@/agentMode/ui/useAgentSelect", () => ({
 describe("AgentSelectPanel", () => {
   describe("AgentSelectPanel()", () => {
     it("renders the selected agent's call to action and runs it on press", () => {
-      const plugin = {} as CopilotPlugin;
+      const plugin = {} as ScribePlugin;
       const manager = {} as AgentSessionManager;
 
       render(<AgentSelectPanel plugin={plugin} manager={manager} />);

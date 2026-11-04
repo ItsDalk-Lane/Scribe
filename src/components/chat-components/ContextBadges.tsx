@@ -213,8 +213,6 @@ export function ContextSelectedTextBadge({
   selectedText,
   onRemove,
 }: ContextSelectedTextBadgeProps) {
-  // Excerpts need their own identity when shown beside the full source note.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/465
   const normalizedContent = selectedText.content.replace(/\s+/g, " ").trim();
 
   const isWebSelection = isWebSelectedTextContext(selectedText);

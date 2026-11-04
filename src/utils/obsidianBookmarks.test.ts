@@ -53,7 +53,7 @@ function requireUrlBookmarks(app: App) {
 const CHAT_URL = "obsidian://scribe-chat?vault=Notes&id=epoch%3A1000";
 
 describe("obsidianBookmarks", () => {
-  describe("getUrlBookmarks()", () => {
+  describe("getUrlBookmarks", () => {
     afterEach(() => jest.restoreAllMocks());
 
     it("reports a URL as bookmarked only when the Bookmarks pane holds a URL bookmark for it", () => {
@@ -99,11 +99,11 @@ describe("obsidianBookmarks", () => {
       expect(instance.removeItem).not.toHaveBeenCalled();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 returns null when the Bookmarks core plugin is disabled", () => {
+    it("returns null when the Bookmarks core plugin is disabled", () => {
       expect(getUrlBookmarks(appWithBookmarks(null))).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 returns null when the Bookmarks plugin no longer has the expected shape", () => {
+    it("returns null when the Bookmarks plugin no longer has the expected shape", () => {
       expect(
         getUrlBookmarks(appWithBookmarks({ ...makeBookmarksInstance(), removeItem: undefined }))
       ).toBeNull();
@@ -114,7 +114,7 @@ describe("obsidianBookmarks", () => {
     });
   });
 
-  describe("isBookmarksPluginDisabled()", () => {
+  describe("isBookmarksPluginDisabled", () => {
     function appWithPluginEntry(entry: unknown): App {
       return {
         internalPlugins: { getPluginById: (id: string) => (id === "bookmarks" ? entry : null) },
@@ -137,7 +137,7 @@ describe("obsidianBookmarks", () => {
     });
   });
 
-  describe("openBookmarksPluginSettings()", () => {
+  describe("openBookmarksPluginSettings", () => {
     function settingsApp(pluginName: unknown) {
       const search = document.createElement("input");
       search.type = "search";

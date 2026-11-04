@@ -14,7 +14,7 @@ import {
   BackendId,
   BackendProcess,
   BackendState,
-  CopilotMode,
+  ScribeMode,
   CurrentPlan,
   EnabledModelEntry,
   ModelSelection,
@@ -91,7 +91,7 @@ import { SessionHistoryReplay } from "@/agentMode/session/SessionHistoryReplay";
 import { InteractiveRequests } from "@/agentMode/session/InteractiveRequests";
 import { UsageTracker } from "@/agentMode/session/UsageTracker";
 import { replayPersistedMode } from "@/agentMode/session/replayPersistedMode";
-import type { FeedbackDraft, FeedbackOfferResult } from "@/agentMode/session/copilotMcpServer";
+import type { FeedbackDraft, FeedbackOfferResult } from "@/agentMode/session/scribeToolDefinitions";
 import type {
   FeedbackEvidence,
   FeedbackOffer,
@@ -204,7 +204,7 @@ export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
   backendId: BackendId;
   projectId?: ProjectScopeId;
   defaultModelSelection?: ModelSelection;
-  defaultMode?: CopilotMode | null;
+  defaultMode?: ScribeMode | null;
   getDescriptor?: () => BackendDescriptor | undefined;
   getDisplayName?: (backendId: BackendId) => string;
   getApp?: () => App;
@@ -221,7 +221,7 @@ export interface AgentSessionStateOptions extends ProjectContextUpdatesHooks {
   backendId: BackendId;
   projectId?: ProjectScopeId;
   defaultModelSelection?: ModelSelection;
-  defaultMode?: CopilotMode | null;
+  defaultMode?: ScribeMode | null;
   cwd?: string | null;
   getDescriptor?: () => BackendDescriptor | undefined;
   getDisplayName?: (backendId: BackendId) => string;
@@ -268,7 +268,7 @@ export class AgentSession {
   private labelSource: "user" | "agent" | null = null;
   private disposed = false;
   private resumeSelection: ModelSelection | undefined;
-  private resumeMode: CopilotMode | null | undefined;
+  private resumeMode: ScribeMode | null | undefined;
   private settleReady: () => void = () => {};
   private readonly historyReplay = new SessionHistoryReplay({
     store: this.store,
@@ -293,8 +293,6 @@ export class AgentSession {
       store: this.store,
       backendId: this.backendId,
       prompt: (input) => {
-        // 排队消息和续写也必须遵守模型开关，不能绕过普通发送时的检查。
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/625
         if (this.isOnModelNotEnabled()) {
           return Promise.reject(noEnabledModelError(this.displayNameFor(this.backendId)));
         }
@@ -303,7 +301,6 @@ export class AgentSession {
       notifyMessages: () => this.notifyMessages(),
       notifyQueuedPrompts: () => this.notifyQueuedPromptsChanged(),
       promptsWithdrawn: (prompts) => {
-        // A web page that rode only on a withdrawn message never reached the agent, so it goes in full next time. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
         if (prompts.some((p) => (p.context?.webTabs?.length ?? 0) > 0)) {
           this.lastSentWebTabBlock = null;
         }
@@ -349,7 +346,6 @@ export class AgentSession {
       this.backendSessionId = opts.backendSessionId;
       this.resumeSelection = opts.defaultModelSelection;
       this.resumeMode = opts.defaultMode;
-      // The backend replays the chat as live-shaped updates until its load response; collect them from the first frame. https://github.com/Brevilabs/obsidian-copilot-private/issues/602
       this.historyReplay.start();
       this.unregisterSessionHandler = this.backend.registerSessionHandler(
         opts.backendSessionId,
@@ -375,8 +371,6 @@ export class AgentSession {
     const selection = this.resumeSelection ?? state?.model?.current;
     if (!selection || !state) return settle();
     void this.applyStartupSelection(selection, this.resumeMode)
-      // A resumed chat stays open to pick an enabled model; sends on any other model are refused.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/625
       .catch((e) => logWarn(`[AgentMode] resumed ${this.backendId} session kept its model`, e))
       .finally(settle);
   }
@@ -401,6 +395,7 @@ export class AgentSession {
     try {
       const resp = await backend.newSession({
         cwd,
+        ...(defaultModelSelection ? { modelId: defaultModelSelection.baseModelId } : {}),
         projectId: this.projectId,
         mcpServers: opts.mcpServers,
       });
@@ -464,7 +459,7 @@ export class AgentSession {
 
   private async applyStartupSelection(
     selection: ModelSelection,
-    mode: CopilotMode | null = null
+    mode: ScribeMode | null = null
   ): Promise<void> {
     const descriptor = this.getDescriptor?.();
     if (!descriptor) return;
@@ -482,13 +477,10 @@ export class AgentSession {
     }
   }
 
-  // OpenCode answers session/new before Copilot's models and modes load and lists them in a later
-  // update, so wait for them; a chat must never show or run a model the user did not enable.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/625
   private async settleOnEnabledModel(
     descriptor: BackendDescriptor,
     seed: ModelSelection,
-    mode: CopilotMode | null
+    mode: ScribeMode | null
   ): Promise<void> {
     const enabled = this.enabledModels();
     const pick = () => pickEnabledModel(enabled, this.currentState?.model, seed);
@@ -591,8 +583,6 @@ export class AgentSession {
     if (!sample) return null;
     const spec = mode.apply[sample.value];
     if (!spec) return null;
-    // One picker choice may need both Codex collaboration and approval settings.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/551
     const steps = spec.kind === "sequence" ? spec.steps : [spec];
     const capabilities = steps.map((step) =>
       step.kind === "setConfigOption"
@@ -608,9 +598,7 @@ export class AgentSession {
     if (this.disposed) return "closed";
     if (this.startupFailed) return "error";
     if (this.backendSessionId === null || !this.startupSettled) return "starting";
-    // The chat is not finished while its subagents work, although the agent's replies end between them. https://github.com/Brevilabs/obsidian-copilot-private/issues/757
     const working = this.turns.isMainTurnRunning() || this.agentBusy;
-    // A background task can ask while the agent is idle; its request must not hold the composer or show Stop. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
     if (working && this.requests.hasPending()) {
       return "awaiting_permission";
     }
@@ -723,8 +711,6 @@ export class AgentSession {
     if (!isAgentBackendEnabled(getSettings(), this.backendId) || this.backendSuspended) {
       throw new Error("This agent is disabled. Enable it in Agent settings to continue.");
     }
-    // Agents only compact when /compact is the whole prompt, so nothing rides along with it.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/634
     const sendsCompact = isCompactCommand(displayText);
     if (sendsCompact) {
       displayText = displayText.trim();
@@ -739,7 +725,6 @@ export class AgentSession {
       throw new Error("Session is closed");
     }
     this.beforePrompt?.();
-    // Compaction waits for the agent to finish. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
     const busy =
       status === "running" ||
       status === "awaiting_permission" ||
@@ -873,15 +858,12 @@ export class AgentSession {
 
       const hasWebTabs = (context?.webTabs?.length ?? 0) > 0;
       const webTabBlock = hasWebTabs ? await serializeWebTabContext(context) : "";
-      // Stop already closed this prompt's reply, so nothing after it may run or open another. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
       if (signal.aborted || this.disposed) return { stopReason: "cancelled" };
       if (this.isOnModelNotEnabled()) {
         return this.turns.refuse(
           `This chat's model isn't enabled for ${this.displayNameFor(this.backendId)}. Pick an enabled model to continue.`
         );
       }
-      // Project context and its updates ride the next normal turn.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/634
       const isFirstTurn = !this.firstPromptSent && !sendsCompact;
       const projectContextBlock = isFirstTurn ? (this.getProjectContextBlockFn?.() ?? null) : null;
       const projectContextUpdates = sendsCompact
@@ -889,8 +871,6 @@ export class AgentSession {
         : (this.getProjectContextUpdatesFn?.() ?? null);
       const projectContextUpdatesBlock = projectContextUpdates?.block ?? null;
 
-      // A reopened chat whose agent session is gone from this device sends its saved turns once.
-      // https://github.com/logancyang/obsidian-copilot/issues/3643
       const sendsBranchHistory = this.branchState?.historyPending === true && !sendsCompact;
       const branchHistory = sendsBranchHistory
         ? buildBranchHistoryContent(this.priorDisplayMessages(userMessageId))
@@ -903,8 +883,6 @@ export class AgentSession {
           )
         : null;
       const leadingContextBlock = sendsCompact ? null : historyBlock;
-      // The agent keeps every earlier turn, so resending an unchanged page fills its context
-      // window with copies. https://github.com/Brevilabs/obsidian-copilot-private/issues/667
       const webTabPromptBlock = webTabBlock === this.lastSentWebTabBlock ? "" : webTabBlock;
       const promptBlocks = buildPromptBlocks(
         displayText,
@@ -967,7 +945,6 @@ export class AgentSession {
     return this.getDisplayName?.(backendId) ?? backendId;
   }
 
-  // Stop ends only the main reply; each background task is stopped from the running-tasks list. https://github.com/Brevilabs/obsidian-copilot-private/issues/788
   async cancel(options: { keepUnread?: boolean } = {}): Promise<void> {
     const status = this.getStatus();
     if (status !== "running" && status !== "awaiting_permission") return;
@@ -1130,8 +1107,6 @@ export class AgentSession {
     return this.feedbackOffer;
   }
 
-  // One card per session, whatever became of it, so a frustrated user is never nagged.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
   offerFeedback(draft: FeedbackDraft): FeedbackOfferResult {
     if (this.feedbackOffer) return "already_offered";
     this.feedbackOffer = this.openFeedbackOffer("agent", draft);
@@ -1139,8 +1114,6 @@ export class AgentSession {
     return "shown";
   }
 
-  // A failed reply leaves no agent turn to raise the card, so the session raises it with the error.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/762
   private offerTurnErrorReport(errorText: string): void {
     if (this.feedbackOffer || !getSettings().agentMode.offerFeedbackCards) return;
     this.feedbackOffer = this.openFeedbackOffer("turn_error", {
@@ -1171,8 +1144,6 @@ export class AgentSession {
   }
 
   markFeedbackReported(report: { reportId: string; issueUrl: string }): void {
-    // An upload can land after the user closed the dialog and dismissed the card, which must stay dismissed.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
     if (this.feedbackOffer?.status !== "open") return;
     this.feedbackOffer = { ...this.feedbackOffer, status: "reported", report };
     this.notifyMessages();
@@ -1234,12 +1205,10 @@ export class AgentSession {
 
   private handleSessionEvent(event: SessionEvent): void {
     const update = event.update;
-    // Task lifecycle updates describe the task itself, even when reported from inside a task. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     if (event.taskToolCallId !== undefined && !isTaskLifecycleUpdate(update)) {
       this.applyTaskContent(event.taskToolCallId, update);
       return;
     }
-    // A user message echoed outside the replay is already shown from the prompt that sent it. https://github.com/Brevilabs/obsidian-copilot-private/issues/602
     if (update.sessionUpdate === "user_message_chunk" && !this.historyReplay.isOpen()) return;
     if (this.historyReplay.append(update, event.occurredAt)) {
       return;
@@ -1255,7 +1224,6 @@ export class AgentSession {
         this.handleDisconnect(update.error);
         return;
       case "task_started":
-        // A launch from the stopped turn has no card left to settle it, so only a task the agent actually starts is listed. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
         if (
           update.taskId === undefined &&
           event.taskToolCallId === undefined &&
@@ -1320,7 +1288,6 @@ export class AgentSession {
     if (update.sessionUpdate === "plan") this.requests.applyTodoList(update.entries);
 
     if (update.sessionUpdate === "session_info_update") {
-      // An update that omits `title` (opencode's compaction and retry markers) leaves the title alone; only an explicit null clears it. https://github.com/Brevilabs/obsidian-copilot-private/issues/632
       if (update.title !== undefined && this.backendSummarizesTitle()) {
         this.applyAgentLabel(update.title);
       }
@@ -1401,8 +1368,6 @@ export class AgentSession {
       case "tool_call_update": {
         const existing = this.findToolCallPart(targetMessageId, update.toolCallId);
         const merged = mergeToolCallUpdate(existing, this.withEndedTaskStatus(update));
-        // A late update to an earlier turn's call must not count as this turn's edit.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/347
         if (!isPriorToolUpdate) this.observeToolResult(this.turns.getTurnFiles(), merged, update);
         if (merged.kind === "tool_call") {
           const exitPlan = tryReadExitPlanModeCall({
@@ -1441,7 +1406,6 @@ export class AgentSession {
   }
 
   private handleDisconnect(error: Error): void {
-    // A launch the agent never started cannot start after the connection is gone. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     for (const task of this.tasks.values()) {
       if (task.taskId === undefined && task.status === "running") this.endTask(task, "stopped");
     }
@@ -1466,7 +1430,6 @@ export class AgentSession {
     const task = this.taskWithId(update.taskId);
     if (!task) return;
     if (update.sessionUpdate === "task_progress") {
-      // Usage counts show only on the launching card, so a usage-only frame leaves task cards alone. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
       if (update.progress) {
         this.updateLaunchCard({ toolCallId: task.toolCallId, progress: update.progress });
       }
@@ -1479,7 +1442,6 @@ export class AgentSession {
     this.endTask(task, update.status, update.summary, update.outputFile);
   }
 
-  // One entry per launching tool call, so a task's card, row and open view keep their identity when its id arrives. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   private startTask(start: TaskStart): void {
     const existing = this.tasks.get(start.toolCallId);
     if (existing?.taskId !== undefined) return;
@@ -1516,7 +1478,6 @@ export class AgentSession {
     }
   }
 
-  // A launch that settles before the agent names its task never became one: it was denied, failed or stopped. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   private endUnstartedTasks(): void {
     for (const task of this.tasks.values()) {
       if (task.taskId !== undefined || task.status !== "running") continue;
@@ -1526,7 +1487,6 @@ export class AgentSession {
     }
   }
 
-  // The agent names every task its turn launched before the turn ends, so a launch still unnamed then, such as a call cut off mid-stream, never starts. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   private endLaunchesOfEndedTurn(status: TaskEndStatus): void {
     for (const task of this.tasks.values()) {
       if (task.taskId !== undefined || task.status !== "running") continue;
@@ -1560,11 +1520,8 @@ export class AgentSession {
       summary,
       outputFile: outputFile ?? task.outputFile,
     });
-    // The launching card follows its task. A summary is not a result: a subagent's is boilerplate about its hand-back. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     this.updateLaunchCard({ toolCallId: task.toolCallId, status: LAUNCH_CARD_STATUS[status] });
-    // A request from a task that has ended can no longer be answered, so its card must not stay open. https://github.com/Brevilabs/obsidian-copilot-private/issues/748
     if (task.taskId !== undefined) this.requests.rejectToolRequestsFrom({ taskId: task.taskId });
-    // A tool call cut short by its task's end would otherwise spin in the task's view forever. https://github.com/Brevilabs/obsidian-copilot-private/issues/748
     const content = this.taskContent.get(task.toolCallId);
     const contentId = content?.getDisplayMessages()[0]?.id;
     if (contentId) content?.stopToolCalls(contentId, EMPTY_TOOL_CALL_IDS);
@@ -1587,7 +1544,6 @@ export class AgentSession {
     }
   }
 
-  // A task's end decides its launching card's status; the tool's result can arrive after a stop and must not turn it into a failure. https://github.com/Brevilabs/obsidian-copilot-private/issues/748
   private withEndedTaskStatus<T extends { toolCallId: string }>(
     update: T
   ): T | (T & { status: AgentToolStatus }) {
@@ -1637,7 +1593,6 @@ export class AgentSession {
         const existing = store
           .getMessage(messageId)
           ?.parts?.find((part) => part.kind === "tool_call" && part.id === update.toolCallId);
-        // A call cut short by its task's end fails afterwards on a disconnect; it reads stopped, as after Stop. https://github.com/Brevilabs/obsidian-copilot-private/issues/748
         const cutShort =
           existing?.kind === "tool_call" &&
           existing.status === "cancelled" &&
@@ -1654,7 +1609,6 @@ export class AgentSession {
       default:
         return;
     }
-    // A task's own messages change on every step it takes; the task list keeps its identity so the chat's cards do not re-render. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     if (changed) this.notifyTasks();
   }
 
@@ -1673,7 +1627,6 @@ export class AgentSession {
     }
   }
 
-  // A subagent's edits belong to its own capture, never to the card of the main-agent run open beside it. https://github.com/Brevilabs/obsidian-copilot-private/issues/669
   private filesOf(requester: PermissionRequester): FileCaptures | undefined {
     if (requester === "main") return this.turns.getTurnFiles();
     const toolCallId = this.taskWithId(requester.taskId)?.toolCallId;
@@ -1725,21 +1678,15 @@ export class AgentSession {
       if (!isCapturableVaultPath(path)) continue;
       let capture = files.get(path);
       if (!capture) {
-        // Read as the call is announced; an Auto-mode write can land first, so a write-time original wins.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/687
         capture = { edited: false, snapshot: readVaultText(adapter, path) };
         files.set(path, capture);
       }
       if (!changes) continue;
       capture.edited = true;
-      // Later results report text this turn already changed; the first is the turn's starting file.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/347
       if (capture.writeTimeBefore === undefined) capture.writeTimeBefore = originals.get(path);
     }
   }
 
-  // Before text comes from a source that saw the file at write time; the first-mention snapshot
-  // is only the fallback. https://github.com/Brevilabs/obsidian-copilot-private/issues/347
   private async finalizeFileChanges(
     files: FileCaptures,
     store: AgentMessageStore,
@@ -1782,7 +1729,6 @@ export class AgentSession {
   private recomputeStatusIfChanged(): void {
     const next = this.getStatus();
     const replyRunning = this.isReplyRunning();
-    // A reply can end while subagents keep the chat running; the composer must still swap Stop for Send. https://github.com/Brevilabs/obsidian-copilot-private/issues/788
     if (next === this.cachedStatus && replyRunning === this.cachedReplyRunning) return;
     this.cachedStatus = next;
     this.cachedReplyRunning = replyRunning;

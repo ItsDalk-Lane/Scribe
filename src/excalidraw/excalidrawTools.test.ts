@@ -9,8 +9,6 @@ import {
   type ExcalidrawApi,
 } from "./excalidrawTools";
 
-const ISSUE_787 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/787";
-const ISSUE_792 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/792";
 const FLOW = "Drawings/Flow.excalidraw.md";
 
 const START: SceneElement[] = [
@@ -57,7 +55,7 @@ function toolsFor(api: ExcalidrawApi | null) {
 
 describe("excalidrawTools", () => {
   describe("tool definitions", () => {
-    it(`${ISSUE_787} offers read and render as read-only and one write tool, all behind the agent's tool search`, () => {
+    it(` offers read and render as read-only and one write tool, all behind the agent's tool search`, () => {
       expect(EXCALIDRAW_READ_TOOL.annotations.readOnlyHint).toBe(true);
       expect(EXCALIDRAW_RENDER_TOOL.annotations.readOnlyHint).toBe(true);
       expect(EXCALIDRAW_WRITE_TOOL.annotations.readOnlyHint).toBe(false);
@@ -74,7 +72,7 @@ describe("excalidrawTools", () => {
       ]);
     });
 
-    it(`${ISSUE_787} tells agents to draw through the tools instead of writing the file, and how draw order reads`, () => {
+    it(` tells agents to draw through the tools instead of writing the file, and how draw order reads`, () => {
       expect(EXCALIDRAW_WRITE_TOOL.description).toContain(
         "Never write or patch Excalidraw files yourself"
       );
@@ -85,7 +83,7 @@ describe("excalidrawTools", () => {
       expect(EXCALIDRAW_RENDER_TOOL.description).toContain("look at it before you answer");
     });
 
-    it(`${ISSUE_787} titles frames with name at creation, since Excalidraw rejects a frame label and this tool can't rename a frame`, () => {
+    it(` titles frames with name at creation, since Excalidraw rejects a frame label and this tool can't rename a frame`, () => {
       const element = EXCALIDRAW_WRITE_TOOL.inputSchema.properties.elements.items.properties;
       expect(element.name.description).toBe(
         "A frame's title; frames take name, never label. This tool can't rename a frame later."
@@ -97,7 +95,7 @@ describe("excalidrawTools", () => {
     });
   });
 
-  describe("createExcalidrawTools()", () => {
+  describe("createExcalidrawTools", () => {
     it("answers every tool with the turned-off text while the Excalidraw plugin is unavailable", async () => {
       for (const tool of Object.values(toolsFor(null))) {
         expect(await tool.call({ path: FLOW })).toEqual({
@@ -141,7 +139,7 @@ describe("excalidrawTools", () => {
       expect(result).toEqual({ text: JSON.stringify(icon), isError: false });
     });
 
-    it(`${ISSUE_787} refuses element JSON over 32,000 bytes, which Codex would cut in the middle`, async () => {
+    it(` refuses element JSON over 32,000 bytes, which Codex would cut in the middle`, async () => {
       const big = Array.from({ length: 200 }, (_, i) => ({
         id: `e${i}`,
         type: "text",
@@ -206,7 +204,7 @@ describe("excalidrawTools", () => {
         path: FLOW,
         elements,
       });
-      expect(request.requestId).toMatch(/^copilot-[\w.-]+$/);
+      expect(request.requestId).toMatch(/^scribe-[\w.-]+$/);
       expect(result).toEqual({
         text: `Created ${FLOW}. Ids (yours=real): a=Xy12Ab34.`,
         isError: false,
@@ -236,7 +234,7 @@ describe("excalidrawTools", () => {
       );
     });
 
-    it(`${ISSUE_792} groups elements of a new drawing right after creating it, by their real ids`, async () => {
+    it(` groups elements of a new drawing right after creating it, by their real ids`, async () => {
       const execute = jest.fn().mockImplementation(async (request: Record<string, unknown>) => {
         if (request.command === "create")
           return { ok: true, data: { idMap: { head: "Hd000001", eye: "Ey000001" } } };
@@ -270,7 +268,7 @@ describe("excalidrawTools", () => {
       });
     });
 
-    it(`${ISSUE_792} reports a created drawing whose grouping failed, so the agent groups it instead of creating it again`, async () => {
+    it(` reports a created drawing whose grouping failed, so the agent groups it instead of creating it again`, async () => {
       const api = fakeApi({
         execute: jest.fn().mockImplementation(async (request: Record<string, unknown>) => {
           if (request.command === "create") return { ok: true, data: { idMap: {} } };
@@ -292,7 +290,7 @@ describe("excalidrawTools", () => {
       });
     });
 
-    it(`${ISSUE_792} creates a drawing with Lucide icons and reports each icon's group id`, async () => {
+    it(` creates a drawing with Lucide icons and reports each icon's group id`, async () => {
       const execute = jest.fn().mockImplementation(async (request: Record<string, unknown>) =>
         request.command === "status"
           ? { ok: true, data: { lucideIcons: true } }
@@ -319,7 +317,7 @@ describe("excalidrawTools", () => {
       });
     });
 
-    it(`${ISSUE_792} sends an icon operation to the plugin's apply`, async () => {
+    it(` sends an icon operation to the plugin's apply`, async () => {
       const api = fakeApi({
         execute: jest
           .fn()
@@ -342,7 +340,7 @@ describe("excalidrawTools", () => {
       expect(api.execute).toHaveBeenLastCalledWith(expect.objectContaining({ operations }));
     });
 
-    it(`${ISSUE_792} refuses icons without changing the drawing when the installed Excalidraw can't add them`, async () => {
+    it(` refuses icons without changing the drawing when the installed Excalidraw can't add them`, async () => {
       const api = fakeApi({
         execute: jest.fn().mockResolvedValue({ ok: true, data: { version: "2.29.0" } }),
       });
@@ -422,7 +420,7 @@ describe("excalidrawTools", () => {
       });
     });
 
-    it(`${ISSUE_787} builds labelled, dashed, coloured, routed or restyled connections on the open drawing instead of sending them to apply`, async () => {
+    it(` builds labelled, dashed, coloured, routed or restyled connections on the open drawing instead of sending them to apply`, async () => {
       const api = fakeApi();
       const labelled = { op: "connect", from: "box1", to: "box2", label: "No", dashed: true };
       const routed = { op: "connect", from: "box2", to: "box1", via: [[540, 40]] };
@@ -444,7 +442,7 @@ describe("excalidrawTools", () => {
       );
     });
 
-    it(`${ISSUE_787} holds a second write to the same drawing until the first has saved, so its scene snapshot cannot drop the first write's arrow`, async () => {
+    it(` holds a second write to the same drawing until the first has saved, so its scene snapshot cannot drop the first write's arrow`, async () => {
       const firstConnecting = deferred();
       const firstSaved = deferred<{ arrowId: string; labelId: string }>();
       const api = fakeApi({
@@ -476,7 +474,7 @@ describe("excalidrawTools", () => {
       ]);
     });
 
-    it(`${ISSUE_787} finishes a write to another drawing while a write to the first drawing is still saving`, async () => {
+    it(` finishes a write to another drawing while a write to the first drawing is still saving`, async () => {
       const firstSaved = deferred<{ arrowId: string; labelId: string }>();
       const api = fakeApi({
         connectLabelled: jest.fn(async (path: string) =>
@@ -499,7 +497,7 @@ describe("excalidrawTools", () => {
       expect((await first).isError).toBe(false);
     });
 
-    it(`${ISSUE_787} still runs the next write to a drawing after the previous write failed`, async () => {
+    it(` still runs the next write to a drawing after the previous write failed`, async () => {
       const api = fakeApi();
       api.execute.mockRejectedValueOnce(new Error("view closed"));
       const { write } = toolsFor(api);
@@ -512,7 +510,7 @@ describe("excalidrawTools", () => {
       expect((await next).isError).toBe(false);
     });
 
-    it(`${ISSUE_787} rejects bend points that are not [x, y] pairs before changing the drawing`, async () => {
+    it(` rejects bend points that are not [x, y] pairs before changing the drawing`, async () => {
       const api = fakeApi();
 
       const result = await toolsFor(api).write.call({
@@ -531,7 +529,7 @@ describe("excalidrawTools", () => {
       expect(api.connectLabelled).not.toHaveBeenCalled();
     });
 
-    it(`${ISSUE_787} refuses an arrow bound to a stickynote in a new drawing or an add, without touching the plugin`, async () => {
+    it(` refuses an arrow bound to a stickynote in a new drawing or an add, without touching the plugin`, async () => {
       const api = fakeApi();
       const elements = [
         { id: "n1", type: "stickynote", x: 0, y: 0, width: 200, height: 200 },
@@ -550,7 +548,7 @@ describe("excalidrawTools", () => {
       expect(api.execute).not.toHaveBeenCalled();
     });
 
-    it(`${ISSUE_787} creates a stickynote that no arrow is bound to`, async () => {
+    it(` creates a stickynote that no arrow is bound to`, async () => {
       const api = fakeApi();
 
       const result = await toolsFor(api).write.call({
@@ -574,7 +572,7 @@ describe("excalidrawTools", () => {
       expect(api.execute).toHaveBeenCalledWith(expect.objectContaining({ command: "create" }));
     });
 
-    it(`${ISSUE_787} connects a styled arrow to a shape added in the same call by the real id the plugin gave it`, async () => {
+    it(` connects a styled arrow to a shape added in the same call by the real id the plugin gave it`, async () => {
       const api = fakeApi();
 
       const result = await toolsFor(api).write.call({
@@ -617,7 +615,7 @@ describe("excalidrawTools", () => {
       });
     });
 
-    it(`${ISSUE_787} reports the operations already saved when a later labelled connection fails, so the agent doesn't redo them`, async () => {
+    it(` reports the operations already saved when a later labelled connection fails, so the agent doesn't redo them`, async () => {
       const api = fakeApi({
         connectLabelled: jest.fn().mockRejectedValue(new Error("No element with id gone.")),
       });
@@ -636,7 +634,7 @@ describe("excalidrawTools", () => {
       });
     });
 
-    it(`${ISSUE_787} turns an exception from the plugin into an error naming the drawing and the fallback of decoding the file directly`, async () => {
+    it(` turns an exception from the plugin into an error naming the drawing and the fallback of decoding the file directly`, async () => {
       const api = fakeApi({
         sceneElements: jest.fn().mockRejectedValue(new Error("file is locked")),
       });

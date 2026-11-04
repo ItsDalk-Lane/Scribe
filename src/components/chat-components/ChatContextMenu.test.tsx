@@ -37,7 +37,7 @@ const baseProps = {
 };
 
 describe("ChatContextMenu", () => {
-  describe("ChatContextMenu()", () => {
+  describe("ChatContextMenu", () => {
     it("renders nothing in Agent Mode when there are no context badges", () => {
       const { container } = render(<ChatContextMenu {...baseProps} />);
       expect(container.childElementCount).toBe(0);
@@ -57,41 +57,38 @@ describe("ChatContextMenu", () => {
     it.each([
       { label: "only the active note", includeActiveNote: true, includeSelection: false },
       { label: "only the selection", includeActiveNote: false, includeSelection: true },
-    ])(
-      "renders $label independently - https://github.com/Brevilabs/obsidian-copilot-private/issues/465",
-      ({ includeActiveNote, includeSelection }) => {
-        const note = Object.assign(new TFile(), {
-          path: "Note.md",
-          basename: "Note",
-          extension: "md",
-        });
-        render(
-          <ChatContextMenu
-            {...baseProps}
-            currentActiveFile={note}
-            includeActiveNote={includeActiveNote}
-            selectedTextContexts={
-              includeSelection
-                ? [
-                    {
-                      id: "excerpt",
-                      sourceType: "note",
-                      content: "Selected passage",
-                      notePath: note.path,
-                      noteTitle: note.basename,
-                      startLine: 2,
-                      endLine: 3,
-                    },
-                  ]
-                : []
-            }
-          />
-        );
-        expect(Boolean(screen.queryByText("Current"))).toBe(includeActiveNote);
-        expect(Boolean(screen.queryByText("L2-3"))).toBe(includeSelection);
-      }
-    );
-    it("shows the active web tab beside a web selection - https://github.com/Brevilabs/obsidian-copilot-private/issues/667", () => {
+    ])("renders $label independently", ({ includeActiveNote, includeSelection }) => {
+      const note = Object.assign(new TFile(), {
+        path: "Note.md",
+        basename: "Note",
+        extension: "md",
+      });
+      render(
+        <ChatContextMenu
+          {...baseProps}
+          currentActiveFile={note}
+          includeActiveNote={includeActiveNote}
+          selectedTextContexts={
+            includeSelection
+              ? [
+                  {
+                    id: "excerpt",
+                    sourceType: "note",
+                    content: "Selected passage",
+                    notePath: note.path,
+                    noteTitle: note.basename,
+                    startLine: 2,
+                    endLine: 3,
+                  },
+                ]
+              : []
+          }
+        />
+      );
+      expect(Boolean(screen.queryByText("Current"))).toBe(includeActiveNote);
+      expect(Boolean(screen.queryByText("L2-3"))).toBe(includeSelection);
+    });
+    it("shows the active web tab beside a web selection", () => {
       render(
         <ChatContextMenu
           {...baseProps}
@@ -115,7 +112,7 @@ describe("ChatContextMenu", () => {
       expect(screen.getByText("really really long trunks")).toBeTruthy();
     });
     it.each(["Note.md", "Other note.md"])(
-      "keeps the active note beside a selection from %s - https://github.com/Brevilabs/obsidian-copilot-private/issues/465",
+      "keeps the active note beside a selection from %s",
       (notePath) => {
         const note = Object.assign(new TFile(), {
           path: "Note.md",

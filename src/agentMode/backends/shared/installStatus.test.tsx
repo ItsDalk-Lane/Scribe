@@ -4,18 +4,15 @@ import React from "react";
 import { ConfigStatusBadge, InstallBadge, installBadge } from "./installStatus";
 
 describe("installStatus", () => {
-  describe("installBadge()", () => {
+  describe("installBadge", () => {
     it.each([
       [{ signedIn: false }, "Sign in required"],
       [null, "Checking sign-in…"],
       [{ signedIn: true }, "Ready"],
-    ] as const)(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/379 derives installed agent readiness from authentication %j",
-      (authStatus, label) => {
-        expect(installBadge({ kind: "ready", source: "managed" }, authStatus)?.label).toBe(label);
-      }
-    );
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 preserves binary errors while authentication is unavailable", () => {
+    ] as const)("derives installed agent readiness from authentication %j", (authStatus, label) => {
+      expect(installBadge({ kind: "ready", source: "managed" }, authStatus)?.label).toBe(label);
+    });
+    it("preserves binary errors while authentication is unavailable", () => {
       expect(installBadge({ kind: "error", message: "Invalid CLI" }, null)?.label).toBe("Error");
     });
     it("returns a green 'Ready' badge with a check for ready state", () => {
@@ -63,8 +60,8 @@ describe("installStatus", () => {
     });
   });
 
-  describe("InstallBadge()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 renders sign-in readiness without changing binary readiness", () => {
+  describe("InstallBadge", () => {
+    it("renders sign-in readiness without changing binary readiness", () => {
       render(
         <InstallBadge
           state={{ kind: "ready", source: "custom" }}
@@ -75,20 +72,17 @@ describe("installStatus", () => {
       expect(screen.queryByText("Ready")).toBeNull();
     });
   });
-  describe("ConfigStatusBadge()", () => {
+  describe("ConfigStatusBadge", () => {
     it.each([
       [{ signedIn: false }, "Sign in required"],
       [null, "Checking sign-in…"],
       [{ signedIn: true }, "Ready"],
-    ] as const)(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/379 uses the same account readiness in Configure for %j",
-      (authStatus, label) => {
-        render(
-          <ConfigStatusBadge state={{ kind: "ready", source: "custom" }} authStatus={authStatus} />
-        );
-        expect(screen.getByText(label)).toBeTruthy();
-      }
-    );
+    ] as const)("uses the same account readiness in Configure for %j", (authStatus, label) => {
+      render(
+        <ConfigStatusBadge state={{ kind: "ready", source: "custom" }} authStatus={authStatus} />
+      );
+      expect(screen.getByText(label)).toBeTruthy();
+    });
     it.each<[InstallState["kind"], string, InstallState]>([
       ["ready", "Ready", { kind: "ready", source: "managed" }],
       ["absent", "Not set up", { kind: "absent" }],

@@ -6,12 +6,12 @@ import { type LegacyBackupResult } from "@/services/legacyCredentialBackup";
 import { cleanupLegacyFields, stripKeychainFields } from "@/services/settingsSecretTransforms";
 import type { StartupMigrationItem } from "@/services/startupMigration";
 import { CURRENT_SETTINGS_VERSION } from "@/settings/migrations/version";
-import { type CopilotSettings, sanitizeSettings } from "@/settings/model";
+import { type ScribeSettings, sanitizeSettings } from "@/settings/model";
 import { getDeviceId } from "@/utils/deviceId";
 import { type App, Notice } from "obsidian";
 
 let writeQueue: Promise<void> = Promise.resolve();
-let lastPersistedSettings: CopilotSettings | undefined;
+let lastPersistedSettings: ScribeSettings | undefined;
 let suppressNextPersist = false;
 let transactionEpoch = 0;
 let legacyCredentialsUnprotected = false;
@@ -23,19 +23,21 @@ function isValidKeychainVaultId(value: unknown): value is string {
   return typeof value === "string" && KEYCHAIN_VAULT_ID_RE.test(value);
 }
 
-function cloneRawSettings(rawData: unknown): CopilotSettings {
+function cloneRawSettings(rawData: unknown): ScribeSettings {
   if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
-    return {} as CopilotSettings;
+    return {} as ScribeSettings;
   }
-  return structuredClone(rawData) as CopilotSettings;
+  return structuredClone(rawData) as ScribeSettings;
 }
 
 function buildDiskSettings(
-  settings: CopilotSettings,
+  settings: ScribeSettings,
   vaultId: string,
   isFreshInstall: boolean
-): CopilotSettings {
-  const stripped = stripKeychainFields(cleanupLegacyFields(structuredClone(settings)));
+): ScribeSettings {
+  // 首次写盘也走同一规范化，未知嵌套代理设置一次清干净，而不是等重载后的下一次保存。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/18
+  const stripped = stripKeychainFields(cleanupLegacyFields(sanitizeSettings(settings)));
   stripped._keychainVaultId = vaultId;
   if (isFreshInstall) {
     stripped.settingsVersion = CURRENT_SETTINGS_VERSION;
@@ -56,7 +58,13 @@ export function releaseLegacyCredentialHold(): void {
   legacyCredentialsUnprotected = false;
 }
 
-export function refreshLastPersistedSettings(data: CopilotSettings): void {
+// 退役迁移删除钥匙串条目前先问这一句：备份失败的那次加载里，密钥唯一副本可能还在钥匙串。
+// https://github.com/ItsDalk-Lane/Scribe/issues/23
+export function isLegacyCredentialsUnprotected(): boolean {
+  return legacyCredentialsUnprotected;
+}
+
+export function refreshLastPersistedSettings(data: ScribeSettings): void {
   lastPersistedSettings = structuredClone(data);
 }
 
@@ -82,7 +90,7 @@ export async function flushPersistence(): Promise<void> {
 
 function credentialMigrationFromRecovery(
   app: App,
-  recovery: CopilotSettings["_pendingCredentialRecovery"]
+  recovery: ScribeSettings["_pendingCredentialRecovery"]
 ): StartupMigrationItem | null {
   if (
     !recovery ||
@@ -111,26 +119,40 @@ function credentialMigrationFromRecovery(
   };
 }
 
-function migrateProviderNames(
+function planProviderNames(
   keychain: KeychainService,
-  rawSettings: CopilotSettings
-): CopilotSettings {
-  if (!keychain.isAvailable()) return rawSettings;
+  rawSettings: ScribeSettings
+): ReturnType<KeychainService["planProviderNames"]> {
+  if (!keychain.isAvailable()) return { settings: rawSettings, moves: [] };
   try {
-    return keychain.migrateProviderNames(rawSettings);
+    return keychain.planProviderNames(rawSettings);
   } catch (error) {
     logWarn("Keychain provider name migration failed; it will retry on the next load.", error);
-    return rawSettings;
+    return { settings: rawSettings, moves: [] };
+  }
+}
+
+// 改名副作用只在备份成功后执行；备份失败的那次加载完全不动钥匙串，指针沿用旧名。
+// https://github.com/ItsDalk-Lane/Scribe/issues/23
+function executeProviderNamesSafely(
+  keychain: KeychainService,
+  moves: ReturnType<KeychainService["planProviderNames"]>["moves"]
+): void {
+  if (moves.length === 0) return;
+  try {
+    keychain.executeProviderNames(moves);
+  } catch (error) {
+    logWarn("Keychain provider name migration failed; it will retry on the next load.", error);
   }
 }
 
 export async function loadSettingsWithKeychain(
   app: App,
   rawData: unknown,
-  saveData: (data: CopilotSettings) => Promise<void>,
+  saveData: (data: ScribeSettings) => Promise<void>,
   backupLegacyCredentials: (rawData: unknown) => Promise<LegacyBackupResult>,
   onMigration?: (item: StartupMigrationItem) => void
-): Promise<CopilotSettings> {
+): Promise<ScribeSettings> {
   const isFreshInstall = rawData == null;
   const rawSettings = cloneRawSettings(rawData);
   const keychain = KeychainService.getInstance();
@@ -139,8 +161,8 @@ export async function loadSettingsWithKeychain(
     ? persistedVaultId
     : keychain.getVaultId();
   keychain.setVaultId(vaultId);
-  const migratedSettings = migrateProviderNames(keychain, rawSettings);
-  const diskSettings = buildDiskSettings(migratedSettings, vaultId, isFreshInstall);
+  const renamePlan = planProviderNames(keychain, rawSettings);
+  const diskSettings = buildDiskSettings(renamePlan.settings, vaultId, isFreshInstall);
   let credentialMigration = credentialMigrationFromRecovery(
     app,
     diskSettings._pendingCredentialRecovery
@@ -164,10 +186,14 @@ export async function loadSettingsWithKeychain(
     };
   };
 
+  let runtimeSettings = renamePlan.settings;
   if (JSON.stringify(rawSettings) !== JSON.stringify(diskSettings)) {
     const backup = await backupLegacyCredentials(rawData);
     if (backup.status === "failed") {
       legacyCredentialsUnprotected = true;
+      // 备份失败：不动钥匙串、不写盘，指针沿用旧名，本次加载照常工作。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/23
+      runtimeSettings = rawSettings;
       credentialMigration = {
         id: "credentials",
         title: t("API keys"),
@@ -181,6 +207,7 @@ export async function loadSettingsWithKeychain(
         )
       );
     } else {
+      executeProviderNamesSafely(keychain, renamePlan.moves);
       if (backup.status === "backed-up") {
         diskSettings._pendingCredentialRecovery = {
           deviceId: getDeviceId(app),
@@ -220,7 +247,7 @@ export async function loadSettingsWithKeychain(
     }
   }
 
-  const runtimeSource = isFreshInstall ? structuredClone(DEFAULT_SETTINGS) : migratedSettings;
+  const runtimeSource = isFreshInstall ? structuredClone(DEFAULT_SETTINGS) : runtimeSettings;
   const sanitized = cleanupLegacyFields(sanitizeSettings(runtimeSource));
   const baseline = stripKeychainFields({
     ...sanitized,
@@ -263,9 +290,9 @@ export async function loadSettingsWithKeychain(
 }
 
 async function persistKeychainSettings(
-  settings: CopilotSettings,
-  saveData: (data: CopilotSettings) => Promise<void>,
-  prev: CopilotSettings | undefined
+  settings: ScribeSettings,
+  saveData: (data: ScribeSettings) => Promise<void>,
+  prev: ScribeSettings | undefined
 ): Promise<void> {
   if (legacyCredentialsUnprotected) {
     throw new Error(
@@ -316,17 +343,17 @@ async function persistKeychainSettings(
 }
 
 export async function persistSettingsWithinTransaction(
-  settings: CopilotSettings,
-  saveData: (data: CopilotSettings) => Promise<void>,
-  prevSettings?: CopilotSettings
+  settings: ScribeSettings,
+  saveData: (data: ScribeSettings) => Promise<void>,
+  prevSettings?: ScribeSettings
 ): Promise<void> {
   await persistKeychainSettings(settings, saveData, prevSettings);
 }
 
 export async function persistSettings(
-  settings: CopilotSettings,
-  saveData: (data: CopilotSettings) => Promise<void>,
-  prevSettings?: CopilotSettings
+  settings: ScribeSettings,
+  saveData: (data: ScribeSettings) => Promise<void>,
+  prevSettings?: ScribeSettings
 ): Promise<void> {
   if (suppressNextPersist) {
     suppressNextPersist = false;
@@ -344,8 +371,8 @@ export async function persistSettings(
 
 async function restoreKeychainFromSettings(
   keychain: KeychainService,
-  restoreFrom: CopilotSettings | undefined,
-  failedSettings: CopilotSettings
+  restoreFrom: ScribeSettings | undefined,
+  failedSettings: ScribeSettings
 ): Promise<void> {
   if (!restoreFrom) return;
 

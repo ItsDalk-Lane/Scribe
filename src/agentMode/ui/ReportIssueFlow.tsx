@@ -74,9 +74,6 @@ export function ReportIssueFlow(props: ReportIssueFlowProps) {
     try {
       const result = await prepare(note, selected);
       if (!mountedRef.current) {
-        // Nobody will ever upload this zip, and it is plaintext prompts and
-        // note contents sitting in the OS temp folder with no UI left to name it
-        // (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
         void discardReport(result);
         return;
       }
@@ -264,10 +261,6 @@ function ReviewPage({
   const runUpload = async (packed: PreparedReport) => {
     setUploadState("uploading");
     const outcome = await upload(packed);
-    // The upload cannot be aborted, so its result can land after the user
-    // dismissed the dialog. A browser tab opening then would be a surprise,
-    // and there is no tree left to write a failure into
-    // (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
     if (!mountedRef.current) return;
     if (outcome.ok) {
       onUploaded({ reportId: outcome.reportId, issueUrl: outcome.issueUrl });

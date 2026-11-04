@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from "@/constants";
 import type { Provider } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
 import { loadSettingsWithKeychain, resetPersistenceState } from "@/services/settingsPersistence";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
 jest.mock("@/logger", () => ({
   logInfo: jest.fn(),
@@ -51,7 +51,7 @@ function anthropicRow(apiKeyKeychainId: string): Provider {
   };
 }
 
-function diskSettings(pointer: string): CopilotSettings {
+function diskSettings(pointer: string): ScribeSettings {
   return {
     ...structuredClone(DEFAULT_SETTINGS),
     _keychainVaultId: VAULT_ID,
@@ -62,8 +62,8 @@ function diskSettings(pointer: string): CopilotSettings {
 async function load(
   app: App,
   raw: unknown
-): Promise<{ settings: CopilotSettings; saved: CopilotSettings | undefined }> {
-  let saved: CopilotSettings | undefined;
+): Promise<{ settings: ScribeSettings; saved: ScribeSettings | undefined }> {
+  let saved: ScribeSettings | undefined;
   const settings = await loadSettingsWithKeychain(
     app,
     raw,
@@ -75,20 +75,20 @@ async function load(
   return { settings, saved };
 }
 
-function apiKeyFor(app: App, settings: CopilotSettings): string | null {
+function apiKeyFor(app: App, settings: ScribeSettings): string | null {
   const pointer = settings.providers["row-anthropic"].apiKeyKeychainId!;
   return KeychainService.getInstance(app).getSecretById(pointer);
 }
 
 describe("settingsPersistence", () => {
-  describe("loadSettingsWithKeychain()", () => {
+  describe("loadSettingsWithKeychain", () => {
     beforeEach(() => {
       secrets = new Map();
       resetPersistenceState();
       KeychainService.resetInstance();
     });
 
-    it("keeps an upgrading user's provider key working without re-entry, across repeated loads (https://github.com/logancyang/obsidian-copilot/issues/3618)", async () => {
+    it("keeps an upgrading user's provider key working without re-entry, across repeated loads", async () => {
       const app = makeApp();
       KeychainService.getInstance(app);
       const legacyPointer = `scribe-v${VAULT_ID}-provider-row-anthropic`;
@@ -105,7 +105,7 @@ describe("settingsPersistence", () => {
       expect(apiKeyFor(app, second)).toBe("sk-ant-12345");
     });
 
-    it("resolves this device's key after another device's sync already rewrote the provider pointer (https://github.com/logancyang/obsidian-copilot/issues/3618)", async () => {
+    it("resolves this device's key after another device's sync already rewrote the provider pointer", async () => {
       const app = makeApp();
       KeychainService.getInstance(app);
       secrets.set(`scribe-v${VAULT_ID}-provider-row-anthropic`, "sk-ant-12345");
@@ -113,6 +113,51 @@ describe("settingsPersistence", () => {
       const { settings: loaded } = await load(app, diskSettings(STABLE_NAME));
 
       expect(apiKeyFor(app, loaded)).toBe("sk-ant-12345");
+    });
+
+    it("drops unknown nested agent settings in the first disk write, not only after a reload (https://github.com/ItsDalk-Lane/Scribe/issues/18)", async () => {
+      const app = makeApp();
+      KeychainService.getInstance(app);
+      const raw = {
+        ...structuredClone(DEFAULT_SETTINGS),
+        _keychainVaultId: VAULT_ID,
+        openAIApiKey: "sk-legacy",
+        agentMode: {
+          ...structuredClone(DEFAULT_SETTINGS.agentMode),
+          mcpServers: [{ name: "private", transport: "http" }],
+          futureField: "unknown",
+        },
+      };
+
+      const { saved } = await load(app, raw);
+
+      expect(saved).toBeDefined();
+      expect(saved?.openAIApiKey).toBe("");
+      expect(saved?.agentMode).not.toHaveProperty("mcpServers");
+      expect(saved?.agentMode).not.toHaveProperty("futureField");
+    });
+
+    it("leaves the keychain untouched and keeps the legacy pointer when the backup fails (https://github.com/ItsDalk-Lane/Scribe/issues/23)", async () => {
+      const app = makeApp();
+      KeychainService.getInstance(app);
+      const legacyPointer = `scribe-v${VAULT_ID}-provider-row-anthropic`;
+      secrets.set(legacyPointer, "sk-ant-12345");
+      let savedCount = 0;
+
+      const settings = await loadSettingsWithKeychain(
+        app,
+        diskSettings(legacyPointer),
+        async () => {
+          savedCount++;
+        },
+        async () => ({ status: "failed", error: new Error("disk full") }) as const
+      );
+
+      expect(secrets.has(legacyPointer)).toBe(true);
+      expect(secrets.has(STABLE_NAME)).toBe(false);
+      expect(settings.providers["row-anthropic"].apiKeyKeychainId).toBe(legacyPointer);
+      expect(apiKeyFor(app, settings)).toBe("sk-ant-12345");
+      expect(savedCount).toBe(0);
     });
   });
 });

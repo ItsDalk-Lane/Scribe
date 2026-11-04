@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import { type App, type SecretStorage, FileSystemAdapter } from "obsidian";
-import { type CopilotSettings, getModelKeyFromModel, getSettings } from "@/settings/model";
+import { type ScribeSettings, getModelKeyFromModel, getSettings } from "@/settings/model";
 import { type CustomModel } from "@/aiParams";
 import type { Provider } from "@/modelManagement";
 import {
@@ -12,11 +12,9 @@ import {
 } from "@/services/settingsSecretTransforms";
 import { Notice } from "obsidian";
 import { md5 } from "@/utils/hash";
-import { getDeviceId } from "@/utils/deviceId";
 import { logError, logWarn } from "@/logger";
 
 const EXTRA_SECRET_KEYS: readonly string[] = [];
-const ENV_OVERRIDE_SETTINGS_PREFIX = "agentMode.backends.claude.envOverrides.";
 
 type ModelSecretField = (typeof MODEL_SECRET_FIELDS)[number];
 
@@ -56,9 +54,6 @@ function getVaultBasePath(app: App): string | undefined {
 }
 
 const MAX_SECRET_ID_LENGTH = 64;
-// Provider names must not embed the provider's random id: `data.json` syncs, the Keychain does
-// not, so a pointer minted on one device has to name an entry every device can hold.
-// https://github.com/logancyang/obsidian-copilot/issues/3618
 const LEGACY_PROVIDER_SECRET_ID = /^scribe-v[0-9a-f]{8}-provider-(.+)$/;
 
 function slugify(raw: string): string {
@@ -131,25 +126,12 @@ export function providerKeychainName(
   }
 }
 
-export function isCopilotOwnedSecret(id: string): boolean {
+export function isScribeOwnedSecret(id: string): boolean {
   return id.startsWith("scribe-");
 }
 
-function envOverrideKeychainId(vaultId: string, name: string): string {
-  return toKeychainId(vaultId, `${ENV_OVERRIDE_SETTINGS_PREFIX}${name}`);
-}
-
-function sensitiveEnvOverrides(
-  env: Readonly<Record<string, string>> | undefined
-): Array<[string, string]> {
-  if (!env) return [];
-  return Object.entries(env).filter(
-    ([name, value]) => isSecretKey(name) && typeof value === "string"
-  );
-}
-
 export interface HydrateResult {
-  settings: CopilotSettings;
+  settings: ScribeSettings;
   hadFailures: boolean;
 }
 
@@ -158,7 +140,12 @@ export interface PersistSecretsResult {
   keychainIdsToDelete: string[];
 }
 
-export type SaveDataFn = (data: CopilotSettings) => Promise<void>;
+export type SaveDataFn = (data: ScribeSettings) => Promise<void>;
+
+export interface ProviderNameMove {
+  name: string;
+  legacyIds: string[];
+}
 
 export class KeychainService {
   private static instance: KeychainService | null = null;
@@ -237,7 +224,7 @@ export class KeychainService {
     return this.storage.getSecret(id);
   }
 
-  async hydrateFromKeychain(settings: CopilotSettings): Promise<HydrateResult> {
+  async hydrateFromKeychain(settings: ScribeSettings): Promise<HydrateResult> {
     const hydrated = { ...settings };
     let hadFailures = false;
 
@@ -266,53 +253,6 @@ export class KeychainService {
     hydrated.activeModels = modelResult.models;
     hadFailures = hadFailures || modelResult.hadFailures;
 
-    const agentMode = hydrated.agentMode;
-    const deviceId = getDeviceId(this.app);
-    const flatEnv = agentMode?.backends?.claude?.envOverrides;
-    const profile = agentMode?.deviceProfiles?.[deviceId];
-    const profileEnv = profile?.claude?.envOverrides;
-    const envValues = new Map<string, string>();
-    for (const env of [flatEnv, profileEnv]) {
-      for (const [name] of sensitiveEnvOverrides(env)) {
-        let keychainValue: string | null;
-        try {
-          keychainValue = this.getSecret(`${ENV_OVERRIDE_SETTINGS_PREFIX}${name}`);
-        } catch (e) {
-          logWarn(`Keychain read failed for environment variable "${name}".`, e);
-          hadFailures = true;
-          continue;
-        }
-        if (keychainValue !== null) envValues.set(name, keychainValue);
-      }
-    }
-    if (agentMode && envValues.size > 0) {
-      const withValues = (env: Readonly<Record<string, string>>): Record<string, string> =>
-        Object.fromEntries(
-          Object.entries(env).map(([name, value]) => [name, envValues.get(name) ?? value])
-        );
-      const nextBackends = flatEnv
-        ? {
-            ...agentMode.backends,
-            claude: { ...agentMode.backends?.claude, envOverrides: withValues(flatEnv) },
-          }
-        : agentMode.backends;
-      const nextProfiles =
-        profile && profileEnv
-          ? {
-              ...agentMode.deviceProfiles,
-              [deviceId]: {
-                ...profile,
-                claude: { ...profile.claude, envOverrides: withValues(profileEnv) },
-              },
-            }
-          : agentMode.deviceProfiles;
-      hydrated.agentMode = {
-        ...agentMode,
-        backends: nextBackends,
-        ...(nextProfiles ? { deviceProfiles: nextProfiles } : {}),
-      };
-    }
-
     if (hadFailures) {
       logWarn("Keychain hydrate: some keychain reads failed — values left as-is.");
     }
@@ -320,7 +260,7 @@ export class KeychainService {
     return { settings: hydrated, hadFailures };
   }
 
-  persistSecrets(settings: CopilotSettings, prevSettings?: CopilotSettings): PersistSecretsResult {
+  persistSecrets(settings: ScribeSettings, prevSettings?: ScribeSettings): PersistSecretsResult {
     const secretEntries: Array<[string, string]> = [];
     const clearedSecretIds: string[] = [];
 
@@ -346,18 +286,6 @@ export class KeychainService {
       prevSettings?.activeModels,
       clearedSecretIds
     );
-    const env = settings.agentMode?.backends?.claude?.envOverrides;
-    const prevEnv = prevSettings?.agentMode?.backends?.claude?.envOverrides;
-    for (const [name, value] of sensitiveEnvOverrides(env)) {
-      const id = envOverrideKeychainId(this.vaultId, name);
-      if (value.length > 0) secretEntries.push([id, value]);
-      else if (typeof prevEnv?.[name] === "string" && prevEnv[name].length > 0)
-        clearedSecretIds.push(id);
-    }
-    for (const [name] of sensitiveEnvOverrides(prevEnv)) {
-      if (env && name in env) continue;
-      clearedSecretIds.push(envOverrideKeychainId(this.vaultId, name));
-    }
     const keychainIdsToDelete = [
       ...this.getDeletedModelKeysForScope(
         "chat",
@@ -373,32 +301,60 @@ export class KeychainService {
   // Every device migrates on load because the pointer it reads may have been rewritten by another
   // device that already ran this, while this device's key still sits under the old name.
   // https://github.com/logancyang/obsidian-copilot/issues/3618
-  migrateProviderNames(settings: CopilotSettings): CopilotSettings {
+  // 拆成规划与执行两步：备份失败时可以只规划不动钥匙串，改名等下次启动重试。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/23
+  planProviderNames(settings: ScribeSettings): {
+    settings: ScribeSettings;
+    moves: ProviderNameMove[];
+  } {
     const providers = { ...(settings.providers ?? {}) };
+    const moves: ProviderNameMove[] = [];
     let changed = false;
     for (const row of Object.values(settings.providers ?? {})) {
       const pointer = row.apiKeyKeychainId;
-      if (!pointer || !isCopilotOwnedSecret(pointer)) continue;
+      if (!pointer || !isScribeOwnedSecret(pointer)) continue;
       const isLegacy = LEGACY_PROVIDER_SECRET_ID.exec(pointer)?.[1] === row.providerId;
       const name = isLegacy ? providerKeychainName(this.vaultId, row, providers) : pointer;
       const legacyIds = new Set([pointer, `scribe-v${this.vaultId}-provider-${row.providerId}`]);
       legacyIds.delete(name);
+      if (legacyIds.size > 0) moves.push({ name, legacyIds: [...legacyIds] });
+      if (name !== pointer) {
+        providers[row.providerId] = { ...row, apiKeyKeychainId: name };
+        changed = true;
+      }
+    }
+    return { settings: changed ? { ...settings, providers } : settings, moves };
+  }
+
+  executeProviderNames(moves: readonly ProviderNameMove[]): void {
+    for (const { name, legacyIds } of moves) {
       for (const id of legacyIds) {
         const value = this.storage.getSecret(id);
         if (value === null) continue;
-        if (this.storage.getSecret(name) === null) this.storage.setSecret(name, value);
+        const existing = this.storage.getSecret(name);
+        if (existing === null) {
+          this.storage.setSecret(name, value);
+        } else if (existing !== value) {
+          // 两个名称下是不同的密钥：都保留，等用户确认要哪一个，绝不静默丢弃。
+          // https://github.com/ItsDalk-Lane/Scribe/issues/24
+          logWarn(
+            `Keychain: ${name} and ${id} hold different values; keeping both instead of deleting ${id}`
+          );
+          continue;
+        }
         try {
           this.removeSecret(id);
         } catch (error) {
           logWarn(`Keychain: failed to remove migrated provider secret ${id}`, error);
         }
       }
-      if (name !== pointer) {
-        providers[row.providerId] = { ...row, apiKeyKeychainId: name };
-        changed = true;
-      }
     }
-    return changed ? { ...settings, providers } : settings;
+  }
+
+  migrateProviderNames(settings: ScribeSettings): ScribeSettings {
+    const plan = this.planProviderNames(settings);
+    this.executeProviderNames(plan.moves);
+    return plan.settings;
   }
 
   clearAllVaultSecrets(): void {
@@ -430,7 +386,7 @@ export class KeychainService {
 
   async forgetAllSecrets(
     saveData: SaveDataFn,
-    syncMemory: (data: Partial<CopilotSettings>) => void
+    syncMemory: (data: Partial<ScribeSettings>) => void
   ): Promise<void> {
     const current = getSettings();
     if (!this.isAvailable()) {

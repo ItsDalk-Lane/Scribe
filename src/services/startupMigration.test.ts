@@ -2,7 +2,6 @@ import {
   formatStartupMigrationSummary,
   runStartupMigrationSummary,
   shouldClearCredentialRecovery,
-  shouldClearFolderRelocation,
   type StartupMigrationItem,
   type StartupMigrationTask,
   type StartupMigrationTasks,
@@ -21,10 +20,10 @@ const failure: StartupMigrationItem = {
   summary: "Projects failed.",
 };
 const final: StartupMigrationItem = {
-  id: "folders",
-  title: "Folders",
+  id: "prompts",
+  title: "Prompts",
   status: "action-required",
-  summary: "Review folder locations.",
+  summary: "Review prompt locations.",
   details: ["Open Scribe Settings."],
 };
 
@@ -35,7 +34,7 @@ const EMPTY_TASK: StartupMigrationTask = {
 };
 
 function tasks(projects: StartupMigrationTask = EMPTY_TASK): StartupMigrationTasks {
-  return [projects, EMPTY_TASK, EMPTY_TASK, EMPTY_TASK];
+  return [projects, EMPTY_TASK, EMPTY_TASK];
 }
 
 describe("startupMigration", () => {
@@ -46,7 +45,7 @@ describe("startupMigration", () => {
           "Scribe finished updating this vault.",
           "API keys — Completed\nKeys migrated.",
           "Projects — Failed\nProjects failed.",
-          "Folders — Action required\nReview folder locations.\n• Open Scribe Settings.",
+          "Prompts — Action required\nReview prompt locations.\n• Open Scribe Settings.",
         ].join("\n\n")
       );
     });
@@ -57,17 +56,6 @@ describe("startupMigration", () => {
       expect(shouldClearCredentialRecovery([initial], "device-a", "device-a")).toBe(true);
       expect(shouldClearCredentialRecovery([initial], "device-b", "device-a")).toBe(false);
       expect(shouldClearCredentialRecovery([], "device-a", "device-a")).toBe(false);
-    });
-  });
-
-  describe("shouldClearFolderRelocation()", () => {
-    it("clears only presented folder guidance that did not fail", () => {
-      expect(
-        shouldClearFolderRelocation([{ ...initial, id: "folders", status: "action-required" }])
-      ).toBe(true);
-      expect(shouldClearFolderRelocation([{ ...initial, id: "folders", status: "error" }])).toBe(
-        false
-      );
     });
   });
 

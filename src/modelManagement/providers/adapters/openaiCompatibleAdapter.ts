@@ -3,10 +3,8 @@ import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/provide
 import { t } from "@/lib/i18n";
 import * as z from "zod";
 
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-
 import type { VerificationResult } from "@/modelManagement/types/runtime";
-import type { AdapterBuildContext, AdapterVerifyContext, ProviderAdapter } from "./ProviderAdapter";
+import type { AdapterVerifyContext, ProviderAdapter } from "./ProviderAdapter";
 import { verifyPathForCatalogProviderId } from "./openaiCompatibleVerifyPath";
 import { verifyViaListModels } from "./verifyViaListModels";
 
@@ -20,12 +18,6 @@ export const openaiCompatibleAdapter: ProviderAdapter<Extras> = {
   providerType: "openai-compatible",
   extrasSchema,
 
-  buildLangChainClient(ctx: AdapterBuildContext<Extras>): BaseChatModel {
-    throw new Error(
-      "[modelManagement] openaiCompatibleAdapter.buildLangChainClient not implemented yet"
-    );
-  },
-
   verifyCredentials(ctx: AdapterVerifyContext<Extras>): Promise<VerificationResult> {
     const baseUrl = ctx.provider.baseUrl?.trim();
     if (!baseUrl) {
@@ -36,7 +28,6 @@ export const openaiCompatibleAdapter: ProviderAdapter<Extras> = {
         checkedAt: Date.now(),
       });
     }
-    // 公开目录可匿名读取时不能将缺失的必需密钥判为已验证。https://github.com/logancyang/obsidian-copilot/issues/3147
     if (!ctx.apiKey?.trim() && providerNeedsResolvedApiKey(ctx.provider)) {
       return Promise.resolve({
         ok: false,

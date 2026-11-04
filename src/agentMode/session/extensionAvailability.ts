@@ -22,9 +22,6 @@ function isAvailabilityChecked(item: AgentExtensionItem): boolean {
   );
 }
 
-// Every entry renders either a usable switch or a dot — never a locked switch — so an entry whose
-// state cannot carry a switch (still connecting, unverifiable, or blocked by a standing failure)
-// is described here and rendered as a dot. https://github.com/ItsDalk-Lane/Scribe/issues/3
 interface DotRendering {
   connecting?: boolean;
   reason: string;
@@ -82,7 +79,6 @@ export function getExtensionSwitchState(
   };
 }
 
-// A row shows a switch only when the switch can actually enable or disable the entry; every other entry renders availability as a dot with its reason. https://github.com/ItsDalk-Lane/Scribe/issues/1
 export function isExtensionToggleable(item: AgentExtensionItem): boolean {
   if (item.builtin || item.readOnly || item.parentPluginId || item.source === "runtime")
     return false;
@@ -92,9 +88,6 @@ export function isExtensionToggleable(item: AgentExtensionItem): boolean {
   return item.canEnable !== false;
 }
 
-// A confirmed row the user cannot switch explains where it is managed instead of rendering
-// nothing, so externally linked entries (skills installed as symlinks by other tools) no longer
-// look broken. https://github.com/ItsDalk-Lane/Scribe/issues/5
 export function getExtensionDotState(item: AgentExtensionItem): ExtensionDotState {
   if (item.availability === "disabled" || item.enabled === false)
     return {

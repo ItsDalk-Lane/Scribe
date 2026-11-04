@@ -13,7 +13,6 @@ export function getProviderSessionOptions(
   model: Pick<CustomModel, "provider" | "baseUrl"> | null,
   owner: object
 ): ProviderSessionOptions | undefined {
-  // Go 要求每段对话携带稳定的会话标识，自定义代理不应收到其专用头。https://github.com/anomalyco/opencode/issues/47756
   let endpoint: URL;
   try {
     endpoint = new URL(model?.baseUrl?.trim() ?? "");

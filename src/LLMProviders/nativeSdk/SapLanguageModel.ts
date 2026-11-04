@@ -1,192 +1,161 @@
+import type { ProviderStreams, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { collapseSystemMessages, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
+import { postChatRequest, textContent } from "@/LLMProviders/httpChatApis";
+import { readJsonStream, streamHttpCompletion } from "@/LLMProviders/piHttpStream";
 import { t } from "@/lib/i18n";
-import type {
-  LanguageModelV2,
-  LanguageModelV2CallOptions,
-  LanguageModelV2FinishReason,
-  LanguageModelV2StreamPart,
-} from "@ai-sdk/provider";
 
-interface SapMessage {
-  content?: string;
-  reasoning_content?: Array<{ content?: string }>;
-}
 interface SapPayload {
   final_result?: {
-    choices?: Array<{ message?: SapMessage; delta?: SapMessage; finish_reason?: string }>;
+    choices?: Array<{
+      delta?: {
+        content?: string;
+        reasoning_content?: Array<{ content?: string }>;
+        tool_calls?: Array<{
+          index: number;
+          id?: string;
+          function?: { name?: string; arguments?: string };
+        }>;
+      };
+      finish_reason?: string;
+    }>;
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
   error?: { message?: string; code?: number };
 }
 
-function finishReason(value?: string): LanguageModelV2FinishReason {
-  if (value === "stop" || value === "length") return value;
-  if (value === "content_filter") return "content-filter";
-  return "unknown";
-}
-
-function resultParts(message?: SapMessage): Array<{ type: "text" | "reasoning"; text: string }> {
-  const parts: Array<{ type: "text" | "reasoning"; text: string }> = [];
-  const reasoning = message?.reasoning_content?.map((block) => block.content || "").join("");
-  if (reasoning) parts.push({ type: "reasoning", text: reasoning });
-  if (message?.content) parts.push({ type: "text", text: message.content });
-  return parts;
-}
-
-function checkError(payload: SapPayload): void {
-  if (payload.error)
-    throw Object.assign(new Error(payload.error.message || t("Unexpected response")), {
-      statusCode: payload.error.code,
-    });
-}
-
 export function createSapHttpModel(
-  modelId: string,
   completionUrl: string,
-  headers: Record<string, string>,
-  transport: typeof fetch
-): LanguageModelV2 {
-  const request = async (
-    options: LanguageModelV2CallOptions,
-    stream: boolean
-  ): Promise<Response> => {
-    const placeholders: Record<string, string> = {};
-    const literal = (text: string): string => {
-      if (!/\{[{#%]/.test(text)) return text;
-      const name = `copilot_message_${Object.keys(placeholders).length}`;
-      placeholders[name] = text;
-      return `{{?${name}}}`;
-    };
-    const template = options.prompt.map((message) => {
-      if (message.role === "system")
-        return { role: message.role, content: literal(message.content) };
-      if (message.role === "tool")
-        throw new Error(t("Unsupported native model message role: {role}", { role: message.role }));
-      const content = message.content.map((part) => {
-        if (part.type === "text") return { type: "text", text: literal(part.text) };
-        if (part.type === "file") {
-          const url =
-            part.data instanceof URL
-              ? part.data.href
-              : `data:${part.mediaType};base64,${typeof part.data === "string" ? part.data : btoa(Array.from(part.data, (byte) => String.fromCharCode(byte)).join(""))}`;
-          return { type: "image_url", image_url: { url } };
-        }
-        throw new Error(t("Unsupported native model message content: {type}", { type: part.type }));
-      });
-      return {
-        role: message.role,
-        content: content.every((part) => part.type === "text")
-          ? content.map((part) => ("text" in part ? part.text : "")).join("")
-          : content,
+  headers: Record<string, string>
+): ProviderStreams["stream"] {
+  return (model, context, options?: SimpleStreamOptions) =>
+    streamHttpCompletion(model, options, async function* () {
+      const placeholders: Record<string, string> = {};
+      const literal = (text: string): string => {
+        if (!/\{[{#%]/.test(text)) return text;
+        const name = `scribe_message_${Object.keys(placeholders).length}`;
+        placeholders[name] = text;
+        return `{{?${name}}}`;
       };
-    });
-    const params = {
-      ...(options.maxOutputTokens === undefined
-        ? {}
-        : { max_completion_tokens: options.maxOutputTokens }),
-      ...(options.stopSequences ? { stop: options.stopSequences } : {}),
-      ...(stream ? { stream_options: { include_usage: true } } : {}),
-    };
-    const response = await transport(completionUrl, {
-      method: "POST",
-      signal: options.abortSignal,
-      headers: { ...headers, ...options.headers, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        config: {
-          ...(stream ? { stream: { enabled: true } } : {}),
-          modules: {
-            prompt_templating: { model: { name: modelId, params }, prompt: { template } },
+      const template = collapseSystemMessages(context)
+        .messages.filter((message) => message.role !== "system" || textContent(message))
+        .map((message) => {
+          if (message.role === "toolResult")
+            return {
+              role: "tool",
+              tool_call_id: message.toolCallId,
+              content: literal(textContent(message)),
+            };
+          if (message.role === "assistant")
+            return {
+              role: "assistant",
+              content: literal(textContent(message)),
+              ...(message.content.some((part) => part.type === "toolCall")
+                ? {
+                    tool_calls: message.content
+                      .filter((part) => part.type === "toolCall")
+                      .map((part) => ({
+                        id: part.id,
+                        type: "function",
+                        function: {
+                          name: part.name,
+                          arguments: literal(JSON.stringify(part.arguments)),
+                        },
+                      })),
+                  }
+                : {}),
+            };
+          if (typeof message.content === "string")
+            return { role: message.role, content: literal(message.content) };
+          const content = (message.content ?? []).map((part) => {
+            if (part.type === "text") return { type: "text", text: literal(part.text) };
+            return {
+              type: "image_url",
+              image_url: { url: `data:${part.mimeType};base64,${part.data}` },
+            };
+          });
+          return {
+            role: message.role,
+            content: content.every((part) => part.type === "text")
+              ? content.map((part) => part.text).join("")
+              : content,
+          };
+        });
+      const response = await postChatRequest(
+        { ...model, baseUrl: completionUrl },
+        "",
+        {
+          config: {
+            stream: { enabled: true },
+            modules: {
+              prompt_templating: {
+                model: {
+                  name: model.id,
+                  params: {
+                    ...(options?.maxTokens === undefined
+                      ? {}
+                      : { max_completion_tokens: options.maxTokens }),
+                    ...(options?.reasoning !== undefined
+                      ? { reasoning_effort: options.reasoning }
+                      : {}),
+                    stream_options: { include_usage: true },
+                  },
+                },
+                prompt: {
+                  template,
+                  ...(getCurrentTools(context.messages).length
+                    ? {
+                        tools: getCurrentTools(context.messages).map((tool) => ({
+                          type: "function",
+                          function: {
+                            name: tool.name,
+                            description: tool.description,
+                            parameters: tool.parameters,
+                          },
+                        })),
+                      }
+                    : {}),
+                },
+              },
+            },
           },
+          ...(Object.keys(placeholders).length ? { placeholder_values: placeholders } : {}),
         },
-        ...(Object.keys(placeholders).length ? { placeholder_values: placeholders } : {}),
-      }),
-    });
-    if (!response.ok)
-      throw Object.assign(new Error(`${t("Unexpected response")} (${response.status})`), {
-        statusCode: response.status,
-      });
-    return response;
-  };
-  return {
-    specificationVersion: "v2",
-    provider: "sap-ai",
-    modelId,
-    supportedUrls: {},
-    async doGenerate(options) {
-      const payload = (await (await request(options, false)).json()) as SapPayload;
-      checkError(payload);
-      const result = payload.final_result;
-      const choice = result?.choices?.[0];
-      if (!choice?.message) throw new Error(t("Unexpected response"));
-      return {
-        content: resultParts(choice.message),
-        finishReason: finishReason(choice.finish_reason),
-        usage: {
-          inputTokens: result?.usage?.prompt_tokens,
-          outputTokens: result?.usage?.completion_tokens,
-          totalTokens: result?.usage?.total_tokens,
-        },
-        warnings: [],
-      };
-    },
-    async doStream(options) {
-      const response = await request(options, true);
-      if (!response.body) throw new Error(t("Unexpected response"));
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let last: SapPayload["final_result"];
-      let reason: string | undefined;
-      let finished = false;
-      const emit = (
-        record: string,
-        controller: TransformStreamDefaultController<LanguageModelV2StreamPart>
-      ) => {
-        const data = record
-          .split(/\r?\n/)
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trimStart())
-          .join("\n");
-        if (!data) return;
-        if (data === "[DONE]") {
-          finished = true;
+        { ...options, headers: { ...headers, ...options?.headers } }
+      );
+      let reason: "stop" | "length" | "toolUse" = "stop";
+      for await (const raw of readJsonStream(response, options?.signal)) {
+        if (raw === "[DONE]") {
+          yield { finishReason: reason };
           return;
         }
-        const payload = JSON.parse(data) as SapPayload;
-        checkError(payload);
-        if (payload.final_result?.usage) last = payload.final_result;
+        const payload = raw as SapPayload;
+        if (payload.error) throw new Error(payload.error.message || t("Unexpected response"));
         const choice = payload.final_result?.choices?.[0];
-        if (choice?.finish_reason) reason = choice.finish_reason;
-        for (const part of resultParts(choice?.delta))
-          controller.enqueue(
-            part.type === "text"
-              ? { type: "text-delta", id: "text", delta: part.text }
-              : { type: "reasoning-delta", id: "reasoning", delta: part.text }
-          );
-      };
-      const stream = response.body.pipeThrough(
-        new TransformStream<Uint8Array, LanguageModelV2StreamPart>({
-          transform(chunk, controller) {
-            buffer += decoder.decode(chunk, { stream: true });
-            const records = buffer.split(/\r?\n\r?\n/);
-            buffer = records.pop() || "";
-            for (const record of records) emit(record, controller);
-          },
-          flush(controller) {
-            buffer += decoder.decode();
-            if (buffer.trim()) emit(buffer, controller);
-            if (!finished) throw new Error(t("Unexpected response"));
-            controller.enqueue({
-              type: "finish",
-              finishReason: finishReason(reason),
-              usage: {
-                inputTokens: last?.usage?.prompt_tokens,
-                outputTokens: last?.usage?.completion_tokens,
-                totalTokens: last?.usage?.total_tokens,
-              },
-            });
-          },
-        })
-      );
-      return { stream };
-    },
-  };
+        if (choice?.finish_reason === "length") reason = "length";
+        if (choice?.finish_reason === "tool_calls") reason = "toolUse";
+        for (const call of choice?.delta?.tool_calls ?? [])
+          yield {
+            toolCall: {
+              index: call.index,
+              id: call.id,
+              name: call.function?.name,
+              arguments: call.function?.arguments,
+            },
+          };
+        const usage = payload.final_result?.usage;
+        yield {
+          text: choice?.delta?.content,
+          thinking: choice?.delta?.reasoning_content?.map((part) => part.content || "").join(""),
+          ...(usage
+            ? {
+                usage: {
+                  input: usage.prompt_tokens ?? 0,
+                  output: usage.completion_tokens ?? 0,
+                  totalTokens: usage.total_tokens ?? 0,
+                },
+              }
+            : {}),
+        };
+      }
+    });
 }

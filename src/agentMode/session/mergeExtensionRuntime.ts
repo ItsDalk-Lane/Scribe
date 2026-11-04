@@ -4,7 +4,6 @@ import type {
   AgentExtensionRuntimeSnapshot,
 } from "./extensionInventory";
 
-// A disabled plugin leaves the other tabs together with its children; the plugin itself stays listed for its own switch. https://github.com/ItsDalk-Lane/Scribe/issues/1
 function disabledPluginIds(groups: readonly AgentExtensionGroup[]): Set<string> {
   return new Set(
     (groups.find((group) => group.kind === "plugin")?.items ?? [])
@@ -25,8 +24,6 @@ function withoutDisabledChildren(
 }
 
 export interface MergeExtensionRuntimeOptions {
-  // A scope-isolated list must not gain rows for entries the check saw only because other
-  // scopes are active in the same session. https://github.com/ItsDalk-Lane/Scribe/issues/6
   appendRuntimeEntries?: boolean;
 }
 

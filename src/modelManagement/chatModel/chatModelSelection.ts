@@ -47,7 +47,6 @@ export function findChatBackendEntry(
     (entry): entry is ResolvedChatBackendEntry =>
       entry.state === "ok" && isChatModelInfo(entry.configuredModel.info)
   );
-  // Commands must ask for a model instead of silently changing providers. https://github.com/Brevilabs/obsidian-copilot-private/issues/616
   const fallback = fallbackToFirst ? okEntries[0] : undefined;
   if (!preferredSelection) return fallback;
 

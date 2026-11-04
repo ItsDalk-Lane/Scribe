@@ -1,25 +1,21 @@
 export const agentTranslations: Record<string, string> = {
+  "Always allow this action in this chat": "在此聊天中始终允许此操作",
+  "Always deny this action in this chat": "在此聊天中始终拒绝此操作",
+  "Only this file or exact command, in this folder, chat, and requester.":
+    "仅限当前文件或完全相同的命令，且只对当前目录、聊天和发起者有效。",
+  "Agent configuration": "代理配置",
+  "Runs inside Scribe": "由 Scribe 内置运行",
+  "Model settings": "模型设置",
   "Connection not completed in this check": "本次检查尚未连通",
   "Check extensions": "检查扩展",
   "Checking extensions…": "正在检查扩展…",
   "Could not check agent extensions. Try again.": "无法检查代理扩展，请重试。",
-  "Starting Claude loads your configuration, connects extension services, and may run configured startup hooks.":
-    "启动 Claude 时会读取您的配置、连接扩展服务，也可能运行您配置的启动钩子。",
-  "Checks what Claude loaded and connected without sending a chat message or testing each tool.":
-    "检查 Claude 已加载和已连接的扩展，不发送聊天消息，也不逐个调用工具测试。",
-  "Click Check extensions to start Claude and check extensions. No chat message is needed.":
-    "点击“检查扩展”即可启动 Claude 检查扩展，无需先发送消息。",
-  "These results describe this check, which may use a temporary Claude instance. Check again after configuration changes.":
-    "结果来自本次检查，可能由临时启动的 Claude 提供。更改配置后请重新检查。",
   "Some check results could not be read. Missing status does not mean an extension was not loaded.":
     "部分检查结果未能读取。没有读到状态，不代表扩展未加载。",
   "Could not read check results. Missing status does not mean an extension was not loaded. Try checking again.":
     "无法读取检查结果。没有读到状态，不代表扩展未加载。请重新检查。",
   "Loaded or connected does not guarantee that each execution succeeds.":
     "已加载或已连接，不代表每次执行都会成功。",
-  "Claude may omit hidden skills from its report. Not reported does not mean unavailable.":
-    "未报告不代表不可用；隐藏技能可能不出现在清单中。",
-  "Agent report": "Claude报告",
   Loaded: "已加载",
   "Loaded; manual invocation only": "已加载，仅手动调用",
   "Claude reported plugin errors; details for each plugin were not provided.":
@@ -27,10 +23,8 @@ export const agentTranslations: Record<string, string> = {
   "Loaded with component errors": "已加载，部分组件异常",
   Registered: "已注册",
   "Not loaded in this check": "本次检查未加载",
-  "Claude did not report this entry": "Claude 未报告此项",
   Connected: "已连接",
   "Connection failed": "连接失败",
-  "Sign-in required": "需要登录",
   "Connecting…": "正在连接…",
   "Discovered; loading not checked": "已发现，尚未检查加载",
   "Reported by the running session.": "来自运行中的会话。",
@@ -55,32 +49,10 @@ export const agentTranslations: Record<string, string> = {
   "Failed to load saved chat details. The saved record has been preserved.":
     "无法读取已保存的聊天详情，原记录已保留。",
   Context: "上下文",
-  "Claude CLI path saved.": "Claude CLI 路径已保存。",
-  "Claude CLI override cleared. Auto-detection will be used.":
-    "已清除 Claude CLI 自定义路径，将使用自动检测。",
   "Show extended thinking": "显示深度思考",
   "Show the model's reasoning as it works. Uses more tokens.":
     "显示模型工作时的思考过程，会消耗更多 token。",
-  "Auto mode permissions": "自动模式权限",
-  "Auto lets Claude judge each request and still ask about risky ones, Accept edits auto-approves file edits only, and Bypass permissions skips every check.":
-    "自动模式由 Claude 判断每个请求，遇到风险仍会询问；接受编辑仅自动批准文件编辑；跳过权限则不进行任何检查。",
-  "Accept edits": "接受编辑",
-  "Bypass permissions": "跳过权限检查",
-  Auto: "自动",
-  "Configure Claude": "配置 Claude",
-  "Claude Code installation": "Claude Code 安装",
-  "Scribe uses Claude Code installed on this computer. Auto-detect looks in the usual install locations.":
-    "Scribe 使用本机安装的 Claude Code，自动检测会查找常用安装位置。",
-  "Install Claude Code": "安装 Claude Code",
-  "Claude Code wasn't found. Install it with the command below, then select Auto-detect again.":
-    "未找到 Claude Code。请使用下方命令安装，然后再次选择自动检测。",
-  "Set up a supported version of Claude Code above to sign in.":
-    "请先在上方配置受支持的 Claude Code 版本，再登录。",
   "Scribe supports": "Scribe 支持",
-  "or newer. You manage its updates; Auto-detect checks the usual npm locations and your PATH.":
-    "或更新版本。更新由您管理；自动检测会检查常用 npm 安装位置和 PATH。",
-  "including any old copy inside your vault? Your custom binary path and BYOK keys are kept.":
-    "包括库中的旧副本？您的自定义程序路径和自备密钥会保留。",
   "Auto-detect": "自动检测",
   Clear: "清除",
   Apply: "应用",
@@ -96,38 +68,11 @@ export const agentTranslations: Record<string, string> = {
   "Add variable": "添加变量",
   Configure: "配置",
   Authentication: "身份验证",
-  "Signed in as": "已登录账号",
-  "Sign-out didn't complete. Try again.": "退出登录未完成，请重试。",
-  "Sign in using a terminal instead": "改用终端登录",
-  Done: "完成",
-  Cancel: "取消",
-  Platform: "平台",
-  Version: "版本",
   "(pinned)": "（固定版本）",
+  Version: "版本",
   Location: "位置",
   Uninstall: "卸载",
-  "Scribe is tested with the version managed by Scribe. Other versions may not work correctly. We recommend Managed by Scribe.":
-    "Scribe 已针对其管理的版本进行测试，其他版本可能无法正常工作。建议选择由 Scribe 管理。",
-  "Managed by Scribe": "由 Scribe 管理",
-  "My own installation": "使用自己的安装",
-  "Reinstall & use managed": "重新安装并由 Scribe 管理",
-  "Download & install": "下载并安装",
-  "Your own binary is currently in use. Scribe's managed downloads are still on this computer. Reinstall to switch to Managed by Scribe, or uninstall to free up space.":
-    "当前使用您自己的程序。Scribe 管理的副本仍在本机，可重新安装以切换，或卸载以释放空间。",
-  "Your own binary is currently in use. Download and install the managed copy to switch to Managed by Scribe.":
-    "当前使用您自己的程序。下载并安装托管副本后，即可切换为由 Scribe 管理。",
-  "The Scribe-managed binary is currently in use. Apply your own binary path below to switch to it.":
-    "当前使用 Scribe 管理的程序。在下方应用自己的程序路径即可切换。",
-  "Signed in": "已登录",
-  "Not signed in": "未登录",
-  "Signing out…": "正在退出登录…",
-  "Sign out": "退出登录",
-  "Sign in with your browser": "使用浏览器登录",
-  "Finish signing in in your browser.": "请在浏览器中完成登录。",
-  "Sign-in didn't complete. Try again.": "登录未完成，请重试。",
   "Open sign-in page": "打开登录页面",
-  "Cancel sign-in": "取消登录",
-  "Signing in…": "正在登录…",
   "Try again": "重试",
   "Try again.": "请重试。",
   "Checking sign-in…": "正在检查登录状态…",
@@ -168,10 +113,8 @@ export const agentTranslations: Record<string, string> = {
   Description: "说明",
   "Allowed tools": "允许的工具",
   "Model override": "指定模型",
-  "Don&apos;t let Claude invoke this on its own": "不允许 Claude 自行调用此技能",
   "Hide from slash menu": "从斜杠菜单中隐藏",
   Save: "保存",
-  "Claude Code only": "仅适用于 Claude Code",
   "Name is required.": "请填写名称。",
   "Lowercase a–z, 0–9, and hyphens only — no leading, trailing, or consecutive hyphens.":
     "只能使用小写字母 a–z、数字 0–9 和连字符；连字符不能位于开头、结尾或连续出现。",
@@ -430,15 +373,7 @@ export const agentTranslations: Record<string, string> = {
   "Where to begin?": "从哪里开始？",
   "What shall we dig into?": "我们来研究什么？",
   "Ask me anything.": "随时向我提问。",
-  "Anthropic models, billed to your Claude Code subscription. Runs the claude CLI already on your machine.":
-    "使用 Anthropic 模型，通过您的 Claude Code 订阅计费，运行本机已有的 claude CLI。",
-  "Any model on your own provider key. Scribe can download and manage the binary for you.":
-    "使用您自己的服务商密钥连接模型，Scribe 可为您下载和管理程序。",
-  "The server set in your Claude Code settings": "Claude Code 设置中指定的服务器",
   "The server set in OPENAI_BASE_URL": "OPENAI_BASE_URL 中指定的服务器",
-  "Install Claude Code before signing out.": "请先安装 Claude Code，再退出登录。",
-  "Covers what this option names, until this chat ends. Start a new chat to undo.":
-    "权限范围以此选项说明为准，有效期至当前聊天结束。新建聊天即可撤销。",
   "Block Always": "始终拒绝",
   "Allow Always": "始终允许",
   "Scribe Agent Chat": "Scribe 代理聊天",
@@ -477,15 +412,7 @@ export const agentTranslations: Record<string, string> = {
   failed: "失败",
   "The Bookmarks core plugin is not enabled.": "尚未启用核心插件“书签”。",
   "The active chat has no saved note.": "当前聊天尚未保存为笔记。",
-  "Couldn't clear the custom path: {p0}": "无法清除自定义路径：{p0}",
-  "A supported {p0} adapter was not found. Install your own adapter or choose Managed by Scribe.":
-    "未找到受支持的 {p0} 适配器。请自行安装，或选择由 Scribe 管理。",
-  " (freed {p0})": "（释放 {p0}）",
-  "Uninstall failed: {p0}": "卸载失败：{p0}",
-  "Update to v{p0}": "更新至 v{p0}",
-  "{p0} installation source": "{p0} 安装来源",
   " as {p0}": "，账号为 {p0}",
-  "Set up {p0} to enable": "请先配置 {p0}，再启用",
   "{p0} for {p1}": "{p1} 的 {p0}",
   "More actions for {p0}": "{p0} 的更多操作",
   "{p0} content (read-only)": "{p0} 内容（只读）",
@@ -532,11 +459,6 @@ export const agentTranslations: Record<string, string> = {
   "Failed to delete {p0}: {p1}": "无法删除 {p0}：{p1}",
   "{p0} doesn't support images. Switch to a vision-capable model to send images.":
     "{p0} 不支持图片。请切换为支持图片的模型后再发送。",
-  "resets in {p0}m": "{p0} 分钟后重置",
-  "resets in {p0}h": "{p0} 小时后重置",
-  "resets in {p0}h {p1}m": "{p0} 小时 {p1} 分钟后重置",
-  "resets in {p0}d": "{p0} 天后重置",
-  "resets in {p0}d {p1}h": "{p0} 天 {p1} 小时后重置",
   "{p0} (disabled)": "{p0}（已停用）",
   "Could not close chat: {p0}": "无法关闭聊天：{p0}",
   "Chat in {p0}": "在 {p0} 中聊天",
@@ -581,13 +503,15 @@ export const agentTranslations: Record<string, string> = {
   "{p0} skill {p1}": "{p0}技能 {p1}",
   "{p0} a skill": "{p0}技能",
   "{p0} no longer exists.": "{p0} 已不存在。",
-  "This agent doesn't support switching {p0} switching.": "此代理不支持切换{p0}。",
+  "This agent doesn't support switching {p0}.": "此代理不支持切换{p0}。",
   "Failed to switch {p0}. Check the Scribe log for details.":
     "无法切换{p0}，请查看 Scribe 日志了解详情。",
   "Failed to start {p0}. Check the Scribe log for details.":
     "无法启动 {p0}，请查看 Scribe 日志了解详情。",
   "Checking {p0} setup…": "正在检查 {p0} 的配置…",
   "{p0} isn't set up on this machine yet.": "此设备尚未配置 {p0}。",
+  "No chat model is enabled for {p0} yet. Add a provider and enable a model first.":
+    "{p0} 还没有启用聊天模型。请先添加供应商并启用一个模型。",
   "Failed to {p0}.": "无法{p0}。",
   'No chat link for "{p0}".': "“{p0}”没有聊天链接。",
   "Go to change {p0} of {p1}": "前往第 {p0} 处更改，共 {p1} 处",
@@ -692,7 +616,6 @@ export const agentTranslations: Record<string, string> = {
   configuration: "配置",
   "A skill named “": "已有名为“",
   "” already exists.": "”的技能。",
-  "Don't let Claude invoke this on its own": "不允许 Claude 自行调用此技能",
   "Skills are saved instructions your agents can follow - things like “review a diff” or “write a release note”. Skills you put under your shared folder, or directly inside an agent’s own skills folder, show up here automatically.":
     "技能是保存下来的指令，代理可以按它执行，例如“审查改动”或“撰写更新说明”。放入共享文件夹或代理自身技能文件夹中的技能都会自动显示在这里。",
   "No skills match “": "没有技能匹配“",
@@ -706,66 +629,16 @@ export const agentTranslations: Record<string, string> = {
   "Show {count} more chat": "显示另外 {count} 个聊天",
   "Show {count} more chats": "显示另外 {count} 个聊天",
   "Configuring…": "正在配置…",
-  "Update the binary at the saved path, or clear the override to use an auto-detected installation.":
-    "请更新已保存路径中的程序，或清除自定义路径以使用自动检测到的安装。",
-  "Update it with the install command below, then reopen this dialog.":
-    "请使用下方安装命令更新，然后重新打开此窗口。",
-  "or set agentMode.claudeCli.path in settings.": "或在设置中填写 agentMode.claudeCli.path。",
-  "Unable to verify Claude authentication status.": "无法验证 Claude 登录状态。",
   "Agent Chat requires Obsidian on desktop.": "代理聊天需要桌面版 Obsidian。",
-  "Scribe installs it under ~/.obsidian-scribe; check that your account has a valid home directory.":
-    "Scribe 会安装到 ~/.obsidian-scribe，请确认您的账号具有有效的用户主目录。",
-  "Connecting to {p0} download…": "正在连接 {p0} 下载服务…",
-  "Downloading {p0} — {p1} / {p2}": "正在下载 {p0} — {p1} / {p2}",
-  "Extracting {p0}…": "正在解压 {p0}…",
-  "Verifying {p0}…": "正在验证 {p0}…",
-  "Activating {p0}…": "正在启用 {p0}…",
-  "{p0} ready.": "{p0} 已就绪。",
-  "{p0} {p1}s elapsed": "{p0} 已用时 {p1} 秒",
-  "{p0} has invalid version metadata. Configure a valid installation.":
-    "{p0} 的版本信息无效，请配置有效的安装。",
-  "{p0} v{p1} is not supported. Scribe requires {p2} v{p3} or newer.":
-    "不支持 {p0} v{p1}，Scribe 需要 {p2} v{p3} 或更新版本。",
-  "{p0} is not installed. Configure an installation.": "尚未安装 {p0}，请先配置安装。",
-  "Could not verify the installed Claude Code version. Scribe requires Claude Code {p0} or newer.":
-    "无法验证已安装的 Claude Code 版本。Scribe 需要 Claude Code {p0} 或更新版本。",
-  "Could not read the installed Claude Code version. Scribe requires Claude Code {p0} or newer.":
-    "无法读取已安装的 Claude Code 版本。Scribe 需要 Claude Code {p0} 或更新版本。",
-  "Claude Code {p0} is not supported. Scribe requires Claude Code {p1} or newer.":
-    "不支持 Claude Code {p0}，Scribe 需要 Claude Code {p1} 或更新版本。",
-  "Claude CLI not found. Install with: {p0}, ": "未找到 Claude CLI。请使用以下命令安装：{p0}，",
-  "Your own binary is now in use, but Scribe could not remove its managed downloads: {p0}":
-    "已切换为您自己的程序，但 Scribe 无法移除其管理的下载文件：{p0}",
-  "Missing tarball or sha512 integrity for {p0}@{p1}.":
-    "缺少 {p0}@{p1} 的压缩文件或 sha512 校验信息。",
-  "Unsupported platform/arch: {p0}/{p1}. Agent Chat runs on macOS, Linux, and Windows (x64 or Arm64).":
-    "不支持此平台或架构：{p0}/{p1}。代理聊天支持 macOS、Linux 和 Windows（x64 或 Arm64）。",
-  "No file at {p0}": "以下位置没有文件：{p0}",
-  "Unsafe {p0} download redirect.": "{p0} 下载重定向不安全。",
-  "Failed to launch tar: {p0}": "无法启动 tar：{p0}",
-  read: "读取",
-  move: "移动",
-  search: "搜索",
-  execute: "执行",
-  think: "思考",
-  fetch: "获取网页",
-  switch_mode: "切换模式",
-  other: "其他",
+  "Configure and enable a chat model in your model settings first.":
+    "请先在现有模型设置中配置并启用聊天模型。",
+  "Enable a model for {p0} in Scribe's model settings to start a chat.":
+    "请先在 Scribe 的模型设置中为{p0}启用一个模型，才能开始聊天。",
+  "This agent is disabled. Enable it in Agent settings to continue.":
+    "此代理已停用。请先在代理设置中启用后再继续。",
+  "Runs note tasks inside Scribe using the chat models you configure.":
+    "使用已配置的聊天模型，在 Scribe 内执行笔记任务。",
   "Allow once": "允许一次",
   "Allow always": "始终允许",
   "Deny once": "拒绝一次",
-  "Claude Code's suggested rule": "Claude Code 建议的规则",
-  "Covers {covers} until this chat ends. Start a new chat to undo.":
-    "范围为 {covers}，有效期至当前聊天结束。新建聊天即可撤销。",
-  "Covers {covers}. Saved to {destination}. Remove it there to undo.":
-    "范围为 {covers}。保存到 {destination}。可在那里移除以撤销。",
-  "settings.json in your Claude Code config folder (~/.claude by default), for all your Claude Code projects":
-    "Claude Code 配置文件夹（默认为 ~/.claude）中的 settings.json，适用于您的全部 Claude Code 项目",
-  ".claude/settings.json in the vault folder (for a project chat, the project note's folder), for later chats there":
-    ".claude/settings.json，位于库文件夹中（项目聊天则为项目笔记所在文件夹），适用于该位置的后续聊天",
-  ".claude/settings.local.json in the vault folder (for a project chat, the project note's folder), for later chats there":
-    ".claude/settings.local.json，位于库文件夹中（项目聊天则为项目笔记所在文件夹），适用于该位置的后续聊天",
-  "all file edits": "全部文件编辑",
-  "{mode} mode": "{mode} 模式",
-  "access to {path}": "访问 {path}",
 };

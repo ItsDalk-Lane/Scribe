@@ -13,6 +13,7 @@ const CLAUDE: AgentSelectRow = {
   status: "absent",
   recommended: true,
   statusMessage: null,
+  usesConfiguredModels: false,
 };
 
 const AgentSelectStory: React.FC<Partial<AgentSelectViewProps>> = (args) => {

@@ -11,7 +11,7 @@ function fakeResponse(status: number, json: unknown, text = ""): Response {
 }
 
 describe("listGoogleModels", () => {
-  describe("listGoogleModels()", () => {
+  describe("listGoogleModels", () => {
     beforeEach(() => {
       mockSafeFetch.mockReset();
     });
@@ -47,7 +47,7 @@ describe("listGoogleModels", () => {
       );
     });
 
-    it("uses the same normalized proxy base as credential checks and chat when the saved URL has a version and repeated slashes (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("uses the same normalized proxy base as credential checks and chat when the saved URL has a version and repeated slashes", async () => {
       mockSafeFetch.mockResolvedValue(fakeResponse(200, { models: [] }));
       await listGoogleModels(" https://proxy.example/gateway/v1beta/// ", { apiKey: "key" });
       expect(mockSafeFetch).toHaveBeenCalledWith(

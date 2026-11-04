@@ -8,10 +8,10 @@ import {
 import { mockTFile, mockTFolder } from "@/__tests__/mockObsidian";
 
 jest.mock("@/settings/model", () => ({
-  getSettings: jest.fn(() => ({ projectsFolder: "copilot-projects" })),
+  getSettings: jest.fn(() => ({ projectsFolder: "scribe-projects" })),
 }));
 
-jest.mock("@/settings/copilotFolder", () => {
+jest.mock("@/settings/scribeFolder", () => {
   const { getSettings } = jest.requireMock<typeof import("@/settings/model")>("@/settings/model");
   return { getEffectiveProjectsFolder: jest.fn(() => getSettings().projectsFolder) };
 });
@@ -56,7 +56,7 @@ function setupAppMock(rawContent: string, frontmatter: Record<string, unknown> |
 }
 
 function makeConfigFile(folderName: string, fileName: string): TFile {
-  const path = `copilot-projects/${folderName}/${fileName}`;
+  const path = `scribe-projects/${folderName}/${fileName}`;
   return mockTFile({
     path,
     name: fileName,
@@ -83,7 +83,7 @@ describe("projectUtils", () => {
       } as unknown as App;
       await writeProjectFrontmatter(
         app,
-        makeMockFile("copilot-projects/my-project/project.md"),
+        makeMockFile("scribe-projects/my-project/project.md"),
         { id: " my-project ", name: "", ...project } as ProjectConfig,
         "my-project",
         timestamps
@@ -91,7 +91,7 @@ describe("projectUtils", () => {
       return frontmatter;
     };
 
-    it("writes the project's identity, context source, and timestamps as copilot-project properties", async () => {
+    it("writes the project's identity, context source, and timestamps as scribe-project properties", async () => {
       const frontmatter = await writeFor({
         name: "My Project",
         description: "A test project",
@@ -126,7 +126,7 @@ describe("projectUtils", () => {
   });
 
   describe("parseProjectConfigFile()", () => {
-    const VALID_PATH = "copilot-projects/my-project/project.md";
+    const VALID_PATH = "scribe-projects/my-project/project.md";
 
     it("returns null when the YAML frontmatter is malformed", async () => {
       const malformedContent = "---\nname: {bad: yaml: here\n---\nBody text";
@@ -138,7 +138,7 @@ describe("projectUtils", () => {
       expect(result).toBeNull();
     });
 
-    it("maps every copilot-project frontmatter field onto the project record", async () => {
+    it("maps every scribe-project frontmatter field onto the project record", async () => {
       const rawContent = [
         "---",
         "scribe-project-id: my-project",
@@ -204,7 +204,7 @@ describe("projectUtils", () => {
   });
 
   describe("scanAllProjectConfigFiles()", () => {
-    const PROJECTS_FOLDER = "copilot-projects";
+    const PROJECTS_FOLDER = "scribe-projects";
 
     function setupScanApp(folders: Record<string, Record<string, string>>): App {
       const contentByPath = new Map<string, string>();
@@ -246,7 +246,7 @@ describe("projectUtils", () => {
       const records = await scanAllProjectConfigFiles(app);
       expect(records).toHaveLength(1);
       expect(records[0].project.id).toBe("beta");
-      expect(records[0].filePath).toBe("copilot-projects/beta/project.md");
+      expect(records[0].filePath).toBe("scribe-projects/beta/project.md");
     });
 
     it("skips a folder that only has an AGENTS.md mirror", async () => {
@@ -261,7 +261,7 @@ describe("projectUtils", () => {
       });
       const records = await scanAllProjectConfigFiles(app);
       expect(records).toHaveLength(1);
-      expect(records[0].filePath).toBe("copilot-projects/gamma/project.md");
+      expect(records[0].filePath).toBe("scribe-projects/gamma/project.md");
     });
   });
 });

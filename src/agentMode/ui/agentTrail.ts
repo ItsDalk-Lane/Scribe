@@ -1,5 +1,6 @@
 import type { AgentMessagePart } from "@/agentMode/session/types";
 import { cleanMessageForCopy } from "@/utils";
+import { toolPresentationName } from "@/agentMode/session/toolName";
 
 export type ToolCallPart = Extract<AgentMessagePart, { kind: "tool_call" }>;
 export type ThoughtPart = Extract<AgentMessagePart, { kind: "thought" }>;
@@ -32,7 +33,8 @@ function isHiddenTool(part: AgentMessagePart): boolean {
 }
 
 function isSubAgentLaunch(part: ToolCallPart): boolean {
-  if (!part.mcpServer && (part.vendorToolName === "Agent" || part.vendorToolName === "Task")) {
+  const name = part.vendorToolName ? toolPresentationName(part.vendorToolName) : undefined;
+  if (!part.mcpServer && (name === "Agent" || name === "Task")) {
     return true;
   }
   if (part.vendorToolName || part.mcpServer) return false;

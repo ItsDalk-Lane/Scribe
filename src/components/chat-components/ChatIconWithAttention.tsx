@@ -15,8 +15,6 @@ export const ChatIconWithAttention: React.FC<ChatIconWithAttentionProps> = ({
   isSessionLive,
   iconClassName,
 }) => (
-  // The full icon owns the tooltip because the blue dot is too small to target reliably.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/429
   <span
     className="tw-relative tw-inline-flex tw-shrink-0 tw-items-center tw-justify-center"
     title={isSessionLive ? t("Session is running") : undefined}

@@ -96,7 +96,11 @@ function useActiveSlashBackend(
   return activeBackend;
 }
 
-export function SlashCommandPlugin(): JSX.Element {
+interface SlashCommandPluginProps {
+  skills?: readonly Skill[];
+}
+
+export function SlashCommandPlugin({ skills }: SlashCommandPluginProps): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const commands = useCustomCommands();
   const agentSlashData = useAgentSlashData();
@@ -108,7 +112,7 @@ export function SlashCommandPlugin(): JSX.Element {
 
   const allOptions = useMemo<SlashCommandOption[]>(() => {
     const items = composeSlashMenuItems(
-      agentSlashData.skills,
+      skills ?? agentSlashData.skills,
       sortedCommands,
       activeBackend,
       slashStartsPrompt
@@ -120,7 +124,7 @@ export function SlashCommandPlugin(): JSX.Element {
       content: item.body,
       item,
     }));
-  }, [agentSlashData.skills, sortedCommands, activeBackend, slashStartsPrompt]);
+  }, [skills, agentSlashData.skills, sortedCommands, activeBackend, slashStartsPrompt]);
 
   const filteredOptions = useMemo(
     () => filterSlashMenuOptions(allOptions, currentQuery),

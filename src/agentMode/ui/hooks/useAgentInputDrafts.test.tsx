@@ -44,7 +44,7 @@ describe("useAgentInputDrafts", () => {
     expect(result.current.queue).toEqual([]);
   });
 
-  it("https://github.com/logancyang/obsidian-copilot/issues/3663 seeds a fresh draft without the active note when auto-attach is off", () => {
+  it("seeds a fresh draft without the active note when auto-attach is off", () => {
     updateSetting("autoAttachActiveNote", false);
     const { result } = renderDrafts({ chatInputId: "a" });
 
@@ -122,34 +122,28 @@ describe("useAgentInputDrafts", () => {
   it.each([
     ["keeps a removed active web tab off", false],
     ["keeps an included active web tab on", true],
-  ])(
-    "https://github.com/Brevilabs/obsidian-copilot-private/issues/667 resetCompose %s for the session's later messages",
-    (_case, included) => {
-      const { result } = renderDrafts({ chatInputId: "a" });
+  ])("resetCompose %s for the session's later messages", (_case, included) => {
+    const { result } = renderDrafts({ chatInputId: "a" });
 
-      act(() => result.current.setIncludeActiveWebTab(included));
-      act(() => result.current.resetCompose());
+    act(() => result.current.setIncludeActiveWebTab(included));
+    act(() => result.current.resetCompose());
 
-      expect(result.current.includeActiveWebTab).toBe(included);
-    }
-  );
+    expect(result.current.includeActiveWebTab).toBe(included);
+  });
 
   it.each([
     ["keeps a removed active note off", false],
     ["keeps an included active note on", true],
-  ])(
-    "https://github.com/Brevilabs/obsidian-copilot-private/issues/670 resetCompose %s for the session's later messages",
-    (_case, included) => {
-      const { result } = renderDrafts({ chatInputId: "a" });
+  ])("resetCompose %s for the session's later messages", (_case, included) => {
+    const { result } = renderDrafts({ chatInputId: "a" });
 
-      act(() => result.current.setIncludeActiveNote(included));
-      act(() => result.current.resetCompose());
+    act(() => result.current.setIncludeActiveNote(included));
+    act(() => result.current.resetCompose());
 
-      expect(result.current.includeActiveNote).toBe(included);
-    }
-  );
+    expect(result.current.includeActiveNote).toBe(included);
+  });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 shows a note attached through the store while the composer is mounted", () => {
+  it("shows a note attached through the store while the composer is mounted", () => {
     const { result, store } = renderDrafts({ chatInputId: "a" });
     const note = file("Research.md");
 

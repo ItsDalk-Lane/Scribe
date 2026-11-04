@@ -53,8 +53,6 @@ function yamlFormatError(
   const errorLine = error.linePos?.[0]?.line;
   const offendingText = errorLine === undefined ? undefined : yaml.split(/\r?\n/)[errorLine - 1];
 
-  // YAML reads `: ` in an unquoted description as a nested mapping; name the quoting repair
-  // instead of the parser term. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
   if (error.code === "BLOCK_AS_IMPLICIT_KEY") {
     const descriptionLine = /^(description[ \t]*:[ \t]*([^'"\r\n]*: [^\r\n]*))$/.exec(
       offendingText ?? ""
@@ -98,7 +96,7 @@ function readBoolean(doc: Document.Parsed, key: string): boolean | undefined {
 function readEnabledAgents(doc: Document.Parsed): BackendId[] {
   const metadata = doc.get("metadata");
   if (!isMap(metadata)) return [];
-  const raw = metadata.get("copilot-enabled-agents");
+  const raw = metadata.get("scribe-enabled-agents");
   if (typeof raw !== "string" || raw.trim().length === 0) return [];
   return raw
     .split(",")
@@ -239,11 +237,11 @@ function setEnabledAgents(doc: Document.Parsed, agents: BackendId[]): void {
   const map = metadata as YAMLMap;
   const value = agents.join(",");
   const scalar = new Scalar(value);
-  const existing = map.get("copilot-enabled-agents", true);
+  const existing = map.get("scribe-enabled-agents", true);
   if (isScalar(existing)) {
     scalar.type = existing.type ?? scalar.type;
   } else if (value.length === 0) {
     scalar.type = "QUOTE_DOUBLE";
   }
-  map.set("copilot-enabled-agents", scalar);
+  map.set("scribe-enabled-agents", scalar);
 }

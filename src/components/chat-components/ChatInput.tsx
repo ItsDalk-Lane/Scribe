@@ -1,8 +1,9 @@
 import { t } from "@/lib/i18n";
+import type { Skill } from "@/agentMode";
 import { ChatSendButton } from "@/components/ui/ChatSendButton";
 import { Button } from "@/components/ui/button";
 import { ModelSelector, type ModelSelectorEntry } from "@/components/ui/ModelSelector";
-import type { CopilotMode } from "@/agentMode";
+import type { ScribeMode } from "@/agentMode";
 import {
   mergeWebTabContexts,
   normalizeUrlString,
@@ -48,6 +49,7 @@ const DEFAULT_PLACEHOLDER =
   "Your AI assistant for Obsidian • @ to add context • / for custom prompts";
 
 export interface ChatInputProps {
+  slashSkills?: readonly Skill[];
   placeholder?: string;
   inputMessage: string;
   setInputMessage: (message: string) => void;
@@ -87,9 +89,9 @@ export interface ChatInputProps {
     commitSelection?: (modelKey: string, effort: string | null) => void;
   };
   modePickerOverride?: {
-    options: { label: string; value: CopilotMode }[];
-    value: CopilotMode | null;
-    onChange: (value: CopilotMode) => void;
+    options: { label: string; value: ScribeMode }[];
+    value: ScribeMode | null;
+    onChange: (value: ScribeMode) => void;
     disabled?: boolean;
   };
   selectedTextContexts?: SelectedTextContext[];
@@ -140,6 +142,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
     onRemoveSelectedText,
     onEscape,
     onShiftTab,
+    slashSkills,
   },
   ref
 ) {
@@ -177,7 +180,6 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
     });
   };
 
-  // A phone may have no Enter key, so a draft turns Stop into a Send that does what Enter does. https://github.com/Brevilabs/obsidian-copilot-private/issues/788
   const showsStop = isGenerating && inputMessage.trim().length === 0 && selectedImages.length === 0;
 
   const onSendMessage = () => {
@@ -293,8 +295,6 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
         if (!doc) break;
         openImagePicker(doc, {
           onFiles: onAddImage,
-          // Cancelling the dialog leaves the pane unresponsive unless focus returns to the composer.
-          // https://github.com/logancyang/obsidian-copilot-preview/issues/119
           onSettle: () => lexicalEditorRef.current?.focus(),
         });
         break;
@@ -433,8 +433,6 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
         setContextWebTabs((previous) => mergeWebTabContexts([...webTabs, ...previous]));
         lexicalEditorRef.current?.update(
           () => {
-            // Preserve the current draft's structured pills when restoring a stopped queue.
-            // https://github.com/Brevilabs/obsidian-copilot-private/issues/485
             const root = $getRoot();
             const separator = root.getTextContent().trim() ? "\n\n" : "";
             root.selectStart().insertNodes([$createTextNode(text + separator)]);
@@ -508,6 +506,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
 
           <div className="tw-relative">
             <LexicalEditor
+              slashSkills={slashSkills}
               value={inputMessage}
               onChange={(value) => setInputMessage(value)}
               onSubmit={onSendMessage}
@@ -551,8 +550,6 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
               className="tw-min-w-0 tw-max-w-full tw-truncate"
             />
           ) : (
-            // Agent Mode has no model list until its session manager exists, so the slot stays empty and disabled.
-            // https://github.com/Brevilabs/obsidian-copilot-private/issues/761
             <ModelSelector
               variant="ghost2"
               size="fit"

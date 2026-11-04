@@ -1,11 +1,11 @@
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { AgentSelectView } from "@/agentMode/ui/AgentSelectView";
 import { useAgentSelect } from "@/agentMode/ui/useAgentSelect";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import React from "react";
 
 interface Props {
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   manager: AgentSessionManager;
 }
 

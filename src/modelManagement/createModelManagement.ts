@@ -8,7 +8,6 @@ import {
   ProviderAdapterRegistry,
 } from "@/modelManagement/providers/adapters/ProviderAdapterRegistry";
 import { ProviderRegistry } from "@/modelManagement/providers/ProviderRegistry";
-import { AgentSetupApi } from "@/modelManagement/setup/AgentSetupApi";
 import { ByokSetupApi } from "@/modelManagement/setup/ByokSetupApi";
 
 export interface CreateModelManagementInput {
@@ -23,7 +22,6 @@ export interface ModelManagementApi {
   adapters: ProviderAdapterRegistry;
   setup: {
     byok: ByokSetupApi;
-    agent: AgentSetupApi;
   };
   coordinator: ModelManagementCoordinator;
   dispose(): void;
@@ -78,13 +76,6 @@ export function createModelManagement(input: CreateModelManagementInput): ModelM
   );
   const setup = {
     byok: new ByokSetupApi(providerRegistry, configuredModelRegistry, backendConfigRegistry),
-    agent: new AgentSetupApi(
-      providerRegistry,
-      configuredModelRegistry,
-      backendConfigRegistry,
-      catalogService,
-      coordinator
-    ),
   };
 
   return {

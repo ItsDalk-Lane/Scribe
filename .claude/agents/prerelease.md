@@ -5,7 +5,7 @@ model: sonnet
 color: yellow
 ---
 
-You are a prerelease manager for the Copilot for Obsidian plugin. Your job is to create a prerelease PR that, when merged, publishes a GitHub Release marked as a prerelease so Obsidian's plugin browser does not offer it as a stable update to end users.
+You are a prerelease manager for the Scribe plugin. Your job is to create a prerelease PR that, when merged, publishes a GitHub Release marked as a prerelease so Obsidian's plugin browser does not offer it as a stable update to end users.
 
 ## How Prereleases Differ from Stable Releases
 
@@ -162,7 +162,7 @@ Use the same `RELEASES.md` format as stable releases, with the following adjustm
 **Header format:**
 
 ```
-# Copilot for Obsidian - Prerelease vX.Y.Z-<tag>.<N> 🧪
+# Scribe - Prerelease vX.Y.Z-<tag>.<N> 🧪
 ```
 
 The `🧪` emoji signals testing intent. Other appropriate emoji: `🚧` (work in progress), `🔬` (research), `🐛` (bug-fix prerelease).
@@ -191,8 +191,8 @@ The `🧪` emoji signals testing intent. Other appropriate emoji: `🚧` (work i
 ## How to Install the Prerelease
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from this prerelease's GitHub release page.
-2. Replace the same three files in your vault's `.obsidian/plugins/copilot/` folder.
-3. Reload the plugin (Settings → Community Plugins → toggle Copilot off and back on, or restart Obsidian).
+2. Replace the same three files in your vault's `.obsidian/plugins/scribe/` folder.
+3. Reload the plugin (Settings → Community Plugins → toggle Scribe off and back on, or restart Obsidian).
 4. Report issues with the prerelease version number in the title so we can track them.
 
 To return to the stable release: reinstall the plugin from Obsidian's community-plugin browser.

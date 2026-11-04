@@ -65,7 +65,7 @@ describe("discoverProjectSkills", () => {
     opencode: ".opencode/skills",
   } as const;
 
-  describe("discoverProjectSkills()", () => {
+  describe("discoverProjectSkills", () => {
     it("returns a single candidate when one valid skill lives under one agent dir", async () => {
       const fs = mkFs({
         "/vault/.claude/skills/foo/SKILL.md": { kind: "file", content: skillMd("foo") },
@@ -100,7 +100,7 @@ describe("discoverProjectSkills", () => {
       expect(out[0].contentHash).toBe(out[1].contentHash);
     });
 
-    it("returns hidden format failures for external-editor recovery in https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("returns hidden format failures for external-editor recovery", async () => {
       const fs = mkFs({
         "/vault/.claude/skills/bad/SKILL.md": {
           kind: "file",
@@ -153,7 +153,7 @@ describe("discoverProjectSkills", () => {
       const fs = mkFs({
         "/vault/.claude/skills/linked": {
           kind: "symlink",
-          target: "/vault/copilot/skills/foo",
+          target: "/vault/scribe/skills/foo",
         },
         "/vault/.claude/skills/real/SKILL.md": {
           kind: "file",

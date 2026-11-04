@@ -1,10 +1,10 @@
 import { resolveEffort, sortEffortOptions } from "@/lib/model-effort";
 
-const issue = "https://github.com/Brevilabs/obsidian-copilot-private/issues/219";
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 const options = ["high", "low", "medium"].map((value) => ({ value, label: value }));
 
 describe("model-effort", () => {
-  describe("resolveEffort()", () => {
+  describe("resolveEffort", () => {
     it(`${issue} retains an advertised preference`, () => {
       expect(resolveEffort("high", options)).toBe("high");
     });
@@ -23,7 +23,7 @@ describe("model-effort", () => {
       expect(resolveEffort(undefined, undefined)).toBeNull();
     });
   });
-  describe("sortEffortOptions()", () => {
+  describe("sortEffortOptions", () => {
     it(`${issue} excludes agent-default choices and ranks concrete levels without mutating the catalog`, () => {
       const input = [{ value: null, label: "Default" }, ...options];
       expect(sortEffortOptions(input).map((option) => option.value)).toEqual([

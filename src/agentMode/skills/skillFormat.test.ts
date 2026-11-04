@@ -6,8 +6,6 @@ import {
   validateName,
 } from "./skillFormat";
 
-const ISSUE_166 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/166";
-
 const minimalSkill = (overrides: Record<string, string> = {}) => {
   const fm = {
     name: "review-prose",
@@ -33,7 +31,7 @@ const parseFailure = (content: string, parentDirName: string): SkillFormatError 
 };
 
 describe("skillFormat", () => {
-  describe("parseSkillFile()", () => {
+  describe("parseSkillFile", () => {
     it("parses name, description, and body from a valid SKILL.md", () => {
       const parsed = parseSkillFile(minimalSkill(), "review-prose");
       expect(parsed.frontmatter.name).toBe("review-prose");
@@ -62,26 +60,26 @@ describe("skillFormat", () => {
       expect(parsed.frontmatter.allowedTools).toBe("Read Grep");
     });
 
-    it("reads metadata.copilot-enabled-agents as a comma-separated list", () => {
+    it("reads metadata.scribe-enabled-agents as a comma-separated list", () => {
       const parsed = parseSkillFile(
         frontmatterOf(
           "name: foo",
           "description: A skill",
           "metadata:",
-          '  copilot-enabled-agents: "claude,opencode"'
+          '  scribe-enabled-agents: "claude,opencode"'
         ),
         "foo"
       );
       expect(parsed.frontmatter.enabledAgents).toEqual(["claude", "opencode"]);
     });
 
-    it("reads an empty copilot-enabled-agents value as no enabled agents", () => {
+    it("reads an empty scribe-enabled-agents value as no enabled agents", () => {
       const parsed = parseSkillFile(
         frontmatterOf(
           "name: foo",
           "description: A skill",
           "metadata:",
-          '  copilot-enabled-agents: ""'
+          '  scribe-enabled-agents: ""'
         ),
         "foo"
       );
@@ -137,7 +135,7 @@ describe("skillFormat", () => {
       );
     });
 
-    it(`explains how to quote a description containing colon-space for ${ISSUE_166}`, () => {
+    it(`explains how to quote a description containing colon-space for`, () => {
       const error = parseFailure(
         frontmatterOf("name: review-prose", "description: Use this skill for: reviewing notes"),
         "review-prose"
@@ -155,7 +153,7 @@ describe("skillFormat", () => {
       ).toThrow(/frontmatter YAML is invalid/);
     });
 
-    it(`reports a generic YAML error when the parser fails on a field other than description for ${ISSUE_166}`, () => {
+    it(`reports a generic YAML error when the parser fails on a field other than description for`, () => {
       const error = parseFailure(
         frontmatterOf(
           "name: review-prose",
@@ -168,7 +166,7 @@ describe("skillFormat", () => {
       expect(error.offendingText).toBe("metadata: Use this for: reviews");
     });
 
-    it(`reports the offending name line when the YAML key has extra spacing for ${ISSUE_166}`, () => {
+    it(`reports the offending name line when the YAML key has extra spacing for`, () => {
       const error = parseFailure(
         frontmatterOf("name : Release Notes", "description: A skill"),
         "Release Notes"
@@ -177,7 +175,7 @@ describe("skillFormat", () => {
       expect(error.offendingText).toBe("name : Release Notes");
     });
 
-    it(`reports the offending name line when the YAML key is quoted for ${ISSUE_166}`, () => {
+    it(`reports the offending name line when the YAML key is quoted for`, () => {
       const error = parseFailure(
         frontmatterOf('"name": Release Notes', "description: A skill"),
         "Release Notes"
@@ -186,13 +184,13 @@ describe("skillFormat", () => {
       expect(error.offendingText).toBe('"name": Release Notes');
     });
 
-    it(`distinguishes a non-string name from a missing name for ${ISSUE_166}`, () => {
+    it(`distinguishes a non-string name from a missing name for`, () => {
       const error = parseFailure(frontmatterOf("name: 42", "description: A skill"), "42");
       expect(error.message).toBe("Skill `name` must be a string");
       expect(error.offendingText).toBe("name: 42");
     });
 
-    it(`distinguishes a non-string description from a missing description for ${ISSUE_166}`, () => {
+    it(`distinguishes a non-string description from a missing description for`, () => {
       const error = parseFailure(
         frontmatterOf("name: review-prose", "description: []"),
         "review-prose"
@@ -202,7 +200,7 @@ describe("skillFormat", () => {
     });
   });
 
-  describe("serializeSkillFile()", () => {
+  describe("serializeSkillFile", () => {
     it("reproduces name, description, and body when parsed content is serialized unchanged", () => {
       const out = serializeSkillFile(parseSkillFile(minimalSkill(), "review-prose"));
       const reparsed = parseSkillFile(out, "review-prose");
@@ -242,14 +240,14 @@ describe("skillFormat", () => {
           "metadata:",
           "  author: alice",
           "  version: 2",
-          '  copilot-enabled-agents: "claude"'
+          '  scribe-enabled-agents: "claude"'
         ),
         "foo"
       );
       const out = serializeSkillFile(parsed);
       expect(out).toContain("author: alice");
       expect(out).toContain("version: 2");
-      expect(out).toContain('copilot-enabled-agents: "claude"');
+      expect(out).toContain('scribe-enabled-agents: "claude"');
     });
 
     it("keeps foreign metadata keys when enabledAgents is patched", () => {
@@ -259,7 +257,7 @@ describe("skillFormat", () => {
           "description: A skill",
           "metadata:",
           "  author: alice",
-          '  copilot-enabled-agents: "claude"'
+          '  scribe-enabled-agents: "claude"'
         ),
         "foo"
       );
@@ -269,13 +267,13 @@ describe("skillFormat", () => {
     });
   });
 
-  describe("validateName()", () => {
+  describe("validateName", () => {
     it.each(["review-prose", "a", "a-b-c"])("accepts the spec-conformant name %s", (name) => {
       expect(() => validateName(name, name)).not.toThrow();
     });
   });
 
-  describe("validateDescription()", () => {
+  describe("validateDescription", () => {
     it("accepts a normal description", () => {
       expect(() => validateDescription("A short description.")).not.toThrow();
     });

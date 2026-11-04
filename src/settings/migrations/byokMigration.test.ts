@@ -1,7 +1,7 @@
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders, DEFAULT_SETTINGS } from "@/constants";
 import type { ModelManagementApi, Provider, SetupProviderInput } from "@/modelManagement";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
 import { executeByokMigration, planByokMigration } from "./byokMigration";
 
@@ -22,8 +22,8 @@ function model(overrides: Partial<CustomModel>): CustomModel {
 
 function settingsWith(
   models: CustomModel[],
-  overrides: Partial<CopilotSettings> = {}
-): CopilotSettings {
+  overrides: Partial<ScribeSettings> = {}
+): ScribeSettings {
   return { ...DEFAULT_SETTINGS, ...overrides, activeModels: models };
 }
 
@@ -37,7 +37,7 @@ const byBaseUrl = (plan: SetupProviderInput[], baseUrl: string) =>
   plan.find((p) => !p.catalogProviderId && normalizeUrl(p.baseUrl) === normalizeUrl(baseUrl));
 
 describe("byokMigration", () => {
-  describe("planByokMigration()", () => {
+  describe("planByokMigration", () => {
     it("maps catalog-backed providers to the right providerType + catalogProviderId", () => {
       const plan = planByokMigration(
         settingsWith(
@@ -167,7 +167,7 @@ describe("byokMigration", () => {
       expect(byCatalog(plan, "openai")?.extras).toEqual({ openAIOrgId: "org-123" });
     });
 
-    it("preserves different legacy CORS choices as separate providers (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", () => {
+    it("preserves different legacy CORS choices as separate providers", () => {
       const plan = planByokMigration(
         settingsWith([
           model({
@@ -286,7 +286,7 @@ describe("byokMigration", () => {
     });
   });
 
-  describe("executeByokMigration()", () => {
+  describe("executeByokMigration", () => {
     let idSeq = 0;
     function makeApi(existing: Provider[] = []) {
       const setupProvider = jest.fn(async (input: SetupProviderInput) => ({
@@ -330,7 +330,7 @@ describe("byokMigration", () => {
       expect(setupProvider).toHaveBeenCalledTimes(2);
     });
 
-    it("does not retrofit CORS onto an already-migrated matching provider (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", async () => {
+    it("does not retrofit CORS onto an already-migrated matching provider", async () => {
       const existing = byokProvider({
         providerType: "anthropic",
         baseUrl: "https://api.anthropic.com",

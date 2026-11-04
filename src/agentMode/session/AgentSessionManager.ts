@@ -2,9 +2,9 @@ import { t } from "@/lib/i18n";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { isCompactCommand } from "@/commands/compactCommand";
 import type { AgentMcpServer } from "@/agentMode/session/types";
-import type { CopilotMcpServer, FeedbackOfferHandler } from "@/agentMode/session/copilotMcpServer";
+import type { ScribeMcpServer, FeedbackOfferHandler } from "@/agentMode/session/scribeMcpServer";
 import { logError, logInfo, logWarn } from "@/logger";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
 import {
   AgentInputDraftStore,
@@ -78,7 +78,7 @@ import type {
   BackendId,
   BackendModelCatalog,
   BackendProcess,
-  CopilotMode,
+  ScribeMode,
   EffortOption,
   LoadSessionOutput,
   ModeApplySpec,
@@ -128,7 +128,6 @@ const EMPTY_CHAT_INPUT_IDS: readonly string[] = Object.freeze([]);
 const EMPTY_MCP_SERVERS: ReadonlyArray<AgentMcpServer> = Object.freeze([]);
 
 const RESUMED_SESSION_BEHIND_EPOCH = -1;
-// Each hidden chat on a process-per-chat backend holds an agent process of a few hundred MB, so only a few idle ones stay open; a closed one resumes from its transcript. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
 const MAX_HIDDEN_PROCESS_CHATS = 3;
 
 function hasUnsentInput(draft: AgentInputDraft | undefined): boolean {
@@ -146,7 +145,6 @@ function hasRunningTask(session: AgentSession): boolean {
   return session.getTasks().some((task) => task.status === "running");
 }
 
-// A subagent ends its own work, but a background command such as a server or a watcher may never end, so only subagents hold a restart; it runs at the next status change, after the reply that reports the subagent. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
 function hasRunningSubagent(session: AgentSession): boolean {
   return session.getTasks().some((task) => task.kind === "subagent" && task.status === "running");
 }
@@ -177,7 +175,7 @@ export interface AgentSessionManagerOptions {
   sessionIndex?: AgentSessionIndex;
   sessionSnapshots?: AgentSessionSnapshots;
   taskOutputReader?: TaskOutputReader;
-  copilotMcpServer?: CopilotMcpServer;
+  scribeMcpServer?: ScribeMcpServer;
 }
 
 export class AgentSessionManager {
@@ -212,22 +210,8 @@ export class AgentSessionManager {
     { reason: string; immediate: boolean }
   >();
   private readonly restartingBackends = new Set<BackendId>();
-  /**
-   * Backends running with spawn config the user has since changed. Applying it restarts the
-   * backend and closes every session, so it waits for the user's Reload.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/475
-   */
   private readonly heldConfigChanges = new Map<BackendId, string>();
-  /**
-   * Chat inputs mid-replacement during a backend restart, so the composer draft is not
-   * pruned in the gap between the old session closing and its replacement existing.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/473
-   */
   private readonly retainedChatInputIds = new Set<string>();
-  /**
-   * `backendId:baseModelId` pairs already warned about; the read runs on every session create.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/474
-   */
   private readonly warnedUnavailableModels = new Set<string>();
   private readonly preloader: AgentModelPreloader;
   private readonly preloadStatus = new Map<BackendId, "pending" | "ready" | "error">();
@@ -245,7 +229,6 @@ export class AgentSessionManager {
       snapshotTimer?: number;
       snapshotSaving?: Promise<void>;
       snapshotFailureReported?: boolean;
-      snapshotAliases?: string[];
     }
   >();
 
@@ -269,7 +252,7 @@ export class AgentSessionManager {
 
   constructor(
     private readonly app: App,
-    private readonly plugin: CopilotPlugin,
+    private readonly plugin: ScribePlugin,
     private readonly opts: AgentSessionManagerOptions
   ) {
     if (Platform.isMobile) {
@@ -456,7 +439,7 @@ export class AgentSessionManager {
           const selection = this.getSeedSelection(backendId, session.getState()?.model?.current);
           if (!selection) continue;
           const backend = await this.ensureBackend(backendId, descriptor);
-          const mcpServers = await this.connectCopilotMcpServer(
+          const mcpServers = await this.connectScribeMcpServer(
             session.internalId,
             descriptor,
             session.cwd ?? this.resolveSessionCwd(session.projectId)
@@ -505,7 +488,7 @@ export class AgentSessionManager {
         return;
       for (const session of affected) {
         session.suspendBackend();
-        this.opts.copilotMcpServer?.disconnect(session.internalId);
+        this.opts.scribeMcpServer?.disconnect(session.internalId);
       }
       const proc = this.backends.get(backendId);
       this.backends.delete(backendId);
@@ -654,8 +637,6 @@ export class AgentSessionManager {
   getOpenChatIds(): ReadonlySet<string> {
     const ids = new Set<string>();
     for (const [internalId, session] of this.sessions) {
-      // A starting or failed session has no backend resource for the user to close.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/429
       if (!session.getBackendSessionId()) continue;
       for (const id of this.recentChatIdsForSession(internalId, session)) ids.add(id);
     }
@@ -664,8 +645,6 @@ export class AgentSessionManager {
 
   async closeChatSession(historyId: string): Promise<void> {
     for (const [internalId, session] of this.sessions) {
-      // History can still display the native identity after the first autosave.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/429
       if (this.recentChatIdsForSession(internalId, session).includes(historyId)) {
         await this.closeSession(internalId, { releaseBackend: true });
         return;
@@ -673,10 +652,6 @@ export class AgentSessionManager {
     }
   }
 
-  /**
-   * Closing a tab is navigation; only the history action releases the backend resource.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/429
-   */
   detachSessionFromTab(id: string): void {
     const session = this.sessions.get(id);
     if (!session || this.detachedFromTabIds.has(id)) return;
@@ -706,7 +681,6 @@ export class AgentSessionManager {
         !!session && this.opts.resolveDescriptor(session.backendId)?.processPerChat === true
     );
     let excess = hidden.length - MAX_HIDDEN_PROCESS_CHATS;
-    // The hidden set keeps hide order, so the least recently used chats come first. A chat that still works, waits on the user, has an unseen result, or holds unsent composer input (a reopened chat starts with an empty composer) keeps its process. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
     for (const session of hidden) {
       if (excess <= 0) return;
       const status = session.getStatus();
@@ -756,8 +730,6 @@ export class AgentSessionManager {
   async setChatPinned(id: string, pinned: boolean): Promise<PinnedChat> {
     const persistence = this.opts.persistenceManager;
     if (!persistence) throw new Error("Agent chat persistence is not configured.");
-    // The pin lives in the chat's note, so a chat that has none is saved as one first.
-    // https://github.com/logancyang/obsidian-copilot/issues/3195
     const path = await this.ensureChatNote(id);
     const pinnedAt = pinned ? Date.now() : null;
     await persistence.setPinnedAt(path, pinnedAt);
@@ -772,8 +744,6 @@ export class AgentSessionManager {
   private async saveNativeChatAsNote(backendId: BackendId, sessionId: string): Promise<string> {
     const live = this.findLiveSession(backendId, sessionId);
     if (live) return this.saveAsNote(live, sessionId);
-    // Pinning or bookmarking a closed chat must not open it, so it is resumed off-screen and closed
-    // once saved, unless the user opened it meanwhile. https://github.com/logancyang/obsidian-copilot/issues/3195
     const { entry, projectId } = await this.readNativeChatEntry(backendId, sessionId);
     const session = await this.resumeNativeChat(backendId, sessionId, entry, projectId);
     try {
@@ -808,13 +778,19 @@ export class AgentSessionManager {
 
     const savedPaths = await this.closeOpenChatForDelete(fileId);
 
-    // Keep the note recoverable when the history write fails. https://github.com/logancyang/obsidian-copilot/issues/2888
     if (ref && index) {
       this.cancelPendingIndexTouch(ref.backendId, ref.sessionId);
       await index.deleteSession(ref.backendId, ref.sessionId);
       for (const alias of snapshotIds)
         if (alias !== ref.sessionId) await index.deleteSession(ref.backendId, alias);
       await index.flushOrThrow();
+    }
+    if (ref) {
+      const descriptor = this.opts.resolveDescriptor(ref.backendId);
+      if (descriptor) {
+        const backend = await this.ensureBackend(ref.backendId, descriptor);
+        for (const sessionId of snapshotIds) await backend.deleteSession?.({ sessionId });
+      }
     }
     const notePaths = new Set(native ? savedPaths : [fileId, ...savedPaths]);
     if (persistence) {
@@ -825,10 +801,6 @@ export class AgentSessionManager {
         await this.opts.sessionSnapshots?.remove(ref.backendId, snapshotId);
   }
 
-  // An open chat must be gone before its files are, or autosave writes the note again. Delete never
-  // saves: it stops new autosaves first, and only waits for a save that is already writing, so this
-  // returns the notes the closed chats already have. State stays so that running save is awaited.
-  // https://github.com/logancyang/obsidian-copilot/issues/2888
   private async closeOpenChatForDelete(historyId: string): Promise<string[]> {
     const savedPaths: string[] = [];
     for (const [internalId, session] of Array.from(this.sessions)) {
@@ -844,11 +816,7 @@ export class AgentSessionManager {
   private cancelPendingIndexTouch(backendId: BackendId, sessionId: string): void {
     for (const session of this.sessions.values()) {
       if (session.backendId !== backendId) continue;
-      if (
-        session.getBackendSessionId() !== sessionId &&
-        !this.sessionState.get(session.internalId)?.snapshotAliases?.includes(sessionId)
-      )
-        continue;
+      if (session.getBackendSessionId() !== sessionId) continue;
       const state = this.sessionState.get(session.internalId);
       if (state?.indexTimer) {
         window.clearTimeout(state.indexTimer);
@@ -1017,18 +985,19 @@ export class AgentSessionManager {
       throw new Error("AgentSessionManager has been shut down");
     }
 
-    const requestedId = backendId ?? getSettings().agentMode?.activeBackend ?? "claude";
-    const resolvedId = this.opts.resolveDescriptor(requestedId) ? requestedId : "claude";
+    const resolvedId = backendId ?? getSettings().agentMode?.activeBackend ?? "native";
     const errorSeqAtStart = this.lastErrorSeq;
     const descriptor = this.resolveDescriptor(resolvedId);
     if (!this.isBackendEnabled(resolvedId)) {
-      throw new Error("This agent is disabled. Enable it in Agent settings to continue.");
+      // 运行时错误也要走翻译：真实桌面验证发现中文界面出现整句英文。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/28
+      throw new Error(t("This agent is disabled. Enable it in Agent settings to continue."));
     }
-    const resolvedSeed =
-      this.getSeedSelection(resolvedId, resolvedId === requestedId ? seedSelection : undefined) ??
-      undefined;
+    const resolvedSeed = this.getSeedSelection(resolvedId, seedSelection) ?? undefined;
     if (!resolvedSeed && (descriptor.usesConfiguredModels || descriptor.getEnabledModelEntries)) {
-      const message = `Enable a model for ${descriptor.displayName} in Scribe's model settings to start a chat.`;
+      const message = t("Enable a model for {p0} in Scribe's model settings to start a chat.", {
+        p0: descriptor.displayName,
+      });
       this.setLastError(message);
       this.notify();
       throw new Error(message);
@@ -1059,11 +1028,11 @@ export class AgentSessionManager {
     }
 
     const internalId = uuidv4();
-    const mcpServers = await this.connectCopilotMcpServer(internalId, descriptor, cwd);
+    const mcpServers = await this.connectScribeMcpServer(internalId, descriptor, cwd);
 
     if (this.disposed || !this.isBackendEnabled(resolvedId)) {
       this.finishPendingCreate();
-      this.opts.copilotMcpServer?.disconnect(internalId);
+      this.opts.scribeMcpServer?.disconnect(internalId);
       throw new Error("Agent is unavailable during session creation");
     }
 
@@ -1479,14 +1448,9 @@ export class AgentSessionManager {
     const descriptor = this.opts.resolveDescriptor(backendId);
     const offered = descriptor?.getEnabledModelEntries?.(getSettings());
     const requested = preferred ?? saved;
-    // A missing accessor cannot validate agent-native models. An empty list is
-    // authoritative because it can mean the user just disabled the last model.
-    // https://github.com/logancyang/obsidian-copilot/issues/3319
     if (!offered) return requested;
 
     const runnable = offered.filter((entry) => entry.credentialState === "ok");
-    // A backend that may only run enabled models has no agent default to fall back to.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/625
     if (!requested && descriptor?.usesConfiguredModels !== true) return null;
 
     const resolved =
@@ -1538,7 +1502,7 @@ export class AgentSessionManager {
     await descriptor.applySelection(session, resolved);
   }
 
-  async applyMode(backendId: BackendId, mode: CopilotMode, spec: ModeApplySpec): Promise<void> {
+  async applyMode(backendId: BackendId, mode: ScribeMode, spec: ModeApplySpec): Promise<void> {
     const session = this.getActiveSession();
     if (!session || session.backendId !== backendId) return;
     const latestMapping = this.resolveDescriptor(backendId).getModeMapping?.(null, null);
@@ -1551,14 +1515,14 @@ export class AgentSessionManager {
     await this.persistDefaultMode(backendId, mode);
   }
 
-  getDefaultMode(backendId: BackendId): CopilotMode | null {
+  getDefaultMode(backendId: BackendId): ScribeMode | null {
     const backends = getSettings().agentMode?.backends as
-      | Record<string, { defaultMode?: CopilotMode | null } | undefined>
+      | Record<string, { defaultMode?: ScribeMode | null } | undefined>
       | undefined;
     return backends?.[backendId]?.defaultMode ?? null;
   }
 
-  async persistDefaultMode(backendId: BackendId, mode: CopilotMode | null): Promise<void> {
+  async persistDefaultMode(backendId: BackendId, mode: ScribeMode | null): Promise<void> {
     setSettings((cur) => {
       const existing = (cur.agentMode.backends as Record<string, unknown> | undefined)?.[
         backendId
@@ -1591,9 +1555,6 @@ export class AgentSessionManager {
     }
     const backend = this.backends.get(backendId);
     if (!backend) return this.refreshWarmProbe(backendId, reason);
-    // Most config changes preserve the current turn. A Search scope change may
-    // opt out so no later tool call uses the prior privacy boundary.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/121
     if (options?.deferWhileBusy !== false && this.hasBusySession(backendId)) {
       const prev = this.pendingBackendRestarts.get(backendId);
       this.pendingBackendRestarts.set(backendId, {
@@ -1601,9 +1562,6 @@ export class AgentSessionManager {
         immediate: prev?.immediate ?? false,
       });
       logInfo(`[AgentMode] deferred ${backendId} backend restart: ${reason}`);
-      // The chat's Reload action reports a queued restart as in progress, so
-      // publish the queue entry rather than leaving the button looking inert.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
       this.notify();
       return true;
     }
@@ -1611,11 +1569,6 @@ export class AgentSessionManager {
     return true;
   }
 
-  /**
-   * A running process keeps its spawn config, so the change is held while a session exists to
-   * lose and offered as a Reload. Callers that must apply now call `restartBackend` directly.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/475
-   */
   async noteSpawnConfigChanged(backendId: BackendId, reason: string): Promise<void> {
     if (this.disposed || !this.isBackendEnabled(backendId)) return;
     const inflight = this.starting.get(backendId);
@@ -1635,18 +1588,10 @@ export class AgentSessionManager {
     return this.heldConfigChanges.has(backendId);
   }
 
-  /**
-   * Lets the Reload action show progress while the restart is queued behind a turn.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/475
-   */
   isBackendRestartPending(backendId: BackendId): boolean {
     return this.restartingBackends.has(backendId) || this.pendingBackendRestarts.has(backendId);
   }
 
-  /**
-   * The Reload action: performs the restart `noteSpawnConfigChanged` declined to do.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/475
-   */
   async applyHeldConfigChange(backendId: BackendId): Promise<void> {
     const reason = this.heldConfigChanges.get(backendId);
     if (reason === undefined) return;
@@ -1753,9 +1698,6 @@ export class AgentSessionManager {
     const closedScope = session.projectId;
     const scopeIdsBefore = this.getSessionIdsForScope(closedScope);
     const closedIdx = scopeIdsBefore.indexOf(id);
-    // User-requested release must block new sends before cancellation and saving.
-    // Internal teardown also works when the whole backend is being restarted.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/429
     if (options?.releaseBackend) {
       await session.releaseBackendSession();
     } else {
@@ -1764,8 +1706,6 @@ export class AgentSessionManager {
       } catch (e) {
         logWarn(`[AgentMode] cancel during closeSession failed`, e);
       }
-      // Codex keeps a dropped chat's session and its MCP connection, so reopening it from history would call send_feedback with the revoked token.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
       if (session.getBackendSessionId() && !this.restartingBackends.has(session.backendId)) {
         try {
           await session.releaseBackendSession();
@@ -1781,7 +1721,7 @@ export class AgentSessionManager {
       logWarn(`[AgentMode] dispose during closeSession failed`, e);
     }
     this.detachAutoSave(id);
-    this.opts.copilotMcpServer?.disconnect(id);
+    this.opts.scribeMcpServer?.disconnect(id);
     this.sessions.delete(id);
     this.dirtyExtensionSessions.delete(id);
     this.chatUIStates.delete(id);
@@ -1802,7 +1742,6 @@ export class AgentSessionManager {
       if (nextId) this.lastActiveByScope.set(closedScope, nextId);
     }
     this.notify();
-    // Closing an idle chat ends its subagents without a status change, so a restart they held runs now. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
     void this.flushDeferredBackendRestartIfReady(session.backendId);
   }
 
@@ -1938,11 +1877,6 @@ export class AgentSessionManager {
     return Array.from(this.sessions.values());
   }
 
-  /**
-   * Prune composer drafts against this rather than `getSessions()`, which omits tabs
-   * mid-replacement during a backend restart.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/473
-   */
   getLiveChatInputIds(): readonly string[] {
     const ids = new Set(this.retainedChatInputIds);
     for (const session of this.sessions.values()) ids.add(session.chatInputId);
@@ -1965,17 +1899,13 @@ export class AgentSessionManager {
     }
   }
 
-  // Feedback cards are optional, so a server that cannot start leaves the chat running without them.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
-  private async connectCopilotMcpServer(
+  private async connectScribeMcpServer(
     internalId: string,
     descriptor: BackendDescriptor,
     cwd: string
   ): Promise<ReadonlyArray<AgentMcpServer>> {
-    const server = this.opts.copilotMcpServer;
+    const server = this.opts.scribeMcpServer;
     if (!server) return EMPTY_MCP_SERVERS;
-    // A folder's chats share one connection, so its token names only the folder and the agent stamps the calling session on each call.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
     const shared = descriptor.sharesMcpServersAcrossSessions === true;
     const offer: FeedbackOfferHandler = shared
       ? (draft, callerSessionId) =>
@@ -2035,7 +1965,7 @@ export class AgentSessionManager {
         }
       })
     );
-    this.opts.copilotMcpServer?.dispose();
+    this.opts.scribeMcpServer?.dispose();
     this.sessions.clear();
     this.dirtyExtensionSessions.clear();
     this.chatUIStates.clear();
@@ -2089,9 +2019,8 @@ export class AgentSessionManager {
     const previousActiveId = this.activeSessionId;
 
     const loaded = await this.opts.persistenceManager.loadFile(file);
-    const snapshot = loaded.sessionId
-      ? await this.readSessionSnapshot(loaded.backendId, loaded.sessionId)
-      : null;
+    this.resolveDescriptor(loaded.backendId);
+    if (!loaded.sessionId) throw new Error("The saved chat has no native session identity.");
     const projectId = loaded.projectId;
     if (projectId !== GLOBAL_SCOPE && !getCachedProjectRecordById(projectId)) {
       new Notice(t("This chat belongs to a project that no longer exists."));
@@ -2101,34 +2030,23 @@ export class AgentSessionManager {
     const scopeSeq = this.setActiveScope(projectId);
 
     let session: AgentSession;
-    let resumed: AgentSession | null;
     try {
-      resumed = loaded.sessionId
-        ? await this.tryResumeSessionFromHistory(loaded.backendId, loaded.sessionId, projectId)
-        : null;
-      session =
-        resumed ??
-        (await this.createSession(
-          loaded.backendId,
-          projectId,
-          snapshot?.selection,
-          snapshot?.chatId
-        ));
+      const resumed = await this.tryResumeSessionFromHistory(
+        loaded.backendId,
+        loaded.sessionId,
+        projectId
+      );
+      if (!resumed)
+        throw new Error(
+          `Could not resume session ${loaded.sessionId} from the ${loaded.backendId} session store.`
+        );
+      session = resumed;
     } catch (err) {
       this.rollbackOptimisticScopeSwitch(previousActiveProjectId, scopeSeq);
       throw err;
     }
 
-    this.restoreFromNote(session, resumed !== null, file, loaded);
-    if (
-      !resumed &&
-      snapshot &&
-      snapshot.projectId === projectId &&
-      snapshot.messages.filter((message) => message.sender === USER_SENDER).length >=
-        loaded.messages.filter((message) => message.sender === USER_SENDER).length
-    ) {
-      this.restoreSessionSnapshot(session, snapshot, resumed !== null);
-    }
+    this.restoreFromNote(session, file, loaded);
     if (loaded.label) session.setLabel(loaded.label);
     if (loaded.sessionId) {
       void this.opts.sessionIndex?.touch(loaded.backendId, loaded.sessionId);
@@ -2141,18 +2059,10 @@ export class AgentSessionManager {
     return session;
   }
 
-  private restoreFromNote(
-    session: AgentSession,
-    resumed: boolean,
-    file: TFile,
-    loaded: LoadedAgentChat
-  ): void {
-    // A reattached session replays the chat with its tool calls and thinking, which the note's text-only copy lacks; turns that never reach the agent (local refusals) live only in the note, so a replay with fewer user turns leaves the note as the source. https://github.com/Brevilabs/obsidian-copilot-private/issues/671
+  private restoreFromNote(session: AgentSession, file: TFile, loaded: LoadedAgentChat): void {
     const replayedUserTurns = session.store
       .getDisplayMessages()
       .filter((m) => m.sender === USER_SENDER).length;
-    // Claude's transcript keeps /compact only as command bookkeeping, which its replay drops.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/635
     const savedUserTurns = loaded.messages.filter(
       (m) => m.isVisible && m.sender === USER_SENDER && !isCompactCommand(m.message)
     ).length;
@@ -2160,9 +2070,6 @@ export class AgentSessionManager {
       session.store.fillMissingTimestamps(loaded.messages);
     } else {
       session.loadDisplayMessages(loaded.messages);
-      // The agent never saw this note's turns when its saved session is gone from this device.
-      // https://github.com/logancyang/obsidian-copilot/issues/3643
-      if (!resumed) session.resendSavedHistoryOnNextTurn();
     }
     session.seedSessionUsage(loaded.usage);
     this.getSessionState(session.internalId).source = file;
@@ -2219,6 +2126,7 @@ export class AgentSessionManager {
     backendId: BackendId,
     sessionId: SessionId
   ): Promise<{ entry: AgentSessionIndexEntry | null; projectId: ProjectScopeId }> {
+    this.resolveDescriptor(backendId);
     const index = this.opts.sessionIndex;
     const entry = index ? await index.getEntry(backendId, sessionId) : null;
     const snapshot = !entry ? await this.readSessionSnapshot(backendId, sessionId) : null;
@@ -2236,34 +2144,7 @@ export class AgentSessionManager {
     entry: AgentSessionIndexEntry | null,
     projectId: ProjectScopeId
   ): Promise<AgentSession> {
-    let session = await this.tryResumeSessionFromHistory(backendId, sessionId, projectId);
-    if (!session) {
-      const snapshot = await this.readSessionSnapshot(backendId, sessionId);
-      if (snapshot && snapshot.projectId === projectId) {
-        session = await this.createSession(
-          backendId,
-          projectId,
-          snapshot.selection,
-          snapshot.chatId,
-          false
-        );
-        await session.ready;
-        this.restoreSessionSnapshot(session, snapshot, false);
-        this.getSessionState(session.internalId).snapshotAliases = [
-          ...new Set([
-            sessionId,
-            ...(snapshot.aliases ?? []),
-            ...(snapshot.currentSessionId ? [snapshot.currentSessionId] : []),
-          ]),
-        ];
-        await this.flushSessionSnapshot(session);
-        await this.flushIndexTouch(session);
-        await this.opts.sessionIndex?.deleteSession(backendId, sessionId);
-        await this.opts.sessionIndex?.flushOrThrow();
-        this.attachAutoSave(session);
-        this.attachAttentionTracking(session);
-      }
-    }
+    const session = await this.tryResumeSessionFromHistory(backendId, sessionId, projectId);
     if (!session) {
       throw new Error(`Could not resume session ${sessionId} from the ${backendId} session store.`);
     }
@@ -2280,7 +2161,7 @@ export class AgentSessionManager {
     chatInputId?: string,
     seedSelection?: ModelSelection
   ): Promise<AgentSession | null> {
-    if (!this.opts.resolveDescriptor(backendId)) return null;
+    this.resolveDescriptor(backendId);
     const existing = this.findLiveSession(backendId, sessionId);
     if (existing) return existing;
 
@@ -2318,15 +2199,6 @@ export class AgentSessionManager {
     const descriptor = this.resolveDescriptor(backendId);
 
     const saved = await this.readSessionSnapshot(backendId, sessionId);
-    if (saved?.currentSessionId && saved.currentSessionId !== sessionId) {
-      return this.tryResumeSessionFromHistory(
-        backendId,
-        saved.currentSessionId,
-        projectId,
-        chatInputId ?? saved.chatId,
-        seedSelection ?? saved.selection
-      );
-    }
     const snapshot = saved?.projectId === projectId ? saved : null;
     seedSelection =
       this.getSeedSelection(backendId, seedSelection ?? snapshot?.selection) ?? undefined;
@@ -2351,14 +2223,12 @@ export class AgentSessionManager {
     }
 
     const internalId = uuidv4();
-    const mcpServers = await this.connectCopilotMcpServer(internalId, descriptor, cwd);
+    const mcpServers = await this.connectScribeMcpServer(internalId, descriptor, cwd);
     if (this.disposed || !this.isBackendEnabled(backendId)) {
       this.finishPendingCreate();
-      this.opts.copilotMcpServer?.disconnect(internalId);
+      this.opts.scribeMcpServer?.disconnect(internalId);
       return null;
     }
-    // The chat attaches before the backend replays its history, so replayed frames are never in flight without a handler.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/602
     const session = new AgentSession({
       backend,
       backendSessionId: sessionId,
@@ -2390,7 +2260,7 @@ export class AgentSessionManager {
       if (!(err instanceof MethodUnsupportedError)) {
         logWarn(`[AgentMode] loadSession failed for ${sessionId}`, err);
         await session.dispose();
-        this.opts.copilotMcpServer?.disconnect(internalId);
+        this.opts.scribeMcpServer?.disconnect(internalId);
         this.finishPendingCreate();
         return null;
       }
@@ -2401,14 +2271,12 @@ export class AgentSessionManager {
         resumeResult = await backend.resumeSession(openInput);
       } catch (err) {
         if (err instanceof MethodUnsupportedError) {
-          logInfo(
-            `[AgentMode] backend ${backendId} does not support session resume; falling back to fresh session`
-          );
+          logInfo(`[AgentMode] backend ${backendId} does not support session resume`);
         } else {
           logWarn(`[AgentMode] resumeSession failed for ${sessionId}`, err);
         }
         await session.dispose();
-        this.opts.copilotMcpServer?.disconnect(internalId);
+        this.opts.scribeMcpServer?.disconnect(internalId);
         this.finishPendingCreate();
         return null;
       }
@@ -2422,8 +2290,6 @@ export class AgentSessionManager {
 
     session.completeResume(resumeResult.state);
 
-    // Apply the seed before replaying backend-specific startup config.
-    // https://github.com/logancyang/obsidian-copilot/issues/3319
     await session.ready;
 
     if (descriptor.applyInitialSessionConfig) {
@@ -2445,7 +2311,7 @@ export class AgentSessionManager {
     if (projectId !== GLOBAL_SCOPE) {
       this.lastSeenProjectContentEpochBySession.set(internalId, RESUMED_SESSION_BEHIND_EPOCH);
     }
-    if (snapshot) this.restoreSessionSnapshot(session, snapshot, true);
+    if (snapshot) this.restoreSessionSnapshot(session, snapshot);
     this.sessions.set(session.internalId, session);
     this.chatUIStates.set(session.internalId, new AgentChatUIState(session));
     this.detachedFromTabIds.delete(session.internalId);
@@ -2527,13 +2393,8 @@ export class AgentSessionManager {
           messages: session.store.getDisplayMessages(),
           tasks: [...session.getTaskSnapshots()],
           branch: session.getBranchState(),
-          ...(state.snapshotAliases?.length ? { aliases: state.snapshotAliases } : {}),
         };
         await snapshots.save(snapshot);
-        for (const alias of state.snapshotAliases ?? []) {
-          if (alias !== sessionId)
-            await snapshots.save({ ...snapshot, sessionId: alias, currentSessionId: sessionId });
-        }
         state.snapshotFailureReported = false;
       })
       .catch((error: unknown) => {
@@ -2567,21 +2428,14 @@ export class AgentSessionManager {
     }
   }
 
-  private restoreSessionSnapshot(
-    session: AgentSession,
-    snapshot: AgentSessionSnapshot,
-    resumed: boolean
-  ): void {
-    if (snapshot.aliases?.length)
-      this.getSessionState(session.internalId).snapshotAliases = snapshot.aliases;
+  private restoreSessionSnapshot(session: AgentSession, snapshot: AgentSessionSnapshot): void {
     const replay = session.store.getDisplayMessages();
     const inheritedCount = snapshot.branch?.inheritedMessageCount ?? 0;
     session.loadDisplayMessages(mergeSnapshotReplay(snapshot.messages, replay, inheritedCount));
-    if (!resumed) session.resendSavedHistoryOnNextTurn();
     if (snapshot.branch) {
       session.restoreBranchState({
         ...snapshot.branch,
-        historyPending: !resumed || snapshot.branch.historyPending,
+        historyPending: snapshot.branch.historyPending,
       });
     }
     session.restoreTaskSnapshots(snapshot.tasks);
@@ -2589,8 +2443,6 @@ export class AgentSessionManager {
 
   private scheduleAutoSave(session: AgentSession): void {
     const state = this.getSessionState(session.internalId);
-    // Manual Save opts this chat into keeping its note current.
-    // https://github.com/logancyang/obsidian-copilot/issues/3225
     if (!getSettings().autosaveChat && !state.source) return;
     state.dirty = true;
     if (state.timer) window.clearTimeout(state.timer);
@@ -2662,9 +2514,6 @@ export class AgentSessionManager {
     return state?.source?.path ?? "";
   }
 
-  // One save chain per chat: each save runs after the previous one, and state.saving holds the
-  // tail so close and delete wait for every save that already started.
-  // https://github.com/logancyang/obsidian-copilot/issues/2888
   private flushAutoSave(session: AgentSession): Promise<{ path: string } | null> {
     const state = this.getSessionState(session.internalId);
     const previous = state.saving;
@@ -2709,8 +2558,6 @@ export class AgentSessionManager {
       state.source = this.app.vault.getAbstractFileByPath(result.path) ?? result;
       state.signature = signature;
       state.dirty = false;
-      // The first successful save changes relative-link resolution in the mounted chat.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/539
       if (previousSourcePath !== result.path) this.notify();
     }
     return result;
@@ -2728,8 +2575,6 @@ export class AgentSessionManager {
         logWarn(`[AgentMode] drain session-index update failed for ${session.internalId}`, e);
       }
     }
-    // A save that already started is in neither timer; closing must still wait for it.
-    // https://github.com/logancyang/obsidian-copilot/issues/2888
     await state?.saving;
     if (!state || (!state.timer && !state.dirty)) return;
     if (state.timer) {
@@ -2787,7 +2632,6 @@ export class AgentSessionManager {
         )
           this.closeIdleHiddenChatsOverCap();
       },
-      // A dropped connection ends an idle chat's subagents with no reply to wait for and no status change. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
       onDisconnected: () => void this.flushDeferredBackendRestartIfReady(session.backendId),
       onStatusChanged: (next) => {
         this.prepareNextPrompt(session.internalId);
@@ -2796,8 +2640,6 @@ export class AgentSessionManager {
         const isRunning = next === "running";
         prev = next;
         void this.flushDeferredBackendRestartIfReady(session.backendId);
-        // Only a turn that actually ran can newly demand attention.
-        // https://github.com/logancyang/obsidian-copilot/issues/2987
         const wantsUser = wasRunning && ATTENTION_TRIGGER_STATUSES.has(next);
         if (wantsUser) this.signalSessionNeedsAttention(session);
         if (wasRunning !== isRunning) this.notify();
@@ -2813,8 +2655,6 @@ export class AgentSessionManager {
 
   private isSessionFocused(session: AgentSession): boolean {
     if (this.activeSessionId !== session.internalId) return false;
-    // A sidebar input can own keyboard focus while Obsidian keeps the center
-    // editor as its most recent leaf. https://github.com/logancyang/obsidian-copilot/issues/2987
     return this.app.workspace.getLeavesOfType(CHAT_AGENT_VIEWTYPE).some((leaf) => {
       const container = leaf.view.containerEl;
       const doc = container.doc;
@@ -2824,11 +2664,7 @@ export class AgentSessionManager {
   }
 
   private signalSessionNeedsAttention(session: AgentSession): void {
-    // The dot identifies a different Agent tab that wants the user; keyboard
-    // focus does not change which tab is selected. https://github.com/logancyang/obsidian-copilot/issues/2987
     if (this.activeSessionId !== session.internalId) session.markNeedsAttention();
-    // Sound follows real focus so a selected but unattended chat can still
-    // call the user back. https://github.com/logancyang/obsidian-copilot/issues/2987
     if (this.isSessionFocused(session)) return;
     this.playConfiguredNotificationSound();
   }
@@ -2843,9 +2679,6 @@ export class AgentSessionManager {
     proc.setPermissionPrompter(this.opts.permissionPrompter);
     proc.setUnhealthyHandler?.(() => {
       if (this.disposed || this.backends.get(backendId) !== proc) return;
-      // The rejected turn must finish writing its error before replacement.
-      // restartBackend defers while that session is running.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/561
       void this.restartBackend(backendId, "internal service stopped").catch((err) => {
         this.setLastError(err2String(err));
         logError(`[AgentMode] ${backendId} internal service restart failed`, err);
@@ -2882,9 +2715,6 @@ export class AgentSessionManager {
         return warm.proc;
       }
 
-      // Validate the selected installation only when launching it. A running
-      // process keeps its version when settings select a different executable.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/531
       const installState = descriptor.getInstallState(getSettings());
       if (installState.kind === "incompatible") throw new Error(installState.message);
 
@@ -2921,15 +2751,13 @@ export class AgentSessionManager {
       if (this.backends.get(backendId) !== proc) return;
       if (this.backends.get(backendId) === proc) {
         this.backends.delete(backendId);
-        // Retry spawns from current settings; a dead generation has no config left to apply.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
         this.heldConfigChanges.delete(backendId);
       }
       const dead = Array.from(this.sessions.values()).filter((s) => s.backendId === backendId);
       if (dead.length === 0) return;
       for (const s of dead) {
         this.detachAutoSave(s.internalId);
-        this.opts.copilotMcpServer?.disconnect(s.internalId);
+        this.opts.scribeMcpServer?.disconnect(s.internalId);
         this.sessions.delete(s.internalId);
         this.chatUIStates.delete(s.internalId);
         this.landingCaptureSignatures.delete(s.internalId);
@@ -2991,11 +2819,6 @@ export class AgentSessionManager {
     }
   }
 
-  /**
-   * A restart kills the process, not the conversation: resume through the backend's own store,
-   * falling back to a fresh session when there is nothing to resume.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/475
-   */
   private async rebuildReplacedSession(
     backendId: BackendId,
     projectId: ProjectScopeId,
@@ -3005,9 +2828,6 @@ export class AgentSessionManager {
     labelSource: "user" | "agent" | null,
     carriedSelection?: ModelSelection
   ): Promise<AgentSession> {
-    // A model-setting change can trigger this restart, so validate the carried
-    // selection before seeding either the resumed or the fallback session.
-    // https://github.com/logancyang/obsidian-copilot/issues/3319
     const seedSelection = carriedSelection
       ? (this.getSeedSelection(backendId, carriedSelection) ?? undefined)
       : undefined;
@@ -3042,31 +2862,19 @@ export class AgentSessionManager {
         reason: prev ? `${prev.reason}; ${reason}` : reason,
         immediate: (prev?.immediate ?? false) || immediate,
       });
-      // A Search scope change queued behind another refresh must keep its
-      // non-deferrable privacy semantics when the first refresh completes.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/121
       return;
     }
     const proc = this.backends.get(backendId);
     if (!proc) return;
     this.restartingBackends.add(backendId);
-    // Every restart rebuilds spawn config from current settings, so nothing is
-    // held once one runs — including restarts this hold never asked for, such
-    // as a tightened privacy boundary or a binary that changed underneath.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
     this.heldConfigChanges.delete(backendId);
     logInfo(`[AgentMode] restarting ${backendId} backend: ${reason}`);
     const retainedChatInputIds: string[] = [];
     try {
       const affected = Array.from(this.sessions.values()).filter((s) => s.backendId === backendId);
-      // A chat's first save can still be pending, and its note must exist before the note is read below.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/742
       for (const session of affected) await this.drainAutoSave(session);
       const activeSessionId = this.activeSessionId;
       const activeProjectId = this.activeProjectId;
-      // Every affected composer must stay owned across the gap, including tabs
-      // outside the active scope, or the draft store prunes their unsent text.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/475
       const replacements = this.isBackendInstalled(backendId)
         ? affected.map((session) => ({
             internalId: session.internalId,
@@ -3075,8 +2883,6 @@ export class AgentSessionManager {
             resumableSessionId: session.getBackendSessionId() ?? undefined,
             label: session.getLabel(),
             labelSource: session.getLabelSource(),
-            // The displayed selection is otherwise lost when the process restarts.
-            // https://github.com/logancyang/obsidian-copilot/issues/3319
             seedSelection: session.getState()?.model?.current,
             detached: this.detachedFromTabIds.has(session.internalId),
             recoveryMessages:
@@ -3115,21 +2921,14 @@ export class AgentSessionManager {
             );
             const resumed = rebuilt.getBackendSessionId() === replacement.resumableSessionId;
             const note = this.app.vault.getAbstractFileByPath(replacement.notePath);
-            if (note instanceof TFile && this.opts.persistenceManager) {
-              // A saved chat comes back the way Recent Chats reopens it, or the next autosave writes a duplicate note stamped with the replay time.
-              // https://github.com/Brevilabs/obsidian-copilot-private/issues/742
-              // One unreadable note must not abort the loop and drop every later tab on this backend.
-              // https://github.com/Brevilabs/obsidian-copilot-private/issues/742
+            if (resumed && note instanceof TFile && this.opts.persistenceManager) {
               const loaded = await this.opts.persistenceManager.loadFile(note).catch((e) => {
                 logWarn(`[AgentMode] reloading ${note.path} after ${backendId} restart failed`, e);
                 return null;
               });
-              if (loaded) this.restoreFromNote(rebuilt, resumed, note, loaded);
+              if (loaded) this.restoreFromNote(rebuilt, note, loaded);
             }
             if (resumed && replacement.recoveryMessages?.length) {
-              // A fresh fallback has no backend history for these messages;
-              // displaying them there would imply the agent can see that context.
-              // https://github.com/Brevilabs/obsidian-copilot-private/issues/561
               rebuilt.loadDisplayMessages(replacement.recoveryMessages);
             }
             if (replacement.detached) this.detachedFromTabIds.add(rebuilt.internalId);

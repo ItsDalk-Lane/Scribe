@@ -113,8 +113,8 @@ export function useRafResizable(options: UseRafResizableOptions): UseRafResizabl
     const ownerDocument = ownerDocumentRef.current ?? activeDocument;
     const ownerWindow = ownerWindowRef.current ?? window;
     const body = ownerDocument.body;
-    body.setCssProps({ "--copilot-resize-cursor": cursor });
-    body.classList.add("tw-select-none", "tw-cursor-[var(--copilot-resize-cursor)]");
+    body.setCssProps({ "--scribe-resize-cursor": cursor });
+    body.classList.add("tw-select-none", "tw-cursor-[var(--scribe-resize-cursor)]");
 
     const cancelRaf = (): void => {
       if (rafIdRef.current === null) return;
@@ -139,7 +139,6 @@ export function useRafResizable(options: UseRafResizableOptions): UseRafResizabl
 
     const handlePointerMove = (event: PointerEvent): void => {
       const currentStart = startRef.current;
-      // Ignore other touches so a second finger cannot move, resize, or release the panel. https://github.com/Brevilabs/obsidian-copilot-private/issues/798
       if (!currentStart || event.pointerId !== currentStart.pointerId) return;
 
       const deltaX = event.clientX - currentStart.startClientX;
@@ -190,8 +189,8 @@ export function useRafResizable(options: UseRafResizableOptions): UseRafResizabl
       ownerDocument.removeEventListener("pointerup", handlePointerUp, true);
       ownerDocument.removeEventListener("pointercancel", handlePointerUp, true);
 
-      body.classList.remove("tw-select-none", "tw-cursor-[var(--copilot-resize-cursor)]");
-      body.setCssProps({ "--copilot-resize-cursor": "" });
+      body.classList.remove("tw-select-none", "tw-cursor-[var(--scribe-resize-cursor)]");
+      body.setCssProps({ "--scribe-resize-cursor": "" });
 
       startRef.current = null;
       setIsResizing(false);
@@ -215,8 +214,8 @@ export function useRafResizable(options: UseRafResizableOptions): UseRafResizabl
       ownerDocument.removeEventListener("pointerup", handlePointerUp, true);
       ownerDocument.removeEventListener("pointercancel", handlePointerUp, true);
 
-      body.classList.remove("tw-select-none", "tw-cursor-[var(--copilot-resize-cursor)]");
-      body.setCssProps({ "--copilot-resize-cursor": "" });
+      body.classList.remove("tw-select-none", "tw-cursor-[var(--scribe-resize-cursor)]");
+      body.setCssProps({ "--scribe-resize-cursor": "" });
     };
   }, [isResizing]);
 

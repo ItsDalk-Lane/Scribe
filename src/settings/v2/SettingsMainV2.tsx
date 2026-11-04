@@ -2,9 +2,9 @@ import { t } from "@/lib/i18n";
 import { TabContent, TabItem, type TabItem as TabItemType } from "@/components/ui/setting-tabs";
 import { PluginProvider } from "@/contexts/PluginContext";
 import { TabProvider, useTab } from "@/contexts/TabContext";
-import CopilotPlugin from "@/main";
+import ScribePlugin from "@/main";
 import { ModelManagementProvider } from "@/modelManagement";
-import { COPILOT_SETTINGS_TAB_IDS, type CopilotSettingsTabId } from "@/settings/settingsTabs";
+import { SCRIBE_SETTINGS_TAB_IDS, type ScribeSettingsTabId } from "@/settings/settingsTabs";
 import { useSkillLoadErrorCount } from "@/settings/skillLoadErrorState";
 import React from "react";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
@@ -23,7 +23,7 @@ const LazyExtensionsSettings = React.lazy(() =>
 );
 
 interface ExtensionsSettingsPanelProps {
-  kind: "plugin" | "skill" | "command" | "hook" | "mcp" | "subagent";
+  kind: "skill" | "command" | "subagent";
 }
 
 const ExtensionsSettingsPanel: React.FC<ExtensionsSettingsPanelProps> = ({ kind }) => {
@@ -47,31 +47,25 @@ const AgentSettingsPanel: React.FC = () => {
   );
 };
 
-const components: Record<CopilotSettingsTabId, React.FC> = {
+const components: Record<ScribeSettingsTabId, React.FC> = {
   basic: GeneralSettings,
   quickActions: QuickActionsSettings,
   agents: AgentSettingsPanel,
-  plugins: () => <ExtensionsSettingsPanel kind="plugin" />,
   command: () => <ExtensionsSettingsPanel kind="command" />,
   skills: () => <ExtensionsSettingsPanel kind="skill" />,
-  hooks: () => <ExtensionsSettingsPanel kind="hook" />,
-  mcp: () => <ExtensionsSettingsPanel kind="mcp" />,
   subagents: () => <ExtensionsSettingsPanel kind="subagent" />,
 };
 
-const TAB_LABELS: Record<CopilotSettingsTabId, string> = {
+const TAB_LABELS: Record<ScribeSettingsTabId, string> = {
   basic: "Common",
   quickActions: "Quick actions",
   agents: "Agents",
-  plugins: "Plugins",
   command: "Commands",
   skills: "Skills",
-  hooks: "Hooks",
-  mcp: "MCP",
   subagents: "Subagents",
 };
 
-const tabs = COPILOT_SETTINGS_TAB_IDS.map((id) => ({
+const tabs = SCRIBE_SETTINGS_TAB_IDS.map((id) => ({
   id,
   icon: null,
   label: TAB_LABELS[id],
@@ -90,9 +84,6 @@ const SettingsContent: React.FC = () => {
             tab={{
               ...tab,
               label: t(tab.label),
-              // https://github.com/Brevilabs/obsidian-copilot-private/issues/166
-              // The tab strip stays mounted while inactive panels do not, so
-              // load failures remain visible from every settings section.
               warningLabel:
                 tab.id === "skills" && skillLoadErrorCount > 0
                   ? t("Some skills failed to load")
@@ -106,7 +97,7 @@ const SettingsContent: React.FC = () => {
       <div className="tw-w-full tw-border-0 tw-border-t tw-border-solid tw-border-border" />
 
       <div>
-        {COPILOT_SETTINGS_TAB_IDS.map((id) => {
+        {SCRIBE_SETTINGS_TAB_IDS.map((id) => {
           const Component = components[id];
           return (
             <TabContent key={id} id={id} isSelected={selectedTab === id}>
@@ -120,16 +111,12 @@ const SettingsContent: React.FC = () => {
 };
 
 interface SettingsMainV2Props {
-  plugin: CopilotPlugin;
-  initialTab?: CopilotSettingsTabId;
+  plugin: ScribePlugin;
+  initialTab?: ScribeSettingsTabId;
 }
 
 const SettingsMainV2: React.FC<SettingsMainV2Props> = ({ plugin, initialTab = "basic" }) => {
   React.useEffect(() => {
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/166
-    // Agent repairs can change hidden files while the window stays focused and
-    // the Skills panel is unmounted. Refresh when Settings next opens so its tab
-    // marker never depends on visiting the Skills panel first.
     void plugin.skills?.refresh();
   }, [plugin]);
 

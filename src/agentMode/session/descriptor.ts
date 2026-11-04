@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import type React from "react";
-import type CopilotPlugin from "@/main";
-import type { CopilotSettings } from "@/settings/model";
+import type ScribePlugin from "@/main";
+import type { ScribeSettings } from "@/settings/model";
 import type { Destination } from "@/types/destination";
 import type { AgentSession } from "@/agentMode/session/AgentSession";
 import type {
@@ -45,9 +45,9 @@ export type ManagedInstallActionState =
   | { kind: "error"; message: string };
 
 export interface ManagedInstallAction {
-  getState(plugin: CopilotPlugin): ManagedInstallActionState;
-  subscribe(plugin: CopilotPlugin, onChange: () => void): () => void;
-  run(plugin: CopilotPlugin): Promise<void>;
+  getState(plugin: ScribePlugin): ManagedInstallActionState;
+  subscribe(plugin: ScribePlugin, onChange: () => void): () => void;
+  run(plugin: ScribePlugin): Promise<void>;
 }
 
 export interface BackendAuthStatus {
@@ -62,33 +62,30 @@ export interface BackendSignInHandlers {
 }
 
 export interface BackendAuth {
-  getProbeKey?(settings: CopilotSettings): string;
-  getStatus(settings: CopilotSettings): Promise<BackendAuthStatus>;
-  signIn(settings: CopilotSettings, handlers?: BackendSignInHandlers): Promise<BackendAuthStatus>;
+  getProbeKey?(settings: ScribeSettings): string;
+  getStatus(settings: ScribeSettings): Promise<BackendAuthStatus>;
+  signIn(settings: ScribeSettings, handlers?: BackendSignInHandlers): Promise<BackendAuthStatus>;
   signOut?(
-    settings: CopilotSettings,
+    settings: ScribeSettings,
     options?: { signal?: AbortSignal }
   ): Promise<BackendAuthStatus>;
 }
 
 export interface BackendDescriptor {
   createExtensionManager?: (input: {
-    settings: CopilotSettings;
+    settings: ScribeSettings;
     cwd: string | null;
   }) => import("./extensionManagement").AgentExtensionManager;
   checkExtensions?: (input: {
-    plugin: CopilotPlugin;
+    plugin: ScribePlugin;
     cwd: string;
     scope?: import("./extensionManagement").AgentExtensionScope;
     signal?: AbortSignal;
-    // The check returns while remote MCP servers may still be connecting; the backend reports each
-    // refreshed snapshot through this callback until statuses settle or the window closes.
-    // https://github.com/ItsDalk-Lane/Scribe/issues/3
     onUpdate?: (runtime: import("./extensionInventory").AgentExtensionRuntimeSnapshot) => void;
   }) => Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot | null>;
 
   readExtensions?: (input: {
-    settings: CopilotSettings;
+    settings: ScribeSettings;
     cwd: string | null;
   }) => Promise<readonly import("./extensionInventory").AgentExtensionGroup[]>;
 
@@ -107,53 +104,43 @@ export interface BackendDescriptor {
 
   readonly summarizesSessionTitle: boolean;
 
-  // OpenCode registers a session's MCP servers on the instance for its folder, so every chat there shares one connection per server name.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
   readonly sharesMcpServersAcrossSessions?: boolean;
 
   readonly agentProductName?: string;
 
   readonly planFeedbackDelivery?: "permission" | "next_turn";
 
-  // A backend that takes input while its agent works gets each message at the agent's next step instead of Copilot holding it until the turn ends.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/509
   readonly midTurnDelivery?: boolean;
 
-  // A backend that can take back a message the agent has not read yet withdraws every such message at Stop and offers to withdraw each one.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/747
   readonly withdraw?: boolean;
 
-  // A backend that can end one background task on its own offers a stop control on each running task, leaving the main agent and other tasks running.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/748
   readonly stopTask?: boolean;
 
-  // A backend that runs one agent process per chat keeps it alive while the chat is hidden, so only a few idle hidden chats stay open and the rest reopen from their transcripts.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/175
   readonly processPerChat?: boolean;
 
-  getInstallState(settings: CopilotSettings): InstallState;
+  getInstallState(settings: ScribeSettings): InstallState;
 
-  getResolvedBinaryPath?(settings: CopilotSettings): string | null;
+  getResolvedBinaryPath?(settings: ScribeSettings): string | null;
 
-  subscribeInstallState(plugin: CopilotPlugin, cb: () => void): () => void;
+  subscribeInstallState(plugin: ScribePlugin, cb: () => void): () => void;
 
-  openInstallUI(plugin: CopilotPlugin): void;
+  openInstallUI(plugin: ScribePlugin): void;
 
   managedInstall?: ManagedInstallAction;
 
   auth?: BackendAuth;
 
   createBackendProcess(args: {
-    plugin: CopilotPlugin;
+    plugin: ScribePlugin;
     app: App;
     clientVersion: string;
     descriptor: BackendDescriptor;
     configurationScope?: import("./extensionManagement").AgentExtensionScope;
   }): BackendProcess;
 
-  SettingsPanel?: React.FC<{ plugin: CopilotPlugin; app: App }>;
+  SettingsPanel?: React.FC<{ plugin: ScribePlugin; app: App }>;
 
-  onPluginLoad?(plugin: CopilotPlugin): Promise<void>;
+  onPluginLoad?(plugin: ScribePlugin): Promise<void>;
 
   readonly wire: ModelWireCodec;
 
@@ -161,9 +148,7 @@ export interface BackendDescriptor {
 
   presentPermissionOption?(option: PermissionOption, metadata: unknown): PermissionOption;
 
-  // Agents whose own CLI picks the server name it in their settings tab.
-  // https://github.com/logancyang/obsidian-copilot/issues/2889
-  dataDestination?(settings: CopilotSettings, vaultBase: string | null): Destination;
+  dataDestination?(settings: ScribeSettings, vaultBase: string | null): Destination;
 
   readonly showModelDescriptions?: boolean;
 
@@ -181,19 +166,19 @@ export interface BackendDescriptor {
 
   applyInitialSessionConfig?(
     session: AgentSession,
-    settings: CopilotSettings,
+    settings: ScribeSettings,
     seededSelection?: ModelSelection
   ): Promise<void>;
 
   isPlanModePlanFilePath?(absolutePath: string, cwd: string | null | undefined): boolean;
 
-  getProbeSessionId?(settings: CopilotSettings): string | undefined;
+  getProbeSessionId?(settings: ScribeSettings): string | undefined;
 
-  getEnabledModelEntries?(settings: CopilotSettings): EnabledModelEntry[] | null;
+  getEnabledModelEntries?(settings: ScribeSettings): EnabledModelEntry[] | null;
 
-  getWireBaseId?(configuredModelId: string, settings: CopilotSettings): string | null;
+  getWireBaseId?(configuredModelId: string, settings: ScribeSettings): string | null;
 
-  persistProbeSessionId?(sessionId: string, plugin: CopilotPlugin): Promise<void>;
+  persistProbeSessionId?(sessionId: string, plugin: ScribePlugin): Promise<void>;
 
   prefetchEffortCatalog?(args: {
     proc: BackendProcess;

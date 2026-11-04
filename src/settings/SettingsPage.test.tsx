@@ -1,6 +1,6 @@
 import { STARTUP_LOADING_TEXT } from "@/components/StartupLoadingView";
-import { CopilotSettingTab } from "@/settings/SettingsPage";
-import type CopilotPlugin from "@/main";
+import { ScribeSettingTab } from "@/settings/SettingsPage";
+import type ScribePlugin from "@/main";
 import { createPluginRoot } from "@/utils/react/createPluginRoot";
 import type { App } from "obsidian";
 
@@ -26,8 +26,8 @@ function createTab(started: boolean) {
   const plugin = {
     isStarted: () => isStarted,
     whenStarted: () => startup,
-  } as unknown as CopilotPlugin;
-  const tab = new CopilotSettingTab({} as App, plugin);
+  } as unknown as ScribePlugin;
+  const tab = new ScribeSettingTab({} as App, plugin);
   const start = async () => {
     isStarted = true;
     finishStartup();
@@ -37,21 +37,21 @@ function createTab(started: boolean) {
 }
 
 describe("SettingsPage", () => {
-  describe("CopilotSettingTab", () => {
+  describe("ScribeSettingTab", () => {
     beforeEach(() => {
       jest.mocked(createPluginRoot).mockClear();
       document.body.replaceChildren();
     });
 
-    describe("getSettingDefinitions()", () => {
-      it("returns no declarative definitions so Obsidian keeps rendering the tab through display()", () => {
-        const tab = new CopilotSettingTab({} as App, {} as CopilotPlugin);
+    describe("getSettingDefinitions", () => {
+      it("returns no declarative definitions so Obsidian keeps rendering the tab through display", () => {
+        const tab = new ScribeSettingTab({} as App, {} as ScribePlugin);
 
         expect(tab.getSettingDefinitions()).toEqual([]);
       });
     });
 
-    describe("display()", () => {
+    describe("display", () => {
       it("renders the settings right away once Scribe has started", () => {
         const { tab } = createTab(true);
 
@@ -60,7 +60,7 @@ describe("SettingsPage", () => {
         expect(createPluginRoot).toHaveBeenCalledTimes(1);
       });
 
-      it("shows that Copilot is starting instead of settings that have not loaded yet https://github.com/logancyang/obsidian-copilot/issues/3518", () => {
+      it("shows that Scribe is starting instead of settings that have not loaded yet", () => {
         const { tab } = createTab(false);
 
         tab.display();
@@ -69,7 +69,7 @@ describe("SettingsPage", () => {
         expect(createPluginRoot).not.toHaveBeenCalled();
       });
 
-      it("renders the settings once Copilot finishes starting while the tab is still open https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("renders the settings once Scribe finishes starting while the tab is still open", async () => {
         const { tab, start } = createTab(false);
         document.body.append(tab.containerEl);
 
@@ -80,7 +80,7 @@ describe("SettingsPage", () => {
         expect(createPluginRoot).toHaveBeenCalledTimes(1);
       });
 
-      it("does not render settings into a tab closed before Copilot finished starting https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("does not render settings into a tab closed before Scribe finished starting", async () => {
         const { tab, start } = createTab(false);
 
         tab.display();

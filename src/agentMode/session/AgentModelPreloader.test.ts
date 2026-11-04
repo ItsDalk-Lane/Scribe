@@ -1,6 +1,6 @@
 import { App, FileSystemAdapter } from "obsidian";
 import { waitFor } from "@testing-library/react";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { AgentModelPreloader } from "./AgentModelPreloader";
 import type {
   BackendDescriptor,
@@ -25,8 +25,8 @@ function buildApp(): App {
   return { vault: { adapter } } as unknown as App;
 }
 
-function buildPlugin(): CopilotPlugin {
-  return { manifest: { version: "1.0.0" } } as unknown as CopilotPlugin;
+function buildPlugin(): ScribePlugin {
+  return { manifest: { version: "1.0.0" } } as unknown as ScribePlugin;
 }
 
 interface MockProcHandle {
@@ -137,7 +137,7 @@ function pushCatalog(procHandle: MockProcHandle, state: BackendState): void {
 }
 
 describe("AgentModelPreloader", () => {
-  describe("preload()", () => {
+  describe("preload", () => {
     it("does not launch a probe for a disabled agent", async () => {
       const { descriptor } = buildDescriptor(() => makeMockProc());
       const getSettings = jest.requireMock("@/settings/model").getSettings as jest.Mock;
@@ -173,7 +173,7 @@ describe("AgentModelPreloader", () => {
       );
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 listens only to the new probe session after the stored one fails to resume and load", async () => {
+    it("listens only to the new probe session after the stored one fails to resume and load", async () => {
       const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
       Object.assign(descriptor, { getProbeSessionId: () => "stale-probe" });
       const { proc } = procHandle;
@@ -193,7 +193,7 @@ describe("AgentModelPreloader", () => {
       expect([...listening.keys()]).toEqual(["probe-1"]);
     });
 
-    it("waits for installation before inspecting and probing the selected binary (https://github.com/Brevilabs/obsidian-copilot-private/issues/530)", async () => {
+    it("waits for installation before inspecting and probing the selected binary", async () => {
       const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
       let finish!: () => void;
       const upgrade = new Promise<void>((resolve) => {
@@ -214,7 +214,7 @@ describe("AgentModelPreloader", () => {
       expect(preloader.takeWarm(descriptor.id)?.proc).toBe(procHandle.proc);
     });
 
-    it("does not start a process when disposed during installation (https://github.com/Brevilabs/obsidian-copilot-private/issues/530)", async () => {
+    it("does not start a process when disposed during installation", async () => {
       const { descriptor } = buildDescriptor(() => makeMockProc());
       let finish!: () => void;
       const upgrade = new Promise<void>((resolve) => {
@@ -234,7 +234,7 @@ describe("AgentModelPreloader", () => {
     });
 
     it.each(["process exit", "plugin shutdown"] as const)(
-      "discards the probe and catalogs after %s during effort prefetch https://github.com/Brevilabs/obsidian-copilot-private/issues/550",
+      "discards the probe and catalogs after %s during effort prefetch",
       async (event) => {
         const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
         let finish!: () => void;
@@ -269,7 +269,7 @@ describe("AgentModelPreloader", () => {
       }
     );
 
-    it("does not start or probe an incompatible binary (https://github.com/Brevilabs/obsidian-copilot-private/issues/531)", async () => {
+    it("does not start or probe an incompatible binary", async () => {
       const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
       descriptor.getInstallState = () => ({
         kind: "incompatible",
@@ -340,7 +340,7 @@ describe("AgentModelPreloader", () => {
     });
   });
 
-  describe("getCachedModelCatalog()", () => {
+  describe("getCachedModelCatalog", () => {
     it("exposes only the discovered model catalog from a full probe state", async () => {
       const probeState: BackendState = {
         model: {
@@ -394,7 +394,7 @@ describe("AgentModelPreloader", () => {
       const earlyCatalog = catalogOf(["opencode/fledge-alpha-free"]);
       const fullCatalog = catalogOf(["opencode/fledge-alpha-free", "openai/gpt-4.1"]);
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 replaces the cached catalog and notifies subscribers, even after the process was handed to a chat", async () => {
+      it("replaces the cached catalog and notifies subscribers, even after the process was handed to a chat", async () => {
         const { descriptor, procHandle } = buildDescriptor(() =>
           makeMockProc({ newSessionState: earlyCatalog })
         );
@@ -412,7 +412,7 @@ describe("AgentModelPreloader", () => {
         expect(listener).toHaveBeenCalledTimes(1);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 ignores a catalog from a probe whose cache entry was cleared", async () => {
+      it("ignores a catalog from a probe whose cache entry was cleared", async () => {
         const { descriptor, procHandle } = buildDescriptor(() =>
           makeMockProc({ newSessionState: earlyCatalog })
         );
@@ -427,7 +427,7 @@ describe("AgentModelPreloader", () => {
     });
   });
 
-  describe("refresh()", () => {
+  describe("refresh", () => {
     it("re-probes a warm backend against current settings", async () => {
       const { descriptor } = buildDescriptor(() => makeMockProc());
       const create = descriptor.createBackendProcess as jest.Mock;
@@ -465,7 +465,7 @@ describe("AgentModelPreloader", () => {
     });
   });
 
-  describe("stop()", () => {
+  describe("stop", () => {
     it("allows a fresh probe immediately and keeps its catalog when the stopped probe finishes later", async () => {
       const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
       const fresh = makeMockProc({ newSessionState: catalogOf(["fresh-model"]) });
@@ -534,7 +534,7 @@ describe("AgentModelPreloader", () => {
     });
   });
 
-  describe("clearCached()", () => {
+  describe("clearCached", () => {
     it("shuts down and drops a still-warm proc", async () => {
       const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
       const preloader = new AgentModelPreloader(buildApp(), buildPlugin(), () => descriptor);
@@ -550,7 +550,7 @@ describe("AgentModelPreloader", () => {
     });
   });
 
-  describe("shutdown()", () => {
+  describe("shutdown", () => {
     it("shuts down a still-warm proc so the subprocess does not leak", async () => {
       const { descriptor, procHandle } = buildDescriptor(() => makeMockProc());
       const preloader = new AgentModelPreloader(buildApp(), buildPlugin(), () => descriptor);

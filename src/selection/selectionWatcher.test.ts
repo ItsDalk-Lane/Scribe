@@ -24,9 +24,6 @@ import type { Extension, StateField } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorInfoField, type App, type MarkdownFileInfo, type Plugin } from "obsidian";
 
-const ISSUE_597 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/597";
-const ISSUE_794 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/794";
-
 const research = { path: "Research.md", basename: "Research" };
 
 function readingNote(text: string) {
@@ -55,7 +52,7 @@ describe("selectionWatcher", () => {
     document.body.replaceChildren();
   });
 
-  describe("editorSelectionReport()", () => {
+  describe("editorSelectionReport", () => {
     it("reports the selected text with 1-based lines in order, whichever way it was dragged", () => {
       const report = editorSelectionReport({
         file: research,
@@ -94,8 +91,8 @@ describe("selectionWatcher", () => {
     });
   });
 
-  describe("readingSelectionReport()", () => {
-    it(`reports rendered note text without source lines (${ISSUE_597})`, () => {
+  describe("readingSelectionReport", () => {
+    it(`reports rendered note text without source lines`, () => {
       const { preview, app } = readingNote("Excerpt from the note");
       selectText(preview.firstChild!, 7);
 
@@ -106,7 +103,7 @@ describe("selectionWatcher", () => {
       });
     });
 
-    it(`reports nothing for a selection outside the rendered note, such as in chat (${ISSUE_597})`, () => {
+    it(`reports nothing for a selection outside the rendered note, such as in chat`, () => {
       const { app } = readingNote("Excerpt from the note");
       const chat = document.createElement("div");
       chat.textContent = "Chat input";
@@ -117,7 +114,7 @@ describe("selectionWatcher", () => {
     });
   });
 
-  describe("webSelectionReport()", () => {
+  describe("webSelectionReport", () => {
     it("reports a web excerpt under its page, keyed by the page and the excerpt", () => {
       const context = {
         id: "web-1",
@@ -135,7 +132,7 @@ describe("selectionWatcher", () => {
     });
   });
 
-  describe("watchSelections()", () => {
+  describe("watchSelections", () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
 
@@ -157,7 +154,7 @@ describe("selectionWatcher", () => {
       return { plugin, extension: () => extension!, unload: () => cleanups.forEach((c) => c()) };
     }
 
-    it(`attaches Reading view text after the debounce even when chat takes the selection first, then clears it in the note (${ISSUE_597})`, () => {
+    it(`attaches Reading view text after the debounce even when chat takes the selection first, then clears it in the note`, () => {
       const { preview, app } = readingNote("Excerpt from the note");
       const chat = document.createElement("div");
       chat.textContent = "Chat input";
@@ -179,7 +176,7 @@ describe("selectionWatcher", () => {
       unload();
     });
 
-    it(`attaches and clears a note excerpt from the focused editor's own note after the debounce (${ISSUE_597})`, () => {
+    it(`attaches and clears a note excerpt from the focused editor's own note after the debounce`, () => {
       const { plugin, extension, unload } = fakePlugin({
         workspace: { on: jest.fn() },
       } as unknown as App);
@@ -221,7 +218,7 @@ describe("selectionWatcher", () => {
       unload();
     });
 
-    it(`reads an input source after a click or key press and attaches what it reports after the debounce (${ISSUE_794})`, () => {
+    it(`reads an input source after a click or key press and attaches what it reports after the debounce`, () => {
       const { app } = readingNote("Unrelated");
       const { plugin, unload } = fakePlugin(app);
       const drawing = { path: "Flow.excalidraw.md", basename: "Flow.excalidraw" };

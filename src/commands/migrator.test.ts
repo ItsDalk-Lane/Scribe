@@ -17,7 +17,7 @@ jest.mock("@/commands/state", () => ({
 }));
 
 jest.mock("@/commands/customCommandUtils", () => ({
-  getCustomCommandsFolder: jest.fn(() => "copilot/custom-prompts"),
+  getCustomCommandsFolder: jest.fn(() => "scribe/custom-prompts"),
   validateCommandName: jest.fn(() => null),
 }));
 
@@ -71,7 +71,7 @@ describe("migrator", () => {
         expect.objectContaining({
           id: "custom-commands",
           status: "success",
-          details: ["Stored in copilot/custom-prompts."],
+          details: ["Stored in scribe/custom-prompts."],
         })
       );
     });
@@ -92,7 +92,7 @@ describe("migrator", () => {
       const result = await migrateCommands(app);
 
       expect(app.vault.create).toHaveBeenCalledWith(
-        "copilot/custom-prompts/unsupported/Invalid%2Fname.md",
+        "scribe/custom-prompts/unsupported/Invalid%2Fname.md",
         expect.stringContaining("Names cannot contain slashes")
       );
       expect(result).toEqual(

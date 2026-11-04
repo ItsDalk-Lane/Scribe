@@ -19,7 +19,6 @@ export type StartupMigrationTasks = readonly [
   projects: StartupMigrationTask,
   commands: StartupMigrationTask,
   prompts: StartupMigrationTask,
-  folders: StartupMigrationTask,
 ];
 
 export interface StartupMigrationPlan {
@@ -52,10 +51,6 @@ export function shouldClearCredentialRecovery(
   currentDeviceId: string
 ): boolean {
   return recoveryDeviceId === currentDeviceId && items.some(({ id }) => id === "credentials");
-}
-
-export function shouldClearFolderRelocation(items: readonly StartupMigrationItem[]): boolean {
-  return items.some(({ id, status }) => id === "folders" && status !== "error");
 }
 
 export async function runStartupMigrationSummary(plan: StartupMigrationPlan): Promise<void> {

@@ -36,7 +36,7 @@ jest.mock("@/settings/model", () => ({
 }));
 /* eslint-enable @eslint-react/hooks-extra/no-unnecessary-use-prefix */
 describe("useChatModelPicker", () => {
-  describe("useChatModelPicker()", () => {
+  describe("useChatModelPicker", () => {
     it("shows the explicitly selected legacy model and returns configured IDs on selection", () => {
       const onChange = jest.fn();
       const { result } = renderHook(() =>
@@ -47,7 +47,7 @@ describe("useChatModelPicker", () => {
       expect(onChange).toHaveBeenCalledWith("model-a");
     });
     it.each([undefined, "", "removed"])(
-      "keeps strict selection %s empty until the user picks (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)",
+      "keeps strict selection %s empty until the user picks",
       (value) => {
         const { result } = renderHook(() =>
           useChatModelPicker({ value, onChange: jest.fn(), fallbackToFirst: false })

@@ -1,7 +1,7 @@
 import type { AgentSession } from "./AgentSession";
 import { MethodUnsupportedError } from "./errors";
 import { replayPersistedMode } from "./replayPersistedMode";
-import type { BackendState, CopilotMode } from "./types";
+import type { BackendState, ScribeMode } from "./types";
 
 type ModeState = NonNullable<BackendState["mode"]>;
 
@@ -26,7 +26,7 @@ function makeSession({ mode, setMode, setConfigOption }: MockSessionParts): {
   return { session, setMode: setModeMock, setConfigOption: setConfigOptionMock };
 }
 
-const modeState = (current: CopilotMode | null, apply: ModeState["apply"]): ModeState => ({
+const modeState = (current: ScribeMode | null, apply: ModeState["apply"]): ModeState => ({
   current,
   options: [
     { value: "default", label: "Default" },
@@ -37,7 +37,7 @@ const modeState = (current: CopilotMode | null, apply: ModeState["apply"]): Mode
 });
 
 describe("replayPersistedMode", () => {
-  describe("replayPersistedMode()", () => {
+  describe("replayPersistedMode", () => {
     it("applies the persisted mode via setMode when it differs from current", async () => {
       const { session, setMode } = makeSession({
         mode: modeState("default", { auto: { kind: "setMode", nativeId: "bypassPermissions" } }),
@@ -56,7 +56,7 @@ describe("replayPersistedMode", () => {
       expect(setConfigOption).toHaveBeenCalledWith("approval", "plan");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/551 restores Codex Plan collaboration on a new session", async () => {
+    it("restores Codex Plan collaboration on a new session", async () => {
       const { session, setMode, setConfigOption } = makeSession({
         mode: modeState("default", {
           plan: {

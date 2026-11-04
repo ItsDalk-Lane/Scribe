@@ -236,7 +236,7 @@ function renderMessages(
 }
 
 describe("AgentChatMessages", () => {
-  describe("AgentChatMessages()", () => {
+  describe("AgentChatMessages", () => {
     beforeEach(() => {
       jest.useFakeTimers();
       jest.setSystemTime(200_000);
@@ -248,7 +248,7 @@ describe("AgentChatMessages", () => {
 
     afterEach(() => jest.useRealTimers());
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/277 shows a return control over the paused transcript and resumes following on click", () => {
+    it("shows a return control over the paused transcript and resumes following on click", () => {
       mockScrollState.paused = true;
       renderMessages([assistantMessage("response", 1_000)], false);
 
@@ -329,7 +329,7 @@ describe("AgentChatMessages", () => {
       expect(chatBackend.dismissFeedbackOffer).toHaveBeenCalled();
     });
 
-    it("forwards the active session conversation path to user messages https://github.com/Brevilabs/obsidian-copilot-private/issues/539", () => {
+    it("forwards the active session conversation path to user messages", () => {
       const { container } = renderMessages(
         [assistantMessage("user-1", 1, { sender: "user", message: "[[Findings]]" })],
         false,
@@ -396,8 +396,8 @@ describe("AgentChatMessages", () => {
 
       expect(screen.getByText("2m 18s")).toBeTruthy();
       expect(screen.getByTestId("single-message-footer").textContent).toBe("");
-      expect(container.querySelector(".copilot-spinner")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner-dot-0")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeTruthy();
+      expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
     });
 
     it("retains the prior duration when the next turn starts", () => {
@@ -415,7 +415,7 @@ describe("AgentChatMessages", () => {
 
       expect(screen.getByText("51s")).toBeTruthy();
       expect(screen.getByText("2s")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner")).toBeTruthy();
+      expect(container.querySelector(".scribe-spinner")).toBeTruthy();
 
       act(() => jest.advanceTimersByTime(1_000));
       expect(screen.getByText("3s")).toBeTruthy();
@@ -433,7 +433,7 @@ describe("AgentChatMessages", () => {
       expect(screen.getByText("12s")).toBeTruthy();
     });
 
-    it("shows a finished reply's duration without a live timer while the agent keeps working on its subagents https://github.com/Brevilabs/obsidian-copilot-private/issues/757", () => {
+    it("shows a finished reply's duration without a live timer while the agent keeps working on its subagents", () => {
       renderMessages(
         [
           assistantMessage("launch-reply", 1_000, {
@@ -464,7 +464,7 @@ describe("AgentChatMessages", () => {
       expect(screen.getByTestId("agent-trail-timestamp").textContent).toBe(timestamp);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 hands a failed structured turn's error to its trail, which shows no error text for a message without parts", () => {
+    it("hands a failed structured turn's error to its trail, which shows no error text for a message without parts", () => {
       renderMessages(
         [
           assistantMessage("failed-1", 62_000, {
@@ -492,7 +492,7 @@ describe("AgentChatMessages", () => {
       ]);
     });
 
-    it("keeps completed plain and structured turns mounted without rendering them again while the live turn streams https://github.com/logancyang/obsidian-copilot/issues/3343", () => {
+    it("keeps completed plain and structured turns mounted without rendering them again while the live turn streams", () => {
       const user = assistantMessage("user-1", 1_000, {
         sender: "user",
         message: "Summarize this note",
@@ -573,7 +573,7 @@ describe("AgentChatMessages", () => {
       );
     });
 
-    it("shows questions before permissions and reveals a permission after questions clear for https://github.com/logancyang/obsidian-copilot/issues/2948", () => {
+    it("shows questions before permissions and reveals a permission after questions clear", () => {
       const { rerender, props } = renderMessages([assistantMessage("answer-1", 62_000)], false, {
         pendingToolPermissions: [permission("permission-first"), permission("permission-second")],
         pendingAskUserQuestions: [question("question-first")],
@@ -600,7 +600,7 @@ describe("AgentChatMessages", () => {
       expect(rail.querySelector("[data-action-id]")).not.toBe(firstAction);
     });
 
-    it("passes the pending permission the tool name its chat tool call shows for https://github.com/Brevilabs/obsidian-copilot-private/issues/599", () => {
+    it("passes the pending permission the tool name its chat tool call shows", () => {
       const toolTurn = assistantMessage("answer-1", 62_000, {
         parts: [
           { kind: "tool_call", id: "search-1", title: "websearch", status: "pending" },
@@ -616,7 +616,7 @@ describe("AgentChatMessages", () => {
       );
     });
 
-    it("labels a permission request with the task that asked (https://github.com/Brevilabs/obsidian-copilot-private/issues/749)", () => {
+    it("labels a permission request with the task that asked", () => {
       const request = { ...permission("sub-bash"), requester: { taskId: "task-1" } };
 
       render(
@@ -639,7 +639,7 @@ describe("AgentChatMessages", () => {
       );
     });
 
-    it("bounds and scrolls a tall action rail so controls remain reachable for https://github.com/logancyang/obsidian-copilot/issues/2948", () => {
+    it("bounds and scrolls a tall action rail so controls remain reachable", () => {
       renderMessages([], false, {
         pendingAskUserQuestions: [question("empty-chat-question")],
       });

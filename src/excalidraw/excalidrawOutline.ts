@@ -46,8 +46,6 @@ const MAX_OVERLAP_LINES = 40;
 
 export function outlineScene(path: string, sceneElements: readonly SceneElement[]): string[] {
   const all = sceneElements.filter((e) => !e.isDeleted);
-  // An icon arrives as a group of a dozen unlabelled strokes; listing each one would bury the diagram's real shapes.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/792
   const drawnGroups = new Map<string, SceneElement[]>();
   for (const e of all) {
     const g = e.groupIds?.[e.groupIds.length - 1];
@@ -219,8 +217,6 @@ export function outlineScene(path: string, sceneElements: readonly SceneElement[
     const q = p[p.length - 1];
     return nearest([e.x + p[0][0], e.y + p[0][1]], e.id) && nearest([e.x + q[0], e.y + q[1]], e.id);
   };
-  // A line between two shapes reads as a connector but can never bind, so it is listed with the arrows and flagged.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
   const arrows = els.filter(
     (e) => e.type === "arrow" || (e.type === "line" && (e.points ?? []).length <= 6 && connects(e))
   );
@@ -248,8 +244,6 @@ export function outlineScene(path: string, sceneElements: readonly SceneElement[
       if ((sb && !back(sb)) || (eb && !back(eb))) loose.push("binding one-sided");
       const lt = boundText(a);
       const reversed = a.startArrowhead && !a.endArrowhead;
-      // A connector drawn without arrowheads has no direction, and reading it as one misstates the diagram.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
       const link = [" -- ", " -> ", " <-> "][
         [a.startArrowhead, a.endArrowhead].filter(Boolean).length
       ];
@@ -322,8 +316,6 @@ export function outlineScene(path: string, sceneElements: readonly SceneElement[
   return lines;
 }
 
-// Each element is drawn over the ones before it, so a sticker tucked under a filled card looks attached to its neighbour.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
 function overlaps(
   els: readonly SceneElement[],
   stackable: readonly SceneElement[],

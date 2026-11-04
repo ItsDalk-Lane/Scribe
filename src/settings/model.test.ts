@@ -1,5 +1,5 @@
 import {
-  COPILOT_FOLDER_ROOT,
+  SCRIBE_FOLDER_ROOT,
   DEFAULT_QA_EXCLUSIONS_SETTING,
   DEFAULT_SETTINGS,
   SEND_SHORTCUT,
@@ -7,46 +7,33 @@ import {
 import {
   normalizeRootFolders,
   resetSettings,
-  sanitizeEnvOverrides,
   sanitizeBuiltinPreferences,
   sanitizeQaExclusions,
   sanitizeSettings,
   settingsAtom,
   settingsStore,
-  toVisibleCopilotFolder,
-  validateCopilotFolder,
-  CopilotSettings,
+  toVisibleScribeFolder,
+  validateScribeFolder,
+  ScribeSettings,
 } from "@/settings/model";
 import { CustomModel } from "@/aiParams";
 
-function sanitizeClaudeSlice(autoModePermission: unknown): CopilotSettings {
-  return sanitizeSettings({
-    ...DEFAULT_SETTINGS,
-    agentMode: {
-      enabled: true,
-      byok: {},
-      activeBackend: "claude",
-      backends: { claude: { autoModePermission } },
-    },
-  } as unknown as CopilotSettings);
-}
-
 describe("model", () => {
-  describe("sanitizeQaExclusions()", () => {
-    it("defaults to copilot root when value is not a string", () => {
+  describe("sanitizeQaExclusions", () => {
+    it("defaults to scribe root when value is not a string", () => {
       expect(sanitizeQaExclusions(undefined)).toBe(
         encodeURIComponent(DEFAULT_QA_EXCLUSIONS_SETTING)
       );
     });
 
     it("keeps slash-only patterns distinct from canonical entries", () => {
-      const rawValue = `${encodeURIComponent("///")},${encodeURIComponent(COPILOT_FOLDER_ROOT)}`;
+      const rawValue = `${encodeURIComponent("///")},${encodeURIComponent(SCRIBE_FOLDER_ROOT)}`;
 
       const sanitized = sanitizeQaExclusions(rawValue);
 
       expect(sanitized.split(",")).toEqual([
         encodeURIComponent("///"),
-        encodeURIComponent(COPILOT_FOLDER_ROOT),
+        encodeURIComponent(SCRIBE_FOLDER_ROOT),
       ]);
     });
 
@@ -58,7 +45,7 @@ describe("model", () => {
       expect(sanitized.split(",")).toEqual([encodeURIComponent("folder/")]);
     });
 
-    it("does not add the copilot root to a custom exclusion list (the system exclusion covers it)", () => {
+    it("does not add the scribe root to a custom exclusion list (the system exclusion covers it)", () => {
       const rawValue = encodeURIComponent("folder");
 
       const sanitized = sanitizeQaExclusions(rawValue);
@@ -73,17 +60,72 @@ describe("model", () => {
     });
   });
 
-  describe("sanitizeSettings()", () => {
+  describe("sanitizeSettings", () => {
+    it("preserves the native agent model, permission mode and step limit without changing BYOK connections", () => {
+      const result = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          activeBackend: "native",
+          backends: {
+            native: {
+              enabled: true,
+              defaultModel: { baseModelId: "custom-model", effort: "high" },
+              defaultMode: "plan",
+              maxSteps: 75,
+            },
+          },
+        },
+        backends: {
+          chat: { enabledModels: ["custom-model"] },
+          native: { enabledModels: ["custom-model"] },
+        },
+      } as unknown as ScribeSettings);
+      expect(result.agentMode.backends).toEqual({
+        native: {
+          enabled: true,
+          defaultModel: { baseModelId: "custom-model", effort: "high" },
+          defaultMode: "plan",
+          maxSteps: 75,
+        },
+      });
+      expect(result.backends).toEqual({
+        chat: { enabledModels: ["custom-model"] },
+        native: { enabledModels: ["custom-model"] },
+      });
+    });
+
+    it("drops invalid native model, permission mode, step limit and external runtime fields", () => {
+      const result = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          backends: {
+            native: {
+              defaultModel: { baseModelId: "" },
+              defaultMode: "unrestricted",
+              maxSteps: -1,
+              cliPath: "/external-agent",
+              envOverrides: { SECRET: "not-native" },
+            },
+          },
+        },
+      } as unknown as ScribeSettings);
+      expect(result.agentMode.backends).toEqual({
+        native: { defaultModel: undefined, defaultMode: undefined, maxSteps: undefined },
+      });
+    });
+
     it.each([true, false])("preserves the agent enabled choice %s", (enabled) => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        agentMode: { ...DEFAULT_SETTINGS.agentMode, backends: { claude: { enabled } } },
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, backends: { native: { enabled } } },
       });
-      expect(sanitized.agentMode.backends.claude?.enabled).toBe(enabled);
+      expect(sanitized.agentMode.backends.native?.enabled).toBe(enabled);
     });
 
     it.each(["claude", "opencode", "codex"])(
-      "keeps only Claude agent settings when loading a %s default",
+      "keeps native settings and ignores retired runtime configuration when loading a %s default",
       (activeBackend) => {
         const sanitized = sanitizeSettings({
           ...DEFAULT_SETTINGS,
@@ -91,7 +133,8 @@ describe("model", () => {
             ...DEFAULT_SETTINGS.agentMode,
             activeBackend,
             backends: {
-              claude: { defaultModel: { baseModelId: "sonnet", effort: "high" } },
+              native: { defaultModel: { baseModelId: "selected-model", effort: "high" } },
+              claude: { defaultModel: { baseModelId: "legacy-model", effort: null } },
               opencode: { binaryPath: "/legacy/opencode" },
               codex: { binaryPath: "/legacy/codex" },
             },
@@ -104,22 +147,19 @@ describe("model", () => {
               },
             },
           },
-        } as unknown as CopilotSettings);
+        } as unknown as ScribeSettings);
 
-        expect(sanitized.agentMode.activeBackend).toBe("claude");
-        expect(Object.keys(sanitized.agentMode.backends)).toEqual(["claude"]);
-        expect(sanitized.agentMode.backends.claude?.defaultModel).toEqual({
-          baseModelId: "sonnet",
+        expect(sanitized.agentMode.activeBackend).toBe("native");
+        expect(Object.keys(sanitized.agentMode.backends)).toEqual(["native"]);
+        expect(sanitized.agentMode.backends.native?.defaultModel).toEqual({
+          baseModelId: "selected-model",
           effort: "high",
         });
-        expect(sanitized.agentMode.deviceProfiles?.laptop).toEqual({
-          claudeCliPath: "/bin/claude",
-          claude: { envOverrides: { ANTHROPIC_BASE_URL: "https://example.com" } },
-        });
+        expect("deviceProfiles" in sanitized.agentMode).toBe(false);
       }
     );
 
-    it("removes retired agent models and references while preserving Claude and ordinary chat providers", () => {
+    it("removes retired agent models and references while preserving ordinary chat providers", () => {
       const provider = (providerId: string, origin: unknown) => ({
         providerId,
         providerType: "openai-compatible",
@@ -153,18 +193,16 @@ describe("model", () => {
           codex: { enabledModels: ["codex-model"] },
           opencode: { enabledModels: ["opencode-model"] },
         },
-      } as unknown as CopilotSettings;
+      } as unknown as ScribeSettings;
 
       const sanitized = sanitizeSettings(input);
 
-      expect(Object.keys(sanitized.providers)).toEqual(["claude", "Codex BYOK"]);
+      expect(Object.keys(sanitized.providers)).toEqual(["Codex BYOK"]);
       expect(sanitized.configuredModels.map((record) => record.configuredModelId)).toEqual([
-        "sonnet",
         "gpt-5.2-codex",
       ]);
       expect(sanitized.backends).toEqual({
         chat: { enabledModels: ["gpt-5.2-codex"] },
-        claude: { enabledModels: ["sonnet"] },
       });
       expect(Object.keys(input.providers)).toHaveLength(4);
       expect(input.configuredModels).toHaveLength(4);
@@ -174,7 +212,7 @@ describe("model", () => {
       const settingsWithoutShortcut = {
         ...DEFAULT_SETTINGS,
         defaultSendShortcut: undefined,
-      } as unknown as CopilotSettings;
+      } as unknown as ScribeSettings;
 
       const sanitized = sanitizeSettings(settingsWithoutShortcut);
 
@@ -185,7 +223,7 @@ describe("model", () => {
       const settingsWithInvalidShortcut = {
         ...DEFAULT_SETTINGS,
         defaultSendShortcut: "invalid-shortcut",
-      } as unknown as CopilotSettings;
+      } as unknown as ScribeSettings;
 
       const sanitized = sanitizeSettings(settingsWithInvalidShortcut);
 
@@ -221,7 +259,7 @@ describe("model", () => {
       });
       expect(sanitized.agentMode).toEqual({
         byok: {},
-        activeBackend: "claude",
+        activeBackend: "native",
         backends: {},
         debugFullFrames: true,
         offerFeedbackCards: true,
@@ -240,34 +278,34 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(sanitized.agentMode.notificationSound).toBe(true);
     });
 
-    it("keeps a chosen notification sound and drops one no longer in the catalog (https://github.com/logancyang/obsidian-copilot/issues/2987)", () => {
+    it("keeps a chosen notification sound and drops one no longer in the catalog", () => {
       const chosen = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSoundId: "doorbell",
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(chosen.agentMode.notificationSoundId).toBe("doorbell");
 
       const removed = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSoundId: "removed-sound",
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(removed.agentMode.notificationSoundId).toBe(
         DEFAULT_SETTINGS.agentMode.notificationSoundId
       );
@@ -278,11 +316,11 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           notificationSound: false,
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(sanitized.agentMode.notificationSound).toBe(false);
     });
 
@@ -291,24 +329,24 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           debugFullFrames: false,
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(sanitized.agentMode.debugFullFrames).toBe(false);
     });
 
     it("offers feedback cards to an install that never saved the setting, and keeps an explicit opt-out", () => {
-      const base = { byok: {}, activeBackend: "claude", backends: {} };
+      const base = { byok: {}, activeBackend: "native", backends: {} };
       const fresh = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: base,
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       const optedOut = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: { ...base, offerFeedbackCards: false },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
 
       expect(fresh.agentMode.offerFeedbackCards).toBe(true);
       expect(optedOut.agentMode.offerFeedbackCards).toBe(false);
@@ -319,11 +357,11 @@ describe("model", () => {
         ...DEFAULT_SETTINGS,
         agentMode: {
           byok: {},
-          activeBackend: "claude",
+          activeBackend: "native",
           backends: {},
           debugFullFrames: "yes" as unknown as boolean,
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(sanitized.agentMode.debugFullFrames).toBe(true);
     });
 
@@ -331,14 +369,14 @@ describe("model", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: { enabled: true, byok: {} },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(sanitized.agentMode.backends).toEqual({});
     });
 
     it("defaults agentMode.welcomeDismissed to false when absent", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        agentMode: { byok: {} } as unknown as CopilotSettings["agentMode"],
+        agentMode: { byok: {} } as unknown as ScribeSettings["agentMode"],
       });
       expect(sanitized.agentMode.welcomeDismissed).toBe(false);
     });
@@ -349,7 +387,7 @@ describe("model", () => {
         agentMode: {
           byok: {},
           welcomeDismissed: true,
-        } as unknown as CopilotSettings["agentMode"],
+        } as unknown as ScribeSettings["agentMode"],
       });
       expect(sanitized.agentMode.welcomeDismissed).toBe(true);
     });
@@ -360,32 +398,12 @@ describe("model", () => {
         agentMode: {
           byok: {},
           welcomeDismissed: "yes",
-        } as unknown as CopilotSettings["agentMode"],
+        } as unknown as ScribeSettings["agentMode"],
       });
       expect(sanitized.agentMode.welcomeDismissed).toBe(false);
     });
 
-    it("drops invalid envOverrides keys from the Claude backend slice while keeping valid ones", () => {
-      const settings = {
-        ...DEFAULT_SETTINGS,
-        agentMode: {
-          enabled: true,
-          byok: {},
-          activeBackend: "claude",
-          backends: {
-            claude: { envOverrides: { CLAUDE_CONFIG_DIR: "/x", "BAD KEY": "y" } },
-          },
-        },
-      } as unknown as CopilotSettings;
-
-      const sanitized = sanitizeSettings(settings);
-
-      expect(sanitized.agentMode.backends.claude?.envOverrides).toEqual({
-        CLAUDE_CONFIG_DIR: "/x",
-      });
-    });
-
-    it("preserves valid built-in opt-outs and drops malformed preference values https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
+    it("preserves valid built-in opt-outs and drops malformed preference values", () => {
       const result = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
@@ -399,33 +417,33 @@ describe("model", () => {
             },
           },
         },
-      } as unknown as CopilotSettings);
+      } as unknown as ScribeSettings);
       expect(result.agentMode.skills.builtinPreferences).toEqual({
         "obsidian-markdown": { disabled: true, disabledAgents: ["opencode"] },
       });
     });
 
-    it("auto-attaches the active note for settings written before the field existed (https://github.com/logancyang/obsidian-copilot/issues/3663)", () => {
+    it("auto-attaches the active note for settings written before the field existed", () => {
       const withoutField = { ...DEFAULT_SETTINGS } as unknown as Record<string, unknown>;
       delete withoutField.autoAttachActiveNote;
 
-      const sanitized = sanitizeSettings(withoutField as unknown as CopilotSettings);
+      const sanitized = sanitizeSettings(withoutField as unknown as ScribeSettings);
 
       expect(sanitized.autoAttachActiveNote).toBe(true);
     });
 
-    it("preserves a persisted choice to stop auto-attaching the active note (https://github.com/logancyang/obsidian-copilot/issues/3663)", () => {
+    it("preserves a persisted choice to stop auto-attaching the active note", () => {
       const sanitized = sanitizeSettings({ ...DEFAULT_SETTINGS, autoAttachActiveNote: false });
 
       expect(sanitized.autoAttachActiveNote).toBe(false);
     });
 
-    it("drops a persisted global output cap so it cannot truncate answers again (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", () => {
+    it("drops a persisted global output cap so it cannot truncate answers again", () => {
       const withRetiredCap = {
         ...DEFAULT_SETTINGS,
         maxTokens: 6000,
         quickCommandIncludeNoteContext: false,
-      } as unknown as CopilotSettings;
+      } as unknown as ScribeSettings;
 
       const sanitized = sanitizeSettings(withRetiredCap);
 
@@ -480,184 +498,68 @@ describe("model", () => {
       expect(sanitized).toMatchObject(storedFields);
     });
 
-    it("keeps a Claude auto permission mode the SDK understands", () => {
-      const sanitized = sanitizeClaudeSlice("acceptEdits");
-
-      expect(sanitized.agentMode.backends.claude?.autoModePermission).toBe("acceptEdits");
-    });
-
-    it("drops an unsupported Claude auto permission mode so the descriptor default applies", () => {
-      const sanitized = sanitizeClaudeSlice("dontAsk");
-
-      expect(sanitized.agentMode.backends.claude?.autoModePermission).toBeUndefined();
-    });
-
-    it("falls back to the default copilotFolder when it is whitespace-only", () => {
+    it("falls back to the default scribeFolder when it is whitespace-only", () => {
       const out = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        copilotFolder: "   ",
+        scribeFolder: "   ",
       });
-      expect(out.copilotFolder).toBe(DEFAULT_SETTINGS.copilotFolder);
+      expect(out.scribeFolder).toBe(DEFAULT_SETTINGS.scribeFolder);
     });
 
-    it("trims surrounding whitespace from a custom copilotFolder", () => {
+    it("trims surrounding whitespace from a custom scribeFolder", () => {
       const out = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        copilotFolder: "  my-ai  ",
+        scribeFolder: "  my-ai  ",
       });
-      expect(out.copilotFolder).toBe("my-ai");
+      expect(out.scribeFolder).toBe("my-ai");
     });
 
-    it("keeps a nested custom copilotFolder", () => {
+    it("keeps a nested custom scribeFolder", () => {
       const out = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        copilotFolder: "notes/ai",
+        scribeFolder: "notes/ai",
       });
-      expect(out.copilotFolder).toBe("notes/ai");
+      expect(out.scribeFolder).toBe("notes/ai");
     });
 
-    it("loads a hidden copilotFolder as its visible name so every feature can index it (https://github.com/Brevilabs/obsidian-copilot-private/issues/712)", () => {
+    it("loads a hidden scribeFolder as its visible name so every feature can index it", () => {
       for (const [hidden, visible] of [
-        [".copilot", "copilot"],
+        [".scribe", "scribe"],
         ["notes/.ai/", "notes/ai"],
       ]) {
-        const out = sanitizeSettings({ ...DEFAULT_SETTINGS, copilotFolder: hidden });
-        expect(out.copilotFolder).toBe(visible);
-        expect(out.copilotRootHistory).toContain(visible);
+        const out = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: hidden });
+        expect(out.scribeFolder).toBe(visible);
+        expect(out.scribeRootHistory).toContain(visible);
       }
     });
 
-    it("unions the active root into a normalized, deduped copilotRootHistory", () => {
+    it("unions the active root into a normalized, deduped scribeRootHistory", () => {
       const out = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        copilotFolder: "team-ai",
-        copilotRootHistory: ["copilot", "ai", "copilot"],
+        scribeFolder: "team-ai",
+        scribeRootHistory: ["scribe", "ai", "scribe"],
       });
-      expect(new Set(out.copilotRootHistory)).toEqual(new Set(["copilot", "ai", "team-ai"]));
+      expect(new Set(out.scribeRootHistory)).toEqual(new Set(["scribe", "ai", "team-ai"]));
     });
 
-    it("adds the active root to copilotRootHistory even when the history is missing", () => {
-      const raw = { ...DEFAULT_SETTINGS, copilotFolder: "ai" } as unknown as Record<
-        string,
-        unknown
-      >;
-      delete raw.copilotRootHistory;
-      const out = sanitizeSettings(raw as unknown as CopilotSettings);
-      expect(out.copilotRootHistory).toContain("ai");
+    it("adds the active root to scribeRootHistory even when the history is missing", () => {
+      const raw = { ...DEFAULT_SETTINGS, scribeFolder: "ai" } as unknown as Record<string, unknown>;
+      delete raw.scribeRootHistory;
+      const out = sanitizeSettings(raw as unknown as ScribeSettings);
+      expect(out.scribeRootHistory).toContain("ai");
     });
 
-    it("coerces a non-boolean upgradedToV8FromLegacy to false", () => {
-      const out = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        upgradedToV8FromLegacy: undefined,
-      } as unknown as CopilotSettings);
-      expect(out.upgradedToV8FromLegacy).toBe(false);
-    });
-
-    it("preserves upgradedToV8FromLegacy=true", () => {
-      const out = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        upgradedToV8FromLegacy: true,
-      });
-      expect(out.upgradedToV8FromLegacy).toBe(true);
-    });
-
-    it("falls back to the default copilotFolder for every path validateCopilotFolder rejects and keeps a valid nested folder", () => {
-      for (const value of ["../escape", "/etc/passwd", "C:/x", "", "NUL", "copilot."]) {
-        const out = sanitizeSettings({ ...DEFAULT_SETTINGS, copilotFolder: value });
-        expect(out.copilotFolder).toBe(DEFAULT_SETTINGS.copilotFolder);
+    it("falls back to the default scribeFolder for every path validateScribeFolder rejects and keeps a valid nested folder", () => {
+      for (const value of ["../escape", "/etc/passwd", "C:/x", "", "NUL", "scribe."]) {
+        const out = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: value });
+        expect(out.scribeFolder).toBe(DEFAULT_SETTINGS.scribeFolder);
       }
-      const kept = sanitizeSettings({ ...DEFAULT_SETTINGS, copilotFolder: "team/ai" });
-      expect(kept.copilotFolder).toBe("team/ai");
-    });
-
-    it("preserves a valid deviceProfiles map and drops empty or invalid entries", () => {
-      const raw = {
-        agentMode: {
-          deviceProfiles: {
-            "device-a": {
-              claudeCliPath: "/a/claude",
-              opencode: { binaryPath: "/a/oc", binaryVersion: "1", binarySource: "custom" },
-              codex: { envOverrides: { GOOD: "1", "bad-key": "x" } },
-            },
-            "device-b": {},
-            "": { claudeCliPath: "/x" },
-          },
-        },
-      };
-
-      const out = sanitizeSettings(raw as unknown as CopilotSettings);
-      const profiles = out.agentMode.deviceProfiles ?? {};
-
-      expect(profiles["device-a"]?.claudeCliPath).toBe("/a/claude");
-      expect(Object.keys(profiles["device-a"] ?? {})).toEqual(["claudeCliPath"]);
-      expect(profiles["device-b"]).toBeUndefined();
-      expect(profiles[""]).toBeUndefined();
+      const kept = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: "team/ai" });
+      expect(kept.scribeFolder).toBe("team/ai");
     });
   });
 
-  describe("sanitizeEnvOverrides()", () => {
-    it("returns undefined for non-objects", () => {
-      expect(sanitizeEnvOverrides(undefined)).toBeUndefined();
-      expect(sanitizeEnvOverrides(null)).toBeUndefined();
-      expect(sanitizeEnvOverrides("foo")).toBeUndefined();
-      expect(sanitizeEnvOverrides(42)).toBeUndefined();
-      expect(sanitizeEnvOverrides([1, 2])).toBeUndefined();
-    });
-
-    it("returns undefined when no valid entries remain", () => {
-      expect(sanitizeEnvOverrides({})).toBeUndefined();
-      expect(sanitizeEnvOverrides({ "": "v", "1FOO": "v", "BAR=BAZ": "v" })).toBeUndefined();
-    });
-
-    it("keeps valid POSIX identifiers and string values", () => {
-      expect(
-        sanitizeEnvOverrides({
-          CLAUDE_CONFIG_DIR: "/tmp/claude",
-          _PRIVATE: "x",
-          myVar2: "y",
-        })
-      ).toEqual({
-        CLAUDE_CONFIG_DIR: "/tmp/claude",
-        _PRIVATE: "x",
-        myVar2: "y",
-      });
-    });
-
-    it("drops keys with leading digits, equals signs, whitespace, or invalid characters", () => {
-      expect(
-        sanitizeEnvOverrides({
-          "1FOO": "v",
-          "FOO BAR": "v",
-          "FOO=BAR": "v",
-          "FOO-BAR": "v",
-          VALID: "v",
-        })
-      ).toEqual({ VALID: "v" });
-    });
-
-    it("drops entries whose value isn't a string or contains control chars", () => {
-      expect(
-        sanitizeEnvOverrides({
-          OK: "fine",
-          NUM: 42,
-          NULLED: null,
-          UNDEF: undefined,
-          TABS: "ok\twith\ttabs",
-          NEWLINE: "ok\nnewline",
-        })
-      ).toEqual({ OK: "fine" });
-    });
-
-    it("caps at 64 entries to bound persisted size", () => {
-      const big: Record<string, string> = {};
-      for (let i = 0; i < 100; i++) big[`VAR_${i}`] = String(i);
-      const sanitized = sanitizeEnvOverrides(big);
-      expect(sanitized && Object.keys(sanitized).length).toBe(64);
-    });
-  });
-
-  describe("sanitizeBuiltinPreferences()", () => {
+  describe("sanitizeBuiltinPreferences", () => {
     it.each([
       undefined,
       null,
@@ -665,20 +567,17 @@ describe("model", () => {
       [],
       {},
       { "obsidian-markdown": { disabled: false, disabledAgents: [] } },
-    ])(
-      "keeps absent, malformed, or default preferences empty: %p https://github.com/logancyang/obsidian-copilot/issues/3022",
-      (raw) => {
-        expect(sanitizeBuiltinPreferences(raw)).toBe(sanitizeBuiltinPreferences({}));
-        expect(sanitizeBuiltinPreferences(raw)).toEqual({});
-      }
-    );
+    ])("keeps absent, malformed, or default preferences empty: %p", (raw) => {
+      expect(sanitizeBuiltinPreferences(raw)).toBe(sanitizeBuiltinPreferences({}));
+      expect(sanitizeBuiltinPreferences(raw)).toEqual({});
+    });
 
-    it("drops retired names and malformed entries while preserving sparse overrides for known skills and absent agents https://github.com/logancyang/obsidian-copilot/issues/3022 https://github.com/Brevilabs/obsidian-copilot-private/issues/736 https://github.com/Brevilabs/obsidian-copilot-private/issues/740", () => {
+    it("drops retired names and malformed entries while preserving sparse overrides for known skills and absent agents", () => {
       expect(
         sanitizeBuiltinPreferences({
           "obsidian-markdown": { disabled: true },
           "obsidian-bases": { disabled: false, disabledAgents: ["uninstalled-agent", 3] },
-          "copilot-read-pdf": null,
+          "scribe-read-pdf": null,
           "retired-skill": { disabled: true },
         })
       ).toEqual({
@@ -688,90 +587,90 @@ describe("model", () => {
     });
   });
 
-  describe("validateCopilotFolder()", () => {
+  describe("validateScribeFolder", () => {
     it("rejects empty and whitespace-only values", () => {
-      expect(validateCopilotFolder("").ok).toBe(false);
-      expect(validateCopilotFolder("   ").ok).toBe(false);
+      expect(validateScribeFolder("").ok).toBe(false);
+      expect(validateScribeFolder("   ").ok).toBe(false);
     });
 
     it("accepts a simple relative folder and trims it", () => {
-      expect(validateCopilotFolder("  my-ai  ")).toEqual({ ok: true, folder: "my-ai" });
+      expect(validateScribeFolder("  my-ai  ")).toEqual({ ok: true, folder: "my-ai" });
     });
 
     it("accepts a nested relative folder and strips a trailing slash", () => {
-      expect(validateCopilotFolder("notes/ai/")).toEqual({ ok: true, folder: "notes/ai" });
+      expect(validateScribeFolder("notes/ai/")).toEqual({ ok: true, folder: "notes/ai" });
     });
 
     it("rejects parent-traversal, absolute, and drive-letter paths", () => {
-      expect(validateCopilotFolder("../escape").ok).toBe(false);
-      expect(validateCopilotFolder("a/../b").ok).toBe(false);
-      expect(validateCopilotFolder("/etc/passwd").ok).toBe(false);
-      expect(validateCopilotFolder("C:/Users/evil").ok).toBe(false);
+      expect(validateScribeFolder("../escape").ok).toBe(false);
+      expect(validateScribeFolder("a/../b").ok).toBe(false);
+      expect(validateScribeFolder("/etc/passwd").ok).toBe(false);
+      expect(validateScribeFolder("C:/Users/evil").ok).toBe(false);
     });
 
-    it("rejects any segment that starts with a dot, because Obsidian does not index hidden folders (https://github.com/Brevilabs/obsidian-copilot-private/issues/712)", () => {
-      expect(validateCopilotFolder(".copilot")).toEqual({
+    it("rejects any segment that starts with a dot, because Obsidian does not index hidden folders", () => {
+      expect(validateScribeFolder(".scribe")).toEqual({
         ok: false,
         reason: "Folder names cannot start with a dot.",
       });
-      expect(validateCopilotFolder("notes/.ai").ok).toBe(false);
-      expect(validateCopilotFolder("a/./b").ok).toBe(false);
-      expect(validateCopilotFolder("notes.ai/copilot").ok).toBe(true);
+      expect(validateScribeFolder("notes/.ai").ok).toBe(false);
+      expect(validateScribeFolder("a/./b").ok).toBe(false);
+      expect(validateScribeFolder("notes.ai/scribe").ok).toBe(true);
     });
 
     it("rejects roots that overlap the active config folder at a segment boundary", () => {
       const configDir = ".vault-config";
-      expect(validateCopilotFolder(configDir, configDir).ok).toBe(false);
-      expect(validateCopilotFolder(`${configDir.toUpperCase()}/plugins`, configDir).ok).toBe(false);
-      expect(validateCopilotFolder("copilot", "copilot/system-prompts").ok).toBe(false);
-      expect(validateCopilotFolder("copilot-data", "copilot/system-prompts").ok).toBe(true);
+      expect(validateScribeFolder(configDir, configDir).ok).toBe(false);
+      expect(validateScribeFolder(`${configDir.toUpperCase()}/plugins`, configDir).ok).toBe(false);
+      expect(validateScribeFolder("scribe", "scribe/system-prompts").ok).toBe(false);
+      expect(validateScribeFolder("scribe-data", "scribe/system-prompts").ok).toBe(true);
     });
 
     it("rejects Windows-illegal characters in any segment", () => {
-      expect(validateCopilotFolder("a/b<c").ok).toBe(false);
-      expect(validateCopilotFolder('a/b"c').ok).toBe(false);
-      expect(validateCopilotFolder("a/b|c").ok).toBe(false);
+      expect(validateScribeFolder("a/b<c").ok).toBe(false);
+      expect(validateScribeFolder('a/b"c').ok).toBe(false);
+      expect(validateScribeFolder("a/b|c").ok).toBe(false);
     });
 
     it("rejects Windows-reserved device names in any segment, any case, with or without extension", () => {
-      expect(validateCopilotFolder("NUL").ok).toBe(false);
-      expect(validateCopilotFolder("team/CON").ok).toBe(false);
-      expect(validateCopilotFolder("con.md").ok).toBe(false);
-      expect(validateCopilotFolder("Com1").ok).toBe(false);
-      expect(validateCopilotFolder("console").ok).toBe(true);
-      expect(validateCopilotFolder("nul-notes").ok).toBe(true);
+      expect(validateScribeFolder("NUL").ok).toBe(false);
+      expect(validateScribeFolder("team/CON").ok).toBe(false);
+      expect(validateScribeFolder("con.md").ok).toBe(false);
+      expect(validateScribeFolder("Com1").ok).toBe(false);
+      expect(validateScribeFolder("console").ok).toBe(true);
+      expect(validateScribeFolder("nul-notes").ok).toBe(true);
     });
 
     it("rejects segments ending with a dot or space on every platform", () => {
-      expect(validateCopilotFolder("copilot.").ok).toBe(false);
-      expect(validateCopilotFolder("team /ai").ok).toBe(false);
-      expect(validateCopilotFolder("team./ai").ok).toBe(false);
+      expect(validateScribeFolder("scribe.").ok).toBe(false);
+      expect(validateScribeFolder("team /ai").ok).toBe(false);
+      expect(validateScribeFolder("team./ai").ok).toBe(false);
     });
   });
 
-  describe("toVisibleCopilotFolder()", () => {
+  describe("toVisibleScribeFolder", () => {
     it("drops the leading dots of every segment and keeps visible paths unchanged", () => {
-      expect(toVisibleCopilotFolder(" .copilot ")).toBe("copilot");
-      expect(toVisibleCopilotFolder("..a\\.b/c.d")).toBe("a\\b/c.d");
-      expect(toVisibleCopilotFolder("notes/ai")).toBe("notes/ai");
+      expect(toVisibleScribeFolder(" .scribe ")).toBe("scribe");
+      expect(toVisibleScribeFolder("..a\\.b/c.d")).toBe("a\\b/c.d");
+      expect(toVisibleScribeFolder("notes/ai")).toBe("notes/ai");
     });
 
     it("turns traversal segments into empty segments that validation still rejects", () => {
-      expect(validateCopilotFolder(toVisibleCopilotFolder("../escape")).ok).toBe(false);
-      expect(validateCopilotFolder(toVisibleCopilotFolder("a/../b")).ok).toBe(false);
+      expect(validateScribeFolder(toVisibleScribeFolder("../escape")).ok).toBe(false);
+      expect(validateScribeFolder(toVisibleScribeFolder("a/../b")).ok).toBe(false);
     });
   });
 
-  describe("normalizeRootFolders()", () => {
+  describe("normalizeRootFolders", () => {
     it("preserves case and strips trailing slashes without lowercasing", () => {
-      expect(normalizeRootFolders(["Copilot/", "ai//"])).toEqual(["Copilot", "ai"]);
+      expect(normalizeRootFolders(["Scribe/", "ai//"])).toEqual(["Scribe", "ai"]);
     });
 
     it("dedupes case-sensitively, preserving first-seen order", () => {
-      expect(normalizeRootFolders(["copilot", "ai", "copilot", "Copilot"])).toEqual([
-        "copilot",
+      expect(normalizeRootFolders(["scribe", "ai", "scribe", "Scribe"])).toEqual([
+        "scribe",
         "ai",
-        "Copilot",
+        "Scribe",
       ]);
     });
 
@@ -803,22 +702,22 @@ describe("model", () => {
     });
   });
 
-  describe("resetSettings()", () => {
+  describe("resetSettings", () => {
     it("preserves historical roots and folds in the pre-reset active root", () => {
       settingsStore.set(settingsAtom, {
         ...DEFAULT_SETTINGS,
-        copilotFolder: "team-ai",
-        copilotRootHistory: ["copilot", "ai"],
+        scribeFolder: "team-ai",
+        scribeRootHistory: ["scribe", "ai"],
       });
 
       resetSettings();
 
       const after = settingsStore.get(settingsAtom);
-      expect(after.copilotFolder).toBe(DEFAULT_SETTINGS.copilotFolder);
-      expect(new Set(after.copilotRootHistory)).toEqual(new Set(["copilot", "ai", "team-ai"]));
+      expect(after.scribeFolder).toBe(DEFAULT_SETTINGS.scribeFolder);
+      expect(new Set(after.scribeRootHistory)).toEqual(new Set(["scribe", "ai", "team-ai"]));
     });
 
-    it("preserves every custom model, including rows that carry no key (https://github.com/logancyang/obsidian-copilot-preview/issues/259)", () => {
+    it("preserves every custom model, including rows that carry no key", () => {
       const withKey: CustomModel = {
         name: "my-llama",
         provider: "openai",
@@ -861,7 +760,7 @@ describe("model", () => {
       expect(after.googleApiKey).toBe(DEFAULT_SETTINGS.googleApiKey);
     });
 
-    it("preserves the top-level vendor config a retained key needs to reach its service (https://github.com/logancyang/obsidian-copilot-preview/issues/259)", () => {
+    it("preserves the top-level vendor config a retained key needs to reach its service", () => {
       const vendorConfig = {
         openAIOrgId: "org-123",
         azureOpenAIApiInstanceName: "my-instance",
@@ -875,7 +774,7 @@ describe("model", () => {
       expect(settingsStore.get(settingsAtom)).toMatchObject(vendorConfig);
     });
 
-    it("drops a bundle value whose type its consumer cannot handle (https://github.com/logancyang/obsidian-copilot-preview/issues/259)", () => {
+    it("drops a bundle value whose type its consumer cannot handle", () => {
       settingsStore.set(settingsAtom, {
         ...DEFAULT_SETTINGS,
         openAIApiKey: "sk-openai",
@@ -889,7 +788,7 @@ describe("model", () => {
       expect(after.openAIOrgId).toBe(DEFAULT_SETTINGS.openAIOrgId);
     });
 
-    it("preserves configured models belonging to preserved providers (https://github.com/logancyang/obsidian-copilot-preview/issues/259)", () => {
+    it("preserves configured models belonging to preserved providers", () => {
       const providerId1 = "prov-with-key";
       const providerId2 = "prov-no-key";
       settingsStore.set(settingsAtom, {
@@ -953,7 +852,7 @@ describe("model", () => {
         },
         backends: {
           chat: { enabledModels: ["model-1", "model-2"] },
-          claude: { enabledModels: ["model-3"] },
+          native: { enabledModels: ["model-3"] },
         },
       });
 

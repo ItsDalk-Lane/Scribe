@@ -36,7 +36,7 @@ const cancelButton = (): HTMLElement => screen.getByRole("button", { name: /canc
 const otherTextarea = (): HTMLElement => screen.getByPlaceholderText(/type your response/i);
 
 describe("AskUserQuestionCard", () => {
-  describe("AskUserQuestionCard()", () => {
+  describe("AskUserQuestionCard", () => {
     it("single-select 'Other' → the trimmed typed text is the answer", () => {
       const onResolve = jest.fn();
       const request = makeRequest([
@@ -80,7 +80,7 @@ describe("AskUserQuestionCard", () => {
       });
     });
 
-    it("requires an explicit answer for every question before submitting (https://github.com/Brevilabs/obsidian-copilot-private/issues/182)", () => {
+    it("requires an explicit answer for every question before submitting", () => {
       const onResolve = jest.fn();
       const request = makeRequest([
         {
@@ -131,7 +131,7 @@ describe("AskUserQuestionCard", () => {
       });
     });
 
-    it("advances an answered non-final question without resolving the request (https://github.com/Brevilabs/obsidian-copilot-private/issues/117)", () => {
+    it("advances an answered non-final question without resolving the request", () => {
       const onResolve = jest.fn();
       const request = makeRequest(NAVIGATION_QUESTIONS);
       renderCard(request, onResolve);
@@ -159,7 +159,7 @@ describe("AskUserQuestionCard", () => {
       });
     });
 
-    it("keeps final Submit disabled when a middle question was skipped (https://github.com/Brevilabs/obsidian-copilot-private/issues/117)", () => {
+    it("keeps final Submit disabled when a middle question was skipped", () => {
       const onResolve = jest.fn();
       const request = makeRequest([
         ...NAVIGATION_QUESTIONS,
@@ -181,7 +181,7 @@ describe("AskUserQuestionCard", () => {
       expect(onResolve).not.toHaveBeenCalled();
     });
 
-    it("uses Cmd/Ctrl+Enter for the same Next action shown on a non-final question (https://github.com/Brevilabs/obsidian-copilot-private/issues/117)", () => {
+    it("uses Cmd/Ctrl+Enter for the same Next action shown on a non-final question", () => {
       const onResolve = jest.fn();
       const request = makeRequest(NAVIGATION_QUESTIONS);
       renderCard(request, onResolve);
@@ -226,7 +226,7 @@ describe("AskUserQuestionCard", () => {
       expect(onResolve).toHaveBeenCalledWith(REQUEST_ID, {});
     });
 
-    it("hides Other and submits under the answer key when the backend cannot accept typed answers (https://github.com/Brevilabs/obsidian-copilot-private/issues/551)", () => {
+    it("hides Other and submits under the answer key when the backend cannot accept typed answers", () => {
       const onResolve = jest.fn();
       renderCard(
         makeRequest([

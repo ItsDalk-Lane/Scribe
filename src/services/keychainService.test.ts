@@ -33,22 +33,22 @@ jest.mock("@/logger", () => ({
 
 import { FileSystemAdapter, Notice, type App } from "obsidian";
 import { getSettings } from "@/settings/model";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import type { CustomModel } from "@/aiParams";
 import type { Provider } from "@/modelManagement";
 import {
   KeychainService,
-  isCopilotOwnedSecret,
+  isScribeOwnedSecret,
   isSecretKey,
   providerKeychainName,
 } from "./keychainService";
 import { stripKeychainFields } from "./settingsSecretTransforms";
 
-function makeSettings(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return {
     activeModels: [],
     ...overrides,
-  } as unknown as CopilotSettings;
+  } as unknown as ScribeSettings;
 }
 
 function makeModel(overrides: Partial<CustomModel> = {}): CustomModel {
@@ -129,7 +129,7 @@ beforeEach(() => {
 });
 
 describe("keychainService", () => {
-  describe("isSecretKey()", () => {
+  describe("isSecretKey", () => {
     it.each(["openAIApiKey", "anthropicApiKey"])(
       "returns true for the secret setting %s",
       (key) => {
@@ -142,7 +142,7 @@ describe("keychainService", () => {
     });
   });
 
-  describe("stripKeychainFields()", () => {
+  describe("stripKeychainFields", () => {
     it("blanks sensitive Claude environment variables in the flat config and every device profile", () => {
       const settings = makeSettings({
         agentMode: {
@@ -158,10 +158,16 @@ describe("keychainService", () => {
               },
             },
           },
-        } as unknown as CopilotSettings["agentMode"],
+        } as unknown as ScribeSettings["agentMode"],
       });
 
-      const stripped = stripKeychainFields(settings);
+      const stripped = stripKeychainFields(settings) as unknown as {
+        agentMode: {
+          backends: { claude: { envOverrides: Record<string, string> } };
+          deviceProfiles: Record<string, { claude: { envOverrides: Record<string, string> } }>;
+        };
+      };
+      const source = settings as unknown as typeof stripped;
 
       expect(stripped.agentMode?.backends?.claude?.envOverrides).toEqual({
         ANTHROPIC_API_KEY: "",
@@ -171,11 +177,11 @@ describe("keychainService", () => {
         ANTHROPIC_API_KEY: "",
         CLAUDE_CONFIG_DIR: "/config",
       });
-      expect(settings.agentMode?.backends?.claude?.envOverrides?.ANTHROPIC_API_KEY).toBe("sk-env");
+      expect(source.agentMode?.backends?.claude?.envOverrides?.ANTHROPIC_API_KEY).toBe("sk-env");
     });
   });
 
-  describe("providerKeychainName()", () => {
+  describe("providerKeychainName", () => {
     it("names a catalog provider after its catalog id, so every device mints the same name for the vault", () => {
       const provider = makeProvider({ displayName: "My Claude" });
 
@@ -236,19 +242,19 @@ describe("keychainService", () => {
     });
   });
 
-  describe("isCopilotOwnedSecret()", () => {
+  describe("isScribeOwnedSecret", () => {
     it("treats a scribe- name as Scribe-owned", () => {
-      expect(isCopilotOwnedSecret(`scribe-v${VAULT_ID}-provider-anthropic-api-key`)).toBe(true);
+      expect(isScribeOwnedSecret(`scribe-v${VAULT_ID}-provider-anthropic-api-key`)).toBe(true);
     });
 
-    it("treats a secret another plugin named as not Copilot-owned", () => {
-      expect(isCopilotOwnedSecret("anthropic-api-key")).toBe(false);
+    it("treats a secret another plugin named as not Scribe-owned", () => {
+      expect(isScribeOwnedSecret("anthropic-api-key")).toBe(false);
     });
   });
 
   describe("KeychainService", () => {
-    describe("migrateProviderNames()", () => {
-      function migrate(entries: Record<string, string>, settings: CopilotSettings) {
+    describe("migrateProviderNames", () => {
+      function migrate(entries: Record<string, string>, settings: ScribeSettings) {
         const storage = makeMapStorage(entries);
         const service = KeychainService.getInstance(makeApp({ secretStorage: storage }));
         service.setVaultId(VAULT_ID);
@@ -258,7 +264,7 @@ describe("keychainService", () => {
       const legacyPointer = `scribe-v${VAULT_ID}-provider-row-1`;
       const stableName = `scribe-v${VAULT_ID}-provider-anthropic-api-key`;
 
-      it("moves a key from its random-id name to its stable name and rewrites the pointer (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("moves a key from its random-id name to its stable name and rewrites the pointer", () => {
         const { storage, migrated } = migrate(
           { [legacyPointer]: "sk-ant" },
           makeSettings({
@@ -269,6 +275,22 @@ describe("keychainService", () => {
         expect(migrated.providers["row-1"].apiKeyKeychainId).toBe(stableName);
         expect(storage.secrets.get(stableName)).toBe("sk-ant");
         expect(storage.secrets.has(legacyPointer)).toBe(false);
+      });
+
+      it("plans the rename without touching storage, so a failed backup can skip it (https://github.com/ItsDalk-Lane/Scribe/issues/23)", () => {
+        const storage = makeMapStorage({ [legacyPointer]: "sk-ant" });
+        const service = KeychainService.getInstance(makeApp({ secretStorage: storage }));
+        service.setVaultId(VAULT_ID);
+
+        const plan = service.planProviderNames(
+          makeSettings({
+            providers: { "row-1": makeProvider({ apiKeyKeychainId: legacyPointer }) },
+          })
+        );
+
+        expect(plan.settings.providers["row-1"].apiKeyKeychainId).toBe(stableName);
+        expect(storage.secrets.has(legacyPointer)).toBe(true);
+        expect(storage.secrets.has(stableName)).toBe(false);
       });
 
       it("rewrites a legacy pointer this device never held, so a re-entered key lands on the stable name", () => {
@@ -283,7 +305,7 @@ describe("keychainService", () => {
         expect(storage.secrets.has(stableName)).toBe(false);
       });
 
-      it("fills a stable pointer synced from another device with this device's legacy key for the same provider (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("fills a stable pointer synced from another device with this device's legacy key for the same provider", () => {
         const settings = makeSettings({
           providers: { "row-1": makeProvider({ apiKeyKeychainId: stableName }) },
         });
@@ -295,7 +317,7 @@ describe("keychainService", () => {
         expect(migrated).toBe(settings);
       });
 
-      it("leaves an existing stable entry untouched, so a key changed after migration is not reverted", () => {
+      it("keeps both values when the stable and legacy names hold different keys (https://github.com/ItsDalk-Lane/Scribe/issues/24)", () => {
         const { storage } = migrate(
           { [stableName]: "sk-new", [legacyPointer]: "sk-old" },
           makeSettings({
@@ -304,10 +326,22 @@ describe("keychainService", () => {
         );
 
         expect(storage.secrets.get(stableName)).toBe("sk-new");
-        expect(storage.secrets.has(legacyPointer)).toBe(false);
+        expect(storage.secrets.get(legacyPointer)).toBe("sk-old");
       });
 
-      it("does not restore a key deleted from its stable name after migration (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("still removes the legacy entry when both names hold the same key", () => {
+        const { storage } = migrate(
+          { [stableName]: "sk-ant", [legacyPointer]: "sk-ant" },
+          makeSettings({
+            providers: { "row-1": makeProvider({ apiKeyKeychainId: legacyPointer }) },
+          })
+        );
+
+        expect(storage.secrets.has(legacyPointer)).toBe(false);
+        expect(storage.secrets.get(stableName)).toBe("sk-ant");
+      });
+
+      it("does not restore a key deleted from its stable name after migration", () => {
         const { storage, service, migrated } = migrate(
           { [legacyPointer]: "sk-ant" },
           makeSettings({
@@ -333,7 +367,7 @@ describe("keychainService", () => {
         expect(storage.secrets.has(stableName)).toBe(false);
       });
 
-      it("leaves a pointer to another plugin's secret and this vault's legacy entry alone (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("leaves a pointer to another plugin's secret and this vault's legacy entry alone", () => {
         const settings = makeSettings({
           providers: { "row-1": makeProvider({ apiKeyKeychainId: "anthropic-api-key" }) },
         });
@@ -349,7 +383,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("getVaultId()", () => {
+    describe("getVaultId", () => {
       it("derives an 8-character hex ID from the desktop vault path", () => {
         const service = KeychainService.getInstance(makeApp({ basePath: "/Users/test/MyVault" }));
         const id = service.getVaultId();
@@ -372,7 +406,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("deleteSecret()", () => {
+    describe("deleteSecret", () => {
       it("removes the vault-namespaced entry for a settings key", () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
@@ -398,7 +432,27 @@ describe("keychainService", () => {
       });
     });
 
-    describe("hydrateFromKeychain()", () => {
+    describe("hydrateFromKeychain", () => {
+      it("does not read or hydrate retired agent runtime environment credentials", async () => {
+        const secretStorage = makeSecretStorage();
+        const service = KeychainService.getInstance(makeApp({ secretStorage }));
+        const legacy = makeSettings({
+          agentMode: {
+            backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "" } } },
+          } as unknown as ScribeSettings["agentMode"],
+        });
+        await service.hydrateFromKeychain(legacy);
+        expect(secretStorage.getSecret.mock.calls.flat()).not.toEqual(
+          expect.arrayContaining([expect.stringContaining("env-overrides")])
+        );
+        expect(legacy).toEqual(
+          makeSettings({
+            agentMode: {
+              backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "" } } },
+            } as unknown as ScribeSettings["agentMode"],
+          })
+        );
+      });
       it("honors a keychain tombstone by zeroing the in-memory field", async () => {
         const secretStorage = makeSecretStorage();
         secretStorage.getSecret.mockReturnValue("");
@@ -489,57 +543,32 @@ describe("keychainService", () => {
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
 
         const result = await service.hydrateFromKeychain(
-          makeSettings({ legacyProviderApiKey: "" } as unknown as Partial<CopilotSettings>)
+          makeSettings({ legacyProviderApiKey: "" } as unknown as Partial<ScribeSettings>)
         );
 
         expect((result.settings as unknown as Record<string, string>).legacyProviderApiKey).toBe(
           "legacy-value"
         );
       });
-
-      it("restores this device's sensitive Claude environment variables", async () => {
-        const app = makeApp();
-        const service = KeychainService.getInstance(app);
-        const persisted = service.persistSecrets(
-          makeSettings({
-            agentMode: {
-              backends: {
-                claude: { envOverrides: { ANTHROPIC_API_KEY: "sk-env" } },
-              },
-            } as unknown as CopilotSettings["agentMode"],
-          })
-        );
-        const secretId = persisted.secretEntries.find(([, value]) => value === "sk-env")![0];
-        const secretStorage = makeSecretStorage();
-        secretStorage.getSecret.mockImplementation((id: string) =>
-          id === secretId ? "sk-hydrated" : null
-        );
-        KeychainService.resetInstance();
-        const hydrating = KeychainService.getInstance(makeApp({ secretStorage }));
-
-        const result = await hydrating.hydrateFromKeychain(
-          makeSettings({
-            agentMode: {
-              backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "" } } },
-              deviceProfiles: {
-                unknown: {
-                  claude: {
-                    envOverrides: { ANTHROPIC_API_KEY: "", HTTPS_PROXY: "https://proxy" },
-                  },
-                },
-              },
-            } as unknown as CopilotSettings["agentMode"],
-          })
-        );
-
-        expect(result.settings.agentMode?.deviceProfiles?.unknown?.claude?.envOverrides).toEqual({
-          ANTHROPIC_API_KEY: "sk-hydrated",
-          HTTPS_PROXY: "https://proxy",
-        });
-      });
     });
 
-    describe("persistSecrets()", () => {
+    describe("persistSecrets", () => {
+      it("neither stores nor deletes retired agent runtime credentials when native settings replace them", () => {
+        const service = KeychainService.getInstance(makeApp());
+        const old = makeSettings({
+          agentMode: {
+            backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "old-secret" } } },
+          } as unknown as ScribeSettings["agentMode"],
+        });
+        const current = makeSettings({
+          agentMode: {
+            backends: { native: { defaultMode: "default" } },
+          } as unknown as ScribeSettings["agentMode"],
+        });
+        const result = service.persistSecrets(current, old);
+        expect(result.secretEntries).toEqual([]);
+        expect(result.keychainIdsToDelete).toEqual([]);
+      });
       it("collects current secrets and tombstones cleared or deleted IDs", () => {
         const service = KeychainService.getInstance(makeApp());
 
@@ -573,43 +602,9 @@ describe("keychainService", () => {
         expect(prev.openAIApiKey).toBe("sk-prev");
         expect(prev.activeModels[0].apiKey).toBe("chat-prev");
       });
-
-      it("stores sensitive Claude environment variables and tombstones removed ones", () => {
-        const service = KeychainService.getInstance(makeApp());
-        const current = makeSettings({
-          agentMode: {
-            backends: {
-              claude: {
-                envOverrides: { ANTHROPIC_API_KEY: "sk-env", HTTPS_PROXY: "https://proxy" },
-              },
-            },
-          } as unknown as CopilotSettings["agentMode"],
-        });
-        const prev = makeSettings({
-          agentMode: {
-            backends: {
-              claude: {
-                envOverrides: {
-                  ANTHROPIC_API_KEY: "sk-old",
-                  ANTHROPIC_AUTH_TOKEN: "token-old",
-                },
-              },
-            },
-          } as unknown as CopilotSettings["agentMode"],
-        });
-
-        const result = service.persistSecrets(current, prev);
-        const authId = service
-          .persistSecrets(prev)
-          .secretEntries.find(([, value]) => value === "token-old")![0];
-
-        expect(result.secretEntries.some(([, value]) => value === "sk-env")).toBe(true);
-        expect(result.secretEntries.some(([, value]) => value === "https://proxy")).toBe(false);
-        expect(result.keychainIdsToDelete).toContain(authId);
-      });
     });
 
-    describe("forgetAllSecrets()", () => {
+    describe("forgetAllSecrets", () => {
       it("clears vault secrets, strips settings, and notifies the user", async () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
@@ -735,7 +730,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("clearAllVaultSecrets()", () => {
+    describe("clearAllVaultSecrets", () => {
       it("clears what it can, then throws aggregating the count of failed entries", () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));

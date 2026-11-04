@@ -9,7 +9,7 @@ const WEEKLY: UsageWindow = { id: "weekly", label: "Weekly", percent: 21, resets
 const FIVE_HOUR: UsageWindow = { id: "five_hour", label: "5h", percent: 10, resetsAt: 1_500 };
 
 describe("planUsage", () => {
-  describe("toUsagePercent()", () => {
+  describe("toUsagePercent", () => {
     it("passes a percentage above 100 through unclamped", () => {
       expect(toUsagePercent(137)).toBe(137);
     });
@@ -28,7 +28,7 @@ describe("planUsage", () => {
     });
   });
 
-  describe("planUsageReading()", () => {
+  describe("planUsageReading", () => {
     it("reports usage when at least one window was normalized", () => {
       expect(planUsageReading([WEEKLY], 1_000)).toEqual({
         kind: "usage",
@@ -36,13 +36,13 @@ describe("planUsage", () => {
       });
     });
 
-    it("reports an empty window list unusable rather than clearing the meters (https://github.com/logancyang/obsidian-copilot-preview/issues/193)", () => {
+    it("reports an empty window list unusable rather than clearing the meters", () => {
       expect(planUsageReading([])).toEqual({ kind: "unavailable" });
     });
   });
 
-  describe("withoutExpiredWindows()", () => {
-    it("drops a window whose reset has passed (https://github.com/logancyang/obsidian-copilot-preview/issues/193)", () => {
+  describe("withoutExpiredWindows", () => {
+    it("drops a window whose reset has passed", () => {
       const planUsage = { windows: [FIVE_HOUR, WEEKLY], updatedAt: 1_000 };
 
       expect(withoutExpiredWindows(planUsage, 1_800)).toEqual({

@@ -3,11 +3,6 @@ export interface EffortOption {
   label: string;
 }
 
-/**
- * Every thinking-effort level our backends speak, ascending. Agents report their levels in
- * whatever order they please, so this ranks a reported menu and is the vocabulary a level is
- * checked against. https://github.com/logancyang/obsidian-copilot/issues/2917
- */
 export const EFFORT_LEVELS_ASCENDING: readonly string[] = [
   "none",
   "minimal",
@@ -35,8 +30,6 @@ export function resolveEffort(
   preferred: string | null | undefined,
   options: readonly EffortOption[] | undefined
 ): string | null {
-  // Do not erase a saved choice just because discovery has not completed.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/219
   if (options === undefined) return preferred ?? null;
   if (preferred != null && options.some((option) => option.value === preferred)) return preferred;
   return sortEffortOptions(options)[0]?.value ?? null;

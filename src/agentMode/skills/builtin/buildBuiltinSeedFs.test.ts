@@ -7,7 +7,6 @@ jest.mock("@/utils/desktopRuntime", () => ({
   requireNodeModule: jest.fn(),
 }));
 
-const ISSUE = "https://github.com/logancyang/obsidian-copilot/issues/3022";
 const root = "skills/example";
 const marker = `${root}/SKILL.md`;
 
@@ -29,8 +28,8 @@ function fixture() {
 }
 
 describe("buildBuiltinSeedFs", () => {
-  describe("buildBuiltinSeedFs()", () => {
-    it(`removes user additions before deleting the ownership marker ${ISSUE}`, async () => {
+  describe("buildBuiltinSeedFs", () => {
+    it(`removes user additions before deleting the ownership marker`, async () => {
       const f = fixture();
       f.adapter.rmdir.mockImplementation(async (path) => {
         expect(f.files.has(marker)).toBe(true);
@@ -42,7 +41,7 @@ describe("buildBuiltinSeedFs", () => {
     });
 
     it.each(["list", "remove", "rmdir"] as const)(
-      `retains ownership after a child cleanup failure at %s and completes on retry ${ISSUE}`,
+      `retains ownership after a child cleanup failure at %s and completes on retry`,
       async (operation) => {
         const f = fixture();
         f.adapter[operation].mockRejectedValueOnce(new Error("EACCES"));
@@ -53,7 +52,7 @@ describe("buildBuiltinSeedFs", () => {
       }
     );
 
-    it(`propagates final directory removal failure ${ISSUE}`, async () => {
+    it(`propagates final directory removal failure`, async () => {
       const f = fixture();
       f.adapter.rmdir.mockImplementation(async (path) => {
         if (path === root) throw new Error("EPERM");
@@ -63,7 +62,7 @@ describe("buildBuiltinSeedFs", () => {
       expect(f.files.has(marker)).toBe(true);
     });
 
-    it(`unlinks a canonical symlink without listing or deleting its target contents ${ISSUE}`, async () => {
+    it(`unlinks a canonical symlink without listing or deleting its target contents`, async () => {
       const adapter = Object.assign(new FileSystemAdapter(), {
         getFullPath: jest.fn(() => `/vault/${root}`),
         rmdir: jest.fn().mockResolvedValue(undefined),
@@ -77,7 +76,7 @@ describe("buildBuiltinSeedFs", () => {
       expect(adapter.remove).not.toHaveBeenCalled();
     });
 
-    it(`cleans a real desktop directory after checking that it is not a symlink ${ISSUE}`, async () => {
+    it(`cleans a real desktop directory after checking that it is not a symlink`, async () => {
       const f = fixture();
       const adapter = Object.assign(new FileSystemAdapter(), f.adapter, {
         getFullPath: jest.fn(() => `/vault/${root}`),
@@ -89,7 +88,7 @@ describe("buildBuiltinSeedFs", () => {
       expect(f.files.size).toBe(0);
     });
 
-    it(`does not walk a canonical directory when its link status cannot be read ${ISSUE}`, async () => {
+    it(`does not walk a canonical directory when its link status cannot be read`, async () => {
       const f = fixture();
       const adapter = Object.assign(new FileSystemAdapter(), f.adapter, {
         getFullPath: jest.fn(() => `/vault/${root}`),
@@ -105,7 +104,7 @@ describe("buildBuiltinSeedFs", () => {
       expect(f.files.has(marker)).toBe(true);
     });
 
-    it(`does not load Node during mobile cleanup ${ISSUE}`, async () => {
+    it(`does not load Node during mobile cleanup`, async () => {
       const adapter = Object.assign(new FileSystemAdapter(), {
         rmdir: jest.fn().mockResolvedValue(undefined),
       });

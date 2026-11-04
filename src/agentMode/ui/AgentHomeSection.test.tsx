@@ -3,8 +3,8 @@ import { render } from "@testing-library/react";
 import React from "react";
 
 describe("AgentHomeSection", () => {
-  describe("AgentHomePreviewList()", () => {
-    it("keeps preview row content clear of the overlaid scrollbar (https://github.com/logancyang/obsidian-copilot/issues/3017)", () => {
+  describe("AgentHomePreviewList", () => {
+    it("keeps preview row content clear of the overlaid scrollbar", () => {
       const { container } = render(
         <AgentHomePreviewList>
           <div>Preview rows</div>

@@ -1,7 +1,7 @@
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders, DEFAULT_SETTINGS } from "@/constants";
 import { KeychainService } from "@/services/keychainService";
-import { type CopilotSettings, setSettings } from "@/settings/model";
+import { type ScribeSettings, setSettings } from "@/settings/model";
 
 import {
   executeGitHubCopilotRemoval,
@@ -50,7 +50,7 @@ function model(overrides: Partial<CustomModel>): CustomModel {
   };
 }
 
-function settingsWith(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function settingsWith(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return { ...DEFAULT_SETTINGS, ...overrides };
 }
 
@@ -59,7 +59,7 @@ describe("githubCopilotRemovalMigration", () => {
     jest.clearAllMocks();
   });
 
-  describe("planGitHubCopilotRemoval()", () => {
+  describe("planGitHubCopilotRemoval", () => {
     it("returns null for a vault that never configured GitHub Copilot", () => {
       expect(
         planGitHubCopilotRemoval(
@@ -104,7 +104,7 @@ describe("githubCopilotRemovalMigration", () => {
       ).toEqual({ defaultModelKey: "" });
     });
 
-    it("clears the quick command selection to undefined so quick ask inherits the chat default again (https://github.com/logancyang/obsidian-copilot-preview/issues/316)", () => {
+    it("clears the quick command selection to undefined so quick ask inherits the chat default again", () => {
       const patch = planGitHubCopilotRemoval(
         settingsWith({ quickCommandModelKey: "gpt-4o|github-copilot" })
       );
@@ -121,12 +121,12 @@ describe("githubCopilotRemovalMigration", () => {
 
     it("tolerates settings that predate the model list", () => {
       const bare = settingsWith();
-      delete (bare as Partial<CopilotSettings>).activeModels;
+      delete (bare as Partial<ScribeSettings>).activeModels;
 
       expect(planGitHubCopilotRemoval(bare)).toBeNull();
     });
 
-    it("does not treat a provider whose name merely contains the removed one as removed (https://github.com/logancyang/obsidian-copilot-preview/issues/316)", () => {
+    it("does not treat a provider whose name merely contains the removed one as removed", () => {
       expect(
         planGitHubCopilotRemoval(
           settingsWith({
@@ -138,7 +138,7 @@ describe("githubCopilotRemovalMigration", () => {
     });
   });
 
-  describe("executeGitHubCopilotRemoval()", () => {
+  describe("executeGitHubCopilotRemoval", () => {
     it("applies the plan and deletes both OAuth keychain entries", () => {
       const secrets = keychain();
 
@@ -173,7 +173,7 @@ describe("githubCopilotRemovalMigration", () => {
       expect(secrets.deleteSecret).not.toHaveBeenCalled();
     });
 
-    it("does not fail the migration when the keychain is locked (https://github.com/logancyang/obsidian-copilot-preview/issues/316)", () => {
+    it("does not fail the migration when the keychain is locked", () => {
       keychain({
         deleteSecret: jest.fn(() => {
           throw new Error("keychain locked");
@@ -183,7 +183,7 @@ describe("githubCopilotRemovalMigration", () => {
       expect(() => executeGitHubCopilotRemoval(settingsWith())).not.toThrow();
     });
 
-    it("does not fail the migration when the keychain service is not initialized (https://github.com/logancyang/obsidian-copilot-preview/issues/316)", () => {
+    it("does not fail the migration when the keychain service is not initialized", () => {
       mockGetInstance.mockImplementation(() => {
         throw new Error("KeychainService must be initialized with app on first call");
       });

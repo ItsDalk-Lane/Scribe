@@ -2,8 +2,8 @@ import { QueuedMessageList } from "@/agentMode/ui/QueuedMessageList";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 describe("QueuedMessageList", () => {
-  describe("QueuedMessageList()", () => {
-    it("labels image-only rows and keeps their removal https://github.com/logancyang/obsidian-copilot/issues/2850", () => {
+  describe("QueuedMessageList", () => {
+    it("labels image-only rows and keeps their removal", () => {
       const onRemove = jest.fn();
       render(
         <QueuedMessageList
@@ -23,7 +23,7 @@ describe("QueuedMessageList", () => {
       fireEvent.click(screen.getByRole("button", { name: "Remove queued message" }));
       expect(onRemove).toHaveBeenCalledWith("image");
     });
-    it("labels an empty command without claiming it contains an image https://github.com/logancyang/obsidian-copilot/issues/2850", () => {
+    it("labels an empty command without claiming it contains an image", () => {
       render(
         <QueuedMessageList
           delivering={[]}
@@ -44,7 +44,7 @@ describe("QueuedMessageList", () => {
       expect(screen.getByTitle("Explain this")).toBeTruthy();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 captions messages handed to the agent with when the agent reads them, without a per-row status word or a remove control", () => {
+    it("captions messages handed to the agent with when the agent reads them, without a per-row status word or a remove control", () => {
       render(
         <QueuedMessageList
           delivering={[
@@ -62,7 +62,7 @@ describe("QueuedMessageList", () => {
       expect(screen.queryByText("Sends when the agent finishes")).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 groups a mixed list under one caption per group, so each message's state reads from the caption above it", () => {
+    it("groups a mixed list under one caption per group, so each message's state reads from the caption above it", () => {
       const { container } = render(
         <QueuedMessageList
           delivering={[{ id: "steer", text: "Only the first two" }]}
@@ -75,7 +75,7 @@ describe("QueuedMessageList", () => {
       );
     });
 
-    it("offers a withdraw control on each message handed to a backend that can withdraw it, and withdraws that message (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", () => {
+    it("offers a withdraw control on each message handed to a backend that can withdraw it, and withdraws that message", () => {
       const onWithdraw = jest.fn();
       render(
         <QueuedMessageList
@@ -96,7 +96,7 @@ describe("QueuedMessageList", () => {
       expect(onWithdraw).toHaveBeenCalledWith("steer-2");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/789 offers one Send now for all messages the agent reads at its next step, never one per message", () => {
+    it("offers one Send now for all messages the agent reads at its next step, never one per message", () => {
       const onSendNow = jest.fn();
       render(
         <QueuedMessageList
@@ -117,7 +117,7 @@ describe("QueuedMessageList", () => {
       expect(onSendNow).toHaveBeenCalledTimes(1);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/789 offers no Send now when only messages Copilot holds are waiting", () => {
+    it("offers no Send now when only messages Scribe holds are waiting", () => {
       render(
         <QueuedMessageList
           delivering={[]}
@@ -130,7 +130,7 @@ describe("QueuedMessageList", () => {
       expect(screen.queryByRole("button", { name: "Send waiting messages now" })).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 tells the user that messages Copilot holds send when the agent finishes", () => {
+    it("tells the user that messages Scribe holds send when the agent finishes", () => {
       render(
         <QueuedMessageList
           delivering={[]}

@@ -31,8 +31,8 @@ describe("useIncrementalPaging", () => {
     window.IntersectionObserver = originalObserver;
   });
 
-  describe("useIncrementalPaging()", () => {
-    it("bounds pages to 50 and disconnects at the total (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+  describe("useIncrementalPaging", () => {
+    it("bounds pages to 50 and disconnects at the total", () => {
       render(<PagingList />);
       expect(screen.getByRole("status").textContent).toBe("50");
       intersect([{ isIntersecting: false }]);
@@ -45,14 +45,14 @@ describe("useIncrementalPaging", () => {
       expect(disconnect).toHaveBeenCalledTimes(1);
     });
 
-    it("resets on a new query even when the total stays the same (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("resets on a new query even when the total stays the same", () => {
       const { rerender } = render(<PagingList />);
       intersect();
       rerender(<PagingList query="new query" />);
       expect(screen.getByRole("status").textContent).toBe("50");
     });
 
-    it("reconnects for changed totals and disconnects on unmount (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("reconnects for changed totals and disconnects on unmount", () => {
       const { rerender, unmount } = render(<PagingList />);
       rerender(<PagingList total={75} />);
       expect(disconnect).toHaveBeenCalledTimes(1);
@@ -60,13 +60,13 @@ describe("useIncrementalPaging", () => {
       expect(disconnect).toHaveBeenCalledTimes(2);
     });
 
-    it("disconnects when filtering removes the marker (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("disconnects when filtering removes the marker", () => {
       const { rerender } = render(<PagingList />);
       rerender(<PagingList total={0} query="no matches" />);
       expect(disconnect).toHaveBeenCalledTimes(1);
     });
 
-    it("uses the owning window observer in a popout (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("uses the owning window observer in a popout", () => {
       const frame = document.createElement("iframe");
       document.body.appendChild(frame);
       const ownerWindow = frame.contentWindow!;

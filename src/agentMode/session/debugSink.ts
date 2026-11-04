@@ -15,9 +15,6 @@ const LOG_FILE_NAME = "acp-frames.ndjson";
 const ROTATED_FILE_NAME = "acp-frames.old.ndjson";
 const DESKTOP_UNAVAILABLE_PATH = "(the agent activity log is desktop-only)";
 const LOG_DIR_PREFIX = ["obsidian-scribe", "acp-frames"] as const;
-// Owner-only modes: the log holds full prompt/tool/note content in plaintext,
-// and on Linux os.tmpdir() can be a world-readable shared /tmp.
-// https://github.com/logancyang/obsidian-copilot-preview/issues/250
 const LOG_DIR_MODE = 0o700;
 const LOG_FILE_MODE = 0o600;
 const ROTATE_BYTES = 50 * 1024 * 1024;
@@ -128,9 +125,6 @@ export class FrameSink {
       if (!paths) return;
       const runtime = this.getRuntime();
       if (!runtime) return;
-      // Same safety gate as writes: a squatted directory must not let Clear
-      // delete files at an attacker-chosen location.
-      // https://github.com/logancyang/obsidian-copilot-preview/issues/250
       await this.ensureFolder(runtime, paths);
       await removeIfExists(runtime, paths.logPath);
       await removeIfExists(runtime, paths.rotatedPath);
@@ -172,11 +166,6 @@ export class FrameSink {
     await this.writeChain;
   }
 
-  /**
-   * Runs the owner and mode checks of `ensureFolder()` so a reader cannot be handed a path
-   * another account planted on a shared temp root; null when the path cannot be vouched for.
-   * https://github.com/logancyang/obsidian-copilot-preview/issues/250
-   */
   async getValidatedPath(): Promise<string | null> {
     const task = this.writeChain.then(async () => {
       const paths = this.resolvePaths();
@@ -191,11 +180,6 @@ export class FrameSink {
     return settled;
   }
 
-  /**
-   * Narrows logs an older build left world-readable even when logging is now off, without
-   * creating the directory chain for users who never log.
-   * https://github.com/logancyang/obsidian-copilot-preview/issues/250
-   */
   async narrowLegacyLogs(): Promise<void> {
     const task = this.writeChain.then(async () => {
       const paths = this.resolvePaths();
@@ -225,11 +209,6 @@ export class FrameSink {
     return this.options.runtime ?? getNodeRuntime();
   }
 
-  /**
-   * Validates every level of the temp-path chain top-down; the sticky-bit parent only protects
-   * the first level. Throws when the location cannot be made safe.
-   * https://github.com/logancyang/obsidian-copilot-preview/issues/250
-   */
   private async ensureFolder(runtime: NodeRuntime, paths: FrameLogPaths): Promise<void> {
     if (this.ensuredDirPath === paths.dirPath) return;
 
@@ -307,11 +286,6 @@ export class FrameSink {
         mode: LOG_FILE_MODE,
       });
     } catch {
-      // Drop the frame and forget the validated directory, so the next frame
-      // re-runs the full safety check (and recreates a deleted folder). A
-      // recovery write here would bypass the validation that just failed and
-      // could land the log outside the owner-only directory.
-      // https://github.com/logancyang/obsidian-copilot-preview/issues/250
       this.ensuredDirPath = null;
       return;
     }
@@ -394,11 +368,6 @@ function getNodeRuntime(): NodeRuntime | null {
   }
 }
 
-/**
- * A failure other than "not found" is rethrown so an unreadable path is not answered with
- * a fresh file at an unvalidated location.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/250
- */
 async function ensureFileExists(runtime: NodeRuntime, path: string): Promise<void> {
   try {
     await runtime.lstat(path);
@@ -408,11 +377,6 @@ async function ensureFileExists(runtime: NodeRuntime, path: string): Promise<voi
   }
 }
 
-/**
- * `null` on win32, where per-user %TEMP% already isolates; a POSIX runtime that cannot
- * report its uid fails closed.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/250
- */
 function getPosixOwnerUid(runtime: NodeRuntime): number | null {
   if (process.platform === "win32") return null;
   const uid = runtime.getuid?.();
@@ -422,11 +386,6 @@ function getPosixOwnerUid(runtime: NodeRuntime): number | null {
   return uid;
 }
 
-/**
- * Best-effort: protects against symlink squatting and world-readable temp roots, not against
- * the same account, a shared TMPDIR without sticky bit, or NFS/FUSE uid spoofing.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/250
- */
 async function validateTempRoot(runtime: NodeRuntime): Promise<void> {
   if (process.platform === "win32") return;
 
@@ -447,11 +406,6 @@ async function validateTempRoot(runtime: NodeRuntime): Promise<void> {
   }
 }
 
-/**
- * A squatting symlink is unlinked and replaced (the redirect vector; no content lost). Any
- * other occupant aborts because its owner may still need it.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/250
- */
 async function ensurePrivateDirectory(
   runtime: NodeRuntime,
   path: string,
@@ -479,11 +433,6 @@ async function ensurePrivateDirectory(
     }
   }
   if (ownerUid === null) return;
-  // On a shared temp root, only the first local account to run the plugin gets
-  // a frame log: it creates `<tmp>/obsidian-copilot` owner-only, and every
-  // later account stops here. Frame logging is opt-in diagnostics, so those
-  // accounts lose a debug aid rather than a feature.
-  // https://github.com/logancyang/obsidian-copilot-preview/issues/250
   if (entry.uid !== ownerUid) {
     throw new Error("Frame log directory is owned by another user.");
   }
@@ -492,12 +441,6 @@ async function ensurePrivateDirectory(
   }
 }
 
-/**
- * chmod cannot revoke descriptors opened while the file was world-readable, and there is no
- * isFile() check: cross-UID planting is blocked by the 0700 directory chain, and same-UID
- * processes are outside the threat model.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/250
- */
 async function narrowExistingFile(
   runtime: NodeRuntime,
   path: string,

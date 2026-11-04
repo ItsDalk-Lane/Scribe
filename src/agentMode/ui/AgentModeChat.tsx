@@ -11,12 +11,12 @@ import {
   useManagedInstallActionState,
   useSessionBackendDescriptor,
 } from "@/agentMode/ui/useBackendDescriptor";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { logError } from "@/logger";
 import React from "react";
 
 interface Props {
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   onSaveChat: (saveAsNote: () => Promise<void>) => void;
   updateUserMessageHistory: (newMessage: string) => void;
 }
@@ -86,9 +86,6 @@ export const AgentModeChat: React.FC<Props> = ({
     );
   }
 
-  // The prior supported installation can still report ready during its update.
-  // Show the shared download before model loading or creating a fresh chat.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/530
   if (managedInstall.kind === "running") {
     return (
       <div className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden">
@@ -103,9 +100,6 @@ export const AgentModeChat: React.FC<Props> = ({
     );
   }
 
-  // Known setup failures must remain actionable even when model discovery or a
-  // previous startup has failed. Managed updates retain their progress/Retry card.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/532
   const cannotLaunch =
     installState.kind === "absent" ||
     installState.kind === "error" ||
@@ -121,8 +115,6 @@ export const AgentModeChat: React.FC<Props> = ({
     );
   }
 
-  // Loading must never hide a surviving conversation or a known setup failure.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/532
   if (!preloadReady || awaitingAuth) {
     return (
       <div className="tw-flex tw-size-full tw-items-center tw-justify-center tw-text-muted">

@@ -1,12 +1,12 @@
-# Troubleshooting Scribe V4
+# Troubleshooting Scribe
 
-Start in **Settings → Scribe → 代理** and check the status beside Claude.
+Start in **Settings → Scribe → 代理** and 检查 Scribe 的模型与权限状态。
 
 ## Scribe is starting or did not start
 
 ### A Scribe tab or Scribe's settings say “Starting Scribe…”
 
-Scribe finishes loading in the background after Obsidian opens your vault, so the vault never waits for it. Until it is ready, Scribe tabs that were open last time and **Settings → Scribe** show **Starting Scribe…**, and Scribe's commands and ribbon icon are not there yet. This usually lasts a moment. The first start after an update can take longer while Scribe updates your settings.
+Scribe finishes loading in the background after Obsidian opens your vault, so the vault never waits for it. Until it is ready, Scribe tabs that were open last time and **Settings → Scribe** show **正在启动 Scribe…**, and Scribe's commands and ribbon icon are not there yet. This usually lasts a moment. The first start after an update can take longer while Scribe updates your settings.
 
 Keep the tab open. It turns back into your chat as soon as Scribe is ready, and the settings page fills in on its own.
 
@@ -16,30 +16,26 @@ Scribe ran into an error while loading and stayed off for this session. To see t
 
 ## Agent Chat setup
 
-### Claude shows “Update required,” cannot be found, or is signed out
+### 没有可用模型或无法开始聊天
 
-- **Update required:** update Claude Code to the minimum version shown by Scribe, then run **Configure Claude → Auto-detect**. For a custom path, update that installation or choose **Clear**.
-- **Not found:** run the displayed install command, then choose **Auto-detect**, or enter the absolute path to `claude`.
-- **Signed out:** choose **Sign in**. If **Open sign-in page** appears, use it to finish authentication.
+先在 **快捷操作 → 模型** 配置供应商及模型，再到 **代理 → Scribe** 启用聊天模型。检查密钥、地址、服务可达性及供应商额度。原生代理无需安装或登录外部程序。
 
-Scribe uses your Claude Code login; there is no API key to paste here.
-
-See [Getting Started](getting-started.md) for the complete setup flow and [Windows setup for Agent Chat](agent-mode-windows-setup.md) for Windows-specific commands.
+参见 [Getting Started](getting-started.md) 和 [Models](models-and-parameters.md)。
 
 ## Models and API keys
 
 ### No models are enabled for Quick tools
 
-Open **快捷操作 → 工具配置**, enable a model, and choose **Default quick command model**. If none are configured, first add a provider under **Settings → Scribe → 快捷操作 → 模型**.
+Open **快捷操作 → 工具配置**, enable a model, and choose **快捷指令默认模型**. If none are configured, first add a provider under **Settings → Scribe → 快捷操作 → 模型**.
 
 - **Add API key:** edit that provider under **模型**.
 - **Not offered by agent:** the active agent no longer advertises that saved model. Select one it currently offers.
 
-Claude models come from its Claude Code account; BYOK serves Quick tools. See [Models](models-and-parameters.md) and [Providers](llm-providers.md).
+Agent Chat 和快捷工具共用原有自备模型连接。 See [Models](models-and-parameters.md) and [Providers](llm-providers.md).
 
 ### Keys disappeared, or “API Key Storage” says “Unavailable”
 
-V4 stores secrets in the Obsidian Keychain.
+Scribe stores configured secrets in the Obsidian Keychain. Older installations may also have separate credential backups; handle those as sensitive files.
 
 - **Unavailable:** update Obsidian to 1.11.4 or newer.
 - **No API keys found in this device's Obsidian Keychain:** re-enter them. Keys are per device and do not follow a synced vault.
@@ -51,17 +47,15 @@ Do not delete `data.json`: it contains the vault's Keychain namespace. Use the i
 
 ### Nothing happens after you send
 
-Look for **Permission required** or **Question from agent**. Review the inputs or diff, then choose an offered option. Another session tab may show an attention indicator.
+Look for **需要授权** or **代理提问**. Review the inputs or diff, then choose an offered option. Another session tab may show an attention indicator.
 
-Permission choices depend on the active agent. **Stop** cancels the current turn and Claude's running subagents, including their unanswered requests. Review every persistent permission carefully.
+权限卡只处理对应操作。**Stop** 取消当前回复和其尚未回答的请求；后台任务从任务列表分别停止。
 
 ### A skill or skill command is missing
 
-In **Settings → Scribe → Skills**, confirm the skill has a valid `SKILL.md` and is enabled for your agent. Toggle the agent off and on to recreate its link.
+在 **Settings → Scribe → 技能** 确认技能可读取并已为 Scribe 启用。仅手动调用的技能需要从 `/` 菜单选择；项目技能只在对应项目的聊天中出现。命令还需要处于启用状态，允许显示于 `/` 菜单的条目才会出现在下拉列表。
 
-On Windows, **Turn on Windows Developer Mode to share skills with your agents** means you must enable **Settings → Privacy & security → For developers → Developer Mode** (or run Obsidian as administrator), then toggle again. The same repair works when vault sync replaces a link.
-
-Learn more in [Skills with Claude](agent-mode-and-tools.md#skills-with-claude).
+参见 [Skills](agent-mode-and-tools.md#skills)。
 
 ## Quick Ask does not open or has no model
 
@@ -74,26 +68,26 @@ See [Scribe Commands and Quick Ask](custom-commands.md#quick-ask) for selection 
 
 ## Logs and bug reports
 
-Use **通用 → 调试与支持 → Report an issue** for any Scribe problem, including Agent Chat and quick tools. Turn on **Debug mode** in the same section first and reproduce the problem, so the logs you send actually contain it.
+Use **通用 → 调试与支持 → Report an issue** for any Scribe problem, including Agent Chat and quick tools. Turn on **调试模式** in the same section first and reproduce the problem, so the logs you send actually contain it.
 
 ### Filing a report
 
-1. **Describe what went wrong, and tick what to include.** The sources on offer are a screenshot of the Obsidian window, the **Agent activity log**, the regular Scribe chat log. Anything you tick that turns out to have nothing to collect is listed on the next page with the reason, so you never have to guess whether it was gathered.
-2. **Let Scribe prepare the report.** The review page shows **Preparing report…** until the zip is ready. Scribe briefly hides open dialogs, including Settings, to photograph the window behind them, reads and cleans the logs you asked for, and packs everything into one zip on your own computer — the zip is the only file it writes.
-3. **Review what was packed, then upload.** Scribe lists what actually went into the zip, source by source, with the finished file's size and, beside anything skipped or failed, the reason. **Show zip** opens the file in your file manager if you want to look inside. Uploading is a separate click — **Upload & open issue** — and nothing leaves your machine until you press it. **Cancel** here deletes the zip unless you have already chosen **Open issue anyway**.
+1. **Describe what went wrong, and tick what to include.** The sources on offer are a screenshot of the Obsidian window, the **代理活动日志**, the regular Scribe chat log. Anything you tick that turns out to have nothing to collect is listed on the next page with the reason, so you never have to guess whether it was gathered.
+2. **Let Scribe prepare the report.** The review page shows **正在准备报告…** until the zip is ready. Scribe briefly hides open dialogs, including Settings, to photograph the window behind them, reads and cleans the logs you asked for, and packs everything into one zip on your own computer — the zip is the only file it writes.
+3. **Review what was packed, then upload.** Scribe lists what actually went into the zip, source by source, with the finished file's size and, beside anything skipped or failed, the reason. **显示压缩文件** opens the file in your file manager if you want to look inside. Uploading is a separate click — **上传并打开问题页面** — and nothing leaves your machine until you press it. **取消** here deletes the zip unless you have already chosen **直接打开问题页面**.
 4. **Finish the issue in your browser.** As soon as the upload lands, Scribe opens a prefilled GitHub issue with the report ID already in the body, closes the dialog, and shows a short notice. If your browser could not be opened, the notice carries the report ID and a link to the issue page instead. Nothing is filed until you press Submit in your browser.
 
 ### Reporting from Agent Chat
 
-When something goes wrong in an Agent Chat, select **More actions** (⋯) above the composer and choose **Report error**. **Report an issue** opens for that chat without going through Settings: the screenshot is of the Obsidian window, every available attachment starts ticked, and the description ends with which agent, model and chat the report came from. Write what went wrong above that line, then continue with the steps above.
+When something goes wrong in an Agent Chat, select **更多操作** (⋯) above the composer and choose **Report error**. **反馈问题** opens for that chat without going through Settings: the screenshot is of the Obsidian window, every available attachment starts ticked, and the description ends with which agent, model and chat the report came from. Write what went wrong above that line, then continue with the steps above.
 
-When Scribe itself fails in Agent Chat, such as a Scribe tool erroring, a needed tool missing, or you telling the agent Scribe crashed or lost your text, the agent may draft a report for you. The agent's own mistakes and answers don't get a card, since the Scribe team can't change how a model reasons. A **Report this to the Scribe team?** card appears under its reply, with a one-line summary and your own words. The card never interrupts the agent, and it appears at most once each time you open a chat. The card is not saved with the chat, so it is gone once you close the chat or reload Obsidian.
+When Scribe itself fails in Agent Chat, such as a Scribe tool erroring, a needed tool missing, or you telling the agent Scribe crashed or lost your text, the agent may draft a report for you. The agent's own mistakes and answers don't get a card, since the Scribe team can't change how a model reasons. A **要向 Scribe 团队反馈此问题吗？** card appears under its reply, with a one-line summary and your own words. The card never interrupts the agent, and it appears at most once each time you open a chat. The card is not saved with the chat, so it is gone once you close the chat or reload Obsidian.
 
 When a reply fails with an error, the same card appears under it, carrying the error.
 
-- **Review & report** opens **Report an issue** with the draft already in the description: what happened, what you said, and steps to reproduce, or the error for a failed reply, plus which agent, model and chat it came from. Every available attachment starts ticked, so untick anything you would rather not send. Edit the description freely, then continue with the steps above. Once the upload lands, the card shows the report ID.
-- **Dismiss** removes the card. Nothing is sent.
-- **Don't offer again** removes the card and turns off **Offer feedback reports in Agent Chat** in **通用 → 调试与支持**.
+- **查看并反馈** opens **反馈问题** with the draft already in the description: what happened, what you said, and steps to reproduce, or the error for a failed reply, plus which agent, model and chat it came from. Every available attachment starts ticked, so untick anything you would rather not send. Edit the description freely, then continue with the steps above. Once the upload lands, the card shows the report ID.
+- **关闭提示** removes the card. Nothing is sent.
+- **不再提示** removes the card and turns off **在代理聊天中提供反馈报告** in **通用 → 调试与支持**.
 
 ### What gets sent, and what does not
 
@@ -113,24 +107,24 @@ It is the reference a maintainer looks your report up by. It is not a link, not 
 
 An uploaded report is stored privately and deleted automatically after 60 days. The report ID is in the issue you filed; copy it somewhere else if you may need it after that.
 
-That deletion covers the uploaded copy only. The zip on your own computer is yours; Scribe leaves it alone after an upload or after you choose **Open issue anyway**, so delete it yourself when you are done with it.
+That deletion covers the uploaded copy only. The zip on your own computer is yours; Scribe leaves it alone after an upload or after you choose **直接打开问题页面**, so delete it yourself when you are done with it.
 
 ### If the upload fails
 
-- **Retry first.** **Retry upload** re-sends the very same file, and it cannot leave you with two copies stored: if the first attempt quietly did land, the retry returns that same report rather than storing another. The error text starts with **Upload failed (HTTP …)** when the server refused the file and says the outcome is unconfirmed when no answer came back; either way a retry is safe.
-- **The manual path is always open.** The zip is still on your computer. Use **Show zip** to find it and **Open issue anyway** to file the report by hand — that issue carries no report ID, so attach the zip to it yourself. After choosing **Open issue anyway**, you can close the Scribe dialog without losing the zip, even if your browser did not open.
+- **Retry first.** **重试上传** re-sends the very same file, and it cannot leave you with two copies stored: if the first attempt quietly did land, the retry returns that same report rather than storing another. The error text starts with **Upload failed (HTTP …)** when the server refused the file and says the outcome is unconfirmed when no answer came back; either way a retry is safe.
+- **The manual path is always open.** The zip is still on your computer. Use **显示压缩文件** to find it and **直接打开问题页面** to file the report by hand — that issue carries no report ID, so attach the zip to it yourself. After choosing **直接打开问题页面**, you can close the Scribe dialog without losing the zip, even if your browser did not open.
 - **Closing the dialog does not stop an upload.** It finishes in the background; when it lands, a notice shows the report ID and a link to the issue page, and the zip stays where it was.
 - **If uploads are turned away because too many were sent recently,** wait a while and try again, or file it by hand. On a shared or office network it may not have been your own uploads that used up the limit.
 
 ### Collecting logs by hand
 
-Run **Scribe: Open Scribe log file** from the command palette to save the Scribe log into your vault as a note and open it. The Agent Chat log can be opened or cleared under **通用 → 调试与支持 → Agent activity log**.
+Run **Scribe: Open Scribe log file** from the command palette to save the Scribe log into your vault as a note and open it. The Agent Chat log can be opened or cleared under **通用 → 调试与支持 → Agent activity log**；该日志只保存较早版本 Scribe 记录的活动，当前原生聊天不写入其中。
 
 Logs and screenshots can contain prompts, note contents, paths, and tool inputs. Review them before attaching anything to a public issue.
 
 ## What works on mobile?
 
-Agent Chat, including Claude, Projects, and Skill execution, is desktop-only. On mobile, use Quick Ask, Quick Command, and saved editor commands. Agent settings display **Agent settings are available on desktop.**
+Agent Chat, Projects, and Skill execution are desktop-only. On mobile, use Quick Ask, Quick Command, and saved editor commands. Agent settings display **Agent settings are available on desktop.**
 
 ## Related
 

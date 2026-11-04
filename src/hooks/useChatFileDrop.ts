@@ -70,7 +70,7 @@ export function useChatFileDrop(props: UseChatFileDropProps): UseChatFileDropRet
 
     const handleDragOver = (e: DragEvent) => {
       const target = e.target instanceof HTMLElement ? e.target : null;
-      if (target?.closest("[data-copilot-drop-zone]")) {
+      if (target?.closest("[data-scribe-drop-zone]")) {
         setIsDragActive(false);
         return;
       }
@@ -78,7 +78,7 @@ export function useChatFileDrop(props: UseChatFileDropProps): UseChatFileDropRet
       if (e.dataTransfer) {
         e.dataTransfer.dropEffect = "copy";
 
-        if (e.dataTransfer.types.includes("copilot/internal-drag")) {
+        if (e.dataTransfer.types.includes("scribe/internal-drag")) {
           return;
         }
 
@@ -106,7 +106,7 @@ export function useChatFileDrop(props: UseChatFileDropProps): UseChatFileDropRet
     const handleDrop = async (e: DragEvent) => {
       if (!e.dataTransfer) return;
       const target = e.target instanceof HTMLElement ? e.target : null;
-      if (target?.closest("[data-copilot-drop-zone]")) return;
+      if (target?.closest("[data-scribe-drop-zone]")) return;
       e.preventDefault();
 
       setIsDragActive(false);

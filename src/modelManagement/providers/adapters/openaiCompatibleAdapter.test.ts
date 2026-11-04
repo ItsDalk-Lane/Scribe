@@ -37,7 +37,7 @@ const OPENROUTER = {
 } as const;
 
 describe("openaiCompatibleAdapter", () => {
-  describe("verifyCredentials()", () => {
+  describe("verifyCredentials", () => {
     beforeEach(() => {
       mockSafeFetch.mockReset();
       respondWith(200);
@@ -57,7 +57,7 @@ describe("openaiCompatibleAdapter", () => {
       });
     });
 
-    it("verifies Go against its official authenticated directory without changing the chat base URL (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("verifies Go against its official authenticated directory without changing the chat base URL", async () => {
       const go = provider({
         baseUrl: " https://opencode.ai/inference/go/openai/v1/// ",
         requiresApiKey: true,
@@ -76,7 +76,7 @@ describe("openaiCompatibleAdapter", () => {
       expect(go.baseUrl).toBe(" https://opencode.ai/inference/go/openai/v1/// ");
     });
 
-    it("reports an invalid Go key when its official directory rejects explicit Bearer auth (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("reports an invalid Go key when its official directory rejects explicit Bearer auth", async () => {
       respondWith(401);
       const result = await openaiCompatibleAdapter.verifyCredentials({
         provider: provider({
@@ -94,7 +94,7 @@ describe("openaiCompatibleAdapter", () => {
     });
 
     it.each([null, "", "   "])(
-      "does not treat a public directory as verified when a required Go key is absent or blank: %p (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "does not treat a public directory as verified when a required Go key is absent or blank: %p",
       async (apiKey) => {
         const result = await openaiCompatibleAdapter.verifyCredentials({
           provider: provider({
@@ -109,7 +109,7 @@ describe("openaiCompatibleAdapter", () => {
       }
     );
 
-    it("keeps a catalog provider's custom proxy rather than sending its credential to OpenCode (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("keeps a catalog provider's custom proxy rather than sending its credential to OpenCode", async () => {
       await openaiCompatibleAdapter.verifyCredentials({
         provider: provider({
           baseUrl: "https://proxy.example/inference/go/openai/v1",
@@ -192,7 +192,7 @@ describe("openaiCompatibleAdapter", () => {
       });
     });
 
-    it("checks OpenRouter key metadata instead of accepting a public model list (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("checks OpenRouter key metadata instead of accepting a public model list", async () => {
       respondWith(200, { data: [] });
       expect(
         await openaiCompatibleAdapter.verifyCredentials({

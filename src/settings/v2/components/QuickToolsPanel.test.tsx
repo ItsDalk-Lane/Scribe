@@ -32,12 +32,12 @@ jest.mock("@/settings/v2/components/ChatModelEnableList", () => ({
 }));
 
 describe("QuickToolsPanel", () => {
-  describe("QuickToolsPanel()", () => {
+  describe("QuickToolsPanel", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       mockQuickCommandModelKey = "legacy-default";
     });
-    it("resolves the saved default and persists a new model without desktop agents (https://github.com/Brevilabs/obsidian-copilot-private/issues/373)", () => {
+    it("resolves the saved default and persists a new model without desktop agents", () => {
       render(<QuickToolsPanel />);
       expect(screen.getByDisplayValue("Model A")).not.toBeNull();
       expect(screen.getByText("Enabled chat models")).not.toBeNull();

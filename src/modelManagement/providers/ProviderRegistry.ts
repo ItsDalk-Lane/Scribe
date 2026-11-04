@@ -4,7 +4,11 @@ import { v4 as uuidv4 } from "uuid";
 
 import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
 import { logError } from "@/logger";
-import { KeychainService, providerKeychainName } from "@/services/keychainService";
+import {
+  KeychainService,
+  isScribeOwnedSecret,
+  providerKeychainName,
+} from "@/services/keychainService";
 import { getSettings, setSettings } from "@/settings/model";
 import { frozenOr, sliceMemo, sliceMemoByKey } from "@/utils/sliceCache";
 
@@ -102,10 +106,6 @@ export class ProviderRegistry {
       }
     }
     if (Object.keys(safePatch).length === 0) return;
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/313:
-    // enableCors selects only Quick tools's renderer transport. Do not restart
-    // OpenCode Agent for a CORS-only edit; the settings subscription already
-    // rebuilds Quick tools with the updated provider row.
     const affectsAgentProviderConfig = Object.keys(safePatch).some((key) => key !== "enableCors");
     const next: Provider = { ...existing, ...(safePatch as Partial<Provider>) };
     setSettings((cur) => ({
@@ -131,10 +131,14 @@ export class ProviderRegistry {
     const existing = getSettings().providers[providerId];
     if (!existing) return;
     if (existing.apiKeyKeychainId) {
-      try {
-        KeychainService.getInstance(this.#app).deleteSecretById(existing.apiKeyKeychainId);
-      } catch (err) {
-        logError(`[modelManagement] ProviderRegistry.remove: failed to clear keychain`, err);
+      // 只清理本插件命名的条目；指针指向其他插件的钥匙串条目时只删行，不动那个条目。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/25
+      if (isScribeOwnedSecret(existing.apiKeyKeychainId)) {
+        try {
+          KeychainService.getInstance(this.#app).deleteSecretById(existing.apiKeyKeychainId);
+        } catch (err) {
+          logError(`[modelManagement] ProviderRegistry.remove: failed to clear keychain`, err);
+        }
       }
     }
     setSettings((cur) => {
@@ -194,8 +198,6 @@ export class ProviderRegistry {
       );
     }
     const apiKey = await this.getApiKey(providerId);
-    // https://github.com/logancyang/obsidian-copilot/issues/3147:
-    // A public models endpoint must not mask a missing stored credential.
     if (providerNeedsResolvedApiKey(provider) && !apiKey?.trim()) {
       return {
         ok: false,

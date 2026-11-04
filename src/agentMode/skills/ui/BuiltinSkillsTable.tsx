@@ -106,7 +106,7 @@ const BuiltinSkillItem = React.memo(function BuiltinSkillItem({
   );
   const observed = matches?.length === 1 ? matches[0] : undefined;
   const reason =
-    unavailableReason ?? (!available ? t("Set up Claude Code to use this skill.") : undefined);
+    unavailableReason ?? (!available ? t("Configure a chat model to use this skill.") : undefined);
   const itemFor = (agent: string): AgentExtensionItem => {
     const enabled = enabledFor(agent);
     return {

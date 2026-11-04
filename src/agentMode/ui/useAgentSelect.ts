@@ -19,7 +19,7 @@ import {
 } from "@/agentMode/ui/useBackendDescriptor";
 import { logError } from "@/logger";
 import React from "react";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 
 export interface AgentSelectState {
   rows: readonly AgentSelectRow[];
@@ -30,7 +30,7 @@ export interface AgentSelectState {
 }
 
 export function useAgentSelect(
-  plugin: CopilotPlugin,
+  plugin: ScribePlugin,
   manager: AgentSessionManager | null | undefined
 ): AgentSelectState {
   const subscribe = React.useCallback(
@@ -50,9 +50,6 @@ export function useAgentSelect(
   const rows = React.useMemo(
     () =>
       buildAgentSelectRows(descriptors, states, RECOMMENDED_BACKEND_ID).map((row) => {
-        // Installation stays authoritative; only an installed selected agent
-        // needs its sign-in checked before exposing Start chat.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/532
         if (row.id !== selectedId || row.status !== "installed" || !selectedDescriptor.auth)
           return row;
         if (auth.checking || auth.status === null) return { ...row, status: "checking" as const };
@@ -69,9 +66,6 @@ export function useAgentSelect(
   const selectedRow = rows.find((row) => row.id === selectedId) ?? rows[0];
   const cta = React.useMemo<AgentSelectCta>(() => {
     const resolved = resolveAgentSelectCta(selectedRow);
-    // A pending first launch is shared by scope, so Start could reuse the wrong
-    // agent's promise. Configure can remain available while that launch settles.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/532
     if (resolved.action === "start" && isStarting) {
       return {
         action: "wait",

@@ -5,6 +5,7 @@ import { getProviderConnectionProfile } from "@/modelManagement/providers/provid
 import { configuredModelToCustomModel } from "@/modelManagement/chatModel/configuredModelToCustomModel";
 import { isChatModelInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
 import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
+import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import type { Provider } from "@/modelManagement/types/persisted";
 import type { ModelInfo } from "@/modelManagement/types/catalog";
 import type { WireCatalog } from "@/modelManagement/catalog/modelsDevWire";
@@ -108,7 +109,7 @@ function jsonReply(url: string): Record<string, unknown> {
 }
 
 describe("providerCoverage", () => {
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     beforeEach(() => {
       requests = [];
       setRequestUrlImpl(
@@ -118,8 +119,11 @@ describe("providerCoverage", () => {
           return Promise.resolve({
             status: 200,
             json,
-            text: JSON.stringify(json),
-            headers: { "content-type": "application/json" },
+            text: json.access_token || json.token ? JSON.stringify(json) : fixtureSse(json),
+            headers: {
+              "content-type":
+                json.access_token || json.token ? "application/json" : "text/event-stream",
+            },
             arrayBuffer: new ArrayBuffer(0),
           });
         }
@@ -162,7 +166,7 @@ describe("providerCoverage", () => {
         if (nativePackages.has(custom.providerNpm!)) {
           expect(requests).toHaveLength(0);
         } else {
-          expect((await model.invoke("Connection fixture")).text).toBe("ok");
+          expect(await collectText(model, "Connection fixture")).toBe("ok");
           const inference = requests[requests.length - 1];
           expect(inference).toBeDefined();
           expect(inference.body).toContain("Connection fixture");

@@ -8,7 +8,6 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const ISSUE_749 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/749";
 const PATH = "/tmp/tasks/b1.output";
 
 function memoryReader(initial = "") {
@@ -41,8 +40,8 @@ function memoryReader(initial = "") {
 
 describe("taskOutputTail", () => {
   describe("TaskOutputTail", () => {
-    describe("poll()", () => {
-      it(`returns the output so far, then only reads what was appended since (${ISSUE_749})`, async () => {
+    describe("poll", () => {
+      it(`returns the output so far, then only reads what was appended since`, async () => {
         const file = memoryReader("line 1\n");
         const tail = new TaskOutputTail(PATH, 1024, file.reader);
 
@@ -72,7 +71,7 @@ describe("taskOutputTail", () => {
         expect(file.reads).toHaveLength(1);
       });
 
-      it(`keeps only the newest whole lines within the cap and marks the output truncated (${ISSUE_749})`, async () => {
+      it(`keeps only the newest whole lines within the cap and marks the output truncated`, async () => {
         const file = memoryReader("aaaa\nbbbb\ncccc\n");
         const tail = new TaskOutputTail(PATH, 12, file.reader);
 
@@ -96,7 +95,7 @@ describe("taskOutputTail", () => {
         expect(next).toEqual({ text: "cccc\n", truncated: true });
       });
 
-      it(`keeps the newest part of a single line longer than the cap instead of showing no output (${ISSUE_749})`, async () => {
+      it(`keeps the newest part of a single line longer than the cap instead of showing no output`, async () => {
         const file = memoryReader("x".repeat(20) + "\n");
         const tail = new TaskOutputTail(PATH, 8, file.reader);
 
@@ -134,7 +133,7 @@ describe("taskOutputTail", () => {
     });
   });
 
-  describe("lastOutputLine()", () => {
+  describe("lastOutputLine", () => {
     it("returns the last line with text, ignoring trailing blank lines", () => {
       expect(lastOutputLine("line 1\nline 2\n\n  \n")).toBe("line 2");
     });
@@ -144,7 +143,7 @@ describe("taskOutputTail", () => {
     });
   });
 
-  describe("createNodeTaskOutputReader()", () => {
+  describe("createNodeTaskOutputReader", () => {
     it("reads a byte range of a file outside the vault and reports a missing file as having no size", async () => {
       const dir = await mkdtemp(join(tmpdir(), "task-output-"));
       try {

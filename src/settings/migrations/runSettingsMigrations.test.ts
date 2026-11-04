@@ -1,9 +1,14 @@
 import type { CustomModel } from "@/aiParams";
-import { ChatModelProviders, DEFAULT_COPILOT_FOLDER, DEFAULT_SETTINGS } from "@/constants";
+import { ChatModelProviders, DEFAULT_SETTINGS } from "@/constants";
 import type { ModelManagementApi, ProviderType } from "@/modelManagement";
-import { getSettings, settingsAtom, settingsStore, type CopilotSettings } from "@/settings/model";
+import { getSettings, settingsAtom, settingsStore, type ScribeSettings } from "@/settings/model";
 
 import { CURRENT_SETTINGS_VERSION, runSettingsMigrations } from "./index";
+import { isLegacyCredentialsUnprotected } from "@/services/settingsPersistence";
+import { KeychainService } from "@/services/keychainService";
+
+const holdActive = isLegacyCredentialsUnprotected as unknown as jest.Mock;
+const getInstance = KeychainService.getInstance as unknown as jest.Mock;
 
 jest.mock("@/logger", () => ({
   logInfo: jest.fn(),
@@ -15,11 +20,16 @@ jest.mock("@/services/keychainService", () => ({
   KeychainService: { getInstance: jest.fn(() => ({ isAvailable: () => false })) },
 }));
 
+jest.mock("@/services/settingsPersistence", () => ({
+  ...(jest.requireActual("@/services/settingsPersistence") as unknown as Record<string, unknown>),
+  isLegacyCredentialsUnprotected: jest.fn(() => false),
+}));
+
 function seedVault(
-  overrides: Partial<CopilotSettings> & Record<string, unknown>,
+  overrides: Partial<ScribeSettings> & Record<string, unknown>,
   models: CustomModel[] = []
-): CopilotSettings {
-  const seeded: CopilotSettings = { ...DEFAULT_SETTINGS, activeModels: models, ...overrides };
+): ScribeSettings {
+  const seeded: ScribeSettings = { ...DEFAULT_SETTINGS, activeModels: models, ...overrides };
   settingsStore.set(settingsAtom, seeded);
   return seeded;
 }
@@ -35,7 +45,7 @@ function makeApi() {
   return { api, setupProvider, removeProvider };
 }
 
-function keyedAnthropicVault(settingsVersion: number | undefined): CopilotSettings {
+function keyedAnthropicVault(settingsVersion: number | undefined): ScribeSettings {
   return seedVault({ settingsVersion, anthropicApiKey: "sk-ant" }, [
     {
       name: "claude-sonnet-4-5",
@@ -45,7 +55,7 @@ function keyedAnthropicVault(settingsVersion: number | undefined): CopilotSettin
   ]);
 }
 
-function codexVaultAt(settingsVersion: number): CopilotSettings {
+function codexVaultAt(settingsVersion: number): ScribeSettings {
   return seedVault({
     settingsVersion,
     providers: {
@@ -64,27 +74,28 @@ function codexVaultAt(settingsVersion: number): CopilotSettings {
       configuredAt: 0,
     })),
     backends: { codex: { enabledModels: ["cm-high"] } },
-  } as unknown as Partial<CopilotSettings>);
+  } as unknown as Partial<ScribeSettings>);
 }
 
 describe("settingsMigrations", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    holdActive.mockReturnValue(false);
     settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS });
   });
 
-  describe("runSettingsMigrations()", () => {
-    it("removes obsolete default model reasoning and builtin opt-outs while preserving agent configuration", async () => {
+  describe("runSettingsMigrations", () => {
+    it("clears obsolete builtin opt-outs while preserving the native model and permission configuration", async () => {
       const settings = seedVault({
         settingsVersion: 17,
         agentMode: {
           ...DEFAULT_SETTINGS.agentMode,
           backends: {
-            claude: {
+            native: {
               enabled: false,
-              defaultModel: { baseModelId: "opus", effort: "high" },
-              enableThinking: true,
-              envOverrides: { API_HOST: "https://example.com" },
+              defaultModel: { baseModelId: "custom-model", effort: "high" },
+              defaultMode: "plan",
+              maxSteps: 75,
             },
           },
           skills: {
@@ -98,10 +109,11 @@ describe("settingsMigrations", () => {
       });
       const { api } = makeApi();
       await runSettingsMigrations(api);
-      expect(getSettings().agentMode.backends.claude).toEqual({
+      expect(getSettings().agentMode.backends.native).toEqual({
         enabled: false,
-        enableThinking: true,
-        envOverrides: { API_HOST: "https://example.com" },
+        defaultModel: { baseModelId: "custom-model", effort: "high" },
+        defaultMode: "plan",
+        maxSteps: 75,
       });
       expect(getSettings().agentMode.skills.builtinPreferences).toEqual({});
       expect(getSettings().configuredModels).toEqual(settings.configuredModels);
@@ -116,6 +128,37 @@ describe("settingsMigrations", () => {
       await runSettingsMigrations(api);
 
       expect(setupProvider).toHaveBeenCalledTimes(1);
+      expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
+    });
+
+    it("defers every migration while the legacy credential backup failed, so keychain entries survive (https://github.com/ItsDalk-Lane/Scribe/issues/23)", async () => {
+      keyedAnthropicVault(undefined);
+      const { api, setupProvider } = makeApi();
+      holdActive.mockReturnValue(true);
+
+      await runSettingsMigrations(api);
+
+      expect(setupProvider).not.toHaveBeenCalled();
+      expect(getSettings().settingsVersion).toBeUndefined();
+    });
+
+    it("sweeps retired keychain entries even when the settings version is already current (https://github.com/ItsDalk-Lane/Scribe/issues/25)", async () => {
+      seedVault({ settingsVersion: CURRENT_SETTINGS_VERSION });
+      const { api } = makeApi();
+      const deleteSecret = jest.fn((key: string) => undefined);
+      getInstance.mockReturnValueOnce({
+        isAvailable: () => true,
+        deleteSecret,
+      });
+
+      await runSettingsMigrations(api);
+
+      expect(deleteSecret.mock.calls.map((call) => call[0])).toEqual([
+        "amazonBedrockApiKey",
+        "azureOpenAIApiKey",
+        "githubCopilotAccessToken",
+        "githubCopilotToken",
+      ]);
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
     });
 
@@ -199,31 +242,12 @@ describe("settingsMigrations", () => {
 
       await runSettingsMigrations(api);
 
-      expect(getSettings().agentMode.activeBackend).toBe("claude");
+      expect(getSettings().agentMode.activeBackend).toBe("native");
       expect(getSettings().providers).toEqual({});
       expect(getSettings().configuredModels).toEqual([]);
       expect(getSettings().backends).toEqual({});
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
     });
-
-    it.each([7, undefined])(
-      "v8: seeds the Copilot root, its history, and the upgrade flag for a settingsVersion=%s vault",
-      async (settingsVersion) => {
-        seedVault({
-          settingsVersion,
-          copilotFolder: undefined,
-          copilotRootHistory: undefined,
-          upgradedToV8FromLegacy: undefined,
-        });
-        const { api } = makeApi();
-
-        await runSettingsMigrations(api);
-
-        expect(getSettings().copilotFolder).toBe(DEFAULT_COPILOT_FOLDER);
-        expect(getSettings().copilotRootHistory).toEqual([DEFAULT_COPILOT_FOLDER]);
-        expect(getSettings().upgradedToV8FromLegacy).toBe(true);
-      }
-    );
 
     it("v9: drops GitHub Copilot models and selections for a v8 vault", async () => {
       seedVault({ settingsVersion: 8, defaultModelKey: "gpt-4o|github-copilot" }, [
@@ -237,7 +261,7 @@ describe("settingsMigrations", () => {
       expect(getSettings().defaultModelKey).toBe("");
     });
 
-    it("v10: makes auth optional for an existing custom OpenAI-compatible provider (https://github.com/logancyang/obsidian-copilot/issues/2895)", async () => {
+    it("v10: makes auth optional for an existing custom OpenAI-compatible provider", async () => {
       seedVault({
         settingsVersion: 9,
         providers: {

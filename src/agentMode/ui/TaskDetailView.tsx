@@ -52,7 +52,7 @@ export const TaskDetailView: React.FC<TaskDetailViewProps> = ({
 
   return (
     <div className="tw-flex tw-size-full tw-min-h-0 tw-flex-col" data-testid="agent-task-detail">
-      <div className="copilot-divider-b tw-flex tw-items-center tw-gap-2 tw-px-2 tw-py-1.5">
+      <div className="scribe-divider-b tw-flex tw-items-center tw-gap-2 tw-px-2 tw-py-1.5">
         <Button
           variant="ghost2"
           size="icon"
@@ -97,7 +97,6 @@ const SubagentDetail: React.FC<{
   const running = task.status === "running";
   const parts = useMemo((): AgentMessagePart[] => {
     const own = messages.flatMap((m) => m.parts ?? []);
-    // A subagent that shares none of its messages reports only through its notification summary. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     return own.length === 0 && task.summary ? [{ kind: "text", text: task.summary }] : own;
   }, [messages, task.summary]);
   const fileChanges = useMemo(() => messages.flatMap((m) => m.fileChanges ?? []), [messages]);
@@ -184,7 +183,6 @@ function useStickToBottom() {
     const onScroll = () => {
       atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
     };
-    // Markdown renders after React commits, so the view follows the content's size, not its data. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     const resizes = new ResizeObserver(() => {
       if (atBottom) el.scrollTop = el.scrollHeight;
     });

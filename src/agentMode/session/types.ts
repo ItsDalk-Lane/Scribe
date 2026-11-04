@@ -29,16 +29,16 @@ export interface AgentBrand {
 
 export type SessionId = string;
 
-export type CopilotMode = "default" | "plan" | "auto";
+export type ScribeMode = "default" | "plan" | "auto";
 
 export interface ModeMapping {
   kind: "setMode" | "configOption";
   configId?: string;
-  canonical: Partial<Record<CopilotMode, string>>;
+  canonical: Partial<Record<ScribeMode, string>>;
 }
 
 export interface ModeOption {
-  value: CopilotMode;
+  value: ScribeMode;
   label: string;
 }
 
@@ -105,9 +105,9 @@ export interface BackendState {
   model: ModelState | null;
 
   mode: {
-    current: CopilotMode | null;
+    current: ScribeMode | null;
     options: ModeOption[];
-    apply: Partial<Record<CopilotMode, ModeApplySpec>>;
+    apply: Partial<Record<ScribeMode, ModeApplySpec>>;
   } | null;
 }
 
@@ -289,7 +289,6 @@ export type TaskKind = "subagent" | "command";
 
 export type TaskEndStatus = "completed" | "failed" | "stopped";
 
-// A task is known from the tool call that launches it, before the agent assigns it an id: a launch reports no taskId, and a later task_started for the same toolCallId attaches it. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
 export interface TaskStart {
   taskId?: string;
   toolCallId: string;
@@ -398,6 +397,7 @@ export interface AgentMcpServer {
 
 export interface OpenSessionInput {
   cwd: string;
+  modelId?: string;
   projectId?: ProjectScopeId;
   mcpServers?: ReadonlyArray<AgentMcpServer>;
 }
@@ -481,9 +481,6 @@ export interface BackendProcess {
     sessionId: SessionId;
     startIfNeeded?: boolean;
   }): Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot | null>;
-  // A status-only read for the MCP settle continuation: without reloadPlugins the full snapshot
-  // reports no plugins, so the continuation patches only this list into the initial snapshot.
-  // https://github.com/ItsDalk-Lane/Scribe/issues/3
   getMcpServerStatus?(params: {
     sessionId: SessionId;
   }): Promise<import("./extensionInventory").AgentExtensionRuntimeSnapshot["mcpServers"] | null>;
@@ -502,6 +499,7 @@ export interface BackendProcess {
   withdraw?(params: WithdrawInput): Promise<boolean>;
   stopTask?(params: StopTaskInput): Promise<void>;
   closeSession?(params: { sessionId: SessionId }): Promise<void>;
+  deleteSession?(params: { sessionId: SessionId }): Promise<void>;
   setSessionModel(params: { sessionId: SessionId; modelId: string }): Promise<BackendState>;
   isSetSessionModelSupported(): boolean | null;
   setSessionMode(params: { sessionId: SessionId; modeId: string }): Promise<BackendState>;

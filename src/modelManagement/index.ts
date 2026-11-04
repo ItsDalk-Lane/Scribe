@@ -21,7 +21,11 @@ export {
   configuredModelToCustomModel,
   mapProviderTypeToChatModelProvider,
 } from "./chatModel/configuredModelToCustomModel";
-export { findChatBackendEntry, resolveChatModelSelectionId } from "./chatModel/chatModelSelection";
+export {
+  findChatBackendEntry,
+  resolveChatModelSelectionId,
+  isChatModelSelectionForEntry,
+} from "./chatModel/chatModelSelection";
 export { capabilitiesFromConfiguredInfo, isChatModelInfo } from "./chatModel/modelCapabilityFlags";
 
 export type { SetupProviderInput } from "./setup/ByokSetupApi";

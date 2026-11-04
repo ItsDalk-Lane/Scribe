@@ -132,7 +132,12 @@ const PlanPreviewRoot: React.FC<PlanPreviewRootProps> = ({ app, state }) => {
     if (!state.chatBackend || !currentPlan) return;
     const proposalId = currentPlan.id;
     try {
-      await state.chatBackend.resolvePlanProposal(proposalId, decision);
+      await state.chatBackend.resolvePlanProposal(
+        proposalId,
+        decision,
+        undefined,
+        currentPlan.revision
+      );
       if (decision === "approve") closePlanPreview(app, proposalId);
     } catch (e) {
       logWarn("[PlanPreviewView] resolvePlanProposal failed", e);
@@ -145,7 +150,7 @@ const PlanPreviewRoot: React.FC<PlanPreviewRootProps> = ({ app, state }) => {
 
   return (
     <div className="tw-flex tw-h-full tw-flex-col">
-      <div className="copilot-divider-b tw-flex tw-items-center tw-justify-between tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-b tw-flex tw-items-center tw-justify-between tw-gap-2 tw-px-3 tw-py-2">
         <div className="tw-flex tw-min-w-0 tw-items-center tw-gap-2">
           <FileText className="tw-size-4 tw-shrink-0 tw-text-muted" />
           <div className="tw-truncate tw-text-sm tw-font-medium">{title}</div>

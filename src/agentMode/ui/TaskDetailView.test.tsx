@@ -32,8 +32,6 @@ jest.mock("@/agentMode/ui/TurnDiffView", () => ({
   openTurnDiff: jest.fn(() => Promise.resolve()),
 }));
 
-const ISSUE_669 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/669";
-const ISSUE_749 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/749";
 const OUTPUT = "/tmp/tasks/task-2.output";
 
 const SUBAGENT_MESSAGES: AgentChatMessage[] = [
@@ -106,7 +104,7 @@ describe("TaskDetailView", () => {
     delete (window as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
-  it(`shows a subagent's title and model, that it runs only by its spinner, its task as the first user message, then its work, live while it runs (${ISSUE_749})`, () => {
+  it(`shows a subagent's title and model, that it runs only by its spinner, its task as the first user message, then its work, live while it runs`, () => {
     renderDetail({
       task: makeTask({ prompt: "Count the words in Welcome.md", model: "claude-haiku-9" }),
       messages: SUBAGENT_MESSAGES,
@@ -123,14 +121,14 @@ describe("TaskDetailView", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it(`stays open when its subagent ends and shows the final status by its check (${ISSUE_749})`, () => {
+  it(`stays open when its subagent ends and shows the final status by its check`, () => {
     renderDetail({ task: makeTask({ status: "completed" }), messages: SUBAGENT_MESSAGES });
 
     expect(screen.getByText("Completed").classList.contains("tw-sr-only")).toBe(true);
     expect(screen.getByTestId("trail").getAttribute("data-streaming")).toBe("false");
   });
 
-  it(`shows a finished subagent's notification summary as its report when it shared no messages (${ISSUE_749})`, () => {
+  it(`shows a finished subagent's notification summary as its report when it shared no messages`, () => {
     renderDetail({
       task: makeTask({ status: "completed", summary: "Welcome.md has 9 words." }),
     });
@@ -139,7 +137,7 @@ describe("TaskDetailView", () => {
     expect(screen.queryByText("No activity")).toBeNull();
   });
 
-  it(`lists the files an ended subagent changed below its work and opens a file's diff from its row (${ISSUE_669})`, () => {
+  it(`lists the files an ended subagent changed below its work and opens a file's diff from its row`, () => {
     const change = {
       path: "notes/b.md",
       status: "modified" as const,
@@ -188,7 +186,7 @@ describe("TaskDetailView", () => {
     expect(screen.getByText("Starting…")).toBeTruthy();
   });
 
-  it(`shows a command and its output read from its output file (${ISSUE_749})`, async () => {
+  it(`shows a command and its output read from its output file`, async () => {
     renderDetail({ task: makeCommandTask() }, { [OUTPUT]: "line 1\nline 2\n" });
 
     expect(screen.getByText("Background command")).toBeTruthy();
@@ -198,7 +196,7 @@ describe("TaskDetailView", () => {
     expect(screen.queryByText(/Showing the last/)).toBeNull();
   });
 
-  it(`notes when a long command output is cut to its newest part (${ISSUE_749})`, async () => {
+  it(`notes when a long command output is cut to its newest part`, async () => {
     const long = "x".repeat(100) + "\n";
     renderDetail(
       { task: makeCommandTask({ status: "completed" }) },
@@ -233,7 +231,7 @@ describe("TaskDetailView", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it(`keeps following the bottom when the report grows after it renders, such as rendered Markdown (${ISSUE_749})`, () => {
+  it(`keeps following the bottom when the report grows after it renders, such as rendered Markdown`, () => {
     renderDetail({ task: makeTask({ status: "completed" }), messages: SUBAGENT_MESSAGES });
     const scroller = screen.getByTestId("trail").closest<HTMLElement>(".tw-overflow-y-auto")!;
     const geometry = fakeScrollGeometry(scroller);
@@ -275,7 +273,7 @@ describe("TaskDetailView", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it(`points back to the chat while the chat waits for a permission answer, which it shows only there (${ISSUE_749})`, () => {
+  it(`points back to the chat while the chat waits for a permission answer, which it shows only there`, () => {
     const { onBack } = renderDetail({ chatAwaitsAnswer: true });
 
     expect(screen.getByText(/The chat is waiting for your answer/)).toBeTruthy();

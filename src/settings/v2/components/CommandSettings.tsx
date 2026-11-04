@@ -32,7 +32,7 @@ import { generateCopyCommandName, sortCommandsByOrder } from "@/commands/customC
 import { generateDefaultCommands } from "@/commands/migrator";
 import type { CustomCommand } from "@/commands/type";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
-import { deriveCustomPromptsFolder } from "@/settings/copilotFolder";
+import { deriveCustomPromptsFolder } from "@/settings/scribeFolder";
 import { useApp } from "@/context";
 import { SettingItem } from "@/components/ui/setting-item";
 import { SettingSection } from "@/components/ui/setting-section";
@@ -212,8 +212,8 @@ export const CommandSettings: React.FC<CommandSettingsProps> = ({
     <div className="tw-space-y-5">
       {!embedded && (
         <AgentConfigurationHeader
-          agents={[{ id: "claude", label: "Claude Code" }]}
-          selectedAgent="claude"
+          agents={[{ id: "native", label: "Scribe" }]}
+          selectedAgent="native"
           query={query ?? localQuery}
           onQueryChange={setLocalQuery}
           searchPlaceholder={t("Search commands…")}

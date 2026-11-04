@@ -118,7 +118,7 @@ const issueLinkedCommentsRule = {
   },
 };
 
-const copilotLintPlugin = {
+const scribeLintPlugin = {
   rules: {
     "no-direct-node-imports": noDirectNodeImportsRule,
     "issue-linked-comments": issueLinkedCommentsRule,
@@ -160,7 +160,6 @@ const restrictedSourceImports = [
   },
 ];
 
-// Named `z` imports pull Zod's locale registry into main.js: https://github.com/Brevilabs/obsidian-copilot-private/issues/94
 const restrictedZodSourceImport = {
   selector:
     "ImportDeclaration[source.value='zod'][importKind='value'] ImportSpecifier[imported.name='z'][importKind='value'], ImportDeclaration[source.value='zod/v4'][importKind='value'] ImportSpecifier[imported.name='z'][importKind='value']",
@@ -208,6 +207,12 @@ export default [
       "internal-docs/**",
       "docs/**",
       ".claude/**",
+      ".context/**",
+      ".zread/**",
+      ".zcode/**",
+      ".mimosa/**",
+      ".aoci/**",
+      "dist/**",
     ],
   },
 
@@ -306,17 +311,17 @@ export default [
   {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/**/*.test.{ts,tsx}", "src/**/__mocks__/**"],
-    plugins: { copilot: copilotLintPlugin },
+    plugins: { scribe: scribeLintPlugin },
     rules: {
-      "copilot/no-direct-node-imports": "error",
+      "scribe/no-direct-node-imports": "error",
     },
   },
 
   {
     files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
-    plugins: { copilot: copilotLintPlugin },
+    plugins: { scribe: scribeLintPlugin },
     rules: {
-      "copilot/issue-linked-comments": "error",
+      "scribe/issue-linked-comments": "error",
       "no-empty": "error",
     },
   },
@@ -486,12 +491,7 @@ export default [
   },
 
   {
-    files: [
-      "**/*.cjs",
-      "scripts/patchRendererUnsafeUnref.js",
-      "scripts/bundleSizeGuard.js",
-      "scripts/bundleSizeGuard.test.js",
-    ],
+    files: ["**/*.cjs", "scripts/bundleSizeGuard.js", "scripts/bundleSizeGuard.test.js"],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
     },

@@ -34,7 +34,7 @@ describe("listModelsHttp", () => {
     mockSafeFetch.mockReset();
   });
 
-  describe("fetchWithListModelsTimeout()", () => {
+  describe("fetchWithListModelsTimeout", () => {
     it("returns the provider response and forwards the request options", async () => {
       const response = fakeResponse();
       mockSafeFetch.mockResolvedValue(response);
@@ -60,7 +60,7 @@ describe("listModelsHttp", () => {
     });
   });
 
-  describe("readBodySnippet()", () => {
+  describe("readBodySnippet", () => {
     it("trims and truncates long response bodies", async () => {
       const response = fakeResponse({ text: `  ${"a".repeat(201)}  ` });
 
@@ -75,7 +75,7 @@ describe("listModelsHttp", () => {
     });
   });
 
-  describe("parseModelListResponse()", () => {
+  describe("parseModelListResponse", () => {
     it("returns authentication status metadata without parsing the body", async () => {
       const response = fakeResponse({ status: 401 });
 
@@ -89,7 +89,7 @@ describe("listModelsHttp", () => {
       expect(response.json).not.toHaveBeenCalled();
     });
 
-    it("preserves a 403 provider permission reason without blaming the key (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("preserves a 403 provider permission reason without blaming the key", async () => {
       const result = await parseModelListResponse(
         fakeResponse({ status: 403, text: '{"error":"Listing not permitted"}' }),
         { listKey: "data", idKey: "id" }
@@ -99,7 +99,7 @@ describe("listModelsHttp", () => {
       expect(result.ok ? "" : result.message).not.toContain("check your API key");
     });
 
-    it("rejects a provider error even when the response includes a model array (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("rejects a provider error even when the response includes a model array", async () => {
       expect(
         await parseModelListResponse(
           fakeResponse({ json: { data: [], error: { message: "Access denied" } } }),

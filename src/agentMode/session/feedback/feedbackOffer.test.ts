@@ -21,7 +21,7 @@ function offer(userSaid: string): FeedbackOffer {
 }
 
 describe("feedbackOffer", () => {
-  describe("formatFeedbackNote()", () => {
+  describe("formatFeedbackNote", () => {
     it("leads with the title so it becomes the issue title, then each field and the evidence line", () => {
       expect(formatFeedbackNote(offer("Why do you switch languages?"))).toBe(
         [
@@ -44,7 +44,7 @@ describe("feedbackOffer", () => {
       );
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/762 gives a failed reply's card only its title, the error and the evidence line", () => {
+    it("gives a failed reply's card only its title, the error and the evidence line", () => {
       const failed: FeedbackOffer = {
         ...offer(""),
         trigger: "turn_error",
@@ -68,7 +68,7 @@ describe("feedbackOffer", () => {
     });
   });
 
-  describe("formatChatReportNote()", () => {
+  describe("formatChatReportNote", () => {
     it("leaves the first line blank for the user's own description and ends with the chat's evidence line", () => {
       expect(formatChatReportNote(offer("").evidence)).toBe(
         "\n\nEvidence: backend claude · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z"

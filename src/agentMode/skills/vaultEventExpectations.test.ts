@@ -13,7 +13,7 @@ import type { Skill } from "./types";
 describe("vaultEventExpectations", () => {
   describe("absToVaultRel()", () => {
     it("strips a vault-root prefix", () => {
-      expect(absToVaultRel("/vault/copilot/skills/foo", "/vault")).toBe("copilot/skills/foo");
+      expect(absToVaultRel("/vault/scribe/skills/foo", "/vault")).toBe("scribe/skills/foo");
     });
 
     it("returns empty string when the path is the vault root", () => {
@@ -31,17 +31,17 @@ describe("vaultEventExpectations", () => {
 
   describe("matchExpectation()", () => {
     it("matches an exact path expectation by path equality only", () => {
-      const exp: Expectation = { kind: "exists", vaultRelPath: "copilot/skills/foo/SKILL.md" };
-      expect(matchExpectation(exp, "copilot/skills/foo/SKILL.md")).toBe(true);
-      expect(matchExpectation(exp, "copilot/skills/foo")).toBe(false);
+      const exp: Expectation = { kind: "exists", vaultRelPath: "scribe/skills/foo/SKILL.md" };
+      expect(matchExpectation(exp, "scribe/skills/foo/SKILL.md")).toBe(true);
+      expect(matchExpectation(exp, "scribe/skills/foo")).toBe(false);
     });
 
     it("matches a subtree expectation on the root and any descendant", () => {
-      const exp: Expectation = { kind: "subtree-missing", vaultRelPath: "copilot/skills/foo" };
-      expect(matchExpectation(exp, "copilot/skills/foo")).toBe(true);
-      expect(matchExpectation(exp, "copilot/skills/foo/SKILL.md")).toBe(true);
-      expect(matchExpectation(exp, "copilot/skills/foo/nested/file.md")).toBe(true);
-      expect(matchExpectation(exp, "copilot/skills/foobar")).toBe(false);
+      const exp: Expectation = { kind: "subtree-missing", vaultRelPath: "scribe/skills/foo" };
+      expect(matchExpectation(exp, "scribe/skills/foo")).toBe(true);
+      expect(matchExpectation(exp, "scribe/skills/foo/SKILL.md")).toBe(true);
+      expect(matchExpectation(exp, "scribe/skills/foo/nested/file.md")).toBe(true);
+      expect(matchExpectation(exp, "scribe/skills/foobar")).toBe(false);
     });
   });
 
@@ -50,7 +50,7 @@ describe("vaultEventExpectations", () => {
       const skill = makeSkill();
       const exps = buildToggleExpectations(skill, true, "/vault/.claude/skills", "/vault");
       expect(exps).toEqual([
-        { kind: "modified", vaultRelPath: "copilot/skills/foo/SKILL.md" },
+        { kind: "modified", vaultRelPath: "scribe/skills/foo/SKILL.md" },
         { kind: "exists", vaultRelPath: ".claude/skills/foo" },
       ]);
     });
@@ -59,7 +59,7 @@ describe("vaultEventExpectations", () => {
       const skill = makeSkill();
       const exps = buildToggleExpectations(skill, false, "/vault/.claude/skills", "/vault");
       expect(exps).toEqual([
-        { kind: "modified", vaultRelPath: "copilot/skills/foo/SKILL.md" },
+        { kind: "modified", vaultRelPath: "scribe/skills/foo/SKILL.md" },
         { kind: "missing", vaultRelPath: ".claude/skills/foo" },
       ]);
     });
@@ -74,7 +74,7 @@ describe("vaultEventExpectations", () => {
         "/vault"
       );
       expect(exps).toEqual([
-        { kind: "subtree-missing", vaultRelPath: "copilot/skills/foo" },
+        { kind: "subtree-missing", vaultRelPath: "scribe/skills/foo" },
         { kind: "missing", vaultRelPath: ".claude/skills/foo" },
         { kind: "missing", vaultRelPath: ".opencode/skills/foo" },
       ]);
@@ -85,7 +85,7 @@ describe("vaultEventExpectations", () => {
     it("expects one modify event on the canonical SKILL.md", () => {
       const skill = makeSkill();
       const exps = buildUpdatePropertiesExpectations(skill, "/vault");
-      expect(exps).toEqual([{ kind: "modified", vaultRelPath: "copilot/skills/foo/SKILL.md" }]);
+      expect(exps).toEqual([{ kind: "modified", vaultRelPath: "scribe/skills/foo/SKILL.md" }]);
     });
   });
 
@@ -95,13 +95,13 @@ describe("vaultEventExpectations", () => {
       const exps = buildRenameExpectations(
         skill,
         "bar",
-        "/vault/copilot/skills",
+        "/vault/scribe/skills",
         { claude: "/vault/.claude/skills" },
         "/vault"
       );
       expect(exps).toEqual([
-        { kind: "subtree-missing", vaultRelPath: "copilot/skills/foo" },
-        { kind: "subtree-exists", vaultRelPath: "copilot/skills/bar" },
+        { kind: "subtree-missing", vaultRelPath: "scribe/skills/foo" },
+        { kind: "subtree-exists", vaultRelPath: "scribe/skills/bar" },
         { kind: "missing", vaultRelPath: ".claude/skills/foo" },
         { kind: "exists", vaultRelPath: ".claude/skills/bar" },
       ]);
@@ -137,8 +137,8 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
   return {
     name: "foo",
     description: "A skill.",
-    filePath: "/vault/copilot/skills/foo/SKILL.md",
-    dirPath: "/vault/copilot/skills/foo",
+    filePath: "/vault/scribe/skills/foo/SKILL.md",
+    dirPath: "/vault/scribe/skills/foo",
     body: "body",
     enabledAgents: [],
     location: { kind: "canonical" },

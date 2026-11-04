@@ -161,7 +161,7 @@ describe("projectContentTracker", () => {
         expect(tracker.getEpoch("a")).toBe(1);
         tracker.dispose();
       });
-      it("does NOT dirty a property-declaring project on a markdown change under a system Copilot root", () => {
+      it("does NOT dirty a property-declaring project on a markdown change under a system Scribe root", () => {
         mockRecords(record("a", { inclusions: "[Topics:Physics]" }));
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
@@ -172,7 +172,7 @@ describe("projectContentTracker", () => {
         expect(tracker.getEpoch("a")).toBe(0);
         tracker.dispose();
       });
-      it("still dirties a TAG-declaring project under a system Copilot root (tag scope is unchanged)", () => {
+      it("still dirties a TAG-declaring project under a system Scribe root (tag scope is unchanged)", () => {
         mockRecords(record("a", { inclusions: "#physics" }));
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
@@ -194,7 +194,7 @@ describe("projectContentTracker", () => {
         expect(tracker.getEpoch("a")).toBe(1);
         tracker.dispose();
       });
-      it("ignores an internal Copilot file caught by a broad *.md pattern", () => {
+      it("ignores an internal Scribe file caught by a broad *.md pattern", () => {
         mockRecords(record("a", { inclusions: "*.md" }));
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
@@ -306,7 +306,7 @@ describe("projectContentTracker", () => {
         expect(tracker.getEpoch("propProj")).toBe(1);
         tracker.dispose();
       });
-      it("ignores a metadata change on an internal Copilot file", () => {
+      it("ignores a metadata change on an internal Scribe file", () => {
         mockRecords(record("p", { inclusions: "[Topics:Physics]" }));
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
@@ -317,7 +317,7 @@ describe("projectContentTracker", () => {
         expect(tracker.getEpoch("p")).toBe(0);
         tracker.dispose();
       });
-      it("ignores a metadata change under a system Copilot root that property enumeration cannot reach", () => {
+      it("ignores a metadata change under a system Scribe root that property enumeration cannot reach", () => {
         mockRecords(record("p", { inclusions: "[Topics:Physics]" }));
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);

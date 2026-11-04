@@ -169,18 +169,10 @@ export class ReportIssueModal extends Modal {
     this.root?.unmount();
     this.root = null;
     this.contentEl.empty();
-    // A zip nobody will send is plaintext prompts and note contents in the OS
-    // temp folder, so ESC on the review page must take it with it. An upload
-    // in flight is the exception: its bytes are already on their way, and if
-    // they never arrive the zip is the copy the user is told about
-    // (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
     if (this.prepared && !this.uploading) void this.discard(this.prepared);
   }
 
   private discard(report: PreparedReport): Promise<void> {
-    // A manual handoff releases ownership even while the dialog stays open;
-    // Cancel must not delete the attachment the user is about to send
-    // (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
     if (this.prepared !== report) return Promise.resolve();
     this.prepared = null;
     return discardReport(report);
@@ -211,9 +203,6 @@ export class ReportIssueModal extends Modal {
     note: string,
     selected: ReadonlySet<ReportSourceId>
   ): Promise<PreparedReport> {
-    // Two absences the manifest tells apart: `undefined` for a screenshot never
-    // selected, which gets no line at all, and `null` for one selected but not
-    // captured (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
     let screenshotPng: Uint8Array | null | undefined;
     if (selected.has("screenshot")) {
       screenshotPng = null;
@@ -226,10 +215,6 @@ export class ReportIssueModal extends Modal {
       }
     }
 
-    // `buildReportBundle` gives each log an even share of the room left, so a log
-    // smaller than its share passes the rest on. Asking in ascending order of how
-    // large the source gets hands that room to the logs most likely to need it.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/538
     const logs: ReportLogRequest[] = [];
     if (selected.has("chatLog")) logs.push(await chatLogRequest());
     if (selected.has("activityLog")) logs.push(await activityLogRequest());
@@ -257,9 +242,6 @@ export class ReportIssueModal extends Modal {
     try {
       await fs.writeFile(zipPath, bundle.zip);
     } catch (err) {
-      // A partly written zip is plaintext prompts and note contents in a folder
-      // nothing will name again: the error goes back to the form and the
-      // directory goes with it (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
       await discardReport({ zipDir });
       throw err;
     }
@@ -283,16 +265,10 @@ export class ReportIssueModal extends Modal {
     this.uploading = true;
     const outcome = await uploadReport(this.params.uploader, report);
     this.uploading = false;
-    // Only a report the server accepted turns the feedback card into its sent state.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
     if (outcome.ok) {
       this.params.onReported?.({ reportId: outcome.reportId, issueUrl: outcome.issueUrl });
     }
     if (this.root) return outcome;
-    // The dialog closed while the bytes were in flight. No browser tab — the
-    // user has moved on — but the id is the one thing they cannot reconstruct,
-    // so a success hands it over with a way to the issue; a failure asks nothing
-    // of them and the zip stays put (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
     if (outcome.ok) {
       this.issueLinkNotice(
         t("Report uploaded (ID {p0}).", { p0: outcome.reportId }),
@@ -314,9 +290,6 @@ export class ReportIssueModal extends Modal {
     if (await opened) {
       new Notice(t("Report uploaded. Finish the issue in your browser."));
     } else {
-      // The report is stored either way; what is missing is the way to the
-      // issue page, so the notice carries it in place of the browser
-      // (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
       this.issueLinkNotice(
         t("Report uploaded (ID {p0}), but Scribe could not open your browser.", { p0: reportId }),
         issueUrl
@@ -325,9 +298,6 @@ export class ReportIssueModal extends Modal {
   }
 
   private async openIssuePage(url: string): Promise<void> {
-    // The browser or fallback link hands the zip to the user. Release it before
-    // waiting so closing the dialog cannot remove their manual attachment
-    // (https://github.com/Brevilabs/obsidian-copilot-private/issues/202).
     this.prepared = null;
     if (!(await openIssuePageWith(getElectronShell(), url))) {
       this.issueLinkNotice(t("Scribe could not open your browser."), url);

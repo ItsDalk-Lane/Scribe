@@ -6,7 +6,7 @@ import {
   ChatSelectionHighlightController,
   hideChatSelectionHighlight,
 } from "@/editor/chatSelectionHighlightController";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import type { SelectedTextContext } from "@/types/message";
 import { getChatInsertionTarget } from "@/editor/chatInsertionTarget";
 
@@ -21,12 +21,12 @@ describe("chatSelectionHighlightController", () => {
   let activeMarkdown: MarkdownView | null;
   let markdownLeaf: WorkspaceLeaf;
   let agentLeaf: WorkspaceLeaf;
-  let plugin: CopilotPlugin;
+  let plugin: ScribePlugin;
   let controller: ChatSelectionHighlightController;
   let closeQuickAsk: jest.Mock;
 
   const highlightedText = () =>
-    editor.dom.querySelector(".copilot-chat-selection-highlight")?.textContent ?? null;
+    editor.dom.querySelector(".scribe-chat-selection-highlight")?.textContent ?? null;
 
   beforeEach(() => {
     editor = new EditorView({
@@ -58,7 +58,7 @@ describe("chatSelectionHighlightController", () => {
         },
       },
       quickAskController: { close: closeQuickAsk },
-    } as unknown as CopilotPlugin;
+    } as unknown as ScribePlugin;
     controller = new ChatSelectionHighlightController(plugin);
   });
 

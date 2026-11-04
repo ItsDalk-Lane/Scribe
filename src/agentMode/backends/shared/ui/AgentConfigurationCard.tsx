@@ -1,5 +1,10 @@
 import { InstallBadge } from "@/agentMode/backends/shared/installStatus";
-import type { AgentBackendHeaderProps } from "@/agentMode/backends/shared/ui/AgentBackendHeader";
+import type {
+  BackendDescriptor,
+  BackendAuthStatus,
+  InstallState,
+  ManagedInstallActionState,
+} from "@/agentMode/session/types";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SettingSwitch } from "@/components/ui/setting-switch";
@@ -8,7 +13,14 @@ import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import React from "react";
 
-export interface AgentConfigurationCardProps extends AgentBackendHeaderProps {
+export interface AgentConfigurationCardProps {
+  displayName: string;
+  Icon: BackendDescriptor["Icon"];
+  installState: InstallState;
+  authStatus?: BackendAuthStatus | null;
+  managedInstall: ManagedInstallActionState;
+  resolvedPath: string | null;
+  onConfigure: () => void;
   enabled: boolean;
   pendingDisable?: boolean;
   changing?: boolean;
@@ -55,13 +67,13 @@ export function AgentConfigurationCard({
               pendingDisable
                 ? "Finishing current tasks before disabling."
                 : enabled
-                  ? "Automatically detected"
+                  ? "Runs inside Scribe"
                   : "Disabled; configuration kept"
             )}
           </p>
         </div>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={t("Installation and sign-in settings")}>
+          <Button variant="ghost" size="icon" aria-label={t("Agent configuration")}>
             <ChevronRight
               aria-hidden="true"
               className={cn("tw-size-4 tw-transition-transform", open && "tw-rotate-90")}
@@ -92,7 +104,7 @@ export function AgentConfigurationCard({
           </p>
         )}
         <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
-          <span className="tw-text-ui-small">{t("Installation and sign-in")}</span>
+          <span className="tw-text-ui-small">{t("Model settings")}</span>
           <Button variant="secondary" onClick={onConfigure}>
             {t("Configure")}
           </Button>

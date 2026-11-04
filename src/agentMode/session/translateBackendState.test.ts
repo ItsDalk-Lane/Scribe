@@ -76,7 +76,7 @@ function selectOption(
 }
 
 describe("translateBackendState", () => {
-  describe("translateBackendState()", () => {
+  describe("translateBackendState", () => {
     describe("model: null cases", () => {
       it("returns a null model when neither models nor a model config option is reported", () => {
         const state = translateBackendState(
@@ -235,7 +235,7 @@ describe("translateBackendState", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/219 orders concrete variants ascending without an agent-default choice", () => {
+      it("orders concrete variants ascending without an agent-default choice", () => {
         const models: RawModelState = {
           currentModelId: "p/m",
           availableModels: [
@@ -308,7 +308,7 @@ describe("translateBackendState", () => {
         expect(findModelEntry(state.model, "gpt-x")?.name).toBe("GPT-x");
       });
 
-      it("prefers the base-model blurb from a model config option over a per-effort one (https://github.com/Brevilabs/obsidian-copilot-private/issues/219)", () => {
+      it("prefers the base-model blurb from a model config option over a per-effort one", () => {
         const models: RawModelState = {
           currentModelId: "oai/sol/low",
           availableModels: [
@@ -342,7 +342,7 @@ describe("translateBackendState", () => {
       });
 
       it.each([true, false])(
-        "respects description visibility (%s) for a current model missing from the catalog (https://github.com/Brevilabs/obsidian-copilot-private/issues/219)",
+        "respects description visibility (%s) for a current model missing from the catalog",
         (showModelDescriptions) => {
           const models: RawModelState = {
             currentModelId: "oai/sol/max",
@@ -368,7 +368,7 @@ describe("translateBackendState", () => {
         }
       );
 
-      it("keeps the reported blurb for a model the config option doesn't list (https://github.com/Brevilabs/obsidian-copilot-private/issues/219)", () => {
+      it("keeps the reported blurb for a model the config option doesn't list", () => {
         const models: RawModelState = {
           currentModelId: "m",
           availableModels: [{ modelId: "m", name: "M", description: "reported blurb" }],
@@ -750,7 +750,7 @@ describe("translateBackendState", () => {
     });
   });
 
-  describe("findModelEntry()", () => {
+  describe("findModelEntry", () => {
     it("returns the entry with the given base model id, or undefined when absent or the state is null", () => {
       const state = translateBackendState(
         {
@@ -767,7 +767,7 @@ describe("translateBackendState", () => {
     });
   });
 
-  describe("modelCatalogSignature()", () => {
+  describe("modelCatalogSignature", () => {
     it("distinguishes discovery lifecycle and catalog content", () => {
       const signatures = [
         modelCatalogSignature(null),
@@ -788,7 +788,7 @@ describe("translateBackendState", () => {
     });
   });
 
-  describe("modelStateSignature()", () => {
+  describe("modelStateSignature", () => {
     it("returns empty string when model is null", () => {
       expect(modelStateSignature(null)).toBe("");
       expect(modelStateSignature({ model: null, mode: null })).toBe("");
@@ -859,7 +859,7 @@ describe("translateBackendState", () => {
     });
   });
 
-  describe("modeStateSignature()", () => {
+  describe("modeStateSignature", () => {
     it("returns empty string when mode is null", () => {
       expect(modeStateSignature(null)).toBe("");
       expect(modeStateSignature({ model: null, mode: null })).toBe("");

@@ -3,7 +3,7 @@ import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import type { AgentSession } from "@/agentMode/session/AgentSession";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import type { InstallState } from "@/agentMode/session/types";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
@@ -79,7 +79,7 @@ function makeManager({
 }
 
 function renderChat(manager: AgentSessionManager) {
-  const plugin = { app: {}, agentSessionManager: manager } as unknown as CopilotPlugin;
+  const plugin = { app: {}, agentSessionManager: manager } as unknown as ScribePlugin;
   return render(
     <AgentModeChat plugin={plugin} onSaveChat={() => {}} updateUserMessageHistory={() => {}} />
   );
@@ -98,7 +98,7 @@ function renderFallback(installState: InstallState, lastError: string | null, st
 }
 
 describe("AgentModeChat", () => {
-  describe("AgentModeChat()", () => {
+  describe("AgentModeChat", () => {
     afterEach(() => {
       mockHasAuth = false;
       mockAuthChecking = false;
@@ -108,7 +108,7 @@ describe("AgentModeChat", () => {
       mockInstallState = { kind: "ready", source: "custom" };
     });
 
-    it("shows download progress before model loading and starts chat when the download settles (https://github.com/Brevilabs/obsidian-copilot-private/issues/530)", async () => {
+    it("shows download progress before model loading and starts chat when the download settles", async () => {
       mockInstallState = { kind: "ready", source: "managed" };
       mockInstallAction = { kind: "running", label: "Downloading agent…", percent: 42 };
       const { manager, getOrCreateActiveSession } = makeManager({
@@ -126,7 +126,7 @@ describe("AgentModeChat", () => {
       (manager.isPreloadReady as jest.Mock).mockReturnValue(true);
       rerender(
         <AgentModeChat
-          plugin={{ app: {}, agentSessionManager: manager } as unknown as CopilotPlugin}
+          plugin={{ app: {}, agentSessionManager: manager } as unknown as ScribePlugin}
           onSaveChat={() => {}}
           updateUserMessageHistory={() => {}}
         />
@@ -135,7 +135,7 @@ describe("AgentModeChat", () => {
       expect(screen.queryByRole("progressbar")).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/368 keeps a cold-start managed upgrade on the shared status card", () => {
+    it("keeps a cold-start managed upgrade on the shared status card", () => {
       mockManagedInstall = {};
       renderFallback(
         {
@@ -188,7 +188,7 @@ describe("AgentModeChat", () => {
       expect(getOrCreateActiveSession).not.toHaveBeenCalled();
     });
 
-    it("routes an outdated auto-detected backend without managed installation to setup (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("routes an outdated auto-detected backend without managed installation to setup", () => {
       renderFallback(
         {
           kind: "incompatible",
@@ -201,7 +201,7 @@ describe("AgentModeChat", () => {
       );
       expect(screen.getByTestId("select-panel")).toBeTruthy();
     });
-    it("waits for fresh authentication despite cached sign-in (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("waits for fresh authentication despite cached sign-in", () => {
       mockHasAuth = true;
       mockAuthChecking = true;
       const { manager, getOrCreateActiveSession } = makeManager({
@@ -243,7 +243,7 @@ describe("AgentModeChat", () => {
         )
       )
     )(
-      "shows $name with preload=$preloadReady and error=$lastError (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)",
+      "shows $name with preload=$preloadReady and error=$lastError",
       ({ state, signedOut, preloadReady, lastError }) => {
         mockInstallState = state;
         mockManagedInstall = {};
@@ -264,7 +264,7 @@ describe("AgentModeChat", () => {
       }
     );
     it.each(failures)(
-      "keeps the chat mounted when %s becomes known during preload (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)",
+      "keeps the chat mounted when %s becomes known during preload",
       (_name, state, signedOut) => {
         const active = { internalId: "s-1", chatInputId: "chat-1" } as AgentSession;
         const { manager } = makeManager({
@@ -282,7 +282,7 @@ describe("AgentModeChat", () => {
         (manager.isPreloadReady as jest.Mock).mockReturnValue(false);
         rerender(
           <AgentModeChat
-            plugin={{ agentSessionManager: manager } as unknown as CopilotPlugin}
+            plugin={{ agentSessionManager: manager } as unknown as ScribePlugin}
             onSaveChat={() => {}}
             updateUserMessageHistory={() => {}}
           />
@@ -290,7 +290,7 @@ describe("AgentModeChat", () => {
         expect(screen.getByTestId("agent-home")).toBe(home);
       }
     );
-    it("waits for authentication before auto-starting and starts after sign-in (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("waits for authentication before auto-starting and starts after sign-in", () => {
       mockHasAuth = true;
       mockAuthStatus = null;
       const { manager, getOrCreateActiveSession } = makeManager({
@@ -303,7 +303,7 @@ describe("AgentModeChat", () => {
       const renderAgain = () =>
         rerender(
           <AgentModeChat
-            plugin={{ agentSessionManager: manager } as unknown as CopilotPlugin}
+            plugin={{ agentSessionManager: manager } as unknown as ScribePlugin}
             onSaveChat={() => {}}
             updateUserMessageHistory={() => {}}
           />

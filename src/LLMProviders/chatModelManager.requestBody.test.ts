@@ -5,13 +5,11 @@ import { getSettings, setSettings } from "@/settings/model";
 import * as obsidianModule from "obsidian";
 
 import ChatModelManager from "./chatModelManager";
+import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidianModule as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
 };
-
-// Runs the real clients so a limit Copilot left out but the SDK puts back fails here.
-// https://github.com/logancyang/obsidian-copilot-preview/issues/312
 
 const OPENAI_RESPONSE = JSON.stringify({
   id: "chatcmpl-1",
@@ -32,8 +30,6 @@ const ANTHROPIC_RESPONSE = JSON.stringify({
   usage: { input_tokens: 1, output_tokens: 1 },
 });
 
-// Providers disagree on accepted sampling values, so Copilot sends none of them.
-// https://github.com/logancyang/obsidian-copilot/issues/2959
 const RETIRED_SAMPLING_PARAMS = ["temperature", "top_p", "frequency_penalty"];
 
 const RESPONSES_API_RESPONSE = JSON.stringify({
@@ -80,10 +76,10 @@ function captureRequest(responseText: string): () => CapturedRequest {
     };
     return Promise.resolve({
       status: 200,
-      text: responseText,
+      text: fixtureSse(parsedResponse),
       json: parsedResponse,
       arrayBuffer: new ArrayBuffer(0),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "text/event-stream" },
     });
   });
   return () => captured;
@@ -122,18 +118,20 @@ function respondWithBadRequest(message: string): void {
 
 async function send(model: CustomModel): Promise<void> {
   const instance = await ChatModelManager.getInstance().createModelInstanceFromBridged(model);
-  await instance.invoke("hi");
+  await collectText(instance);
 }
 
 async function sendWithTools(model: CustomModel): Promise<void> {
   const instance = await ChatModelManager.getInstance().createModelInstanceFromBridged(model);
-  if (!instance.bindTools) throw new Error(`${model.name} cannot bind tools`);
-  await instance.bindTools([LOOKUP_TOOL]).invoke("hi");
+  await collectText(instance, {
+    tools: [LOOKUP_TOOL.function],
+    messages: [{ role: "user", content: "hi", timestamp: 0 }],
+  });
 }
 
 describe("chatModelManager", () => {
   describe("ChatModelManager", () => {
-    describe("createModelInstanceFromBridged()", () => {
+    describe("createModelInstanceFromBridged", () => {
       const originalOpenAIOrgId = getSettings().openAIOrgId;
       afterEach(() => setSettings({ openAIOrgId: originalOpenAIOrgId }));
 
@@ -180,7 +178,7 @@ describe("chatModelManager", () => {
         }
       );
 
-      it("sends an OpenAI-compatible request with no output limit at all (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", async () => {
+      it("sends an OpenAI-compatible request with no output limit at all", async () => {
         const body = captureRequestBody(OPENAI_RESPONSE);
 
         await send(wireModel());
@@ -189,7 +187,7 @@ describe("chatModelManager", () => {
         expect(body()).not.toHaveProperty("max_completion_tokens");
       });
 
-      it("sends no sampling parameters, so the provider applies its own defaults (https://github.com/logancyang/obsidian-copilot/issues/2959)", async () => {
+      it("sends no sampling parameters, so the provider applies its own defaults", async () => {
         const body = captureRequestBody(OPENAI_RESPONSE);
 
         await send(wireModel());
@@ -199,7 +197,7 @@ describe("chatModelManager", () => {
         }
       });
 
-      it("sends Anthropic no sampling parameters either (https://github.com/logancyang/obsidian-copilot/issues/2959)", async () => {
+      it("sends Anthropic no sampling parameters either", async () => {
         const body = captureRequestBody(ANTHROPIC_RESPONSE);
 
         await send(
@@ -217,7 +215,7 @@ describe("chatModelManager", () => {
       });
 
       it.each(["claude-opus-4-7", "claude-sonnet-4-6", "claude-opus-5"])(
-        "sends Anthropic model %s no thinking configuration, so it runs at the provider's default (https://github.com/Brevilabs/obsidian-copilot-private/issues/761)",
+        "sends Anthropic model %s no thinking configuration, so it runs at the provider's default",
         async (name) => {
           const body = captureRequestBody(ANTHROPIC_RESPONSE);
 
@@ -234,7 +232,7 @@ describe("chatModelManager", () => {
         }
       );
 
-      it("surfaces a rejected request as the provider's own message rather than a connection failure (https://github.com/logancyang/obsidian-copilot/issues/2959)", async () => {
+      it("surfaces a rejected request as the provider's own message rather than a connection failure", async () => {
         respondWithBadRequest("invalid temperature: only 1 is allowed for this model");
 
         const error = await send(wireModel()).catch((raised: unknown) => raised);
@@ -244,7 +242,7 @@ describe("chatModelManager", () => {
         expect(String(error)).not.toContain("Connection error");
       });
 
-      it("stops retrying a request the provider has rejected (https://github.com/logancyang/obsidian-copilot/issues/2959)", async () => {
+      it("stops retrying a request the provider has rejected", async () => {
         let attempts = 0;
         const body = JSON.stringify({ error: { message: "nope", type: "invalid_request_error" } });
         setRequestUrlImpl(() => {
@@ -263,7 +261,7 @@ describe("chatModelManager", () => {
         expect(attempts).toBe(1);
       });
 
-      it("sends an OpenAI model with tools to the Responses API at the model's default effort (https://github.com/logancyang/obsidian-copilot/issues/3835)", async () => {
+      it("sends an OpenAI model with tools to the Responses API at the model's default effort", async () => {
         const request = captureRequest(RESPONSES_API_RESPONSE);
 
         await sendWithTools(
@@ -299,7 +297,7 @@ describe("chatModelManager", () => {
         expect(body().max_tokens).toBe(8192);
       });
 
-      it("sends Anthropic the ceiling the bridge resolved for the model (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", async () => {
+      it("sends Anthropic the ceiling the bridge resolved for the model", async () => {
         const body = captureRequestBody(ANTHROPIC_RESPONSE);
 
         await send(

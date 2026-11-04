@@ -7,9 +7,7 @@ import {
 } from "@/modelManagement";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 import { getProviderSessionOptions } from "@/LLMProviders/providerSession";
-import { extractTextFromChunk } from "@/utils";
 import { t } from "@/lib/i18n";
-import { HumanMessage } from "@langchain/core/messages";
 
 export interface TestProviderConnectionInput {
   provider: Provider;
@@ -69,16 +67,20 @@ export async function testProviderConnection(
         await ChatModelManager.getInstance().createModelInstanceFromBridged(customModel);
       if (controller.signal.aborted) throw new Error("Connection test aborted");
       const session = getProviderSessionOptions(customModel, configuredModel);
-      const stream = await model.stream([new HumanMessage("Reply with OK.")], {
-        signal: controller.signal,
-        maxRetries: 0,
-        ...session,
-        ...session?.options,
-      });
+      const stream = model.stream(
+        {
+          messages: [{ role: "user", content: "Reply with OK.", timestamp: Date.now() }],
+        },
+        {
+          signal: controller.signal,
+          maxRetries: 0,
+          headers: session?.options.headers,
+        }
+      );
       let reply = "";
-      for await (const chunk of stream) {
+      for await (const event of stream) {
         if (controller.signal.aborted) throw new Error("Connection test aborted");
-        reply += extractTextFromChunk(chunk.content);
+        if (event.type === "text_delta") reply += event.delta;
       }
       return reply.trim()
         ? {

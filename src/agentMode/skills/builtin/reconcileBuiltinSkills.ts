@@ -1,5 +1,5 @@
 import type { InstallState } from "@/agentMode/session/types";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import { joinPosix } from "@/utils/pathUtils";
 import {
   BUILTIN_SKILLS,
@@ -13,7 +13,7 @@ export type { BuiltinPreferences } from "@/settings/builtinSkillPreferences";
 export interface ReconcileBuiltinOptions {
   folder: string;
   fs: BuiltinSeedFs;
-  settings: CopilotSettings;
+  settings: ScribeSettings;
   availableAgents: readonly string[];
   registeredAgents: readonly string[];
 }
@@ -27,8 +27,6 @@ export async function reconcileBuiltinSkills(options: ReconcileBuiltinOptions): 
       isBuiltinSkillEnabledFor(settings, skill.name, agent)
     );
   }
-  // Canonical files sync between devices, so an unavailable device keeps them rather than
-  // deleting another device's tools. https://github.com/logancyang/obsidian-copilot/issues/3022
   const seed = BUILTIN_SKILLS.filter(
     (skill) =>
       !builtinSkillUnavailableReason(skill.name) &&
@@ -60,7 +58,6 @@ export function availableBuiltinAgents(
   states: Readonly<Record<string, InstallState>>,
   previous: readonly string[]
 ): readonly string[] {
-  // A transient re-check must not delete tools underneath an active turn. https://github.com/logancyang/obsidian-copilot/issues/3022
   const available = Object.entries(states)
     .filter(
       ([id, state]) =>

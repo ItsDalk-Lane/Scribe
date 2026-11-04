@@ -48,9 +48,6 @@ export class AgentInputDraftStore {
     const activePath = this.app.workspace.getActiveFile()?.path;
     this.update(chatInputId, (draft) => {
       const hasNote = draft.contextNotes.some((existing) => existing.path === note.path);
-      // The active note already has a dynamic badge. Keep only the fixed
-      // attachment so it stays with this draft when the editor changes notes.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/579
       const includeActiveNote = draft.includeActiveNote && note.path !== activePath;
       if (hasNote && includeActiveNote === draft.includeActiveNote) return draft;
       return {

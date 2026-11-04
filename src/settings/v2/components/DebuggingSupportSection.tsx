@@ -67,7 +67,9 @@ export const DebuggingSupportSection: React.FC<DebuggingSupportSectionProps> = (
       type="custom"
       title={t("Agent activity log")}
       description={t(
-        "Records the behind-the-scenes messages between Scribe and the agent so a report always has recent activity to attach. Stored on this device only, outside your vault ({frameLogPath}), and can include your prompts and note contents in plain text.",
+        // 原生代理不写入活动日志；如实描述这里只有旧版本记录的内容。
+        // https://github.com/ItsDalk-Lane/Scribe/issues/22
+        "Holds the behind-the-scenes activity that earlier Scribe versions recorded. Current native chats are not recorded. Stored on this device only, outside your vault ({frameLogPath}), and can include your prompts and note contents in plain text.",
         { frameLogPath: frameLogPath }
       )}
     >

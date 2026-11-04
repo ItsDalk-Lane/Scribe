@@ -9,7 +9,7 @@ function skillMd(name: string): string {
 
 describe("obsidianSkills", () => {
   describe("OBSIDIAN_SKILLS", () => {
-    it("offers the four skills to Claude while preserving its default opt outs (https://github.com/Brevilabs/obsidian-copilot-private/issues/726, https://github.com/logancyang/obsidian-copilot/issues/3868)", () => {
+    it("offers the four skills to Claude while preserving its default opt outs", () => {
       expect(OBSIDIAN_SKILLS.map((skill) => [skill.name, skill.defaultPreference])).toEqual([
         ["obsidian-markdown", { disabledAgents: ["claude"] }],
         ["obsidian-bases", { disabledAgents: ["claude"] }],
@@ -17,11 +17,11 @@ describe("obsidianSkills", () => {
         ["obsidian-cli", { disabledAgents: ["claude"] }],
       ]);
       for (const skill of OBSIDIAN_SKILLS) {
-        expect(skill.skillMd).toContain(`copilot-builtin-version: "${skill.version}"`);
+        expect(skill.skillMd).toContain(`scribe-builtin-version: "${skill.version}"`);
       }
     });
 
-    it("bumps the Markdown and CLI skill versions so existing vaults reseed their corrected guidance (https://github.com/Brevilabs/obsidian-copilot-private/issues/726, https://github.com/logancyang/obsidian-copilot/issues/3868, https://github.com/logancyang/obsidian-copilot/issues/3666)", () => {
+    it("bumps the Markdown and CLI skill versions so existing vaults reseed their corrected guidance", () => {
       expect(OBSIDIAN_SKILLS.map((skill) => [skill.name, skill.version])).toEqual([
         ["obsidian-markdown", 3],
         ["obsidian-bases", 2],
@@ -42,7 +42,7 @@ describe("obsidianSkills", () => {
       expect(OBSIDIAN_SKILLS_UPSTREAM_REVISION).toBe("a1dc48e68138490d522c04cbf5822214c6eb1202");
       for (const skill of OBSIDIAN_SKILLS) {
         expect(skill.skillMd).toContain(
-          `copilot-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"`
+          `scribe-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"`
         );
         expect(skill.skillMd).toContain("license: MIT");
         const license = skill.files.find((file) => file.path === "LICENSE");
@@ -81,7 +81,7 @@ describe("obsidianSkills", () => {
       );
     });
 
-    it("names the Markdown syntax that should trigger the skill and puts a list's block ID between blank lines (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("names the Markdown syntax that should trigger the skill and puts a list's block ID between blank lines", () => {
       const md = skillMd("obsidian-markdown");
       expect(md).toMatch(
         /description:[^\n]*block IDs[^\n]*Load before adding or changing any of these in a note\./
@@ -92,7 +92,7 @@ describe("obsidianSkills", () => {
       );
     });
 
-    it("escapes pipes inside table math and keeps scripted $$ replacements literal, the two math forms agents still broke on current text (https://github.com/logancyang/obsidian-copilot/issues/3868)", () => {
+    it("escapes pipes inside table math and keeps scripted $$ replacements literal, the two math forms agents still broke on current text", () => {
       const md = skillMd("obsidian-markdown");
       expect(md).toContain(
         "In a table, write a pipe inside math as <code>\\lvert</code>/<code>\\rvert</code>\n  and anywhere else as <code>\\|</code>; a bare <code>|</code> starts a new column."
@@ -103,7 +103,7 @@ describe("obsidianSkills", () => {
       );
     });
 
-    it("explains how template insertion fills the title and date placeholders (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("explains how template insertion fills the title and date placeholders", () => {
       const md = skillMd("obsidian-cli");
       expect(md).toContain("<code>create path=&lt;new note&gt; template=&lt;name&gt;</code>");
       expect(md).toContain(
@@ -114,7 +114,7 @@ describe("obsidianSkills", () => {
       );
     });
 
-    it("keeps example wikilinks inside code fences so installed skills add no unresolved links to the vault (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("keeps example wikilinks inside code fences so installed skills add no unresolved links to the vault", () => {
       const documents = OBSIDIAN_SKILLS.flatMap((skill) => [
         skill.skillMd,
         ...skill.files.filter((file) => file.path.endsWith(".md")).map((file) => file.content),
@@ -132,7 +132,7 @@ describe("obsidianSkills", () => {
       }
     });
 
-    it("documents that Bases sorts only by properties listed in the view's order, and rounds day counts (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("documents that Bases sorts only by properties listed in the view's order, and rounds day counts", () => {
       const md = skillMd("obsidian-bases");
       expect(md).toContain("    sort:\n      - property: due\n        direction: ASC");
       expect(md).toContain(
@@ -175,8 +175,8 @@ describe("obsidianSkills", () => {
     it("uses the CLI only for Obsidian runtime, index, and developer capabilities", () => {
       const md = skillMd("obsidian-cli");
       expect(md).toMatch(/description:[^\n]*currently open notes and tabs/);
-      expect(md).toContain("COPILOT_OBSIDIAN_CLI");
-      expect(md).toContain('obsidian_cli="${COPILOT_OBSIDIAN_CLI:-obsidian}"');
+      expect(md).toContain("SCRIBE_OBSIDIAN_CLI");
+      expect(md).toContain('obsidian_cli="${SCRIBE_OBSIDIAN_CLI:-obsidian}"');
       expect(md).toContain('"$obsidian_cli" version');
       expect(md).toContain("& $obsidianCli version");
       expect(md).toContain("always invoke it as a quoted executable");
@@ -233,9 +233,9 @@ describe("obsidianSkills", () => {
       expect(md).not.toContain("- changing restricted mode");
       expect(md).not.toContain("obsidian reload");
       expect(md).not.toContain("obsidian restart");
-      expect(md).not.toContain("plugin:reload id=copilot");
-      expect(md).not.toContain("plugin:disable id=copilot");
-      expect(md).not.toContain("plugin:uninstall id=copilot");
+      expect(md).not.toContain("plugin:reload id=scribe");
+      expect(md).not.toContain("plugin:disable id=scribe");
+      expect(md).not.toContain("plugin:uninstall id=scribe");
       expect(md).not.toContain("plugins:restrict on");
       expect(md).toContain("Use normal shell\nfilesystem tools");
       expect(md).not.toContain("obsidian read file=");
@@ -244,7 +244,7 @@ describe("obsidianSkills", () => {
       expect(md).not.toContain(" silent ");
     });
 
-    it("has a sandboxed agent rerun a CLI command with escalated permissions when it cannot find the running app, instead of telling the user to open Obsidian (https://github.com/logancyang/obsidian-copilot/issues/3666)", () => {
+    it("has a sandboxed agent rerun a CLI command with escalated permissions when it cannot find the running app, instead of telling the user to open Obsidian", () => {
       const md = skillMd("obsidian-cli");
       expect(md).toContain(
         "Scribe runs inside Obsidian, so Obsidian is running during your session."

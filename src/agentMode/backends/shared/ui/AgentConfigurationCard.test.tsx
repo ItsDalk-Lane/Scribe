@@ -17,7 +17,7 @@ describe("AgentConfigurationCard", () => {
     it("keeps installation details under the card's only disclosure and places an agent switch beside it", () => {
       render(<AgentConfigurationCard {...props} />);
       expect(screen.queryByText("/local/claude")).toBeNull();
-      fireEvent.click(screen.getByRole("button", { name: "Installation and sign-in settings" }));
+      fireEvent.click(screen.getByRole("button", { name: "Agent configuration" }));
       expect(screen.getByText("/local/claude")).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Configure" }));
       expect(props.onConfigure).toHaveBeenCalledTimes(1);

@@ -1,8 +1,20 @@
 import "web-streams-polyfill/dist/polyfill.min.js";
 import { TextEncoder, TextDecoder } from "util";
+import { MessagePort } from "worker_threads";
+import { deserialize, serialize } from "v8";
 
 window.TextEncoder = TextEncoder;
 window.TextDecoder = TextDecoder;
+
+window.MessagePort = MessagePort;
+const { Response, Request, Headers } = jest.requireActual("undici");
+Object.assign(window, { Response, Request, Headers });
+Object.defineProperty(AbortSignal.prototype, "throwIfAborted", {
+  configurable: true,
+  value() {
+    if (this.aborted) throw this.reason;
+  },
+});
 
 if (typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {
@@ -138,3 +150,4 @@ if (typeof window.activeDocument === "undefined") {
 if (typeof window.activeWindow === "undefined") {
   window.activeWindow = window;
 }
+window.structuredClone = (value) => deserialize(serialize(value));

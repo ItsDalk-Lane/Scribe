@@ -22,8 +22,6 @@ function isAnswered(
 ): boolean {
   if (otherActive) return customText.trim().length > 0;
   if (question.multiSelect) {
-    // An untouched or fully cleared multi-select must not become an empty-string answer.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/182
     return selection instanceof Set && selection.size > 0;
   }
   return typeof selection === "string" && selection !== "";
@@ -72,9 +70,6 @@ export const AskUserQuestionCard: React.FC<AskUserQuestionCardProps> = ({ reques
     onResolve(requestId, answers);
   };
 
-  // Tabs may skip questions, so Next validates only the visible answer while
-  // final Submit keeps the request-wide validation that prevents partial payloads.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/117
   const runPrimaryAction = (): void => {
     if (isFinalQuestion) {
       submit();
@@ -116,14 +111,14 @@ export const AskUserQuestionCard: React.FC<AskUserQuestionCardProps> = ({ reques
 
   return (
     <div className="tw-w-full tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-secondary">
-      <div className="copilot-divider-b tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-b tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2">
         <MessageCircleQuestion className="tw-size-4 tw-shrink-0 tw-text-accent" />
         <div className="tw-truncate tw-text-sm tw-font-medium">{t("Question from agent")}</div>
       </div>
 
       <div className="tw-flex tw-flex-col tw-gap-2 tw-px-3 tw-py-2">
         {showTabs ? (
-          <div role="tablist" className="copilot-divider-b tw-flex tw-flex-wrap tw-gap-x-1">
+          <div role="tablist" className="scribe-divider-b tw-flex tw-flex-wrap tw-gap-x-1">
             {questions.map((q, idx) => {
               const selected = idx === activeIdx;
               return (
@@ -164,7 +159,7 @@ export const AskUserQuestionCard: React.FC<AskUserQuestionCardProps> = ({ reques
         />
       </div>
 
-      <div className="copilot-divider-t tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-t tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-px-3 tw-py-2">
         <Button variant="secondary" size="sm" disabled={busy} onClick={cancel}>
           {t("Cancel")}
         </Button>

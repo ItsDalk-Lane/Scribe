@@ -12,8 +12,8 @@ function props(): BuiltinSkillsTableProps {
         content: "# Obsidian Markdown",
       },
     ],
-    agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
-    availableAgents: ["claude"],
+    agents: [{ id: "native", displayName: "Scribe", Icon: Bot }],
+    availableAgents: ["native"],
     runtimeItems: [
       {
         id: "runtime:obsidian-markdown",
@@ -43,18 +43,18 @@ describe("BuiltinSkillsTable", () => {
       expect(control.getAttribute("aria-disabled")).toBe("false");
       expect(control.getAttribute("aria-checked")).toBe("true");
       fireEvent.click(control);
-      expect(onToggle).toHaveBeenCalledWith("obsidian-markdown", "claude", false);
+      expect(onToggle).toHaveBeenCalledWith("obsidian-markdown", "native", false);
     });
     it("gives each agent its own built-in switch state", () => {
-      const isEnabled = jest.fn((_name: string, agent: string) => agent === "claude");
+      const isEnabled = jest.fn((_name: string, agent: string) => agent === "native");
       render(
         <BuiltinSkillsTable
           {...props()}
           agents={[
-            { id: "claude", displayName: "Claude", Icon: Bot },
+            { id: "native", displayName: "Scribe", Icon: Bot },
             { id: "codex", displayName: "Codex", Icon: Bot },
           ]}
-          availableAgents={["claude", "codex"]}
+          availableAgents={["native", "codex"]}
           isEnabled={isEnabled}
           onToggle={jest.fn().mockResolvedValue(undefined)}
         />
@@ -78,10 +78,10 @@ describe("BuiltinSkillsTable", () => {
       expect(screen.queryByText("Always enabled")).toBeNull();
       expect(screen.queryByText("Loaded")).toBeNull();
     });
-    it("keeps an unavailable built-in skill locked off when Claude has not been installed", () => {
+    it("keeps an unavailable built-in skill locked off when no chat model has been configured", () => {
       render(<BuiltinSkillsTable {...props()} availableAgents={[]} />);
       expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
-      expect(screen.getByTitle("Set up Claude Code to use this skill.")).toBeTruthy();
+      expect(screen.getByTitle("Configure a chat model to use this skill.")).toBeTruthy();
     });
     it("does not claim a built-in skill loaded when there is no runtime evidence", () => {
       render(<BuiltinSkillsTable {...props()} runtimeItems={undefined} />);

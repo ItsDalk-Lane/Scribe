@@ -10,7 +10,7 @@ function makeWire(providers: WireCatalog): WireCatalog {
 }
 
 describe("catalogTransform", () => {
-  describe("transformWireToCatalog()", () => {
+  describe("transformWireToCatalog", () => {
     it("retains provider SDK and environment hints without changing provider visibility", () => {
       const [provider] = transformWireToCatalog({
         vertex: { id: "vertex", npm: "@ai-sdk/google-vertex", env: ["GOOGLE_VERTEX_PROJECT", 3] },
@@ -324,7 +324,7 @@ describe("catalogTransform", () => {
       expect(result.map((p) => p.displayName)).toEqual(["Alpha", "Mid", "Zeta"]);
     });
 
-    it("drops Amazon Bedrock rather than letting it fall through to openai-compatible (https://github.com/logancyang/obsidian-copilot/issues/2928)", () => {
+    it("drops Amazon Bedrock rather than letting it fall through to openai-compatible", () => {
       const wire = makeWire({
         "amazon-bedrock": {
           id: "amazon-bedrock",
@@ -337,7 +337,7 @@ describe("catalogTransform", () => {
       expect(transformWireToCatalog(wire).map((p) => p.id)).toEqual(["openai"]);
     });
 
-    it("drops an unlisted provider id that ships an unroutable npm package, so a renamed or newly published Azure row is excluded on arrival (https://github.com/logancyang/obsidian-copilot/issues/2932)", () => {
+    it("drops an unlisted provider id that ships an unroutable npm package, so a renamed or newly published Azure row is excluded on arrival", () => {
       const wire = makeWire({
         "azure-foundry": { id: "azure-foundry", name: "Azure AI Foundry", npm: "@ai-sdk/azure" },
         openai: { id: "openai", name: "OpenAI", npm: "@ai-sdk/openai" },
@@ -345,7 +345,7 @@ describe("catalogTransform", () => {
       expect(transformWireToCatalog(wire).map((p) => p.id)).toEqual(["openai"]);
     });
 
-    it("drops both Azure catalog rows rather than reclassifying them as openai-compatible (https://github.com/logancyang/obsidian-copilot/issues/2932)", () => {
+    it("drops both Azure catalog rows rather than reclassifying them as openai-compatible", () => {
       const wire = makeWire({
         azure: { id: "azure", name: "Azure", npm: "@ai-sdk/azure" },
         "azure-cognitive-services": {

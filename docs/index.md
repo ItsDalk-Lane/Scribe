@@ -1,20 +1,20 @@
-# Scribe for Obsidian V4
+# Scribe for Obsidian
 
-Scribe V4 starts with **Agent Chat**, where Claude Code can read your vault, use tools, and complete multi-step work with your approval. Quick Ask, Quick Command, and saved Scribe commands remain available for smaller jobs and mobile use.
+Scribe starts with **Agent Chat**, where Scribe can read your vault, use tools, and complete multi-step work with your approval. Quick Ask, Quick Command, and saved Scribe commands remain available for smaller jobs and mobile use.
 
 ## Start here
 
 1. Install Scribe using the [installation steps](getting-started.md#install-scribe).
-2. Open **Settings → Scribe → 代理**. Follow [Getting Started with Scribe V4](getting-started.md) to connect Claude Code.
-3. Run **Open Scribe Agent Chat window**. Claude opens automatically when it is ready; otherwise, use **Configure** to finish setup.
+2. Under **Settings → Scribe → 快捷操作 → 模型**, configure a provider or local model, then enable a chat model under **代理 → Scribe**. See [Getting Started with Scribe](getting-started.md).
+3. Run **打开 Scribe 代理聊天窗口**. Scribe 使用你启用的聊天模型；未配置时按提示打开模型设置。
 
-Agent Chat uses Claude Code and its existing account. Windows users can also follow [Windows setup for Agent Chat](agent-mode-windows-setup.md).
+Agent Chat 在 Obsidian 内直接运行，无需外部代理或其订阅账户。 Windows users can also follow [Windows setup for Agent Chat](agent-mode-windows-setup.md).
 
 ## Agent Chat
 
 - [Agent Chat](agent-mode-and-tools.md) explains agents, models, permissions, sessions, and safe use.
-- [Set up Claude](agent-mode-and-tools.md#set-up-claude) to connect your Claude Code installation.
-- [Skills for Claude](agent-mode-and-tools.md#skills-with-claude) add reusable workflows to Agent Chat.
+- [Set up Scribe](agent-mode-and-tools.md#set-up-scribe) 配置原生代理的模型。
+- [Skills](agent-mode-and-tools.md#skills) add reusable workflows to Agent Chat.
 - [Projects](projects.md) give ongoing work its own instructions, context, and chat history.
 - [Context and Mentions](context-and-mentions.md) add notes, selections, folders and URLs to a request.
 - [Instructions for Agent Chat](system-prompts.md) and [`AGENTS.md` examples](agents-md-examples.md) set durable guidance for your vault and projects.
@@ -25,12 +25,12 @@ Agent Chat uses Claude Code and its existing account. Windows users can also fol
 
 ## Models
 
-- [Model Sources and BYOK](llm-providers.md) covers BYOK for quick tools, your Claude Code account, and local endpoints.
+- [Model Sources and BYOK](llm-providers.md) covers Agent Chat 和快捷工具共用的自备模型及本地连接.
 - [Models, Effort, and Permissions](models-and-parameters.md) explains model selection, defaults, approval behavior, and reasoning effort.
 
 ## Settings
 
-[Scribe Settings](settings.md) walks through every tab in the order it appears in Obsidian: **通用**、**模型**、**代理**、**插件**、**技能**、**命令**、**钩子**、**MCP** 和 **子Agent**.
+[Scribe Settings](settings.md) walks through every tab in the order it appears in Obsidian: **通用**、**快捷操作**、**代理**、**技能**、**命令** 和 **子Agent**.
 
 ## Help
 

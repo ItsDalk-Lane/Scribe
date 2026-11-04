@@ -32,7 +32,7 @@ jest.mock("jotai", () => ({
 }));
 
 describe("ChatModelEnableList", () => {
-  describe("ChatModelEnableList()", () => {
+  describe("ChatModelEnableList", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       providers = {
@@ -73,7 +73,7 @@ describe("ChatModelEnableList", () => {
       ];
       backends = { chat: { enabledModels: ["a"] } };
     });
-    it("lists only non-agent models and enables or disables one per switch click without desktop agents (https://github.com/Brevilabs/obsidian-copilot-private/issues/373)", () => {
+    it("lists only non-agent models and enables or disables one per switch click without desktop agents", () => {
       render(<ChatModelEnableList />);
       expect(screen.queryByText("Agent model")).toBeNull();
       fireEvent.click(screen.getAllByRole("switch")[0]);
@@ -81,7 +81,7 @@ describe("ChatModelEnableList", () => {
       expect(disableModel).toHaveBeenCalledWith("chat", "a");
       expect(enableModel).toHaveBeenCalledWith("chat", "b");
     });
-    it("narrows the list to models matching the search text (https://github.com/Brevilabs/obsidian-copilot-private/issues/373)", () => {
+    it("narrows the list to models matching the search text", () => {
       render(<ChatModelEnableList />);
       fireEvent.change(screen.getByPlaceholderText("Search quick-tool models…"), {
         target: { value: "model-b" },

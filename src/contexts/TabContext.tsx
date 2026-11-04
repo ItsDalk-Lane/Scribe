@@ -1,20 +1,20 @@
-import type { CopilotSettingsTabId } from "@/settings/settingsTabs";
+import type { ScribeSettingsTabId } from "@/settings/settingsTabs";
 import React, { createContext, useContext, useMemo, useState } from "react";
 
 interface TabContextType {
-  selectedTab: CopilotSettingsTabId;
-  setSelectedTab: (tab: CopilotSettingsTabId) => void;
+  selectedTab: ScribeSettingsTabId;
+  setSelectedTab: (tab: ScribeSettingsTabId) => void;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
 
 interface TabProviderProps {
   children: React.ReactNode;
-  initialTab?: CopilotSettingsTabId;
+  initialTab?: ScribeSettingsTabId;
 }
 
 export const TabProvider: React.FC<TabProviderProps> = ({ children, initialTab = "basic" }) => {
-  const [selectedTab, setSelectedTab] = useState<CopilotSettingsTabId>(initialTab);
+  const [selectedTab, setSelectedTab] = useState<ScribeSettingsTabId>(initialTab);
 
   const value = useMemo(() => ({ selectedTab, setSelectedTab }), [selectedTab]);
 

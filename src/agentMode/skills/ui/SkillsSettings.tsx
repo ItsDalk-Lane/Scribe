@@ -43,7 +43,7 @@ import { type Skill } from "@/agentMode/skills/types";
 import { AgentConfigurationHeader } from "@/components/ui/AgentConfigurationHeader";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { deriveSkillsFolder } from "@/settings/copilotFolder";
+import { deriveSkillsFolder } from "@/settings/scribeFolder";
 import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
 import { openVaultPath } from "@/utils/openVaultPath";
 import { revealFolderInExplorer } from "@/utils/revealFolderInExplorer";
@@ -166,8 +166,6 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
 
   const [syncBannerDismissed, setSyncBannerDismissed] = useState(false);
 
-  // Refresh on focus: fixing a hidden agent file in an external editor bypasses Obsidian's
-  // watcher. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
   useEffect(() => {
     const manager = SkillManager.getInstance();
     let active = true;
@@ -209,8 +207,6 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
     [app, onChanged]
   );
 
-  // Hidden agent folders are outside Obsidian's index, so they cannot use the vault reveal
-  // path. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
   const handleRevealSkillFolder = useCallback(
     (dirPath: string) => {
       const folderRel = toVaultRelative(dirPath, getVaultBase(app));
@@ -319,8 +315,8 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
       <section>
         {!embedded && (
           <AgentConfigurationHeader
-            agents={[{ id: "claude", label: "Claude Code" }]}
-            selectedAgent="claude"
+            agents={[{ id: "native", label: "Scribe" }]}
+            selectedAgent="native"
             query={searchValue}
             onQueryChange={setSearchValue}
             searchPlaceholder={t("Search skills…")}
@@ -375,7 +371,6 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
             {t("Personally installed skills")}
           </div>
           {userSkills.length === 0 ? (
-            // Rejected files prove skills exist; the empty state would claim there are none. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
             rejectedSkills.length > 0 ? (
               <AllSkillsNotLoaded />
             ) : (

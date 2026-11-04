@@ -14,8 +14,8 @@ cp "$REPO_ROOT/scripts/obsidian-vault.sh" "$FIXTURE_ROOT/scripts/obsidian-vault.
 
 cat >"$FIXTURE_ROOT/manifest.json" <<'EOF'
 {
-  "id": "copilot",
-  "name": "Copilot",
+  "id": "scribe",
+  "name": "Scribe",
   "version": "4.0.0-preview-260629",
   "description": "Test fixture"
 }
@@ -61,7 +61,7 @@ DEPLOY_STDERR="$TEST_ROOT/deploy-stderr.log"
 run_deploy() {
   : >"$DEPLOY_CALL_LOG"
   PATH="$FAKE_BIN:$PATH" \
-    COPILOT_TEST_VAULT_PATH="$VAULT_ROOT" \
+    SCRIBE_TEST_VAULT_PATH="$VAULT_ROOT" \
     OBSIDIAN_BIN="$FAKE_BIN/obsidian" \
     DEPLOY_CALL_LOG="$DEPLOY_CALL_LOG" \
     REGISTRY="$REGISTRY" \
@@ -70,7 +70,7 @@ run_deploy() {
 
 assert_manifest() {
   local state="$1"
-  ARTIFACT_DIR="$VAULT_ROOT/.obsidian/plugins/copilot" \
+  ARTIFACT_DIR="$VAULT_ROOT/.obsidian/plugins/scribe" \
     BUILD_COMMIT="$COMMIT" \
     BUILD_STATE="$state" \
     node -e '
@@ -96,7 +96,7 @@ assert_manifest() {
     if (manifest.version !== expectedVersion) {
       throw new Error(`expected ${expectedVersion}, received ${manifest.version}`);
     }
-    if (manifest.name !== `Copilot [${buildTag}]`) {
+    if (manifest.name !== `Scribe [${buildTag}]`) {
       throw new Error(`unexpected build name: ${manifest.name}`);
     }
     if (!manifest.description.includes(`dev build: ${buildTag}`)) {
@@ -106,14 +106,14 @@ assert_manifest() {
 }
 
 COMMIT="$(git -C "$FIXTURE_ROOT" rev-parse --short=8 HEAD)"
-mkdir -p "$VAULT_ROOT/.obsidian/plugins/copilot"
-ln -s "$FIXTURE_ROOT/main.js" "$VAULT_ROOT/.obsidian/plugins/copilot/main.js"
-ln -s "$FIXTURE_ROOT/styles.css" "$VAULT_ROOT/.obsidian/plugins/copilot/styles.css"
+mkdir -p "$VAULT_ROOT/.obsidian/plugins/scribe"
+ln -s "$FIXTURE_ROOT/main.js" "$VAULT_ROOT/.obsidian/plugins/scribe/main.js"
+ln -s "$FIXTURE_ROOT/styles.css" "$VAULT_ROOT/.obsidian/plugins/scribe/styles.css"
 run_deploy
 assert_manifest clean
 
 for action in plugin:disable plugin:enable; do
-  if ! grep -qxF "obsidian vault=vault $action id=copilot" "$DEPLOY_CALL_LOG"; then
+  if ! grep -qxF "obsidian vault=vault $action id=scribe" "$DEPLOY_CALL_LOG"; then
     echo "expected $action to name the registered test vault" >&2
     exit 1
   fi
@@ -123,19 +123,19 @@ if grep -q "setEnable" "$DEPLOY_CALL_LOG"; then
   exit 1
 fi
 MANIFESTS_LINE="$(grep -n -m1 -xF "obsidian vault=vault eval code=app.plugins.loadManifests()" "$DEPLOY_CALL_LOG" | cut -d: -f1)"
-ENABLE_LINE="$(grep -n -m1 -xF "obsidian vault=vault plugin:enable id=copilot" "$DEPLOY_CALL_LOG" | cut -d: -f1)"
+ENABLE_LINE="$(grep -n -m1 -xF "obsidian vault=vault plugin:enable id=scribe" "$DEPLOY_CALL_LOG" | cut -d: -f1)"
 if [[ -z "$MANIFESTS_LINE" || "$MANIFESTS_LINE" -ge "$ENABLE_LINE" ]]; then
   echo "enabled the plugin before rescanning plugin manifests" >&2
   exit 1
 fi
 
 for artifact in main.js styles.css; do
-  if [[ -L "$VAULT_ROOT/.obsidian/plugins/copilot/$artifact" ]]; then
+  if [[ -L "$VAULT_ROOT/.obsidian/plugins/scribe/$artifact" ]]; then
     echo "expected $artifact to be copied, not symlinked" >&2
     exit 1
   fi
 done
-DEPLOYED_MAIN="$VAULT_ROOT/.obsidian/plugins/copilot/main.js"
+DEPLOYED_MAIN="$VAULT_ROOT/.obsidian/plugins/scribe/main.js"
 printf 'changed after deployment\n' >"$FIXTURE_ROOT/main.js"
 if [[ "$(cat "$DEPLOYED_MAIN")" != "clean bundle" ]]; then
   echo "deployed main.js changed when the worktree artifact changed" >&2
@@ -158,7 +158,7 @@ printf 'dirty bundle\n' >"$FIXTURE_ROOT/main.js"
 run_deploy
 assert_manifest dirty
 
-GALLERY_ID="copilot-component-gallery"
+GALLERY_ID="scribe-component-gallery"
 GALLERY_PLUGIN_DIR="$VAULT_ROOT/.obsidian/plugins/$GALLERY_ID"
 mkdir -p "$FIXTURE_ROOT/dev/gallery"
 cat >"$FIXTURE_ROOT/dev/gallery/manifest.json" <<EOF
@@ -214,7 +214,7 @@ if ! RENDERER_CLOSED=1 run_deploy; then
   exit 1
 fi
 if grep -q "vault-open" "$DEPLOY_CALL_LOG" ||
-  ! grep -qxF "obsidian vault=vault plugin:enable id=copilot" "$DEPLOY_CALL_LOG"; then
+  ! grep -qxF "obsidian vault=vault plugin:enable id=scribe" "$DEPLOY_CALL_LOG"; then
   echo "expected a registered vault with no open window to deploy without re-registering" >&2
   exit 1
 fi
@@ -231,7 +231,7 @@ if ! grep -qxF "obsidian vault=vault eval code=app.plugins.setEnable(true)" "$DE
   exit 1
 fi
 for action in plugin:disable plugin:enable; do
-  if ! grep -qxF "obsidian vault=vault $action id=copilot" "$DEPLOY_CALL_LOG"; then
+  if ! grep -qxF "obsidian vault=vault $action id=scribe" "$DEPLOY_CALL_LOG"; then
     echo "expected $action to name the newly registered vault" >&2
     exit 1
   fi

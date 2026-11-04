@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n";
+import type { Skill } from "@/agentMode";
 import React, { useCallback, useEffect, useId } from "react";
 import { $getRoot, EditorState, LexicalEditor as LexicalEditorType } from "lexical";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -33,6 +34,7 @@ import { ActiveFileProvider } from "./context/ActiveFileContext";
 import { useSettingsValue } from "@/settings/model";
 
 interface LexicalEditorProps {
+  slashSkills?: readonly Skill[];
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -54,6 +56,7 @@ interface LexicalEditorProps {
 }
 
 const LexicalEditor: React.FC<LexicalEditorProps> = ({
+  slashSkills,
   value,
   onChange,
   onSubmit,
@@ -157,8 +160,7 @@ const LexicalEditor: React.FC<LexicalEditorProps> = ({
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
-          {/* Selection-only changes must not push stale text over an external clear.
-                https://github.com/logancyang/obsidian-copilot-preview/issues/211 */}
+
           <OnChangePlugin onChange={handleEditorChange} ignoreSelectionChange />
           <HistoryPlugin />
           <KeyboardPlugin
@@ -185,7 +187,7 @@ const LexicalEditor: React.FC<LexicalEditorProps> = ({
           />
           <PillDeletionPlugin />
           <PastePlugin onImagePaste={onImagePaste} />
-          <SlashCommandPlugin />
+          <SlashCommandPlugin skills={slashSkills} />
           <NoteCommandPlugin currentActiveFile={currentActiveFile} />
           <AtMentionCommandPlugin currentActiveFile={currentActiveFile} isAgentMode />
           <TextInsertionPlugin />

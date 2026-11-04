@@ -20,7 +20,7 @@ import {
 } from "./audit";
 import { modules, presentationalComponentCount } from "./stories.generated";
 
-export const GALLERY_VIEWTYPE = "copilot-component-gallery";
+export const GALLERY_VIEWTYPE = "scribe-component-gallery";
 
 export interface GalleryShowOptions {
   width?: number;
@@ -412,8 +412,6 @@ export default class GalleryPlugin extends Plugin {
         storyModule: (await load()) as LoadedStoryModule["storyModule"],
       }))
     );
-    // Obsidian never waits for onload before unloading, and views or commands registered on an
-    // unloaded plugin are never removed. https://github.com/logancyang/obsidian-copilot/issues/3518
     if (!this.lifecycleActive) return;
     this.catalog = createGalleryCatalog(storyModules, presentationalComponentCount);
     this.lastGalleryState = resolveGalleryViewState(this.lastGalleryState, this.catalog.stories);

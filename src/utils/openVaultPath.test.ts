@@ -156,7 +156,7 @@ describe("openVaultPath", () => {
     expect(app.workspace.openLinkText).toHaveBeenCalledWith("Some Note", "source.md", "tab");
   });
 
-  describe("openVaultPath()", () => {
+  describe("openVaultPath", () => {
     it("focuses the tab already showing the note instead of opening a duplicate", async () => {
       const other = leafShowing("Other.md");
       const existing = leafShowing("Drawings/Plan.excalidraw.md", "excalidraw");
@@ -170,7 +170,7 @@ describe("openVaultPath", () => {
       expect(app.workspace.openLinkText).not.toHaveBeenCalled();
     });
 
-    it("loads a still-unloaded tab before revealing it and scrolling to the link's heading (https://github.com/Brevilabs/obsidian-copilot-private/issues/796)", async () => {
+    it("loads a still-unloaded tab before revealing it and scrolling to the link's heading", async () => {
       const existing = leafShowing("Folder/Foo.md");
       const app = buildApp(VAULT, ["Folder/Foo.md"], [existing]);
       open(app, "Folder/Foo.md#Heading");
@@ -186,7 +186,7 @@ describe("openVaultPath", () => {
       expect(app.workspace.openLinkText).not.toHaveBeenCalled();
     });
 
-    it("focuses a tab in a popout window but ignores sidebar panels tracking the note (https://github.com/Brevilabs/obsidian-copilot-private/issues/796)", async () => {
+    it("focuses a tab in a popout window but ignores sidebar panels tracking the note", async () => {
       const outline = leafShowing("Folder/Foo.md", "outline", RIGHT_SIDEBAR);
       const popout = leafShowing("Folder/Foo.md", "markdown", POPOUT_WINDOW);
       const app = buildApp(VAULT, ["Folder/Foo.md"], [outline, popout]);
@@ -198,7 +198,7 @@ describe("openVaultPath", () => {
       expect(app.workspace.openLinkText).not.toHaveBeenCalled();
     });
 
-    it("opens another tab when the caller asks for one even when a tab already shows the note (https://github.com/Brevilabs/obsidian-copilot-private/issues/796)", () => {
+    it("opens another tab when the caller asks for one even when a tab already shows the note", () => {
       const app = buildApp(VAULT, ["Folder/Foo.md"], [leafShowing("Folder/Foo.md")]);
       open(app, "Folder/Foo.md", "tab");
       expect(app.workspace.setActiveLeaf).not.toHaveBeenCalled();
@@ -213,7 +213,7 @@ describe("openVaultPath", () => {
     });
 
     it.each(["Slides.pdf#page=13", "Slides.PDF#page=14"])(
-      "opens %s at the page top instead of inheriting the previous scroll offset (https://github.com/logancyang/obsidian-copilot/issues/3894)",
+      "opens %s at the page top instead of inheriting the previous scroll offset",
       (path) => {
         const app = buildApp(VAULT, [path.split("#")[0]]);
         openVaultPath(app as unknown as App, path, { sourcePath: "source.md" });
@@ -232,17 +232,14 @@ describe("openVaultPath", () => {
       "Slides.pdf#page=13&zoom=100",
       "Slides.pdf",
       "Note.md#page=13",
-    ])(
-      "preserves the existing destination for %s (https://github.com/logancyang/obsidian-copilot/issues/3894)",
-      (path) => {
-        const app = buildApp(VAULT, [path.split("#")[0]]);
-        open(app, path);
-        expect(app.workspace.openLinkText).toHaveBeenCalledWith(path, "", "tab");
-      }
-    );
+    ])("preserves the existing destination for %s", (path) => {
+      const app = buildApp(VAULT, [path.split("#")[0]]);
+      open(app, path);
+      expect(app.workspace.openLinkText).toHaveBeenCalledWith(path, "", "tab");
+    });
   });
 
-  describe("openFileInTab()", () => {
+  describe("openFileInTab", () => {
     it("focuses the tab already showing the file", async () => {
       const existing = leafShowing("Folder/Foo.md");
       const app = buildApp(VAULT, ["Folder/Foo.md"], [existing]);
@@ -251,7 +248,7 @@ describe("openVaultPath", () => {
       expect(app.workspace.getLeaf).not.toHaveBeenCalled();
     });
 
-    it("opens another tab when the caller asks for one even when a tab already shows the file (https://github.com/Brevilabs/obsidian-copilot-private/issues/796)", async () => {
+    it("opens another tab when the caller asks for one even when a tab already shows the file", async () => {
       const app = buildApp(VAULT, ["Folder/Foo.md"], [leafShowing("Folder/Foo.md")]);
       const file = vaultFile("Folder/Foo.md");
       await openFileInTab(app as unknown as App, file, "tab");
@@ -268,7 +265,7 @@ describe("openVaultPath", () => {
     });
   });
 
-  describe("openLinkClickProps()", () => {
+  describe("openLinkClickProps", () => {
     function renderLink(open: jest.Mock): HTMLElement {
       render(React.createElement("a", { href: "#", ...openLinkClickProps(open) }, "Note"));
       return screen.getByText("Note");
@@ -310,11 +307,11 @@ describe("openVaultPath", () => {
 
     beforeEach(() => {
       vaultDir = fs.realpathSync(fs.mkdtempSync(nodePath.join(os.tmpdir(), "ovp-vault-")));
-      fs.mkdirSync(nodePath.join(vaultDir, "copilot/skills"), { recursive: true });
-      fs.writeFileSync(nodePath.join(vaultDir, "copilot/skills/voice-profile.md"), "hi");
+      fs.mkdirSync(nodePath.join(vaultDir, "scribe/skills"), { recursive: true });
+      fs.writeFileSync(nodePath.join(vaultDir, "scribe/skills/voice-profile.md"), "hi");
       fs.mkdirSync(nodePath.join(vaultDir, ".claude"));
       fs.symlinkSync(
-        nodePath.join(vaultDir, "copilot/skills"),
+        nodePath.join(vaultDir, "scribe/skills"),
         nodePath.join(vaultDir, ".claude/skills")
       );
     });
@@ -324,10 +321,10 @@ describe("openVaultPath", () => {
     });
 
     it("opens a dot-folder symlink alias as its canonical indexed note", () => {
-      const app = buildApp(vaultDir, ["copilot/skills/voice-profile.md"]);
+      const app = buildApp(vaultDir, ["scribe/skills/voice-profile.md"]);
       open(app, ".claude/skills/voice-profile.md");
       expect(app.workspace.openLinkText).toHaveBeenCalledWith(
-        "copilot/skills/voice-profile.md",
+        "scribe/skills/voice-profile.md",
         "",
         "tab"
       );
@@ -335,10 +332,10 @@ describe("openVaultPath", () => {
     });
 
     it("opens a root-relative dot-folder symlink alias as its canonical indexed note", () => {
-      const app = buildApp(vaultDir, ["copilot/skills/voice-profile.md"]);
+      const app = buildApp(vaultDir, ["scribe/skills/voice-profile.md"]);
       open(app, "/.claude/skills/voice-profile.md");
       expect(app.workspace.openLinkText).toHaveBeenCalledWith(
-        "copilot/skills/voice-profile.md",
+        "scribe/skills/voice-profile.md",
         "",
         "tab"
       );
@@ -346,10 +343,10 @@ describe("openVaultPath", () => {
     });
 
     it("preserves the heading anchor when canonicalizing a symlink alias", () => {
-      const app = buildApp(vaultDir, ["copilot/skills/voice-profile.md"]);
+      const app = buildApp(vaultDir, ["scribe/skills/voice-profile.md"]);
       open(app, ".claude/skills/voice-profile.md#Closings");
       expect(app.workspace.openLinkText).toHaveBeenCalledWith(
-        "copilot/skills/voice-profile.md#Closings",
+        "scribe/skills/voice-profile.md#Closings",
         "",
         "tab"
       );

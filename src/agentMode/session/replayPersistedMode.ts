@@ -2,11 +2,11 @@ import { logWarn } from "@/logger";
 import type { AgentSession } from "./AgentSession";
 import { MethodUnsupportedError } from "./errors";
 import { applyModeSpec } from "./modeApply";
-import type { CopilotMode } from "./types";
+import type { ScribeMode } from "./types";
 
 export async function replayPersistedMode(
   session: AgentSession,
-  mode: CopilotMode | null
+  mode: ScribeMode | null
 ): Promise<void> {
   if (!mode) return;
   const modeState = session.getState()?.mode;

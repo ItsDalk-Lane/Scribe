@@ -70,7 +70,6 @@ export async function discoverManagedSkills(
       const fm = parsed.frontmatter;
 
       return {
-        // Copies and Markdown examples of the marker must stay visible as editable user skills. https://github.com/logancyang/obsidian-copilot/issues/3022
         builtin: BUILTIN_NAMES.has(fm.name) && getBuiltinSkillVersion(content) !== null,
         name: fm.name,
         description: fm.description,

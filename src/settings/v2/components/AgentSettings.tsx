@@ -31,7 +31,7 @@ export const AgentSettings: React.FC = () => {
       <AgentConfigurationHeader
         agents={descriptors.map((item) => ({
           id: item.id,
-          label: item.id === "claude" ? "Claude Code" : item.displayName,
+          label: item.displayName,
         }))}
         selectedAgent={descriptor.id}
         onSelectAgent={(id) => setSelected(id)}
@@ -93,7 +93,7 @@ function BackendPanel({ descriptor }: BackendPanelProps) {
   return (
     <div className="tw-space-y-5">
       <AgentConfigurationCard
-        displayName={descriptor.id === "claude" ? "Claude Code" : descriptor.displayName}
+        displayName={descriptor.displayName}
         Icon={descriptor.Icon}
         installState={installState}
         managedInstall={managedInstall}

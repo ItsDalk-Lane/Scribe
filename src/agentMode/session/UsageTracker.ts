@@ -36,9 +36,6 @@ export class UsageTracker {
   }
 
   applyUsageUpdate(usage: SessionUsage): void {
-    // Some backends use zero as an empty terminal snapshot after cancellation.
-    // It does not measure consumed context, so wait for a positive reading.
-    // https://github.com/logancyang/obsidian-copilot/issues/2975
     if (!usage.usedTokens) return;
     if (usage.contextWindow === undefined && this.sessionUsage?.contextWindow !== undefined) {
       return;
@@ -47,8 +44,6 @@ export class UsageTracker {
     this.deps.notifyMessages();
   }
 
-  // Compaction reports the new context size directly, so it bypasses applyUsageUpdate's guards.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/635
   applyCompactedUsage(compaction: CompactionSnapshot): boolean {
     if (compaction.status !== "completed" || compaction.postTokens === undefined) return false;
     this.sessionUsage = {
@@ -59,8 +54,6 @@ export class UsageTracker {
     return true;
   }
 
-  // A stale window would stick because `applyUsageUpdate` ignores windowless snapshots while one
-  // is held. https://github.com/logancyang/obsidian-copilot-preview/issues/193
   dropUsageWindowOnModelChange(next: BackendState | null): void {
     const before = this.deps.getModelId();
     const after = next?.model?.current.baseModelId;

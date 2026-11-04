@@ -1,4 +1,4 @@
-import { createVertexAccessToken } from "./createVertexAccessToken";
+import { createVertexAccessToken, parseVertexCredentials } from "./createVertexAccessToken";
 import { generateKeyPairSync, verify, webcrypto } from "node:crypto";
 
 const pair = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -8,7 +8,47 @@ function response(payload: unknown, status = 200): Response {
 }
 
 describe("createVertexAccessToken", () => {
-  describe("createVertexAccessToken()", () => {
+  describe("parseVertexCredentials", () => {
+    it.each(["ya29.fixture", "Bearer ya29.fixture", "  Bearer ya29.fixture  "])(
+      "returns the supplied OAuth token without an optional Bearer prefix: %s",
+      (secret) => {
+        expect(parseVertexCredentials(secret)).toBe("ya29.fixture");
+      }
+    );
+
+    it("retains service-account fields for the caller's existing validation and signing", () => {
+      const credentials = {
+        type: "service_account",
+        client_email: "fixture@example.invalid",
+        private_key: privateKey,
+      };
+      expect(parseVertexCredentials(JSON.stringify(credentials, null, 2))).toEqual(credentials);
+    });
+
+    it.each([
+      '[\n{"private_key":"SYNTHETIC_PRIVATE_KEY"}\n]',
+      '[{"private_key":"SYNTHETIC_PRIVATE_KEY"}]',
+      'Bearer {\n"private_key":"SYNTHETIC_PRIVATE_KEY"\n}',
+      '"SYNTHETIC_PRIVATE_KEY"',
+      '{"private_key":SYNTHETIC_PRIVATE_KEY}',
+      "Bearer\nSYNTHETIC_PRIVATE_KEY",
+      "SYNTHETIC_PRIVATE_KEY\nremaining",
+    ])("rejects an invalid credential representation with a safe diagnostic (%s)", (secret) => {
+      let failure: unknown;
+      try {
+        parseVertexCredentials(secret);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toMatch(
+        /JSON or access token is required|must be valid JSON/
+      );
+      expect((failure as Error).message).not.toContain("SYNTHETIC_PRIVATE_KEY");
+    });
+  });
+
+  describe("createVertexAccessToken", () => {
     beforeAll(() => {
       Object.defineProperty(window.crypto, "subtle", {
         configurable: true,
@@ -116,6 +156,9 @@ describe("createVertexAccessToken", () => {
     it.each([
       { access_token: 42, expires_in: 3600 },
       { access_token: "invalid", expires_in: -1 },
+      { access_token: '{"private_key":"SYNTHETIC_PRIVATE_KEY"}', expires_in: 3600 },
+      { access_token: "first\nSYNTHETIC_PRIVATE_KEY", expires_in: 3600 },
+      { access_token: "Bearer token", expires_in: 3600 },
     ])("rejects malformed OAuth credentials without caching them: %j", async (payload) => {
       const getToken = createVertexAccessToken("fixture@example.invalid", privateKey, async () =>
         response(payload)

@@ -15,8 +15,6 @@ export function useIncrementalPaging(total: number, resetKey: string) {
       observerRef.current?.disconnect();
       observerRef.current = null;
       if (!node) return;
-      // Popouts must observe intersections in their own window.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/372
       const Observer = node.ownerDocument.defaultView?.IntersectionObserver ?? IntersectionObserver;
       const observer = new Observer(
         (entries) => {

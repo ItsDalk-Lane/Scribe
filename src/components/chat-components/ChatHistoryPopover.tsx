@@ -434,8 +434,6 @@ function ChatHistoryItem({
         )}
         role="button"
         tabIndex={0}
-        // Let keyboard users reach release controls without opening the chat.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/429
         onKeyDown={(event) => {
           if (
             event.target === event.currentTarget &&

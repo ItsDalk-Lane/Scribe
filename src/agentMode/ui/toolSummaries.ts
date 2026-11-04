@@ -6,6 +6,7 @@ import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
 import { formatDuration } from "@/lib/duration";
 import { diffTargetPaths, primaryEditTargetPath } from "@/agentMode/session/editTargets";
 import { isAbsolutePath } from "@/utils/vaultPath";
+import { toolPresentationName } from "@/agentMode/session/toolName";
 
 export interface ToolSummaryContext {
   vaultBase: string | null;
@@ -30,13 +31,10 @@ export function lookupToolSummary(part: ToolCallPart): ToolSummary {
 }
 
 function selectToolSummary(part: ToolCallPart): ToolSummary {
-  // A user's choice remains the visible result even when a late adapter
-  // update retains the original tool kind or vendor name.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/41
   if (part.userResponse) return USER_RESPONSE_SUMMARY;
   if (isOpencodeTaskTool(part)) return TASK_SUMMARY;
   if (part.vendorToolName) {
-    const v = VENDOR_SUMMARIES[part.vendorToolName];
+    const v = VENDOR_SUMMARIES[toolPresentationName(part.vendorToolName)];
     if (v) return v;
   }
   if (part.toolKind) {
@@ -103,9 +101,6 @@ function fileChangeVerb(
   past: string,
   negated: string
 ): string {
-  // A failed, denied or stopped file change leaves the note untouched, so the label
-  // must not claim it happened.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/691
   return part.status === "failed" || part.status === "cancelled"
     ? t("Didn't {action}", { action: t(negated) })
     : verb(part, progressive, past);

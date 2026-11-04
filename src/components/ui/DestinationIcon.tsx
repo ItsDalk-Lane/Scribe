@@ -12,8 +12,6 @@ interface DestinationIconProps {
   className?: string;
 }
 
-// Settings name where each provider sends requests, so nothing new shows in the chat.
-// https://github.com/logancyang/obsidian-copilot/issues/2889
 export function DestinationIcon({ destination, className }: DestinationIconProps) {
   const Icon = ICONS[destination.kind];
   return (

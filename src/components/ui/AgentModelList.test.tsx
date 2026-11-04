@@ -18,7 +18,7 @@ describe("AgentModelList", () => {
     ];
     it("shows every reported entry under one disclosure, including same-name models and disabled models", () => {
       const toggle = jest.fn();
-      render(<AgentModelList rows={rows} onToggle={toggle} agentName="Claude Code" />);
+      render(<AgentModelList rows={rows} onToggle={toggle} agentName="Scribe" />);
       expect(screen.queryByText("first")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: /Visible models/ }));
       expect(screen.getAllByRole("switch")).toHaveLength(4);
@@ -29,10 +29,8 @@ describe("AgentModelList", () => {
       expect(toggle).toHaveBeenCalledWith("c", true);
     });
     it("searches by the model code without changing the full count or selecting another default", () => {
-      render(
-        <AgentModelList rows={rows} onToggle={jest.fn()} agentName="Claude Code" defaultOpen />
-      );
-      fireEvent.change(screen.getByPlaceholderText("Search Claude Code models…"), {
+      render(<AgentModelList rows={rows} onToggle={jest.fn()} agentName="Scribe" defaultOpen />);
+      fireEvent.change(screen.getByPlaceholderText("Search Scribe models…"), {
         target: { value: "second" },
       });
       expect(screen.getByText("2 enabled / 4 models")).toBeTruthy();
@@ -41,15 +39,15 @@ describe("AgentModelList", () => {
     });
     it("shows an empty report and a fully disabled list without inventing fallback models", () => {
       const { rerender } = render(
-        <AgentModelList rows={[]} onToggle={jest.fn()} agentName="Claude Code" defaultOpen />
+        <AgentModelList rows={[]} onToggle={jest.fn()} agentName="Scribe" defaultOpen />
       );
       expect(screen.queryByRole("switch")).toBeNull();
-      expect(screen.getByText(/No models reported yet/)).toBeTruthy();
+      expect(screen.getByText(/No chat models configured/)).toBeTruthy();
       rerender(
         <AgentModelList
           rows={rows.map((row) => ({ ...row, enabled: false }))}
           onToggle={jest.fn()}
-          agentName="Claude Code"
+          agentName="Scribe"
           defaultOpen
         />
       );

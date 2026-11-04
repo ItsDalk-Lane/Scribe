@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RunnableSequence } from "@langchain/core/runnables";
-import type { BaseChatMemory } from "@langchain/classic/memory";
 
 import type { CustomModel } from "@/aiParams";
-import { createChatChain, createChatMemory } from "@/commands/customCommandChatEngine";
+import {
+  createChatChain,
+  createChatMemory,
+  type ChatChain,
+  type ChatMemory,
+} from "@/commands/customCommandChatEngine";
 import { compactAssistantOutput } from "@/context/ChatHistoryCompactor";
 import { ThinkBlockStreamer } from "@/LLMProviders/chainRunner/utils/ThinkBlockStreamer";
 import { ABORT_REASON } from "@/constants";
@@ -38,14 +41,14 @@ export interface StreamingChatSessionApi {
 
   reset: () => void;
 
-  getMemory: () => BaseChatMemory | null;
+  getMemory: () => ChatMemory | null;
 
   getLatestStreamingText: () => string;
 }
 
 interface ChainAndMemory {
-  chain: RunnableSequence;
-  memory: BaseChatMemory;
+  chain: ChatChain;
+  memory: ChatMemory;
 }
 
 function shouldSkipPersistOnAbort(signal: AbortSignal): boolean {
@@ -81,8 +84,8 @@ export function useStreamingChatSession(
     onNonAbortErrorRef.current = onNonAbortError;
   }, [onNoModel, onNonAbortError]);
 
-  const memoryRef = useRef<BaseChatMemory | null>(null);
-  const chainRef = useRef<RunnableSequence | null>(null);
+  const memoryRef = useRef<ChatMemory | null>(null);
+  const chainRef = useRef<ChatChain | null>(null);
   const currentModelKeyRef = useRef<string | null>(null);
   const currentSystemPromptRef = useRef<string | null>(null);
 
@@ -156,7 +159,7 @@ export function useStreamingChatSession(
     return !hasSavedContextOnceRef.current;
   }, []);
 
-  const getMemory = useCallback((): BaseChatMemory | null => {
+  const getMemory = useCallback((): ChatMemory | null => {
     return memoryRef.current;
   }, []);
 
@@ -218,7 +221,7 @@ export function useStreamingChatSession(
       const thinkStreamer = new ThinkBlockStreamer(turnScopedDelta, excludeThinking);
 
       let didNonAbortError = false;
-      let memory: BaseChatMemory | null = null;
+      let chain: ChatChain | null = null;
       let prompt = "";
       let committed: string | null = null;
 
@@ -238,18 +241,19 @@ export function useStreamingChatSession(
         const chainAndMemory = await getOrCreateChain(abortController.signal);
         if (!chainAndMemory) return null;
 
-        memory = chainAndMemory.memory;
-
-        const providerSession = getProviderSessionOptions(model, memory.chatHistory);
-        const chainWithSignal = chainAndMemory.chain.withConfig({
+        chain = chainAndMemory.chain;
+        const providerSession = getProviderSessionOptions(model, chainAndMemory.memory.chatHistory);
+        const stream = chain.stream(prompt, {
           signal: abortController.signal,
-          ...providerSession,
-          ...providerSession?.options,
+          headers: providerSession?.options.headers,
         });
-        const stream = await chainWithSignal.stream({ input: prompt });
 
-        for await (const chunk of stream) {
-          thinkStreamer.processChunk(chunk as Parameters<typeof thinkStreamer.processChunk>[0]);
+        for await (const event of stream) {
+          if (event.type === "text_delta") thinkStreamer.processChunk({ content: event.delta });
+          else if (event.type === "thinking_delta")
+            thinkStreamer.processChunk({
+              content: [{ type: "thinking", thinking: event.delta }],
+            });
           if (abortController.signal.aborted) break;
         }
       } catch (error) {
@@ -269,12 +273,12 @@ export function useStreamingChatSession(
         if (!didNonAbortError && result && !shouldSkip && !isStale) {
           committed = result;
 
-          if (memory) {
+          if (chain) {
             try {
               const compactedResult = compactAssistantOutput(result);
-              await memory.saveContext(
-                { input: prompt },
-                { output: typeof compactedResult === "string" ? compactedResult : result }
+              chain.saveContext(
+                prompt,
+                typeof compactedResult === "string" ? compactedResult : result
               );
               hasSavedContextOnceRef.current = true;
             } catch (error) {

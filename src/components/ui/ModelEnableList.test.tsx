@@ -35,7 +35,7 @@ function renderList(props?: Partial<React.ComponentProps<typeof ModelEnableList>
 }
 
 describe("ModelEnableList", () => {
-  describe("ModelEnableList()", () => {
+  describe("ModelEnableList", () => {
     it("toggles an available model", () => {
       const onToggle = jest.fn();
       renderList({ onToggle });
@@ -63,7 +63,7 @@ describe("ModelEnableList", () => {
       expect(screen.getByTitle("2 selected").textContent).toBe("2");
     });
 
-    it("omits the selected-model badge for a provider with no selected models (https://github.com/Brevilabs/obsidian-copilot-private/issues/631)", () => {
+    it("omits the selected-model badge for a provider with no selected models", () => {
       renderList();
       expect(screen.queryByTitle(/selected/)).toBeNull();
     });

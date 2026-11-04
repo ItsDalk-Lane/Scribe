@@ -14,7 +14,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
 }
 
 describe("providerRequiresApiKey", () => {
-  describe("providerRequiresApiKey()", () => {
+  describe("providerRequiresApiKey", () => {
     it("returns the explicit requiresApiKey flag regardless of catalog id or base URL", () => {
       expect(
         providerRequiresApiKey(
@@ -36,8 +36,8 @@ describe("providerRequiresApiKey", () => {
     });
   });
 
-  describe("providerNeedsResolvedApiKey()", () => {
-    it("needs a runtime key for required-key providers and optional-key providers with a stored key, but not for an optional-key provider without one (https://github.com/logancyang/obsidian-copilot/issues/2895)", () => {
+  describe("providerNeedsResolvedApiKey", () => {
+    it("needs a runtime key for required-key providers and optional-key providers with a stored key, but not for an optional-key provider without one", () => {
       expect(providerNeedsResolvedApiKey(provider({ requiresApiKey: true }))).toBe(true);
       expect(
         providerNeedsResolvedApiKey(

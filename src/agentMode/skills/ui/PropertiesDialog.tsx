@@ -15,8 +15,6 @@ import type { Skill } from "@/agentMode/skills/types";
 export interface PropertiesFormValues {
   name: string;
   description: string;
-  allowedTools: string;
-  model: string;
   disableAutoInvocation: boolean;
   hideFromSlashMenu: boolean;
 }
@@ -26,8 +24,6 @@ export interface PropertiesSaveRequest {
   newName: string;
   patch: {
     description: string;
-    allowedTools: string | undefined;
-    model: string | undefined;
     disableModelInvocation: boolean | undefined;
     userInvocable: boolean | undefined;
   };
@@ -35,7 +31,7 @@ export interface PropertiesSaveRequest {
 
 export type PropertiesSaveOutcome = "close" | "stay" | "collision";
 
-interface PropertiesModalBodyProps {
+export interface PropertiesModalBodyProps {
   skill: Skill;
   skillsFolderRel: string;
   collisionError: boolean;
@@ -44,7 +40,7 @@ interface PropertiesModalBodyProps {
   onSave: (req: PropertiesSaveRequest) => void;
 }
 
-const PropertiesModalBody: React.FC<PropertiesModalBodyProps> = ({
+export const PropertiesModalBody: React.FC<PropertiesModalBodyProps> = ({
   skill,
   skillsFolderRel,
   collisionError,
@@ -66,15 +62,11 @@ const PropertiesModalBody: React.FC<PropertiesModalBodyProps> = ({
   const handleSave = (): void => {
     if (!canSave) return;
     const nameChanged = values.name !== skill.name;
-    const allowedToolsTrim = values.allowedTools.trim();
-    const modelTrim = values.model.trim();
     onSave({
       nameChanged,
       newName: values.name,
       patch: {
         description: values.description,
-        allowedTools: allowedToolsTrim.length > 0 ? allowedToolsTrim : undefined,
-        model: modelTrim.length > 0 ? modelTrim : undefined,
         disableModelInvocation: values.disableAutoInvocation ? true : undefined,
         userInvocable: values.hideFromSlashMenu ? false : undefined,
       },
@@ -142,36 +134,7 @@ const PropertiesModalBody: React.FC<PropertiesModalBodyProps> = ({
             </div>
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="properties-allowed-tools">{t("Allowed tools")}</FieldLabel>
-            <Input
-              id="properties-allowed-tools"
-              type="text"
-              value={values.allowedTools}
-              onChange={(e) => setValues((v) => ({ ...v, allowedTools: e.target.value }))}
-              placeholder="Read Grep Bash(git:*)"
-              className="tw-font-mono"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="properties-model">
-              {t("Model override")}
-              <ClaudeOnlyChip />
-            </FieldLabel>
-            <Input
-              id="properties-model"
-              type="text"
-              value={values.model}
-              onChange={(e) => setValues((v) => ({ ...v, model: e.target.value }))}
-              placeholder="claude-sonnet-4-20250514"
-              className="tw-font-mono"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
+          <FieldHelp>{t("Skills use this chat's model and permissions.")}</FieldHelp>
 
           <label className="tw-flex tw-cursor-pointer tw-items-start tw-gap-2.5">
             <Checkbox
@@ -183,8 +146,7 @@ const PropertiesModalBody: React.FC<PropertiesModalBodyProps> = ({
             />
             <span className="tw-flex tw-flex-col tw-gap-0.5">
               <span className="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-normal">
-                {t("Don't let Claude invoke this on its own")}
-                <ClaudeOnlyChip />
+                {t("Don't let the model invoke this on its own")}
               </span>
             </span>
           </label>
@@ -200,7 +162,6 @@ const PropertiesModalBody: React.FC<PropertiesModalBodyProps> = ({
             <span className="tw-flex tw-flex-col tw-gap-0.5">
               <span className="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-normal">
                 {t("Hide from slash menu")}
-                <ClaudeOnlyChip />
               </span>
             </span>
           </label>
@@ -308,28 +269,10 @@ const FieldError: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="tw-text-ui-smaller tw-leading-relaxed tw-text-error">{children}</div>
 );
 
-const ClaudeOnlyChip: React.FC = () => (
-  <span className="tw-flex tw-items-center tw-gap-1 tw-font-mono tw-text-smallest tw-uppercase tw-tracking-wide tw-text-faint">
-    <span className="tw-bg-orange tw-inline-flex tw-size-3 tw-items-center tw-justify-center tw-rounded-[3px] tw-text-on-accent">
-      <ClaudeMiniGlyph />
-    </span>
-
-    {t("Claude Code only")}
-  </span>
-);
-
-const ClaudeMiniGlyph: React.FC = () => (
-  <svg viewBox="0 0 32 32" className="tw-size-[8px]" fill="currentColor" aria-hidden="true">
-    <path d="M16 3 L17.5 13.2 L24.5 5.5 L19.6 14.6 L29 13 L19.6 16 L29 19 L19.6 17.4 L24.5 26.5 L17.5 18.8 L16 29 L14.5 18.8 L7.5 26.5 L12.4 17.4 L3 19 L12.4 16 L3 13 L12.4 14.6 L7.5 5.5 L14.5 13.2 Z" />
-  </svg>
-);
-
 function computeInitialFormValues(skill: Skill): PropertiesFormValues {
   return {
     name: skill.name,
     description: skill.description,
-    allowedTools: skill.allowedTools ?? "",
-    model: skill.model ?? "",
     disableAutoInvocation: skill.disableModelInvocation === true,
     hideFromSlashMenu: skill.userInvocable === false,
   };

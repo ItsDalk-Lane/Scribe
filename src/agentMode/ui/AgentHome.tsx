@@ -17,7 +17,7 @@ import { QueuedMessageList } from "@/agentMode/ui/QueuedMessageList";
 import { RunningTasksIndicator } from "@/agentMode/ui/RunningTasksIndicator";
 import { openTaskModal } from "@/agentMode/ui/TaskDetailModal";
 import { AgentWelcomeCard } from "@/agentMode/ui/AgentWelcomeCard";
-import { CopilotBrandIcon } from "@/components/ui/CopilotBrandIcon";
+import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { AgentHomeShelf, type AgentHomeShelfSection } from "@/agentMode/ui/AgentHomeShelf";
 import { GlobalRecentChatsSection } from "@/agentMode/ui/GlobalRecentChatsSection";
 import {
@@ -49,7 +49,7 @@ import { ChatInputProvider } from "@/context/ChatInputContext";
 import { useChatFileDrop } from "@/hooks/useChatFileDrop";
 import { cn } from "@/lib/utils";
 import { logError, logWarn } from "@/logger";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { getProjectLandingCaptureSignature } from "@/projects/projectContextSignature";
 import { getCachedProjectRecordById, useProjects } from "@/projects/state";
@@ -64,7 +64,7 @@ interface AgentHomeProps {
   sessionId: string;
   chatInputId: string;
   manager: AgentSessionManager;
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   onSaveChat: (saveAsNote: () => Promise<void>) => void;
   updateUserMessageHistory: (newMessage: string) => void;
 }
@@ -525,6 +525,10 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       backend={backend}
       plugin={plugin}
       chatInputId={chatInputId}
+      skillScope={{
+        cwd: manager.getSession(sessionId)?.cwd ?? null,
+        projectDirectory: descriptor.skillsProjectDir,
+      }}
       draft={draft}
       app={app}
       updateUserMessageHistory={updateUserMessageHistory}
@@ -555,7 +559,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   const handleSendWaitingNow = useCallback(() => {
     backend.sendWaitingNow().catch((e: unknown) => logError("[AgentMode] send now failed", e));
   }, [backend]);
-  // The controls bar sits directly above the composer, so pending messages list above both. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   const queuedMessagesNode =
     queuedPrompts.length > 0 || heldMessages.length > 0 ? (
       <QueuedMessageList
@@ -571,7 +574,7 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   const heroText = showProjectHero ? t("Chat in {p0}", { p0: projectName }) : greeting;
   const hero = (
     <div className="tw-flex tw-min-w-0 tw-items-center tw-justify-center tw-gap-3">
-      <CopilotBrandIcon className="tw-size-6 tw-shrink-0 tw-text-normal" />
+      <ScribeBrandIcon className="tw-size-6 tw-shrink-0 tw-text-normal" />
       <TruncatedText
         className="tw-min-w-0 tw-text-3xl tw-font-[330] tw-text-normal"
         tooltipContent={heroText}
@@ -588,7 +591,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   );
   const handleCopyChatLink = () =>
     plugin.copyChatLink(async () => {
-      // A native session link only opens on this device: https://github.com/Brevilabs/obsidian-copilot-private/issues/601
       return (await manager.saveActiveSession())?.path ?? "";
     });
 

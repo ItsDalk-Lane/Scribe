@@ -18,7 +18,6 @@ export interface ProviderParameterFieldsProps {
   disabled?: boolean;
 }
 
-// 公共连接参数可随配置保存，私密凭据始终使用独立的密钥输入。https://github.com/logancyang/obsidian-copilot/issues/3147
 export function ProviderParameterFields({
   parameters,
   instructions,
@@ -35,7 +34,7 @@ export function ProviderParameterFields({
           {t(instruction)}
         </p>
       ))}
-      {/* 自定义兼容代理不代表原生协议，只有明确选择才能切换。https://github.com/logancyang/obsidian-copilot/issues/3147 */}
+
       {apiFormat !== undefined && (
         <FormField label={t("API format")}>
           <select
@@ -81,7 +80,6 @@ export interface ProviderChatConnectionTestProps {
   disabled?: boolean;
 }
 
-// 目录访问不能证明模型能回答，聊天检查必须由用户明确触发。https://github.com/logancyang/obsidian-copilot/issues/3147
 export function ProviderChatConnectionTest({
   models,
   modelId,

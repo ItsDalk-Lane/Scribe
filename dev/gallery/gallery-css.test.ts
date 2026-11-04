@@ -10,14 +10,16 @@ const PREPARE_SCRIPT = path.resolve(process.cwd(), "scripts/prepare-gallery-css.
 describe("gallery-css", () => {
   describe("gallery chrome source", () => {
     it("defines exact development-only selectors for widths and single-side dividers", async () => {
-      const [galleryCss, productionCss] = (await Promise.all([
-        readFile(path.resolve(process.cwd(), "dev/gallery/gallery.css"), "utf8"),
-        readFile(path.resolve(process.cwd(), "src/styles/tailwind.css"), "utf8"),
-      ])).map((css) => css.replace(/\r\n/g, "\n"));
+      const [galleryCss, productionCss] = (
+        await Promise.all([
+          readFile(path.resolve(process.cwd(), "dev/gallery/gallery.css"), "utf8"),
+          readFile(path.resolve(process.cwd(), "src/styles/tailwind.css"), "utf8"),
+        ])
+      ).map((css) => css.replace(/\r\n/g, "\n"));
 
       for (const width of [300, 340, 400, 600]) {
         expect(galleryCss).toContain(
-          `.copilot-gallery-canvas[data-gallery-width="${width}"] {\n  width: ${width}px;\n}`
+          `.scribe-gallery-canvas[data-gallery-width="${width}"] {\n  width: ${width}px;\n}`
         );
       }
       for (const [suffix, property] of [
@@ -25,14 +27,14 @@ describe("gallery-css", () => {
         ["r", "border-right"],
       ]) {
         expect(galleryCss).toContain(
-          `.copilot-gallery-divider-${suffix} {\n  ${property}: 1px solid var(--background-modifier-border);\n}`
+          `.scribe-gallery-divider-${suffix} {\n  ${property}: 1px solid var(--background-modifier-border);\n}`
         );
       }
       expect(galleryCss).toContain("flex: none;");
-      expect(productionCss).not.toContain("copilot-gallery-canvas");
-      expect(productionCss).not.toContain("copilot-gallery-divider");
+      expect(productionCss).not.toContain("scribe-gallery-canvas");
+      expect(productionCss).not.toContain("scribe-gallery-divider");
       expect(productionCss).toContain(
-        ".copilot-divider-b {\n  border-bottom: 1px solid var(--background-modifier-border);\n}"
+        ".scribe-divider-b {\n  border-bottom: 1px solid var(--background-modifier-border);\n}"
       );
     });
   });

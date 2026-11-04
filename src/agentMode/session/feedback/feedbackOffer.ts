@@ -1,4 +1,4 @@
-import type { FeedbackDraft } from "@/agentMode/session/copilotMcpServer";
+import type { FeedbackDraft } from "@/agentMode/session/scribeToolDefinitions";
 
 export interface FeedbackEvidence {
   backendId: string;

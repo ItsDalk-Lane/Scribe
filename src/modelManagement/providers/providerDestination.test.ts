@@ -11,21 +11,18 @@ const provider = (origin: Provider["origin"], baseUrl?: string): Provider => ({
 });
 
 describe("providerDestination", () => {
-  describe("urlDestination()", () => {
+  describe("urlDestination", () => {
     it.each([
       [undefined, { kind: "cloud", label: "Fallback" }],
       ["https://api.example.com/v1", { kind: "cloud", label: "Fallback" }],
       ["http://localhost:1234/v1", { kind: "local", label: "A server on this computer" }],
       ["http://10.0.0.5:8000/v1", { kind: "local", label: "A server on your local network" }],
-    ])(
-      "names %s for https://github.com/logancyang/obsidian-copilot/issues/2889",
-      (baseUrl, expected) => {
-        expect(urlDestination(baseUrl, "Fallback")).toEqual(expected);
-      }
-    );
+    ])("names %s", (baseUrl, expected) => {
+      expect(urlDestination(baseUrl, "Fallback")).toEqual(expected);
+    });
   });
 
-  describe("providerDestination()", () => {
+  describe("providerDestination", () => {
     it("names a BYOK provider by its own name, or the local server it points at", () => {
       expect(providerDestination(provider({ kind: "byok" }))).toEqual({
         kind: "cloud",

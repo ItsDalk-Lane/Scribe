@@ -187,7 +187,7 @@ describe("main", () => {
     } as unknown as App;
     leaf = { app, setViewState } as unknown as WorkspaceLeaf;
     getLeaf.mockReturnValue(leaf);
-    plugin = new GalleryPlugin(app, { id: "copilot-component-gallery" } as PluginManifest);
+    plugin = new GalleryPlugin(app, { id: "scribe-component-gallery" } as PluginManifest);
     const addCommand = jest.mocked(plugin.addCommand);
     registerView = jest.mocked(plugin.registerView);
     addCommand.mockImplementation((registeredCommand) => {
@@ -270,25 +270,25 @@ describe("main", () => {
   }
 
   describe("GalleryView", () => {
-    describe("getViewType()", () => {
+    describe("getViewType", () => {
       it("returns the gallery view type registered by the plugin", () => {
         expect(view.getViewType()).toBe(GALLERY_VIEWTYPE);
       });
     });
 
-    describe("getDisplayText()", () => {
+    describe("getDisplayText", () => {
       it("labels the workspace tab as the component gallery", () => {
         expect(view.getDisplayText()).toBe("Component gallery");
       });
     });
 
-    describe("getIcon()", () => {
+    describe("getIcon", () => {
       it("uses the grid icon for the workspace tab", () => {
         expect(view.getIcon()).toBe("layout-grid");
       });
     });
 
-    describe("getState()", () => {
+    describe("getState", () => {
       it("returns the selected story, subtree, width, and contact-sheet state", async () => {
         await view.setState({
           contactSheet: true,
@@ -306,7 +306,7 @@ describe("main", () => {
       });
     });
 
-    describe("setState()", () => {
+    describe("setState", () => {
       it("restores a persisted story before opening and renders only that story", async () => {
         await view.setState({
           selectedStoryId: "UI/Button/Sizes",
@@ -333,7 +333,7 @@ describe("main", () => {
       });
     });
 
-    describe("showStory()", () => {
+    describe("showStory", () => {
       it("mounts an exact story at a positive dynamic width and persists the selection", async () => {
         await view.onOpen();
         installImperativeRenderSimulation();
@@ -367,7 +367,7 @@ describe("main", () => {
       });
     });
 
-    describe("auditStories()", () => {
+    describe("auditStories", () => {
       it("sweeps one case per width, reports test-only probes, closes hosts, and restores state", async () => {
         await view.setState({
           contactSheet: false,
@@ -416,7 +416,7 @@ describe("main", () => {
       });
     });
 
-    describe("onOpen()", () => {
+    describe("onOpen", () => {
       it("mounts the gallery with a coverage summary and the first story selected", async () => {
         await view.onOpen();
 
@@ -461,7 +461,7 @@ describe("main", () => {
       });
     });
 
-    describe("onClose()", () => {
+    describe("onClose", () => {
       it("unmounts the React root once when the view closes repeatedly", async () => {
         await view.onOpen();
 
@@ -474,7 +474,7 @@ describe("main", () => {
   });
 
   describe("GalleryPlugin", () => {
-    describe("onload()", () => {
+    describe("onload", () => {
       it("registers the gallery view and open command", () => {
         expect(registerView).toHaveBeenCalledWith(GALLERY_VIEWTYPE, expect.any(Function));
         expect(command).toMatchObject({
@@ -486,10 +486,10 @@ describe("main", () => {
         expect(typeof window.__gallery?.show).toBe("function");
       });
 
-      it("registers nothing when Obsidian unloads it while stories load https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("registers nothing when Obsidian unloads it while stories load", async () => {
         const firstHandle = window.__gallery;
         const unloaded = new GalleryPlugin(app, {
-          id: "copilot-component-gallery",
+          id: "scribe-component-gallery",
         } as PluginManifest);
 
         unloaded.onload();
@@ -698,7 +698,7 @@ describe("main", () => {
       });
     });
 
-    describe("onunload()", () => {
+    describe("onunload", () => {
       it("cancels the active host and rejects work still queued for the plugin", async () => {
         await view.onOpen();
         const closeHost = installImperativeRenderSimulation();
@@ -716,7 +716,7 @@ describe("main", () => {
       it("removes only the handle still owned by the unloading plugin instance", async () => {
         const firstHandle = window.__gallery;
         const replacement = new GalleryPlugin(app, {
-          id: "copilot-component-gallery",
+          id: "scribe-component-gallery",
         } as PluginManifest);
         replacement.onload();
         await finishLoading(replacement);

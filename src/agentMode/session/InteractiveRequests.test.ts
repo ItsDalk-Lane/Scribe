@@ -51,7 +51,7 @@ const PLAN_INFO = { plan: "# Ship it\n\n1. step" };
 
 describe("InteractiveRequests", () => {
   describe("InteractiveRequests", () => {
-    describe("handlePlanProposalPermission()", () => {
+    describe("handlePlanProposalPermission", () => {
       it("publishes a gated plan from an ExitPlanMode permission request", async () => {
         const { requests } = makeRequests();
 
@@ -98,7 +98,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("resolvePlanProposalPermission()", () => {
+    describe("resolvePlanProposalPermission", () => {
       it("resolves with a reject option and the deny message when the plan is denied with feedback", async () => {
         const { requests } = makeRequests();
         const decisionPromise = requests.handlePlanProposalPermission(
@@ -134,19 +134,19 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("getCurrentPlan()", () => {
+    describe("getCurrentPlan", () => {
       it("starts with no plan", () => {
         expect(makeRequests().requests.getCurrentPlan()).toBeNull();
       });
     });
 
-    describe("getCurrentTodoList()", () => {
+    describe("getCurrentTodoList", () => {
       it("starts with no todo list", () => {
         expect(makeRequests().requests.getCurrentTodoList()).toBeNull();
       });
     });
 
-    describe("hasPending()", () => {
+    describe("hasPending", () => {
       it("reports a pending plan proposal, tool permission or question until each is answered", () => {
         const { requests } = makeRequests();
         expect(requests.hasPending()).toBe(false);
@@ -163,8 +163,8 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("finalizePlanDecision()", () => {
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/41 records the decision on the plan's tool call and closes the plan", () => {
+    describe("finalizePlanDecision", () => {
+      it("records the decision on the plan's tool call and closes the plan", () => {
         const store = new AgentMessageStore();
         const replyId = addReply(store);
         const { requests, notifyPlanChanged } = makeRequests({
@@ -207,7 +207,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("clearCurrentPlanIfModeLeft()", () => {
+    describe("clearCurrentPlanIfModeLeft", () => {
       it("denies the plan's pending request and closes the plan once the agent leaves plan mode", async () => {
         const { requests } = makeRequests({ hasLeftPlanMode: () => true });
         const decision = requests.handlePlanProposalPermission(
@@ -234,7 +234,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("hasPendingPlanPermission()", () => {
+    describe("hasPendingPlanPermission", () => {
       it("reports whether a plan proposal waits for the user's decision", () => {
         const { requests } = makeRequests();
         expect(requests.hasPendingPlanPermission()).toBe(false);
@@ -247,7 +247,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("handleToolPermission()", () => {
+    describe("handleToolPermission", () => {
       it("lists the request as pending, then recomputes the status and notifies the transcript", () => {
         const { requests, recomputeStatus, notifyMessages } = makeRequests();
         const request = writePermissionRequest();
@@ -274,7 +274,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("resolveToolPermission()", () => {
+    describe("resolveToolPermission", () => {
       it("resolves the request with the chosen option and drops it from the pending list", async () => {
         const { requests } = makeRequests();
         const decision = requests.handleToolPermission(writePermissionRequest());
@@ -288,7 +288,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("getPendingToolPermissions()", () => {
+    describe("getPendingToolPermissions", () => {
       it("returns the shared empty array when no tool permission is pending", () => {
         const { requests } = makeRequests();
 
@@ -297,7 +297,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("rejectToolRequestsFrom()", () => {
+    describe("rejectToolRequestsFrom", () => {
       it("rejects every pending main-agent tool permission and notifies the transcript", async () => {
         const { requests, notifyMessages } = makeRequests();
         const decision = requests.handleToolPermission(writePermissionRequest());
@@ -320,7 +320,7 @@ describe("InteractiveRequests", () => {
         expect(notifyMessages).not.toHaveBeenCalled();
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/748 rejects only the named task's pending tool permissions and keeps the main agent's and other tasks' requests", async () => {
+      it("rejects only the named task's pending tool permissions and keeps the main agent's and other tasks' requests", async () => {
         const { requests } = makeRequests();
         const fromTask = (taskId: string) => ({
           ...writePermissionRequest(),
@@ -342,7 +342,7 @@ describe("InteractiveRequests", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/175 keeps a background task's tool permission pending and answerable", async () => {
+      it("keeps a background task's tool permission pending and answerable", async () => {
         const { requests, notifyMessages } = makeRequests();
         const fromTask = requests.handleToolPermission({
           ...writePermissionRequest(),
@@ -364,8 +364,8 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("handleAskUserQuestion()", () => {
-      it("withdraws an ACP question when its request signal aborts (https://github.com/Brevilabs/obsidian-copilot-private/issues/551)", async () => {
+    describe("handleAskUserQuestion", () => {
+      it("withdraws an ACP question when its request signal aborts", async () => {
         const { requests } = makeRequests();
         const controller = new AbortController();
         const answers = requests.handleAskUserQuestion({
@@ -396,8 +396,8 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("resolveAskUserQuestion()", () => {
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/551 resolves with the answers and records them in the current reply", async () => {
+    describe("resolveAskUserQuestion", () => {
+      it("resolves with the answers and records them in the current reply", async () => {
         const store = new AgentMessageStore();
         const replyId = addReply(store);
         const { requests } = makeRequests({ store, getReplyId: () => replyId });
@@ -416,7 +416,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("getPendingAskUserQuestions()", () => {
+    describe("getPendingAskUserQuestions", () => {
       it("returns the shared empty array when no AskUserQuestion is pending", () => {
         const { requests } = makeRequests();
         expect(requests.getPendingAskUserQuestions()).toHaveLength(0);
@@ -424,7 +424,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("withdrawQuestions()", () => {
+    describe("withdrawQuestions", () => {
       it("answers every pending question with no answers and notifies the transcript", async () => {
         const { requests, notifyMessages } = makeRequests();
         const answers = requests.handleAskUserQuestion(fruitQuestion());
@@ -446,8 +446,8 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("publishGatedPlan()", () => {
-      it("keeps the plan revision but tracks the new pending tool call when an identical plan body is proposed again", () => {
+    describe("publishGatedPlan", () => {
+      it("advances the approval revision for a new request even when the proposed text is identical", () => {
         const { requests } = makeRequests();
         const planBody = "# proposed plan body";
 
@@ -461,7 +461,7 @@ describe("InteractiveRequests", () => {
         const second = requests.getCurrentPlan();
         expect(second?.pendingToolCallId).toBe("tc-plan-B");
         expect(second?.permissionGated).toBe(true);
-        expect(second?.revision).toBe(1);
+        expect(second?.revision).toBe(2);
       });
 
       it("titles a new plan from its markdown and bumps the revision when its body changes", () => {
@@ -494,7 +494,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("applyTodoList()", () => {
+    describe("applyTodoList", () => {
       const entries = (...contents: string[]): AgentPlanEntry[] =>
         contents.map((content) => ({ content, status: "pending", priority: "medium" }));
 
@@ -531,7 +531,7 @@ describe("InteractiveRequests", () => {
       });
     });
 
-    describe("dispose()", () => {
+    describe("dispose", () => {
       it("rejects pending permissions, withdraws questions, and clears the plan and todo list", async () => {
         const { requests } = makeRequests();
         const plan = requests.handlePlanProposalPermission(

@@ -1,4 +1,19 @@
 import { t } from "@/lib/i18n";
+const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9._~+/-]+=*$/;
+
+export function parseVertexCredentials(secret: string): string | Record<string, unknown> {
+  const trimmed = secret.trim();
+  const token = trimmed.replace(/^Bearer +/i, "");
+  if (ACCESS_TOKEN_PATTERN.test(token)) return token;
+  if (!trimmed.startsWith("{"))
+    throw new Error(t("A Google service account JSON or access token is required."));
+  try {
+    return JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    throw new Error(t("The provider credentials must be valid JSON."));
+  }
+}
+
 function base64Url(bytes: Uint8Array): string {
   return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
     .replace(/=/g, "")
@@ -53,7 +68,7 @@ export function createVertexAccessToken(
         if (
           !response.ok ||
           typeof result.access_token !== "string" ||
-          !result.access_token ||
+          !ACCESS_TOKEN_PATTERN.test(result.access_token) ||
           typeof result.expires_in !== "number" ||
           !Number.isFinite(result.expires_in) ||
           result.expires_in <= 0

@@ -14,7 +14,6 @@ export function ProviderVerificationStatus({
   result,
   purpose = "catalog",
 }: ProviderVerificationStatusProps) {
-  // 目录可读不代表模型能够回答，只有显式聊天检查才能确认聊天连接。https://github.com/logancyang/obsidian-copilot/issues/3147
   const label = !result
     ? "Checking…"
     : result.ok

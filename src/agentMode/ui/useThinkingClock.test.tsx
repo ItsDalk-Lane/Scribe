@@ -2,11 +2,11 @@ import { useThinkingClock } from "@/agentMode/ui/useThinkingClock";
 import { act, renderHook } from "@testing-library/react";
 
 describe("useThinkingClock", () => {
-  describe("useThinkingClock()", () => {
+  describe("useThinkingClock", () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
 
-    it("uses the thought event timestamp instead of mount time (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("uses the thought event timestamp instead of mount time", () => {
       jest.setSystemTime(10_000);
       const { result } = renderHook(() => useThinkingClock(true, 2_000));
 

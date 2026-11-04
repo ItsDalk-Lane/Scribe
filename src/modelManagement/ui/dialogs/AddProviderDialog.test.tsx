@@ -65,7 +65,7 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof AddProvider
 }
 
 describe("AddProviderDialog", () => {
-  describe("AddProviderContent()", () => {
+  describe("AddProviderContent", () => {
     afterEach(() => setInterfaceLocale("en"));
 
     it("shows Chinese controls without changing selected provider details", () => {
@@ -113,7 +113,7 @@ describe("AddProviderDialog", () => {
       );
     });
 
-    it("preserves the catalog package when a provider is selected (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("preserves the catalog package when a provider is selected", () => {
       const onPick = jest.fn();
       renderDialog({ catalogProviders: [{ ...catalog[0], npm: "@ai-sdk/anthropic" }], onPick });
       fireEvent.click(screen.getByTestId("add-provider-card-anthropic"));

@@ -24,10 +24,6 @@ export function splitTableRow(line: string): string[] {
   return cells.map((cell) => cell.trim());
 }
 
-// A column-count mismatch returns null: cells could only be matched by guessing, so the caller shows
-// the old table removed and the new one added. An alignment change does too, since the delimiter row
-// renders no cell a mark could show it on.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/349
 export function diffTableBlock(before: string, after: string): string | null {
   const beforeLines = before.split("\n");
   const afterLines = after.split("\n");

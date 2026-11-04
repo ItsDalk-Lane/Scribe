@@ -1,9 +1,9 @@
-import { COPILOT_FOLDER_ROOT } from "@/constants";
-import { AGENTS_FILE_NAME, CLAUDE_FILE_NAME } from "@/instructions/agentsFile";
+import { SCRIBE_FOLDER_ROOT } from "@/constants";
+import { AGENTS_FILE_NAME } from "@/instructions/agentsFile";
 import { PROJECT_CONFIG_FILE_NAME } from "@/projects/constants";
 import { logWarn } from "@/logger";
-import { getSettings, normalizeRootFolders, type CopilotSettings } from "@/settings/model";
-import { getEffectiveProjectsFolder } from "@/settings/copilotFolder";
+import { getSettings, normalizeRootFolders, type ScribeSettings } from "@/settings/model";
+import { getEffectiveProjectsFolder } from "@/settings/scribeFolder";
 import { logFileManager } from "@/logFileManager";
 import { getPropertyValuesFromNote, getTagsFromNote, noteHasProperty, stripHash } from "@/utils";
 import { hasCaseInsensitiveFilesystem } from "@/utils/vaultAdapterUtils";
@@ -99,9 +99,9 @@ export function getMatchingPatterns(options?: {
   };
 }
 
-export function getSystemExcludedFolders(settings: CopilotSettings): string[] {
-  const history = Array.isArray(settings.copilotRootHistory) ? settings.copilotRootHistory : [];
-  return normalizeRootFolders([COPILOT_FOLDER_ROOT, settings.copilotFolder, ...history]);
+export function getSystemExcludedFolders(settings: ScribeSettings): string[] {
+  const history = Array.isArray(settings.scribeRootHistory) ? settings.scribeRootHistory : [];
+  return normalizeRootFolders([SCRIBE_FOLDER_ROOT, settings.scribeFolder, ...history]);
 }
 
 export function isSystemExcludedPath(filePath: string): boolean {
@@ -305,7 +305,7 @@ export function getFilePattern(file: TFile): string {
 }
 
 function getInternalExcludePaths(): string[] {
-  return [logFileManager.getLogPath(), AGENTS_FILE_NAME, CLAUDE_FILE_NAME];
+  return [logFileManager.getLogPath(), AGENTS_FILE_NAME];
 }
 
 function getInternalExcludeFolderPrefixes(): string[] {
@@ -327,9 +327,7 @@ export function isInternalExcludedPath(filePath: string): boolean {
 
   const prefixes = getInternalExcludeFolderPrefixes();
   if (prefixes.length === 0) return false;
-  const internalBasenames = [PROJECT_CONFIG_FILE_NAME, AGENTS_FILE_NAME, CLAUDE_FILE_NAME].map(
-    fold
-  );
+  const internalBasenames = [PROJECT_CONFIG_FILE_NAME, AGENTS_FILE_NAME].map(fold);
   for (const prefix of prefixes.map(fold)) {
     if (!foldedPath.startsWith(prefix)) continue;
     const relativePath = foldedPath.slice(prefix.length);

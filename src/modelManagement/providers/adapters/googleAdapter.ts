@@ -2,10 +2,8 @@ import { t } from "@/lib/i18n";
 import { googleHostBaseUrl } from "@/utils/providerBaseUrl";
 import * as z from "zod";
 
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-
 import type { VerificationResult } from "@/modelManagement/types/runtime";
-import type { AdapterBuildContext, AdapterVerifyContext, ProviderAdapter } from "./ProviderAdapter";
+import type { AdapterVerifyContext, ProviderAdapter } from "./ProviderAdapter";
 import { verifyViaListModels } from "./verifyViaListModels";
 
 const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -17,10 +15,6 @@ type Extras = z.infer<typeof extrasSchema>;
 export const googleAdapter: ProviderAdapter<Extras> = {
   providerType: "google",
   extrasSchema,
-
-  buildLangChainClient(ctx: AdapterBuildContext<Extras>): BaseChatModel {
-    throw new Error("[modelManagement] googleAdapter.buildLangChainClient not implemented yet");
-  },
 
   verifyCredentials(ctx: AdapterVerifyContext<Extras>): Promise<VerificationResult> {
     if (!ctx.apiKey) {

@@ -139,7 +139,7 @@ export const AgentSelectView: React.FC<AgentSelectViewProps> = ({
 
       <div
         className={cn(
-          "copilot-divider-t tw-flex tw-flex-col tw-gap-2 tw-pt-3",
+          "scribe-divider-t tw-flex tw-flex-col tw-gap-2 tw-pt-3",
           footerNote ? "tw-items-start" : "tw-items-end"
         )}
       >

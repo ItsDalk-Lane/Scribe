@@ -35,9 +35,9 @@ name: obsidian-markdown
 description: Create and edit Obsidian-specific Markdown syntax, including wikilinks, embeds, block references and block IDs, callouts, properties, tags, aliases, and comments. Load before adding or changing any of these in a note.
 license: MIT
 metadata:
-  copilot-enabled-agents: claude
-  copilot-builtin-version: "${MARKDOWN_SKILL_VERSION}"
-  copilot-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
+  scribe-enabled-agents: claude
+  scribe-builtin-version: "${MARKDOWN_SKILL_VERSION}"
+  scribe-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
 ---
 
 # Obsidian Markdown
@@ -228,9 +228,9 @@ name: obsidian-bases
 description: Create and edit Obsidian Bases (.base files) with valid YAML schemas, filters, formulas, properties, summaries, and views. Use for database-like Obsidian views or when the user mentions Bases, .base files, table/card/list views, filters, formulas, or summaries.
 license: MIT
 metadata:
-  copilot-enabled-agents: claude
-  copilot-builtin-version: "${FORMAT_SKILL_VERSION}"
-  copilot-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
+  scribe-enabled-agents: claude
+  scribe-builtin-version: "${FORMAT_SKILL_VERSION}"
+  scribe-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
 ---
 
 # Obsidian Bases
@@ -453,9 +453,9 @@ name: json-canvas
 description: Create and edit JSON Canvas (.canvas) files with valid nodes, edges, groups, colors, layout, IDs, and referential integrity. Use for Obsidian Canvas files, visual maps, flowcharts, project boards, or any request involving the JSON Canvas format.
 license: MIT
 metadata:
-  copilot-enabled-agents: claude
-  copilot-builtin-version: "${FORMAT_SKILL_VERSION}"
-  copilot-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
+  scribe-enabled-agents: claude
+  scribe-builtin-version: "${FORMAT_SKILL_VERSION}"
+  scribe-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
 ---
 
 # JSON Canvas
@@ -624,9 +624,9 @@ name: obsidian-cli
 description: Use the official Obsidian CLI when a task needs Obsidian's running app, index, configured features, command registry, or developer runtime. Use for currently open notes and tabs, workspace state, daily notes, typed properties, tasks, links/backlinks, Bases queries, template resolution, link-aware moves, plugin commands, and plugin/theme debugging; do not use it for ordinary filesystem operations.
 license: MIT
 metadata:
-  copilot-enabled-agents: claude
-  copilot-builtin-version: "${OBSIDIAN_CLI_VERSION}"
-  copilot-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
+  scribe-enabled-agents: claude
+  scribe-builtin-version: "${OBSIDIAN_CLI_VERSION}"
+  scribe-upstream-revision: "${OBSIDIAN_SKILLS_UPSTREAM_REVISION}"
 ---
 
 # Obsidian CLI
@@ -639,18 +639,18 @@ search.
 ## Capability probe and fallback
 
 Scribe exposes the terminal-capable executable from the running Obsidian
-installation as <code>COPILOT_OBSIDIAN_CLI</code> when it can resolve one.
+installation as <code>SCRIBE_OBSIDIAN_CLI</code> when it can resolve one.
 Prefer that exact path over <code>obsidian</code> from <code>PATH</code>, and
 always invoke it as a quoted executable rather than constructing a command
 string. Before relying on the CLI, probe it using the active shell:
 
 ~~~bash
-obsidian_cli="${"${COPILOT_OBSIDIAN_CLI:-obsidian}"}"
+obsidian_cli="${"${SCRIBE_OBSIDIAN_CLI:-obsidian}"}"
 "$obsidian_cli" version
 ~~~
 
 ~~~powershell
-$obsidianCli = if ($env:COPILOT_OBSIDIAN_CLI) { $env:COPILOT_OBSIDIAN_CLI } else { "obsidian" }
+$obsidianCli = if ($env:SCRIBE_OBSIDIAN_CLI) { $env:SCRIBE_OBSIDIAN_CLI } else { "obsidian" }
 & $obsidianCli version
 ~~~
 
@@ -856,8 +856,6 @@ const LICENSE_FILE = { path: "LICENSE", content: UPSTREAM_LICENSE } as const;
 const OBSIDIAN_MARKDOWN: BuiltinSkill = {
   name: "obsidian-markdown",
   version: MARKDOWN_SKILL_VERSION,
-  // Claude passed every render-safety eval case without this skill, so it stays off for Claude only.
-  // https://github.com/logancyang/obsidian-copilot/issues/3868
   defaultPreference: { disabledAgents: ["claude"] },
   skillMd: OBSIDIAN_MARKDOWN_SKILL_MD,
   files: [

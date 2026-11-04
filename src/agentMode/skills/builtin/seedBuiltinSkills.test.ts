@@ -1,7 +1,7 @@
 import { removeSeededBuiltin, seedBuiltinSkills, type BuiltinSeedFs } from "./seedBuiltinSkills";
 import type { BuiltinSkill } from "@/builtinSkills/builtinSkills";
 
-jest.mock("@/logger", () => ({ logError: jest.fn(), logInfo: jest.fn() }));
+jest.mock("@/logger", () => ({ logError: jest.fn(), logInfo: jest.fn(), logWarn: jest.fn() }));
 
 function memFs(initialFiles: Record<string, string> = {}): BuiltinSeedFs & {
   files: Map<string, string>;
@@ -39,7 +39,7 @@ function skill(version: number): BuiltinSkill {
   return {
     name: "test-helper",
     version,
-    skillMd: `---\nname: test-helper\ndescription: d\nmetadata:\n  copilot-enabled-agents: claude, codex, opencode\n  copilot-builtin-version: "${version}"\n---\nbody v${version}`,
+    skillMd: `---\nname: test-helper\ndescription: d\nmetadata:\n  scribe-enabled-agents: claude, codex, opencode\n  scribe-builtin-version: "${version}"\n---\nbody v${version}`,
     files: [{ path: "helper.sh", content: `// script v${version}` }],
   };
 }
@@ -58,15 +58,15 @@ function renamedSkill(): BuiltinSkill {
   };
 }
 
-const FOLDER = "copilot/skills";
-const MD = "copilot/skills/test-helper/SKILL.md";
-const SCRIPT = "copilot/skills/test-helper/helper.sh";
-const LEGACY_RENAMED_MD = "copilot/skills/previous-helper/SKILL.md";
-const RENAMED_MD = "copilot/skills/renamed-helper/SKILL.md";
-const RENAMED_SCRIPT = "copilot/skills/renamed-helper/renamed-helper.sh";
+const FOLDER = "scribe/skills";
+const MD = "scribe/skills/test-helper/SKILL.md";
+const SCRIPT = "scribe/skills/test-helper/helper.sh";
+const LEGACY_RENAMED_MD = "scribe/skills/previous-helper/SKILL.md";
+const RENAMED_MD = "scribe/skills/renamed-helper/SKILL.md";
+const RENAMED_SCRIPT = "scribe/skills/renamed-helper/renamed-helper.sh";
 
 describe("seedBuiltinSkills", () => {
-  describe("seedBuiltinSkills()", () => {
+  describe("seedBuiltinSkills", () => {
     it("is idempotent: skips a skill already present at the current version", async () => {
       const fs = memFs({ [MD]: skill(1).skillMd, [SCRIPT]: "// user-touched" });
       const { seeded } = await seedBuiltinSkills({
@@ -80,41 +80,112 @@ describe("seedBuiltinSkills", () => {
     });
 
     it("never touches unrelated user skills in the same folder", async () => {
-      const userMd = "copilot/skills/my-skill/SKILL.md";
+      const userMd = "scribe/skills/my-skill/SKILL.md";
       const fs = memFs({ [userMd]: "user content" });
       await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
 
       expect(fs.files.get(userMd)).toBe("user content");
     });
 
-    it("preserves user-modified copilot-enabled-agents when upgrading a builtin", async () => {
-      const disabledMd = skill(1).skillMd.replace(
-        "copilot-enabled-agents: claude, codex, opencode",
-        "copilot-enabled-agents: claude"
+    it("still upgrades an unmodified builtin and carries a content baseline forward (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs();
+      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
+
+      const { seeded } = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(seeded).toEqual(["test-helper"]);
+      expect(fs.files.get(MD)).toContain("body v2");
+      expect(fs.files.get(SCRIPT)).toBe("// script v2");
+    });
+
+    it("keeps a user-edited SKILL.md body instead of replacing it on update (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs();
+      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
+      fs.files.set(MD, (fs.files.get(MD) ?? "").replace("body v1", "body v1 with my notes"));
+
+      const { seeded } = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(seeded).toEqual([]);
+      expect(fs.files.get(MD)).toContain("my notes");
+      expect(fs.files.get(MD)).not.toContain("body v2");
+    });
+
+    it("records a baseline for an older install without a hash and defers the update (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs({ [MD]: skill(1).skillMd, [SCRIPT]: "// script v1" });
+
+      const { seeded } = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(seeded).toEqual([]);
+      expect(fs.files.get(MD)).toContain("body v1");
+      expect(fs.files.get(MD)).toMatch(/scribe-content-hash:/);
+    });
+
+    it("keeps managing a folder seeded with legacy copilot markers and defers once (https://github.com/ItsDalk-Lane/Scribe/issues/29)", async () => {
+      const legacyMd = skill(1).skillMd.replace(/scribe-/g, "copilot-");
+      const fs = memFs({ [MD]: legacyMd, [SCRIPT]: "// script v1" });
+
+      const first = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+      expect(first.seeded).toEqual([]);
+      expect(fs.files.get(MD)).toContain("body v1");
+
+      const second = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+      expect(second.seeded).toEqual(["test-helper"]);
+      expect(fs.files.get(MD)).toContain("body v2");
+    });
+
+    it("preserves user-modified scribe-enabled-agents when upgrading an unmodified builtin (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs();
+      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
+      const seededMd = fs.files.get(MD) ?? "";
+      fs.files.set(
+        MD,
+        seededMd.replace(
+          "scribe-enabled-agents: claude, codex, opencode",
+          "scribe-enabled-agents: claude"
+        )
       );
-      const fs = memFs({ [MD]: disabledMd, [SCRIPT]: "// script v1" });
+
       await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(2)] });
 
       const written = fs.files.get(MD) ?? "";
-      expect(written).toContain("copilot-enabled-agents: claude\n");
-      expect(written).not.toContain("copilot-enabled-agents: claude, codex, opencode");
+      expect(written).toContain("scribe-enabled-agents: claude\n");
       expect(written).toContain("body v2");
     });
 
-    it("uses fresh defaults for a new name without reading or modifying its predecessor https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("uses fresh defaults for a new name without reading or modifying its predecessor", async () => {
       const oldMd = managedPreviousSkillMd().replace("claude, codex, opencode", "codex");
       const fs = memFs({ [LEGACY_RENAMED_MD]: oldMd });
       fs.read = jest.fn(async () => {
         throw new Error("unreadable predecessor");
       });
       await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [renamedSkill()] });
-      expect(fs.files.get(RENAMED_MD)).toContain("copilot-enabled-agents: claude, codex, opencode");
+      expect(fs.files.get(RENAMED_MD)).toContain("scribe-enabled-agents: claude, codex, opencode");
       expect(fs.files.get(RENAMED_SCRIPT)).toBe("// script v1");
       expect(fs.files.get(LEGACY_RENAMED_MD)).toBe(oldMd);
       expect(fs.read).not.toHaveBeenCalled();
     });
 
-    it("leaves unreadable targets untouched because ownership cannot be verified https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("leaves unreadable targets untouched because ownership cannot be verified", async () => {
       const content = "user-authored content";
       const fs = memFs({ [MD]: content });
       fs.read = async () => {
@@ -129,8 +200,8 @@ describe("seedBuiltinSkills", () => {
     });
   });
 
-  describe("removeSeededBuiltin()", () => {
-    it("removes the whole managed directory including user additions and leaves sibling skills intact https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+  describe("removeSeededBuiltin", () => {
+    it("removes the whole managed directory including user additions and leaves sibling skills intact", async () => {
       const definition = {
         ...skill(1),
         files: [{ path: "references/owned.md", content: "owned" }],
@@ -152,7 +223,7 @@ describe("seedBuiltinSkills", () => {
       expect(fs.dirs.has(FOLDER)).toBe(true);
     });
 
-    it("removes a marked skill without requiring a catalog entry https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("removes a marked skill without requiring a catalog entry", async () => {
       const path = `${FOLDER}/unknown/SKILL.md`;
       const fs = memFs({ [path]: skill(1).skillMd });
       expect(await removeSeededBuiltin(FOLDER, "unknown", fs)).toBe("removed");

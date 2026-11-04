@@ -30,6 +30,20 @@ function withSubagent(parent: string, children: AgentMessagePart[]): AgentMessag
 }
 describe("agentTrail", () => {
   describe("buildAgentTrail()", () => {
+    it("uses the existing child agent card for a native delegation before child activity arrives", () => {
+      expect(
+        buildAgentTrail([
+          tool("native-child", { vendorToolName: "delegate_task", toolKind: "think" }),
+        ])
+      ).toEqual([
+        {
+          type: "subagent",
+          parent: tool("native-child", { vendorToolName: "delegate_task", toolKind: "think" }),
+          children: [],
+          truncated: false,
+        },
+      ]);
+    });
     it("renders heterogeneous tools as separate action nodes", () => {
       const parts = [
         tool("a", { vendorToolName: "Read" }),

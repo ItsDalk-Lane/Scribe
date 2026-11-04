@@ -1,9 +1,3 @@
-/**
- * Legacy chat (Google, Groq) needs the host-only base URL; opencode needs the versioned one.
- * Persisted rows keep whatever the user pasted and each consumer normalizes.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/152
- */
-
 function trimBaseUrl(baseUrl: string | undefined): string | undefined {
   const trimmed = (baseUrl ?? "").trim().replace(/\/+$/, "");
   return trimmed || undefined;
@@ -15,7 +9,6 @@ export function googleHostBaseUrl(baseUrl: string | undefined): string | undefin
   return trimmed.replace(/\/v1(beta)?$/i, "") || undefined;
 }
 
-// 目录检查和聊天客户端都从同一个代理根地址拼接 Anthropic 版本路径。https://github.com/logancyang/obsidian-copilot/issues/3147
 export function anthropicHostBaseUrl(baseUrl: string | undefined): string | undefined {
   return trimBaseUrl(baseUrl)?.replace(/\/v1$/i, "") || undefined;
 }

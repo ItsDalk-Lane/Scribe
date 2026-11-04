@@ -57,7 +57,6 @@ export async function parseModelListResponse(
   if (status === 401) {
     return { ok: false, message: t("Authentication failed — check your API key."), status };
   }
-  // 目录权限受限时仍可能允许聊天，不能把 403 归咎于密钥。https://github.com/logancyang/obsidian-copilot/issues/3147
   if (status === 403) {
     const detail = await readBodySnippet(response);
     const message = t("Access denied (HTTP 403). Check your account permissions.");
@@ -80,7 +79,6 @@ export async function parseModelListResponse(
   }
 
   const list = isPlainObject(payload) ? payload[shape.listKey] : undefined;
-  // 服务商的错误响应不能因为同时含有空目录而被当作可用连接。https://github.com/logancyang/obsidian-copilot/issues/3147
   if (!isPlainObject(payload) || payload.error || !Array.isArray(list)) {
     return { ok: false, message: t("Endpoint did not return a model list."), status };
   }

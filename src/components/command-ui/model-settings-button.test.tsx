@@ -3,12 +3,12 @@ import React from "react";
 import { ModelSettingsButton } from "./model-settings-button";
 
 describe("model-settings-button", () => {
-  describe("ModelSettingsButton()", () => {
+  describe("ModelSettingsButton", () => {
     it("offers to configure the default model when the dialog already has a model", () => {
       render(<ModelSettingsButton needsModel={false} onClick={() => undefined} />);
       expect(screen.getByRole("button", { name: "Configure the default model" })).not.toBeNull();
     });
-    it("flags a missing model so the user knows to open settings (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+    it("flags a missing model so the user knows to open settings", () => {
       render(<ModelSettingsButton needsModel onClick={() => undefined} />);
       const button = screen.getByRole("button", { name: "A model must be selected" });
       expect(button.querySelector(".tw-bg-warning")).not.toBeNull();

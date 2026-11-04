@@ -6,9 +6,6 @@ import wasmPlugin from "./wasmPlugin.mjs";
 import nodeModuleShim, { nodeBuiltinExternals } from "./nodeModuleShim.mjs";
 import svgrPlugin from "./svgrPlugin.mjs";
 
-const patchRendererUnsafeUnref = createRequire(import.meta.url)(
-  "./scripts/patchRendererUnsafeUnref.js"
-);
 const { createBundleSizeGuard } = createRequire(import.meta.url)("./scripts/bundleSizeGuard.js");
 
 const banner = `/*
@@ -84,7 +81,7 @@ const context = await esbuild.context({
   sourcemap: prod ? false : "inline",
   treeShaking: true,
   outfile: "main.js",
-  plugins: [nodeModuleShim, svgrPlugin, wasmPlugin, patchRendererUnsafeUnref, bundleSizeGuard],
+  plugins: [nodeModuleShim, svgrPlugin, wasmPlugin, bundleSizeGuard],
   define: {
     global: "window",
     "process.env.NODE_ENV": prod ? '"production"' : '"development"',

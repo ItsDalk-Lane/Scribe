@@ -10,11 +10,6 @@ export interface PlanUsage {
   updatedAt: number;
 }
 
-/**
- * A failed read keeps the previous snapshot; a successful read that reports no caps
- * discards it, so the meters never state a limit the account no longer has.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/193
- */
 export type PlanUsageReading =
   | { kind: "usage"; planUsage: PlanUsage }
   | { kind: "none" }
@@ -33,11 +28,6 @@ export function planUsageReading(
   return { kind: "usage", planUsage: { windows, updatedAt: now } };
 }
 
-/**
- * Drop windows whose reset has passed: a cached snapshot replayed days later describes
- * an ended period. Windows with no reset time are kept.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/193
- */
 export function withoutExpiredWindows(
   planUsage: PlanUsage,
   now: number = Date.now()

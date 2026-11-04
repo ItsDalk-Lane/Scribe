@@ -1,11 +1,11 @@
 import { buildBuiltinSkillEnv } from "./builtinSkillEnv";
 import {
-  COPILOT_OBSIDIAN_CLI_ENV,
+  SCRIBE_OBSIDIAN_CLI_ENV,
   resolveObsidianCliPath,
 } from "@/agentMode/backends/shared/obsidianCliPath";
 
 jest.mock("@/agentMode/backends/shared/obsidianCliPath", () => ({
-  COPILOT_OBSIDIAN_CLI_ENV: "COPILOT_OBSIDIAN_CLI",
+  SCRIBE_OBSIDIAN_CLI_ENV: "SCRIBE_OBSIDIAN_CLI",
   resolveObsidianCliPath: jest.fn(),
 }));
 
@@ -18,7 +18,7 @@ describe("builtinSkillEnv", () => {
         "/Applications/Obsidian.app/Contents/MacOS/obsidian"
       );
       expect(await buildBuiltinSkillEnv()).toEqual({
-        [COPILOT_OBSIDIAN_CLI_ENV]: "/Applications/Obsidian.app/Contents/MacOS/obsidian",
+        [SCRIBE_OBSIDIAN_CLI_ENV]: "/Applications/Obsidian.app/Contents/MacOS/obsidian",
       });
     });
 

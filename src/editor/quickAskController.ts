@@ -5,7 +5,7 @@ import { quickAskWidgetEffect, quickAskOverlayPlugin } from "./quickAskExtension
 import { QuickAskOverlay } from "@/components/quick-ask/QuickAskOverlay";
 import { createMapPosReplaceGuard } from "./replaceGuard";
 import { SelectionHighlight } from "./selectionHighlight";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { logWarn } from "@/logger";
 import { computeSelectionAnchors } from "@/utils/selectionAnchors";
 
@@ -15,10 +15,10 @@ interface QuickAskWidgetState {
 }
 
 export class QuickAskController {
-  private plugin: CopilotPlugin;
+  private plugin: ScribePlugin;
   private quickAskWidgetState: QuickAskWidgetState | null = null;
 
-  constructor(plugin: CopilotPlugin) {
+  constructor(plugin: ScribePlugin) {
     this.plugin = plugin;
   }
 

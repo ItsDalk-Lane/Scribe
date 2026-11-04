@@ -26,7 +26,7 @@ function fakeHandle(content: Uint8Array, chunkSize = content.length, size = cont
 }
 
 describe("logTail", () => {
-  describe("tailOfText()", () => {
+  describe("tailOfText", () => {
     it("returns the whole text with its byte length when it fits the budget", () => {
       expect(tailOfText("héllo", 10)).toEqual({ text: "héllo", totalBytes: 6 });
     });
@@ -40,7 +40,7 @@ describe("logTail", () => {
     });
   });
 
-  describe("decodeTail()", () => {
+  describe("decodeTail", () => {
     it.each([
       ["a clean character boundary", encode("😀"), "😀"],
       ["a cut through a character", encode("😀😀").subarray(2), "😀"],
@@ -49,7 +49,7 @@ describe("logTail", () => {
     });
   });
 
-  describe("headOfText()", () => {
+  describe("headOfText", () => {
     it("returns the whole text with its byte length when it fits the budget", () => {
       expect(headOfText("héllo", 6)).toEqual({ text: "héllo", totalBytes: 6 });
     });
@@ -59,7 +59,7 @@ describe("logTail", () => {
     });
   });
 
-  describe("withTruncationNote()", () => {
+  describe("withTruncationNote", () => {
     it("prepends a banner naming the original size of the log the kept entries come from", () => {
       expect(withTruncationNote("kept\n", 40 * 1024 * 1024)).toBe(
         "… earlier entries omitted: only the newest entries of the original 40.0 MB log " +
@@ -78,19 +78,19 @@ describe("logTail", () => {
     });
   });
 
-  describe("encodeText()", () => {
+  describe("encodeText", () => {
     it("encodes text as UTF-8 bytes", () => {
       expect(Array.from(encodeText("é"))).toEqual([0xc3, 0xa9]);
     });
   });
 
-  describe("byteLength()", () => {
+  describe("byteLength", () => {
     it("measures text in UTF-8 bytes rather than characters", () => {
       expect(byteLength("行行")).toBe(6);
     });
   });
 
-  describe("readLogFrom()", () => {
+  describe("readLogFrom", () => {
     it("reads a complete UTF-8 log at the byte limit across short reads", async () => {
       const content = encode("hello 😀");
       await expect(readLogFrom(fakeHandle(content, 3), content.length)).resolves.toEqual({
@@ -99,7 +99,7 @@ describe("logTail", () => {
       });
     });
 
-    it("skips an oversized file before reading or allocating its contents (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("skips an oversized file before reading or allocating its contents", async () => {
       const handle = { stat: async () => ({ size: Number.MAX_SAFE_INTEGER }), read: jest.fn() };
       await expect(readLogFrom(handle, 64 * 1024 * 1024)).resolves.toEqual({
         text: "",
@@ -108,14 +108,14 @@ describe("logTail", () => {
       expect(handle.read).not.toHaveBeenCalled();
     });
 
-    it("does not include bytes appended after the file was sized (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("does not include bytes appended after the file was sized", async () => {
       await expect(readLogFrom(fakeHandle(encode("start appended"), 3, 5), 20)).resolves.toEqual({
         text: "start",
         totalBytes: 5,
       });
     });
 
-    it("decodes only the bytes read when a file shrinks (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("decodes only the bytes read when a file shrinks", async () => {
       await expect(readLogFrom(fakeHandle(encode("survivor"), 3, 20), 20)).resolves.toEqual({
         text: "survivor",
         totalBytes: 20,
@@ -125,11 +125,8 @@ describe("logTail", () => {
     it.each([
       ["an empty file", fakeHandle(new Uint8Array())],
       ["a file emptied after sizing", fakeHandle(new Uint8Array(), 3, 20)],
-    ])(
-      "reports zero bytes for %s (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
-      async (_case, handle) => {
-        await expect(readLogFrom(handle, 20)).resolves.toEqual({ text: "", totalBytes: 0 });
-      }
-    );
+    ])("reports zero bytes for %s", async (_case, handle) => {
+      await expect(readLogFrom(handle, 20)).resolves.toEqual({ text: "", totalBytes: 0 });
+    });
   });
 });

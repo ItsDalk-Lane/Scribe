@@ -1,7 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import { MarkdownView, type WorkspaceLeaf } from "obsidian";
 
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { CHAT_AGENT_VIEWTYPE } from "@/constants";
 import type { SelectedTextContext } from "@/types/message";
 import { logError, logWarn } from "@/logger";
@@ -11,7 +11,7 @@ import {
   type PersistentHighlightRange,
 } from "@/editor/persistentHighlight";
 
-const chatHighlight = createPersistentHighlight("copilot-chat-selection-highlight");
+const chatHighlight = createPersistentHighlight("scribe-chat-selection-highlight");
 
 export function hideChatSelectionHighlight(view: EditorView): void {
   try {
@@ -35,14 +35,14 @@ export interface ChatSelectionHighlightControllerOptions {
 }
 
 export class ChatSelectionHighlightController {
-  private readonly plugin: CopilotPlugin;
+  private readonly plugin: ScribePlugin;
   private readonly closeQuickAskOnChatFocus: boolean;
 
   private lastActiveMarkdownLeaf: WorkspaceLeaf | null = null;
   private lastActiveLeafWasMarkdown = false;
   private snapshot: Snapshot | null = null;
 
-  constructor(plugin: CopilotPlugin, options?: ChatSelectionHighlightControllerOptions) {
+  constructor(plugin: ScribePlugin, options?: ChatSelectionHighlightControllerOptions) {
     this.plugin = plugin;
     this.closeQuickAskOnChatFocus = options?.closeQuickAskOnChatFocus ?? false;
   }

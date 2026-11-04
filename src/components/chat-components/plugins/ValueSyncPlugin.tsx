@@ -2,7 +2,7 @@ import React from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 
-export const VALUE_SYNC_TAG = "copilot-value-sync";
+export const VALUE_SYNC_TAG = "scribe-value-sync";
 
 interface ValueSyncPluginProps {
   value: string;

@@ -33,7 +33,7 @@ function makeCommand(overrides: Partial<CustomCommand> & { title: string }): Cus
 }
 
 describe("slashMenuItems", () => {
-  describe("composeSlashMenuItems()", () => {
+  describe("composeSlashMenuItems", () => {
     it("filters skills by active backend when one is provided", () => {
       const skills = [
         makeSkill({ name: "summarize", enabledAgents: ["claude"] }),
@@ -115,7 +115,7 @@ describe("slashMenuItems", () => {
       expect(items.map((i) => i.name)).toEqual(["b-skill", "a-skill", "z-cmd", "m-cmd"]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 lists the built-in compact item first in agent mode", () => {
+    it("lists the built-in compact item first in agent mode", () => {
       const skills = [makeSkill({ name: "summarize", enabledAgents: ["claude"] })];
       const commands = [makeCommand({ title: "polish" })];
       const items = composeSlashMenuItems(skills, commands, "claude", true);
@@ -126,12 +126,12 @@ describe("slashMenuItems", () => {
       ]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 lists compact in agent mode before the backend is known", () => {
+    it("lists compact in agent mode before the backend is known", () => {
       const items = composeSlashMenuItems([], [], null, true);
       expect(items.map((i) => i.name)).toEqual(["compact"]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 omits the built-in compact item outside agent mode", () => {
+    it("omits the built-in compact item outside agent mode", () => {
       const skills = [makeSkill({ name: "compact", enabledAgents: ["claude"] })];
       const commands = [makeCommand({ title: "polish" })];
       const items = composeSlashMenuItems(skills, commands, null, false);
@@ -141,7 +141,7 @@ describe("slashMenuItems", () => {
       ]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 shadows a skill or command named exactly compact with the built-in in agent mode, leaving other casings listed because /Compact still expands them", () => {
+    it("shadows a skill or command named exactly compact with the built-in in agent mode, leaving other casings listed because /Compact still expands them", () => {
       const skills = [makeSkill({ name: "compact", enabledAgents: ["claude"] })];
       const commands = [
         makeCommand({ title: "compact" }),
@@ -157,7 +157,7 @@ describe("slashMenuItems", () => {
     });
   });
 
-  describe("filterSlashMenuOptions()", () => {
+  describe("filterSlashMenuOptions", () => {
     const option = (title: string, content = "") => ({ title, content });
 
     it("returns every option for an empty query", () => {
@@ -175,7 +175,7 @@ describe("slashMenuItems", () => {
       expect(filterSlashMenuOptions(options, "prose").map((o) => o.title)).toEqual(["polish"]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 ranks the built-in compact first for the exact query compact", () => {
+    it("ranks the built-in compact first for the exact query compact", () => {
       const skills = [
         makeSkill({ name: "compactor", enabledAgents: ["claude"] }),
         makeSkill({ name: "compact-notes", enabledAgents: ["claude"] }),
@@ -199,7 +199,7 @@ describe("slashMenuItems", () => {
     });
   });
 
-  describe("$slashStartsPrompt()", () => {
+  describe("$slashStartsPrompt", () => {
     function slashStartsPromptFor(paragraphs: string[]): boolean {
       const editor = createEditor({
         namespace: "slash-starts-prompt-test",
@@ -221,12 +221,12 @@ describe("slashMenuItems", () => {
       return result!;
     }
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 is true when the slash begins an otherwise empty prompt", () => {
+    it("is true when the slash begins an otherwise empty prompt", () => {
       expect(slashStartsPromptFor(["/co"])).toBe(true);
       expect(slashStartsPromptFor(["", "  /co"])).toBe(true);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 is false when text precedes the slash in the same or an earlier paragraph", () => {
+    it("is false when text precedes the slash in the same or an earlier paragraph", () => {
       expect(slashStartsPromptFor(["review this /co"])).toBe(false);
       expect(slashStartsPromptFor(["review this", "/co"])).toBe(false);
     });

@@ -2,16 +2,14 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import { remarkPublishedDocs } from "./src/remark-published-docs.mjs";
 
-// Existing guide routes stay stable while section links make the most important
-// workflows visible without splitting their source files.
 const sidebar = [
   { label: "Start here", items: [{ slug: "" }, { slug: "getting-started" }] },
   {
     label: "Agent Chat",
     items: [
       { label: "Agent Chat overview", link: "/agent-mode-and-tools/" },
-      { label: "Set up Claude", link: "/agent-mode-and-tools/#set-up-claude" },
-      { label: "Skills with Claude", link: "/agent-mode-and-tools/#skills-with-claude" },
+      { label: "Set up Scribe", link: "/agent-mode-and-tools/#set-up-scribe" },
+      { label: "Skills", link: "/agent-mode-and-tools/#skills" },
       { slug: "projects" },
       { slug: "context-and-mentions" },
       { slug: "system-prompts" },

@@ -51,6 +51,40 @@ export const NoEffortControl: StoryObj<Props> = {
   },
 };
 
+const NATIVE_EFFORT_OPTIONS = [
+  { value: "default", label: "Default" },
+  { value: "off", label: "Off" },
+  { value: "low", label: "Low" },
+  { value: "high", label: "High" },
+];
+
+export const NativeProviderDefault: StoryObj<Props> = {
+  args: {
+    override: {
+      ...ConcreteEffort.args.override,
+      effort: {
+        ...ConcreteEffort.args.override.effort,
+        value: "default",
+        options: NATIVE_EFFORT_OPTIONS,
+      },
+      effortOptionsByModelKey: { "example|agent": NATIVE_EFFORT_OPTIONS },
+    },
+  },
+};
+
+export const NativeThinkingOff: StoryObj<Props> = {
+  args: {
+    override: {
+      ...NativeProviderDefault.args!.override!,
+      effort: {
+        ...ConcreteEffort.args.override.effort,
+        value: "off",
+        options: NATIVE_EFFORT_OPTIONS,
+      },
+    },
+  },
+};
+
 export const CustomEndpointLabels: StoryObj<Props> = {
   args: {
     override: {

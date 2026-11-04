@@ -16,6 +16,7 @@ export interface AgentSelectRow {
   status: AgentSelectStatus;
   recommended: boolean;
   statusMessage: string | null;
+  usesConfiguredModels: boolean;
 }
 
 export type AgentSelectAction = "start" | "configure" | "wait";
@@ -58,10 +59,11 @@ export function buildAgentSelectRows(
     return {
       id: descriptor.id,
       name: descriptor.displayName,
-      description: descriptor.setupDescription,
+      description: t(descriptor.setupDescription),
       status: toSelectStatus(state.kind),
       recommended: descriptor.id === recommendedId,
       statusMessage: statusMessageOf(state),
+      usesConfiguredModels: descriptor.usesConfiguredModels ?? false,
     };
   });
 }
@@ -76,6 +78,17 @@ export function resolveAgentSelectCta(row: AgentSelectRow): AgentSelectCta {
   }
   if (row.status === "installed") {
     return { label: t("Start chat"), note: null, action: "start" };
+  }
+  // 配置驱动型后端（如原生 Scribe）不存在"本机未安装"，缺的是已启用的模型。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/21
+  if (row.status === "absent" && row.usesConfiguredModels) {
+    return {
+      label: t("Configure"),
+      note: t("No chat model is enabled for {p0} yet. Add a provider and enable a model first.", {
+        p0: row.name,
+      }),
+      action: "configure",
+    };
   }
   return {
     label: t("Configure"),

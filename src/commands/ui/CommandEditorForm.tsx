@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import React, { useState } from "react";
+import { COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
 import { CommandModelSelect, type CommandModelSelectProps } from "./CommandModelSelect";
 import { CustomPromptSyntaxInstruction } from "@/components/CustomPromptSyntaxInstruction";
 import type { CustomCommand } from "@/commands/type";
@@ -82,6 +83,14 @@ export function CommandEditorForm({
           placeholder={t("Enter command name")}
         />
         {errors.title && <div className="tw-text-sm tw-text-error">{errors.title}</div>}
+        {/* 与内建 /compact 同名的指令被斜杠菜单永久遮蔽，提示用户开关为何无效。 https://github.com/ItsDalk-Lane/Scribe/issues/20 */}
+        {command.title === COMPACT_COMMAND_NAME && !errors.title && (
+          <div className="tw-text-sm tw-text-muted">
+            {t(
+              "This name matches the built-in /compact command, so this command never appears in the slash menu."
+            )}
+          </div>
+        )}
       </div>
 
       <div className="tw-flex tw-flex-col tw-gap-2">

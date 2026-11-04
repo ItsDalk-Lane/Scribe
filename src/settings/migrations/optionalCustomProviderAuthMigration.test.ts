@@ -15,8 +15,8 @@ function provider(overrides: Partial<Provider> = {}): Provider {
 }
 
 describe("optionalCustomProviderAuthMigration", () => {
-  describe("planOptionalCustomProviderAuthMigration()", () => {
-    it("makes existing custom OpenAI-compatible BYOK rows optional without dropping their key pointer (https://github.com/logancyang/obsidian-copilot/issues/2895)", () => {
+  describe("planOptionalCustomProviderAuthMigration", () => {
+    it("makes existing custom OpenAI-compatible BYOK rows optional without dropping their key pointer", () => {
       const next = planOptionalCustomProviderAuthMigration({
         p1: provider({ apiKeyKeychainId: "keychain-p1" }),
       });

@@ -1,8 +1,6 @@
 import { t } from "@/lib/i18n";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
-import { withoutExpiredWindows } from "@/agentMode/session/planUsage";
-import type { PlanUsage, SessionUsage } from "@/agentMode/session/types";
-import { usePlanUsage } from "@/agentMode/ui/hooks/usePlanUsage";
+import type { SessionUsage } from "@/agentMode/session/types";
 import { useSessionUsage } from "@/agentMode/ui/hooks/useSessionUsage";
 import { TokenCounter } from "@/components/chat-components/TokenCounter";
 import { Button } from "@/components/ui/button";
@@ -59,72 +57,12 @@ function ContextRing({ fraction }: { fraction: number }) {
   );
 }
 
-function formatResetsIn(resetsAt: number | undefined, now: number): string | null {
-  if (resetsAt === undefined) return null;
-  const ms = resetsAt - now;
-  if (ms <= 0) return null;
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) return t("resets in {p0}m", { p0: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    const rest = minutes % 60;
-    return rest === 0
-      ? t("resets in {p0}h", { p0: hours })
-      : t("resets in {p0}h {p1}m", { p0: hours, p1: rest });
-  }
-  const days = Math.floor(hours / 24);
-  const restHours = hours % 24;
-  return restHours === 0
-    ? t("resets in {p0}d", { p0: days })
-    : t("resets in {p0}d {p1}h", { p0: days, p1: restHours });
-}
-
-function PlanUsageRows({ planUsage }: { planUsage: PlanUsage }) {
-  const now = Date.now();
-  // Filtered at render, not only when a snapshot arrives or replays: a chat left open
-  // across a reset gets no new event to correct it, and this component mounts fresh
-  // each time the tooltip opens, so rendering is the last moment the claim is made and
-  // the right place to check it
-  // (https://github.com/logancyang/obsidian-copilot-preview/issues/193).
-  const current = withoutExpiredWindows(planUsage, now);
-  if (!current) return null;
-  return (
-    <div className="tw-flex tw-flex-col tw-gap-2">
-      {current.windows.map((window) => {
-        const resetsIn = formatResetsIn(window.resetsAt, now);
-        const percent = Math.round(window.percent);
-        const isWarning = window.percent >= WARNING_THRESHOLD * 100;
-        return (
-          <div key={window.id} className="tw-flex tw-flex-col tw-gap-1">
-            <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-ui-smaller">
-              <span className="tw-whitespace-nowrap tw-text-muted">
-                {window.label}
-                {resetsIn && <span className="tw-text-faint"> · {resetsIn}</span>}
-              </span>
-              <span
-                className={cn(
-                  "tw-whitespace-nowrap tw-tabular-nums",
-                  isWarning && "tw-text-warning"
-                )}
-              >
-                {percent}%
-              </span>
-            </div>
-            <Progress value={Math.min(100, percent)} className="tw-h-1.5" />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export interface UsageMeterProps {
   usage: SessionUsage | null;
   contextWindow: number | null;
-  planUsage: PlanUsage | null;
 }
 
-export function UsageMeter({ usage, contextWindow, planUsage }: UsageMeterProps) {
+export function UsageMeter({ usage, contextWindow }: UsageMeterProps) {
   const hasUsage = !!usage;
   const hasContext = contextWindow !== null;
   const used = hasUsage && Number.isFinite(usage.usedTokens) ? usage.usedTokens : 0;
@@ -164,7 +102,6 @@ export function UsageMeter({ usage, contextWindow, planUsage }: UsageMeterProps)
               {hasContext && <Progress value={percent} className="tw-h-1.5" />}
             </>
           )}
-          {planUsage && <PlanUsageRows planUsage={planUsage} />}
         </div>
       </TooltipContent>
     </Tooltip>
@@ -173,19 +110,17 @@ export function UsageMeter({ usage, contextWindow, planUsage }: UsageMeterProps)
 
 export default function AgentContextMeter({ backend }: AgentContextMeterProps) {
   const usage = useSessionUsage(backend);
-  const planUsage = usePlanUsage(backend);
 
   const rawWindow = usage?.contextWindow;
   const contextWindow =
     typeof rawWindow === "number" && Number.isFinite(rawWindow) && rawWindow > 0 ? rawWindow : null;
   const hasTokens = usage !== null && usage.usedTokens > 0;
 
-  if (contextWindow !== null || planUsage !== null) {
+  if (contextWindow !== null) {
     return (
       <UsageMeter
         usage={hasTokens || contextWindow !== null ? usage : null}
         contextWindow={contextWindow}
-        planUsage={planUsage}
       />
     );
   }

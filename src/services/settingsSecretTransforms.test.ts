@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from "@/constants";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import {
   cleanupLegacyFields,
   hasPersistedSecrets,
@@ -7,15 +7,15 @@ import {
   stripKeychainFields,
 } from "@/services/settingsSecretTransforms";
 
-function makeSettings(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return {
     activeModels: [],
     ...overrides,
-  } as unknown as CopilotSettings;
+  } as unknown as ScribeSettings;
 }
 
 describe("settingsSecretTransforms", () => {
-  describe("isSensitiveKey()", () => {
+  describe("isSensitiveKey", () => {
     it.each(["openAIApiKey", "api_key", "accessToken", "clientSecret", "password"])(
       "recognizes %s as sensitive",
       (key) => {
@@ -31,7 +31,52 @@ describe("settingsSecretTransforms", () => {
     );
   });
 
-  describe("hasPersistedSecrets()", () => {
+  describe("hasPersistedSecrets", () => {
+    it("detects nested retired runtime secrets so the existing backup runs before their settings are removed", () => {
+      expect(
+        hasPersistedSecrets({
+          agentMode: { backends: { retired: { envOverrides: { API_TOKEN: "retired-secret" } } } },
+        })
+      ).toBe(true);
+      expect(
+        hasPersistedSecrets({
+          agentMode: { retired: [{ API_KEY: "" }, { name: "Not a credential" }] },
+        })
+      ).toBe(false);
+    });
+
+    it("detects a credential pair whose only marker is a sensitive name, and ignores benign pairs (https://github.com/ItsDalk-Lane/Scribe/issues/17)", () => {
+      expect(
+        hasPersistedSecrets({
+          agentMode: {
+            mcpServers: [
+              {
+                name: "private",
+                transport: "http",
+                headers: [{ name: "Authorization", value: "Bearer synthetic" }],
+              },
+            ],
+          },
+        })
+      ).toBe(true);
+      expect(
+        hasPersistedSecrets({
+          agentMode: {
+            mcpServers: [
+              {
+                name: "private",
+                transport: "http",
+                headers: [
+                  { name: "X-Custom-Header", value: "not-a-secret" },
+                  { name: "Authorization", value: "" },
+                ],
+              },
+            ],
+          },
+        })
+      ).toBe(false);
+    });
+
     it.each([
       {
         name: "detects a top-level secret",
@@ -49,7 +94,7 @@ describe("settingsSecretTransforms", () => {
         expected: true,
       },
       {
-        name: "detects a secret in a retired model list (https://github.com/Brevilabs/obsidian-copilot-private/issues/283)",
+        name: "detects a secret in a retired model list (https://github.com/ItsDalk-Lane/Scribe/issues/1)",
         rawData: {
           retiredModels: [{ name: "embed", provider: "openai", apiKey: "secret" }],
         },
@@ -68,7 +113,55 @@ describe("settingsSecretTransforms", () => {
     });
   });
 
-  describe("stripKeychainFields()", () => {
+  describe("stripKeychainFields", () => {
+    it("blanks secrets in unknown nested agent settings without changing native choices or the input", () => {
+      const settings = makeSettings({
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          backends: { native: { defaultModel: { baseModelId: "chosen-model", effort: "high" } } },
+          retiredConfiguration: {
+            entries: [{ apiKey: "synthetic-secret", name: "Preserved" }],
+            password: "secret",
+            empty: [],
+          },
+        } as unknown as ScribeSettings["agentMode"],
+      });
+      const result = stripKeychainFields(settings);
+      expect(JSON.stringify(result)).not.toContain("synthetic-secret");
+      expect(JSON.stringify(result)).not.toContain('"password":"secret"');
+      expect(JSON.stringify(settings)).toContain("synthetic-secret");
+      expect(result.agentMode.backends.native?.defaultModel).toEqual({
+        baseModelId: "chosen-model",
+        effort: "high",
+      });
+    });
+
+    it("blanks credential pairs in nested agent settings while leaving benign pairs intact (https://github.com/ItsDalk-Lane/Scribe/issues/17)", () => {
+      const settings = makeSettings({
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          mcpServers: [
+            {
+              name: "private",
+              transport: "http",
+              headers: [
+                { name: "Authorization", value: "Bearer synthetic" },
+                { name: "X-Custom-Header", value: "kept" },
+              ],
+            },
+          ],
+        } as unknown as ScribeSettings["agentMode"],
+      });
+      const result = stripKeychainFields(settings);
+      const headers = (
+        (result.agentMode as unknown as Record<string, unknown>).mcpServers as {
+          headers: { name: string; value: string }[];
+        }[]
+      )[0].headers;
+      expect(headers[0]).toEqual({ name: "Authorization", value: "" });
+      expect(headers[1]).toEqual({ name: "X-Custom-Header", value: "kept" });
+    });
+
     it("clears top-level and model secrets without mutating the input", () => {
       const settings = makeSettings({
         openAIApiKey: "sk-123",
@@ -87,7 +180,7 @@ describe("settingsSecretTransforms", () => {
     });
 
     it("preserves sparse settings without adding model arrays", () => {
-      const result = stripKeychainFields({ openAIApiKey: "secret" } as CopilotSettings);
+      const result = stripKeychainFields({ openAIApiKey: "secret" } as ScribeSettings);
       const record = result as unknown as Record<string, unknown>;
 
       expect(record.openAIApiKey).toBe("");
@@ -95,7 +188,39 @@ describe("settingsSecretTransforms", () => {
     });
   });
 
-  describe("cleanupLegacyFields()", () => {
+  describe("cleanupLegacyFields", () => {
+    it("drops retired runtime configuration from persisted copies while keeping native settings and BYOK references", () => {
+      const settings = makeSettings({
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          byok: { anthropic: "retired-secret" },
+          claudeCli: { path: "/retired-agent" },
+          deviceProfiles: { oldDevice: { claude: { envOverrides: { API_TOKEN: "old-secret" } } } },
+          backends: {
+            native: { maxSteps: 75 },
+            claude: { envOverrides: { API_KEY: "old-secret" } },
+          },
+        } as unknown as ScribeSettings["agentMode"],
+        providers: {
+          saved: {
+            providerId: "saved",
+            providerType: "google",
+            displayName: "Saved",
+            apiKeyKeychainId: "existing-key",
+            origin: { kind: "byok" },
+            addedAt: 1,
+          },
+        },
+      });
+      const result = cleanupLegacyFields(settings);
+      expect(result.agentMode.backends).toEqual({ native: { maxSteps: 75 } });
+      expect("claudeCli" in result.agentMode).toBe(false);
+      expect("deviceProfiles" in result.agentMode).toBe(false);
+      expect("byok" in result.agentMode).toBe(false);
+      expect(result.providers.saved.apiKeyKeychainId).toBe("existing-key");
+      expect(JSON.stringify(settings)).toContain("retired-secret");
+    });
+
     it("removes retired settings without mutating the input", () => {
       const settings = makeSettings({
         _keychainVaultId: "abc12345",
@@ -119,7 +244,7 @@ describe("settingsSecretTransforms", () => {
             },
           ],
         },
-      } as unknown as Partial<CopilotSettings>);
+      } as unknown as Partial<ScribeSettings>);
 
       const result = cleanupLegacyFields(settings) as unknown as Record<string, unknown>;
 

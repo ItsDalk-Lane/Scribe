@@ -36,7 +36,7 @@ describe("homeShelfPrefs", () => {
     window.localStorage.clear();
   });
 
-  describe("getHomeShelfTab()", () => {
+  describe("getHomeShelfTab", () => {
     it("returns null when no tab has been stored", () => {
       const { app } = createFakeApp();
 
@@ -49,7 +49,7 @@ describe("homeShelfPrefs", () => {
       expect(getHomeShelfTab(app, "shelf-key")).toBe("projects");
     });
 
-    it("ignores the cosmetic legacy tab instead of extending raw storage migration (https://github.com/logancyang/obsidian-copilot-preview/issues/298)", () => {
+    it("ignores the cosmetic legacy tab instead of extending raw storage migration", () => {
       window.localStorage.setItem("shelf-key", "projects");
       const { app, store } = createFakeApp();
 
@@ -63,7 +63,7 @@ describe("homeShelfPrefs", () => {
     });
   });
 
-  describe("setHomeShelfTab()", () => {
+  describe("setHomeShelfTab", () => {
     it("persists the selected tab id so a later read returns it", () => {
       const { app, store } = createFakeApp();
 

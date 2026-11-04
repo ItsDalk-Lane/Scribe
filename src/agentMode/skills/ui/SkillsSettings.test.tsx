@@ -12,7 +12,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { FileSystemAdapter, TFile, TFolder, type App } from "obsidian";
 import React from "react";
 import { Bot } from "lucide-react";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import type { SkillLoadIssue } from "./SkillLoadIssues";
 import { SkillsSettings, type SkillsSettingsProps } from "./SkillsSettings";
 
@@ -80,7 +80,7 @@ function renderSettings(app: App = makeApp(), props: SkillsSettingsProps = {}) {
   const plugin = {
     app,
     newAgentChatWithDraft: mockNewAgentChatWithDraft,
-  } as unknown as CopilotPlugin;
+  } as unknown as ScribePlugin;
   return render(
     <PluginProvider plugin={plugin}>
       <AppContext.Provider value={app}>
@@ -98,7 +98,7 @@ describe("SkillsSettings", () => {
     Element.prototype.releasePointerCapture = () => {};
     Element.prototype.scrollIntoView = () => {};
   });
-  describe("SkillsSettings()", () => {
+  describe("SkillsSettings", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       __resetVaultBaseCache();
@@ -108,7 +108,7 @@ describe("SkillsSettings", () => {
       mockRejectedSkills = [];
       mockCapturedLoadIssues = [];
       mockCapturedFixAll = () => undefined;
-      settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS, copilotFolder: "copilot" });
+      settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS, scribeFolder: "scribe" });
       jest.mocked(isObsidianCliEnabled).mockReturnValue(true);
     });
 
@@ -117,8 +117,8 @@ describe("SkillsSettings", () => {
         name: "review-notes",
         description: "Review notes",
         body: "Review",
-        filePath: "/vault/copilot/skills/review-notes/SKILL.md",
-        dirPath: "/vault/copilot/skills/review-notes",
+        filePath: "/vault/scribe/skills/review-notes/SKILL.md",
+        dirPath: "/vault/scribe/skills/review-notes",
         enabledAgents: [],
         location: { kind: "canonical" },
       };
@@ -128,7 +128,7 @@ describe("SkillsSettings", () => {
           ...skill,
           name: "translate",
           description: "Translate text",
-          dirPath: "/vault/copilot/skills/translate",
+          dirPath: "/vault/scribe/skills/translate",
         },
       ];
       await act(async () => {
@@ -146,22 +146,22 @@ describe("SkillsSettings", () => {
     });
 
     it("shares checked availability with the managed and built-in skill lists", async () => {
-      mockAgents = [{ id: "claude", displayName: "Claude", Icon: Bot }];
-      mockInstallStates = { claude: { kind: "ready", source: "custom" } };
+      mockAgents = [{ id: "native", displayName: "Scribe", Icon: Bot }];
+      mockInstallStates = { native: { kind: "ready", source: "custom" } };
       const managed: Skill = {
         name: "review-notes",
         description: "Review notes",
         body: "Review",
-        filePath: "/vault/copilot/skills/review-notes/SKILL.md",
-        dirPath: "/vault/copilot/skills/review-notes",
-        enabledAgents: ["claude"],
+        filePath: "/vault/scribe/skills/review-notes/SKILL.md",
+        dirPath: "/vault/scribe/skills/review-notes",
+        enabledAgents: ["native"],
         location: { kind: "canonical" },
       };
       const builtin = {
         ...managed,
         name: "obsidian-markdown",
-        filePath: "/vault/copilot/skills/obsidian-markdown/SKILL.md",
-        dirPath: "/vault/copilot/skills/obsidian-markdown",
+        filePath: "/vault/scribe/skills/obsidian-markdown/SKILL.md",
+        dirPath: "/vault/scribe/skills/obsidian-markdown",
         builtin: true,
       };
       mockManagedSkills = [managed, builtin];
@@ -204,7 +204,7 @@ describe("SkillsSettings", () => {
       ).toBe("true");
     });
 
-    it("reports background cleanup failures when settings opens and clears them after focus refresh for https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("reports background cleanup failures when settings opens and clears them after focus refresh", async () => {
       refresh.mockResolvedValueOnce({
         ok: true,
         reconcileErrorCount: 1,
@@ -222,7 +222,7 @@ describe("SkillsSettings", () => {
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
-    it("ignores refresh results after unmount for https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("ignores refresh results after unmount", async () => {
       let finish!: (value: unknown) => void;
       refresh.mockReturnValueOnce(
         new Promise((resolve) => {
@@ -241,19 +241,19 @@ describe("SkillsSettings", () => {
       await act(async () => {
         renderSettings();
       });
-      expect(screen.getByText(/copilot\/skills/)).not.toBeNull();
+      expect(screen.getByText("<vault>/scribe/skills/")).not.toBeNull();
       expect(refresh).toHaveBeenCalledTimes(1);
 
       await act(async () => {
-        updateSetting("copilotFolder", "vault-tools");
+        updateSetting("scribeFolder", "vault-tools");
       });
 
-      expect(screen.getByText(/vault-tools\/skills/)).not.toBeNull();
-      expect(screen.queryByText(/copilot\/skills/)).toBeNull();
+      expect(screen.getByText("<vault>/vault-tools/skills/")).not.toBeNull();
+      expect(screen.queryByText("<vault>/scribe/skills/")).toBeNull();
       expect(refresh).toHaveBeenCalledTimes(2);
     });
 
-    it("refreshes hidden external-editor repairs when Settings regains focus for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("refreshes hidden external-editor repairs when Settings regains focus", async () => {
       await act(async () => {
         renderSettings();
       });
@@ -266,7 +266,7 @@ describe("SkillsSettings", () => {
       expect(refresh).toHaveBeenCalledTimes(2);
     });
 
-    it("shows actionable recovery instead of the creation empty state for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("shows actionable recovery instead of the creation empty state", async () => {
       mockRejectedSkills = [makeRejectedSkill()];
       await act(async () => {
         renderSettings();
@@ -276,13 +276,13 @@ describe("SkillsSettings", () => {
       expect(screen.getByText("The skills have format errors.")).not.toBeNull();
       expect(screen.getByRole("button", { name: "View details" })).not.toBeNull();
       expect(screen.queryByText("broken-skill")).toBeNull();
-      expect(screen.queryByText(".claude/skills/broken-skill/")).toBeNull();
+      expect(screen.queryByText(".scribe/skills/broken-skill/")).toBeNull();
       expect(screen.queryByText("0 loaded")).toBeNull();
       expect(screen.getByText(/No skills are loaded yet/)).not.toBeNull();
       expect(screen.queryByText("No skills yet")).toBeNull();
     });
 
-    it("opens hidden rejected skills and their folders with system apps for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("opens hidden rejected skills and their folders with system apps", async () => {
       mockRejectedSkills = [makeRejectedSkill()];
       await act(async () => {
         renderSettings();
@@ -291,7 +291,7 @@ describe("SkillsSettings", () => {
       fireEvent.click(screen.getByRole("button", { name: "View details" }));
       expect(mockOpenSkillLoadIssuesModal).toHaveBeenCalledTimes(1);
       expect(mockCapturedLoadIssues[0]).toMatchObject({
-        location: ".claude/skills/broken-skill/SKILL.md",
+        location: ".scribe/skills/broken-skill/SKILL.md",
         reason: 'The description contains ": " and must be quoted.',
         offendingText: "description: Use this skill for: reviewing notes",
       });
@@ -300,12 +300,12 @@ describe("SkillsSettings", () => {
 
       expect(openVaultPath).toHaveBeenCalledWith(
         expect.anything(),
-        "/vault/.claude/skills/broken-skill/SKILL.md"
+        "/vault/.scribe/skills/broken-skill/SKILL.md"
       );
-      expect(openWithSystemDefault).toHaveBeenCalledWith("/vault/.claude/skills/broken-skill");
+      expect(openWithSystemDefault).toHaveBeenCalledWith("/vault/.scribe/skills/broken-skill");
     });
 
-    it("opens review-before-send Agent drafts for one or all rejected skills for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("opens review-before-send Agent drafts for one or all rejected skills", async () => {
       mockRejectedSkills = [
         makeRejectedSkill(),
         makeRejectedSkill({
@@ -326,7 +326,7 @@ describe("SkillsSettings", () => {
       expect(mockCloseSettings).toHaveBeenCalledTimes(2);
       expect(mockNewAgentChatWithDraft).toHaveBeenCalledTimes(2);
       expect(mockNewAgentChatWithDraft.mock.calls[0][0]).toContain(
-        'File: ".claude/skills/broken-skill/SKILL.md"'
+        'File: ".scribe/skills/broken-skill/SKILL.md"'
       );
       expect(mockNewAgentChatWithDraft.mock.calls[0][0]).not.toContain("Change to");
       expect(mockNewAgentChatWithDraft.mock.calls[1][0]).toContain(
@@ -334,12 +334,12 @@ describe("SkillsSettings", () => {
       );
     });
 
-    it("opens and reveals indexed rejected skills inside Obsidian for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("opens and reveals indexed rejected skills inside Obsidian", async () => {
       const app = makeApp(true);
       mockRejectedSkills = [
         makeRejectedSkill({
-          filePath: "/vault/copilot/skills/broken-skill/SKILL.md",
-          dirPath: "/vault/copilot/skills/broken-skill",
+          filePath: "/vault/scribe/skills/broken-skill/SKILL.md",
+          dirPath: "/vault/scribe/skills/broken-skill",
         }),
       ];
       await act(async () => {
@@ -350,10 +350,7 @@ describe("SkillsSettings", () => {
       mockCapturedLoadIssues[0].onOpen();
       mockCapturedLoadIssues[0].onReveal();
 
-      expect(openVaultPath).toHaveBeenCalledWith(
-        app,
-        "/vault/copilot/skills/broken-skill/SKILL.md"
-      );
+      expect(openVaultPath).toHaveBeenCalledWith(app, "/vault/scribe/skills/broken-skill/SKILL.md");
       expect(
         (
           app as unknown as {
@@ -366,12 +363,12 @@ describe("SkillsSettings", () => {
       expect(openWithSystemDefault).not.toHaveBeenCalled();
     });
 
-    it("reveals vault-relative rejected skills inside Obsidian when no absolute vault path exists for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("reveals vault-relative rejected skills inside Obsidian when no absolute vault path exists", async () => {
       const app = makeApp(true);
       mockRejectedSkills = [
         makeRejectedSkill({
-          filePath: "copilot/skills/broken-skill/SKILL.md",
-          dirPath: "copilot/skills/broken-skill",
+          filePath: "scribe/skills/broken-skill/SKILL.md",
+          dirPath: "scribe/skills/broken-skill",
         }),
       ];
       await act(async () => {
@@ -397,10 +394,10 @@ describe("SkillsSettings", () => {
 
 function makeApp(indexRejectedSkill = false): App {
   const file = new (TFile as unknown as new (path: string) => TFile)(
-    "copilot/skills/broken-skill/SKILL.md"
+    "scribe/skills/broken-skill/SKILL.md"
   );
   const folder = new (TFolder as unknown as new (path: string) => TFolder)(
-    "copilot/skills/broken-skill"
+    "scribe/skills/broken-skill"
   );
   const adapter = new (FileSystemAdapter as unknown as new (basePath: string) => FileSystemAdapter)(
     "/vault"
@@ -412,7 +409,7 @@ function makeApp(indexRejectedSkill = false): App {
       getAbstractFileByPath: jest.fn((path: string) => {
         if (!indexRejectedSkill) return null;
         if (path.endsWith("/SKILL.md")) return file;
-        if (path === "copilot/skills/broken-skill") return folder;
+        if (path === "scribe/skills/broken-skill") return folder;
         return null;
       }),
     },
@@ -431,8 +428,8 @@ function makeApp(indexRejectedSkill = false): App {
 function makeRejectedSkill(overrides: Partial<RejectedSkill> = {}): RejectedSkill {
   return {
     name: "broken-skill",
-    filePath: "/vault/.claude/skills/broken-skill/SKILL.md",
-    dirPath: "/vault/.claude/skills/broken-skill",
+    filePath: "/vault/.scribe/skills/broken-skill/SKILL.md",
+    dirPath: "/vault/.scribe/skills/broken-skill",
     reason: 'The description contains ": " and must be quoted.',
     offendingText: "description: Use this skill for: reviewing notes",
     ...overrides,

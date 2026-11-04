@@ -1,5 +1,5 @@
 import type { App } from "obsidian";
-import { copilotAppDataDir, getVaultId } from "@/utils/appPaths";
+import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
 import { isDesktopRuntime, requireNodeModule } from "@/utils/desktopRuntime";
 
 const LEGACY_PDF_CACHE_DIR = ".scribe/pdf-cache";
@@ -15,7 +15,7 @@ export async function clearLegacyCaches(app: App): Promise<void> {
   const os = requireNodeModule<typeof import("node:os")>("os");
   const path = requireNodeModule<typeof import("node:path")>("path");
   const contextCacheDir = path.join(
-    copilotAppDataDir(os.homedir()),
+    scribeAppDataDir(os.homedir()),
     "vaults",
     getVaultId(app),
     "context-cache"

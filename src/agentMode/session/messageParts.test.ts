@@ -28,7 +28,7 @@ describe("messageParts", () => {
           ],
           locations: [{ path: "a.md", line: null }],
           vendorToolName: "Edit",
-          mcpServer: "copilot",
+          mcpServer: "scribe",
           parentToolCallId: "parent",
           progress: { toolUses: 2 },
         })
@@ -45,7 +45,7 @@ describe("messageParts", () => {
         ],
         locations: [{ path: "a.md", line: undefined }],
         vendorToolName: "Edit",
-        mcpServer: "copilot",
+        mcpServer: "scribe",
         parentToolCallId: "parent",
         progress: { toolUses: 2 },
       });

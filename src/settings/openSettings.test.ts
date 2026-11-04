@@ -1,22 +1,22 @@
 import {
-  consumeRequestedCopilotSettingsTab,
-  openCopilotSettings,
+  consumeRequestedScribeSettingsTab,
+  openScribeSettings,
   openCorePluginSettings,
 } from "@/settings/openSettings";
-import { COPILOT_SETTINGS_TAB_IDS } from "@/settings/settingsTabs";
+import { SCRIBE_SETTINGS_TAB_IDS } from "@/settings/settingsTabs";
 import type { App } from "obsidian";
 
 describe("openSettings", () => {
   afterEach(() => {
-    consumeRequestedCopilotSettingsTab();
+    consumeRequestedScribeSettingsTab();
     jest.restoreAllMocks();
   });
 
-  describe("openCopilotSettings()", () => {
-    it("uses the first Copilot display without rendering the tab twice (https://github.com/Brevilabs/obsidian-copilot-private/issues/280)", () => {
+  describe("openScribeSettings", () => {
+    it("uses the first Scribe display without rendering the tab twice", () => {
       const consumedTabs: string[] = [];
-      const openTabById = jest.fn(() => consumedTabs.push(consumeRequestedCopilotSettingsTab()));
-      const open = jest.fn(() => consumedTabs.push(consumeRequestedCopilotSettingsTab()));
+      const openTabById = jest.fn(() => consumedTabs.push(consumeRequestedScribeSettingsTab()));
+      const open = jest.fn(() => consumedTabs.push(consumeRequestedScribeSettingsTab()));
       let deferredHandoff: FrameRequestCallback | undefined;
       const ownerWindow = {
         requestAnimationFrame: jest.fn((callback: FrameRequestCallback) => {
@@ -26,7 +26,7 @@ describe("openSettings", () => {
       } as unknown as Window;
       const app = { setting: { open, openTabById } } as unknown as App;
 
-      openCopilotSettings(app, ownerWindow, "agents");
+      openScribeSettings(app, ownerWindow, "agents");
 
       expect(open).toHaveBeenCalledTimes(1);
       expect(consumedTabs).toEqual(["agents"]);
@@ -36,9 +36,9 @@ describe("openSettings", () => {
       expect(openTabById).not.toHaveBeenCalled();
     });
 
-    it("hands off after another settings tab opens and schedules from the initiating window (https://github.com/Brevilabs/obsidian-copilot-private/issues/280)", () => {
+    it("hands off after another settings tab opens and schedules from the initiating window", () => {
       const consumedTabs: string[] = [];
-      const openTabById = jest.fn(() => consumedTabs.push(consumeRequestedCopilotSettingsTab()));
+      const openTabById = jest.fn(() => consumedTabs.push(consumeRequestedScribeSettingsTab()));
       const open = jest.fn();
       let deferredHandoff: FrameRequestCallback | undefined;
       const ownerWindow = {
@@ -49,7 +49,7 @@ describe("openSettings", () => {
       } as unknown as Window;
       const app = { setting: { open, openTabById } } as unknown as App;
 
-      openCopilotSettings(app, ownerWindow, "quickActions");
+      openScribeSettings(app, ownerWindow, "quickActions");
 
       expect(open).toHaveBeenCalledTimes(1);
       expect(openTabById).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe("openSettings", () => {
     });
   });
 
-  describe("openCorePluginSettings()", () => {
+  describe("openCorePluginSettings", () => {
     function settingsWithCorePluginsTab() {
       const search = document.createElement("input");
       search.type = "search";
@@ -84,7 +84,7 @@ describe("openSettings", () => {
       expect(onInput).toHaveBeenCalledTimes(1);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 still opens Core plugins when the tab has no search box to fill", () => {
+    it("still opens Core plugins when the tab has no search box to fill", () => {
       const openTabById = jest.fn();
       const app = {
         setting: {
@@ -103,19 +103,19 @@ describe("openSettings", () => {
     });
   });
 
-  describe("consumeRequestedCopilotSettingsTab()", () => {
-    it.each(COPILOT_SETTINGS_TAB_IDS)(
-      "consumes a requested %s tab once and defaults later ordinary opens to General (https://github.com/Brevilabs/obsidian-copilot-private/issues/280)",
+  describe("consumeRequestedScribeSettingsTab", () => {
+    it.each(SCRIBE_SETTINGS_TAB_IDS)(
+      "consumes a requested %s tab once and defaults later ordinary opens to General",
       (tab) => {
         const ownerWindow = { requestAnimationFrame: jest.fn() } as unknown as Window;
         const app = {
           setting: { open: jest.fn(), openTabById: jest.fn() },
         } as unknown as App;
 
-        openCopilotSettings(app, ownerWindow, tab);
+        openScribeSettings(app, ownerWindow, tab);
 
-        expect(consumeRequestedCopilotSettingsTab()).toBe(tab);
-        expect(consumeRequestedCopilotSettingsTab()).toBe("basic");
+        expect(consumeRequestedScribeSettingsTab()).toBe(tab);
+        expect(consumeRequestedScribeSettingsTab()).toBe("basic");
       }
     );
   });

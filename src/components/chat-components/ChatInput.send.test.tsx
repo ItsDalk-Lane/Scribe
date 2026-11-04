@@ -103,7 +103,7 @@ describe("ChatInput", () => {
     URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = revokeObjectURL;
   });
-  describe("ChatInput()", () => {
+  describe("ChatInput", () => {
     it("keeps the active PDF available to Agent Chat", () => {
       const pdf = Object.assign(new TFile(), {
         path: "Research.pdf",
@@ -117,7 +117,7 @@ describe("ChatInput", () => {
       expect(mockActiveNote).toBe(pdf);
     });
 
-    it("shows an empty, disabled model picker when the caller supplies no models, never the legacy built-in list (https://github.com/Brevilabs/obsidian-copilot-private/issues/761)", () => {
+    it("shows an empty, disabled model picker when the caller supplies no models, never the legacy built-in list", () => {
       render(composer("", []).node);
 
       expect(mockModelSelectorProps?.models).toEqual([]);
@@ -125,9 +125,9 @@ describe("ChatInput", () => {
       expect(mockModelSelectorProps?.disabled).toBe(true);
     });
   });
-  describe("prependContent()", () => {
+  describe("prependContent", () => {
     it.each(["draft in progress", ""])(
-      "restores web context and resolved text ahead of draft %p without losing existing pills https://github.com/Brevilabs/obsidian-copilot-private/issues/485",
+      "restores web context and resolved text ahead of draft %p without losing existing pills",
       (current) => {
         const { props, send } = composer(current, []);
         const ref: React.RefObject<ChatInputHandle> = { current: null };
@@ -149,7 +149,7 @@ describe("ChatInput", () => {
       }
     );
   });
-  describe("onSendMessage()", () => {
+  describe("onSendMessage", () => {
     it("sends webpage attachments restored by the chat draft owner", () => {
       const webTab = { url: "https://example.com/retained", title: "Retained page" };
       const { node, send } = composer("continue", [], {
@@ -161,25 +161,22 @@ describe("ChatInput", () => {
       expect(send).toHaveBeenCalledWith(expect.objectContaining({ webTabs: [webTab] }));
     });
 
-    it.each(["", "   ", "Describe this"])(
-      "enables Send with an image and draft %p https://github.com/logancyang/obsidian-copilot/issues/2850",
-      (text) => {
-        const { node, send } = composer(text, [image]);
-        render(node);
-        const button = screen.getByRole<HTMLButtonElement>("button", { name: "Send" });
-        expect(button.disabled).toBe(false);
-        fireEvent.click(button);
-        expect(send).toHaveBeenCalledTimes(1);
-      }
-    );
+    it.each(["", "   ", "Describe this"])("enables Send with an image and draft %p", (text) => {
+      const { node, send } = composer(text, [image]);
+      render(node);
+      const button = screen.getByRole<HTMLButtonElement>("button", { name: "Send" });
+      expect(button.disabled).toBe(false);
+      fireEvent.click(button);
+      expect(send).toHaveBeenCalledTimes(1);
+    });
 
-    it("disables Send after the last image is removed from an empty draft https://github.com/logancyang/obsidian-copilot/issues/2850", () => {
+    it("disables Send after the last image is removed from an empty draft", () => {
       const view = render(composer("", [image]).node);
       view.rerender(composer("   ", []).node);
       expect(screen.getByRole<HTMLButtonElement>("button", { name: "Send" }).disabled).toBe(true);
     });
 
-    it("routes Enter with an image-only draft to the send handler https://github.com/logancyang/obsidian-copilot/issues/2850", () => {
+    it("routes Enter with an image-only draft to the send handler", () => {
       const { node, send } = composer("", [image]);
       render(node);
       fireEvent.keyDown(screen.getByRole("textbox", { name: "Message" }), { key: "Enter" });
@@ -190,7 +187,7 @@ describe("ChatInput", () => {
       { scenario: "text", text: "Do this instead", images: [] as File[] },
       { scenario: "an image", text: "", images: [image] },
     ])(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/788 shows only Send while the agent's reply runs and the draft has $scenario, sending it as Enter would",
+      "shows only Send while the agent's reply runs and the draft has $scenario, sending it as Enter would",
       ({ text, images }) => {
         const { node, send } = composer(text, images, { isGenerating: true });
         render(node);
@@ -203,7 +200,7 @@ describe("ChatInput", () => {
       }
     );
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/788 shows only Stop while the agent's reply runs and the draft is empty", () => {
+    it("shows only Stop while the agent's reply runs and the draft is empty", () => {
       const { node, props } = composer("   ", [], { isGenerating: true });
       render(node);
       expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
@@ -211,7 +208,7 @@ describe("ChatInput", () => {
       expect(props.onStopGenerating).toHaveBeenCalledTimes(1);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 sends Enter while the agent works without interrupt", () => {
+    it("sends Enter while the agent works without interrupt", () => {
       const { node, send } = composer("Only the first two", [], { isGenerating: true });
       render(node);
 

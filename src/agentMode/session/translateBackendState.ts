@@ -6,7 +6,7 @@ import type {
   RawModelState,
   RawModeState,
   BackendState,
-  CopilotMode,
+  ScribeMode,
   EffortOption,
   ModeApplySpec,
   ModeMapping,
@@ -18,8 +18,8 @@ import type {
 } from "@/agentMode/session/types";
 import { sortEffortOptions } from "@/lib/model-effort";
 
-const CANONICAL_ORDER: CopilotMode[] = ["default", "plan", "auto"];
-const CANONICAL_LABELS: Record<CopilotMode, string> = {
+const CANONICAL_ORDER: ScribeMode[] = ["default", "plan", "auto"];
+const CANONICAL_LABELS: Record<ScribeMode, string> = {
   default: "Default",
   plan: "Plan",
   auto: "Auto",
@@ -56,8 +56,6 @@ function translateModel(
   const fromConfig = inputs.models ? null : configModel;
   const modelState = inputs.models ?? fromConfig?.state ?? null;
   if (!modelState) return null;
-  // Dedicated catalogs describe effort variants; the model option describes
-  // the whole model. https://github.com/Brevilabs/obsidian-copilot-private/issues/219
   const baseDescriptions = new Map<string, string>();
   if (inputs.models && configModel) {
     for (const model of configModel.state.availableModels) {
@@ -129,8 +127,6 @@ function translateModel(
     currentEntry = {
       baseModelId: currentBaseId,
       name: normalizeName(currentBaseId, descriptor),
-      // A stale catalog must not hide the active model's available description.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/219
       description: descriptor.showModelDescriptions
         ? baseDescriptions.get(currentBaseId)
         : undefined,
@@ -198,9 +194,6 @@ function deriveEffortOptions(
   group: { variants: { effort: string | null; wireId: string }[]; baseModelId: string },
   descriptor: BackendDescriptor
 ): EffortOption[] {
-  // Even a single encoded effort must survive normalization or reapplying the
-  // current selection sends an invalid bare ID.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/219
   if (group.variants.some((variant) => variant.effort !== null)) {
     const options: EffortOption[] = [];
     for (const v of group.variants) {
@@ -226,10 +219,6 @@ function optionsFromConfigOption(opt: BackendConfigOption | null): EffortOption[
       flat.push({ value: entry.value, name: entry.name });
     }
   }
-  // OpenCode appends `default` to every effort menu to mean "send no level".
-  // It is not a level the user can compare against the others, so a model with
-  // real levels offers only those.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/557
   return sortEffortOptions(
     flat.map((o) => ({
       value: o.value === "default" ? null : o.value,
@@ -282,7 +271,7 @@ function translateSetModeMapping(
   if (!modeState) return null;
   const advertised = new Set(modeState.availableModes.map((m) => m.id));
   const options: ModeOption[] = [];
-  const apply: Partial<Record<CopilotMode, ModeApplySpec>> = {};
+  const apply: Partial<Record<ScribeMode, ModeApplySpec>> = {};
   for (const value of CANONICAL_ORDER) {
     const native = mapping.canonical[value];
     if (!native || !advertised.has(native)) continue;
@@ -312,7 +301,7 @@ function translateConfigOptionModeMapping(
   }
 
   const options: ModeOption[] = [];
-  const apply: Partial<Record<CopilotMode, ModeApplySpec>> = {};
+  const apply: Partial<Record<ScribeMode, ModeApplySpec>> = {};
   for (const value of CANONICAL_ORDER) {
     const native = mapping.canonical[value];
     if (!native || !flatValues.has(native)) continue;
@@ -329,7 +318,7 @@ function reverseProjectMode(
   canonical: ModeMapping["canonical"],
   nativeId: string,
   visibleOptions: ModeOption[]
-): CopilotMode | null {
+): ScribeMode | null {
   const visible = new Set(visibleOptions.map((o) => o.value));
   for (const opt of CANONICAL_ORDER) {
     if (!visible.has(opt)) continue;

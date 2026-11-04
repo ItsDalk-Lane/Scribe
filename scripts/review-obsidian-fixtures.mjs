@@ -148,7 +148,7 @@ async function main() {
   assert(invalidSourceResult.errorCount > 0, "ESLint accepted its invalid source fixture");
   expectEslintRules(invalidSourceResult, [
     "obsidianmd/no-nodejs-modules",
-    "copilot/no-direct-node-imports",
+    "scribe/no-direct-node-imports",
     "no-restricted-globals",
     "eslint-comments/require-description",
     "eslint-comments/no-restricted-disable",
@@ -157,7 +157,7 @@ async function main() {
     ["node:fs", "node:util", "path", "node:os"].every((moduleName) =>
       invalidSourceResult.messages.some(
         (message) =>
-          message.ruleId === "copilot/no-direct-node-imports" &&
+          message.ruleId === "scribe/no-direct-node-imports" &&
           message.message.includes(`"${moduleName}"`) &&
           message.message.includes("requireNodeModule()")
       )
@@ -167,7 +167,7 @@ async function main() {
   const validNodeBoundaryResult = await lintSourceFixture(validNodeBoundaryFixture, "src/utils.ts");
   assert(
     validNodeBoundaryResult.messages.every(
-      (message) => message.ruleId !== "copilot/no-direct-node-imports"
+      (message) => message.ruleId !== "scribe/no-direct-node-imports"
     ),
     "browser polyfills or guarded/type-only Node access were rejected"
   );
@@ -177,22 +177,22 @@ async function main() {
     "export const a = 1; // trailing note",
     "// global cache warms lazily\nexport const a = 1;",
     "// eslint rejects the obvious shape here\nexport const a = 1;",
-    "// See https://github.com/logancyang/obsidian-copilot/pull/1\nexport const a = 1;",
-    "// See https://github.com/logancyang/obsidian-copilot/issues/12oops\nexport const a = 1;",
+    "// See https://github.com/ItsDalk-Lane/Scribe\nexport const a = 1;",
+    "// See https://github.com/ItsDalk-Lane/Scribeoops\nexport const a = 1;",
     "export const a = 1; // trailing note\nexport const b = 2; // https://github.com/o/r/issues/1",
     "// Explains the next line\nexport const a = 1; // https://github.com/o/r/issues/1",
   ];
   for (const code of issuelessComments) {
     const result = await lintSourceFixture(code, "src/utils.ts");
     assert(
-      result.messages.some((message) => message.ruleId === "copilot/issue-linked-comments"),
+      result.messages.some((message) => message.ruleId === "scribe/issue-linked-comments"),
       `issue-less comment was accepted: ${code}`
     );
   }
   const allowedComments = [
-    "// Needed for https://github.com/logancyang/obsidian-copilot/issues/1\nexport const a = 1;",
-    "// A decision spanning lines\n// https://github.com/Brevilabs/obsidian-copilot-private/issues/1\nexport const a = 1;",
-    "// Tracked in https://github.com/logancyang/obsidian-copilot/issues/1.\nexport const a = 1;",
+    "// Needed for https://github.com/ItsDalk-Lane/Scribe/issues/1\nexport const a = 1;",
+    "// A decision spanning lines\n// https://github.com/ItsDalk-Lane/Scribe/issues/1\nexport const a = 1;",
+    "// Tracked in https://github.com/ItsDalk-Lane/Scribe/issues/1.\nexport const a = 1;",
     "// eslint-disable-next-line no-restricted-syntax -- fixture\nexport const a = 1;",
     "// prettier-ignore\nexport const a = [1,2];",
     "/* global activeWindow */\nexport const a = 1;",
@@ -201,7 +201,7 @@ async function main() {
     const result = await lintSourceFixture(code, "src/utils.ts");
     assert(
       result.messages.every(
-        (message) => !["copilot/issue-linked-comments", "no-empty"].includes(message.ruleId)
+        (message) => !["scribe/issue-linked-comments", "no-empty"].includes(message.ruleId)
       ),
       `issue-linked comment or tool directive was rejected: ${code}`
     );

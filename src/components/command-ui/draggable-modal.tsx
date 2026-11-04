@@ -5,7 +5,7 @@ import { useRafResizable } from "@/hooks/use-resizable";
 import { DragHandle } from "./drag-handle";
 import { CloseButton } from "./close-button";
 
-const DRAGGABLE_MODAL_DATA_ATTRIBUTE = "data-copilot-draggable-modal";
+const DRAGGABLE_MODAL_DATA_ATTRIBUTE = "data-scribe-draggable-modal";
 const DRAGGABLE_MODAL_SELECTOR = `[${DRAGGABLE_MODAL_DATA_ATTRIBUTE}="true"]`;
 
 interface DraggableModalProps {
@@ -238,7 +238,7 @@ export function DraggableModal({
       {...{ [DRAGGABLE_MODAL_DATA_ATTRIBUTE]: "true" }}
       className={cn(
         "tw-fixed tw-z-popover",
-        "tw-left-[var(--copilot-drag-x,0px)] tw-top-[var(--copilot-drag-y,0px)]",
+        "tw-left-[var(--scribe-drag-x,0px)] tw-top-[var(--scribe-drag-y,0px)]",
         "tw-flex tw-flex-col",
         "tw-border tw-border-solid tw-border-border tw-bg-primary",
         resizable ? "tw-rounded-t-lg tw-shadow-2xl" : "tw-rounded-lg tw-shadow-2xl",

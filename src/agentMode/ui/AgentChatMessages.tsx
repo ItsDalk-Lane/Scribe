@@ -53,8 +53,6 @@ function toChatMessageView(m: AgentChatMessage): ChatMessage {
   };
 }
 
-// A permission card names the tool its request omits from the chat's own tool call.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/599
 function findToolCallTitle(messages: AgentChatMessage[], toolCallId: string): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const part = messages[i].parts?.find((p) => p.kind === "tool_call" && p.id === toolCallId);
@@ -81,9 +79,6 @@ interface AgentMessageRowProps {
   forkDisabled?: boolean;
 }
 
-// Completed messages retain their object identity across streaming updates, so
-// stable row props keep their Markdown and trail renderers out of the live path.
-// https://github.com/logancyang/obsidian-copilot/issues/3343
 const AgentMessageRow = memo(function AgentMessageRow({
   message,
   app,
@@ -222,9 +217,6 @@ const AgentChatMessages = memo(
       pendingPermission && tasks
         ? permissionRequesterName(pendingPermission, tasks.tasks)
         : undefined;
-    // Questions take priority so the separate resolver queues have a stable
-    // presentation policy without carrying cross-type sequencing state.
-    // https://github.com/logancyang/obsidian-copilot/issues/2948
     const pendingActionId = pendingQuestion
       ? `question:${pendingQuestion.requestId}`
       : pendingPermission
@@ -261,7 +253,6 @@ const AgentChatMessages = memo(
     );
 
     const latestAssistant = useMemo(() => lastAssistant(visible), [visible]);
-    // The chat keeps running while Claude waits on its subagents with no reply open, so only an unfinished reply gets the live timer. https://github.com/Brevilabs/obsidian-copilot-private/issues/757
     const streamingMessageId =
       isLoading && !latestAssistant?.turnStopReason ? latestAssistant?.id : undefined;
 
@@ -298,9 +289,6 @@ const AgentChatMessages = memo(
             role="region"
             aria-label={t("Pending agent actions")}
             data-testid="agent-action-rail"
-            // A verbose question can exceed a short chat pane. Bound and scroll
-            // the rail so its resolution controls remain reachable.
-            // https://github.com/logancyang/obsidian-copilot/issues/2948
             className="tw-max-h-full tw-w-full tw-overflow-y-auto tw-bg-primary"
           >
             <div key={pendingActionId} data-action-id={pendingActionId}>

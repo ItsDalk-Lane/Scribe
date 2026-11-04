@@ -16,7 +16,7 @@ import {
 } from "@/commands/quickCommandPrompts";
 import { CustomCommandChatModal } from "@/commands/CustomCommandChatModal";
 import { ApplyCustomCommandModal } from "@/components/modals/ApplyCustomCommandModal";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { getVaultCharacterCount } from "@/search/searchUtils";
 import { WebSelectedTextContext } from "@/types/message";
 import { isSourceModeOn } from "@/utils";
@@ -27,7 +27,7 @@ import { COMMAND_IDS, COMMAND_ICONS, COMMAND_NAMES, CommandId } from "@/constant
 import { attachSelection } from "@/selection/selectionStore";
 import { editorSelectionReport, webSelectionReport } from "@/selection/selectionWatcher";
 
-function addCommand(plugin: CopilotPlugin, id: CommandId, callback: () => void | Promise<void>) {
+function addCommand(plugin: ScribePlugin, id: CommandId, callback: () => void | Promise<void>) {
   plugin.addCommand({
     id,
     name: t(COMMAND_NAMES[id]),
@@ -42,7 +42,7 @@ function addCommand(plugin: CopilotPlugin, id: CommandId, callback: () => void |
 }
 
 function addEditorCommand(
-  plugin: CopilotPlugin,
+  plugin: ScribePlugin,
   id: CommandId,
   callback: (editor: Editor) => void | Promise<void>
 ) {
@@ -60,7 +60,7 @@ function addEditorCommand(
 }
 
 function addCheckCommand(
-  plugin: CopilotPlugin,
+  plugin: ScribePlugin,
   id: CommandId,
   callback: (checking: boolean) => boolean | void
 ) {
@@ -72,7 +72,7 @@ function addCheckCommand(
   });
 }
 
-export function registerCommands(plugin: CopilotPlugin) {
+export function registerCommands(plugin: ScribePlugin) {
   addEditorCommand(plugin, COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION, async (editor: Editor) => {
     const selectedText = editor.getSelection();
     const wordCount = selectedText.split(" ").length;
@@ -162,7 +162,7 @@ export function registerCommands(plugin: CopilotPlugin) {
     return true;
   });
 
-  addCommand(plugin, COMMAND_IDS.CLEAR_COPILOT_CACHE, async () => {
+  addCommand(plugin, COMMAND_IDS.CLEAR_SCRIBE_CACHE, async () => {
     try {
       await FileCache.getInstance<string>().clear(plugin.app.vault);
       await clearLegacyCaches(plugin.app);

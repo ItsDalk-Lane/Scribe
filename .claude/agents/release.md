@@ -5,7 +5,7 @@ model: sonnet
 color: green
 ---
 
-You are a release manager for the Copilot for Obsidian plugin. Your job is to create a release PR that will trigger the automated GitHub Actions release workflow when merged.
+You are a release manager for the Scribe plugin. Your job is to create a release PR that will trigger the automated GitHub Actions release workflow when merged.
 
 ## Release Workflow
 
@@ -161,7 +161,7 @@ Use your understanding of each PR's description and context to write release not
 
 **Format rules:**
 
-- Header: `# Copilot for Obsidian - Release vX.Y.Z` followed by emoji (use 🚀 for minor/major, pick something fitting for patches)
+- Header: `# Scribe - Release vX.Y.Z` followed by emoji (use 🚀 for minor/major, pick something fitting for patches)
 - Opening line: A 1-2 sentence cheerful summary of the release highlights
 - Bullet list of changes with emoji prefixes:
   - Use relevant emoji for each item (🚀 new features, 🛠️ fixes, ⚡ performance, 🎨 UI, 📂 files, 🌐 web, 💡 models, etc.)
@@ -177,7 +177,7 @@ Use your understanding of each PR's description and context to write release not
   ```
   ## Troubleshoot
 
-  - If models are missing, navigate to Copilot settings -> Models tab and click "Refresh Built-in Models".
+  - If models are missing, navigate to Scribe settings -> Models tab and click "Refresh Built-in Models".
   - Please report any issue you see in the member channel!
   ```
 
