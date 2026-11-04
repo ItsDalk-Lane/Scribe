@@ -129,12 +129,12 @@ Head.astro[IO4T]: F:Starlight head override that starts docs analytics in the br
 
 ===/Users/study_superior/Desktop/Code/Scribe/internal-docs/===
 DOCS_GUIDE.md[SG3T]: F:When and how to update user-facing docs alongside behavior changes | R:- | A:- | S:-
-GALLERY_REVIEW_COVERAGE.md[SQ3T]: F:Bounded gallery review coverage record with representative stories, capture procedure, and gaps | R:- | A:- | S:-
+GALLERY_REVIEW_COVERAGE.md[SQ3T]: F:Records the bounded gallery review set, capture procedure, and known gaps | R:- | A:- | S:Fixtures and stories are never live verification
 OBSIDIAN_COMMUNITY_REVIEW.md[SQ6T]: F:Defines the local Obsidian review gate, metadata and dependency policies, fixtures and retained fetch disclosures | R:code:eslint.review.config.mjs,code:src/LLMProviders/providerTransport.ts | A:- | S:Review compliance must not change plugin behavior, persisted data, prompts, or UI unless a blocker requires it
 PLUGIN_DEV_GUIDE.md[SG5T]: F:Plugin runtime guide: app access, requestUrl versus fetch, and popout-safe document selection | R:code:src/utils.ts | A:- | S:-
 PROCESS_GUIDE.md[SG3T]: F:Multi-step session conventions centered on the TODO.md tracker | R:- | A:- | S:-
 STYLE_GUIDE.md[SG7S]: F:Detailed coding conventions for TypeScript, comments, styling, and import boundaries | R:- | A:- | S:A rejected import means fix the structure, never the fence
-TESTING_GUIDE.md[SG7L]: F:Defines unit-specification, BYOK protocol regression, live-vault E2E and component-gallery testing workflows | R:code:scripts/mobile-load-smoke.cjs | A:- | S:Unit tests are executable specs; fixture/VM success is not live-account or device proof. E2E must explicitly verify the target vault and deployed build
+TESTING_GUIDE.md[SG7L]: F:Defines unit-specification, BYOK protocol regression, live-vault E2E and component-gallery testing workflows | R:code:scripts/mobile-load-smoke.cjs | A:- | S:Unit tests are executable specs; fixture success is not live-account or device proof; E2E must verify target vault and deployed build
 NATIVE_AGENT_COVERAGE.md[SQ6S]: F:Records native agent UI coverage: the U01-U24 matrix, extra reachable states, Claude removal exceptions, and A01-A10 gaps | R:- | A:- | S:Component fixtures and stories never count as live verification; no row is marked fully passed without desktop evidence
 NATIVE_AGENT_EXECUTION_EVIDENCE.md[SQ5S]: F:Records real desktop, file, process, and controlled-model evidence per native agent scenario with build identities | R:code:internal-docs/NATIVE_AGENT_COVERAGE.md | A:- | S:Build success, screenshots, or model claims alone never count as end-to-end pass; real-model rows stay separate from controlled-fixture rows
 NATIVE_AGENT_PROVIDER_COVERAGE.md[SQ6M]: F:Lists native agent tool-call coverage across every actual factory route, both transports, and the full provider catalog | R:code:internal-docs/NATIVE_AGENT_EXECUTION_EVIDENCE.md | A:- | S:Directory enumeration and fixture passes never equal real-provider verification; untested endpoints stay listed with reasons
@@ -296,7 +296,7 @@ vaultEventExpectations.ts[DW4S]: F:Matchers describing expected vault path effec
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/skills/builtin/===
 buildBuiltinSeedFs.ts[IE3T]: F:Vault-adapter filesystem used to seed builtin skills without following directory links | R:code:src/agentMode/skills/builtin/builtinOwnership.ts | A:buildBuiltinSeedFs | S:-
-builtinOwnership.ts[DS4T]: F:Reads the builtin version marker and content-baseline hash from skill frontmatter only | R:- | A:getBuiltinSkillVersion, getBuiltinSkillContentHash | S:A marker in a skill body never authorizes replacement or deletion
+builtinOwnership.ts[DS4T]: F:Reads the builtin version marker and content-baseline hash from skill frontmatter | R:- | A:getBuiltinSkillVersion, getBuiltinSkillContentHash | S:A marker in a skill body never authorizes replacement; scribe- and legacy copilot- markers both count as managed
 reconcileBuiltinSkills.ts[IE4T]: F:Reconciles builtin skills between settings preferences and the seeded folders | R:code:src/agentMode/skills/builtin/seedBuiltinSkills.ts | A:reconcileBuiltinSkills, availableBuiltinAgents | S:-
 seedBuiltinSkills.ts[IE5S]: F:Seeds and updates builtin skill folders based on version markers and content baselines | R:code:src/agentMode/skills/builtin/builtinOwnership.ts | A:seedBuiltinSkills, inspectBuiltinSkill, BuiltinSeedFs | S:A newer version replaces the folder only when the content baseline matches; local edits or a missing baseline defer the update
 
@@ -828,7 +828,7 @@ resolveProviderConnection.ts[DB4T]: F:Resolves base URL and headers for a provid
 ConfiguredModelRegistry.ts[DC5S]: F:Creates, updates, and removes configured models in settings | R:code:src/settings/model.ts | A:ConfiguredModelRegistry | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/providers/===
-ProviderRegistry.ts[DC6M]: F:Creates, updates, and removes provider rows with credentials | R:code:src/modelManagement/types/persisted.ts | A:ProviderRegistry | S:Remove clears only Copilot-owned keychain entries; a foreign pointer deletes the row and leaves the entry
+ProviderRegistry.ts[DC6M]: F:Creates, updates, and removes provider rows with credentials | R:code:src/modelManagement/types/persisted.ts | A:ProviderRegistry | S:Remove clears only Scribe-owned keychain entries; a foreign pointer deletes the row and leaves the entry
 isSelfHostedProvider.ts[DB4T]: F:Detects self-hosted and loopback providers | R:- | A:isSelfHostedProvider, isSelfHostedUrl | S:-
 providerDestination.ts[DB3T]: F:Maps a provider to its cloud or local destination | R:code:src/modelManagement/providers/isSelfHostedProvider.ts | A:providerDestination | S:-
 providerProfiles.ts[DC6L]: F:Provider connection profiles: URL expansion, parameters, and headers | R:- | A:expandProviderUrl, getProviderConnectionProfile | S:-
@@ -915,7 +915,7 @@ interfaceLanguage.ts[CL3T]: F:Initializes the interface language from Obsidian a
 keychainService.ts[IS8L]: F:Stores provider credentials in the Obsidian keychain with planned name migration | R:code:src/services/settingsPersistence.ts | A:KeychainService | S:A rename keeps both values when old and new names differ; hydration restores only this device profile
 legacyCredentialBackup.ts[DP4T]: F:Writes a hashed backup file before credential migration | R:code:src/services/settingsSecretTransforms.ts | A:legacyBackupFilename, LEGACY_BACKUP_PREFIX | S:-
 settingsPersistence.ts[DP7M]: F:Saves and loads settings, splitting secrets into the keychain | R:code:src/services/keychainService.ts | A:- | S:Secrets are stripped before writing the vault data file; a failed backup leaves the keychain and pointers untouched
-settingsSecretTransforms.ts[DS5S]: F:Identifies and strips secret fields and credential pairs from settings before persistence | R:code:src/constants.ts | A:isSensitiveKey, stripKeychainFields, cleanupLegacyFields | S:Stripping returns a copy and leaves the live settings untouched; sensitive env names reuse isSensitiveKey
+settingsSecretTransforms.ts[DS5S]: F:Identifies and strips secret fields and credential pairs from settings before persistence | R:code:src/constants.ts | A:isSensitiveKey, stripKeychainFields, cleanupLegacyFields | S:Stripping returns a copy and leaves the live settings untouched; name/value pairs with sensitive names count as secrets
 startupMigration.ts[DV4T]: F:Startup migration status types and helpers | R:- | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/services/obsidianCli/===
