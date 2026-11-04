@@ -27,10 +27,10 @@ Agent Chat 不再使用外部代理的账号、模型列表或订阅额度。Ant
 | **Agent Chat**  | 模型、支持的推理强度、Default / Plan / Auto 权限模式。 |
 | **Quick tools** | 已启用的模型；保持原来的快捷提问和编辑交互。           |
 
-**Default** 在编辑和命令执行前请求批准。**Plan** 等待计划决策后再执行受控操作。**Auto** 自动允许资料库内的笔记及绘图编辑，系统命令仍请求批准。具体授权选择以权限卡实际显示的内容为准。
+**Default** 下，编辑和执行命令通常需要批准。**Plan** 在计划获批前阻止编辑和命令执行。**Auto** 通常自动允许资料库内的普通笔记和绘图编辑，但不自动放行资料库配置目录中的编辑或系统命令。编辑和命令可在当前聊天中保存对相同操作的允许或拒绝；已保存的决定先于 Auto 规则生效，所以权限卡不一定每次出现。具体选项以卡片显示为准。
 
 ## Related
 
 - [Model Sources and BYOK](llm-providers.md)
 - [Agent Chat](agent-mode-and-tools.md)
-- [Settings: General](settings.md#general)
+- [Settings: General](settings.md#通用)

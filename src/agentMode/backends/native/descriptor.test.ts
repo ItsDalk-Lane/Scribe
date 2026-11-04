@@ -160,12 +160,19 @@ describe("nativeDescriptor", () => {
       setSettings({ backends: { ...getSettings().backends, native: { enabledModels: [] } } });
       expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
     });
-    it("shows a model setup error when no BYOK chat model exists", () => {
+    it("shows a localized model setup error when no BYOK chat model exists (https://github.com/ItsDalk-Lane/Scribe/issues/28)", () => {
       setSettings({ configuredModels: [] });
       expect(NativeBackendDescriptor.getInstallState(getSettings())).toEqual({
         kind: "error",
-        message: expect.stringContaining("模型"),
+        message: expect.stringContaining("chat model"),
       });
+    });
+  });
+  describe("setupDescription", () => {
+    it("carries the English source string so the UI can localize it (https://github.com/ItsDalk-Lane/Scribe/issues/28)", () => {
+      expect(NativeBackendDescriptor.setupDescription).toBe(
+        "Runs note tasks inside Scribe using the chat models you configure."
+      );
     });
   });
   describe("subscribeInstallState()", () => {

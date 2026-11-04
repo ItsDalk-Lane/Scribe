@@ -59,15 +59,11 @@ export const settingsTranslations: Record<string, string> = {
     "模型由代理自动提供并更新。首个启用模型为默认，推理配置自动沿用默认值。",
   "Show model {name}": "显示模型 {name}",
   "No matching models.": "没有匹配的模型。",
-  "No models reported yet. Install and sign in to the agent to discover its models.":
-    "代理尚未报告模型，请先完成安装和登录。",
   "Enable at least one model to start a new chat.": "请至少启用一个模型，以便开始新聊天。",
   "Finishing current tasks before disabling.": "当前任务完成后停用代理。",
   "Automatically detected": "自动检测",
   "Disabled; configuration kept": "已停用，配置已保留",
-  "Installation and sign-in settings": "安装和登录设置",
   "Enable {name}": "启用 {name}",
-  "Installation and sign-in": "安装与登录",
   "Built-in": "内置",
   "Disabled with plugin": "随所属插件停用",
   "Built-in; managed by its source": "内置，由所属来源管理",
@@ -144,7 +140,7 @@ export const settingsTranslations: Record<string, string> = {
   "Loading extensions…": "正在读取扩展…",
   "Could not read agent extensions. Refresh to try again.": "无法读取代理扩展，请刷新重试。",
   "MCP servers": "MCP服务器",
-  Subagents: "子Agent",
+  Subagents: "子代理",
   Common: "通用",
   "General settings": "通用设置",
   Plugins: "插件",
@@ -161,10 +157,6 @@ export const settingsTranslations: Record<string, string> = {
   "Some folders exceed the discovery depth limit.": "部分文件夹超出了查找深度限制。",
   "Some extension descriptions could not be read.": "部分扩展说明无法读取。",
   "Skill enablement may also depend on agent configuration.": "技能是否启用还可能取决于代理配置。",
-  "Configured plugins are listed; cached packages are not proof of installation.":
-    "这里列出已配置的插件；仅有缓存文件不代表已安装。",
-  "Configured hooks may require trust before they can run.":
-    "已配置的钩子可能需要先获得信任才能运行。",
   "Remote skill catalogs are not fetched by this page.": "本页不会下载远程技能目录。",
   "This agent registers hooks through plugin code and does not expose a read-only hook list.":
     "此代理通过插件代码注册钩子，未提供可只读查询的钩子清单。",
@@ -176,6 +168,10 @@ export const settingsTranslations: Record<string, string> = {
   "Your custom instructions for the agent to follow for every interaction in this project. They take precedence over your vault instructions wherever the two conflict. Saved to AGENTS.md in the project folder, which you can also edit as a note.":
     "代理每次与此项目交互时遵循的自定义说明。与资料库说明冲突时，以项目说明为准。保存在项目文件夹中的 AGENTS.md 内，也可以像普通笔记一样编辑。",
   "No models yet. Add a provider on the ": "还没有模型。请在",
+  "Move this skill to the shared folder before changing its availability.":
+    "请先将此技能迁移到共享文件夹，再切换可用性。",
+  "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":
+    "打开页面会自动检查可用性；已有聊天将在当前任务结束后应用更改。",
   BYOK: "自备模型",
   " tab to use it in Quick tools.": "页面添加服务商，即可在快捷工具中使用。",
   "Search quick-tool models…": "搜索快捷工具模型…",
@@ -280,7 +276,6 @@ export const settingsTranslations: Record<string, string> = {
   "Example: ": "示例：",
   " → 20250114_153232__polish_this_article_[[Readme]]":
     " → 20250114_153232__polish_this_article_[[Readme]]",
-  "OpenCode Zen": "OpenCode Zen",
   "Reporting an issue is available on desktop only.": "问题反馈仅支持桌面端。",
   "The agent activity log is available on desktop only.": "代理活动日志仅支持桌面端。",
   "Failed to open the agent activity log.": "无法打开代理活动日志。",
@@ -325,8 +320,8 @@ export const settingsTranslations: Record<string, string> = {
   "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools), and pre-selects the chat log when you report an issue.":
     "将 Scribe 聊天活动记录到开发者控制台（视图 → 切换开发者工具），并在反馈问题时默认选中聊天日志。",
   "Agent activity log": "代理活动日志",
-  "Records the behind-the-scenes messages between Scribe and the agent so a report always has recent activity to attach. Stored on this device only, outside your vault ({frameLogPath}), and can include your prompts and note contents in plain text.":
-    "记录 Scribe 与代理之间的后台消息，以便在报告中附上最近的活动。仅保存在此设备上、库外的位置（{frameLogPath}），可能包含明文的提示词和笔记内容。",
+  "Holds the behind-the-scenes activity that earlier Scribe versions recorded. Current native chats are not recorded. Stored on this device only, outside your vault ({frameLogPath}), and can include your prompts and note contents in plain text.":
+    "保存较早版本 Scribe 记录的后台活动。当前原生聊天不会写入记录。仅保存在此设备上、库外的位置（{frameLogPath}），可能包含明文的提示词和笔记内容。",
   Open: "打开",
   Clear: "清空",
   "Custom vault instructions": "库的自定义说明",
@@ -346,7 +341,6 @@ export const settingsTranslations: Record<string, string> = {
   "Default quick command model": "快捷指令默认模型",
   "Used by Quick Ask, Quick Command, and saved commands set to Default model.":
     "用于快捷问答、快捷指令以及选择“默认模型”的已保存指令。",
-  "No models yet. Install and sign in to ": "还没有模型。请安装并登录 ",
   ", or start a chat with it, to see its models.": "，或使用它开始聊天，即可查看可用模型。",
   "Search {displayName} models…": "搜索 {displayName} 模型…",
   "Skills are available on desktop.": "技能仅支持桌面端。",
@@ -553,11 +547,4 @@ export const settingsTranslations: Record<string, string> = {
   "This plugin has no listed components.": "此插件没有列出的附属事项。",
   "Not provided": "未提供",
   "Installation files are missing.": "安装文件已缺失。",
-  "Installed plugin files are missing.": "插件安装文件已缺失。",
-  "Installed only for other projects; unavailable in this scope.":
-    "仅安装于其他项目，在此范围内不可用。",
-  "Move this skill to the shared folder before changing its availability.":
-    "请先将此技能迁移到共享文件夹，再切换可用性。",
-  "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":
-    "打开页面会自动检查可用性；已有聊天将在当前任务结束后应用更改。",
 };

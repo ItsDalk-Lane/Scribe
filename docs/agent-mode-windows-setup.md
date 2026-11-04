@@ -13,7 +13,7 @@ Windows 上的 Agent Chat 直接在 Obsidian 桌面版内运行 Scribe 代理，
 
 ## Skills
 
-在 **Settings → Scribe → Skills** 启用 Scribe 技能，输入 `/` 选择允许手动调用的条目。项目技能只在对应项目的聊天中出现。
+在 **Settings → Scribe → 技能** 启用 Scribe 技能，输入 `/` 选择允许手动调用的条目。项目技能只在对应项目的聊天中出现。
 
 `obsidian-cli` 技能仍要求在 Obsidian 的 **Settings → General → Command line interface** 开启命令行功能。
 

@@ -64,5 +64,15 @@ describe("DebuggingSupportSection", () => {
 
       expect(screen.getByText(new RegExp(props.frameLogPath))).toBeTruthy();
     });
+
+    it("does not promise that current native chats are recorded into the activity log (https://github.com/ItsDalk-Lane/Scribe/issues/22)", () => {
+      renderSection();
+
+      const description = screen
+        .getAllByText(/frameLogPath|stored on this device/i)
+        .map((node) => node.textContent)
+        .join(" ");
+      expect(description).toContain("Current native chats are not recorded");
+    });
   });
 });

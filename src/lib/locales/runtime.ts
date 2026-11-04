@@ -18,11 +18,7 @@ export const runtimeTranslations: Record<string, string> = {
   "Show Excalidraw steps": "展开 Excalidraw 步骤",
   "Turn on Command line interface in Obsidian's Settings → General to use this skill.":
     "要使用此技能，请在 Obsidian 的“设置 → 常规”中开启命令行界面。",
-  "Delete this chat from Scribe? {agent} may keep its own copy of this conversation on this computer.":
-    "要从 Scribe 删除此聊天吗？{agent} 可能仍会在本机保留此对话的副本。",
   "Delete this chat from Scribe?": "要从 Scribe 删除此聊天吗？",
-  "Chat deleted from Scribe. {agent} may keep its own copy.":
-    "已从 Scribe 删除聊天。{agent} 可能仍保留自己的副本。",
   "Chat deleted from Scribe.": "已从 Scribe 删除聊天。",
   "Scribe failed to start. Check the Scribe log for details.":
     "Scribe 启动失败，请查看 Scribe 日志了解详情。",

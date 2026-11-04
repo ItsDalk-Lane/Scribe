@@ -61,11 +61,22 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
   }, [descriptor, plugin, managedInstall.kind]);
 
   if (installState.kind === "absent") {
+    // 配置驱动型后端没有"未安装"一说，缺的是模型；文案与选择面板保持一致。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/21
+    const usesConfiguredModels = descriptor.usesConfiguredModels ?? false;
     return (
       <AgentStatusCard
-        message={t("{p0} not installed", { p0: descriptor.displayName })}
+        message={
+          usesConfiguredModels
+            ? t("No chat model is enabled for {p0} yet. Add a provider and enable a model first.", {
+                p0: descriptor.displayName,
+              })
+            : t("{p0} not installed", { p0: descriptor.displayName })
+        }
         action={{
-          label: t("Install {p0}", { p0: descriptor.displayName }),
+          label: usesConfiguredModels
+            ? t("Configure")
+            : t("Install {p0}", { p0: descriptor.displayName }),
           onClick: onInstallClick,
         }}
       />

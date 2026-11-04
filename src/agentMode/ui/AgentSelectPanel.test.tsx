@@ -14,6 +14,7 @@ const mockState: AgentSelectState = {
       status: "absent",
       recommended: true,
       statusMessage: null,
+      usesConfiguredModels: false,
     },
   ],
   selectedId: "opencode",

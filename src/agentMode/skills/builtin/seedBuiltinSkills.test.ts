@@ -1,7 +1,7 @@
 import { removeSeededBuiltin, seedBuiltinSkills, type BuiltinSeedFs } from "./seedBuiltinSkills";
 import type { BuiltinSkill } from "@/builtinSkills/builtinSkills";
 
-jest.mock("@/logger", () => ({ logError: jest.fn(), logInfo: jest.fn() }));
+jest.mock("@/logger", () => ({ logError: jest.fn(), logInfo: jest.fn(), logWarn: jest.fn() }));
 
 function memFs(initialFiles: Record<string, string> = {}): BuiltinSeedFs & {
   files: Map<string, string>;
@@ -87,17 +87,67 @@ describe("seedBuiltinSkills", () => {
       expect(fs.files.get(userMd)).toBe("user content");
     });
 
-    it("preserves user-modified copilot-enabled-agents when upgrading a builtin", async () => {
-      const disabledMd = skill(1).skillMd.replace(
-        "copilot-enabled-agents: claude, codex, opencode",
-        "copilot-enabled-agents: claude"
+    it("still upgrades an unmodified builtin and carries a content baseline forward (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs();
+      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
+
+      const { seeded } = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(seeded).toEqual(["test-helper"]);
+      expect(fs.files.get(MD)).toContain("body v2");
+      expect(fs.files.get(SCRIPT)).toBe("// script v2");
+    });
+
+    it("keeps a user-edited SKILL.md body instead of replacing it on update (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs();
+      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
+      fs.files.set(MD, (fs.files.get(MD) ?? "").replace("body v1", "body v1 with my notes"));
+
+      const { seeded } = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(seeded).toEqual([]);
+      expect(fs.files.get(MD)).toContain("my notes");
+      expect(fs.files.get(MD)).not.toContain("body v2");
+    });
+
+    it("records a baseline for an older install without a hash and defers the update (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs({ [MD]: skill(1).skillMd, [SCRIPT]: "// script v1" });
+
+      const { seeded } = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(seeded).toEqual([]);
+      expect(fs.files.get(MD)).toContain("body v1");
+      expect(fs.files.get(MD)).toMatch(/copilot-content-hash:/);
+    });
+
+    it("preserves user-modified copilot-enabled-agents when upgrading an unmodified builtin (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs();
+      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(1)] });
+      const seededMd = fs.files.get(MD) ?? "";
+      fs.files.set(
+        MD,
+        seededMd.replace(
+          "copilot-enabled-agents: claude, codex, opencode",
+          "copilot-enabled-agents: claude"
+        )
       );
-      const fs = memFs({ [MD]: disabledMd, [SCRIPT]: "// script v1" });
+
       await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [skill(2)] });
 
       const written = fs.files.get(MD) ?? "";
       expect(written).toContain("copilot-enabled-agents: claude\n");
-      expect(written).not.toContain("copilot-enabled-agents: claude, codex, opencode");
       expect(written).toContain("body v2");
     });
 

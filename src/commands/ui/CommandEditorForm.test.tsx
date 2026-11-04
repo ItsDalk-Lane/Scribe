@@ -63,5 +63,19 @@ describe("CommandEditorForm", () => {
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByLabelText("Prompt").closest("fieldset")?.disabled).toBe(true);
     });
+    it("explains why a command named compact can never appear in the slash menu (https://github.com/ItsDalk-Lane/Scribe/issues/20)", () => {
+      render(<CommandEditorForm {...props} />);
+      expect(
+        screen.queryByText(
+          "This name matches the built-in /compact command, so this command never appears in the slash menu."
+        )
+      ).toBeNull();
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "compact" } });
+      expect(
+        screen.getByText(
+          "This name matches the built-in /compact command, so this command never appears in the slash menu."
+        )
+      ).not.toBeNull();
+    });
   });
 });

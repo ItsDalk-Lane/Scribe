@@ -1023,11 +1023,15 @@ export class AgentSessionManager {
     const errorSeqAtStart = this.lastErrorSeq;
     const descriptor = this.resolveDescriptor(resolvedId);
     if (!this.isBackendEnabled(resolvedId)) {
-      throw new Error("This agent is disabled. Enable it in Agent settings to continue.");
+      // 运行时错误也要走翻译：真实桌面验证发现中文界面出现整句英文。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/28
+      throw new Error(t("This agent is disabled. Enable it in Agent settings to continue."));
     }
     const resolvedSeed = this.getSeedSelection(resolvedId, seedSelection) ?? undefined;
     if (!resolvedSeed && (descriptor.usesConfiguredModels || descriptor.getEnabledModelEntries)) {
-      const message = `Enable a model for ${descriptor.displayName} in Scribe's model settings to start a chat.`;
+      const message = t("Enable a model for {p0} in Scribe's model settings to start a chat.", {
+        p0: descriptor.displayName,
+      });
       this.setLastError(message);
       this.notify();
       throw new Error(message);

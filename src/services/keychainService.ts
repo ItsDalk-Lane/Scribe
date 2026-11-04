@@ -145,6 +145,11 @@ export interface PersistSecretsResult {
 
 export type SaveDataFn = (data: CopilotSettings) => Promise<void>;
 
+export interface ProviderNameMove {
+  name: string;
+  legacyIds: string[];
+}
+
 export class KeychainService {
   private static instance: KeychainService | null = null;
   private app: App;
@@ -299,8 +304,14 @@ export class KeychainService {
   // Every device migrates on load because the pointer it reads may have been rewritten by another
   // device that already ran this, while this device's key still sits under the old name.
   // https://github.com/logancyang/obsidian-copilot/issues/3618
-  migrateProviderNames(settings: CopilotSettings): CopilotSettings {
+  // 拆成规划与执行两步：备份失败时可以只规划不动钥匙串，改名等下次启动重试。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/23
+  planProviderNames(settings: CopilotSettings): {
+    settings: CopilotSettings;
+    moves: ProviderNameMove[];
+  } {
     const providers = { ...(settings.providers ?? {}) };
+    const moves: ProviderNameMove[] = [];
     let changed = false;
     for (const row of Object.values(settings.providers ?? {})) {
       const pointer = row.apiKeyKeychainId;
@@ -309,22 +320,44 @@ export class KeychainService {
       const name = isLegacy ? providerKeychainName(this.vaultId, row, providers) : pointer;
       const legacyIds = new Set([pointer, `scribe-v${this.vaultId}-provider-${row.providerId}`]);
       legacyIds.delete(name);
+      if (legacyIds.size > 0) moves.push({ name, legacyIds: [...legacyIds] });
+      if (name !== pointer) {
+        providers[row.providerId] = { ...row, apiKeyKeychainId: name };
+        changed = true;
+      }
+    }
+    return { settings: changed ? { ...settings, providers } : settings, moves };
+  }
+
+  executeProviderNames(moves: readonly ProviderNameMove[]): void {
+    for (const { name, legacyIds } of moves) {
       for (const id of legacyIds) {
         const value = this.storage.getSecret(id);
         if (value === null) continue;
-        if (this.storage.getSecret(name) === null) this.storage.setSecret(name, value);
+        const existing = this.storage.getSecret(name);
+        if (existing === null) {
+          this.storage.setSecret(name, value);
+        } else if (existing !== value) {
+          // 两个名称下是不同的密钥：都保留，等用户确认要哪一个，绝不静默丢弃。
+          // https://github.com/ItsDalk-Lane/Scribe/issues/24
+          logWarn(
+            `Keychain: ${name} and ${id} hold different values; keeping both instead of deleting ${id}`
+          );
+          continue;
+        }
         try {
           this.removeSecret(id);
         } catch (error) {
           logWarn(`Keychain: failed to remove migrated provider secret ${id}`, error);
         }
       }
-      if (name !== pointer) {
-        providers[row.providerId] = { ...row, apiKeyKeychainId: name };
-        changed = true;
-      }
     }
-    return changed ? { ...settings, providers } : settings;
+  }
+
+  migrateProviderNames(settings: CopilotSettings): CopilotSettings {
+    const plan = this.planProviderNames(settings);
+    this.executeProviderNames(plan.moves);
+    return plan.settings;
   }
 
   clearAllVaultSecrets(): void {

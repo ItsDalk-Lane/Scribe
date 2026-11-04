@@ -33,7 +33,9 @@ const MODE_DISPLAY: Record<CopilotMode, { label: string; description: string }> 
     description: "Drafts a plan and waits for your approval before editing.",
   },
   default: {
-    label: "Safe",
+    // 文档与类型层一直称 Default；此前的 "Safe" 是无文档支撑的旧标签。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/26
+    label: "Default",
     description: "Allows edits under the agent's approval rules.",
   },
 };

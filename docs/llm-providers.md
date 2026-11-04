@@ -19,33 +19,33 @@ BYOK uses pi-ai as its internal connection engine. Quick Ask, Quick Command,
 provider settings, model selection, saved configuration, and key storage stay
 the same; existing providers do not need to be recreated. Agent Chat 现在也沿用这些连接设置。
 
-1. Open **Settings → Scribe → 模型**.
-2. Click **Add a provider**.
-3. Choose a provider, **Ollama**, **LM Studio**, or **Add a custom provider**.
-4. Enter the credential, **Base URL**, and any provider-specific fields, such
+1. Open **Settings → Scribe → 快捷操作 → 模型**.
+2. Click **添加服务商**.
+3. Choose a provider, **Ollama**, **LM Studio**, or **添加自定义服务商**.
+4. Enter the credential, **基础地址**, and any provider-specific fields, such
    as the account, project, or gateway ID. Keep JSON credentials in the credential
    field; public fields do not store a separate copy of your secret.
-5. Use **Fetch models** to read the provider's model directory, or choose from
+5. Use **获取模型列表** to read the provider's model directory, or choose from
    the catalog and enter an exact model ID yourself. A directory error does not
    prevent you from saving a valid configuration with a model selected.
-6. Select a chat model and click **Test chat connection** if you want to check
+6. Select a chat model and click **测试聊天连接** if you want to check
    that it can answer. When several chat models are selected, choose the model
    to test. This sends one short message and may use the provider's quota.
-7. Click **Save**. Opening or saving the form never sends a chat test.
+7. Click **保存**. Opening or saving the form never sends a chat test.
 
-**Fetch models** only reads a directory. It does not prove permission to use a
-model. **Test chat connection** uses the current, unsaved key, address, parameters,
+**获取模型列表** only reads a directory. It does not prove permission to use a
+model. **测试聊天连接** uses the current, unsaved key, address, parameters,
 and selected model through the same connection as Quick tools. Only an actual
-text reply shows **Chat connection verified**. Changing those inputs clears the
+text reply shows **聊天连接验证通过**. Changing those inputs clears the
 old chat result; a late result from an earlier check cannot verify the new inputs.
 
 Each time you open **模型**, Scribe also checks your configured providers' directory
 or key endpoint. The small “Verifying providers…” indicator reports these checks.
-**Endpoint accessible** means that endpoint returned the expected data, not that
-chat has been tested. **No key** or **Invalid key** indicates a missing or rejected
-credential. **Access restricted** can mean the account lacks permission; read the
-provider's original reason before replacing a key. **Not verified** means the
-check address was not found. **Unexpected response** can mean an address returned
+**接口可访问** means that endpoint returned the expected data, not that
+chat has been tested. **未设置密钥** or **密钥无效** indicates a missing or rejected
+credential. **访问受限** can mean the account lacks permission; read the
+provider's original reason before replacing a key. **尚未验证** means the
+check address was not found. **返回内容异常** can mean an address returned
 a login page or other content instead of API data. Your saved configuration is
 kept, and you can still choose a catalog model or enter its ID manually.
 
@@ -53,7 +53,7 @@ The provider list changes with the live catalog. The current validation covers a
 snapshot of **232 visible providers using simulated local requests**. It checks
 how saved settings are used to build requests; it is **not a successful test of
 232 real provider accounts**. A real account still needs the right credential,
-model access, available quota, and a reachable service. Use **Test chat connection**
+model access, available quota, and a reachable service. Use **测试聊天连接**
 with your selected model to check those conditions yourself.
 
 Public connection parameters are saved with the provider. Existing custom
@@ -84,18 +84,18 @@ devices; test your actual endpoint on each device you use.
 
 New chat models are enabled for Quick tools by default. Image, speech, embedding, and reranking models remain saved but are marked separately and are not offered as chat choices.
 
-**快捷操作 → 工具配置** controls **Quick tools models** and its **Default quick command model**, shared by Quick Ask and commands.
+**快捷操作 → 工具配置** controls **Quick tools models** and its **快捷指令默认模型**, shared by Quick Ask and commands.
 
 ### OpenCode and OpenCode Go
 
-The catalog keeps each model's correct OpenAI, Anthropic, or Gemini address. Use
+OpenCode here is a model service (`opencode.ai` inference API), unrelated to how the agent itself runs. The catalog keeps each model's correct OpenAI, Anthropic, or Gemini address. Use
 your OpenCode personal API key or service account key. A directory check does not
 confirm access to every model: the account's plan, model permissions, and privacy
 settings can still restrict a chat request.
 
-For Go's OpenAI-compatible models, keep the chat **Base URL** as
-`https://opencode.ai/inference/go/openai/v1`. **Fetch models** reads the separate
-`https://opencode.ai/inference/go/v1/models` address. **Test chat connection** sends
+For Go's OpenAI-compatible models, keep the chat **基础地址** as
+`https://opencode.ai/inference/go/openai/v1`. **获取模型列表** reads the separate
+`https://opencode.ai/inference/go/v1/models` address. **测试聊天连接** sends
 one real test message to the selected model; it is no longer just a key check.
 
 OpenCode's free chat models are restricted to OpenCode itself. Quick tools can
@@ -159,12 +159,12 @@ usual local URL:
 - LM Studio: `http://localhost:1234/v1`
 
 Start the local server before testing the provider. For another compatible
-service or proxy, choose **Add a custom provider** and enter its base URL and
+service or proxy, choose **添加自定义服务商** and enter its base URL and
 model ID. The API key is optional; add one when the endpoint requires
 authentication. Model discovery uses the endpoint's `/v1/models` response, but
 you can always enter an exact model ID before searching the discovered list.
 
-If a directory loads but sending a message fails, use **Test chat connection**
+If a directory loads but sending a message fails, use **测试聊天连接**
 with the same selected model and read its error. For a browser access error,
 check **CORS compatibility**, which is enabled by default for new providers.
 Responses then appear after completion. For LM Studio, enabling CORS in the local
@@ -178,17 +178,18 @@ Agent Chat 使用你在 **代理 → Scribe** 启用的自备模型。模型目�
 
 ## Where keys are stored
 
-Scribe stores provider API keys in this device's
-**Obsidian Keychain**, not in the vault's `data.json`. The Keychain is
+Scribe stores configured provider API keys in this device's
+**Obsidian 钥匙串** rather than the current settings file. The Keychain is
 device-specific, so syncing a vault does not copy its credentials to another
-computer.
+computer. Older installations may have separate credential backup files; those
+may contain sensitive data and are not deleted automatically.
 
 To remove stored credentials, open **Settings → Scribe → 通用 → 其他 → API Key
-Storage** and click **Delete All Keys**.
+Storage** and click **删除所有密钥**.
 
 ## Related
 
 - [Getting Started](getting-started.md)
 - [Agent Chat](agent-mode-and-tools.md)
 - [Models, Effort, and Permissions](models-and-parameters.md)
-- [Settings: Models](settings.md#models)
+- [Settings: Models](settings.md#模型)

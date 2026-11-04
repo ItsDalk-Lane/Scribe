@@ -1,6 +1,6 @@
 # `AGENTS.md` Examples for Agent Chat
 
-`AGENTS.md` holds instructions that Agent Chat should keep following. Write shared vault rules once at the vault root. Scribe makes them available to its native agent. A Project can add a second `AGENTS.md` in its folder, and those more specific rules take precedence when the two files conflict.
+`AGENTS.md` holds instructions that Agent Chat should keep following. Write shared vault rules once at the vault root. Scribe makes them available to its native agent. A Project can add a second `AGENTS.md` in its folder. Both sets of instructions are provided to the model; avoid conflicting rules because Scribe does not guarantee which one the model will follow.
 
 Start small. A useful file describes how _your_ vault works, not everything an AI might ever need to know.
 
@@ -32,7 +32,7 @@ Copy this to the root of your vault, then change it to match your habits:
 - When finished, name the notes you changed and mention anything you could not verify.
 ```
 
-Start a new Agent Chat after editing `AGENTS.md` so every backend reads the latest version.
+Save `AGENTS.md` before sending the next request; Scribe reads the current file when starting a response.
 
 ## Patterns worth adding
 
@@ -45,7 +45,7 @@ Add only patterns that describe real, recurring preferences:
 - **Definition of done:** checks to run and what the final handoff should report.
 - **Routing:** which repeatable jobs belong to a [Skill](agent-mode-and-tools.md#skills).
 
-For a project, keep the override short. For example:
+For a project, keep its additional instructions short. For example:
 
 ```markdown
 # Project instructions

@@ -1,6 +1,7 @@
-import { logError, logInfo } from "@/logger";
+import { logError, logInfo, logWarn } from "@/logger";
 import { joinPosix, parentDir } from "@/utils/pathUtils";
-import { getBuiltinSkillVersion } from "./builtinOwnership";
+import { sha256 } from "@/utils/hash";
+import { getBuiltinSkillContentHash, getBuiltinSkillVersion } from "./builtinOwnership";
 import { BUILTIN_SKILLS, type BuiltinSkill } from "@/builtinSkills/builtinSkills";
 
 export interface BuiltinSeedFs {
@@ -39,6 +40,26 @@ export async function inspectBuiltinSkill(
 }
 
 const ENABLED_AGENTS_RE = /^([ \t]*copilot-enabled-agents:[ \t]*)(.*)$/m;
+const CONTENT_HASH_RE = /^[ \t]*copilot-content-hash:[ \t]*.*$\n?/m;
+const BUILTIN_VERSION_RE = /^([ \t]*copilot-builtin-version:[ \t]*.*\n)/m;
+
+// 指纹覆盖 SKILL.md 全文但排除两处易变行（启用行、哈希行自身），
+// 使"改启用开关"不算用户编辑，改其余任何内容都算。
+// https://github.com/ItsDalk-Lane/Scribe/issues/19
+function skillFingerprint(content: string): string {
+  return sha256(content.replace(CONTENT_HASH_RE, "").replace(ENABLED_AGENTS_RE, ""));
+}
+
+function withContentHashLine(content: string): string {
+  const withoutHash = content.replace(CONTENT_HASH_RE, "");
+  const anchor = BUILTIN_VERSION_RE.exec(withoutHash);
+  if (!anchor) return content;
+  const indent = anchor[1].match(/^[ \t]*/)?.[0] ?? "";
+  return withoutHash.replace(
+    BUILTIN_VERSION_RE,
+    `${anchor[1]}${indent}copilot-content-hash: "${skillFingerprint(withoutHash)}"\n`
+  );
+}
 
 function preserveEnabledAgents(existingMd: string, bundledMd: string): string {
   const existing = existingMd.match(ENABLED_AGENTS_RE);
@@ -82,6 +103,12 @@ export async function seedBuiltinSkills(
           current = await Promise.all(
             skill.files.map((f) => fs.exists(joinPosix(dir, f.path)))
           ).then((results) => results.every(Boolean));
+          // 版本已最新但缺基线（更早版本装下的）：补写基线，不动其他内容。
+          // https://github.com/ItsDalk-Lane/Scribe/issues/19
+          if (current && existingContent !== null && !getBuiltinSkillContentHash(existingContent)) {
+            const withHash = withContentHashLine(existingContent);
+            if (withHash !== existingContent) await fs.write(skillMdPath, withHash);
+          }
         }
       } catch (e) {
         // Unreadable content may be user-owned: retry later instead of overwriting it. https://github.com/logancyang/obsidian-copilot/issues/3022
@@ -100,6 +127,25 @@ export async function seedBuiltinSkills(
     }
     if (!current) {
       try {
+        if (existingContent !== null) {
+          const baseline = getBuiltinSkillContentHash(existingContent);
+          if (baseline === null) {
+            // 老安装没有基线：先落基线，本次不覆盖，之后的版本升级即可判定。
+            // https://github.com/ItsDalk-Lane/Scribe/issues/19
+            const withHash = withContentHashLine(existingContent);
+            if (withHash !== existingContent) await fs.write(skillMdPath, withHash);
+            logWarn(
+              `[Skills] builtin skill ${skill.name} has no content baseline; recorded one and skipped the v${skill.version} update`
+            );
+            continue;
+          }
+          if (skillFingerprint(existingContent) !== baseline) {
+            logWarn(
+              `[Skills] builtin skill ${skill.name} has local edits; keeping them and skipping the v${skill.version} update`
+            );
+            continue;
+          }
+        }
         // Copilot owns the whole marked folder, so replacement drops obsolete files. https://github.com/logancyang/obsidian-copilot/issues/3022
         if (existingContent !== null) await fs.removeDir(dir);
         await ensureDir(fs, dir);
@@ -114,7 +160,7 @@ export async function seedBuiltinSkills(
           await ensureDir(fs, parentDir(filePath));
           await fs.write(filePath, file.content);
         }
-        await fs.write(skillMdPath, skillMd);
+        await fs.write(skillMdPath, withContentHashLine(skillMd));
         seeded.push(skill.name);
       } catch (e) {
         logError(`[Skills] failed to seed builtin skill ${skill.name}`, e);

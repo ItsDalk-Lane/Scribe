@@ -72,6 +72,29 @@ describe("legacyCredentialBackup", () => {
       expect(result).toMatchObject({ status: "backed-up", encrypted: true });
     });
 
+    it("backs up a file whose only credential is an Authorization-style pair (https://github.com/ItsDalk-Lane/Scribe/issues/17)", async () => {
+      const io = makeIO();
+      const rawData = {
+        agentMode: {
+          mcpServers: [
+            {
+              name: "private",
+              transport: "http",
+              headers: [{ name: "Authorization", value: "Bearer synthetic" }],
+            },
+          ],
+        },
+      };
+
+      const result = await backupLegacyCredentials(rawData, PLUGIN_DIR, io);
+
+      expect(result).toEqual({
+        status: "backed-up",
+        path: backupPathFor(rawData),
+        encrypted: false,
+      });
+    });
+
     it("reports no backup needed when the file holds no credentials", async () => {
       const io = makeIO();
 

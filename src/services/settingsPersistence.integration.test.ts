@@ -114,5 +114,50 @@ describe("settingsPersistence", () => {
 
       expect(apiKeyFor(app, loaded)).toBe("sk-ant-12345");
     });
+
+    it("drops unknown nested agent settings in the first disk write, not only after a reload (https://github.com/ItsDalk-Lane/Scribe/issues/18)", async () => {
+      const app = makeApp();
+      KeychainService.getInstance(app);
+      const raw = {
+        ...structuredClone(DEFAULT_SETTINGS),
+        _keychainVaultId: VAULT_ID,
+        openAIApiKey: "sk-legacy",
+        agentMode: {
+          ...structuredClone(DEFAULT_SETTINGS.agentMode),
+          mcpServers: [{ name: "private", transport: "http" }],
+          futureField: "unknown",
+        },
+      };
+
+      const { saved } = await load(app, raw);
+
+      expect(saved).toBeDefined();
+      expect(saved?.openAIApiKey).toBe("");
+      expect(saved?.agentMode).not.toHaveProperty("mcpServers");
+      expect(saved?.agentMode).not.toHaveProperty("futureField");
+    });
+
+    it("leaves the keychain untouched and keeps the legacy pointer when the backup fails (https://github.com/ItsDalk-Lane/Scribe/issues/23)", async () => {
+      const app = makeApp();
+      KeychainService.getInstance(app);
+      const legacyPointer = `scribe-v${VAULT_ID}-provider-row-anthropic`;
+      secrets.set(legacyPointer, "sk-ant-12345");
+      let savedCount = 0;
+
+      const settings = await loadSettingsWithKeychain(
+        app,
+        diskSettings(legacyPointer),
+        async () => {
+          savedCount++;
+        },
+        async () => ({ status: "failed", error: new Error("disk full") }) as const
+      );
+
+      expect(secrets.has(legacyPointer)).toBe(true);
+      expect(secrets.has(STABLE_NAME)).toBe(false);
+      expect(settings.providers["row-anthropic"].apiKeyKeychainId).toBe(legacyPointer);
+      expect(apiKeyFor(app, settings)).toBe("sk-ant-12345");
+      expect(savedCount).toBe(0);
+    });
   });
 });

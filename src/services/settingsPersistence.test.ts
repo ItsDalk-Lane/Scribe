@@ -25,7 +25,13 @@ async function loadModule(overrides: Record<string, unknown> = {}) {
     isAvailable: jest.fn().mockReturnValue(true),
     getVaultId: jest.fn().mockReturnValue("abcd1234"),
     setVaultId: jest.fn(),
-    migrateProviderNames: jest.fn((settings: CopilotSettings) => settings),
+    planProviderNames: jest.fn(
+      (settings: CopilotSettings): { settings: CopilotSettings; moves: unknown[] } => ({
+        settings,
+        moves: [],
+      })
+    ),
+    executeProviderNames: jest.fn(),
     hydrateFromKeychain: jest.fn(async (settings: CopilotSettings) => ({
       settings,
       hadFailures: false,
@@ -176,13 +182,13 @@ describe("settingsPersistence", () => {
         apiKeyKeychainId: "scribe-v1234abcd-provider-row-1",
       };
       const stableName = "scribe-v1234abcd-provider-anthropic-api-key";
-      keychain.migrateProviderNames.mockImplementation(
-        (settings: CopilotSettings) =>
-          ({
-            ...settings,
-            providers: { "row-1": { ...legacyRow, apiKeyKeychainId: stableName } },
-          }) as unknown as CopilotSettings
-      );
+      keychain.planProviderNames.mockImplementation((settings: CopilotSettings) => ({
+        settings: {
+          ...settings,
+          providers: { "row-1": { ...legacyRow, apiKeyKeychainId: stableName } },
+        } as unknown as CopilotSettings,
+        moves: [{ name: stableName, legacyIds: ["scribe-v1234abcd-provider-row-1"] }],
+      }));
       const saveData = jest.fn().mockResolvedValue(undefined);
 
       const loaded = await module.loadSettingsWithKeychain(
@@ -193,7 +199,7 @@ describe("settingsPersistence", () => {
       );
 
       expect(keychain.setVaultId.mock.invocationCallOrder[0]).toBeLessThan(
-        keychain.migrateProviderNames.mock.invocationCallOrder[0]
+        keychain.planProviderNames.mock.invocationCallOrder[0]
       );
       expect(saveData.mock.calls[0][0].providers["row-1"].apiKeyKeychainId).toBe(stableName);
       expect(loaded.providers["row-1"].apiKeyKeychainId).toBe(stableName);
@@ -205,7 +211,7 @@ describe("settingsPersistence", () => {
         providerId: "row-1",
         apiKeyKeychainId: "scribe-v1234abcd-provider-row-1",
       };
-      keychain.migrateProviderNames.mockImplementation(() => {
+      keychain.planProviderNames.mockImplementation(() => {
         throw new Error("keychain locked");
       });
 

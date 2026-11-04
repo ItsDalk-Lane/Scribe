@@ -4,6 +4,11 @@ import type { ModelManagementApi, ProviderType } from "@/modelManagement";
 import { getSettings, settingsAtom, settingsStore, type CopilotSettings } from "@/settings/model";
 
 import { CURRENT_SETTINGS_VERSION, runSettingsMigrations } from "./index";
+import { isLegacyCredentialsUnprotected } from "@/services/settingsPersistence";
+import { KeychainService } from "@/services/keychainService";
+
+const holdActive = isLegacyCredentialsUnprotected as unknown as jest.Mock;
+const getInstance = KeychainService.getInstance as unknown as jest.Mock;
 
 jest.mock("@/logger", () => ({
   logInfo: jest.fn(),
@@ -13,6 +18,11 @@ jest.mock("@/logger", () => ({
 
 jest.mock("@/services/keychainService", () => ({
   KeychainService: { getInstance: jest.fn(() => ({ isAvailable: () => false })) },
+}));
+
+jest.mock("@/services/settingsPersistence", () => ({
+  ...(jest.requireActual("@/services/settingsPersistence") as unknown as Record<string, unknown>),
+  isLegacyCredentialsUnprotected: jest.fn(() => false),
 }));
 
 function seedVault(
@@ -70,6 +80,7 @@ function codexVaultAt(settingsVersion: number): CopilotSettings {
 describe("settingsMigrations", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    holdActive.mockReturnValue(false);
     settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS });
   });
 
@@ -117,6 +128,37 @@ describe("settingsMigrations", () => {
       await runSettingsMigrations(api);
 
       expect(setupProvider).toHaveBeenCalledTimes(1);
+      expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
+    });
+
+    it("defers every migration while the legacy credential backup failed, so keychain entries survive (https://github.com/ItsDalk-Lane/Scribe/issues/23)", async () => {
+      keyedAnthropicVault(undefined);
+      const { api, setupProvider } = makeApi();
+      holdActive.mockReturnValue(true);
+
+      await runSettingsMigrations(api);
+
+      expect(setupProvider).not.toHaveBeenCalled();
+      expect(getSettings().settingsVersion).toBeUndefined();
+    });
+
+    it("sweeps retired keychain entries even when the settings version is already current (https://github.com/ItsDalk-Lane/Scribe/issues/25)", async () => {
+      seedVault({ settingsVersion: CURRENT_SETTINGS_VERSION });
+      const { api } = makeApi();
+      const deleteSecret = jest.fn((key: string) => undefined);
+      getInstance.mockReturnValueOnce({
+        isAvailable: () => true,
+        deleteSecret,
+      });
+
+      await runSettingsMigrations(api);
+
+      expect(deleteSecret.mock.calls.map((call) => call[0])).toEqual([
+        "amazonBedrockApiKey",
+        "azureOpenAIApiKey",
+        "githubCopilotAccessToken",
+        "githubCopilotToken",
+      ]);
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
     });
 

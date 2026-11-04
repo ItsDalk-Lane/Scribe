@@ -10,6 +10,7 @@ function row(overrides: Partial<AgentSelectRow> & Pick<AgentSelectRow, "id">): A
     status: "absent",
     recommended: false,
     statusMessage: null,
+    usesConfiguredModels: false,
     ...overrides,
   };
 }

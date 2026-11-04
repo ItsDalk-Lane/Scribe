@@ -45,7 +45,7 @@ describe("SettingsMainV2", () => {
         "代理",
         "技能",
         "命令",
-        "子Agent",
+        "子代理",
       ]);
       expect(screen.getByRole("tab", { name: "快捷操作" }).getAttribute("aria-selected")).toBe(
         "true"

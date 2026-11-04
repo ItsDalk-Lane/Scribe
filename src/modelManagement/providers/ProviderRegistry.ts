@@ -4,7 +4,11 @@ import { v4 as uuidv4 } from "uuid";
 
 import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
 import { logError } from "@/logger";
-import { KeychainService, providerKeychainName } from "@/services/keychainService";
+import {
+  KeychainService,
+  isCopilotOwnedSecret,
+  providerKeychainName,
+} from "@/services/keychainService";
 import { getSettings, setSettings } from "@/settings/model";
 import { frozenOr, sliceMemo, sliceMemoByKey } from "@/utils/sliceCache";
 
@@ -131,10 +135,14 @@ export class ProviderRegistry {
     const existing = getSettings().providers[providerId];
     if (!existing) return;
     if (existing.apiKeyKeychainId) {
-      try {
-        KeychainService.getInstance(this.#app).deleteSecretById(existing.apiKeyKeychainId);
-      } catch (err) {
-        logError(`[modelManagement] ProviderRegistry.remove: failed to clear keychain`, err);
+      // 只清理本插件命名的条目；指针指向其他插件的钥匙串条目时只删行，不动那个条目。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/25
+      if (isCopilotOwnedSecret(existing.apiKeyKeychainId)) {
+        try {
+          KeychainService.getInstance(this.#app).deleteSecretById(existing.apiKeyKeychainId);
+        } catch (err) {
+          logError(`[modelManagement] ProviderRegistry.remove: failed to clear keychain`, err);
+        }
       }
     }
     setSettings((cur) => {

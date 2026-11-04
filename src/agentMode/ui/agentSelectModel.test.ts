@@ -36,6 +36,7 @@ function rowWith(overrides: Partial<AgentSelectRow> = {}): AgentSelectRow {
     status: "absent",
     recommended: false,
     statusMessage: null,
+    usesConfiguredModels: false,
     ...overrides,
   };
 }
@@ -174,6 +175,27 @@ describe("agentSelectModel", () => {
         note: "Codex isn't set up on this machine yet.",
         action: "configure",
       });
+    });
+
+    it("tells a configured-models backend to enable a model instead of claiming it isn't installed (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      expect(
+        resolveAgentSelectCta(
+          rowWith({ status: "absent", name: "Scribe", usesConfiguredModels: true })
+        )
+      ).toEqual({
+        label: "Configure",
+        note: "No chat model is enabled for Scribe yet. Add a provider and enable a model first.",
+        action: "configure",
+      });
+    });
+  });
+
+  describe("buildAgentSelectRows()", () => {
+    it("carries the configured-models flag onto the row (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      const native = descriptor("native", { usesConfiguredModels: true });
+      const [row] = buildAgentSelectRows([native], { native: { kind: "absent" } }, "native");
+
+      expect(row.usesConfiguredModels).toBe(true);
     });
   });
 });

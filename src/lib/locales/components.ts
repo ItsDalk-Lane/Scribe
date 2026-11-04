@@ -108,7 +108,7 @@ export const componentTranslations: Record<string, string> = {
     "按照代理的自动权限使用工具和编辑文件。",
   Plan: "规划",
   "Drafts a plan and waits for your approval before editing.": "先拟定计划，等待你批准后再编辑。",
-  Safe: "安全",
+  Default: "默认",
   "Allows edits under the agent's approval rules.": "按代理的批准规则允许编辑。",
   Mode: "模式",
   "Model failed to load": "模型加载失败",
@@ -261,6 +261,8 @@ export const componentTranslations: Record<string, string> = {
     "请前往设置 → Scribe → 快捷操作 → 工具配置配置模型，然后重新运行指令。",
   "Cannot replace.": "无法替换。",
   "Prompt is required": "请输入提示词",
+  "This name matches the built-in /compact command, so this command never appears in the slash menu.":
+    "此名称与内建 /compact 指令同名，因此永远不会出现在斜杠菜单中。",
   "Your AI assistant for Obsidian • @ to add context • / for custom prompts":
     "你的 Obsidian AI 助手 • 输入 @ 添加参考内容 • 输入 / 使用自定义指令",
   "Thought for a while": "思考了一会儿",

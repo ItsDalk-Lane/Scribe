@@ -45,6 +45,38 @@ describe("settingsSecretTransforms", () => {
       ).toBe(false);
     });
 
+    it("detects a credential pair whose only marker is a sensitive name, and ignores benign pairs (https://github.com/ItsDalk-Lane/Scribe/issues/17)", () => {
+      expect(
+        hasPersistedSecrets({
+          agentMode: {
+            mcpServers: [
+              {
+                name: "private",
+                transport: "http",
+                headers: [{ name: "Authorization", value: "Bearer synthetic" }],
+              },
+            ],
+          },
+        })
+      ).toBe(true);
+      expect(
+        hasPersistedSecrets({
+          agentMode: {
+            mcpServers: [
+              {
+                name: "private",
+                transport: "http",
+                headers: [
+                  { name: "X-Custom-Header", value: "not-a-secret" },
+                  { name: "Authorization", value: "" },
+                ],
+              },
+            ],
+          },
+        })
+      ).toBe(false);
+    });
+
     it.each([
       {
         name: "detects a top-level secret",
@@ -102,6 +134,32 @@ describe("settingsSecretTransforms", () => {
         baseModelId: "chosen-model",
         effort: "high",
       });
+    });
+
+    it("blanks credential pairs in nested agent settings while leaving benign pairs intact (https://github.com/ItsDalk-Lane/Scribe/issues/17)", () => {
+      const settings = makeSettings({
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          mcpServers: [
+            {
+              name: "private",
+              transport: "http",
+              headers: [
+                { name: "Authorization", value: "Bearer synthetic" },
+                { name: "X-Custom-Header", value: "kept" },
+              ],
+            },
+          ],
+        } as unknown as CopilotSettings["agentMode"],
+      });
+      const result = stripKeychainFields(settings);
+      const headers = (
+        (result.agentMode as unknown as Record<string, unknown>).mcpServers as {
+          headers: { name: string; value: string }[];
+        }[]
+      )[0].headers;
+      expect(headers[0]).toEqual({ name: "Authorization", value: "" });
+      expect(headers[1]).toEqual({ name: "X-Custom-Header", value: "kept" });
     });
 
     it("clears top-level and model secrets without mutating the input", () => {

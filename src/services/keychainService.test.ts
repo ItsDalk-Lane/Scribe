@@ -277,6 +277,22 @@ describe("keychainService", () => {
         expect(storage.secrets.has(legacyPointer)).toBe(false);
       });
 
+      it("plans the rename without touching storage, so a failed backup can skip it (https://github.com/ItsDalk-Lane/Scribe/issues/23)", () => {
+        const storage = makeMapStorage({ [legacyPointer]: "sk-ant" });
+        const service = KeychainService.getInstance(makeApp({ secretStorage: storage }));
+        service.setVaultId(VAULT_ID);
+
+        const plan = service.planProviderNames(
+          makeSettings({
+            providers: { "row-1": makeProvider({ apiKeyKeychainId: legacyPointer }) },
+          })
+        );
+
+        expect(plan.settings.providers["row-1"].apiKeyKeychainId).toBe(stableName);
+        expect(storage.secrets.has(legacyPointer)).toBe(true);
+        expect(storage.secrets.has(stableName)).toBe(false);
+      });
+
       it("rewrites a legacy pointer this device never held, so a re-entered key lands on the stable name", () => {
         const { storage, migrated } = migrate(
           {},
@@ -301,7 +317,7 @@ describe("keychainService", () => {
         expect(migrated).toBe(settings);
       });
 
-      it("leaves an existing stable entry untouched, so a key changed after migration is not reverted", () => {
+      it("keeps both values when the stable and legacy names hold different keys (https://github.com/ItsDalk-Lane/Scribe/issues/24)", () => {
         const { storage } = migrate(
           { [stableName]: "sk-new", [legacyPointer]: "sk-old" },
           makeSettings({
@@ -310,7 +326,19 @@ describe("keychainService", () => {
         );
 
         expect(storage.secrets.get(stableName)).toBe("sk-new");
+        expect(storage.secrets.get(legacyPointer)).toBe("sk-old");
+      });
+
+      it("still removes the legacy entry when both names hold the same key", () => {
+        const { storage } = migrate(
+          { [stableName]: "sk-ant", [legacyPointer]: "sk-ant" },
+          makeSettings({
+            providers: { "row-1": makeProvider({ apiKeyKeychainId: legacyPointer }) },
+          })
+        );
+
         expect(storage.secrets.has(legacyPointer)).toBe(false);
+        expect(storage.secrets.get(stableName)).toBe("sk-ant");
       });
 
       it("does not restore a key deleted from its stable name after migration (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {

@@ -1,12 +1,12 @@
-# Scribe for Obsidian V4
+# Scribe for Obsidian
 
-Scribe V4 starts with **Agent Chat**, where Scribe can read your vault, use tools, and complete multi-step work with your approval. Quick Ask, Quick Command, and saved Scribe commands remain available for smaller jobs and mobile use.
+Scribe starts with **Agent Chat**, where Scribe can read your vault, use tools, and complete multi-step work with your approval. Quick Ask, Quick Command, and saved Scribe commands remain available for smaller jobs and mobile use.
 
 ## Start here
 
 1. Install Scribe using the [installation steps](getting-started.md#install-scribe).
-2. Open **Settings → Scribe → 代理**. Follow [Getting Started with Scribe V4](getting-started.md) 配置自备模型.
-3. Run **Open Scribe Agent Chat window**. Scribe 使用你启用的聊天模型；未配置时按提示打开模型设置。
+2. Under **Settings → Scribe → 快捷操作 → 模型**, configure a provider or local model, then enable a chat model under **代理 → Scribe**. See [Getting Started with Scribe](getting-started.md).
+3. Run **打开 Scribe 代理聊天窗口**. Scribe 使用你启用的聊天模型；未配置时按提示打开模型设置。
 
 Agent Chat 在 Obsidian 内直接运行，无需外部代理或其订阅账户。 Windows users can also follow [Windows setup for Agent Chat](agent-mode-windows-setup.md).
 

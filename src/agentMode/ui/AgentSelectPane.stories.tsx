@@ -12,6 +12,7 @@ const ROWS: readonly AgentSelectRow[] = [
     status: "absent",
     recommended: true,
     statusMessage: null,
+    usesConfiguredModels: false,
   },
 ];
 

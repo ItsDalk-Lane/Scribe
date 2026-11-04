@@ -1,4 +1,5 @@
 import { CopilotBrandIcon } from "@/components/ui/CopilotBrandIcon";
+import { t } from "@/lib/i18n";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
@@ -31,17 +32,23 @@ import { isChatModelInfo, providerDestination } from "@/modelManagement";
 import { buildBuiltinSkillEnv } from "@/agentMode/backends/shared/builtinSkillEnv";
 
 const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
-const NO_MODELS: InstallState = Object.freeze({
-  kind: "error",
-  message: "请在现有模型设置中配置并启用聊天模型。",
-});
+
+// 无模型错误走 t()：英文界面不再显示中文提示。
+// https://github.com/ItsDalk-Lane/Scribe/issues/28
+function noModelsState(): InstallState {
+  return {
+    kind: "error",
+    message: t("Configure and enable a chat model in your model settings first."),
+  };
+}
 
 export const NativeBackendDescriptor: BackendDescriptor = {
   id: "native",
   displayName: "Scribe",
   Icon: CopilotBrandIcon,
   usesConfiguredModels: true,
-  setupDescription: "使用已配置的聊天模型，在 Scribe 内执行笔记任务。",
+  // 存英文原文键，由渲染处 t() 本地化（https://github.com/ItsDalk-Lane/Scribe/issues/28）。
+  setupDescription: "Runs note tasks inside Scribe using the chat models you configure.",
   skillsProjectDir: NATIVE_SKILLS_PROJECT_DIR,
   crossDiscoveredAgents: [],
   summarizesSessionTitle: false,
@@ -89,7 +96,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
         settings.providers[model.providerId]?.origin.kind === "byok" && isChatModelInfo(model.info)
     )
       ? READY
-      : NO_MODELS,
+      : noModelsState(),
   subscribeInstallState: (_plugin, listener) => subscribeToSettingsChange(() => listener()),
   openInstallUI: (plugin) =>
     openCopilotSettings(

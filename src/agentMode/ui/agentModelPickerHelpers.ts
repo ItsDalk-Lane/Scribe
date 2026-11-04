@@ -30,7 +30,7 @@ export const MISSING_KEY_LABEL = "Add API key";
 
 export function handlePickerSwitchError(err: unknown, action: "model" | "effort" | "mode"): void {
   if (err instanceof MethodUnsupportedError) {
-    new Notice(t("This agent doesn't support switching {p0} switching.", { p0: t(action) }));
+    new Notice(t("This agent doesn't support switching {p0}.", { p0: t(action) }));
     return;
   }
   logError(`[AgentMode] ${action} apply failed`, err);

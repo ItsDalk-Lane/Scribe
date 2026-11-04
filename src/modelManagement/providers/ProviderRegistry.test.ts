@@ -289,6 +289,28 @@ describe("ProviderRegistry", () => {
       expect(registry.get(id)).toBeUndefined();
       expect(KeychainService.getInstance(app).getSecretById(keychainId)).toBeNull();
     });
+
+    it("removes a row pointing at a foreign keychain entry without deleting that entry (https://github.com/ItsDalk-Lane/Scribe/issues/25)", async () => {
+      const foreignId = "anthropic-api-key";
+      KeychainService.getInstance(app).setSecretById(foreignId, "someone-elses-key");
+      setSettings({
+        providers: {
+          "prov-x": {
+            providerId: "prov-x",
+            providerType: "anthropic",
+            displayName: "X",
+            origin: { kind: "byok" },
+            addedAt: 0,
+            apiKeyKeychainId: foreignId,
+          },
+        },
+      });
+
+      await registry.remove("prov-x");
+
+      expect(registry.get("prov-x")).toBeUndefined();
+      expect(KeychainService.getInstance(app).getSecretById(foreignId)).toBe("someone-elses-key");
+    });
   });
 
   describe("list()", () => {
