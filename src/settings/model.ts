@@ -3,7 +3,7 @@ import { CustomModel, ProjectConfig } from "@/aiParams";
 import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { atom, createStore, useAtomValue } from "jotai";
 
-import type { CopilotMode, ModelSelection } from "@/agentMode";
+import type { ScribeMode, ModelSelection } from "@/agentMode";
 import type { BackendConfig, BackendType, ConfiguredModel, Provider } from "@/modelManagement";
 import { TOP_LEVEL_SECRET_FIELDS } from "@/services/settingsSecretTransforms";
 import { isNotificationSoundId, type NotificationSoundId } from "@/utils/notificationSoundCatalog";
@@ -28,7 +28,7 @@ export interface LegacyCommandSettings {
   showInContextMenu: boolean;
 }
 
-export interface CopilotSettings {
+export interface ScribeSettings {
   openAIApiKey: string;
   openAIOrgId: string;
   huggingfaceApiKey: string;
@@ -43,9 +43,8 @@ export interface CopilotSettings {
   defaultModelKey: string;
   userSystemPrompt: string;
   openAIProxyBaseUrl: string;
-  copilotFolder: string;
-  copilotRootHistory: string[];
-  upgradedToV8FromLegacy: boolean;
+  scribeFolder: string;
+  scribeRootHistory: string[];
   defaultSaveFolder: string;
   defaultConversationTag: string;
   autosaveChat: boolean;
@@ -100,17 +99,17 @@ export interface CopilotSettings {
 export interface NativeBackendSettings {
   enabled?: boolean;
   defaultModel?: ModelSelection | null;
-  defaultMode?: CopilotMode | null;
+  defaultMode?: ScribeMode | null;
   maxSteps?: number;
 }
 
 export const settingsStore = createStore();
-export const settingsAtom = atom<CopilotSettings>(DEFAULT_SETTINGS);
+export const settingsAtom = atom<ScribeSettings>(DEFAULT_SETTINGS);
 
 const EMPTY_PROVIDERS = Object.freeze({}) as unknown as Record<string, Provider>;
 const EMPTY_CONFIGURED_MODELS = Object.freeze([]) as unknown as ConfiguredModel[];
 const EMPTY_BACKENDS = Object.freeze({}) as unknown as Partial<Record<BackendType, BackendConfig>>;
-const EMPTY_COPILOT_ROOT_HISTORY = Object.freeze([]) as unknown as string[];
+const EMPTY_SCRIBE_ROOT_HISTORY = Object.freeze([]) as unknown as string[];
 
 export function normalizeRootFolders(input: readonly (string | undefined)[]): string[] {
   const seen = new Set<string>();
@@ -135,11 +134,11 @@ export function normalizeRootFolders(input: readonly (string | undefined)[]): st
     seen.add(normalized);
     result.push(normalized);
   }
-  return result.length > 0 ? result : EMPTY_COPILOT_ROOT_HISTORY;
+  return result.length > 0 ? result : EMPTY_SCRIBE_ROOT_HISTORY;
 }
 
 export function setSettings(
-  settings: Partial<CopilotSettings> | ((current: CopilotSettings) => Partial<CopilotSettings>)
+  settings: Partial<ScribeSettings> | ((current: ScribeSettings) => Partial<ScribeSettings>)
 ) {
   settingsStore.set(settingsAtom, (prev) => {
     const partial = typeof settings === "function" ? settings(prev) : settings;
@@ -181,13 +180,13 @@ export function sanitizeQaExclusions(rawValue: unknown): string {
     .join(",");
 }
 
-export function updateSetting<K extends keyof CopilotSettings>(key: K, value: CopilotSettings[K]) {
+export function updateSetting<K extends keyof ScribeSettings>(key: K, value: ScribeSettings[K]) {
   setSettings((cur) => ({ ...cur, [key]: value }));
 }
 
 export function updateAgentModeBackendFields<
-  K extends keyof CopilotSettings["agentMode"]["backends"],
->(key: K, partial: Partial<NonNullable<CopilotSettings["agentMode"]["backends"][K]>>): void {
+  K extends keyof ScribeSettings["agentMode"]["backends"],
+>(key: K, partial: Partial<NonNullable<ScribeSettings["agentMode"]["backends"][K]>>): void {
   setSettings((cur) => ({
     agentMode: {
       ...cur.agentMode,
@@ -199,22 +198,19 @@ export function updateAgentModeBackendFields<
   }));
 }
 
-export function getSettings(): Readonly<CopilotSettings> {
+export function getSettings(): Readonly<ScribeSettings> {
   return settingsStore.get(settingsAtom);
 }
 
 const TOP_LEVEL_CREDENTIAL_COMPANION_FIELDS = [
   "openAIOrgId",
-] as const satisfies readonly (keyof CopilotSettings)[];
+] as const satisfies readonly (keyof ScribeSettings)[];
 
 const TOP_LEVEL_CREDENTIAL_BUNDLE_FIELDS: readonly string[] = [
   ...TOP_LEVEL_SECRET_FIELDS,
   ...TOP_LEVEL_CREDENTIAL_COMPANION_FIELDS,
 ];
 
-// Only `enableCors` is legitimately non-string; the string check stops a corrupted value from
-// surviving reset and throwing at its consumer:
-// https://github.com/logancyang/obsidian-copilot-preview/issues/259
 function carriesConfiguration(field: string, value: unknown): boolean {
   if (field === "enableCors") return typeof value === "boolean";
   return typeof value === "string" && value.length > 0;
@@ -244,8 +240,8 @@ export function resetSettings(): void {
   const current = getSettings();
   const currentRecord = current as unknown as Record<string, unknown>;
   const preservedRootHistory = normalizeRootFolders([
-    ...(Array.isArray(current.copilotRootHistory) ? current.copilotRootHistory : []),
-    current.copilotFolder,
+    ...(Array.isArray(current.scribeRootHistory) ? current.scribeRootHistory : []),
+    current.scribeFolder,
   ]);
   const preservedTopLevelSecrets: Record<string, unknown> = {};
   for (const field of TOP_LEVEL_CREDENTIAL_BUNDLE_FIELDS) {
@@ -259,21 +255,19 @@ export function resetSettings(): void {
   const resetValues = {
     ...DEFAULT_SETTINGS,
     ...preservedTopLevelSecrets,
-    // Legacy rows stay: dropping one would strand its keychain entry with no `name|provider` identity to reattach it to.
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/259
     activeModels: current.activeModels ?? [],
     providers: preservedProviders,
     configuredModels: preserveConfiguredModelsForProviders(
       current.configuredModels,
       preservedProviderIds
     ),
-    copilotRootHistory: preservedRootHistory,
+    scribeRootHistory: preservedRootHistory,
   };
   setSettings(resetValues);
 }
 
 export function subscribeToSettingsChange(
-  callback: (prev: CopilotSettings, next: CopilotSettings) => void
+  callback: (prev: ScribeSettings, next: ScribeSettings) => void
 ): () => void {
   let previousValue = getSettings();
 
@@ -284,32 +278,23 @@ export function subscribeToSettingsChange(
   });
 }
 
-export function useSettingsValue(): Readonly<CopilotSettings> {
+export function useSettingsValue(): Readonly<ScribeSettings> {
   return useAtomValue(settingsAtom, {
     store: settingsStore,
   });
 }
 
-export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
+export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
   const settingsToSanitize = settings || DEFAULT_SETTINGS;
 
-  const sanitizedSettings: CopilotSettings = { ...settingsToSanitize };
+  const sanitizedSettings: ScribeSettings = { ...settingsToSanitize };
   const sanitizedSettingsRecord = sanitizedSettings as unknown as Record<string, unknown>;
-  // Amazon Bedrock is no longer a chat provider, so a stored key and region
-  // would only be credentials for a service Copilot can no longer reach.
-  // https://github.com/logancyang/obsidian-copilot/issues/2928
   delete sanitizedSettingsRecord.amazonBedrockApiKey;
   delete sanitizedSettingsRecord.amazonBedrockRegion;
-  // Azure OpenAI is no longer a chat provider, so a stored key and its routing
-  // fields would only address a service Copilot cannot reach.
-  // https://github.com/logancyang/obsidian-copilot/issues/2932
   delete sanitizedSettingsRecord.azureOpenAIApiKey;
   delete sanitizedSettingsRecord.azureOpenAIApiInstanceName;
   delete sanitizedSettingsRecord.azureOpenAIApiDeploymentName;
   delete sanitizedSettingsRecord.azureOpenAIApiVersion;
-  // Copilot no longer limits how long an answer may be, so a stored limit
-  // would only cut off answers the model was willing to finish.
-  // https://github.com/logancyang/obsidian-copilot-preview/issues/312
   delete sanitizedSettingsRecord.maxTokens;
 
   if (typeof sanitizedSettings.enableInlineCitations !== "boolean") {
@@ -331,7 +316,6 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     sanitizedSettings.autosaveChat = DEFAULT_SETTINGS.autosaveChat;
   }
 
-  // Settings saved before this switch existed must keep auto-attaching the active note. https://github.com/logancyang/obsidian-copilot/issues/3663
   if (typeof sanitizedSettings.autoAttachActiveNote !== "boolean") {
     sanitizedSettings.autoAttachActiveNote = DEFAULT_SETTINGS.autoAttachActiveNote;
   }
@@ -352,26 +336,22 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     sanitizedSettings.defaultSendShortcut = DEFAULT_SETTINGS.defaultSendShortcut;
   }
 
-  const copilotFolderValidation = validateCopilotFolder(
-    typeof settingsToSanitize.copilotFolder === "string"
-      ? toVisibleCopilotFolder(settingsToSanitize.copilotFolder)
+  const scribeFolderValidation = validateScribeFolder(
+    typeof settingsToSanitize.scribeFolder === "string"
+      ? toVisibleScribeFolder(settingsToSanitize.scribeFolder)
       : ""
   );
-  sanitizedSettings.copilotFolder = copilotFolderValidation.ok
-    ? copilotFolderValidation.folder
-    : DEFAULT_SETTINGS.copilotFolder;
+  sanitizedSettings.scribeFolder = scribeFolderValidation.ok
+    ? scribeFolderValidation.folder
+    : DEFAULT_SETTINGS.scribeFolder;
 
-  const rawRootHistory = Array.isArray(settingsToSanitize.copilotRootHistory)
-    ? settingsToSanitize.copilotRootHistory
+  const rawRootHistory = Array.isArray(settingsToSanitize.scribeRootHistory)
+    ? settingsToSanitize.scribeRootHistory
     : [];
-  sanitizedSettings.copilotRootHistory = normalizeRootFolders([
+  sanitizedSettings.scribeRootHistory = normalizeRootFolders([
     ...rawRootHistory,
-    sanitizedSettings.copilotFolder,
+    sanitizedSettings.scribeFolder,
   ]);
-
-  if (typeof sanitizedSettings.upgradedToV8FromLegacy !== "boolean") {
-    sanitizedSettings.upgradedToV8FromLegacy = DEFAULT_SETTINGS.upgradedToV8FromLegacy;
-  }
 
   const saveFolder = (settingsToSanitize.defaultSaveFolder || "").trim();
   sanitizedSettings.defaultSaveFolder =
@@ -468,7 +448,7 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
   return sanitizedSettings;
 }
 
-function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
+function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
   if (!raw || typeof raw !== "object") {
     return { ...DEFAULT_SETTINGS.agentMode };
   }
@@ -481,7 +461,7 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
 
   const backendsRaw =
     r.backends && typeof r.backends === "object" ? (r.backends as Record<string, unknown>) : {};
-  const backends: CopilotSettings["agentMode"]["backends"] = {};
+  const backends: ScribeSettings["agentMode"]["backends"] = {};
   if (backendsRaw.native) backends.native = sanitizeNativeBackendSettings(backendsRaw.native);
 
   const debugFullFrames =
@@ -499,9 +479,6 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
       ? r.notificationSound
       : DEFAULT_SETTINGS.agentMode.notificationSound;
 
-  // A sound dropped from the catalog would otherwise persist as a name nothing
-  // can play, leaving the user silently unnotified.
-  // https://github.com/logancyang/obsidian-copilot/issues/2987
   const notificationSoundId = isNotificationSoundId(r.notificationSoundId)
     ? r.notificationSoundId
     : DEFAULT_SETTINGS.agentMode.notificationSoundId;
@@ -519,7 +496,7 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
     skillsRaw && typeof skillsRaw.suppressMigrationConfirm === "boolean"
       ? skillsRaw.suppressMigrationConfirm
       : undefined;
-  const skills: CopilotSettings["agentMode"]["skills"] = {
+  const skills: ScribeSettings["agentMode"]["skills"] = {
     folder: skillsValidation.ok
       ? skillsValidation.folder
       : DEFAULT_SETTINGS.agentMode.skills.folder,
@@ -542,12 +519,10 @@ function sanitizeAgentMode(raw: unknown): CopilotSettings["agentMode"] {
   };
 }
 
-type BuiltinPreferences = NonNullable<CopilotSettings["agentMode"]["skills"]["builtinPreferences"]>;
+type BuiltinPreferences = NonNullable<ScribeSettings["agentMode"]["skills"]["builtinPreferences"]>;
 const EMPTY_BUILTIN_PREFERENCES: BuiltinPreferences = Object.freeze({});
 
 export function sanitizeBuiltinPreferences(raw: unknown): BuiltinPreferences {
-  // Defaults need no records; removed skills must not leave stale settings behind.
-  // https://github.com/logancyang/obsidian-copilot/issues/3022
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return EMPTY_BUILTIN_PREFERENCES;
   }
@@ -556,8 +531,6 @@ export function sanitizeBuiltinPreferences(raw: unknown): BuiltinPreferences {
     const value = (raw as Record<string, unknown>)[name];
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const pref = value as Record<string, unknown>;
-    // Keep opt-outs for agents absent on this device so sync cannot re-enable them.
-    // https://github.com/logancyang/obsidian-copilot/issues/3022
     const disabledAgents = Array.isArray(pref.disabledAgents)
       ? pref.disabledAgents.filter((agent): agent is string => typeof agent === "string")
       : [];
@@ -622,11 +595,11 @@ function validateSkillsFolder(
   return { ok: true, folder: cleaned };
 }
 
-export function toVisibleCopilotFolder(folder: string): string {
+export function toVisibleScribeFolder(folder: string): string {
   return folder.trim().replace(/(^|[\\/])\.+/g, "$1");
 }
 
-export function validateCopilotFolder(
+export function validateScribeFolder(
   value: string,
   configDir?: string
 ): { ok: true; folder: string } | { ok: false; reason: string } {
@@ -665,8 +638,6 @@ export function validateCopilotFolder(
     if (segment === "..") {
       return { ok: false, reason: t('Folder path cannot contain ".." segments.') };
     }
-    // Obsidian does not index dot folders, so every Copilot feature must see a visible root.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/712
     if (segment.startsWith(".")) {
       return { ok: false, reason: t("Folder names cannot start with a dot.") };
     }
@@ -698,10 +669,10 @@ function sanitizeDefaultModel(raw: unknown): ModelSelection | undefined {
   return { baseModelId, effort };
 }
 
-const COPILOT_MODES: readonly CopilotMode[] = ["default", "plan", "auto"];
-function sanitizeDefaultMode(raw: unknown): CopilotMode | undefined {
-  return typeof raw === "string" && (COPILOT_MODES as readonly string[]).includes(raw)
-    ? (raw as CopilotMode)
+const SCRIBE_MODES: readonly ScribeMode[] = ["default", "plan", "auto"];
+function sanitizeDefaultMode(raw: unknown): ScribeMode | undefined {
+  return typeof raw === "string" && (SCRIBE_MODES as readonly string[]).includes(raw)
+    ? (raw as ScribeMode)
     : undefined;
 }
 

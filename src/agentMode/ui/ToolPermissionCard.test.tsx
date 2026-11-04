@@ -25,7 +25,7 @@ function makeRequest(options: PermissionOption[]): PermissionPrompt {
 
 describe("ToolPermissionCard", () => {
   afterEach(() => setInterfaceLocale("en"));
-  describe("ToolPermissionCard()", () => {
+  describe("ToolPermissionCard", () => {
     it("renders Chinese permission labels while preserving the agent's request and option identifiers", () => {
       setInterfaceLocale("zh-CN");
       const onResolve = jest.fn();
@@ -45,7 +45,7 @@ describe("ToolPermissionCard", () => {
       expect(request.toolCall.status).toBe("pending");
     });
 
-    it("names the tool when the request title carries only its argument for https://github.com/Brevilabs/obsidian-copilot-private/issues/599", () => {
+    it("names the tool when the request title carries only its argument", () => {
       const request = makeRequest([]);
       request.toolCall.title = "latest stable Node.js version";
 
@@ -67,7 +67,7 @@ describe("ToolPermissionCard", () => {
       );
     });
 
-    it("names the subagent that asked instead of the generic agent label (https://github.com/Brevilabs/obsidian-copilot-private/issues/749)", () => {
+    it("names the subagent that asked instead of the generic agent label", () => {
       const request = makeRequest([]);
       request.toolCall.title = "Bash: wc -w Welcome.md";
 
@@ -170,7 +170,7 @@ describe("ToolPermissionCard", () => {
       expect(screen.getByRole("button", { name: "Block Always" })).toBeTruthy();
     });
 
-    it("highlights only the one-time allow for https://github.com/logancyang/obsidian-copilot/issues/2889", () => {
+    it("highlights only the one-time allow", () => {
       render(
         <ToolPermissionCard
           request={makeRequest([
@@ -195,7 +195,7 @@ describe("ToolPermissionCard", () => {
       ]);
     });
 
-    it("gives an always option without its own note a hover note on scope and lifetime for https://github.com/logancyang/obsidian-copilot/issues/2889", async () => {
+    it("gives an always option without its own note a hover note on scope and lifetime", async () => {
       render(
         <ToolPermissionCard
           request={makeRequest([
@@ -251,7 +251,7 @@ describe("ToolPermissionCard", () => {
       ]);
     });
 
-    it("labels an option that quotes a command prefix with its prose and shows the prefix on hover https://github.com/Brevilabs/obsidian-copilot-private/issues/618", async () => {
+    it("labels an option that quotes a command prefix with its prose and shows the prefix on hover", async () => {
       const onResolve = jest.fn();
       const prefix = 'python3 -c \'from pathlib import Path; Path("note.md").write_text("hi")\'';
       render(
@@ -287,7 +287,7 @@ describe("ToolPermissionCard", () => {
       expect(onResolve).toHaveBeenLastCalledWith(TOOL_CALL_ID, "approved-execpolicy-amendment");
     });
 
-    it("shows an option's description above its quoted code in one tooltip https://github.com/Brevilabs/obsidian-copilot-private/issues/618", async () => {
+    it("shows an option's description above its quoted code in one tooltip", async () => {
       render(
         <ToolPermissionCard
           request={makeRequest([
@@ -310,7 +310,7 @@ describe("ToolPermissionCard", () => {
       );
     });
 
-    it("numbers options whose labels differ only in quoted code https://github.com/Brevilabs/obsidian-copilot-private/issues/618", () => {
+    it("numbers options whose labels differ only in quoted code", () => {
       render(
         <ToolPermissionCard
           request={makeRequest([

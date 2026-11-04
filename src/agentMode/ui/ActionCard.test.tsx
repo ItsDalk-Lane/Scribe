@@ -23,7 +23,7 @@ function readTool(overrides: Partial<ToolCallPart> = {}): ToolCallPart {
 }
 
 describe("ActionCard", () => {
-  describe("ActionCard()", () => {
+  describe("ActionCard", () => {
     it("links only the file path of a completed read, keeping the verb as plain text", () => {
       render(<ActionCard part={readTool()} open={false} onToggle={jest.fn()} />);
 
@@ -35,7 +35,7 @@ describe("ActionCard", () => {
       expect(openVaultPath).toHaveBeenCalledWith({}, "notes/today.md", { pane: false });
     });
 
-    it("renders a denied edit as Didn't edit with no file link (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("renders a denied edit as Didn't edit with no file link", () => {
       render(
         <ActionCard
           part={readTool({
@@ -53,7 +53,7 @@ describe("ActionCard", () => {
       expect(screen.queryByRole("link")).toBeNull();
     });
 
-    it("renders a stopped command in the past tense with a stop mark, and a stopped edit as Didn't edit (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", () => {
+    it("renders a stopped command in the past tense with a stop mark, and a stopped edit as Didn't edit", () => {
       const { container } = render(
         <ActionCard
           part={readTool({

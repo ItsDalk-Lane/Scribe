@@ -25,7 +25,7 @@ function rowNames(): string[] {
 }
 
 describe("FilesChangedCard", () => {
-  describe("FilesChangedCard()", () => {
+  describe("FilesChangedCard", () => {
     it("titles the card with the file count and the summed additions and deletions", () => {
       renderCard([
         change("notes/a.md", { additions: 30, deletions: 2 }),
@@ -38,7 +38,7 @@ describe("FilesChangedCard", () => {
       expect(within(header).getByText("−7")).toBeTruthy();
     });
 
-    it("collapses to one unheaded row when the turn changed a single file, keeping its name, folder, badge and counts https://github.com/Brevilabs/obsidian-copilot-private/issues/348", () => {
+    it("collapses to one unheaded row when the turn changed a single file, keeping its name, folder, badge and counts", () => {
       renderCard([
         change("projects/Alpha/Project brief.md", {
           status: "created",

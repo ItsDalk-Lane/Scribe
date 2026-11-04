@@ -52,8 +52,6 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
 
   const uniqueWebTabs = React.useMemo(() => mergeWebTabContexts(contextWebTabs), [contextWebTabs]);
 
-  // Removing an excerpt must not change whether the full note is attached.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/465
   const activeNoteVisible = includeActiveNote && Boolean(currentActiveFile);
   const activeWebTabVisible = includeActiveWebTab && Boolean(activeWebTab) && isDesktopRuntime();
 

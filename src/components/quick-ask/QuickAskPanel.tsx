@@ -88,7 +88,6 @@ export function QuickAskPanel({
 
   const handleSubmit = useCallback(async () => {
     if (!inputText.trim() || isStreaming) return;
-    // Keep the draft until a model is selected. https://github.com/Brevilabs/obsidian-copilot-private/issues/616
     if (!hasModel) {
       new Notice(t("Select a model to continue."));
       return;

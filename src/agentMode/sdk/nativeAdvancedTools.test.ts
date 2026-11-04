@@ -8,7 +8,7 @@ import {
   createNativeAdvancedTools,
   type NativeAdvancedToolsOptions,
 } from "@/agentMode/sdk/nativeAdvancedTools";
-import type { CopilotMode, PermissionDecision, SessionUpdate } from "@/agentMode/session/types";
+import type { ScribeMode, PermissionDecision, SessionUpdate } from "@/agentMode/session/types";
 
 jest.mock("@/excalidraw/excalidrawApi");
 jest.mock("@/logger");
@@ -20,7 +20,7 @@ describe("nativeAdvancedTools", () => {
     let options: NativeAdvancedToolsOptions;
     let updates: SessionUpdate[];
     let api: ExcalidrawApi;
-    let mode: CopilotMode;
+    let mode: ScribeMode;
 
     beforeEach(async () => {
       root = await mkdtemp(join(tmpdir(), "scribe-native-advanced-"));

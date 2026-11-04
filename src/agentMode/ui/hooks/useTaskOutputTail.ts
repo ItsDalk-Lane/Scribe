@@ -21,7 +21,6 @@ interface TaskOutputTailOptions {
   shownRef?: React.RefObject<HTMLElement>;
 }
 
-// A command's output file is outside the vault, so it is re-read while something shows it. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
 export function useTaskOutputTail(
   outputFile: string | undefined,
   { live, maxBytes, shownRef }: TaskOutputTailOptions
@@ -49,7 +48,6 @@ export function useTaskOutputTail(
     };
     poll();
     if (!live) return () => void (disposed = true);
-    // A view left open in a hidden pane must not keep reading the file. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
     const timer = window.setInterval(() => {
       if (shownRef?.current?.isShown() !== false) poll();
     }, TASK_OUTPUT_POLL_MS);

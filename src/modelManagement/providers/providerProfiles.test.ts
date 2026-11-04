@@ -12,7 +12,7 @@ const catalogFixture = JSON.parse(
 ) as WireCatalog;
 
 describe("providerProfiles", () => {
-  describe("getProviderConnectionProfile()", () => {
+  describe("getProviderConnectionProfile", () => {
     it("keeps all 232 visible catalog providers and supplies complete URL-template inputs without concealing unsupported protocols", () => {
       const catalog = transformWireToCatalog(catalogFixture);
       expect(catalog).toHaveLength(232);
@@ -100,7 +100,7 @@ describe("providerProfiles", () => {
       expect(getProviderConnectionProfile("custom", "unknown-sdk")).toBe(profile);
     });
 
-    it("offers native API selection only for the implemented Cohere native route (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("offers native API selection only for the implemented Cohere native route", () => {
       expect(
         transformWireToCatalog(catalogFixture)
           .filter(
@@ -173,7 +173,7 @@ describe("providerProfiles", () => {
     });
   });
 
-  describe("expandProviderUrl()", () => {
+  describe("expandProviderUrl", () => {
     it.each([
       [
         "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",

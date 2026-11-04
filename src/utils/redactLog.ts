@@ -26,8 +26,6 @@ export function redactAddressRun(run: string): string {
   return runHoldsAddress(run.slice(0, end)) ? `<email>${run.slice(end)}` : run;
 }
 
-// Scan by single-character separators: a quantified token regex can exhaust V8's regexp stack on a multi-MiB token.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/479
 function redactAddressRuns(text: string): string {
   const separators = /[^A-Za-z0-9._%+@-]/g;
   const pieces: string[] = [];
@@ -50,8 +48,6 @@ function redactAddressRuns(text: string): string {
   return pieces.join("");
 }
 
-// Scan to a single-character delimiter: matching the credential with `+` can exhaust V8's regexp stack.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/479
 function redactBasicCredentials(text: string): string {
   const headers = /authorization"?\s*[:=]\s*"?basic[ \t]+/gi;
   const delimiters = /[^A-Za-z0-9+/]/g;
@@ -89,8 +85,6 @@ const RULES: (RedactionRule | ((text: string) => string))[] = [
 
   redactBasicCredentials,
 
-  // The AWS field names are spelled out because the alternation has no leading word boundary, so a compound name redacts only when named whole.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/202
   {
     pattern:
       /("?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret|password|passwd|authorization|license[_-]?key|aws[_-]?secret[_-]?access[_-]?key|aws[_-]?session[_-]?token)"?\s*[:=]\s*"?)[^"'\s,}]{6,}/gi,

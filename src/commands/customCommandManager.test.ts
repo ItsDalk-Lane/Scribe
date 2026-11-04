@@ -5,9 +5,9 @@ import { CustomCommandManager } from "./customCommandManager";
 import { trashFile } from "@/utils/vaultAdapterUtils";
 import {
   EMPTY_COMMAND,
-  COPILOT_COMMAND_ENABLED,
-  COPILOT_COMMAND_CONTEXT_MENU_ENABLED,
-  COPILOT_COMMAND_SLASH_ENABLED,
+  SCRIBE_COMMAND_ENABLED,
+  SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
+  SCRIBE_COMMAND_SLASH_ENABLED,
 } from "./constants";
 
 jest.mock("@/commands/customCommandUtils", () => ({
@@ -120,9 +120,9 @@ describe("customCommandManager", () => {
           showInContextMenu: true,
           showInSlashMenu: true,
         });
-        expect(frontmatter()[COPILOT_COMMAND_ENABLED]).toBe(false);
-        expect(frontmatter()[COPILOT_COMMAND_CONTEXT_MENU_ENABLED]).toBe(true);
-        expect(frontmatter()[COPILOT_COMMAND_SLASH_ENABLED]).toBe(true);
+        expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(false);
+        expect(frontmatter()[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED]).toBe(true);
+        expect(frontmatter()[SCRIBE_COMMAND_SLASH_ENABLED]).toBe(true);
       });
     });
     describe("recordUsage()", () => {
@@ -156,13 +156,13 @@ describe("customCommandManager", () => {
         await Promise.all([usage, edit]);
         expect(writesWhilePending).toBe(1);
         expect(texts.get("commands/Review.md")).toContain("Edited prompt");
-        expect(frontmatter()["copilot-command-last-used"]).toEqual(expect.any(Number));
-        expect(frontmatter()["copilot-command-last-used"]).toBeGreaterThan(0);
+        expect(frontmatter()["scribe-command-last-used"]).toEqual(expect.any(Number));
+        expect(frontmatter()["scribe-command-last-used"]).toBeGreaterThan(0);
         expect(getCachedCustomCommands()[0].content).toBe("Edited prompt");
       });
       it("changes only the usage time without replacing a newer file body or model selection", async () => {
         const { manager, texts, frontmatter } = setup(
-          "---\ncopilot-command-model-key: new-model\n---\nExternally edited prompt"
+          "---\nscribe-command-model-key: new-model\n---\nExternally edited prompt"
         );
         const original = {
           ...EMPTY_COMMAND,
@@ -173,7 +173,7 @@ describe("customCommandManager", () => {
         updateCachedCommands([original]);
         await manager.recordUsage(original);
         expect(texts.get("commands/Review.md")).toContain("Externally edited prompt");
-        expect(frontmatter()["copilot-command-model-key"]).toBe("new-model");
+        expect(frontmatter()["scribe-command-model-key"]).toBe("new-model");
         expect(getCachedCustomCommands()[0]).toMatchObject({
           content: "Externally edited prompt",
           modelKey: "new-model",
@@ -205,7 +205,7 @@ describe("customCommandManager", () => {
       });
       it("retains original body whitespace for a field-only change while keeping the cached body consistent with the reader", async () => {
         const { manager, texts } = setup(
-          "---\ncopilot-command-enabled: true\n---\n\n  Saved prompt"
+          "---\nscribe-command-enabled: true\n---\n\n  Saved prompt"
         );
         const baseline = { ...EMPTY_COMMAND, title: "Review", content: "Saved prompt" };
         await manager.updateCommand({ ...baseline, enabled: false }, "Review", false, baseline);
@@ -223,12 +223,12 @@ describe("customCommandManager", () => {
       });
       it("uses the editor baseline to change only the requested field and preserve newer file contents", async () => {
         const { manager, texts, frontmatter } = setup(
-          "---\ncopilot-command-enabled: true\n---\nNewer prompt"
+          "---\nscribe-command-enabled: true\n---\nNewer prompt"
         );
         const baseline = { ...EMPTY_COMMAND, title: "Review", content: "Old prompt" };
         await manager.updateCommand({ ...baseline, enabled: false }, "Review", false, baseline);
         expect(texts.get("commands/Review.md")).toContain("Newer prompt");
-        expect(frontmatter()[COPILOT_COMMAND_ENABLED]).toBe(false);
+        expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(false);
       });
       it("rejects a conflicting edit without overwriting a newer version of the same field", async () => {
         const { manager, texts } = setup("Newer prompt");
@@ -273,8 +273,8 @@ describe("customCommandManager", () => {
           "Review"
         );
         expect(write.mock.calls).toHaveLength(1);
-        expect(write.mock.calls[0][1]).toContain("copilot-command-enabled: false");
-        expect(write.mock.calls[0][1]).toContain("copilot-command-model-key: private-model");
+        expect(write.mock.calls[0][1]).toContain("scribe-command-enabled: false");
+        expect(write.mock.calls[0][1]).toContain("scribe-command-model-key: private-model");
         expect(frontmatter()["custom-property"]).toBe("keep");
       });
       it("restores the original filename and content when saving after a rename fails, then allows retry", async () => {
@@ -317,9 +317,9 @@ describe("customCommandManager", () => {
           },
           "Review"
         );
-        expect(frontmatter()[COPILOT_COMMAND_ENABLED]).toBe(true);
-        expect(frontmatter()[COPILOT_COMMAND_CONTEXT_MENU_ENABLED]).toBe(false);
-        expect(frontmatter()[COPILOT_COMMAND_SLASH_ENABLED]).toBe(true);
+        expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(true);
+        expect(frontmatter()[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED]).toBe(false);
+        expect(frontmatter()[SCRIBE_COMMAND_SLASH_ENABLED]).toBe(true);
       });
     });
     describe("updateCommands()", () => {
@@ -344,7 +344,7 @@ describe("customCommandManager", () => {
     describe("reorderCommands()", () => {
       it("updates only ordering when the supplied rows contain an older copy of the command", async () => {
         const { manager, texts, frontmatter } = setup(
-          "---\ncopilot-command-model-key: new-model\n---\nNewer prompt"
+          "---\nscribe-command-model-key: new-model\n---\nNewer prompt"
         );
         const stale = {
           ...EMPTY_COMMAND,
@@ -356,8 +356,8 @@ describe("customCommandManager", () => {
         updateCachedCommands([stale]);
         await manager.reorderCommands([stale]);
         expect(texts.get("commands/Review.md")).toContain("Newer prompt");
-        expect(frontmatter()["copilot-command-model-key"]).toBe("new-model");
-        expect(frontmatter()["copilot-command-context-menu-order"]).toBe(0);
+        expect(frontmatter()["scribe-command-model-key"]).toBe("new-model");
+        expect(frontmatter()["scribe-command-context-menu-order"]).toBe(0);
       });
     });
     describe("deleteCommand()", () => {

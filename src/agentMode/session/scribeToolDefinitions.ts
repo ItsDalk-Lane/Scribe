@@ -1,4 +1,4 @@
-export const COPILOT_MCP_SERVER_NAME = "obsidian-scribe";
+export const SCRIBE_MCP_SERVER_NAME = "obsidian-scribe";
 export const SEND_FEEDBACK_TOOL_NAME = "send_feedback";
 export const CALLER_SESSION_ARGUMENT = "caller_session_id";
 

@@ -5,7 +5,7 @@ import {
 } from "@/builtinSkills/builtinSkills";
 import { logError, logInfo, logWarn } from "@/logger";
 import { getSettings, updateSetting } from "@/settings/model";
-import { getEffectiveSkillsFolder } from "@/settings/copilotFolder";
+import { getEffectiveSkillsFolder } from "@/settings/scribeFolder";
 import { publishSkillLoadErrorCount } from "@/settings/skillLoadErrorState";
 import { atom, createStore, useAtomValue } from "jotai";
 import { FileSystemAdapter, type App, type EventRef, type TAbstractFile } from "obsidian";
@@ -171,7 +171,6 @@ export class SkillManager {
     this.internalMutationDepth = 0;
     this.pendingExpectations = [];
     this.clearSafetyTimer();
-    // The host-side error count outlives this manager across a hot reload. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
     publishSkillLoadErrorCount(0);
     if (SkillManager.instance === this) {
       SkillManager.instance = null;
@@ -221,7 +220,6 @@ export class SkillManager {
     const vaultRoot = resolveVaultRootAbs(this.app);
 
     try {
-      // Bundled files must settle before link fanout. https://github.com/logancyang/obsidian-copilot/issues/3022
       let builtinError: string | undefined;
       try {
         if (this.builtinRuntime)
@@ -256,7 +254,6 @@ export class SkillManager {
       const settings = getSettings();
       const availableAgents = this.builtinRuntime?.availableAgents();
       const skills = mergeDiscovery(canonicalDiscovery.accepted, projectCandidates).map((skill) => {
-        // Failed cleanup must not reactivate an opted-out skill through stale metadata. https://github.com/logancyang/obsidian-copilot/issues/3022
         if (!skill.builtin || !availableAgents) return skill;
         return {
           ...skill,

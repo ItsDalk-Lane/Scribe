@@ -5,7 +5,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CustomCommandChatModalContent } from "./CustomCommandChatModal";
 import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { updateSetting } from "@/settings/model";
-import { openCopilotSettings } from "@/settings/openSettings";
+import { openScribeSettings } from "@/settings/openSettings";
 
 const mockSettings = { quickCommandModelKey: "quick", quickCommandIncludeNoteContext: false };
 const mockApp = { workspace: { getActiveFile: () => null } };
@@ -24,7 +24,7 @@ jest.mock("@/settings/model", () => ({
   useSettingsValue: () => mockSettings,
   updateSetting: jest.fn(),
 }));
-jest.mock("@/settings/openSettings", () => ({ openCopilotSettings: jest.fn() }));
+jest.mock("@/settings/openSettings", () => ({ openScribeSettings: jest.fn() }));
 jest.mock("@/commands/customCommandUtils", () => ({
   processCommandPrompt: jest.fn(async (_app, prompt, selection) => `${prompt}: ${selection}`),
 }));
@@ -134,7 +134,7 @@ function renderCommand(modelKey: string, autoExecuteOnOpen = true) {
 }
 
 describe("CustomCommandChatModal", () => {
-  describe("CustomCommandChatModalContent()", () => {
+  describe("CustomCommandChatModalContent", () => {
     beforeEach(() => {
       mockTurns.length = 0;
       jest.clearAllMocks();
@@ -147,7 +147,7 @@ describe("CustomCommandChatModal", () => {
         { model: "explicit", prompt: "Rewrite clearly: Selected sentence" },
       ]);
     });
-    it("uses the shared default for a saved command without a model (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", async () => {
+    it("uses the shared default for a saved command without a model", async () => {
       renderCommand("");
       await screen.findByText("Answer from quick");
       expect(mockTurns[0].model).toBe("quick");
@@ -162,7 +162,7 @@ describe("CustomCommandChatModal", () => {
         "Configure a model in Settings → Scribe → Quick actions → Tool configuration, then rerun the command.",
       ],
     ])(
-      "with unavailable selection %p, shows %p and does not resume after a popup choice (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)",
+      "with unavailable selection %p, shows %p and does not resume after a popup choice",
       async (modelKey, notice) => {
         mockSettings.quickCommandModelKey = "";
         renderCommand(modelKey);
@@ -176,7 +176,7 @@ describe("CustomCommandChatModal", () => {
         expect(updateSetting).not.toHaveBeenCalled();
       }
     );
-    it("preserves a quick-command draft until a model is selected and keeps that choice local (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", async () => {
+    it("preserves a quick-command draft until a model is selected and keeps that choice local", async () => {
       mockSettings.quickCommandModelKey = "";
       renderCommand("", false);
       fireEvent.change(screen.getByLabelText("Instruction"), { target: { value: "Make concise" } });
@@ -190,11 +190,11 @@ describe("CustomCommandChatModal", () => {
       );
       expect(updateSetting).not.toHaveBeenCalled();
     });
-    it("flags a missing model and opens General / Quick tools to set the default (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", async () => {
+    it("flags a missing model and opens General / Quick tools to set the default", async () => {
       mockSettings.quickCommandModelKey = "";
       renderCommand("");
       fireEvent.click(await screen.findByText("Model missing"));
-      expect(openCopilotSettings).toHaveBeenCalledWith(mockApp, window, "basic");
+      expect(openScribeSettings).toHaveBeenCalledWith(mockApp, window, "basic");
     });
     it("follows a default set in settings until the user picks a model in the dialog", async () => {
       mockSettings.quickCommandModelKey = "";

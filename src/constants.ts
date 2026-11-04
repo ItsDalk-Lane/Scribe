@@ -1,5 +1,5 @@
 import { DEFAULT_BUILTIN_PREFERENCES } from "@/builtinSkills/builtinSkills";
-import { type CopilotSettings } from "@/settings/model";
+import { type ScribeSettings } from "@/settings/model";
 import { PromptSortStrategy } from "./types";
 
 export const BREVILABS_API_BASE_URL = "https://api.brevilabs.com/v1";
@@ -14,27 +14,27 @@ export const DESKTOP_VIEW_TYPES = [
   PLAN_PREVIEW_VIEW_TYPE,
 ] as const;
 
-export const COPILOT_AGENT_ICON_ID = "scribe-agent";
+export const SCRIBE_AGENT_ICON_ID = "scribe-agent";
 
-export const COPILOT_AGENT_ICON_TRANSFORM = "translate(0 0)";
-export const COPILOT_AGENT_ICON_PATH =
+export const SCRIBE_AGENT_ICON_TRANSFORM = "translate(0 0)";
+export const SCRIBE_AGENT_ICON_PATH =
   "M72 10a8 8 0 0 1 11.3 0l6.7 6.7a8 8 0 0 1 0 11.3L39 79 17 84l5-22L72 10zm-3 14L29 64l-2 10 10-2 40-40-8-8zM13 90h74v6H13z";
 
-export const COPILOT_AGENT_ICON_SVG = `<g transform="${COPILOT_AGENT_ICON_TRANSFORM}"><path fill="currentColor" d="${COPILOT_AGENT_ICON_PATH}"/></g>`;
+export const SCRIBE_AGENT_ICON_SVG = `<g transform="${SCRIBE_AGENT_ICON_TRANSFORM}"><path fill="currentColor" d="${SCRIBE_AGENT_ICON_PATH}"/></g>`;
 
 export const USER_SENDER = "user";
 export const AI_SENDER = "ai";
 
-export const COPILOT_FOLDER_ROOT = "scribe";
-export const DEFAULT_COPILOT_FOLDER = COPILOT_FOLDER_ROOT;
-const DEFAULT_CHAT_HISTORY_FOLDER = `${COPILOT_FOLDER_ROOT}/scribe-conversations`;
-const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${COPILOT_FOLDER_ROOT}/scribe-custom-prompts`;
-const DEFAULT_MEMORY_FOLDER = `${COPILOT_FOLDER_ROOT}/memory`;
-const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${COPILOT_FOLDER_ROOT}/system-prompts`;
-const DEFAULT_PROJECTS_FOLDER = `${COPILOT_FOLDER_ROOT}/projects`;
-export const DEFAULT_SKILLS_FOLDER = `${COPILOT_FOLDER_ROOT}/skills`;
-export const COPILOT_CONVERSATION_TAG = "scribe-conversation";
-export const DEFAULT_QA_EXCLUSIONS_SETTING = COPILOT_FOLDER_ROOT;
+export const SCRIBE_FOLDER_ROOT = "scribe";
+export const DEFAULT_SCRIBE_FOLDER = SCRIBE_FOLDER_ROOT;
+const DEFAULT_CHAT_HISTORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-conversations`;
+const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-custom-prompts`;
+const DEFAULT_MEMORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/memory`;
+const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/system-prompts`;
+const DEFAULT_PROJECTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/projects`;
+export const DEFAULT_SKILLS_FOLDER = `${SCRIBE_FOLDER_ROOT}/skills`;
+export const SCRIBE_CONVERSATION_TAG = "scribe-conversation";
+export const DEFAULT_QA_EXCLUSIONS_SETTING = SCRIBE_FOLDER_ROOT;
 export const NOTE_CONTEXT_PROMPT_TAG = "note_context";
 export const SELECTED_TEXT_TAG = "selected_text";
 export const WEB_SELECTED_TEXT_TAG = "web_selected_text";
@@ -53,14 +53,6 @@ export enum ReasoningEffort {
   XHIGH = "xhigh",
 }
 
-/**
- * Output length to request from Anthropic, the one provider that will not accept "no limit".
- *
- * The Anthropic SDK rejects a non-streaming request it estimates will take over ten minutes
- * (`60min * maxTokens / 128_000`, so 21,333 tokens), and a provider rejects a request whose
- * prompt plus requested output exceeds the context window.
- * https://github.com/logancyang/obsidian-copilot-preview/issues/312
- */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 20_000;
 
 export enum ChatModelProviders {
@@ -179,7 +171,7 @@ export const ProviderInfo: Record<Provider, ProviderMetadata> = {
   },
 };
 
-export const ProviderSettingsKeyMap: Record<SettingKeyProviders, keyof CopilotSettings> = {
+export const ProviderSettingsKeyMap: Record<SettingKeyProviders, keyof ScribeSettings> = {
   anthropic: "anthropicApiKey",
   openai: "openAIApiKey",
   google: "googleApiKey",
@@ -204,7 +196,7 @@ export enum SEND_SHORTCUT {
 
 export const COMMAND_IDS = {
   TRIGGER_QUICK_COMMAND: "trigger-quick-command",
-  CLEAR_COPILOT_CACHE: "clear-scribe-cache",
+  CLEAR_SCRIBE_CACHE: "clear-scribe-cache",
   COUNT_WORD_AND_TOKENS_SELECTION: "count-word-and-tokens-selection",
   COUNT_TOTAL_VAULT_TOKENS: "count-total-vault-tokens",
   NEW_AGENT_CHAT: "new-agent-chat",
@@ -223,7 +215,7 @@ export const COMMAND_IDS = {
 
 export const COMMAND_NAMES: Record<CommandId, string> = {
   [COMMAND_IDS.TRIGGER_QUICK_COMMAND]: "Trigger quick command",
-  [COMMAND_IDS.CLEAR_COPILOT_CACHE]: "Clear Scribe cache",
+  [COMMAND_IDS.CLEAR_SCRIBE_CACHE]: "Clear Scribe cache",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "Count total tokens in your vault",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "Count words and tokens in selection",
   [COMMAND_IDS.NEW_AGENT_CHAT]: "New Scribe Agent Chat",
@@ -243,16 +235,16 @@ export const COMMAND_NAMES: Record<CommandId, string> = {
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];
 
 export const COMMAND_ICONS: Partial<Record<CommandId, string>> = {
-  [COMMAND_IDS.NEW_AGENT_CHAT]: COPILOT_AGENT_ICON_ID,
-  [COMMAND_IDS.OPEN_AGENT_CHAT_WINDOW]: COPILOT_AGENT_ICON_ID,
-  [COMMAND_IDS.TOGGLE_AGENT_CHAT_WINDOW]: COPILOT_AGENT_ICON_ID,
+  [COMMAND_IDS.NEW_AGENT_CHAT]: SCRIBE_AGENT_ICON_ID,
+  [COMMAND_IDS.OPEN_AGENT_CHAT_WINDOW]: SCRIBE_AGENT_ICON_ID,
+  [COMMAND_IDS.TOGGLE_AGENT_CHAT_WINDOW]: SCRIBE_AGENT_ICON_ID,
   [COMMAND_IDS.TRIGGER_QUICK_COMMAND]: "terminal-square",
   [COMMAND_IDS.TRIGGER_QUICK_ASK]: "sparkles",
   [COMMAND_IDS.ADD_SELECTION_TO_CHAT_CONTEXT]: "text-cursor-input",
   [COMMAND_IDS.ADD_WEB_SELECTION_TO_CHAT_CONTEXT]: "globe",
   [COMMAND_IDS.ADD_CUSTOM_COMMAND]: "plus-circle",
   [COMMAND_IDS.APPLY_CUSTOM_COMMAND]: "play-circle",
-  [COMMAND_IDS.CLEAR_COPILOT_CACHE]: "eraser",
+  [COMMAND_IDS.CLEAR_SCRIBE_CACHE]: "eraser",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "calculator",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "hash",
   [COMMAND_IDS.OPEN_LOG_FILE]: "file-text",
@@ -263,7 +255,7 @@ export const TEXT_READABLE_EXTENSIONS = ["md", "canvas", "base"];
 
 export const ALLOWED_NOTE_CONTEXT_EXTENSIONS = [...TEXT_READABLE_EXTENSIONS, "pdf"];
 
-export const DEFAULT_SETTINGS: CopilotSettings = {
+export const DEFAULT_SETTINGS: ScribeSettings = {
   openAIApiKey: "",
   openAIOrgId: "",
   huggingfaceApiKey: "",
@@ -278,9 +270,8 @@ export const DEFAULT_SETTINGS: CopilotSettings = {
   defaultModelKey: "",
   userSystemPrompt: "",
   openAIProxyBaseUrl: "",
-  copilotFolder: DEFAULT_COPILOT_FOLDER,
-  copilotRootHistory: [],
-  upgradedToV8FromLegacy: false,
+  scribeFolder: DEFAULT_SCRIBE_FOLDER,
+  scribeRootHistory: [],
   defaultSaveFolder: DEFAULT_CHAT_HISTORY_FOLDER,
   defaultConversationTag: "scribe-conversation",
   autosaveChat: true,

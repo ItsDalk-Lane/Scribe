@@ -9,10 +9,8 @@ jest.mock("@/utils/renderMarkdown", () => ({
   renderMarkdown: jest.fn(),
 }));
 
-const ISSUE_URL = "https://github.com/Brevilabs/obsidian-copilot-private/issues/317";
-
 describe("Markdown", () => {
-  describe("Markdown()", () => {
+  describe("Markdown", () => {
     it("renders text with Obsidian Markdown styling", async () => {
       jest.mocked(renderMarkdown).mockImplementation(async (_app, text, target) => {
         const heading = target.doc.createElement("h1");
@@ -47,7 +45,7 @@ describe("Markdown", () => {
       expect(container.firstElementChild?.classList.contains("tw-p-2")).toBe(true);
     });
 
-    it(`runs post-render handling only after Obsidian finishes for ${ISSUE_URL}`, async () => {
+    it(`runs post-render handling only after Obsidian finishes for`, async () => {
       let finishRender: (() => void) | undefined;
       jest.mocked(renderMarkdown).mockImplementation(
         () =>
@@ -68,7 +66,7 @@ describe("Markdown", () => {
       expect(onRendered).toHaveBeenCalledWith(view.container.firstElementChild);
     });
 
-    it(`falls back to readable text when Obsidian cannot render the Markdown for ${ISSUE_URL}`, async () => {
+    it(`falls back to readable text when Obsidian cannot render the Markdown for`, async () => {
       jest.mocked(renderMarkdown).mockRejectedValue(new Error("renderer unavailable"));
 
       render(
@@ -80,7 +78,7 @@ describe("Markdown", () => {
       expect(await screen.findByText("Release notes remain readable")).not.toBeNull();
     });
 
-    it(`does not let an obsolete failed render replace newer content for ${ISSUE_URL}`, async () => {
+    it(`does not let an obsolete failed render replace newer content for`, async () => {
       let rejectFirstRender: ((error: Error) => void) | undefined;
       jest
         .mocked(renderMarkdown)

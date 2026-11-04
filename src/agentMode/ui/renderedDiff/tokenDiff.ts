@@ -12,8 +12,6 @@ export interface StructuralLine {
   content: string;
 }
 
-// Quote and list markers repeat in any order because a list item can open a blockquote (`- > Quote`).
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 const STRUCTURAL_PREFIX =
   /^[ \t]*(?:>[ \t]?|(?:[-*+]|\d{1,9}[.)])[ \t]+)*(?:\[![^\]]*\][+-]?[ \t]*)?(?:\[.\][ \t]+)?(?:#{1,6}[ \t]+)?/;
 
@@ -23,14 +21,9 @@ const HARD_BREAK = / {2,}$/;
 
 const EMPHASIS_DELIMITER = /^(?:\*{1,3}|_{1,3}|~~|==)/;
 
-// Inline math renders as TeX, where a marker inside would break it.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/349
 const TOKEN_PATTERNS: readonly RegExp[] = [
   /^!?\[\[[^\]]*\]\]/,
   /^\$(?:\\.|[^$\\\n])+\$(?!\$)/,
-  // A bare URL is one token so an emphasis character inside it (`a_b`) cannot split it around a marker;
-  // like an autolink it never ends on emphasis, so a delimiter wrapping it stays outside the mark.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/349
   /^[a-z][a-z\d+.-]*:\/\/[^\s<>*~]*[^\s<>*~_=]/i,
   EMPHASIS_DELIMITER,
   /^[ \t]+/,
@@ -43,9 +36,6 @@ export function splitStructuralPrefix(line: string): StructuralLine {
   return { prefix, content: line.slice(prefix.length) };
 }
 
-// Links, wikilinks, inline code, tags, and emphasis runs are single tokens so a marker never lands
-// inside a URL or code span, where it would break the rendered syntax.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 export function tokenizeInline(text: string): string[] {
   const tokens: string[] = [];
   let index = 0;
@@ -87,8 +77,6 @@ function matchToken(text: string, index: number): string | null {
     if (match !== null) return match[0];
   }
   const previous = index === 0 ? "" : text[index - 1];
-  // Partial delimiters let diff markers corrupt link destinations and code spans.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   const link = /^!?\[[^\]]*\]\(/.exec(rest);
   if (link !== null) {
     let depth = 1;
@@ -113,17 +101,11 @@ function matchToken(text: string, index: number): string | null {
 
 export function diffInline(before: string, after: string): string {
   const parts = diffArrays(tokenizeInline(before), tokenizeInline(after));
-  // A table cell whose emphasis changed is shown whole, like a line; a cell of an added or removed row
-  // has one empty side, which needs no fallback and must not leave an empty mark.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/349
   if (before !== "" && after !== "" && changesEmphasis(parts))
     return DEL_OPEN + before + DEL_CLOSE + INS_OPEN + after + INS_CLOSE;
   return renderInline(parts);
 }
 
-// Markers around a bare emphasis delimiter render as empty marks around restyled text, so a
-// formatting edit is shown as the whole old text and the whole new text.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/349
 function changesEmphasis(parts: readonly ArrayChange<string>[]): boolean {
   return parts.some(
     (part) =>
@@ -157,9 +139,6 @@ function markLine(line: string, open: string, close: string): string {
   return prefix + open + body + close + content.slice(body.length);
 }
 
-// Lines whose structural prefixes differ (checkbox, heading level, callout type) become a deleted plus an
-// inserted line: the renderer consumes that syntax, so no inline marker could show it.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 export function diffTextBlock(before: string, after: string): string {
   return alignSequences(before.split("\n"), after.split("\n"), {
     isEqual: (left, right) => left === right,
@@ -183,17 +162,10 @@ function diffModifiedLine(beforeLine: string, afterLine: string): string {
   const after = splitStructuralPrefix(afterLine);
   const afterBody = after.content.trimEnd();
   const parts = diffArrays(tokenizeInline(before.content.trimEnd()), tokenizeInline(afterBody));
-  // Renumbering an ordered list is not a content change, so item numbers are ignored when comparing prefixes.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   const samePrefix =
     before.prefix.replace(ORDERED_LIST_NUMBER, "") ===
     after.prefix.replace(ORDERED_LIST_NUMBER, "");
-  // Trailing spaces are a hard break only while they end the line, so they stay outside marks and a
-  // gained or lost break is shown like other syntax the renderer consumes.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   const sameBreak = HARD_BREAK.test(beforeLine) === HARD_BREAK.test(afterLine);
-  // Interleaved word marks are unreadable once most of a line is rewritten, so such a line is shown whole twice.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/349
   const keptLength = visibleLength(
     parts.flatMap((part) => (part.added || part.removed ? [] : part.value)).join("")
   );

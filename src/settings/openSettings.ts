@@ -1,28 +1,20 @@
-import type { CopilotSettingsTabId } from "@/settings/settingsTabs";
+import type { ScribeSettingsTabId } from "@/settings/settingsTabs";
 import { callMethod, isRecord, readProperty } from "@/utils/obsidianInternals";
 import type { App } from "obsidian";
 
-let requestedCopilotSettingsTab: CopilotSettingsTabId | null = null;
+let requestedScribeSettingsTab: ScribeSettingsTabId | null = null;
 
 interface ObsidianSettingsController {
   open: () => void;
   openTabById: (id: string) => void;
 }
 
-export function openCopilotSettings(
-  app: App,
-  ownerWindow: Window,
-  tab: CopilotSettingsTabId
-): void {
+export function openScribeSettings(app: App, ownerWindow: Window, tab: ScribeSettingsTabId): void {
   const settings = (app as unknown as { setting: ObsidianSettingsController }).setting;
-  requestedCopilotSettingsTab = tab;
+  requestedScribeSettingsTab = tab;
   settings.open();
-  // Opening settings consumes the request immediately when Copilot is already
-  // selected. Otherwise hand off after the modal opens so Copilot renders only
-  // once and no detached React tree is left behind.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/280
   ownerWindow.requestAnimationFrame(() => {
-    if (requestedCopilotSettingsTab !== null) settings.openTabById("scribe");
+    if (requestedScribeSettingsTab !== null) settings.openTabById("scribe");
   });
 }
 
@@ -35,15 +27,13 @@ export function openCorePluginSettings(app: App, pluginName: string): void {
     "querySelector",
     'input[type="search"]'
   );
-  // Obsidian's settings markup has no public API, so a changed Core plugins tab still opens, just unfiltered.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/694
   if (!isRecord(search)) return;
   search.value = pluginName;
   callMethod(search, "dispatchEvent", new Event("input"));
 }
 
-export function consumeRequestedCopilotSettingsTab(): CopilotSettingsTabId {
-  const requestedTab = requestedCopilotSettingsTab ?? "basic";
-  requestedCopilotSettingsTab = null;
+export function consumeRequestedScribeSettingsTab(): ScribeSettingsTabId {
+  const requestedTab = requestedScribeSettingsTab ?? "basic";
+  requestedScribeSettingsTab = null;
   return requestedTab;
 }

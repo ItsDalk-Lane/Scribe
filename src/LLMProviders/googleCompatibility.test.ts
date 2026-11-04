@@ -86,7 +86,7 @@ describe("httpChatApis", () => {
     setRequestUrlImpl(undefined);
   });
 
-  describe("streamGoogle()", () => {
+  describe("streamGoogle", () => {
     it.each([false, true])(
       `sends bare and models-qualified IDs to the same configured endpoint with CORS=%s (${issue})`,
       async (enableCors) => {

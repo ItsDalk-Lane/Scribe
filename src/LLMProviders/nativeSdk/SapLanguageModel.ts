@@ -31,9 +31,8 @@ export function createSapHttpModel(
     streamHttpCompletion(model, options, async function* () {
       const placeholders: Record<string, string> = {};
       const literal = (text: string): string => {
-        // SAP evaluates prompt templates; interpolation-looking user text must remain literal. https://github.com/ItsDalk-Lane/Scribe/issues/8
         if (!/\{[{#%]/.test(text)) return text;
-        const name = `copilot_message_${Object.keys(placeholders).length}`;
+        const name = `scribe_message_${Object.keys(placeholders).length}`;
         placeholders[name] = text;
         return `{{?${name}}}`;
       };
@@ -125,7 +124,6 @@ export function createSapHttpModel(
       );
       let reason: "stop" | "length" | "toolUse" = "stop";
       for await (const raw of readJsonStream(response, options?.signal)) {
-        // A final_result alone does not complete SAP orchestration: only [DONE] does. https://github.com/ItsDalk-Lane/Scribe/issues/8
         if (raw === "[DONE]") {
           yield { finishReason: reason };
           return;

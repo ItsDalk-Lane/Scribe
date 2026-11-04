@@ -394,13 +394,6 @@ export async function safeFetch(
   };
 }
 
-/**
- * Wrapper around safeFetch that doesn't throw on HTTP errors (fetch-like behavior).
- *
- * The variant to hand a provider SDK as its `fetch`: an SDK given a throwing implementation
- * reads a 4xx as a dead connection and burns its retry budget on it.
- * https://github.com/logancyang/obsidian-copilot/issues/2959
- */
 export function safeFetchNoThrow(url: string, options: RequestInit = {}): Promise<Response> {
   return safeFetch(url, { ...options, throwOnHttpError: false });
 }

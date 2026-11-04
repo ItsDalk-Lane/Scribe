@@ -16,8 +16,7 @@ jest.mock("@/services/obsidianCli/ObsidianCliClient", () => ({
 
 const mockIsObsidianCliEnabled = jest.mocked(isObsidianCliEnabled);
 
-const ISSUE = "https://github.com/logancyang/obsidian-copilot/issues/3022";
-const folder = "copilot/skills";
+const folder = "scribe/skills";
 function fixture(preferences?: BuiltinPreferences) {
   const files = new Map<string, string>();
   const dirs = new Set<string>();
@@ -63,15 +62,15 @@ function fixture(preferences?: BuiltinPreferences) {
 }
 
 describe("reconcileBuiltinSkills", () => {
-  describe("availableBuiltinAgents()", () => {
-    it("reuses the ready agent list when membership is unchanged https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
+  describe("availableBuiltinAgents", () => {
+    it("reuses the ready agent list when membership is unchanged", () => {
       const previous = ["claude"];
       expect(
         availableBuiltinAgents({ claude: { kind: "ready", source: "managed" } }, previous)
       ).toBe(previous);
     });
 
-    it(`preserves a known ready agent during checking without enabling an unverified first install ${ISSUE}`, () => {
+    it(`preserves a known ready agent during checking without enabling an unverified first install`, () => {
       expect(
         availableBuiltinAgents(
           {
@@ -90,12 +89,12 @@ describe("reconcileBuiltinSkills", () => {
       ).toEqual([]);
     });
   });
-  describe("reconcileBuiltinSkills()", () => {
+  describe("reconcileBuiltinSkills", () => {
     beforeEach(() => {
       mockIsObsidianCliEnabled.mockReturnValue(true);
     });
 
-    it("creates no obsidian-cli folder while Obsidian's command line interface is off, and keeps a synced copy for devices that have it on https://github.com/Brevilabs/obsidian-copilot-private/issues/726", async () => {
+    it("creates no obsidian-cli folder while Obsidian's command line interface is off, and keeps a synced copy for devices that have it on", async () => {
       const f = fixture({});
       f.options.availableAgents = ["opencode"];
       mockIsObsidianCliEnabled.mockReturnValue(false);
@@ -113,7 +112,7 @@ describe("reconcileBuiltinSkills", () => {
       expect(f.files.get(f.path("obsidian-cli"))).toBe(content);
     });
 
-    it(`keeps canonical metadata stable across devices and retains existing files without a local agent ${ISSUE}`, async () => {
+    it(`keeps canonical metadata stable across devices and retains existing files without a local agent`, async () => {
       const skill = BUILTIN_SKILLS[0];
       const f = fixture();
       f.options.availableAgents = ["claude"];
@@ -139,10 +138,10 @@ describe("reconcileBuiltinSkills", () => {
       expect(f.files.has(f.path(skill.name))).toBe(true);
       expect(f.files.get(userPath)).toBe("personal reference");
     });
-    it(`preserves current-name user content containing a body marker with no agents and with an available agent ${ISSUE}`, async () => {
+    it(`preserves current-name user content containing a body marker with no agents and with an available agent`, async () => {
       const skill = BUILTIN_SKILLS[0];
       const f = fixture();
-      const content = `---\nname: ${skill.name}\ndescription: A user-owned skill.\n---\nExample:\n  copilot-builtin-version: "1"`;
+      const content = `---\nname: ${skill.name}\ndescription: A user-owned skill.\n---\nExample:\n  scribe-builtin-version: "1"`;
       f.files.set(f.path(skill.name), content);
       await reconcileBuiltinSkills(f.options);
       expect(f.files.get(f.path(skill.name))).toBe(content);
@@ -152,7 +151,7 @@ describe("reconcileBuiltinSkills", () => {
       );
       expect(f.files.get(f.path(skill.name))).toBe(content);
     });
-    it(`reports incomplete writes instead of claiming installation succeeded ${ISSUE}`, async () => {
+    it(`reports incomplete writes instead of claiming installation succeeded`, async () => {
       const f = fixture();
       f.options.availableAgents = ["claude"];
       f.options.fs.write = async () => {
@@ -162,7 +161,7 @@ describe("reconcileBuiltinSkills", () => {
         "Could not install built-in skill"
       );
     });
-    it(`creates no folders without an available agent and records no opt-outs for unavailable agents ${ISSUE}`, async () => {
+    it(`creates no folders without an available agent and records no opt-outs for unavailable agents`, async () => {
       const f = fixture();
       await reconcileBuiltinSkills(f.options);
       expect(f.files.size).toBe(0);
@@ -179,7 +178,7 @@ describe("reconcileBuiltinSkills", () => {
       expect(f.files.has(f.path(skill.name))).toBe(false);
     });
 
-    it(`uses defaults for a newly bundled skill without adding or changing preferences ${ISSUE}`, async () => {
+    it(`uses defaults for a newly bundled skill without adding or changing preferences`, async () => {
       const first = BUILTIN_SKILLS[0];
       const f = fixture({ [first.name]: { disabledAgents: ["opencode"] } });
       const preferences = f.options.settings.agentMode.skills.builtinPreferences;

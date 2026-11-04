@@ -24,7 +24,7 @@ import { Root } from "react-dom/client";
 import { createPluginRoot } from "@/utils/react/createPluginRoot";
 import { CustomCommand } from "@/commands/type";
 import { useSettingsValue, updateSetting } from "@/settings/model";
-import { openCopilotSettings } from "@/settings/openSettings";
+import { openScribeSettings } from "@/settings/openSettings";
 import {
   useStreamingChatSession,
   type StreamingChatTurnContext,
@@ -155,7 +155,6 @@ export function CustomCommandChatModalContent({
     systemPrompt: systemPrompt || "",
     excludeThinking: true,
     onNoModel: () => {
-      // An explicit command model overrides the default, so setting a default cannot repair it. https://github.com/Brevilabs/obsidian-copilot-private/issues/616
       new Notice(
         command.modelKey
           ? t(
@@ -256,7 +255,6 @@ export function CustomCommandChatModalContent({
 
   const handleFollowUpSubmit = async () => {
     if (!followUpValue.trim()) return;
-    // Preserve the instruction while the user repairs an unavailable selection. https://github.com/Brevilabs/obsidian-copilot-private/issues/616
     if (!resolvedModel) {
       new Notice(t("Select a model to continue."));
       return;
@@ -340,7 +338,7 @@ export function CustomCommandChatModalContent({
       onSelectModel={chatPicker.onChange}
       models={chatPicker.models}
       needsModel={!resolvedModel}
-      onOpenModelSettings={(ownerWindow) => openCopilotSettings(app, ownerWindow, "basic")}
+      onOpenModelSettings={(ownerWindow) => openScribeSettings(app, ownerWindow, "basic")}
       onStop={handleStop}
       onRunAgain={handleRunAgain}
       onCopy={safeAsyncHandler(handleCopy)}
@@ -491,7 +489,7 @@ export class CustomCommandChatModal {
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 
     const doc = this.resolveDocument(activeView);
-    this.container = doc.body.createDiv("copilot-menu-command-modal-container");
+    this.container = doc.body.createDiv("scribe-menu-command-modal-container");
 
     this.root = createPluginRoot(this.container, this.app);
 

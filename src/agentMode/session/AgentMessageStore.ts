@@ -31,8 +31,6 @@ const MAX_COMPARE_JSON_CHARS = 8_000;
 const MAX_COMPARE_EDGE_CHARS = 512;
 const MAX_COMPARE_TEXT_EDGE_CHARS = 128;
 
-// A pending tool call never started, while an in-progress one may be a background task that reports after its turn.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/739
 function isOpenPart(part: AgentMessagePart): boolean {
   if (part.kind === "compaction") return part.status === "in_progress";
   return part.kind === "tool_call" && part.status === "pending";
@@ -190,11 +188,6 @@ export class AgentMessageStore {
     this.lastDisplay = null;
   }
 
-  /**
-   * Freeze the latest reasoning block at the event that ended it. React can
-   * batch over this transition, so render-time clocks cannot recover it later.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/336
-   */
   private finishTrailingThought(msg: StoredAgentMessage): boolean {
     const last = msg.parts?.[msg.parts.length - 1];
     if (
@@ -255,7 +248,6 @@ export class AgentMessageStore {
     return true;
   }
 
-  // OpenCode replays a chat without send times and autosave rewrites its note from these messages, so the note's times carry over while its turns line up. https://github.com/Brevilabs/obsidian-copilot-private/issues/671
   fillMissingTimestamps(saved: readonly AgentChatMessage[]): void {
     const visible = this.messages.filter((m) => m.isVisible);
     for (let i = 0; i < visible.length && i < saved.length; i++) {
@@ -305,10 +297,6 @@ export class AgentMessageStore {
     if (!msg) return false;
     if (!msg.parts) msg.parts = [];
     const last = msg.parts[msg.parts.length - 1];
-    // A completed message can receive its final thought chunks after the
-    // prompt result. Extend a trailing span when possible; otherwise start a
-    // frozen span because another event may never arrive to finish it.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
     if (
       last &&
       last.kind === "thought" &&
@@ -339,9 +327,6 @@ export class AgentMessageStore {
     if (partId !== undefined) {
       const idx = msg.parts.findIndex((p) => agentPartId(p) === partId);
       if (idx !== -1) {
-        // A fresh plan snapshot can replace its earlier singleton while still
-        // ending the reasoning block at the live edge.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
         const finishedThought = part.kind === "plan" && this.finishTrailingThought(msg);
         if (partsEqual(msg.parts[idx], part)) {
           if (finishedThought) this.touch(msg);
@@ -358,9 +343,6 @@ export class AgentMessageStore {
     return true;
   }
 
-  // A spinner must not outlive the turn that started it.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/633
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/739
   settleOpenParts(id: string, status: "cancelled" | "failed" = "cancelled"): boolean {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg?.parts?.some(isOpenPart)) return false;

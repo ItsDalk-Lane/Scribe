@@ -1,15 +1,15 @@
 # Gallery review coverage
 
-This bounded pass supports [UI audit issue 427](https://github.com/Brevilabs/obsidian-copilot-private/issues/427). It does not certify real services or complete user journeys. Snapshot base: `20837e1973386ba374c80ac1d7bd12a966cd5432`.
+This bounded pass supports [UI audit issue 427](https://github.com/ItsDalk-Lane/Scribe/issues/427). It does not certify real services or complete user journeys. Snapshot base: `20837e1973386ba374c80ac1d7bd12a966cd5432`.
 
 ## Representative review set
 
-| Need                      | Story ID                                                                      | Interaction and boundary                                                                                                                                                                                                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Locked catalog            | `Agent Mode/Model Enable List/LockedCopilotCatalog`                           | Copilot rows stay locked; BYOK rows remain visible. Complete meta args supply the required controlled query and handlers. This is a static catalog fixture, not model configuration.                                                                                              |
-| Full native settings host | `Settings/Quick tools models/Configured`, `Settings/Quick tools models/Empty` | Existing composite section includes its heading, default selector and model list inside the gallery's `.modal.mod-settings` / `.vertical-tab-content` host. This tests section and host geometry; it is not the entire Copilot Settings page, settings navigation or persistence. |
-| Open menu                 | `UI/Model Selector/Unlicensed`                                                | Open the host popover, then open the model dropdown. Inspect long provider/model IDs, locked rows and lock explanations. Capture the open dropdown, not only its closed trigger.                                                                                                  |
-| Permission diffs          | `Agent Mode/Tool Permission Card/MultipleFiles`                               | Two note paths and their before/after diffs in the real card. Inspect its disclosure and choices. This exact fixture also ships with issue 405; retain one definition when combining branches. Handlers do not execute tools.                                                     |
+| Need                      | Story ID                                                                      | Interaction and boundary                                                                                                                                                                                                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog overflow          | `Agent Mode/Model Enable List/OverflowingCatalog`                             | Long provider and model lists stay scrollable; enabled and disabled rows remain visible. This is a static catalog fixture, not model configuration.                                                                                                                              |
+| Full native settings host | `Settings/Quick tools models/Configured`, `Settings/Quick tools models/Empty` | Existing composite section includes its heading, default selector and model list inside the gallery's `.modal.mod-settings` / `.vertical-tab-content` host. This tests section and host geometry; it is not the entire Scribe Settings page, settings navigation or persistence. |
+| Open menu                 | `UI/Model Selector/Unlicensed`                                                | Open the host popover, then open the model dropdown. Inspect long provider/model IDs, locked rows and lock explanations. Capture the open dropdown, not only its closed trigger.                                                                                                 |
+| Permission diffs          | `Agent Mode/Tool Permission Card/MultipleFiles`                               | Two note paths and their before/after diffs in the real card. Inspect its disclosure and choices. This exact fixture also ships with issue 405; retain one definition when combining branches. Handlers do not execute tools.                                                    |
 
 The locked catalog failure came from missing required story props: the gallery merged `groups` without a `query`, then `ModelEnableList` called `query.trim()`. Production callers supply the query. A regression renders the actual merged meta/story args, without the unit helper's defaults, and checks locked versus available controls. No production fallback was added for invalid fixture data.
 
@@ -51,14 +51,14 @@ Remaining behavioral gaps include the complete Settings navigation/save/reopen j
 - `src/agentMode/ui/AgentProjectRowActions.tsx`
 - `src/agentMode/ui/AgentSelectPanel.tsx`
 - `src/agentMode/ui/AgentTabStrip.tsx`
-- `src/agentMode/ui/CopilotAgentView.tsx`
+- `src/agentMode/ui/ScribeAgentView.tsx`
 - `src/agentMode/ui/CreateProjectPanel.tsx`
 - `src/agentMode/ui/FanoutMessageCard.tsx`
 - `src/agentMode/ui/PlanPreviewView.tsx`
 - `src/agentMode/ui/PlanProposalCard.tsx`
 - `src/agentMode/ui/ReportIssueModal.tsx`
 - `src/agentMode/ui/SubAgentCard.tsx`
-- `src/components/ui/CopilotBrandIcon.tsx`
+- `src/components/ui/ScribeBrandIcon.tsx`
 - `src/components/ui/FreeModelWarningIcon.tsx`
 - `src/components/ui/SearchBar.tsx`
 - `src/components/ui/card.tsx`

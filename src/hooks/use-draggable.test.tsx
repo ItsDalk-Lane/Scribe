@@ -31,7 +31,7 @@ function DraggablePanel() {
 }
 
 describe("use-draggable", () => {
-  describe("useDraggable()", () => {
+  describe("useDraggable", () => {
     it("moves the panel by the distance a touch pointer travels from the handle", () => {
       render(<DraggablePanel />);
 
@@ -40,7 +40,7 @@ describe("use-draggable", () => {
       touchPointer(document, "pointerup", 130, 60);
 
       expect(screen.getByTestId("position").textContent).toBe("40,-20");
-      expect(screen.getByTestId("panel").style.getPropertyValue("--copilot-drag-x")).toBe("40px");
+      expect(screen.getByTestId("panel").style.getPropertyValue("--scribe-drag-x")).toBe("40px");
       expect(screen.getByTestId("panel").dataset.dragging).toBe("false");
     });
 
@@ -56,7 +56,7 @@ describe("use-draggable", () => {
       expect(screen.getByTestId("panel").dataset.dragging).toBe("false");
     });
 
-    it("ignores a second touch so it neither moves nor releases the panel (https://github.com/Brevilabs/obsidian-copilot-private/issues/798)", () => {
+    it("ignores a second touch so it neither moves nor releases the panel", () => {
       render(<DraggablePanel />);
 
       touchPointer(screen.getByTestId("handle"), "pointerdown", 100, 100, 1);

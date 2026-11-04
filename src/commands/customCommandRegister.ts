@@ -24,7 +24,7 @@ import {
 } from "@/commands/state";
 import { CustomCommandManager } from "@/commands/customCommandManager";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
-import { deriveCustomPromptsFolder } from "@/settings/copilotFolder";
+import { deriveCustomPromptsFolder } from "@/settings/scribeFolder";
 import { logError } from "@/logger";
 
 export class CustomCommandRegister {
@@ -47,8 +47,6 @@ export class CustomCommandRegister {
 
   async initialize() {
     await loadAllCustomCommands(this.app);
-    // Startup migrations outlive an unload that lands while commands load, and commands added
-    // to an unloaded plugin are never removed. https://github.com/logancyang/obsidian-copilot/issues/3518
     if (this.disposed) return;
     this.registerCommands();
   }

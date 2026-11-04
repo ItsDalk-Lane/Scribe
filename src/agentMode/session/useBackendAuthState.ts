@@ -91,8 +91,6 @@ export function useBackendAuthState(
   callerProbeKey?: unknown
 ): BackendAuthUiState {
   const settings = useSettingsValue();
-  // All surfaces must invalidate the same profile; installation paths may change without changing accounts.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/379
   const probeKey = descriptor.auth?.getProbeKey?.(settings) ?? callerProbeKey;
   const settingsRef = React.useRef(settings);
   settingsRef.current = settings;
@@ -103,8 +101,6 @@ export function useBackendAuthState(
   const cancelSignIn = React.useCallback(() => {
     if (auth) authControllers.get(auth)?.abort();
   }, [auth]);
-  // Backend replacement must stop the authentication process owned by this surface.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/379
   React.useEffect(() => () => operationController.current?.abort(), [auth]);
   const previousProbeKey = React.useRef(probeKey);
   const subscribe = React.useCallback(
@@ -122,16 +118,11 @@ export function useBackendAuthState(
     if (previousProbeKey.current !== probeKey) {
       previousProbeKey.current = probeKey;
       authControllers.get(auth)?.abort();
-      // Clear the old profile's status and failure, while retaining the busy state until
-      // its process stops. Additional mounts keep the cached status during refresh.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/379
       updateAuthSnapshot(auth, { status: null, failed: false, url: null });
     } else if (getAuthSnapshot(auth).signingIn || getAuthSnapshot(auth).signingOut) {
       setChecking(false);
       return;
     }
-    // Cached sign-in may be stale when opening a fresh chat.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/532
     let active = true;
     setChecking(true);
     const generation = beginAuthProbe(auth);
@@ -156,8 +147,6 @@ export function useBackendAuthState(
 
   const runAuth = React.useCallback(
     (action: "signIn" | "signOut") => {
-      // Login and logout share one owned process so one cannot undo the other across surfaces.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/379
       if (
         !auth ||
         !auth[action] ||
@@ -180,8 +169,6 @@ export function useBackendAuthState(
         },
       })
         .then((s) => {
-          // Cancelled or replaced probes must not publish credentials for an old profile.
-          // https://github.com/Brevilabs/obsidian-copilot-private/issues/379
           if (controller.signal.aborted || authProbeGenerations.get(auth) !== generation) return;
           const succeeded = s.signedIn === signingIn;
           updateAuthSnapshot(auth, { status: s, failed: !succeeded });

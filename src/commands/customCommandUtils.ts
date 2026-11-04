@@ -1,11 +1,11 @@
 import { t } from "@/lib/i18n";
 import {
-  COPILOT_COMMAND_ENABLED,
-  COPILOT_COMMAND_CONTEXT_MENU_ENABLED,
-  COPILOT_COMMAND_CONTEXT_MENU_ORDER,
-  COPILOT_COMMAND_LAST_USED,
-  COPILOT_COMMAND_MODEL_KEY,
-  COPILOT_COMMAND_SLASH_ENABLED,
+  SCRIBE_COMMAND_ENABLED,
+  SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
+  SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
+  SCRIBE_COMMAND_LAST_USED,
+  SCRIBE_COMMAND_MODEL_KEY,
+  SCRIBE_COMMAND_SLASH_ENABLED,
   EMPTY_COMMAND,
   LEGACY_SELECTED_TEXT_PLACEHOLDER,
 } from "@/commands/constants";
@@ -13,7 +13,7 @@ import { CustomCommand } from "@/commands/type";
 import { logWarn } from "@/logger";
 import { App, Notice, TAbstractFile, TFile, Vault } from "obsidian";
 import { getSettings } from "@/settings/model";
-import { getEffectiveCustomPromptsFolder } from "@/settings/copilotFolder";
+import { getEffectiveCustomPromptsFolder } from "@/settings/scribeFolder";
 import {
   updateCachedCommands,
   getCachedCustomCommands,
@@ -94,7 +94,7 @@ export function isCustomCommandFile(file: TAbstractFile): boolean {
 
 export function hasOrderFrontmatter(app: App, file: TFile): boolean {
   const metadata = app.metadataCache.getFileCache(file);
-  return metadata?.frontmatter?.[COPILOT_COMMAND_CONTEXT_MENU_ORDER] != null;
+  return metadata?.frontmatter?.[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] != null;
 }
 
 export async function parseCustomCommandFile(app: App, file: TFile): Promise<CustomCommand> {
@@ -102,17 +102,16 @@ export async function parseCustomCommandFile(app: App, file: TFile): Promise<Cus
   const content = stripFrontmatter(rawContent);
   const metadata = app.metadataCache.getFileCache(file);
   const showInContextMenu =
-    metadata?.frontmatter?.[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] ??
-    EMPTY_COMMAND.showInContextMenu;
+    metadata?.frontmatter?.[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] ?? EMPTY_COMMAND.showInContextMenu;
   const showInSlashMenu =
-    metadata?.frontmatter?.[COPILOT_COMMAND_SLASH_ENABLED] ?? EMPTY_COMMAND.showInSlashMenu;
-  const lastUsedMs = metadata?.frontmatter?.[COPILOT_COMMAND_LAST_USED] ?? EMPTY_COMMAND.lastUsedMs;
-  const order = metadata?.frontmatter?.[COPILOT_COMMAND_CONTEXT_MENU_ORDER] ?? EMPTY_COMMAND.order;
-  const modelKey = metadata?.frontmatter?.[COPILOT_COMMAND_MODEL_KEY] ?? EMPTY_COMMAND.modelKey;
+    metadata?.frontmatter?.[SCRIBE_COMMAND_SLASH_ENABLED] ?? EMPTY_COMMAND.showInSlashMenu;
+  const lastUsedMs = metadata?.frontmatter?.[SCRIBE_COMMAND_LAST_USED] ?? EMPTY_COMMAND.lastUsedMs;
+  const order = metadata?.frontmatter?.[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] ?? EMPTY_COMMAND.order;
+  const modelKey = metadata?.frontmatter?.[SCRIBE_COMMAND_MODEL_KEY] ?? EMPTY_COMMAND.modelKey;
 
   return {
     title: file.basename,
-    enabled: metadata?.frontmatter?.[COPILOT_COMMAND_ENABLED] !== false,
+    enabled: metadata?.frontmatter?.[SCRIBE_COMMAND_ENABLED] !== false,
     modelKey,
     content,
     showInContextMenu,
@@ -215,7 +214,7 @@ export async function processCommandPrompt(
   );
 }
 
-const VARIABLE_REGEX = /\{(?!copilot-selection\}|\[\[)([^}]+)\}/g;
+const VARIABLE_REGEX = /\{(?!scribe-selection\}|\[\[)([^}]+)\}/g;
 
 interface VariableProcessingResult {
   content: string;
@@ -422,23 +421,23 @@ export async function ensureCommandFrontmatter(app: App, file: TFile, command: C
   try {
     addPendingFileWrite(file.path);
     await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-      if (frontmatter[COPILOT_COMMAND_ENABLED] == null) {
-        frontmatter[COPILOT_COMMAND_ENABLED] = command.enabled !== false;
+      if (frontmatter[SCRIBE_COMMAND_ENABLED] == null) {
+        frontmatter[SCRIBE_COMMAND_ENABLED] = command.enabled !== false;
       }
-      if (frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] == null) {
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
+      if (frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] == null) {
+        frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
       }
-      if (frontmatter[COPILOT_COMMAND_SLASH_ENABLED] == null) {
-        frontmatter[COPILOT_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
+      if (frontmatter[SCRIBE_COMMAND_SLASH_ENABLED] == null) {
+        frontmatter[SCRIBE_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
       }
-      if (frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] == null) {
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] = command.order;
+      if (frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] == null) {
+        frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] = command.order;
       }
-      if (frontmatter[COPILOT_COMMAND_MODEL_KEY] == null) {
-        frontmatter[COPILOT_COMMAND_MODEL_KEY] = command.modelKey;
+      if (frontmatter[SCRIBE_COMMAND_MODEL_KEY] == null) {
+        frontmatter[SCRIBE_COMMAND_MODEL_KEY] = command.modelKey;
       }
-      if (frontmatter[COPILOT_COMMAND_LAST_USED] == null) {
-        frontmatter[COPILOT_COMMAND_LAST_USED] = command.lastUsedMs;
+      if (frontmatter[SCRIBE_COMMAND_LAST_USED] == null) {
+        frontmatter[SCRIBE_COMMAND_LAST_USED] = command.lastUsedMs;
       }
     });
   } finally {

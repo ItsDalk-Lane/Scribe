@@ -70,10 +70,6 @@ function resolveChatIcon(
   return item.backendId ? backendRegistry[item.backendId]?.Icon : undefined;
 }
 
-// Upstream `getChatHistoryItems()` returns vault-scan order. Apply the saved
-// history ordering here so removing the duplicate history surface does not
-// silently discard a user's preference.
-// https://github.com/logancyang/obsidian-copilot/issues/3040
 function sortChats(items: ChatHistoryItem[], strategy: SortStrategy): ChatHistoryItem[] {
   return sortByStrategy(items, strategy, {
     getName: (item) => item.title,
@@ -86,8 +82,6 @@ function isPinned(item: ChatHistoryItem): boolean {
   return item.pinnedAt !== undefined;
 }
 
-// Pinned chats stay in pin order so a sort change never reshuffles them.
-// https://github.com/logancyang/obsidian-copilot/issues/3195
 function orderChats(items: ChatHistoryItem[], strategy: SortStrategy): ChatHistoryItem[] {
   const pinned = items.filter(isPinned).sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
   return [
@@ -200,8 +194,7 @@ function RecentChatMenu({
           <MoreHorizontal className="tw-size-4" />
         </RowActionButton>
       </DropdownMenuTrigger>
-      {/* The menu renders in the row's own window, and React events bubble out of the portal to the row, which would open the chat.
-          https://github.com/Brevilabs/obsidian-copilot-private/issues/693 */}
+
       <DropdownMenuContent
         align="end"
         container={rowBody}
@@ -315,8 +308,6 @@ const RecentChatRow = memo(function RecentChatRow({
         }
       }}
     >
-      {/* Session ownership and active response are independent indicators.
-          https://github.com/Brevilabs/obsidian-copilot-private/issues/429 */}
       <ChatIconTile Icon={Icon} needsAttention={hasAttention} isSessionLive={isSessionOpen} />
       <RecentChatTitle title={item.title} />
 
@@ -341,8 +332,7 @@ const RecentChatRow = memo(function RecentChatRow({
             {formatCompactRelativeTime(item.lastAccessedAt.getTime())}
           </span>
         )}
-        {/* The open menu is anchored to More actions, so the strip stays shown after the pointer leaves the row.
-            https://github.com/Brevilabs/obsidian-copilot-private/issues/693 */}
+
         <div
           className={cn(
             "tw-shrink-0 tw-items-center tw-gap-1.5",

@@ -34,7 +34,7 @@ function stubContentDimensions(scrollHeightPx: number, clientHeightPx: number): 
 }
 
 describe("clamped-content", () => {
-  describe("ClampedContent()", () => {
+  describe("ClampedContent", () => {
     let restoreContentHeight: (() => void) | undefined;
 
     afterEach(() => {
@@ -42,7 +42,7 @@ describe("clamped-content", () => {
       restoreContentHeight = undefined;
     });
 
-    it("renders content that fits without any expand control (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", () => {
+    it("renders content that fits without any expand control", () => {
       restoreContentHeight = stubContentDimensions(60, 60);
 
       render(<ClampedContent collapsedClassName="tw-max-h-[5lh]">Short message</ClampedContent>);
@@ -52,7 +52,7 @@ describe("clamped-content", () => {
       expect(screen.getByTestId("clamped-content").getAttribute("style")).toBeNull();
     });
 
-    it("clips content taller than the caller's CSS cap without inline styles and offers Show more (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", () => {
+    it("clips content taller than the caller's CSS cap without inline styles and offers Show more", () => {
       restoreContentHeight = stubContentDimensions(1000, 100);
 
       render(
@@ -68,7 +68,7 @@ describe("clamped-content", () => {
       expect(screen.queryByText("Very long message")).not.toBeNull();
     });
 
-    it("removes the CSS cap when expanded and restores it when collapsed again (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", () => {
+    it("removes the CSS cap when expanded and restores it when collapsed again", () => {
       restoreContentHeight = stubContentDimensions(1000, 100);
 
       render(
@@ -89,7 +89,7 @@ describe("clamped-content", () => {
       expect(screen.queryByRole("button", { name: /show more/i })).not.toBeNull();
     });
 
-    it("points the toggle at the region it controls (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", () => {
+    it("points the toggle at the region it controls", () => {
       restoreContentHeight = stubContentDimensions(1000, 100);
 
       render(

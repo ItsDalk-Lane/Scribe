@@ -1,5 +1,5 @@
 import { setInterfaceLocale } from "@/lib/i18n";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import SettingsMainV2 from "@/settings/v2/SettingsMainV2";
 import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
@@ -30,10 +30,10 @@ const plugin = {
   app: {},
   manifest: { version: "1.2.3" },
   skills: { refresh: mockSkillManagerRefresh },
-} as unknown as CopilotPlugin;
+} as unknown as ScribePlugin;
 
 describe("SettingsMainV2", () => {
-  describe("SettingsMainV2()", () => {
+  describe("SettingsMainV2", () => {
     afterEach(() => setInterfaceLocale("en"));
 
     it("translates all settings tabs after the module has already loaded", () => {
@@ -82,7 +82,7 @@ describe("SettingsMainV2", () => {
       ]);
     });
 
-    it("marks the Skills tab while a skill failed to load for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", () => {
+    it("marks the Skills tab while a skill failed to load", () => {
       mockSkillLoadErrorCount = 1;
 
       render(<SettingsMainV2 plugin={plugin} />);
@@ -93,13 +93,13 @@ describe("SettingsMainV2", () => {
       expect(screen.getByTitle("Some skills failed to load")).not.toBeNull();
     });
 
-    it("refreshes hidden Agent repairs when Settings reopens for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("refreshes hidden Agent repairs when Settings reopens", async () => {
       render(<SettingsMainV2 plugin={plugin} />);
 
       await waitFor(() => expect(mockSkillManagerRefresh).toHaveBeenCalledTimes(1));
     });
 
-    it("opens on a requested tab (https://github.com/Brevilabs/obsidian-copilot-private/issues/280)", () => {
+    it("opens on a requested tab", () => {
       render(<SettingsMainV2 plugin={plugin} initialTab="quickActions" />);
 
       expect(screen.getByRole("tab", { name: "Quick actions" }).getAttribute("aria-selected")).toBe(

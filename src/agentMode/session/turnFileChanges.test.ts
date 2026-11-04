@@ -163,8 +163,8 @@ function patchFor(path: string, turnDiff = CODEX_TURN_DIFF, vaultBase = "/repo/v
 }
 
 describe("turnFileChanges", () => {
-  describe("filePatchesByVaultPath()", () => {
-    it("keys each file's patch by its vault path when the diff root is a repository above the vault https://github.com/Brevilabs/obsidian-copilot-private/issues/347", () => {
+  describe("filePatchesByVaultPath", () => {
+    it("keys each file's patch by its vault path when the diff root is a repository above the vault", () => {
       const patches = filePatchesByVaultPath(CODEX_TURN_DIFF, "/repo/vault");
 
       expect([...patches.keys()].sort()).toEqual([
@@ -209,7 +209,7 @@ describe("turnFileChanges", () => {
       ]);
     });
 
-    it("leaves a renamed file out so both of its paths fall back to their own snapshots https://github.com/Brevilabs/obsidian-copilot-private/issues/347", () => {
+    it("leaves a renamed file out so both of its paths fall back to their own snapshots", () => {
       const patches = filePatchesByVaultPath(
         {
           root: "/repo",
@@ -233,7 +233,7 @@ describe("turnFileChanges", () => {
     });
   });
 
-  describe("revertFilePatch()", () => {
+  describe("revertFilePatch", () => {
     it("recovers a multi-hunk edit's original bytes, including an insertion-only hunk and a missing final newline", () => {
       expect(revertFilePatch(patchFor("notes/plan.md"), PLAN_AFTER)).toBe(PLAN_BEFORE);
     });
@@ -262,7 +262,7 @@ describe("turnFileChanges", () => {
       ).toBe("first\nsecond\nlast line\n");
     });
 
-    it("keeps a later shell change outside the patched lines in the recovered text, so the entry shows only apply_patch's change https://github.com/Brevilabs/obsidian-copilot-private/issues/689", () => {
+    it("keeps a later shell change outside the patched lines in the recovered text, so the entry shows only apply_patch's change", () => {
       expect(
         revertFilePatch(
           patchFor("mix.md", PATCH_THEN_SHELL_TURN_DIFF, "/vault"),
@@ -279,19 +279,19 @@ describe("turnFileChanges", () => {
       expect(revertFilePatch(patchFor("notes/obsolete.md"), null)).toBe("This note is obsolete.\n");
     });
 
-    it("returns undefined when the file changed after the patch so it no longer applies https://github.com/Brevilabs/obsidian-copilot-private/issues/347", () => {
+    it("returns undefined when the file changed after the patch so it no longer applies", () => {
       expect(
         revertFilePatch(patchFor("notes/plan.md"), "# Project Plan\n\nRewritten by the user.\n")
       ).toBeUndefined();
     });
 
-    it("returns undefined for an edited file that is now missing or a deleted file that is back https://github.com/Brevilabs/obsidian-copilot-private/issues/347", () => {
+    it("returns undefined for an edited file that is now missing or a deleted file that is back", () => {
       expect(revertFilePatch(patchFor("notes/plan.md"), null)).toBeUndefined();
       expect(revertFilePatch(patchFor("notes/obsolete.md"), "recreated\n")).toBeUndefined();
     });
   });
 
-  describe("buildTurnFileChange()", () => {
+  describe("buildTurnFileChange", () => {
     it("counts the added and removed lines of an edited file", () => {
       expect(
         buildTurnFileChange("notes/a.md", "one\ntwo\nthree\n", "one\nTWO\nthree\nfour\n")
@@ -305,7 +305,7 @@ describe("turnFileChanges", () => {
       });
     });
 
-    it("reports a file that did not exist before the turn as created (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)", () => {
+    it("reports a file that did not exist before the turn as created", () => {
       const change = buildTurnFileChange("notes/new.md", null, "fresh\nnote\n");
       expect(change).toMatchObject({
         status: "created",
@@ -315,7 +315,7 @@ describe("turnFileChanges", () => {
       });
     });
 
-    it("reports a file the turn removed as deleted (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)", () => {
+    it("reports a file the turn removed as deleted", () => {
       const change = buildTurnFileChange("notes/gone.md", "one\ntwo\n", null);
       expect(change).toMatchObject({
         status: "deleted",
@@ -329,11 +329,11 @@ describe("turnFileChanges", () => {
       expect(buildTurnFileChange("notes/a.md", "same\n", "same\n")).toBeNull();
     });
 
-    it("returns null for a file that never existed on either side (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)", () => {
+    it("returns null for a file that never existed on either side", () => {
       expect(buildTurnFileChange("notes/ghost.md", null, null)).toBeNull();
     });
 
-    it("counts an emptied file's every line as removed (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)", () => {
+    it("counts an emptied file's every line as removed", () => {
       expect(buildTurnFileChange("notes/a.md", "one\ntwo\n", "")).toMatchObject({
         status: "modified",
         additions: 0,

@@ -30,7 +30,7 @@ export const TurnDiffHeader: React.FC<TurnDiffHeaderProps> = ({
   changes,
   onOpenNote,
 }) => (
-  <div className="copilot-divider-b tw-px-[var(--file-margins)] tw-py-2">
+  <div className="scribe-divider-b tw-px-[var(--file-margins)] tw-py-2">
     <div className="tw-mx-auto tw-flex tw-max-w-[var(--file-line-width)] tw-items-center tw-gap-2">
       <span title={path} className="tw-min-w-0 tw-flex-1 tw-truncate tw-text-sm tw-text-muted">
         {path}

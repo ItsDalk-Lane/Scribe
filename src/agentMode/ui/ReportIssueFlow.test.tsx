@@ -18,21 +18,21 @@ const included = (id: string, name: string, bytes = 2048): AttachmentResult => (
 
 const prepared: PreparedReport = {
   zipDir: "/tmp/reports",
-  zipPath: "/tmp/reports/copilot-report-20260615-101500-abcd.zip",
-  zipName: "copilot-report-20260615-101500-abcd.zip",
+  zipPath: "/tmp/reports/scribe-report-20260615-101500-abcd.zip",
+  zipName: "scribe-report-20260615-101500-abcd.zip",
   uploadAttempt: {
     body: new ArrayBuffer(4096),
     idempotencyKey: "5d41c9b2-7e3a-4f8b-9c1d-2a6e8f4b0d37",
   },
   issueDraft: { title: "it exploded", body: "## What went wrong" },
-  manualIssueUrl: "https://github.com/logancyang/obsidian-copilot/issues/new?title=manual",
+  manualIssueUrl: "https://github.com/ItsDalk-Lane/Scribe/issues/new?title=manual",
   attachments: [included("report", "report.md"), included("screenshot", "screenshot.png")],
 };
 
 const uploaded: UploadOutcome = {
   ok: true,
   reportId: "9f3c1a7b2e4d5f60819a2b3c4d5e6f70",
-  issueUrl: "https://github.com/logancyang/obsidian-copilot/issues/new?title=linked",
+  issueUrl: "https://github.com/ItsDalk-Lane/Scribe/issues/new?title=linked",
 };
 
 const failed: UploadOutcome = { ok: false, error: "Network request failed" };
@@ -94,7 +94,7 @@ async function reachFailedUpload(overrides: Partial<ReportIssueFlowProps> = {}) 
 }
 
 describe("ReportIssueFlow", () => {
-  describe("ReportIssueFlow()", () => {
+  describe("ReportIssueFlow", () => {
     describe("details page", () => {
       it("starts with the source defaults applied and the descriptions and consent copy visible", () => {
         renderFlow();
@@ -179,7 +179,7 @@ describe("ReportIssueFlow", () => {
         expect(props.upload).not.toHaveBeenCalled();
       });
 
-      it("discards a report that finishes preparing after the dialog closed (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("discards a report that finishes preparing after the dialog closed", async () => {
         const pending = deferred<PreparedReport>();
         const discardReport = jest.fn().mockResolvedValue(undefined);
         const { unmount } = renderFlow({ prepare: jest.fn(() => pending.promise), discardReport });
@@ -216,7 +216,7 @@ describe("ReportIssueFlow", () => {
             },
             {
               id: "chatLog",
-              name: "copilot-log.md",
+              name: "scribe-log.md",
               bytes: 0,
               included: false,
               note: "failed: EACCES",
@@ -227,7 +227,7 @@ describe("ReportIssueFlow", () => {
         submit();
 
         await waitFor(() => expect(screen.getByText("acp-frames.ndjson.txt")).toBeTruthy());
-        expect(screen.getByText("copilot-log.md")).toBeTruthy();
+        expect(screen.getByText("scribe-log.md")).toBeTruthy();
         expect(screen.getByText("failed: EACCES")).toBeTruthy();
         expect(screen.getByText("truncated to the newest entries of 40 MB")).toBeTruthy();
         expect(screen.getAllByText("2.0 KB").length).toBe(2);
@@ -256,7 +256,7 @@ describe("ReportIssueFlow", () => {
         expect(props.upload).not.toHaveBeenCalled();
       });
 
-      it("uploads on click and hands the result to the host once, with no page of its own (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("uploads on click and hands the result to the host once, with no page of its own", async () => {
         const { props } = renderFlow();
         submit();
         await awaitPrepared();
@@ -290,7 +290,7 @@ describe("ReportIssueFlow", () => {
         await act(async () => pending.resolve(uploaded));
       });
 
-      it("ignores an upload result that arrives after the dialog closed (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("ignores an upload result that arrives after the dialog closed", async () => {
         const pending = deferred<UploadOutcome>();
         const { props, unmount } = renderFlow({ upload: jest.fn(() => pending.promise) });
         submit();
@@ -307,7 +307,7 @@ describe("ReportIssueFlow", () => {
     });
 
     describe("upload failure", () => {
-      it("offers Retry, Show zip and Open issue anyway for every failure, and keeps the zip (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+      it("offers Retry, Show zip and Open issue anyway for every failure, and keeps the zip", async () => {
         const { props } = await reachFailedUpload();
 
         expect(screen.getByText(/Network request failed/)).toBeTruthy();

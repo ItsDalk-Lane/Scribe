@@ -219,8 +219,6 @@ function rowCheckbox(id: string): HTMLElement {
   return within(row).getByRole("checkbox");
 }
 
-const ISSUE = "https://github.com/logancyang/obsidian-copilot/issues/3147";
-
 function baseUrlInput(): HTMLInputElement {
   return screen.getByText("Base URL").parentElement!.querySelector("input")!;
 }
@@ -234,7 +232,7 @@ function chatTestButton(): HTMLButtonElement {
 }
 
 describe("ConfigureProviderDialog", () => {
-  describe("ConfigureProviderForm()", () => {
+  describe("ConfigureProviderForm", () => {
     it.each([
       ["Anthropic", anthropicSource],
       ["OpenAI", openaiSource],
@@ -255,7 +253,7 @@ describe("ConfigureProviderDialog", () => {
       }
     );
 
-    it(`saves a hand-entered model without depending on a directory or chat check (${ISSUE})`, async () => {
+    it(`saves a hand-entered model without depending on a directory or chat check`, async () => {
       const onSaved = jest.fn();
       render(
         <ConfigureProviderForm
@@ -279,7 +277,7 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`offers catalog model metadata when listing is forbidden and still allows saving a selection (${ISSUE})`, async () => {
+    it(`offers catalog model metadata when listing is forbidden and still allows saving a selection`, async () => {
       mockGetProvider.mockReturnValue(anthropicCatalogMetadata);
       mockListProviderModels.mockResolvedValue({
         ok: false,
@@ -305,7 +303,7 @@ describe("ConfigureProviderDialog", () => {
       expect(mockChatConnection).not.toHaveBeenCalled();
     });
 
-    it(`fetches a typed custom URL with current inputs without calling the old credential verifier (${ISSUE})`, async () => {
+    it(`fetches a typed custom URL with current inputs without calling the old credential verifier`, async () => {
       mockListProviderModels.mockResolvedValue({ ok: true, modelIds: ["served-model"] });
       render(
         <ConfigureProviderForm
@@ -325,7 +323,7 @@ describe("ConfigureProviderDialog", () => {
       expect(screen.queryByText("Chat connection verified")).toBeNull();
     });
 
-    it(`sends one explicit chat test with the selected model and current unsaved configuration (${ISSUE})`, async () => {
+    it(`sends one explicit chat test with the selected model and current unsaved configuration`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "new", source: CUSTOM_OPENAI_DEFINITION }}
@@ -351,7 +349,7 @@ describe("ConfigureProviderDialog", () => {
       expect(mockSetupProvider).not.toHaveBeenCalled();
     });
 
-    it(`limits the test-model selector to checked chat-capable models (${ISSUE})`, async () => {
+    it(`limits the test-model selector to checked chat-capable models`, async () => {
       mockGetProvider.mockReturnValue(anthropicCatalogMetadata);
       render(
         <ConfigureProviderForm
@@ -382,7 +380,7 @@ describe("ConfigureProviderDialog", () => {
     });
 
     it.each([true, false])(
-      `discards an old chat result after the key changes instead of changing the new input's status: %s (${ISSUE})`,
+      `discards an old chat result after the key changes instead of changing the new input's status: %s`,
       async (ok) => {
         let finish!: (value: VerificationResult) => void;
         const pending = new Promise<VerificationResult>((resolve) => {
@@ -413,7 +411,7 @@ describe("ConfigureProviderDialog", () => {
       }
     );
 
-    it(`does not end a newer chat test when an obsolete request finishes (${ISSUE})`, async () => {
+    it(`does not end a newer chat test when an obsolete request finishes`, async () => {
       let finishOld!: (value: VerificationResult) => void;
       let finishNew!: (value: VerificationResult) => void;
       const oldRequest = new Promise<VerificationResult>((resolve) => {
@@ -448,7 +446,7 @@ describe("ConfigureProviderDialog", () => {
       expect(screen.getByText("Chat connection verified")).toBeTruthy();
     });
 
-    it(`allows a fresh chat check after late catalog metadata replaces the pending snapshot (${ISSUE})`, async () => {
+    it(`allows a fresh chat check after late catalog metadata replaces the pending snapshot`, async () => {
       let finishOld!: (value: VerificationResult) => void;
       const oldRequest = new Promise<VerificationResult>((resolve) => {
         finishOld = resolve;
@@ -477,7 +475,7 @@ describe("ConfigureProviderDialog", () => {
       expect(screen.queryByText("Old snapshot failure")).toBeNull();
     });
 
-    it(`lets Cohere choose its native API explicitly while retaining the address and clearing the previous chat result (${ISSUE})`, async () => {
+    it(`lets Cohere choose its native API explicitly while retaining the address and clearing the previous chat result`, async () => {
       render(
         <ConfigureProviderForm
           state={{
@@ -531,7 +529,7 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`requires an explicit native Cohere address instead of reusing the compatibility default (${ISSUE})`, async () => {
+    it(`requires an explicit native Cohere address instead of reusing the compatibility default`, async () => {
       render(
         <ConfigureProviderForm
           state={{
@@ -565,7 +563,7 @@ describe("ConfigureProviderDialog", () => {
       });
     });
 
-    it(`does not offer a native API switch for a provider without a native implementation (${ISSUE})`, async () => {
+    it(`does not offer a native API switch for a provider without a native implementation`, async () => {
       render(
         <ConfigureProviderForm
           state={{
@@ -593,7 +591,7 @@ describe("ConfigureProviderDialog", () => {
       { mode: "new", source: anthropicSource },
       { mode: "edit", providerId: "p1" },
     ] as const)(
-      `keeps the title and save controls outside the scrolling fields for $mode mode with forty models (${ISSUE})`,
+      `keeps the title and save controls outside the scrolling fields for $mode mode with forty models`,
       async (state) => {
         const models = Object.fromEntries(
           Array.from({ length: 40 }, (_, index) => {
@@ -622,7 +620,7 @@ describe("ConfigureProviderDialog", () => {
       }
     );
 
-    it(`requires the running QVAC server address before saving or testing without inventing a default (${ISSUE})`, async () => {
+    it(`requires the running QVAC server address before saving or testing without inventing a default`, async () => {
       render(
         <ConfigureProviderForm
           state={{
@@ -661,7 +659,7 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`allows SAP configuration without a separate base URL because its service key carries the address (${ISSUE})`, async () => {
+    it(`allows SAP configuration without a separate base URL because its service key carries the address`, async () => {
       render(
         <ConfigureProviderForm
           state={{
@@ -700,7 +698,7 @@ describe("ConfigureProviderDialog", () => {
       ["sap-ai-core", "@jerome-benoit/sap-ai-provider-v2"],
       ["gitlab", "gitlab-ai-provider"],
     ])(
-      `allows saving and explicitly testing %s on mobile with the current credential (${ISSUE})`,
+      `allows saving and explicitly testing %s on mobile with the current credential`,
       async (id, npm) => {
         jest.replaceProperty(Platform, "isDesktopApp", false);
         jest.replaceProperty(Platform, "isMobile", true);
@@ -758,7 +756,7 @@ describe("ConfigureProviderDialog", () => {
         "A normal Tinfoil HTTPS connection does not verify the secure enclave. For verified privacy, run the official Tinfoil proxy and use its local base URL, usually http://127.0.0.1:3301/v1.",
       ],
     ])(
-      `explains %s privacy prerequisites without removing the provider (${ISSUE})`,
+      `explains %s privacy prerequisites without removing the provider`,
       async (id, instruction) => {
         render(
           <ConfigureProviderForm
@@ -833,7 +831,7 @@ describe("ConfigureProviderDialog", () => {
         },
       },
     ])(
-      `uses the same saved template and resolved chat route for $id when testing and saving (${ISSUE})`,
+      `uses the same saved template and resolved chat route for $id when testing and saving`,
       async ({ id, npm, template, fields, model, expected }) => {
         mockGetProvider.mockReturnValue({
           id,
@@ -881,7 +879,7 @@ describe("ConfigureProviderDialog", () => {
       }
     );
 
-    it(`renders profile parameters and retains the original template in test and save snapshots (${ISSUE})`, async () => {
+    it(`renders profile parameters and retains the original template in test and save snapshots`, async () => {
       const template =
         "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1";
       const source: ProviderDefinition = {
@@ -924,7 +922,7 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`prefills the stored key and preserves custom endpoint, unknown extras and an explicit transport choice (${ISSUE})`, async () => {
+    it(`prefills the stored key and preserves custom endpoint, unknown extras and an explicit transport choice`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "edit", providerId: "p-custom" }}
@@ -950,7 +948,7 @@ describe("ConfigureProviderDialog", () => {
       expect(mockVerifyCredentials).not.toHaveBeenCalled();
     });
 
-    it(`uses the latest catalog metadata for legacy saves without replacing a custom endpoint (${ISSUE})`, async () => {
+    it(`uses the latest catalog metadata for legacy saves without replacing a custom endpoint`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "edit", providerId: "p-catalog-proxy" }}
@@ -978,7 +976,7 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`keeps service-account JSON only in the credential and supplies profile defaults as public parameters (${ISSUE})`, async () => {
+    it(`keeps service-account JSON only in the credential and supplies profile defaults as public parameters`, async () => {
       const source: ProviderDefinition = {
         id: "google-vertex",
         displayName: "Vertex",
@@ -1018,7 +1016,7 @@ describe("ConfigureProviderDialog", () => {
       ).not.toContain("fixture-private-key");
     });
 
-    it(`clears an optional stored credential rather than re-reading it while discovering or saving (${ISSUE})`, async () => {
+    it(`clears an optional stored credential rather than re-reading it while discovering or saving`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "edit", providerId: "p-custom" }}
@@ -1040,7 +1038,7 @@ describe("ConfigureProviderDialog", () => {
       expect(mockGetApiKey).toHaveBeenCalledTimes(1);
     });
 
-    it(`disables all connection inputs while their save is pending (${ISSUE})`, async () => {
+    it(`disables all connection inputs while their save is pending`, async () => {
       let finish!: () => void;
       const pending = new Promise<void>((resolve) => {
         finish = resolve;
@@ -1064,7 +1062,7 @@ describe("ConfigureProviderDialog", () => {
       });
     });
 
-    it(`removes backend references for deselected saved models and enrolls only new chat models (${ISSUE})`, async () => {
+    it(`removes backend references for deselected saved models and enrolls only new chat models`, async () => {
       mockGetProvider.mockReturnValue(anthropicCatalogMetadata);
       render(
         <ConfigureProviderForm state={{ mode: "edit", providerId: "p1" }} onClose={jest.fn()} />

@@ -22,7 +22,7 @@ const CROSS: Record<BackendId, BackendId[]> = {
 const deny = (skills: Skill[], b: BackendId) => composeDenyList(skills, b, CROSS[b]);
 
 describe("denyListComposer", () => {
-  describe("composeDenyList()", () => {
+  describe("composeDenyList", () => {
     it("denies in OpenCode a skill enabled only for Claude", () => {
       expect(deny([skill("claude-only", ["claude"])], "opencode")).toEqual(["claude-only"]);
     });
@@ -46,13 +46,13 @@ describe("denyListComposer", () => {
       expect(deny(all, "codex")).toEqual([]);
     });
 
-    it("denies a disabled built-in despite its empty agent list https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
+    it("denies a disabled built-in despite its empty agent list", () => {
       const disabled = { ...skill("disabled", []), builtin: true };
       expect(deny([disabled], "opencode")).toEqual(["disabled"]);
       expect(deny([disabled], "claude")).toEqual([]);
     });
 
-    it("keeps a built-in usable for its enabled backend https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
+    it("keeps a built-in usable for its enabled backend", () => {
       const enabled = { ...skill("enabled", ["opencode"]), builtin: true };
       expect(deny([enabled], "opencode")).toEqual([]);
     });

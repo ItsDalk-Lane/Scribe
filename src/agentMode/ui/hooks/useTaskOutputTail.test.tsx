@@ -7,7 +7,6 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 
-const ISSUE_749 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/749";
 const PATH = "/tmp/tasks/b1.output";
 
 function countingReader(file: { text: string }) {
@@ -30,10 +29,10 @@ function countingReader(file: { text: string }) {
 }
 
 describe("useTaskOutputTail", () => {
-  describe("useTaskOutputTail()", () => {
+  describe("useTaskOutputTail", () => {
     afterEach(() => jest.useRealTimers());
 
-    it(`re-reads a live command's output file while shown and stops when unmounted (${ISSUE_749})`, async () => {
+    it(`re-reads a live command's output file while shown and stops when unmounted`, async () => {
       jest.useFakeTimers();
       const file = { text: "line 1\n" };
       const { calls, wrapper } = countingReader(file);
@@ -53,7 +52,7 @@ describe("useTaskOutputTail", () => {
       expect(calls.size).toBe(readsAtUnmount);
     });
 
-    it(`skips its re-reads while the view showing the output is hidden (${ISSUE_749})`, async () => {
+    it(`skips its re-reads while the view showing the output is hidden`, async () => {
       jest.useFakeTimers();
       const file = { text: "line 1\n" };
       const { calls, wrapper } = countingReader(file);

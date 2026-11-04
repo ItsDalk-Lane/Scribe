@@ -1,6 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import type { Editor } from "obsidian";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import type { ReplaceGuard } from "@/editor/replaceGuard";
 import type { ResizeDirection } from "@/hooks/use-resizable";
 
@@ -12,7 +12,7 @@ export interface QuickAskMessage {
 }
 
 export interface QuickAskPanelProps {
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   editor: Editor;
   view: EditorView;
   selectedText: string;
@@ -31,7 +31,7 @@ export interface QuickAskWidgetPayload {
   topAnchorPos?: number | null;
   focusAnchorPos?: number | null;
   options: {
-    plugin: CopilotPlugin;
+    plugin: ScribePlugin;
     editor: Editor;
     view: EditorView;
     selectedText: string;

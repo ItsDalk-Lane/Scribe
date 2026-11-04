@@ -160,8 +160,7 @@ const LexicalEditor: React.FC<LexicalEditorProps> = ({
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
-          {/* Selection-only changes must not push stale text over an external clear.
-                https://github.com/logancyang/obsidian-copilot-preview/issues/211 */}
+
           <OnChangePlugin onChange={handleEditorChange} ignoreSelectionChange />
           <HistoryPlugin />
           <KeyboardPlugin

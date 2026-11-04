@@ -2,7 +2,7 @@ import { useObjectUrl } from "@/hooks/useObjectUrl";
 import { renderHook } from "@testing-library/react";
 
 describe("useObjectUrl", () => {
-  describe("useObjectUrl()", () => {
+  describe("useObjectUrl", () => {
     const { createObjectURL, revokeObjectURL } = URL;
     let created: string[];
 
@@ -21,7 +21,7 @@ describe("useObjectUrl", () => {
       URL.revokeObjectURL = revokeObjectURL;
     });
 
-    it("keeps one URL for a blob across re-renders so typing does not re-decode attached images https://github.com/Brevilabs/obsidian-copilot-private/issues/666", () => {
+    it("keeps one URL for a blob across re-renders so typing does not re-decode attached images", () => {
       const photo = new File(["photo"], "photo.jpg", { type: "image/jpeg" });
       const { result, rerender } = renderHook(({ blob }) => useObjectUrl(blob), {
         initialProps: { blob: photo },
@@ -34,7 +34,7 @@ describe("useObjectUrl", () => {
       expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     });
 
-    it("revokes the previous URL when the blob changes and the last URL on unmount https://github.com/Brevilabs/obsidian-copilot-private/issues/666", () => {
+    it("revokes the previous URL when the blob changes and the last URL on unmount", () => {
       const first = new File(["first"], "first.png", { type: "image/png" });
       const second = new File(["second"], "second.png", { type: "image/png" });
       const { result, rerender, unmount } = renderHook(({ blob }) => useObjectUrl(blob), {

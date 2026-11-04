@@ -10,7 +10,7 @@ import {
 import { mockTFile } from "@/__tests__/mockObsidian";
 
 jest.mock("@/settings/model", () => ({
-  getSettings: jest.fn(() => ({ copilotFolder: "vault-copilot" })),
+  getSettings: jest.fn(() => ({ scribeFolder: "vault-scribe" })),
   updateSetting: jest.fn(),
 }));
 
@@ -23,10 +23,6 @@ jest.mock("@/logger", () => ({
 jest.mock("@/utils", () => ({
   ...jest.requireActual<typeof import("@/utils")>("@/utils"),
   ensureFolderExists: jest.fn(async () => {}),
-}));
-
-jest.mock("@/projects/projectMigration", () => ({
-  ensureProjectsMigratedIfNeeded: jest.fn(async () => {}),
 }));
 
 function makeConfig(
@@ -44,7 +40,7 @@ function makeConfig(
 function seedProject(config: ProjectConfig, folderName: string): void {
   upsertCachedProjectRecord({
     project: config,
-    filePath: `vault-copilot/projects/${folderName}/project.md`,
+    filePath: `vault-scribe/projects/${folderName}/project.md`,
     folderName,
   });
 }
@@ -97,7 +93,7 @@ describe("ProjectFileManager", () => {
         makeConfig({ id: "p1", name: "My Project", systemPrompt: "Cite every source." })
       );
 
-      const filePath = "vault-copilot/projects/My Project/project.md";
+      const filePath = "vault-scribe/projects/My Project/project.md";
       expect(vault.create).toHaveBeenCalledWith(filePath, "Cite every source.");
       expect(frontmatter).toMatchObject({
         "scribe-project-id": "p1",
@@ -156,7 +152,7 @@ describe("ProjectFileManager", () => {
     });
 
     it("refuses to overwrite a project.md that already exists on disk", async () => {
-      const filePath = "vault-copilot/projects/My Project/project.md";
+      const filePath = "vault-scribe/projects/My Project/project.md";
       const { app, vault } = makeTestVault({ existingPaths: [filePath] });
       const manager = ProjectFileManager.getInstance(app);
 

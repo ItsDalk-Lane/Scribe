@@ -29,7 +29,7 @@ function configuredModel(overrides: Partial<ConfiguredModel> = {}): ConfiguredMo
 }
 
 describe("configuredModelToCustomModel", () => {
-  describe("mapProviderTypeToChatModelProvider()", () => {
+  describe("mapProviderTypeToChatModelProvider", () => {
     it("maps anthropic and google provider types to their dedicated chat providers", () => {
       expect(mapProviderTypeToChatModelProvider(provider({ providerType: "anthropic" }))).toBe(
         ChatModelProviders.ANTHROPIC
@@ -84,7 +84,7 @@ describe("configuredModelToCustomModel", () => {
     });
   });
 
-  describe("configuredModelToCustomModel()", () => {
+  describe("configuredModelToCustomModel", () => {
     it("uses the wire id as the model name and the stored display name", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),
@@ -101,7 +101,7 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.configuredModelId).toBe("cm1");
     });
 
-    it("carries the catalog context limit as the runtime context window and stays unset when the catalog has none (https://github.com/ItsDalk-Lane/Scribe/issues/15)", () => {
+    it("carries the catalog context limit as the runtime context window and stays unset when the catalog has none", () => {
       const known = configuredModelToCustomModel({
         provider: provider(),
         configuredModel: configuredModel({
@@ -120,7 +120,7 @@ describe("configuredModelToCustomModel", () => {
       expect(unknown.numCtx).toBeUndefined();
     });
 
-    it("caps an Anthropic model's published ceiling rather than passing it through (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", () => {
+    it("caps an Anthropic model's published ceiling rather than passing it through", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),
         configuredModel: configuredModel({
@@ -136,7 +136,7 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.maxTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
     });
 
-    it("sends no output limit to a provider that accepts a request without one (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", () => {
+    it("sends no output limit to a provider that accepts a request without one", () => {
       const openAiCompatible = configuredModelToCustomModel({
         provider: provider({ origin: { kind: "byok", catalogProviderId: "openai" } }),
         configuredModel: configuredModel({
@@ -166,7 +166,7 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.baseUrl).toBe("https://api.example.com/v1");
     });
 
-    it("preserves the provider's explicit Quick tools CORS choice (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", () => {
+    it("preserves the provider's explicit Quick tools CORS choice", () => {
       const corsEnabled = configuredModelToCustomModel({
         provider: provider({ baseUrl: "https://work.example.com/v1", enableCors: true }),
         configuredModel: configuredModel(),
@@ -185,7 +185,7 @@ describe("configuredModelToCustomModel", () => {
       expect(streaming.enableCors).toBe(false);
     });
 
-    it("carries the runtime auth contract without synthesizing a key (https://github.com/logancyang/obsidian-copilot/issues/2895)", () => {
+    it("carries the runtime auth contract without synthesizing a key", () => {
       const keyless = configuredModelToCustomModel({
         provider: provider({ requiresApiKey: false, baseUrl: "http://localhost:11434/v1" }),
         configuredModel: configuredModel(),

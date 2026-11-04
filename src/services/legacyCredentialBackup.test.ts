@@ -4,7 +4,7 @@ import {
   LEGACY_BACKUP_PREFIX,
 } from "@/services/legacyCredentialBackup";
 
-const PLUGIN_DIR = "vault-config/plugins/copilot";
+const PLUGIN_DIR = "vault-config/plugins/scribe";
 
 function backupPathFor(rawData: unknown): string {
   return `${PLUGIN_DIR}/${legacyBackupFilename(JSON.stringify(rawData, null, 2))}`;

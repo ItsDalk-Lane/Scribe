@@ -16,7 +16,7 @@ export function translateCommandToAgentText(
   activeNote: TFile | null
 ): string {
   const selectionReplacement = selectedText || (activeNote ? fileToWikilink(activeNote) : "");
-  let text = body.split("{copilot-selection}").join(selectionReplacement);
+  let text = body.split("{scribe-selection}").join(selectionReplacement);
   text = text.split("{}").join(selectionReplacement);
 
   text = resolveActiveNoteToken(text, activeNote);

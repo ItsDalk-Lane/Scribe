@@ -106,7 +106,7 @@ function mkFs(initial: Record<string, Node> = {}): TestFs {
 }
 
 const VAULT = "/vault";
-const CANONICAL = "/vault/copilot/skills";
+const CANONICAL = "/vault/scribe/skills";
 const AGENT_DIRS_ABS = {
   claude: `${VAULT}/.claude/skills`,
   codex: `${VAULT}/.agents/skills`,

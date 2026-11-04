@@ -1,5 +1,5 @@
 import { logError, logInfo, logWarn } from "@/logger";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { getSettings } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { App, FileSystemAdapter, Platform } from "obsidian";
@@ -34,7 +34,7 @@ export class AgentModelPreloader {
 
   constructor(
     private readonly app: App,
-    private readonly plugin: CopilotPlugin,
+    private readonly plugin: ScribePlugin,
     private readonly resolveDescriptor: (id: BackendId) => BackendDescriptor | undefined,
     private readonly beforeBackendStart?: (id: BackendId) => Promise<void>
   ) {}
@@ -220,8 +220,6 @@ export class AgentModelPreloader {
     this.probing.set(backendId, proc);
 
     try {
-      // An agent can revise its model list after the probe session opens, so the cache follows it.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/625
       let catalog: BackendModelCatalog | null = null;
       let updatedState: BackendState | null = null;
       let effortProbedModelIds: ReadonlySet<string> = new Set();
@@ -286,8 +284,6 @@ export class AgentModelPreloader {
 
       await prefetchEfforts(probe.sessionId, updatedState ?? probe.state);
 
-      // Prefetch awaits RPCs before the exit listener is installed; never cache a
-      // dead process or retain one after shutdown. https://github.com/Brevilabs/obsidian-copilot-private/issues/550
       if (
         this.disposed ||
         this.probeGenerations.get(backendId) !== generation ||

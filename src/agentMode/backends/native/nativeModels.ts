@@ -11,7 +11,7 @@ import {
   type ConfiguredModel,
 } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
-import { getSettings, type CopilotSettings } from "@/settings/model";
+import { getSettings, type ScribeSettings } from "@/settings/model";
 import { t } from "@/lib/i18n";
 
 const EMPTY_MODELS: ConfiguredModel[] = Object.freeze([]) as unknown as ConfiguredModel[];
@@ -35,7 +35,7 @@ const THINKING_LEVELS: readonly string[] = [
 const EMPTY_MODEL_IDS: readonly string[] = Object.freeze([]);
 
 function configuredModels(
-  settings: CopilotSettings,
+  settings: ScribeSettings,
   enabledIds: readonly string[] = settings.backends.native?.enabledModels ??
     settings.backends.chat?.enabledModels ??
     EMPTY_MODEL_IDS
@@ -52,7 +52,7 @@ function configuredModels(
   return models.length ? models : EMPTY_MODELS;
 }
 
-export function getNativeDefaultModelId(settings: CopilotSettings): string | undefined {
+export function getNativeDefaultModelId(settings: ScribeSettings): string | undefined {
   const explicit = settings.agentMode.backends.native?.defaultModel?.baseModelId;
   if (explicit) return explicit;
   const models = configuredModels(
@@ -76,7 +76,7 @@ export function getNativeDefaultModelId(settings: CopilotSettings): string | und
   );
 }
 
-export function getNativeModelEntries(settings: CopilotSettings): ModelEntry[] {
+export function getNativeModelEntries(settings: ScribeSettings): ModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_MODEL_ENTRIES;
   return models.map((model) => {
@@ -98,7 +98,7 @@ export function getNativeModelEntries(settings: CopilotSettings): ModelEntry[] {
   });
 }
 
-export function getNativeEnabledModelEntries(settings: CopilotSettings): EnabledModelEntry[] {
+export function getNativeEnabledModelEntries(settings: ScribeSettings): EnabledModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_ENABLED_ENTRIES;
   const preferred = getNativeDefaultModelId(settings);

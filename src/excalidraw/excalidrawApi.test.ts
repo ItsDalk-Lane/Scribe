@@ -2,9 +2,6 @@ import { FileSystemAdapter, TFile, type App } from "obsidian";
 import { __resetVaultBaseCache } from "@/utils/vaultPath";
 import { activeDrawingSelection, getExcalidrawApi } from "./excalidrawApi";
 
-const ISSUE_787 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/787";
-const ISSUE_792 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/792";
-const ISSUE_794 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/794";
 const FLOW = "Drawings/Flow.excalidraw.md";
 const ELEMENTS = [{ id: "box1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }];
 
@@ -86,7 +83,7 @@ function appWith(
 }
 
 describe("excalidrawApi", () => {
-  describe("activeDrawingSelection()", () => {
+  describe("activeDrawingSelection", () => {
     const drawingView = {
       file: Object.assign(new TFile(), { path: FLOW, basename: "Flow.excalidraw" }),
       getViewType: () => "excalidraw",
@@ -97,7 +94,7 @@ describe("excalidrawApi", () => {
         workspace: { getActiveViewOfType: () => view },
       }) as unknown as App;
 
-    it(`${ISSUE_794} outlines the active drawing's selected shapes and labels by id when read, then releases the API`, () => {
+    it(` outlines the active drawing's selected shapes and labels by id when read, then releases the API`, () => {
       const { ea, fresh } = fakeEa();
       const read = activeDrawingSelection(appShowing(ea, drawingView))!;
       Object.assign(fresh, {
@@ -142,7 +139,7 @@ describe("excalidrawApi", () => {
       expect(fresh.destroy).toHaveBeenCalled();
     });
 
-    it(`${ISSUE_794} reports nothing selected in the drawing when no shape is selected`, () => {
+    it(` reports nothing selected in the drawing when no shape is selected`, () => {
       const { ea, fresh } = fakeEa();
       Object.assign(fresh, { getViewSelectedElements: jest.fn().mockReturnValue([]) });
 
@@ -152,7 +149,7 @@ describe("excalidrawApi", () => {
       });
     });
 
-    it(`${ISSUE_794} has no source when the active view is not a drawing or the Excalidraw plugin is not loaded`, () => {
+    it(` has no source when the active view is not a drawing or the Excalidraw plugin is not loaded`, () => {
       const { ea } = fakeEa();
       const noteView = { file: new TFile(), getViewType: () => "markdown" };
 
@@ -162,10 +159,10 @@ describe("excalidrawApi", () => {
     });
   });
 
-  describe("getExcalidrawApi()", () => {
+  describe("getExcalidrawApi", () => {
     beforeEach(() => __resetVaultBaseCache());
 
-    it(`${ISSUE_787} is unavailable when the Excalidraw plugin is not loaded or predates executeCLI in 2.29`, () => {
+    it(` is unavailable when the Excalidraw plugin is not loaded or predates executeCLI in 2.29`, () => {
       expect(getExcalidrawApi(appWith(null))).toBeNull();
       expect(getExcalidrawApi(appWith({ getSceneFromFile: jest.fn() }))).toBeNull();
       expect(getExcalidrawApi(appWith(fakeEa().ea))).not.toBeNull();
@@ -208,7 +205,7 @@ describe("excalidrawApi", () => {
       expect(ea.executeCLI).toHaveBeenCalledWith({ apiVersion: 1, command: "open", path: FLOW });
     });
 
-    it(`${ISSUE_787} connects two shapes on the open drawing with a dashed, coloured arrow whose label is bound both ways, and saves`, async () => {
+    it(` connects two shapes on the open drawing with a dashed, coloured arrow whose label is bound both ways, and saves`, async () => {
       const { ea, fresh, elements } = fakeEa();
       const api = getExcalidrawApi(appWith(ea, [FLOW]))!;
 
@@ -233,7 +230,7 @@ describe("excalidrawApi", () => {
       expect(fresh.destroy).toHaveBeenCalled();
     });
 
-    it(`${ISSUE_792} draws the connecting arrow with the roughness and stroke width asked for`, async () => {
+    it(` draws the connecting arrow with the roughness and stroke width asked for`, async () => {
       const { ea, fresh } = fakeEa();
 
       await getExcalidrawApi(appWith(ea, [FLOW]))!.connectLabelled(FLOW, {
@@ -251,7 +248,7 @@ describe("excalidrawApi", () => {
       });
     });
 
-    it(`${ISSUE_787} routes a connection through its bend points, keeping the ends where they attach to the shapes`, async () => {
+    it(` routes a connection through its bend points, keeping the ends where they attach to the shapes`, async () => {
       const { ea, elements } = fakeEa();
       const api = getExcalidrawApi(appWith(ea, [FLOW]))!;
 
@@ -278,7 +275,7 @@ describe("excalidrawApi", () => {
       });
     });
 
-    it(`${ISSUE_787} fails a connection whose save the drawing did not acknowledge, so the agent does not read a stale file`, async () => {
+    it(` fails a connection whose save the drawing did not acknowledge, so the agent does not read a stale file`, async () => {
       const { ea } = fakeEa();
       const unsaved = jest
         .fn()

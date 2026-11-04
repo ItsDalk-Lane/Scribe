@@ -1,5 +1,5 @@
 import { PROJECT_CONFIG_FILE_NAME, PROJECTS_UNSUPPORTED_FOLDER_NAME } from "@/projects/constants";
-import { getEffectiveProjectsFolder } from "@/settings/copilotFolder";
+import { getEffectiveProjectsFolder } from "@/settings/scribeFolder";
 import { normalizePath, TAbstractFile, TFile, Vault } from "obsidian";
 
 export function getProjectsFolder(): string {

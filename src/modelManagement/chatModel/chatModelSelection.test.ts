@@ -35,7 +35,7 @@ function entry(
 }
 
 describe("chatModelSelection", () => {
-  describe("findChatBackendEntry()", () => {
+  describe("findChatBackendEntry", () => {
     it("returns the entry whose configured-model id is selected", () => {
       const p = provider("p1");
       const entries = [entry("a", "gpt-4o", p), entry("b", "gpt-5", p)];
@@ -60,7 +60,7 @@ describe("chatModelSelection", () => {
     });
 
     it.each([undefined, "", "removed", "broken"])(
-      "returns undefined for %s when first-entry fallback is off (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)",
+      "returns undefined for %s when first-entry fallback is off",
       (selection) => {
         const entries: EnabledBackendEntry[] = [
           { configuredModelId: "broken", state: "broken" },
@@ -70,7 +70,7 @@ describe("chatModelSelection", () => {
       }
     );
 
-    it("maps a legacy selection when first-entry fallback is off (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+    it("maps a legacy selection when first-entry fallback is off", () => {
       expect(
         findChatBackendEntry([entry("a", "gpt-4o", provider("p1"))], "gpt-4o|openai", false)
           ?.configuredModelId
@@ -78,7 +78,7 @@ describe("chatModelSelection", () => {
     });
   });
 
-  describe("isChatModelSelectionForEntry()", () => {
+  describe("isChatModelSelectionForEntry", () => {
     it("matches the entry's configured-model id and its legacy name|provider key", () => {
       const target = entry("a", "gpt-4o", provider("p1"));
 
@@ -101,7 +101,7 @@ describe("chatModelSelection", () => {
     });
   });
 
-  describe("resolveChatModelSelectionId()", () => {
+  describe("resolveChatModelSelectionId", () => {
     it("returns the configured-model id that was selected", () => {
       const p = provider("p1");
       const entries = [entry("a", "gpt-4o", p), entry("b", "gpt-5", p)];

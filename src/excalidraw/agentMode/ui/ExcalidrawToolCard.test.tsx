@@ -30,7 +30,7 @@ function renderCard(props: Partial<ExcalidrawToolCardProps> = {}) {
 
 describe("ExcalidrawToolCard", () => {
   afterEach(() => setInterfaceLocale("en"));
-  describe("ExcalidrawToolCard()", () => {
+  describe("ExcalidrawToolCard", () => {
     it("shows Chinese labels and failure counts while preserving drawing paths and errors", () => {
       setInterfaceLocale("zh-CN");
       const { onOpenDrawing } = renderCard({ failed: 2, open: true });
@@ -82,7 +82,7 @@ describe("ExcalidrawToolCard", () => {
 
     it("shimmers the label only while the call runs", () => {
       const { container, rerender } = renderCard({ action: "edit", status: "in_progress" });
-      expect(container.querySelector(".copilot-shimmer-text")?.textContent).toBe(
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe(
         "Editing in Excalidraw"
       );
 
@@ -97,10 +97,10 @@ describe("ExcalidrawToolCard", () => {
           onToggle={jest.fn()}
         />
       );
-      expect(container.querySelector(".copilot-shimmer-text")).toBeNull();
+      expect(container.querySelector(".scribe-shimmer-text")).toBeNull();
     });
 
-    it("names a .excalidraw drawing without its extension", () => {
+    it("names a.excalidraw drawing without its extension", () => {
       renderCard({ path: "Board.excalidraw" });
       expect(screen.getByRole("button", { name: "Board" })).toBeTruthy();
     });
@@ -129,7 +129,7 @@ describe("ExcalidrawToolCard", () => {
       ).toBe("true");
     });
 
-    it("counts failed calls on the card so a rejected write is not hidden (https://github.com/Brevilabs/obsidian-copilot-private/issues/787)", () => {
+    it("counts failed calls on the card so a rejected write is not hidden", () => {
       renderCard({ failed: 2 });
       expect(screen.getByText("2 failed")).toBeTruthy();
     });

@@ -73,7 +73,6 @@ export async function createHttpProviderChatModel(
     }));
   switch (model.providerNpm) {
     case "@ai-sdk/google":
-      // pi-ai's built-in Google API rejects custom fetch, which would break requestUrl and mobile auth. https://github.com/ItsDalk-Lane/Scribe/issues/8
       return createPiChatModel(descriptor, async () => ({
         stream: streamGoogle,
         options: { ...defaults, headers: { "x-goog-api-key": model.apiKey || "" } },
@@ -160,7 +159,6 @@ export async function createHttpProviderChatModel(
       descriptor.maxTokens = model.maxTokens ?? 8192;
       descriptor.compat = {
         ...descriptor.compat,
-        // GitLab 转发的 Responses 保留原有推理模型指令角色，其他协议仍使用 system。https://github.com/ItsDalk-Lane/Scribe/issues/8
         supportsDeveloperRole: descriptor.api === "openai-responses",
       };
       return createPiChatModel(descriptor, async (options) => {

@@ -106,7 +106,6 @@ export function streamHttpCompletion(
           output.stopReason = finishReason;
         }
       }
-      // Disconnected custom-provider streams must not turn a partial answer into success. https://github.com/ItsDalk-Lane/Scribe/issues/8
       if (!finishReason) throw new Error(t("Unexpected response"));
       if (calls.size && finishReason === "stop") finishReason = "toolUse";
       if (finishReason === "toolUse" && !calls.size)

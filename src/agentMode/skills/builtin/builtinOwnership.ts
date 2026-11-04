@@ -1,13 +1,11 @@
 import { parseDocument } from "yaml";
 
 export function getBuiltinSkillVersion(content: string): number | null {
-  // Only frontmatter counts: a marker in a user skill's body must never authorize replacement or deletion.
-  // https://github.com/logancyang/obsidian-copilot/issues/3022
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
   if (!frontmatter) return null;
   const doc = parseDocument(frontmatter[1]);
   if (doc.errors.length > 0) return null;
-  const marker = doc.getIn(["metadata", "copilot-builtin-version"]);
+  const marker = doc.getIn(["metadata", "scribe-builtin-version"]);
   if ((typeof marker !== "string" && typeof marker !== "number") || !/^\d+$/.test(String(marker)))
     return null;
   const version = Number(marker);
@@ -21,6 +19,6 @@ export function getBuiltinSkillContentHash(content: string): string | null {
   if (!frontmatter) return null;
   const doc = parseDocument(frontmatter[1]);
   if (doc.errors.length > 0) return null;
-  const hash = doc.getIn(["metadata", "copilot-content-hash"]);
+  const hash = doc.getIn(["metadata", "scribe-content-hash"]);
   return typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash) ? hash : null;
 }

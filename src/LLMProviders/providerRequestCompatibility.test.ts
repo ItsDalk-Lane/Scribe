@@ -110,7 +110,7 @@ function responseBody(url: string): string {
 }
 
 describe("createProviderChatModel", () => {
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     const requests: CapturedRequest[] = [];
     let rejectUnexpectedFields = false;
     function serve(
@@ -162,7 +162,7 @@ describe("createProviderChatModel", () => {
     });
 
     it.each([false, true])(
-      "verifies saved o3 with supplier-default effort over compatibility=%s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "verifies saved o3 with supplier-default effort over compatibility=%s",
       async (enableCors) => {
         const saved = savedOpenAI(enableCors);
         expect(await testProviderConnection({ ...saved, apiKey: key })).toMatchObject({ ok: true });
@@ -174,7 +174,7 @@ describe("createProviderChatModel", () => {
     );
 
     it.each([false, true])(
-      "keeps saved o3 Quick Tools instructions and follow-up history over compatibility=%s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "keeps saved o3 Quick Tools instructions and follow-up history over compatibility=%s",
       async (enableCors) => {
         const saved = savedOpenAI(enableCors);
         const memory = createChatMemory();
@@ -202,7 +202,7 @@ describe("createProviderChatModel", () => {
       }
     );
 
-    it("keeps ordinary OpenAI instructions as system messages (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("keeps ordinary OpenAI instructions as system messages", async () => {
       const saved = savedOpenAI(true, false);
       const model = await createProviderChatModel(bridge(saved.provider, saved.model));
       expect(
@@ -217,7 +217,7 @@ describe("createProviderChatModel", () => {
       expect(requests[0].body).not.toHaveProperty("reasoning");
     });
 
-    it("preserves an explicitly selected Responses effort (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("preserves an explicitly selected Responses effort", async () => {
       const saved = savedOpenAI(true);
       const model = await createProviderChatModel({
         ...bridge(saved.provider, saved.model),
@@ -227,7 +227,7 @@ describe("createProviderChatModel", () => {
       expect(requests[0].body.reasoning).toMatchObject({ effort: "high" });
     });
 
-    it("keeps compatible Responses reasoning instructions as system messages (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("keeps compatible Responses reasoning instructions as system messages", async () => {
       const model = await createProviderChatModel(
         wire({ apiShape: "responses", capabilities: [ModelCapability.REASONING], enableCors: true })
       );
@@ -243,7 +243,7 @@ describe("createProviderChatModel", () => {
       expect(requests[0].body).not.toHaveProperty("reasoning");
     });
 
-    it("does not add reasoning or developer roles to a Chat Completions gateway (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("does not add reasoning or developer roles to a Chat Completions gateway", async () => {
       const model = await createProviderChatModel(
         wire({ capabilities: [ModelCapability.REASONING], enableCors: true })
       );
@@ -266,7 +266,7 @@ describe("createProviderChatModel", () => {
       [false, ReasoningEffort.HIGH],
       [true, ReasoningEffort.HIGH],
     ] as const)(
-      "preserves GitLab Responses instructions over compatibility=%s and selected effort=%s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "preserves GitLab Responses instructions over compatibility=%s and selected effort=%s",
       async (enableCors, reasoningEffort) => {
         const model = await createProviderChatModel(
           wire({
@@ -308,7 +308,7 @@ describe("createProviderChatModel", () => {
       ["https://openrouter.ai.gateway.invalid/v1", undefined, false],
       ["https://gateway.invalid/openrouter.ai/v1", undefined, false],
     ] as const)(
-      "limits OpenRouter cache fields by real host at %s with caching=%s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "limits OpenRouter cache fields by real host at %s with caching=%s",
       async (baseUrl, enablePromptCaching, expectedCache) => {
         rejectUnexpectedFields = !expectedCache;
         const model = await createProviderChatModel(
@@ -329,7 +329,7 @@ describe("createProviderChatModel", () => {
       }
     );
 
-    it("preserves explicit OpenRouter effort on a strict custom gateway (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("preserves explicit OpenRouter effort on a strict custom gateway", async () => {
       rejectUnexpectedFields = true;
       const model = await createProviderChatModel(
         wire({
@@ -345,7 +345,7 @@ describe("createProviderChatModel", () => {
       expect(requests[0].body).not.toHaveProperty("cache_control");
     });
 
-    it("keeps LM Studio Chat Completions usage without OpenRouter cache fields (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("keeps LM Studio Chat Completions usage without OpenRouter cache fields", async () => {
       rejectUnexpectedFields = true;
       const model = await createProviderChatModel(
         wire({
@@ -368,7 +368,7 @@ describe("createProviderChatModel", () => {
       ["claude-sonnet-4-6", "@ai-sdk/google-vertex/anthropic", 777, 777],
       ["claude-sonnet-4-6", "@ai-sdk/anthropic", undefined, 16384],
     ] as const)(
-      "preserves %s %s output ceiling %s as %s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "preserves %s %s output ceiling %s as %s",
       async (name, providerNpm, maxTokens, expected) => {
         const model = await createProviderChatModel(
           wire({

@@ -69,13 +69,13 @@ describe("ProjectPickerList", () => {
     );
   }
 
-  describe("ProjectPickerList()", () => {
+  describe("ProjectPickerList", () => {
     it("renders projects in most-recently-used order from persisted timestamps when no usage manager is provided", () => {
       const { container } = renderPicker();
       expect(renderedOrder(container, names)).toEqual(["C", "B", "A"]);
     });
 
-    it("pages every project inline and selects the last result (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("pages every project inline and selects the last result", () => {
       const projects = Array.from({ length: 120 }, (_, index) =>
         makeProject(`Project ${index + 1}`, 120 - index)
       );
@@ -91,7 +91,7 @@ describe("ProjectPickerList", () => {
       expect(onSelect).toHaveBeenCalledWith(projects[119]);
     });
 
-    it("searches unloaded names and descriptions and resets paging for each query (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("searches unloaded names and descriptions and resets paging for each query", () => {
       const projects = Array.from({ length: 120 }, (_, index) =>
         makeProject(`Project ${index + 1}`, 120 - index)
       );
@@ -113,7 +113,7 @@ describe("ProjectPickerList", () => {
       expect(screen.getByText("No matching projects")).toBeTruthy();
     });
 
-    it("keeps create available in the empty state and selects search results by keyboard (https://github.com/Brevilabs/obsidian-copilot-private/issues/372)", () => {
+    it("keeps create available in the empty state and selects search results by keyboard", () => {
       const onCreate = jest.fn();
       const onSelect = jest.fn();
       const { rerender } = render(

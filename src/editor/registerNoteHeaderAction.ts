@@ -1,9 +1,9 @@
 import { t } from "@/lib/i18n";
-import { COPILOT_AGENT_ICON_ID } from "@/constants";
-import type CopilotPlugin from "@/main";
+import { SCRIBE_AGENT_ICON_ID } from "@/constants";
+import type ScribePlugin from "@/main";
 import { MarkdownView } from "obsidian";
 
-export function registerNoteHeaderAction(plugin: CopilotPlugin): void {
+export function registerNoteHeaderAction(plugin: ScribePlugin): void {
   const { workspace } = plugin.app;
   const actions = new WeakMap<MarkdownView, HTMLElement>();
   const openViews = (): MarkdownView[] =>
@@ -15,11 +15,9 @@ export function registerNoteHeaderAction(plugin: CopilotPlugin): void {
     for (const view of openViews()) {
       if (actions.has(view)) continue;
       const action = view.addAction(
-        COPILOT_AGENT_ICON_ID,
+        SCRIBE_AGENT_ICON_ID,
         t("Open Scribe Agent Chat with this note"),
         () => {
-          // Revealing Agent Chat can move focus, so use the note under this button.
-          // https://github.com/Brevilabs/obsidian-copilot-private/issues/579
           const file = view.file;
           if (file) void plugin.addNoteToAgentChat(file, true);
         }

@@ -15,7 +15,6 @@ const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const mockTextUpdate = jest.fn();
 
 jest.mock("@/hooks/use-raf-throttled-callback", () => ({
-  // The test observes the delivery boundary, not the browser's frame scheduling. https://github.com/ItsDalk-Lane/Scribe/issues/8
   useRafThrottledCallback: (callback: (text: string) => void) => (text: string) => {
     callback(text);
     mockTextUpdate(text);
@@ -92,7 +91,7 @@ function observeText(expected: string): Promise<void> {
 }
 
 describe("use-streaming-chat-session", () => {
-  describe("useStreamingChatSession()", () => {
+  describe("useStreamingChatSession", () => {
     const originalFetch = window.fetch;
 
     beforeEach(() => {

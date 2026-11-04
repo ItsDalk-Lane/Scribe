@@ -19,8 +19,6 @@ export const ClampedContent: React.FC<ClampedContentProps> = ({ collapsedClassNa
 
   useLayoutEffect(() => {
     const content = contentRef.current;
-    // Expanded content has no height cap, so measuring it would hide the control
-    // needed to collapse it again: https://github.com/Brevilabs/obsidian-copilot-private/issues/151
     if (!content || isExpanded) return;
 
     const measure = () => {

@@ -12,7 +12,7 @@ function action(id: string, overrides: Partial<ToolCallPart> = {}): ActivityMemb
 const REASONING: ActivityMember = { type: "reasoning", part: { kind: "thought", text: "…" } };
 
 describe("activityLiveStep", () => {
-  describe("isReasoningActive()", () => {
+  describe("isReasoningActive", () => {
     it("is true only for a trailing thought on a streaming trail", () => {
       expect(isReasoningActive([action("a"), REASONING], true)).toBe(true);
       expect(isReasoningActive([action("a"), REASONING], false)).toBe(false);
@@ -20,7 +20,7 @@ describe("activityLiveStep", () => {
       expect(isReasoningActive([], true)).toBe(false);
     });
 
-    it("is false for a frozen trailing thought (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("is false for a frozen trailing thought", () => {
       const frozen: ActivityMember = {
         type: "reasoning",
         part: { kind: "thought", text: "done", durationMs: 18_000 },
@@ -30,7 +30,7 @@ describe("activityLiveStep", () => {
     });
   });
 
-  describe("activityLiveStep()", () => {
+  describe("activityLiveStep", () => {
     it("names the reasoning in flight when the group's trailing member is a thought", () => {
       expect(activityLiveStep([action("a"), REASONING], true)).toBe("Reasoning");
     });

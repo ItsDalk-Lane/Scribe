@@ -125,7 +125,7 @@ afterEach(() => {
 });
 
 const VAULT = "/vault";
-const CANON = "/vault/copilot/skills";
+const CANON = "/vault/scribe/skills";
 const AGENT_DIRS_ABS = {
   claude: `${VAULT}/.claude/skills`,
   codex: `${VAULT}/.agents/skills`,
@@ -139,7 +139,7 @@ const SKILL_MD = (
   const { agents = "", description = "A short skill.", authorMeta } = opts;
   const lines = ["---", `name: ${name}`, `description: ${description}`, "metadata:"];
   if (authorMeta !== undefined) lines.push(`  author: ${authorMeta}`);
-  lines.push(`  copilot-enabled-agents: "${agents}"`);
+  lines.push(`  scribe-enabled-agents: "${agents}"`);
   lines.push("---", "body");
   return lines.join("\n");
 };
@@ -190,7 +190,7 @@ describe("updateProperties", () => {
         "license: MIT",
         "metadata:",
         "  author: alice",
-        '  copilot-enabled-agents: "claude"',
+        '  scribe-enabled-agents: "claude"',
         "---",
         "body",
       ].join("\n");

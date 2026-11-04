@@ -11,7 +11,7 @@ import { getCurrentSystemMessage } from "@earendil-works/pi-ai/utils/transcript"
 import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { isCompactCommand } from "@/commands/compactCommand";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
-import { COPILOT_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
+import { SCRIBE_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
 import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
 import { t } from "@/lib/i18n";
 import { v4 as uuidv4 } from "uuid";
@@ -23,7 +23,7 @@ import type {
   AskUserQuestionPrompt,
   BackendProcess,
   BackendState,
-  CopilotMode,
+  ScribeMode,
   ModelEntry,
   OpenSessionInput,
   OpenSessionOutput,
@@ -50,7 +50,7 @@ export interface NativeSessionRecord {
   projectId?: string;
   modelId: string;
   effort: ThinkingLevel | null;
-  mode: CopilotMode;
+  mode: ScribeMode;
   messages: AgentMessage[];
   events: SessionEvent[];
   updatedAt: number;
@@ -75,7 +75,7 @@ export interface NativeToolContext {
   sessionId: string;
   cwd: string;
   requester: PermissionRequester;
-  getMode(): CopilotMode;
+  getMode(): ScribeMode;
   emit(update: SessionUpdate): void;
   requestPermission(prompt: PermissionPrompt): Promise<PermissionDecision>;
   askUser(prompt: AskUserQuestionPrompt): Promise<AgentQuestionAnswers>;
@@ -161,14 +161,10 @@ const AUTO_ALLOWED: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "selected", optionId: "allow_once" }),
 });
 
-// Auto 模式只自动放行普通笔记与绘图编辑；实际配置目录下的目标是敏感写入，必须单独授权。
-// https://github.com/ItsDalk-Lane/Scribe/issues/10
-// Obsidian 的出厂默认配置目录；宿主生产环境总是经 getVaultConfigDir 提供 Vault#configDir，此值仅兜底。
-// https://github.com/ItsDalk-Lane/Scribe/issues/10
 export const OBSIDIAN_DEFAULT_CONFIG_DIR = [".", "obsidian"].join("");
 
 function isAutoEligibleEdit(
-  mode: CopilotMode,
+  mode: ScribeMode,
   configDir: string,
   toolCall: ToolCallSnapshot
 ): boolean {
@@ -184,8 +180,6 @@ function isAutoEligibleEdit(
   );
 }
 
-// 压缩输入只保留续聊所需的角色与正文；assistant 的 errorMessage 可能携带供应商回显的凭据，绝不进入请求。
-// https://github.com/ItsDalk-Lane/Scribe/issues/9
 function compactionTranscript(messages: AgentMessage[]): string {
   const lines: string[] = [];
   for (const message of messages) {
@@ -353,8 +347,6 @@ export class NativeBackendProcess implements BackendProcess {
               },
             ]
           : prompt.options;
-        // 决策顺序：先查已保存的明确决定，再考虑 Auto 自动放行，最后才询问用户。
-        // https://github.com/ItsDalk-Lane/Scribe/issues/12
         const answer = prompt.signal?.aborted
           ? DENIED
           : saved
@@ -508,8 +500,6 @@ export class NativeBackendProcess implements BackendProcess {
     await this.driveQueue(session, { promptId: input.promptId, message });
   }
 
-  // 一轮结束后主动调度尚未消费的排队消息，Send now 取消当前回复后不依赖用户再次输入。
-  // https://github.com/ItsDalk-Lane/Scribe/issues/13
   private async driveQueue(
     session: NativeSession,
     first: { promptId: string; message: UserMessage }
@@ -640,8 +630,6 @@ export class NativeBackendProcess implements BackendProcess {
             signal
           );
         }
-        // 本轮以 pending 副本驱动消息，Pi 队列里取消前残留的 steer 副本必须清掉，避免同一消息进入模型两次。
-        // https://github.com/ItsDalk-Lane/Scribe/issues/13
         session.agent.clearSteeringQueue();
         await session.agent.prompt(message);
       }
@@ -717,8 +705,6 @@ export class NativeBackendProcess implements BackendProcess {
         )
         .result();
       signal?.throwIfAborted();
-      // 只有完整成功的摘要才能替换工作上下文；截断（length）与拒答都不算成功。
-      // https://github.com/ItsDalk-Lane/Scribe/issues/14
       if (
         result.stopReason === "error" ||
         result.stopReason === "aborted" ||
@@ -808,8 +794,6 @@ export class NativeBackendProcess implements BackendProcess {
           sessionUpdate: "usage_update",
           usage: {
             usedTokens: usage.totalTokens,
-            // 窗口为 0 表示模型未提供可信值；用量环按缺数呈现，而不是伪造一个大窗口。
-            // https://github.com/ItsDalk-Lane/Scribe/issues/15
             ...(session.provider.model.contextWindow > 0
               ? { contextWindow: session.provider.model.contextWindow }
               : {}),
@@ -828,9 +812,7 @@ export class NativeBackendProcess implements BackendProcess {
         title: event.toolName,
         kind: TOOL_KINDS[event.toolName] ?? "other",
         vendorToolName: event.toolName,
-        ...(EXCALIDRAW_TOOL_NAMES.has(event.toolName)
-          ? { mcpServer: COPILOT_MCP_SERVER_NAME }
-          : {}),
+        ...(EXCALIDRAW_TOOL_NAMES.has(event.toolName) ? { mcpServer: SCRIBE_MCP_SERVER_NAME } : {}),
         rawInput: event.args,
         status: "in_progress",
         ...(event.toolName === "propose_plan" ? { isPlanProposal: true } : {}),

@@ -5,7 +5,7 @@ import { SettingSection } from "@/components/ui/setting-section";
 import { DebuggingSupportSection } from "@/settings/v2/components/DebuggingSupportSection";
 import { useApp } from "@/context";
 import { usePlugin } from "@/contexts/PluginContext";
-import { getCopilotSaveData } from "@/settings/copilotSaveData";
+import { getScribeSaveData } from "@/settings/scribeSaveData";
 import { KeychainService } from "@/services/keychainService";
 import {
   refreshLastPersistedSettings,
@@ -16,7 +16,7 @@ import {
 import { hasPersistedSecrets } from "@/services/settingsSecretTransforms";
 import { logError } from "@/logger";
 import {
-  type CopilotSettings,
+  type ScribeSettings,
   setSettings,
   updateSetting,
   useSettingsValue,
@@ -124,7 +124,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ section }) =
     setForgetting(true);
     try {
       const keychain = KeychainService.getInstance();
-      const saveData = getCopilotSaveData(app);
+      const saveData = getScribeSaveData(app);
 
       await runPersistenceTransaction(() =>
         keychain.forgetAllSecrets(
@@ -133,7 +133,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ section }) =
             releaseLegacyCredentialHold();
           },
           (nextSettings) => {
-            refreshLastPersistedSettings(nextSettings as CopilotSettings);
+            refreshLastPersistedSettings(nextSettings as ScribeSettings);
             suppressNextPersistOnce();
             setSettings(nextSettings);
           }

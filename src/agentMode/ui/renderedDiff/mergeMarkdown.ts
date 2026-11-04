@@ -42,8 +42,6 @@ export function diffCodeLines(before: string, after: string): CodeDiffLine[] {
     const texts = part.value.split("\n");
     if (terminated) texts.pop();
     for (const text of texts) lines.push({ change, text });
-    // Normalizing final newlines hides real edits; annotate only differing termination.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/349
     if (!terminated && before.endsWith("\n") !== after.endsWith("\n")) {
       lines.push({ change, text: "\\ No newline at end of file" });
     }
@@ -57,12 +55,8 @@ export async function buildRenderedDiffPlan(
   after: string | null,
   markdown: boolean
 ): Promise<readonly DiffSegment[]> {
-  // A CRLF-to-LF conversion would otherwise mark every line changed; the engine assumes LF.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   const beforeText = (before ?? "").replace(/\r\n/g, "\n");
   const afterText = (after ?? "").replace(/\r\n/g, "\n");
-  // Raw sentinel characters would be consumed as diff markup, corrupting note text.
-  // Preserve them verbatim: https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   if (!markdown || SENTINEL.test(beforeText) || SENTINEL.test(afterText)) {
     return verbatimPlan(beforeText, afterText);
   }
@@ -75,14 +69,10 @@ export async function buildRenderedDiffPlan(
       splitMarkdown(app, afterText),
     ]);
   } catch (error) {
-    // Obsidian's parser is a private API that may disappear; a line diff still shows every change.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
     logWarn("[RenderedDiff] Markdown parsing failed, showing a line diff", error);
     return verbatimPlan(beforeText, afterText);
   }
   const segments: DiffSegment[] = [];
-  // Unchanged frontmatter stays out of the diff: showing it above every change buries the edit.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   if (beforeSplit.frontmatter !== afterSplit.frontmatter) {
     segments.push({
       kind: "code",
@@ -92,9 +82,6 @@ export async function buildRenderedDiffPlan(
 
   for (const pairing of alignBlocks(beforeSplit.blocks, afterSplit.blocks)) {
     const { extraBlankLines } = pairing.kind === "deleted" ? pairing.before : pairing.after;
-    // A spacer holds the blank lines rendering would merge, as Live Preview shows them, inside the
-    // Markdown so reference links and footnotes still find their definitions across it.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/751
     if (extraBlankLines) {
       segments.push({
         kind: "markdown",
@@ -130,8 +117,6 @@ export async function buildRenderedDiffPlan(
     }
   }
   const collapsed = collapseSegments(segments);
-  // Rendering hides whitespace-only edits such as blank lines or marked spaces, so show those verbatim.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   const rendersChange = collapsed.some(
     (segment) => segment.kind !== "markdown" || VISIBLE_MARK.test(segment.markdown)
   );
@@ -165,9 +150,6 @@ function modifiedSegments(before: MarkdownBlock, after: MarkdownBlock): DiffSegm
   ];
 }
 
-// A run of blocks with the same change renders as one region, so its paragraphs keep their gaps
-// inside one highlight and its list items stay one list.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/751
 function collapseSegments(segments: readonly DiffSegment[]): DiffSegment[] {
   const collapsed: DiffSegment[] = [];
   for (const segment of segments) {

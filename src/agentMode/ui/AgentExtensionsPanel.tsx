@@ -58,9 +58,6 @@ const ICONS = {
   subagent: Bot,
 };
 
-// Section collapse choices live only for the current app session and never reach persisted
-// settings; a fresh Obsidian start collapses every section again.
-// https://github.com/ItsDalk-Lane/Scribe/issues/4
 let sessionExpandedSections: ReadonlySet<string> = new Set<string>();
 
 export function resetExpandedExtensionSectionsForTests(): void {
@@ -147,9 +144,6 @@ export function AgentExtensionsPanel({
                 >
                   <h3 className="!tw-m-0 !tw-p-0">
                     <CollapsibleTrigger asChild>
-                      {/* Obsidian's button stylesheet outranks per-element overrides here, so the
-                          header is a plain div trigger whose values apply verbatim.
-                          https://github.com/ItsDalk-Lane/Scribe/issues/4 */}
                       <div
                         role="button"
                         tabIndex={0}
@@ -161,9 +155,6 @@ export function AgentExtensionsPanel({
                         }}
                         className="tw-flex tw-w-full tw-cursor-pointer tw-items-center tw-justify-start tw-gap-2 tw-bg-transparent tw-px-3 tw-py-1 tw-text-left tw-text-normal focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-inset focus-visible:tw-ring-ring"
                       >
-                        {/* The chevron sits in the same icon slot a row uses, so its left edge
-                            aligns with the row icons structurally instead of by measured offsets.
-                            https://github.com/ItsDalk-Lane/Scribe/issues/4 */}
                         <div className="tw-flex tw-w-6 tw-shrink-0 tw-items-center tw-justify-center @sm:tw-w-9">
                           <ChevronDown
                             aria-hidden="true"

@@ -23,17 +23,15 @@ import { App, Component, TFile } from "obsidian";
 import React, { useCallback, useEffect, useRef } from "react";
 import { useSettingsValue } from "@/settings/model";
 import {
-  buildCopilotCollapsibleDomId,
-  captureCopilotCollapsibleOpenStates,
-  getCopilotCollapsibleDetailsFromEvent,
+  buildScribeCollapsibleDomId,
+  captureScribeCollapsibleOpenStates,
+  getScribeCollapsibleDetailsFromEvent,
   getMessageCollapsibleStates,
   isEventWithinDetailsSummary,
 } from "@/components/chat-components/collapsibleStateUtils";
 
 const FOOTNOTE_SUFFIX_PATTERN = /^\d+-\d+$/;
 
-// Tall pasted user messages collapse behind a Show more control.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/151
 const COLLAPSED_USER_MESSAGE_CLASS_NAME = cn("tw-max-h-[12lh]");
 
 export const normalizeFootnoteRendering = (root: HTMLElement): void => {
@@ -70,13 +68,13 @@ export const normalizeFootnoteRendering = (root: HTMLElement): void => {
 const INLINE_CITATION_RE = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
 
 const linkInlineCitations = (root: HTMLElement): void => {
-  const sourceItems = root.querySelectorAll(".copilot-sources__item");
+  const sourceItems = root.querySelectorAll(".scribe-sources__item");
   if (sourceItems.length === 0) return;
 
   const citationAnchors = new Map<number, HTMLAnchorElement>();
   sourceItems.forEach((item) => {
-    const indexEl = item.querySelector(".copilot-sources__index");
-    const textEl = item.querySelector(".copilot-sources__text");
+    const indexEl = item.querySelector(".scribe-sources__index");
+    const textEl = item.querySelector(".scribe-sources__text");
     if (!indexEl || !textEl) return;
 
     const indexMatch = indexEl.textContent?.match(/\[(\d+)\]/);
@@ -93,7 +91,7 @@ const linkInlineCitations = (root: HTMLElement): void => {
 
   const doc = root.doc;
 
-  const sourcesEl = root.querySelector(".copilot-sources");
+  const sourcesEl = root.querySelector(".scribe-sources");
   const textNodes: Text[] = [];
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -128,7 +126,7 @@ const linkInlineCitations = (root: HTMLElement): void => {
       const allResolved = nums.every((num) => citationAnchors.has(num));
 
       if (allResolved) {
-        const span = doc.win.createSpan("copilot-citation-group");
+        const span = doc.win.createSpan("scribe-citation-group");
         span.appendChild(doc.createTextNode("["));
         nums.forEach((num, i) => {
           if (i > 0) span.appendChild(doc.createTextNode(", "));
@@ -137,7 +135,7 @@ const linkInlineCitations = (root: HTMLElement): void => {
           for (const attr of Array.from(sourceAnchor.attributes)) {
             link.setAttribute(attr.name, attr.value);
           }
-          link.className = `copilot-citation-link${sourceAnchor.className ? ` ${sourceAnchor.className}` : ""}`;
+          link.className = `scribe-citation-link${sourceAnchor.className ? ` ${sourceAnchor.className}` : ""}`;
           link.textContent = String(num);
           link.setAttribute("aria-label", `Source ${num}`);
           span.appendChild(link);
@@ -155,7 +153,7 @@ const linkInlineCitations = (root: HTMLElement): void => {
       fragment.appendChild(doc.createTextNode(text.slice(lastIndex)));
     }
 
-    const replaceTarget = node.parentElement?.classList.contains("copilot-citation-ref")
+    const replaceTarget = node.parentElement?.classList.contains("scribe-citation-ref")
       ? node.parentElement
       : node;
     replaceTarget.parentNode?.replaceChild(fragment, replaceTarget);
@@ -303,7 +301,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
           content = content.replace(completeRegex, (_match, sectionContent: string) => {
             const sectionKey = `${tagName}-${sectionIndex}`;
             sectionIndex += 1;
-            const domId = buildCopilotCollapsibleDomId(messageId.current, sectionKey);
+            const domId = buildScribeCollapsibleDomId(messageId.current, sectionKey);
             const openAttribute = collapsibleOpenStateMap.get(domId) ? " open" : "";
             return buildDetails(sectionContent, openAttribute, domId);
           });
@@ -324,7 +322,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
         return content.replace(regex, (_match, sectionContent: string) => {
           const sectionKey = `${tagName}-${sectionIndex}`;
           sectionIndex += 1;
-          const domId = buildCopilotCollapsibleDomId(messageId.current, sectionKey);
+          const domId = buildScribeCollapsibleDomId(messageId.current, sectionKey);
           const openAttribute = collapsibleOpenStateMap.get(domId) ? " open" : "";
           return buildDetails(sectionContent, openAttribute, domId);
         });
@@ -372,7 +370,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
       const citationPlaceholderProcessed = sourcesSectionProcessed.replace(
         /\[\^(\d+)\](?!:)/g,
-        '<span class="copilot-citation-ref">[$1]</span>'
+        '<span class="scribe-citation-ref">[$1]</span>'
       );
 
       const processYouTubeEmbed = (content: string): string => {
@@ -409,7 +407,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
         return;
       }
 
-      const details = getCopilotCollapsibleDetailsFromEvent(event, root);
+      const details = getScribeCollapsibleDetailsFromEvent(event, root);
       if (!details || !isEventWithinDetailsSummary(event, details)) {
         return;
       }
@@ -420,7 +418,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
     };
 
     const handleSummaryClick = (event: Event): void => {
-      const details = getCopilotCollapsibleDetailsFromEvent(event, root);
+      const details = getScribeCollapsibleDetailsFromEvent(event, root);
       if (!details || !isEventWithinDetailsSummary(event, details)) {
         return;
       }
@@ -428,7 +426,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
     };
 
     const handleDetailsToggle = (event: Event): void => {
-      const details = getCopilotCollapsibleDetailsFromEvent(event, root);
+      const details = getScribeCollapsibleDetailsFromEvent(event, root);
       if (!details) {
         return;
       }
@@ -449,7 +447,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
     const target = contentRef.current;
     if (!target || message.sender === USER_SENDER) return;
 
-    captureCopilotCollapsibleOpenStates(target, collapsibleOpenStateMap, {
+    captureScribeCollapsibleOpenStates(target, collapsibleOpenStateMap, {
       overwriteExisting: !isStreaming,
     });
 

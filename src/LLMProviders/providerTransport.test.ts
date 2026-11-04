@@ -62,7 +62,7 @@ const serviceAccount = JSON.stringify({
 });
 
 describe("providerTransport", () => {
-  describe("createProviderFetch()", () => {
+  describe("createProviderFetch", () => {
     beforeEach(() => {
       safeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
       nativeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
@@ -189,11 +189,11 @@ describe("providerTransport", () => {
     });
 
     it.each(["/chat/completions", "/responses", "/v1/messages"])(
-      "exchanges a GitHub user token and preserves the Copilot protocol path %s",
+      "exchanges a GitHub user token and preserves the Scribe protocol path %s",
       async (path) => {
         safeFetch.mockResolvedValueOnce(
           jsonResponse({
-            token: "copilot-service-token",
+            token: "scribe-service-token",
             expires_at: Math.floor(Date.now() / 1000) + 3600,
             endpoints: { api: "https://api.business.githubcopilot.com" },
           })
@@ -209,7 +209,7 @@ describe("providerTransport", () => {
         expect(safeFetch.mock.calls[0][0]).toBe("https://api.github.com/copilot_internal/v2/token");
         expect(requestHeaders(0).get("Authorization")).toBe("Bearer ghu_fixture");
         expect(safeFetch.mock.calls[1][0]).toBe(`https://api.business.githubcopilot.com${path}`);
-        expect(requestHeaders(1).get("Authorization")).toBe("Bearer copilot-service-token");
+        expect(requestHeaders(1).get("Authorization")).toBe("Bearer scribe-service-token");
         expect(requestHeaders(1).has("x-api-key")).toBe(false);
         expect(requestHeaders(1).get("User-Agent")).toBe("obsidian-scribe/4");
         expect(requestHeaders(1).get("Editor-Version")).toBe("obsidian-scribe/4");
@@ -218,7 +218,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("caches a Copilot token until expiry then exchanges the original GitHub key again", async () => {
+    it("caches a Scribe token until expiry then exchanges the original GitHub key again", async () => {
       const now = jest.spyOn(Date, "now").mockReturnValue(1_000_000);
       safeFetch.mockResolvedValueOnce(jsonResponse({ token: "service-first", expires_at: 2000 }));
       const fetcher = createProviderFetch(
@@ -266,7 +266,7 @@ describe("providerTransport", () => {
       }
     });
 
-    it("accepts an already-issued Copilot service token without exchanging it as a GitHub user token", async () => {
+    it("accepts an already-issued Scribe service token without exchanging it as a GitHub user token", async () => {
       await createProviderFetch(
         model({
           providerCatalogId: "github-copilot",
@@ -285,7 +285,7 @@ describe("providerTransport", () => {
       "https://user:pass@api.githubcopilot.com",
       "https://api.githubcopilot.com:444",
     ])(
-      "rejects the untrusted Copilot service endpoint %s before sending a service token",
+      "rejects the untrusted Scribe service endpoint %s before sending a service token",
       async (api) => {
         safeFetch.mockResolvedValueOnce(
           jsonResponse({
@@ -303,7 +303,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("keeps an explicitly configured Copilot inference proxy instead of redirecting it to a vendor metadata host", async () => {
+    it("keeps an explicitly configured Scribe inference proxy instead of redirecting it to a vendor metadata host", async () => {
       safeFetch.mockResolvedValueOnce(
         jsonResponse({
           token: "service-token",
@@ -315,10 +315,10 @@ describe("providerTransport", () => {
         model({
           providerCatalogId: "github-copilot",
           apiKey: "ghu_fixture",
-          baseUrl: "https://proxy.example/copilot",
+          baseUrl: "https://proxy.example/scribe",
         })
-      )("https://proxy.example/copilot/responses");
-      expect(safeFetch.mock.calls[1][0]).toBe("https://proxy.example/copilot/responses");
+      )("https://proxy.example/scribe/responses");
+      expect(safeFetch.mock.calls[1][0]).toBe("https://proxy.example/scribe/responses");
     });
 
     it("returns a safe authentication error rather than exposing a failed token response body", async () => {
@@ -344,7 +344,7 @@ describe("providerTransport", () => {
     });
 
     it.each([{}, { token: "fixture", expires_at: 0 }, { token: 123, expires_at: 9999999999 }])(
-      "rejects unusable successful Copilot token replies %p before inference",
+      "rejects unusable successful Scribe token replies %p before inference",
       async (body) => {
         safeFetch.mockResolvedValueOnce(jsonResponse(body));
         await expect(
@@ -509,7 +509,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("coalesces concurrent Copilot credential exchanges without serializing inference requests", async () => {
+    it("coalesces concurrent Scribe credential exchanges without serializing inference requests", async () => {
       safeFetch.mockResolvedValueOnce(
         jsonResponse({ token: "service-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
       );

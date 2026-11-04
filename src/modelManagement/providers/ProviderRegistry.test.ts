@@ -65,7 +65,7 @@ describe("ProviderRegistry", () => {
     registry = new ProviderRegistry(app, adapters);
   });
 
-  describe("add()", () => {
+  describe("add", () => {
     it("persists a new provider with a minted id, its addedAt time, and no API key pointer", async () => {
       const before = Date.now();
       const id = await registry.add({
@@ -86,7 +86,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("get()", () => {
+  describe("get", () => {
     it("returns the persisted row and undefined for an unknown provider", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -98,7 +98,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("listByOrigin()", () => {
+  describe("listByOrigin", () => {
     it("returns stable references while settings are unchanged", async () => {
       await registry.add({
         providerType: "anthropic",
@@ -122,7 +122,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("update()", () => {
+  describe("update", () => {
     it("applies the patch but keeps providerId, addedAt, providerType, and origin unchanged", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -170,7 +170,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("setApiKey()", () => {
+  describe("setApiKey", () => {
     it("mints a stable keychain name for the vault on the first key and reuses it when the key is rotated", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -192,7 +192,7 @@ describe("ProviderRegistry", () => {
       expect(await registry.getApiKey(id)).toBe("sk-rotated");
     });
 
-    it("mints the same name for the same provider configured independently on two devices, so a synced pointer resolves on both (https://github.com/logancyang/obsidian-copilot/issues/3618)", async () => {
+    it("mints the same name for the same provider configured independently on two devices, so a synced pointer resolves on both", async () => {
       const input = {
         providerType: "anthropic" as const,
         displayName: "Anthropic",
@@ -235,7 +235,7 @@ describe("ProviderRegistry", () => {
       expect(await registry.getApiKey(second)).toBe("sk-work");
     });
 
-    it("re-writes a key whose keychain entry went missing behind a live pointer (https://github.com/Brevilabs/obsidian-copilot-private/issues/472)", async () => {
+    it("re-writes a key whose keychain entry went missing behind a live pointer", async () => {
       const id = await registry.add({
         providerType: "anthropic",
         displayName: "A",
@@ -251,7 +251,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("getApiKey()", () => {
+  describe("getApiKey", () => {
     it("returns null when the provider has no stored key", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -262,7 +262,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("clearApiKey()", () => {
+  describe("clearApiKey", () => {
     it("deletes the stored key and clears the keychain pointer", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -276,7 +276,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("remove()", () => {
+  describe("remove", () => {
     it("deletes the provider row and its stored key", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -313,7 +313,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("list()", () => {
+  describe("list", () => {
     it("returns stable references while settings are unchanged", async () => {
       await registry.add({
         providerType: "anthropic",
@@ -331,7 +331,7 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("verify()", () => {
+  describe("verify", () => {
     it("returns the adapter result for the provider's type", async () => {
       const id = await registry.add({
         providerType: "anthropic",
@@ -349,7 +349,7 @@ describe("ProviderRegistry", () => {
     });
 
     it.each([null, "", "   "])(
-      "rejects a missing stored key (%p) without probing a public endpoint (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "rejects a missing stored key (%p) without probing a public endpoint",
       async (secret) => {
         const id = await registry.add({
           providerType: "anthropic",
@@ -368,7 +368,7 @@ describe("ProviderRegistry", () => {
       }
     );
 
-    it("verifies an optional-auth endpoint without a key but rejects its dangling stored credential (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("verifies an optional-auth endpoint without a key but rejects its dangling stored credential", async () => {
       const id = await registry.add({
         providerType: "anthropic",
         displayName: "Local",
@@ -382,8 +382,8 @@ describe("ProviderRegistry", () => {
     });
   });
 
-  describe("subscribe()", () => {
-    it("identifies the changed provider on add/update/remove and key changes (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", async () => {
+  describe("subscribe", () => {
+    it("identifies the changed provider on add/update/remove and key changes", async () => {
       const listener = jest.fn();
       const unsubscribe = registry.subscribe(listener);
 
@@ -419,7 +419,7 @@ describe("ProviderRegistry", () => {
       expect(listener).toHaveBeenCalledTimes(6);
     });
 
-    it("stays silent when a provider is re-registered with the key it already has (https://github.com/Brevilabs/obsidian-copilot-private/issues/472)", async () => {
+    it("stays silent when a provider is re-registered with the key it already has", async () => {
       const id = await registry.add({
         providerType: "anthropic",
         displayName: "A",
@@ -436,7 +436,7 @@ describe("ProviderRegistry", () => {
       expect(await registry.getApiKey(id)).toBe("sk-same");
     });
 
-    it("does not notify Agent consumers for a Quick tools-only CORS update (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", async () => {
+    it("does not notify Agent consumers for a Quick tools-only CORS update", async () => {
       const id = await registry.add({
         providerType: "openai-compatible",
         displayName: "Work endpoint",

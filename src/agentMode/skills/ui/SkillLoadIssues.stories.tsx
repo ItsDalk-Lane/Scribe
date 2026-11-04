@@ -21,7 +21,7 @@ const ISSUES: readonly SkillLoadIssue[] = [
     onReveal: noop,
   },
   {
-    location: "copilot/skills/Release Notes/SKILL.md",
+    location: "scribe/skills/Release Notes/SKILL.md",
     reason: "Use the same lowercase, hyphenated name in the file and folder.",
     offendingText: "name: Release Notes",
     revealLabel: "Reveal in vault",

@@ -1,7 +1,7 @@
 import { setInterfaceLocale } from "@/lib/i18n";
 import { registerCommands } from "@/commands";
 import { COMMAND_IDS } from "@/constants";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import type { Command } from "obsidian";
 
 jest.mock("@/commands/CustomCommandChatModal", () => ({
@@ -22,7 +22,7 @@ describe("commands", () => {
       const plugin = {
         addCommand: jest.fn((command: Command) => commands.push(command)),
         app: { workspace: { getActiveFile: jest.fn(() => null) } },
-      } as unknown as CopilotPlugin;
+      } as unknown as ScribePlugin;
 
       registerCommands(plugin);
 
@@ -39,7 +39,7 @@ describe("commands", () => {
       const plugin = {
         addCommand: jest.fn((command: Command) => commands.push(command)),
         app: { workspace: { getActiveFile: jest.fn(() => null) } },
-      } as unknown as CopilotPlugin;
+      } as unknown as ScribePlugin;
       registerCommands(plugin);
       const identifiers = commands.map(({ id }) => id);
       expect(identifiers).toContain(COMMAND_IDS.TRIGGER_QUICK_ASK);

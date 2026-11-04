@@ -14,10 +14,10 @@ function makeNoteApp(note: TFile, frontmatter: Record<string, unknown>) {
 }
 
 describe("vaultAdapterUtils", () => {
-  describe("listMarkdownFiles()", () => {
+  describe("listMarkdownFiles", () => {
     it("lists the vault's markdown notes under an existing folder", () => {
-      const folder = mockTFolder({ path: "copilot/scribe-conversations" });
-      const chat = mockTFile({ path: "copilot/scribe-conversations/chat.md" });
+      const folder = mockTFolder({ path: "scribe/scribe-conversations" });
+      const chat = mockTFile({ path: "scribe/scribe-conversations/chat.md" });
       const other = mockTFile({ path: "notes/idea.md" });
       const app = {
         vault: {
@@ -32,12 +32,12 @@ describe("vaultAdapterUtils", () => {
     it("returns no notes for a folder the vault does not have", () => {
       const app = { vault: { getAbstractFileByPath: () => null } } as unknown as App;
 
-      expect(listMarkdownFiles(app, "copilot/scribe-conversations")).toEqual([]);
+      expect(listMarkdownFiles(app, "scribe/scribe-conversations")).toEqual([]);
     });
   });
 
-  describe("patchFrontmatter()", () => {
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 sets and removes keys through Obsidian's frontmatter API", async () => {
+  describe("patchFrontmatter", () => {
+    it("sets and removes keys through Obsidian's frontmatter API", async () => {
       const note = mockTFile({ path: "chats/agent__a.md" });
       const frontmatter: Record<string, unknown> = { topic: "Plan", pinnedAt: 1_000 };
 

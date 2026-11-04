@@ -61,7 +61,7 @@ function pausedNetwork() {
     }
     const text = token
       ? JSON.stringify({
-          token: "short-lived-copilot-token",
+          token: "short-lived-scribe-token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         })
       : completion;
@@ -97,7 +97,7 @@ describe("providerTransport cancellation integration", () => {
     setRequestUrlImpl(undefined);
   });
 
-  describe("createProviderFetch()", () => {
+  describe("createProviderFetch", () => {
     it.each([false, true])(
       `does not send a cancelled note after shared authentication finishes with compatibility=%s (${issue})`,
       async (enableCors) => {
@@ -151,7 +151,7 @@ describe("providerTransport cancellation integration", () => {
     });
   });
 
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     it.each([false, true])(
       `returns a stopped turn before token release and sends only its live sibling with compatibility=%s (${issue})`,
       async (enableCors) => {
@@ -178,7 +178,7 @@ describe("providerTransport cancellation integration", () => {
         expect(
           inference.map((request) => (JSON.parse(request.body!) as { messages: unknown }).messages)
         ).toEqual([[{ role: "user", content: "Synthetic live note" }]]);
-        expect(inference[0].headers.get("authorization")).toBe("Bearer short-lived-copilot-token");
+        expect(inference[0].headers.get("authorization")).toBe("Bearer short-lived-scribe-token");
       }
     );
   });

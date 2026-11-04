@@ -117,10 +117,9 @@ npm run test:vault
 
 macOS only. Installs deps, builds, and copies `main.js` / `manifest.json` /
 `styles.css` from the current worktree into
-`$COPILOT_TEST_VAULT_PATH/.obsidian/plugins/scribe/` for the current manifest,
+`$SCRIBE_TEST_VAULT_PATH/.obsidian/plugins/scribe/` for the current manifest,
 then attempts to reload the plugin via the Obsidian CLI. The script derives the
-plugin directory from `manifest.json`; `COPILOT_TEST_VAULT_PATH` is still the
-actual environment variable. It requires a folder with a `.obsidian/` directory.
+plugin directory from `manifest.json`. It requires a folder with a `.obsidian/` directory.
 
 If Obsidian has not registered the folder yet (`obsidian vaults verbose` does
 not list it), as with a copied test vault, `test:vault`, `test:reset-data`, and
@@ -151,7 +150,7 @@ npm run test:reset-data -- <path>       # any data.json you point at
 ```
 
 Companion to `test:vault`. Overwrites
-`$COPILOT_TEST_VAULT_PATH/.obsidian/plugins/scribe/data.json` for the current
+`$SCRIBE_TEST_VAULT_PATH/.obsidian/plugins/scribe/data.json` for the current
 manifest with a fixture, then attempts to reload the plugin. This overwrites the
 existing file; JSON validation is not a backup. Verify the target path and make a
 secure backup before running it. A running plugin can otherwise write its in-memory
@@ -191,13 +190,13 @@ any subcommand) and binds the call to a specific renderer.
 
 ```bash
 OBS=/Applications/Obsidian.app/Contents/MacOS/obsidian
-VAULT="$(basename "$COPILOT_TEST_VAULT_PATH")"
+VAULT="$(basename "$SCRIBE_TEST_VAULT_PATH")"
 
 $OBS vault=$VAULT vault           # echoes name/path of the targeted vault
 ```
 
 `VAULT` is only a name derived from the path, not proof of identity. Compare the
-reported path with the resolved `COPILOT_TEST_VAULT_PATH`, and check `vaults
+reported path with the resolved `SCRIBE_TEST_VAULT_PATH`, and check `vaults
 verbose` for duplicate names. If the target is ambiguous or the paths differ,
 stop; do not rely on a matching name or the focused window.
 
@@ -419,7 +418,7 @@ before running the delete command:
 $OBS vault=$VAULT create name="test-note" content="# Hello\n\nbody"
 $OBS vault=$VAULT append file="test-note" content="\nmore text"
 $OBS vault=$VAULT delete file="test-note" permanent
-$OBS vault=$VAULT search query="copilot" format=json limit=10
+$OBS vault=$VAULT search query="scribe" format=json limit=10
 ```
 
 For more aggressive resets, manipulate files directly on disk under the vault
@@ -463,7 +462,7 @@ Before live verification, run the focused unit tests for the changed component a
 npm run gallery:build
 ```
 
-Deploy to the non-production test vault configured by `COPILOT_TEST_VAULT_PATH` with `npm run gallery:vault`. Before any CLI or UI mutation, verify that the resolved vault name and path match that configuration; never rely on the implicitly focused renderer.
+Deploy to the non-production test vault configured by `SCRIBE_TEST_VAULT_PATH` with `npm run gallery:vault`. Before any CLI or UI mutation, verify that the resolved vault name and path match that configuration; never rely on the implicitly focused renderer.
 
 ### The gallery shares a stylesheet with the plugin
 
@@ -522,7 +521,7 @@ path, unloaded plugin, or wrong build. Continue only after all fields match:
 
 ```bash
 OBS=/Applications/Obsidian.app/Contents/MacOS/obsidian
-VAULT="$(basename "$COPILOT_TEST_VAULT_PATH")"
+VAULT="$(basename "$SCRIBE_TEST_VAULT_PATH")"
 
 # 1. Attach debugger, clear error buffer
 $OBS vault=$VAULT dev:debug on

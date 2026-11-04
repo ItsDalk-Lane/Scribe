@@ -1,4 +1,4 @@
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import { NativeBackendDescriptor } from "./native/descriptor";
 import type { BackendDescriptor, BackendId } from "@/agentMode/session/types";
 
@@ -17,7 +17,7 @@ export function backendDisplayOrder(): BackendDescriptor[] {
   return displayOrderCache;
 }
 
-export function getActiveBackendDescriptor(settings: CopilotSettings): BackendDescriptor {
+export function getActiveBackendDescriptor(settings: ScribeSettings): BackendDescriptor {
   const id = settings.agentMode?.activeBackend ?? "native";
   return backendRegistry[id] ?? NativeBackendDescriptor;
 }

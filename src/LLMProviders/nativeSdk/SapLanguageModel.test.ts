@@ -41,7 +41,7 @@ function chat(transport: typeof fetch, maxTokens?: number) {
 }
 
 describe("SapLanguageModel", () => {
-  describe("createSapHttpModel()", () => {
+  describe("createSapHttpModel", () => {
     it("streams split tool arguments and returns results with the original call ID", async () => {
       const transport = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
         events([
@@ -180,7 +180,7 @@ describe("SapLanguageModel", () => {
       });
       const body = transport.mock.calls[0][1]?.body as string;
       expect(JSON.parse(body)).toMatchObject({
-        placeholder_values: { copilot_message_0: "Show {{?private_name}} literally" },
+        placeholder_values: { scribe_message_0: "Show {{?private_name}} literally" },
         config: {
           modules: {
             prompt_templating: {
@@ -189,7 +189,7 @@ describe("SapLanguageModel", () => {
                   {
                     role: "user",
                     content: [
-                      { type: "text", text: "{{?copilot_message_0}}" },
+                      { type: "text", text: "{{?scribe_message_0}}" },
                       { type: "image_url", image_url: { url: "data:image/png;base64,AQID" } },
                     ],
                   },

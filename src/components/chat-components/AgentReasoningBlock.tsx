@@ -45,7 +45,7 @@ export const AgentReasoningBlock: React.FC<AgentReasoningBlockProps> = ({
             {isActive ? (
               <>
                 {t("Reasoning")}
-                <span className="copilot-shimmer-text" aria-hidden="true">
+                <span className="scribe-shimmer-text" aria-hidden="true">
                   ...
                 </span>
               </>

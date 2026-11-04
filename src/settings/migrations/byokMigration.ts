@@ -15,7 +15,7 @@ import type {
   ProviderType,
   SetupProviderInput,
 } from "@/modelManagement";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
 const EMBEDDING_ID = /(^|[-_/.\s])embed(ding)?($|[-_/.\s])/i;
 
@@ -96,7 +96,7 @@ function displayNameFor(provider: string): string {
 
 function buildExtras(
   model: CustomModel,
-  settings: CopilotSettings,
+  settings: ScribeSettings,
   providerType: ProviderType
 ): Record<string, unknown> | undefined {
   if (model.provider === (ChatModelProviders.OPENAI as string)) {
@@ -114,7 +114,7 @@ interface ResolvedCandidate {
   extras?: Record<string, unknown>;
 }
 
-function resolveCandidate(model: CustomModel, settings: CopilotSettings): ResolvedCandidate | null {
+function resolveCandidate(model: CustomModel, settings: ScribeSettings): ResolvedCandidate | null {
   const mapping = LEGACY_PROVIDER_MAP[model.provider];
   if (!mapping) return null;
   if (!model.enabled) return null;
@@ -147,7 +147,7 @@ function toModelInfo(model: CustomModel): ModelInfo {
   return { id: model.name, displayName: model.displayName?.trim() || model.name };
 }
 
-export function planByokMigration(settings: CopilotSettings): SetupProviderInput[] {
+export function planByokMigration(settings: ScribeSettings): SetupProviderInput[] {
   const groups = new Map<
     string,
     { input: SetupProviderInput; modelsById: Map<string, ModelInfo> }
@@ -158,9 +158,6 @@ export function planByokMigration(settings: CopilotSettings): SetupProviderInput
     if (!candidate) continue;
     const { mapping, apiKey, baseUrl, enableCors, extras } = candidate;
 
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/313:
-    // legacy models sharing an endpoint can carry different CORS choices, so
-    // keep them in separate providers instead of silently dropping one choice.
     const groupKey = [
       mapping.providerType,
       mapping.catalogProviderId ?? "",
@@ -197,9 +194,6 @@ export function planByokMigration(settings: CopilotSettings): SetupProviderInput
   }));
 }
 
-// Key and CORS are excluded from the match so an already-migrated provider is not duplicated
-// when its legacy CORS choice can no longer be recovered:
-// https://github.com/logancyang/obsidian-copilot-preview/issues/313
 function isDuplicateByok(provider: Provider, descriptor: SetupProviderInput): boolean {
   if (provider.origin.kind !== "byok") return false;
   return (
@@ -211,7 +205,7 @@ function isDuplicateByok(provider: Provider, descriptor: SetupProviderInput): bo
 
 export async function executeByokMigration(
   api: ModelManagementApi,
-  settings: CopilotSettings
+  settings: ScribeSettings
 ): Promise<void> {
   const descriptors = planByokMigration(settings);
   if (descriptors.length === 0) {

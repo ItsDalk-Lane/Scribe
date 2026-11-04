@@ -644,7 +644,7 @@ function StoryTree({
             </div>
 
             {expanded && (node.stories.length > 0 || node.children.size > 0) && (
-              <div className="copilot-gallery-divider-l tw-ml-3 tw-pl-2">
+              <div className="scribe-gallery-divider-l tw-ml-3 tw-pl-2">
                 {node.stories.map((story) => {
                   const selected = story.id === selectedStoryId && !showContactSheet;
 
@@ -869,10 +869,10 @@ export function Gallery({
     <div className="tw-flex tw-h-full tw-min-h-0 tw-bg-primary tw-text-normal">
       <aside
         aria-label="Component and story navigation"
-        className="copilot-gallery-divider-r tw-flex tw-w-64 tw-shrink-0 tw-flex-col tw-bg-secondary"
+        className="scribe-gallery-divider-r tw-flex tw-w-64 tw-shrink-0 tw-flex-col tw-bg-secondary"
         onKeyDown={handleTreeKeyDown}
       >
-        <header className="copilot-divider-b tw-flex tw-flex-col tw-gap-1 tw-p-3">
+        <header className="scribe-divider-b tw-flex tw-flex-col tw-gap-1 tw-p-3">
           <h1 className="tw-m-0 tw-text-ui-medium tw-font-semibold">Component gallery</h1>
           <p className="tw-m-0 tw-text-smallest tw-text-muted" data-gallery-coverage-summary>
             {catalog.componentCount} presentational components · {catalog.coveredCount} with stories
@@ -880,7 +880,7 @@ export function Gallery({
           </p>
         </header>
 
-        <div className="copilot-divider-b tw-p-3">
+        <div className="scribe-divider-b tw-p-3">
           <label className="tw-flex tw-flex-col tw-gap-1 tw-text-ui-smaller tw-font-medium">
             Filter components and stories
             <input
@@ -915,7 +915,7 @@ export function Gallery({
       </aside>
 
       <main className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-overflow-hidden">
-        <header className="copilot-divider-b tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3 tw-p-4">
+        <header className="scribe-divider-b tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3 tw-p-4">
           <div className="tw-min-w-0">
             <p className="tw-m-0 tw-text-smallest tw-font-semibold tw-uppercase tw-text-muted">
               {state.contactSheet ? "Current subtree" : "Current story"}
@@ -983,7 +983,7 @@ export function Gallery({
           >
             <div
               className={cn(
-                "copilot-gallery-canvas tw-flex tw-flex-col tw-gap-4",
+                "scribe-gallery-canvas tw-flex tw-flex-col tw-gap-4",
                 selectedStory?.layout === "fullscreen" && !state.contactSheet && "tw-h-full"
               )}
               data-gallery-width={state.width}

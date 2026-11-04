@@ -12,8 +12,6 @@ export function planOptionalCustomProviderAuthMigration(
       !provider.origin.catalogProviderId &&
       provider.providerType === "openai-compatible";
 
-    // Existing rows persisted the old template default, not a user choice.
-    // https://github.com/logancyang/obsidian-copilot/issues/2895
     if (isCustomOpenAICompatible && provider.requiresApiKey !== false) {
       next[id] = { ...provider, requiresApiKey: false };
       changed = true;

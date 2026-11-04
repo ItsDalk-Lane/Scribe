@@ -3,8 +3,8 @@ import React from "react";
 import { SkillRowLayout } from "./SkillRowLayout";
 
 describe("SkillRowLayout", () => {
-  describe("SkillRowLayout()", () => {
-    it("shares name, description, annotations and controls across skill ownership for https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
+  describe("SkillRowLayout", () => {
+    it("shares name, description, annotations and controls across skill ownership", () => {
       render(
         <SkillRowLayout
           name="writing-helper"

@@ -1,12 +1,10 @@
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64";
 
-const ISSUE = "https://github.com/Brevilabs/obsidian-copilot-private/issues/94";
-
 describe("base64", () => {
-  describe("arrayBufferToBase64()", () => {
+  describe("arrayBufferToBase64", () => {
     it("encodes UTF-8 bytes as padded standard base64", () => {
-      const bytes = new TextEncoder().encode("Copilot 🚀");
-      expect(arrayBufferToBase64(bytes.buffer as ArrayBuffer)).toBe("Q29waWxvdCDwn5qA");
+      const bytes = new TextEncoder().encode("Scribe 🚀");
+      expect(arrayBufferToBase64(bytes.buffer as ArrayBuffer)).toBe("U2NyaWJlIPCfmoA=");
       expect(arrayBufferToBase64(new Uint8Array([1]).buffer)).toBe("AQ==");
     });
 
@@ -14,7 +12,7 @@ describe("base64", () => {
       expect(arrayBufferToBase64(new ArrayBuffer(0))).toBe("");
     });
 
-    it(`encodes a megabyte-scale attachment without exceeding the argument limit (${ISSUE})`, () => {
+    it(`encodes a megabyte-scale attachment without exceeding the argument limit`, () => {
       const bytes = new Uint8Array(1024 * 1024 + 7);
       bytes.forEach((_, index) => (bytes[index] = index % 251));
       const encoded = arrayBufferToBase64(bytes.buffer);
@@ -23,7 +21,7 @@ describe("base64", () => {
     });
   });
 
-  describe("base64ToArrayBuffer()", () => {
+  describe("base64ToArrayBuffer", () => {
     it("decodes padded and unpadded base64 to the original bytes", () => {
       expect(new Uint8Array(base64ToArrayBuffer("AAECA3+A/w=="))).toEqual(
         new Uint8Array([0, 1, 2, 3, 127, 128, 255])
@@ -33,7 +31,7 @@ describe("base64", () => {
       );
     });
 
-    it(`decodes without a global Buffer, as in the mobile WebView (${ISSUE})`, () => {
+    it(`decodes without a global Buffer, as in the mobile WebView`, () => {
       // eslint-disable-next-line obsidianmd/no-global-this -- jsdom test needs to mutate the actual global runtime, not a per-window scope
       const g = globalThis as { Buffer?: unknown };
       const originalBuffer = g.Buffer;

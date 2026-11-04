@@ -33,22 +33,22 @@ jest.mock("@/logger", () => ({
 
 import { FileSystemAdapter, Notice, type App } from "obsidian";
 import { getSettings } from "@/settings/model";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import type { CustomModel } from "@/aiParams";
 import type { Provider } from "@/modelManagement";
 import {
   KeychainService,
-  isCopilotOwnedSecret,
+  isScribeOwnedSecret,
   isSecretKey,
   providerKeychainName,
 } from "./keychainService";
 import { stripKeychainFields } from "./settingsSecretTransforms";
 
-function makeSettings(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return {
     activeModels: [],
     ...overrides,
-  } as unknown as CopilotSettings;
+  } as unknown as ScribeSettings;
 }
 
 function makeModel(overrides: Partial<CustomModel> = {}): CustomModel {
@@ -129,7 +129,7 @@ beforeEach(() => {
 });
 
 describe("keychainService", () => {
-  describe("isSecretKey()", () => {
+  describe("isSecretKey", () => {
     it.each(["openAIApiKey", "anthropicApiKey"])(
       "returns true for the secret setting %s",
       (key) => {
@@ -142,7 +142,7 @@ describe("keychainService", () => {
     });
   });
 
-  describe("stripKeychainFields()", () => {
+  describe("stripKeychainFields", () => {
     it("blanks sensitive Claude environment variables in the flat config and every device profile", () => {
       const settings = makeSettings({
         agentMode: {
@@ -158,7 +158,7 @@ describe("keychainService", () => {
               },
             },
           },
-        } as unknown as CopilotSettings["agentMode"],
+        } as unknown as ScribeSettings["agentMode"],
       });
 
       const stripped = stripKeychainFields(settings) as unknown as {
@@ -181,7 +181,7 @@ describe("keychainService", () => {
     });
   });
 
-  describe("providerKeychainName()", () => {
+  describe("providerKeychainName", () => {
     it("names a catalog provider after its catalog id, so every device mints the same name for the vault", () => {
       const provider = makeProvider({ displayName: "My Claude" });
 
@@ -242,19 +242,19 @@ describe("keychainService", () => {
     });
   });
 
-  describe("isCopilotOwnedSecret()", () => {
+  describe("isScribeOwnedSecret", () => {
     it("treats a scribe- name as Scribe-owned", () => {
-      expect(isCopilotOwnedSecret(`scribe-v${VAULT_ID}-provider-anthropic-api-key`)).toBe(true);
+      expect(isScribeOwnedSecret(`scribe-v${VAULT_ID}-provider-anthropic-api-key`)).toBe(true);
     });
 
-    it("treats a secret another plugin named as not Copilot-owned", () => {
-      expect(isCopilotOwnedSecret("anthropic-api-key")).toBe(false);
+    it("treats a secret another plugin named as not Scribe-owned", () => {
+      expect(isScribeOwnedSecret("anthropic-api-key")).toBe(false);
     });
   });
 
   describe("KeychainService", () => {
-    describe("migrateProviderNames()", () => {
-      function migrate(entries: Record<string, string>, settings: CopilotSettings) {
+    describe("migrateProviderNames", () => {
+      function migrate(entries: Record<string, string>, settings: ScribeSettings) {
         const storage = makeMapStorage(entries);
         const service = KeychainService.getInstance(makeApp({ secretStorage: storage }));
         service.setVaultId(VAULT_ID);
@@ -264,7 +264,7 @@ describe("keychainService", () => {
       const legacyPointer = `scribe-v${VAULT_ID}-provider-row-1`;
       const stableName = `scribe-v${VAULT_ID}-provider-anthropic-api-key`;
 
-      it("moves a key from its random-id name to its stable name and rewrites the pointer (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("moves a key from its random-id name to its stable name and rewrites the pointer", () => {
         const { storage, migrated } = migrate(
           { [legacyPointer]: "sk-ant" },
           makeSettings({
@@ -305,7 +305,7 @@ describe("keychainService", () => {
         expect(storage.secrets.has(stableName)).toBe(false);
       });
 
-      it("fills a stable pointer synced from another device with this device's legacy key for the same provider (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("fills a stable pointer synced from another device with this device's legacy key for the same provider", () => {
         const settings = makeSettings({
           providers: { "row-1": makeProvider({ apiKeyKeychainId: stableName }) },
         });
@@ -341,7 +341,7 @@ describe("keychainService", () => {
         expect(storage.secrets.get(stableName)).toBe("sk-ant");
       });
 
-      it("does not restore a key deleted from its stable name after migration (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("does not restore a key deleted from its stable name after migration", () => {
         const { storage, service, migrated } = migrate(
           { [legacyPointer]: "sk-ant" },
           makeSettings({
@@ -367,7 +367,7 @@ describe("keychainService", () => {
         expect(storage.secrets.has(stableName)).toBe(false);
       });
 
-      it("leaves a pointer to another plugin's secret and this vault's legacy entry alone (https://github.com/logancyang/obsidian-copilot/issues/3618)", () => {
+      it("leaves a pointer to another plugin's secret and this vault's legacy entry alone", () => {
         const settings = makeSettings({
           providers: { "row-1": makeProvider({ apiKeyKeychainId: "anthropic-api-key" }) },
         });
@@ -383,7 +383,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("getVaultId()", () => {
+    describe("getVaultId", () => {
       it("derives an 8-character hex ID from the desktop vault path", () => {
         const service = KeychainService.getInstance(makeApp({ basePath: "/Users/test/MyVault" }));
         const id = service.getVaultId();
@@ -406,7 +406,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("deleteSecret()", () => {
+    describe("deleteSecret", () => {
       it("removes the vault-namespaced entry for a settings key", () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
@@ -432,14 +432,14 @@ describe("keychainService", () => {
       });
     });
 
-    describe("hydrateFromKeychain()", () => {
+    describe("hydrateFromKeychain", () => {
       it("does not read or hydrate retired agent runtime environment credentials", async () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
         const legacy = makeSettings({
           agentMode: {
             backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "" } } },
-          } as unknown as CopilotSettings["agentMode"],
+          } as unknown as ScribeSettings["agentMode"],
         });
         await service.hydrateFromKeychain(legacy);
         expect(secretStorage.getSecret.mock.calls.flat()).not.toEqual(
@@ -449,7 +449,7 @@ describe("keychainService", () => {
           makeSettings({
             agentMode: {
               backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "" } } },
-            } as unknown as CopilotSettings["agentMode"],
+            } as unknown as ScribeSettings["agentMode"],
           })
         );
       });
@@ -543,7 +543,7 @@ describe("keychainService", () => {
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
 
         const result = await service.hydrateFromKeychain(
-          makeSettings({ legacyProviderApiKey: "" } as unknown as Partial<CopilotSettings>)
+          makeSettings({ legacyProviderApiKey: "" } as unknown as Partial<ScribeSettings>)
         );
 
         expect((result.settings as unknown as Record<string, string>).legacyProviderApiKey).toBe(
@@ -552,18 +552,18 @@ describe("keychainService", () => {
       });
     });
 
-    describe("persistSecrets()", () => {
+    describe("persistSecrets", () => {
       it("neither stores nor deletes retired agent runtime credentials when native settings replace them", () => {
         const service = KeychainService.getInstance(makeApp());
         const old = makeSettings({
           agentMode: {
             backends: { claude: { envOverrides: { ANTHROPIC_API_KEY: "old-secret" } } },
-          } as unknown as CopilotSettings["agentMode"],
+          } as unknown as ScribeSettings["agentMode"],
         });
         const current = makeSettings({
           agentMode: {
             backends: { native: { defaultMode: "default" } },
-          } as unknown as CopilotSettings["agentMode"],
+          } as unknown as ScribeSettings["agentMode"],
         });
         const result = service.persistSecrets(current, old);
         expect(result.secretEntries).toEqual([]);
@@ -604,7 +604,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("forgetAllSecrets()", () => {
+    describe("forgetAllSecrets", () => {
       it("clears vault secrets, strips settings, and notifies the user", async () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
@@ -730,7 +730,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("clearAllVaultSecrets()", () => {
+    describe("clearAllVaultSecrets", () => {
       it("clears what it can, then throws aggregating the count of failed entries", () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));

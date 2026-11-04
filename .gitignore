@@ -8,6 +8,9 @@
 # npm
 node_modules
 
+# Local agent session state
+.zcode/
+
 # Don't include the compiled main.js file in the repo.
 # They should be uploaded to GitHub releases instead.
 main.js
@@ -34,11 +37,11 @@ data/
 TODO.md
 
 # ACP full-frame debug log (vault sidecar, may contain prompt/tool data)
-copilot/acp-frames.ndjson
-copilot/acp-frames.old.ndjson
+.obsidian-scribe/acp-frames.ndjson
+.obsidian-scribe/acp-frames.old.ndjson
 
-# Models.dev catalog cache (disposable runtime cache under .copilot/)
-.copilot/model-catalog-cache.json
+# Models.dev catalog cache (disposable runtime cache under .obsidian-scribe/)
+.obsidian-scribe/model-catalog-cache.json
 .otacon/
 
 # Local AOCI tooling and cognition workspace

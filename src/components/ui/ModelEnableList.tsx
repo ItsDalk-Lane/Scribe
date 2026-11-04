@@ -46,8 +46,6 @@ interface EnabledCountBadgeProps {
 
 const EnabledCountBadge: React.FC<EnabledCountBadgeProps> = ({ rows }) => {
   const count = rows.filter((row) => row.enabled).length;
-  // A zero badge on every unused provider would bury the ones that hold selections.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/631
   if (count === 0) return null;
   return (
     <Badge

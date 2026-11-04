@@ -42,9 +42,6 @@ function rewriteExactZodImports(source, filePath = "source.js") {
     const importedName = element.propertyName?.text ?? element.name.text;
     if (element.isTypeOnly || importedName !== "z") continue;
 
-    // A dependency may carry a required notice inside the declaration, so commented imports
-    // stay byte-for-byte intact.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/94
     const statementSource = source.slice(statement.getStart(sourceFile), statement.end);
     if (/\/[/*]/.test(statementSource)) continue;
 
@@ -93,8 +90,6 @@ function dedupeEsbuildLegalComments(source) {
     cursor = entryPattern.lastIndex;
   }
 
-  // A partially parsed license block could silently discard a notice, so fail closed.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/94
   if (cursor !== entriesSource.length || groupedEntries.size === 0) {
     legalError("incomplete esbuild legal-comment parse");
   }
@@ -110,8 +105,6 @@ function dedupeEsbuildLegalComments(source) {
 }
 
 function assertBundleSize(source, maxBytes = MAX_BUNDLE_BYTES) {
-  // The ceiling is decimal 5.5 MB and rejects equality.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/94
   const bytes = Buffer.byteLength(source, "utf8");
   if (bytes >= maxBytes) {
     throw new Error(

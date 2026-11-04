@@ -46,13 +46,13 @@ describe("AgentChatControls", () => {
     Element.prototype.scrollIntoView = () => {};
   });
 
-  describe("AgentChatControls()", () => {
+  describe("AgentChatControls", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       mockUseSettingsValue.mockReturnValue({ autosaveChat: true });
     });
 
-    it("does not show a lone link control before a session exists https://github.com/logancyang/obsidian-copilot/issues/3271", () => {
+    it("does not show a lone link control before a session exists", () => {
       render(
         <TooltipProvider>
           <AgentChatControls />
@@ -80,7 +80,7 @@ describe("AgentChatControls", () => {
       ]);
     });
 
-    it("shows the running-tasks count alone at the start of the bar (https://github.com/Brevilabs/obsidian-copilot-private/issues/749)", () => {
+    it("shows the running-tasks count alone at the start of the bar", () => {
       const { container } = renderSessionControls({
         tasksIndicator: <span>2 tasks running</span>,
       });
@@ -97,7 +97,7 @@ describe("AgentChatControls", () => {
       expect(onCopyChatLink).toHaveBeenCalledTimes(1);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/702 disables Copy chat link and Add to bookmarks in an empty chat and explains on hover that a message is needed", async () => {
+    it("disables Copy chat link and Add to bookmarks in an empty chat and explains on hover that a message is needed", async () => {
       const onSetChatBookmarked = jest.fn(async () => {});
       renderSessionControls({ onSetChatBookmarked });
 
@@ -141,7 +141,7 @@ describe("AgentChatControls", () => {
       expect(otherWindowDocument.querySelector('[role="menu"]')).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/672 reports an error about the open chat from the More actions menu", () => {
+    it("reports an error about the open chat from the More actions menu", () => {
       const onReportError = jest.fn();
       renderSessionControls({ onReportError });
 

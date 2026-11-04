@@ -15,7 +15,7 @@ const model = {
 };
 
 describe("customCommandChatEngine", () => {
-  describe("createChatMemory()", () => {
+  describe("createChatMemory", () => {
     it("creates independent conversation histories", () => {
       const first = createChatMemory();
       first.chatHistory.messages.push({ role: "user", content: "One conversation", timestamp: 0 });
@@ -23,7 +23,7 @@ describe("customCommandChatEngine", () => {
     });
   });
 
-  describe("createChatChain()", () => {
+  describe("createChatChain", () => {
     const originalFetch = window.fetch;
     afterEach(() => {
       window.fetch = originalFetch;

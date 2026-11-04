@@ -15,8 +15,8 @@ cp "$REPO_ROOT/scripts/obsidian-vault.sh" "$FIXTURE_ROOT/scripts/obsidian-vault.
 
 cat >"$CURRENT_SOURCE/manifest.json" <<'EOF'
 {
-  "id": "copilot-component-gallery",
-  "name": "Copilot Component Gallery (dev)",
+  "id": "scribe-component-gallery",
+  "name": "Scribe Component Gallery (dev)",
   "version": "0.0.1"
 }
 EOF
@@ -45,9 +45,9 @@ fi
 
 prepare_vault() {
   local vault_root="$1"
-  mkdir -p "$vault_root/.obsidian/plugins/copilot"
-  printf 'copilot settings\n' >"$vault_root/.obsidian/plugins/copilot/data.json"
-  printf '["copilot","hot-reload"]\n' >"$vault_root/.obsidian/community-plugins.json"
+  mkdir -p "$vault_root/.obsidian/plugins/scribe"
+  printf 'scribe settings\n' >"$vault_root/.obsidian/plugins/scribe/data.json"
+  printf '["scribe","hot-reload"]\n' >"$vault_root/.obsidian/community-plugins.json"
 }
 
 create_legacy_gallery_dir() {
@@ -61,7 +61,7 @@ create_legacy_gallery_dir() {
 
 run_deploy() {
   local vault_root="$1"
-  COPILOT_TEST_VAULT_PATH="$vault_root" \
+  SCRIBE_TEST_VAULT_PATH="$vault_root" \
     OBSIDIAN_BIN="$FAKE_BIN/obsidian" \
     TEST_ROOT="$TEST_ROOT" \
     bash "$FIXTURE_ROOT/scripts/gallery-vault.sh" >/dev/null
@@ -91,12 +91,12 @@ assert_symlink_target() {
 
 assert_unrelated_vault_state() {
   local vault_root="$1"
-  assert_file_content "$vault_root/.obsidian/plugins/copilot/data.json" "copilot settings"
-  assert_file_content "$vault_root/.obsidian/community-plugins.json" '["copilot","hot-reload"]'
+  assert_file_content "$vault_root/.obsidian/plugins/scribe/data.json" "scribe settings"
+  assert_file_content "$vault_root/.obsidian/community-plugins.json" '["scribe","hot-reload"]'
 }
 
 KNOWN_VAULT="$TEST_ROOT/known-vault"
-KNOWN_GALLERY="$KNOWN_VAULT/.obsidian/plugins/copilot-component-gallery"
+KNOWN_GALLERY="$KNOWN_VAULT/.obsidian/plugins/scribe-component-gallery"
 prepare_vault "$KNOWN_VAULT"
 create_legacy_gallery_dir "$KNOWN_GALLERY"
 
@@ -111,7 +111,7 @@ assert_file_content "$LEGACY_SOURCE/source-state.txt" "legacy source state"
 assert_unrelated_vault_state "$KNOWN_VAULT"
 
 UNEXPECTED_VAULT="$TEST_ROOT/unexpected-vault"
-UNEXPECTED_GALLERY="$UNEXPECTED_VAULT/.obsidian/plugins/copilot-component-gallery"
+UNEXPECTED_GALLERY="$UNEXPECTED_VAULT/.obsidian/plugins/scribe-component-gallery"
 prepare_vault "$UNEXPECTED_VAULT"
 create_legacy_gallery_dir "$UNEXPECTED_GALLERY"
 printf 'gallery settings that must survive\n' >"$UNEXPECTED_GALLERY/data.json"
@@ -137,7 +137,7 @@ assert_file_content "$UNEXPECTED_GALLERY/data.json" "gallery settings that must 
 assert_unrelated_vault_state "$UNEXPECTED_VAULT"
 
 REPOINT_VAULT="$TEST_ROOT/repoint-vault"
-REPOINT_GALLERY="$REPOINT_VAULT/.obsidian/plugins/copilot-component-gallery"
+REPOINT_GALLERY="$REPOINT_VAULT/.obsidian/plugins/scribe-component-gallery"
 prepare_vault "$REPOINT_VAULT"
 ln -s "$LEGACY_SOURCE" "$REPOINT_GALLERY"
 

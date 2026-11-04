@@ -7,7 +7,7 @@ import type {
   ProviderType,
 } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
-import { type CopilotSettings, setSettings } from "@/settings/model";
+import { type ScribeSettings, setSettings } from "@/settings/model";
 
 import { executeBedrockRemoval, planBedrockRemoval } from "./bedrockRemovalMigration";
 
@@ -78,11 +78,11 @@ function model(overrides: Partial<CustomModel>): CustomModel {
   };
 }
 
-function settingsWith(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function settingsWith(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return { ...DEFAULT_SETTINGS, ...overrides };
 }
 
-function bedrockVault(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function bedrockVault(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return settingsWith({
     providers: {
       bed: provider("bed", "bedrock", "scribe-v1-provider-bed"),
@@ -101,7 +101,7 @@ describe("bedrockRemovalMigration", () => {
     keychain();
   });
 
-  describe("planBedrockRemoval()", () => {
+  describe("planBedrockRemoval", () => {
     it("names every Bedrock provider row and leaves every other provider alone", () => {
       const plan = planBedrockRemoval(bedrockVault());
       expect(plan?.providerIds).toEqual(["bed"]);
@@ -112,7 +112,7 @@ describe("bedrockRemovalMigration", () => {
       expect(plan?.patch.defaultModelKey).toBeUndefined();
     });
 
-    it("removes a legacy Bedrock model from a vault whose BYOK migration never ran (https://github.com/logancyang/obsidian-copilot/issues/2928)", () => {
+    it("removes a legacy Bedrock model from a vault whose BYOK migration never ran", () => {
       const plan = planBedrockRemoval(
         settingsWith({
           activeModels: [
@@ -128,7 +128,7 @@ describe("bedrockRemovalMigration", () => {
     });
   });
 
-  describe("executeBedrockRemoval()", () => {
+  describe("executeBedrockRemoval", () => {
     it("hands each Bedrock row to the shared provider cascade", async () => {
       const { api, removeProvider } = makeApi();
       await executeBedrockRemoval(api, bedrockVault());
@@ -146,7 +146,7 @@ describe("bedrockRemovalMigration", () => {
       expect(removeProvider).toHaveBeenCalledWith("bed");
     });
 
-    it("deletes the pre-BYOK top-level key, which no later code path can name (https://github.com/logancyang/obsidian-copilot/issues/2928)", async () => {
+    it("deletes the pre-BYOK top-level key, which no later code path can name", async () => {
       const store = keychain();
       const { api } = makeApi();
       await executeBedrockRemoval(api, settingsWith());

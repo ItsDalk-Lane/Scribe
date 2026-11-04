@@ -41,25 +41,6 @@ Add a cloud, local, or compatible provider under **Settings → Scribe → 快�
 
 Your chosen route determines where prompts and included context are processed. Read [Model Sources and BYOK](./docs/llm-providers.md) for setup and data-routing details.
 
-## Feedback on the original Copilot project
-
-> "The first tool that truly unifies how I search, organize, and retrieve knowledge without ever leaving Obsidian. My workflow is faster, deeper, and more connected. I can't imagine working without it."
->
-> **Jason Zhang**, Investor & Research Analyst
-
-<details>
-<summary><strong>More from the community</strong></summary>
-
-> "I drop meeting transcriptions, personal notes, and architecture ideas into my vault. Copilot gives me a personal assistant that finds missing puzzle pieces and surfaces relevant info during live calls, no manual searches."
->
-> **Brad Decker**, CTO, Concierge Auctions
-
-> "Since discovering Copilot, my writing process has been completely transformed. Conversing with my own articles and thoughts is the most refreshing experience I've had in decades."
->
-> **Mat QV**, Professional Writer
-
-</details>
-
 ## Frequently asked questions
 
 <details>

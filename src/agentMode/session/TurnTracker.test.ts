@@ -84,7 +84,7 @@ describe("TurnTracker", () => {
   });
 
   describe("TurnTracker", () => {
-    describe("openReply()", () => {
+    describe("openReply", () => {
       it("adds an empty assistant reply, makes it the open reply and notifies", () => {
         const { deps, tracker } = setup();
 
@@ -109,7 +109,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("getReplyId()", () => {
+    describe("getReplyId", () => {
       it("returns null until a reply opens and again after the reply closes", async () => {
         const { tracker } = setup();
         expect(tracker.getReplyId()).toBeNull();
@@ -123,7 +123,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("getReplyStartedAtMs()", () => {
+    describe("getReplyStartedAtMs", () => {
       it("returns the start time the open reply was dated from", () => {
         const { tracker } = setup();
 
@@ -133,7 +133,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("getTurnFiles()", () => {
+    describe("getTurnFiles", () => {
       it("returns the capture the closing reply hands to captureFileChanges with the turn's diff, then a fresh one", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");
@@ -149,7 +149,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("getQueuedPrompts()", () => {
+    describe("getQueuedPrompts", () => {
       it("returns the same empty list whenever nothing is queued", () => {
         const { tracker } = setup();
         const before = tracker.getQueuedPrompts();
@@ -163,7 +163,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("isSending()", () => {
+    describe("isSending", () => {
       it("reports sending only from the send until the send ends, not while a turn the agent started is open", () => {
         const { tracker } = setup();
         const { signal } = tracker.startSend();
@@ -176,7 +176,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("isMainTurnRunning()", () => {
+    describe("isMainTurnRunning", () => {
       it("reports running from the send until the send ends, and while a turn is open", () => {
         const { tracker } = setup();
         expect(tracker.isMainTurnRunning()).toBe(false);
@@ -191,7 +191,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("hasLastTurnFailed()", () => {
+    describe("hasLastTurnFailed", () => {
       it("reports a failure from a failed reply until the next send starts", () => {
         const { tracker } = setup();
         tracker.openReply();
@@ -204,7 +204,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("isStopping()", () => {
+    describe("isStopping", () => {
       it("reports stopping from Stop until both the stopped send and the stopped turn are over", () => {
         const { tracker } = setup();
         const { turnSend } = runningTurn(tracker, "p1", "t1");
@@ -219,7 +219,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("startSend()", () => {
+    describe("startSend", () => {
       it("marks the main turn running, clears the previous turn's failure and notifies the status", () => {
         const { deps, tracker } = setup();
         tracker.failReply(new Error("earlier failure"));
@@ -256,7 +256,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("endSend()", () => {
+    describe("endSend", () => {
       it("marks the main turn idle and notifies the status when no turn is open", () => {
         const { deps, tracker } = setup();
         const { signal } = tracker.startSend();
@@ -268,7 +268,7 @@ describe("TurnTracker", () => {
         expect(deps.notifyStatus).toHaveBeenCalledTimes(1);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 leaves a later send running when an earlier send ends late", () => {
+      it("leaves a later send running when an earlier send ends late", () => {
         const { tracker } = setup();
         const earlier = tracker.startSend();
         const later = tracker.startSend();
@@ -281,7 +281,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("submit()", () => {
+    describe("submit", () => {
       it("hands the prompt to the backend and resolves with the outcome of the turn that answers it", async () => {
         const { deps, tracker } = setup();
         const onPushed = jest.fn();
@@ -311,7 +311,7 @@ describe("TurnTracker", () => {
         expect(onPushed).toHaveBeenCalled();
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/175 resolves as cancelled when Stop lands before the backend accepts the prompt", async () => {
+      it("resolves as cancelled when Stop lands before the backend accepts the prompt", async () => {
         const { deps, tracker } = setup();
         deps.prompt.mockReturnValueOnce(new Promise(() => undefined));
         tracker.openReply();
@@ -339,7 +339,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("queue()", () => {
+    describe("queue", () => {
       it("lists the prompt as queued until the agent takes it mid-turn, then resolves with that turn's outcome", async () => {
         const { deps, tracker } = setup();
         runningTurn(tracker, "p1", "t1");
@@ -436,7 +436,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("withdrawQueued()", () => {
+    describe("withdrawQueued", () => {
       it("withdraws a prompt that has not reached the backend without asking the backend", async () => {
         const { tracker } = setup();
         const turnSend = tracker.startSend();
@@ -492,7 +492,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("takeWithdrawnPrompts()", () => {
+    describe("takeWithdrawnPrompts", () => {
       it("returns the withdrawn prompts once and then the same empty list", () => {
         const { tracker } = setup();
         tracker.startSend();
@@ -508,7 +508,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("refuse()", () => {
+    describe("refuse", () => {
       it("closes the open reply as a refusal that shows the message", () => {
         const { deps, tracker } = setup();
         tracker.openReply();
@@ -524,7 +524,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("releaseReply()", () => {
+    describe("releaseReply", () => {
       it("forgets the open reply only when it is the given reply", () => {
         const { tracker } = setup();
         const replyId = tracker.openReply();
@@ -537,7 +537,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("stop()", () => {
+    describe("stop", () => {
       it("closes the reply as cancelled, resolves the sent prompt as cancelled and drops the stopped turn's later output", async () => {
         const { deps, tracker } = setup();
         const { outcome } = runningTurn(tracker, "p1", "t1");
@@ -608,7 +608,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("whenStoppedTurnEnds()", () => {
+    describe("whenStoppedTurnEnds", () => {
       it("returns null when no stopped turn is draining", () => {
         const { tracker } = setup();
 
@@ -653,7 +653,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("dispose()", () => {
+    describe("dispose", () => {
       it("resolves every prompt still waiting for its turn as cancelled and empties the queue without notifying", async () => {
         const { deps, tracker } = setup();
         const { outcome } = runningTurn(tracker, "p1", "t1");
@@ -686,7 +686,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("startTurn()", () => {
+    describe("startTurn", () => {
       it("opens a reply dated from the reported start for a turn the agent starts on its own", () => {
         const { deps, tracker } = setup();
 
@@ -710,7 +710,7 @@ describe("TurnTracker", () => {
         expect(transcript(deps.store)).toHaveLength(1);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 lets go of a stopped send so the turn of a message kept through Stop shows its output", () => {
+      it("lets go of a stopped send so the turn of a message kept through Stop shows its output", () => {
         const { tracker } = setup();
         tracker.openReply();
         tracker.startSend();
@@ -738,7 +738,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("deliverPrompt()", () => {
+    describe("deliverPrompt", () => {
       it("closes a reply that has activity and shows the delivered prompt before a new reply", async () => {
         const { deps, tracker } = setup();
         const { replyId } = runningTurn(tracker, "p1", "t1");
@@ -756,7 +756,7 @@ describe("TurnTracker", () => {
         expect(tracker.getReplyId()).not.toBe(replyId);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 shows no empty-turn error when the agent adds nothing after the delivered prompt, since its earlier work is shown", async () => {
+      it("shows no empty-turn error when the agent adds nothing after the delivered prompt, since its earlier work is shown", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");
         deps.store.appendAgentText(replyId, "Alpha: about A.");
@@ -816,7 +816,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("withdrawPrompts()", () => {
+    describe("withdrawPrompts", () => {
       it("returns withdrawn queued prompts to the composer, reports them withdrawn and resolves their sends as cancelled", async () => {
         const { deps, tracker } = setup();
         runningTurn(tracker, "p1", "t1");
@@ -842,7 +842,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("disconnect()", () => {
+    describe("disconnect", () => {
       it("fails the open reply with the connection error and withdraws every sent prompt", async () => {
         const { deps, tracker } = setup();
         const { outcome } = runningTurn(tracker, "p1", "t1");
@@ -894,7 +894,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("endTurn()", () => {
+    describe("endTurn", () => {
       it("closes the reply with the turn's stop reason and resolves every delivered prompt", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");
@@ -925,7 +925,7 @@ describe("TurnTracker", () => {
         await expect(queued).resolves.toBe("end_turn");
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 keeps the reply open and fails its pending tool calls when a prompt that continues at the output limit is cut off", async () => {
+      it("keeps the reply open and fails its pending tool calls when a prompt that continues at the output limit is cut off", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");
         addToolCall(deps.store, replyId, "tc-write", "pending");
@@ -938,7 +938,7 @@ describe("TurnTracker", () => {
         expect(deps.store.getMessage(replyId)?.turnStopReason).toBeUndefined();
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 closes the same reply at the output limit when the continuation is cut off too", async () => {
+      it("closes the same reply at the output limit when the continuation is cut off too", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");
         deps.store.appendAgentText(replyId, "part one");
@@ -1016,7 +1016,7 @@ describe("TurnTracker", () => {
         expect(tracker.whenStoppedTurnEnds(new AbortController().signal)).toBeNull();
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/175 still closes the reply when its file changes cannot be captured", async () => {
+      it("still closes the reply when its file changes cannot be captured", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");
         deps.store.appendAgentText(replyId, "edited");
@@ -1029,7 +1029,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("failReply()", () => {
+    describe("failReply", () => {
       it("shows the failure on the open reply, fails its pending tool calls and reports the last turn as failed", () => {
         const { deps, tracker } = setup();
         const replyId = tracker.openReply();
@@ -1044,7 +1044,7 @@ describe("TurnTracker", () => {
         expect(tracker.hasLastTurnFailed()).toBe(true);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/762 hands the shown error text to the session so it can offer a report", () => {
+      it("hands the shown error text to the session so it can offer a report", () => {
         const { deps, tracker } = setup();
         tracker.openReply();
 
@@ -1062,7 +1062,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("resolveContentTarget()", () => {
+    describe("resolveContentTarget", () => {
       it("routes content to the open reply", () => {
         const { tracker } = setup();
         const replyId = tracker.openReply();
@@ -1107,7 +1107,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("dropStoppedContent()", () => {
+    describe("dropStoppedContent", () => {
       it("drops later content of a message that arrived while stopping", () => {
         const { tracker } = setup();
         const { turnSend } = runningTurn(tracker, "p1", "t1");
@@ -1123,7 +1123,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("extendSettledTurn()", () => {
+    describe("extendSettledTurn", () => {
       it("extends a settled reply's duration to cover its late content and leaves other replies alone", async () => {
         const { deps, tracker } = setup();
         const now = jest.spyOn(Date, "now").mockReturnValue(1_000);
@@ -1143,7 +1143,7 @@ describe("TurnTracker", () => {
       });
     });
 
-    describe("resolveToolTarget()", () => {
+    describe("resolveToolTarget", () => {
       it("routes an update to the earlier reply that owns the tool call", () => {
         const { tracker } = setup();
         const earlierReply = tracker.openReply();

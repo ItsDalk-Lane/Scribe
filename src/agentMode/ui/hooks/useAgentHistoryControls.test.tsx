@@ -2,7 +2,7 @@ import { useAgentHistoryControls } from "@/agentMode/ui/hooks/useAgentHistoryCon
 import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import type { ChatHistoryItem } from "@/components/chat-components/ChatHistoryPopover";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { buildNativeChatId } from "@/utils/nativeChatId";
 import { act, renderHook } from "@testing-library/react";
 import { type App, Notice, TFile } from "obsidian";
@@ -70,7 +70,7 @@ function makeBookmarkingPlugin(bookmarks: ReturnType<typeof makeBookmarks> | nul
       getPluginById: (id: string) => (id === "bookmarks" ? { enabled: bookmarks !== null } : null),
     },
   } as unknown as App;
-  return { app } as unknown as CopilotPlugin;
+  return { app } as unknown as ScribePlugin;
 }
 
 const plugin = makeBookmarkingPlugin(null);
@@ -83,7 +83,7 @@ const renderControls = (manager: AgentSessionManager, scope?: string) =>
 describe("useAgentHistoryControls", () => {
   beforeEach(() => (Notice as unknown as jest.Mock).mockClear());
 
-  describe("useAgentHistoryControls()", () => {
+  describe("useAgentHistoryControls", () => {
     it("loads the history of every chat when no scope is given", async () => {
       const manager = makeManager() as AgentSessionManager & { getChatHistoryItems: jest.Mock };
       const { result } = renderControls(manager);
@@ -251,7 +251,7 @@ describe("useAgentHistoryControls", () => {
       expect(manager.getChatHistoryItems).toHaveBeenCalled();
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 pins a chat on its row right away instead of reloading history the metadata cache has not caught up with", async () => {
+    it("pins a chat on its row right away instead of reloading history the metadata cache has not caught up with", async () => {
       const manager = makeManager();
       const { result } = renderControls(manager);
       await act(async () => {
@@ -267,7 +267,7 @@ describe("useAgentHistoryControls", () => {
       expect(manager.getChatHistoryItems).toHaveBeenCalledTimes(1);
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 keeps a pin when a history load that started before it resolves afterward", async () => {
+    it("keeps a pin when a history load that started before it resolves afterward", async () => {
       const manager = makeManager();
       const { result } = renderControls(manager);
       await act(async () => {
@@ -382,7 +382,7 @@ describe("useAgentHistoryControls", () => {
       expect(Object.keys(bookmarks.urlBookmarkLookup)).toEqual([LINK_SAVED]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 still deletes the chat and reloads history when removing its bookmark throws", async () => {
+    it("still deletes the chat and reloads history when removing its bookmark throws", async () => {
       const plugin = makeBookmarkingPlugin(makeBookmarks([LINK_A]));
       (
         plugin.app as unknown as { internalPlugins: { getEnabledPluginById: jest.Mock } }
@@ -445,7 +445,7 @@ describe("useAgentHistoryControls", () => {
       await expect(result.current.getChatBookmarkState(NATIVE_ID)).resolves.toBe("not-bookmarked");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 reports bookmarks as off when the Bookmarks core plugin is turned off", async () => {
+    it("reports bookmarks as off when the Bookmarks core plugin is turned off", async () => {
       const { result } = renderHook(() =>
         useAgentHistoryControls(makeManager(), makeBookmarkingPlugin(null))
       );
@@ -453,7 +453,7 @@ describe("useAgentHistoryControls", () => {
       await expect(result.current.getChatBookmarkState("chats/agent__a.md")).resolves.toBe("off");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 reports bookmarks as unavailable when the enabled Bookmarks plugin no longer has the expected shape", async () => {
+    it("reports bookmarks as unavailable when the enabled Bookmarks plugin no longer has the expected shape", async () => {
       const { result } = renderHook(() =>
         useAgentHistoryControls(
           makeManager(),
@@ -466,7 +466,7 @@ describe("useAgentHistoryControls", () => {
       );
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 reports bookmarks as unavailable and shows a notice when reading Obsidian's bookmarks throws", async () => {
+    it("reports bookmarks as unavailable and shows a notice when reading Obsidian's bookmarks throws", async () => {
       const plugin = makeBookmarkingPlugin(makeBookmarks());
       (
         plugin.app as unknown as { internalPlugins: { getEnabledPluginById: jest.Mock } }
@@ -511,7 +511,7 @@ describe("useAgentHistoryControls", () => {
       expect(Notice).toHaveBeenCalledWith("Removed from bookmarks.");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 saves a chat with no note before bookmarking the new note's link and shows the row as that note", async () => {
+    it("saves a chat with no note before bookmarking the new note's link and shows the row as that note", async () => {
       const bookmarks = makeBookmarks();
       const manager = makeManager();
       manager.getChatHistoryItems.mockResolvedValue([{ id: NATIVE_ID }]);
@@ -532,7 +532,7 @@ describe("useAgentHistoryControls", () => {
       expect(result.current.chatHistoryItems).toEqual([{ id: "chats/saved.md" }]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 adds no bookmark and shows a notice when a chat with no note cannot be saved", async () => {
+    it("adds no bookmark and shows a notice when a chat with no note cannot be saved", async () => {
       const bookmarks = makeBookmarks();
       const manager = makeManager();
       manager.ensureChatNote.mockRejectedValue(new Error("backend is not installed"));
@@ -566,7 +566,7 @@ describe("useAgentHistoryControls", () => {
       expect(Notice).toHaveBeenCalledWith("Bookmarked.");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/702 titles the open chat's bookmark with its session label, such as a renamed tab, over the note's title", async () => {
+    it("titles the open chat's bookmark with its session label, such as a renamed tab, over the note's title", async () => {
       const bookmarks = makeBookmarks();
       const manager = makeManager();
       manager.getActiveSession.mockReturnValue({ getLabel: () => "Renamed chat" });
@@ -583,7 +583,7 @@ describe("useAgentHistoryControls", () => {
       );
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/702 removes the open chat's bookmark through its saved note without resaving the chat", async () => {
+    it("removes the open chat's bookmark through its saved note without resaving the chat", async () => {
       const bookmarks = makeBookmarks([LINK_SAVED]);
       const manager = makeManager();
       manager.getActiveSession.mockReturnValue({ internalId: "live-1", getLabel: () => undefined });
@@ -602,7 +602,7 @@ describe("useAgentHistoryControls", () => {
       expect(Notice).toHaveBeenCalledWith("Removed from bookmarks.");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/702 adds no bookmark and shows a notice when the open chat cannot be saved", async () => {
+    it("adds no bookmark and shows a notice when the open chat cannot be saved", async () => {
       const bookmarks = makeBookmarks();
       const manager = makeManager();
       manager.saveActiveSession.mockResolvedValue(null);
@@ -623,7 +623,7 @@ describe("useAgentHistoryControls", () => {
       const copyChatLink = jest.fn(async (resolveNotePath: () => Promise<string>) => {
         linkedNotePath = await resolveNotePath();
       });
-      const linkingPlugin = { copyChatLink } as unknown as CopilotPlugin;
+      const linkingPlugin = { copyChatLink } as unknown as ScribePlugin;
       const { result } = renderHook(() => useAgentHistoryControls(makeManager(), linkingPlugin));
 
       await act(async () => {
@@ -634,12 +634,12 @@ describe("useAgentHistoryControls", () => {
       expect(linkedNotePath).toBe("chats/agent__a.md");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/699 saves a chat with no note before copying its link and shows the row as that note", async () => {
+    it("saves a chat with no note before copying its link and shows the row as that note", async () => {
       let linkedNotePath: string | undefined;
       const copyChatLink = jest.fn(async (resolveNotePath: () => Promise<string>) => {
         linkedNotePath = await resolveNotePath();
       });
-      const linkingPlugin = { copyChatLink } as unknown as CopilotPlugin;
+      const linkingPlugin = { copyChatLink } as unknown as ScribePlugin;
       const manager = makeManager();
       manager.getChatHistoryItems.mockResolvedValue([{ id: NATIVE_ID }]);
       manager.ensureChatNote.mockResolvedValue("chats/saved.md");

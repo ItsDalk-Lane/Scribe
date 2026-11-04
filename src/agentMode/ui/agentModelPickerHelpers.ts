@@ -10,7 +10,7 @@ import type { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { MethodUnsupportedError } from "@/agentMode/session/errors";
 import { backendRegistry } from "@/agentMode/backends/registry";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import { getModelKeyFromModel } from "@/settings/model";
 import type {
   BackendDescriptor,
@@ -44,7 +44,7 @@ export function appendBackendSection(
   descriptor: BackendDescriptor,
   ctx: {
     backendModels: ReadonlyArray<ModelEntry> | null;
-    settings: CopilotSettings;
+    settings: ScribeSettings;
     useEnabledFallback?: boolean;
   }
 ): void {
@@ -203,7 +203,7 @@ export function buildPickerEntries(
   manager: AgentSessionManager,
   descriptors: BackendDescriptor[],
   ctx: ModelActiveContext,
-  settings: CopilotSettings
+  settings: ScribeSettings
 ): { entries: ModelSelectorEntry[]; valueKey: string } {
   const entries: ModelSelectorEntry[] = [];
   for (const descriptor of descriptors) {
@@ -214,8 +214,6 @@ export function buildPickerEntries(
     const backendModels = catalog?.availableModels ?? null;
     const hasNoCatalog = catalog === null;
     const preloadStatus = manager.getPreloadStatus(descriptor.id);
-    // An agent the user never installed must not promote its models, least of all to a licensed user.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/765
     if (!isActiveBackend && descriptor.getInstallState(settings).kind === "absent") continue;
     const sectionStart = entries.length;
     appendBackendSection(entries, descriptor, {
@@ -245,8 +243,6 @@ export function buildPickerEntries(
     return { entries, valueKey };
   }
   if (ctx.activeDescriptor && ctx.activeSession?.getStatus() === "starting") {
-    // While starting, the agent still reports its own model, not the chat's, so show "Loading models…".
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/630
     const loading = synthesizePreloadPlaceholder(ctx.activeDescriptor, "pending");
     valueKey = getModelKeyFromModel(loading);
     if (!entries.some((e) => getModelKeyFromModel(e) === valueKey)) entries.unshift(loading);
@@ -257,12 +253,7 @@ export function buildPickerEntries(
     );
     if (match) {
       valueKey = getModelKeyFromModel(match);
-    } else if (
-      ctx.activeCurrentEntry &&
-      // A backend that may only run enabled models must never show any other model.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/625
-      !ctx.activeDescriptor.usesConfiguredModels
-    ) {
+    } else if (ctx.activeCurrentEntry && !ctx.activeDescriptor.usesConfiguredModels) {
       const synth = synthesizeAgentEntry(
         baseId,
         ctx.activeCurrentEntry.name,
@@ -453,7 +444,7 @@ function buildCommitSelection(
 export function buildAgentModelPicker(args: {
   manager: AgentSessionManager | null;
   descriptors: BackendDescriptor[];
-  settings: CopilotSettings;
+  settings: ScribeSettings;
 }): AgentModelPickerOverride | null {
   const { manager, descriptors, settings } = args;
   if (!manager) return null;

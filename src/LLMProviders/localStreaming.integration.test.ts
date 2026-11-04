@@ -6,7 +6,6 @@ import { ChatModelProviders } from "@/constants";
 
 jest.mock("@/logger");
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
-// Native fetch rejects jsdom AbortSignals, so the socket test uses one Web API realm. https://github.com/ItsDalk-Lane/Scribe/issues/8
 const nativeRuntime = runInThisContext("({ fetch, AbortController, AbortSignal })") as Pick<
   typeof window,
   "fetch" | "AbortController" | "AbortSignal"
@@ -21,7 +20,7 @@ function deferred<T>() {
 }
 
 describe("localStreaming integration", () => {
-  describe("createChatChain()", () => {
+  describe("createChatChain", () => {
     it.each(["Ollama", "LM Studio"])(
       `receives real HTTP chunks from a keyless %s-compatible server, aborts its socket and replays accepted history (${issue})`,
       async (name) => {

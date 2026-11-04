@@ -1,4 +1,4 @@
-import { COPILOT_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
+import { SCRIBE_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
 import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
 
 export function excalidrawToolCall(
@@ -12,7 +12,7 @@ export function excalidrawToolCall(
     title: tool,
     status: "completed",
     toolKind: "other",
-    mcpServer: COPILOT_MCP_SERVER_NAME,
+    mcpServer: SCRIBE_MCP_SERVER_NAME,
     vendorToolName: tool,
     input,
     ...overrides,

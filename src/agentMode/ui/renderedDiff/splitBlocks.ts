@@ -34,9 +34,6 @@ interface MetadataParser {
 }
 
 const EMPTY_BLOCKS: readonly MarkdownBlock[] = Object.freeze([]);
-// Comments and reference definitions render nothing, and math and raw HTML break when word marks land
-// inside them, so these sections get a line diff like fenced code.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 const SECTION_BLOCK_TYPES: Readonly<Record<string, MarkdownBlockType>> = {
   code: "code",
   comment: "code",
@@ -47,21 +44,12 @@ const SECTION_BLOCK_TYPES: Readonly<Record<string, MarkdownBlockType>> = {
   table: "table",
 };
 
-// Obsidian indents list content with tabs, so its parser keeps a fence nested in a list item inside
-// the list section; the fence still has to stay out of word diffs.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/349
 const LIST_FENCE = /^[ \t]*(?:`{3,}|~{3,})/m;
 
-// Obsidian labels only block-form comments as comment sections; an inline %%comment%% hides its
-// edit from a rendered word diff, so any block holding one gets a line diff.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 function blockOf(type: MarkdownBlockType, text: string): MarkdownBlock {
   return { type: text.includes("%%") ? "code" : type, text };
 }
 
-// Items split only when no blank line separates them, so joining them with one newline restores the
-// exact source and a loose list keeps its paragraph spacing.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 function listBlocks(
   lines: readonly string[],
   first: number,
@@ -81,9 +69,6 @@ function listBlocks(
   });
 }
 
-// Sections come from Obsidian's own parser, through the undocumented computeMetadataAsync, so the
-// split matches what the editor renders. A missing method rejects and the caller falls back to a line diff.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 export async function splitMarkdown(app: App, source: string): Promise<MarkdownSplit> {
   const parser = app.metadataCache as unknown as MetadataParser;
   if (typeof parser.computeMetadataAsync !== "function") {
@@ -99,8 +84,6 @@ export async function splitMarkdown(app: App, source: string): Promise<MarkdownS
   let frontmatter: string | null = null;
   let previousEnd: number | null = null;
   for (const { type, position } of metadata.sections ?? []) {
-    // After a note ending in a footnote definition Obsidian appends empty sections past its end.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
     if (position.start.offset === position.end.offset) continue;
     const text = lines.slice(position.start.line, position.end.line + 1).join("\n");
     if (type === "yaml" && position.start.line === 0) {
@@ -110,9 +93,6 @@ export async function splitMarkdown(app: App, source: string): Promise<MarkdownS
         type === "list"
           ? listBlocks(lines, position.start.line, position.end.line, itemStarts)
           : [blockOf(SECTION_BLOCK_TYPES[type] ?? "text", text)];
-      // Rendering merges a run of blank lines into one paragraph break, while Live Preview shows
-      // each one, so the block keeps the count past the first.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/751
       const extraBlankLines = previousEnd === null ? 0 : position.start.line - previousEnd - 2;
       if (extraBlankLines > 0) sectionBlocks[0] = { ...sectionBlocks[0], extraBlankLines };
       blocks.push(...sectionBlocks);

@@ -23,7 +23,7 @@ import {
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import type { AgentSession } from "@/agentMode/session/AgentSession";
 import type { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import { getModelKeyFromModel } from "@/settings/model";
 
 type ModelCatalog = NonNullable<ReturnType<AgentSessionManager["getCachedModelCatalog"]>>;
@@ -145,7 +145,7 @@ function makeManager(opts: {
   } as unknown as AgentSessionManager;
 }
 
-const emptySettings = { providers: {} } as unknown as CopilotSettings;
+const emptySettings = { providers: {} } as unknown as ScribeSettings;
 
 function claudeWithInstallState(installState: InstallState): BackendDescriptor {
   return {
@@ -181,7 +181,7 @@ function managerWithSonnet(): AgentSessionManager {
 }
 
 describe("agentModelPickerHelpers", () => {
-  describe("collectModelActiveContext()", () => {
+  describe("collectModelActiveContext", () => {
     it("uses the active session's current model", () => {
       const activeState = makeState("active-model");
       const manager = {
@@ -210,7 +210,7 @@ describe("agentModelPickerHelpers", () => {
     });
   });
 
-  describe("buildPickerEntries()", () => {
+  describe("buildPickerEntries", () => {
     it("still shows a loading placeholder for a routing agent whose preload has not settled", () => {
       const descriptor = {
         ...makeDescriptor("opencode"),
@@ -384,7 +384,7 @@ describe("agentModelPickerHelpers", () => {
       expect(entries.map((e) => e.name)).toEqual(["anthropic/claude-sonnet-4-6"]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/630 shows Loading models… as the selection while any chat is starting, not the model its agent reports", () => {
+    it("shows Loading models… as the selection while any chat is starting, not the model its agent reports", () => {
       const agentDefault = makeModelEntry("gpt-5");
       const codex = makeDescriptor("codex");
       const manager = makeManager({ catalogById: { codex: makeCatalog([agentDefault]) } });
@@ -495,7 +495,7 @@ describe("agentModelPickerHelpers", () => {
       expect(entries[0]._disabledReason).toBe("Update required");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/765 lists nothing for an agent that was never installed, even after its model discovery settled", () => {
+    it("lists nothing for an agent that was never installed, even after its model discovery settled", () => {
       const codex = {
         ...makeDescriptor("codex", { kind: "absent" }),
         getEnabledModelEntries: () => [],
@@ -580,7 +580,7 @@ describe("agentModelPickerHelpers", () => {
     });
   });
 
-  describe("appendBackendSection()", () => {
+  describe("appendBackendSection", () => {
     function opencodeWithEntries(enabled: EnabledModelEntry[]): BackendDescriptor {
       return {
         ...makeDescriptor("opencode"),
@@ -645,7 +645,7 @@ describe("agentModelPickerHelpers", () => {
     });
   });
 
-  describe("buildEffortSibling()", () => {
+  describe("buildEffortSibling", () => {
     function ctxWith(opts: {
       effortOptions: { value: string | null; label: string }[];
       canSwitchEffort?: boolean | null;
@@ -672,7 +672,7 @@ describe("agentModelPickerHelpers", () => {
       expect(got).toBeUndefined();
     });
 
-    it("disabled mirrors canSwitchEffort() === false", () => {
+    it("disabled mirrors canSwitchEffort === false", () => {
       const got = buildEffortSibling(
         makeManager({}),
         ctxWith({
@@ -699,7 +699,7 @@ describe("agentModelPickerHelpers", () => {
     });
   });
 
-  describe("buildModelOnChange()", () => {
+  describe("buildModelOnChange", () => {
     function pickerEntry(backendId: string, baseModelId: string) {
       return {
         name: baseModelId,
@@ -792,7 +792,7 @@ describe("agentModelPickerHelpers", () => {
     });
   });
 
-  describe("buildEffortOptionsByModelKey()", () => {
+  describe("buildEffortOptionsByModelKey", () => {
     const ACTIVE = "github-copilot/gpt-5.4";
     const OTHER = "opencode/nemotron-3-super-free";
 
@@ -854,7 +854,7 @@ describe("agentModelPickerHelpers", () => {
     });
   });
 
-  describe("backendReadinessReason()", () => {
+  describe("backendReadinessReason", () => {
     it("labels each state a user must fix before the backend can run", () => {
       expect(backendReadinessReason({ kind: "absent" })).toBe("Not set up");
       expect(

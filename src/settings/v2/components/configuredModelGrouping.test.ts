@@ -39,7 +39,7 @@ function model(configuredModelId: string, providerId: string, infoId: string): C
 }
 
 describe("configuredModelGrouping", () => {
-  describe("partitionCandidates()", () => {
+  describe("partitionCandidates", () => {
     const byok = byokProvider("byok-1", "Anthropic");
     const claudeAgent = agentProvider("claude-agent", "claude", "Claude");
     const providers = { [byok.providerId]: byok, [claudeAgent.providerId]: claudeAgent };
@@ -84,7 +84,7 @@ describe("configuredModelGrouping", () => {
     });
   });
 
-  describe("partitionChatCandidates()", () => {
+  describe("partitionChatCandidates", () => {
     const byok = byokProvider("byok-1", "Anthropic");
     const agent = agentProvider("claude-agent", "claude", "Claude");
     const providers = { [byok.providerId]: byok, [agent.providerId]: agent };
@@ -105,7 +105,7 @@ describe("configuredModelGrouping", () => {
       expect(agentOriginCandidates).toEqual([]);
     });
 
-    it("omits non-chat models even when previously enabled, while keeping unknown manual chat candidates (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("omits non-chat models even when previously enabled, while keeping unknown manual chat candidates", () => {
       const configuredModels = [
         model("chat", "byok-1", "claude-sonnet"),
         {
@@ -154,7 +154,7 @@ describe("configuredModelGrouping", () => {
     });
   });
 
-  describe("toRow()", () => {
+  describe("toRow", () => {
     it("never surfaces the wire id as the description (it duplicates the label)", () => {
       const provider = byokProvider("p", "Anthropic");
       const withName: Candidate = {
@@ -249,7 +249,7 @@ describe("configuredModelGrouping", () => {
     });
   });
 
-  describe("rowMatches()", () => {
+  describe("rowMatches", () => {
     it("matches a model by its wire id even when the label differs", () => {
       const row = toRow({
         configuredModel: {
@@ -267,7 +267,7 @@ describe("configuredModelGrouping", () => {
     });
   });
 
-  describe("buildModelEnableGroups()", () => {
+  describe("buildModelEnableGroups", () => {
     const byok = byokProvider("byok-1", "Anthropic");
     const claudeAgent = agentProvider("claude-agent", "claude", "claude");
 

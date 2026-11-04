@@ -143,7 +143,7 @@ export const BookmarkedChatMenu: StoryObj<GlobalRecentChatsSectionProps> = {
 export const UnsavedChatMenu: StoryObj<GlobalRecentChatsSectionProps> = {
   args: {
     items: [
-      { ...items[0], id: "copilot-agent-session://claude/session-1", title: "Chat with no note" },
+      { ...items[0], id: "scribe-agent-session://claude/session-1", title: "Chat with no note" },
       ...items.slice(1, 3),
     ],
   },

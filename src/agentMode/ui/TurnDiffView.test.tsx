@@ -104,7 +104,7 @@ describe("TurnDiffView", () => {
   });
 
   describe("TurnDiffModal", () => {
-    describe("renderContent()", () => {
+    describe("renderContent", () => {
       it("shows the file title and rendered changes above the chat without opening an operating-system window", async () => {
         const app = fakeApp();
         const modal = await opened(app, change("notes/alpha.md", { additions: 4, deletions: 2 }));
@@ -173,7 +173,7 @@ describe("TurnDiffView", () => {
         expect(modal.containerEl.isConnected).toBe(true);
       });
 
-      it("does not recreate a file that was renamed or deleted after the turn https://github.com/Brevilabs/obsidian-copilot-private/issues/348", async () => {
+      it("does not recreate a file that was renamed or deleted after the turn", async () => {
         const app = fakeApp();
         const modal = await rendered(app);
         fireEvent.click(within(header(modal)).getByText("Open note"));
@@ -197,7 +197,7 @@ describe("TurnDiffView", () => {
       });
     });
 
-    describe("stepChange()", () => {
+    describe("stepChange", () => {
       it("reports available changes without moving during a check and moves when requested", async () => {
         const modal = await rendered();
         expect(modal.stepChange(1, true)).toBe(true);
@@ -208,7 +208,7 @@ describe("TurnDiffView", () => {
       });
     });
 
-    describe("onClose()", () => {
+    describe("onClose", () => {
       it("unmounts its content and disables navigation when closed", async () => {
         const modal = await rendered();
         act(() => modal.close());
@@ -219,7 +219,7 @@ describe("TurnDiffView", () => {
     });
   });
 
-  describe("openTurnDiff()", () => {
+  describe("openTurnDiff", () => {
     it("reuses a file modal on concurrent clicks, keeps other files separate, and brings the requested modal forward", async () => {
       const app = fakeApp();
       let first!: TurnDiffModal;
@@ -256,7 +256,7 @@ describe("TurnDiffView", () => {
     });
   });
 
-  describe("TurnDiffPane()", () => {
+  describe("TurnDiffPane", () => {
     it("renders the saved file change and exposes navigation once the content is ready", async () => {
       const onStepperChange = jest.fn();
       const result = render(
@@ -279,7 +279,7 @@ describe("TurnDiffView", () => {
     });
   });
 
-  describe("registerTurnDiffCommands()", () => {
+  describe("registerTurnDiffCommands", () => {
     function commands(app: App): Command[] {
       const result: Command[] = [];
       registerTurnDiffCommands({
@@ -309,7 +309,7 @@ describe("TurnDiffView", () => {
     });
   });
 
-  describe("closeRestoredTurnDiffs()", () => {
+  describe("closeRestoredTurnDiffs", () => {
     it("closes legacy diff tabs and task windows once the workspace is ready", () => {
       let ready!: () => void;
       const detachLeavesOfType = jest.fn();

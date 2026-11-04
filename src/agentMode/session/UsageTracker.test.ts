@@ -15,19 +15,19 @@ const WINDOWED: SessionUsage = { usedTokens: 5000, contextWindow: 200_000, updat
 
 describe("UsageTracker", () => {
   describe("UsageTracker", () => {
-    describe("getSessionUsage()", () => {
+    describe("getSessionUsage", () => {
       it("starts with no session usage", () => {
         expect(makeTracker().tracker.getSessionUsage()).toBeNull();
       });
     });
 
-    describe("getPlanUsage()", () => {
+    describe("getPlanUsage", () => {
       it("starts with no plan usage", () => {
         expect(makeTracker().tracker.getPlanUsage()).toBeNull();
       });
     });
 
-    describe("applyPlanUsage()", () => {
+    describe("applyPlanUsage", () => {
       it("stores the latest plan usage, including a cleared one, and notifies each time", () => {
         const { tracker, notifyMessages } = makeTracker();
         const planUsage = { windows: [{ id: "week", label: "Week", percent: 10 }], updatedAt: 1 };
@@ -41,7 +41,7 @@ describe("UsageTracker", () => {
       });
     });
 
-    describe("seedSessionUsage()", () => {
+    describe("seedSessionUsage", () => {
       it("restores a count-only snapshot and accepts the next native capacity reading", () => {
         const { tracker, notifyMessages } = makeTracker();
         const saved = { usedTokens: 4200, updatedAt: 1 };
@@ -75,7 +75,7 @@ describe("UsageTracker", () => {
       });
     });
 
-    describe("applyUsageUpdate()", () => {
+    describe("applyUsageUpdate", () => {
       it("stores a positive reading and notifies", () => {
         const { tracker, notifyMessages } = makeTracker();
 
@@ -103,7 +103,7 @@ describe("UsageTracker", () => {
         });
       });
 
-      it("ignores a zero reading (https://github.com/logancyang/obsidian-copilot/issues/2975)", () => {
+      it("ignores a zero reading", () => {
         const { tracker, notifyMessages } = makeTracker();
 
         tracker.applyUsageUpdate({ usedTokens: 0, contextWindow: 200_000, updatedAt: 1 });
@@ -113,8 +113,8 @@ describe("UsageTracker", () => {
       });
     });
 
-    describe("applyCompactedUsage()", () => {
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/635 sets the count to a completed compaction's post-compaction tokens, keeping the window, without notifying", () => {
+    describe("applyCompactedUsage", () => {
+      it("sets the count to a completed compaction's post-compaction tokens, keeping the window, without notifying", () => {
         const { tracker, notifyMessages } = makeTracker();
         tracker.applyUsageUpdate(WINDOWED);
         notifyMessages.mockClear();
@@ -140,26 +140,23 @@ describe("UsageTracker", () => {
         ["skipped", { status: "skipped" as const }],
         ["failed", { status: "failed" as const, error: "boom" }],
         ["completed without a post-compaction count", { status: "completed" as const }],
-      ])(
-        "https://github.com/Brevilabs/obsidian-copilot-private/issues/635 leaves the meter alone for a compaction that is %s",
-        (_label, snapshot) => {
-          const { tracker } = makeTracker();
-          tracker.applyUsageUpdate({ usedTokens: 103_000, contextWindow: 200_000, updatedAt: 1 });
+      ])("leaves the meter alone for a compaction that is %s", (_label, snapshot) => {
+        const { tracker } = makeTracker();
+        tracker.applyUsageUpdate({ usedTokens: 103_000, contextWindow: 200_000, updatedAt: 1 });
 
-          expect(tracker.applyCompactedUsage({ id: "c1", trigger: "manual", ...snapshot })).toBe(
-            false
-          );
+        expect(tracker.applyCompactedUsage({ id: "c1", trigger: "manual", ...snapshot })).toBe(
+          false
+        );
 
-          expect(tracker.getSessionUsage()).toEqual({
-            usedTokens: 103_000,
-            contextWindow: 200_000,
-            updatedAt: 1,
-          });
-        }
-      );
+        expect(tracker.getSessionUsage()).toEqual({
+          usedTokens: 103_000,
+          contextWindow: 200_000,
+          updatedAt: 1,
+        });
+      });
     });
 
-    describe("dropUsageWindowOnModelChange()", () => {
+    describe("dropUsageWindowOnModelChange", () => {
       const stateOn = (baseModelId: string) => ({
         model: {
           current: { baseModelId, effort: null },
@@ -190,7 +187,7 @@ describe("UsageTracker", () => {
         expect(notifyMessages).not.toHaveBeenCalled();
       });
 
-      it("drops the held window but keeps the count when the model changes (https://github.com/logancyang/obsidian-copilot-preview/issues/193)", () => {
+      it("drops the held window but keeps the count when the model changes", () => {
         const { tracker, notifyMessages } = makeTracker();
         tracker.applyUsageUpdate(WINDOWED);
         notifyMessages.mockClear();

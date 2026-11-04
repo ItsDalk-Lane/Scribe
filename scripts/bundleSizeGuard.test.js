@@ -22,8 +22,8 @@ function legalBundle(...entries) {
 }
 
 describe("bundleSizeGuard", () => {
-  describe("rewriteExactZodImports()", () => {
-    it("rewrites exact z-only imports from zod and zod/v4 for https://github.com/Brevilabs/obsidian-copilot-private/issues/94", () => {
+  describe("rewriteExactZodImports", () => {
+    it("rewrites exact z-only imports from zod and zod/v4", () => {
       expect(
         rewriteExactZodImports(
           [
@@ -40,7 +40,7 @@ describe("bundleSizeGuard", () => {
       );
     });
 
-    it("leaves type-only, multi-symbol, namespace, unrelated, attributed, and string imports unchanged for https://github.com/Brevilabs/obsidian-copilot-private/issues/94", () => {
+    it("leaves type-only, multi-symbol, namespace, unrelated, attributed, and string imports unchanged", () => {
       const source = [
         'import type { z } from "zod";',
         'import zodDefault, { z } from "zod";',
@@ -55,7 +55,7 @@ describe("bundleSizeGuard", () => {
       expect(rewriteExactZodImports(source, "dependency.ts")).toBe(source);
     });
 
-    it("preserves comments inside exact imports for https://github.com/Brevilabs/obsidian-copilot-private/issues/94", () => {
+    it("preserves comments inside exact imports", () => {
       const source = [
         'import /*! Zod license */ { z } from "zod";',
         "import { /*! Required notice */ z as schema } from 'zod/v4';",
@@ -65,8 +65,7 @@ describe("bundleSizeGuard", () => {
     });
   });
 
-  describe("createBundleSizeGuard()", () => {
-    const ISSUE = "https://github.com/Brevilabs/obsidian-copilot-private/issues/94";
+  describe("createBundleSizeGuard", () => {
     let workDir;
 
     beforeEach(() => {
@@ -91,7 +90,7 @@ describe("bundleSizeGuard", () => {
       return hooks;
     }
 
-    it(`rewrites an exact zod import when loading a dependency for ${ISSUE}`, async () => {
+    it(`rewrites an exact zod import when loading a dependency for`, async () => {
       const dependency = path.join(workDir, "dependency.ts");
       fs.writeFileSync(dependency, 'import { z } from "zod";\nz.string();\n');
 
@@ -104,18 +103,18 @@ describe("bundleSizeGuard", () => {
       });
     });
 
-    it(`leaves a dependency without exact zod imports to esbuild's default loading for ${ISSUE}`, async () => {
+    it(`leaves a dependency without exact zod imports to esbuild's default loading for`, async () => {
       const dependency = path.join(workDir, "dependency.js");
       fs.writeFileSync(dependency, "module.exports = 1;\n");
 
       await expect(setupGuard(false).onLoad({ path: dependency })).resolves.toBeUndefined();
     });
 
-    it(`does not enforce artifact limits in development for ${ISSUE}`, () => {
+    it(`does not enforce artifact limits in development for`, () => {
       expect(setupGuard(false).onEnd).toBeUndefined();
     });
 
-    it(`dedupes legal comments in the production outfile for ${ISSUE}`, () => {
+    it(`dedupes legal comments in the production outfile for`, () => {
       const outfile = path.join(workDir, "main.js");
       const notice = "  (*! notice *)";
       fs.writeFileSync(
@@ -130,7 +129,7 @@ describe("bundleSizeGuard", () => {
       );
     });
 
-    it(`fails the production build when the outfile reaches the size ceiling for ${ISSUE}`, () => {
+    it(`fails the production build when the outfile reaches the size ceiling for`, () => {
       const outfile = path.join(workDir, "main.js");
       fs.writeFileSync(
         outfile,
@@ -142,7 +141,7 @@ describe("bundleSizeGuard", () => {
       );
     });
 
-    it(`leaves the outfile untouched when esbuild already reported errors for ${ISSUE}`, () => {
+    it(`leaves the outfile untouched when esbuild already reported errors for`, () => {
       const outfile = path.join(workDir, "main.js");
       fs.writeFileSync(outfile, "partial output");
 
@@ -152,8 +151,8 @@ describe("bundleSizeGuard", () => {
     });
   });
 
-  describe("dedupeEsbuildLegalComments()", () => {
-    it("keeps first-seen order and every unique notice body byte-for-byte while counting identical notices for https://github.com/Brevilabs/obsidian-copilot-private/issues/94", () => {
+  describe("dedupeEsbuildLegalComments", () => {
+    it("keeps first-seen order and every unique notice body byte-for-byte while counting identical notices", () => {
       const alpha = "  (*!\n   * License α  \n   *)";
       const beta = "  (** @license β *)";
       const source = legalBundle(
@@ -182,21 +181,18 @@ describe("bundleSizeGuard", () => {
       ],
       ["non-EOF", `${legalBundle(legalEntry("a.js", "  (*! notice *)"))}runtime();\n`],
       ["incomplete entry", `runtime();\n${LEGAL_PREFIX}a.js:\n  (*! notice *\n${LEGAL_SUFFIX}`],
-    ])(
-      "fails closed on a %s legal block for https://github.com/Brevilabs/obsidian-copilot-private/issues/94",
-      (_caseName, source) => {
-        expect(() => dedupeEsbuildLegalComments(source)).toThrow("[bundle-size-guard]");
-      }
-    );
+    ])("fails closed on a %s legal block", (_caseName, source) => {
+      expect(() => dedupeEsbuildLegalComments(source)).toThrow("[bundle-size-guard]");
+    });
   });
 
-  describe("assertBundleSize()", () => {
-    it("uses the 5.5 MB ceiling for https://github.com/Brevilabs/obsidian-copilot-private/issues/94", () => {
+  describe("assertBundleSize", () => {
+    it("uses the 5.5 MB ceiling", () => {
       expect(assertBundleSize("a".repeat(5_499_999))).toBe(5_499_999);
       expect(() => assertBundleSize("a".repeat(5_500_000))).toThrow("strictly below 5500000 bytes");
     });
 
-    it("measures UTF-8 bytes and enforces a strict boundary for https://github.com/Brevilabs/obsidian-copilot-private/issues/94", () => {
+    it("measures UTF-8 bytes and enforces a strict boundary", () => {
       expect(assertBundleSize("é", 3)).toBe(2);
       expect(() => assertBundleSize("é", 2)).toThrow("strictly below 2 bytes");
     });

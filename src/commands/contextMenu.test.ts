@@ -84,8 +84,8 @@ describe("contextMenu", () => {
 
       registerContextMenu(menu as unknown as Menu, app);
 
-      const copilotMenu = findItem(menu, "Scribe")?.submenu;
-      expect(copilotMenu?.items.map((item) => item.title)).toEqual([
+      const scribeMenu = findItem(menu, "Scribe")?.submenu;
+      expect(scribeMenu?.items.map((item) => item.title)).toEqual([
         "Quick Ask",
         "Trigger quick command",
         "First",
@@ -93,7 +93,7 @@ describe("contextMenu", () => {
       ]);
     });
 
-    it("executes the Copilot command behind the clicked submenu item", () => {
+    it("executes the Scribe command behind the clicked submenu item", () => {
       jest.mocked(getCachedCustomCommands).mockReturnValue([]);
       const executeCommandById = jest.fn();
       const menu = new TestMenu();

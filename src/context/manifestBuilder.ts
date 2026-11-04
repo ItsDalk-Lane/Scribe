@@ -49,8 +49,6 @@ const EMPTY_MANIFEST_ENTRIES: ManifestPathEntry[] = Object.freeze(
   [] as ManifestPathEntry[]
 ) as ManifestPathEntry[];
 
-// The system prompt is shared by every chat on a backend, so this policy rides the block only project chats get.
-// https://github.com/logancyang/obsidian-copilot/issues/3801
 export const PROJECT_WORKSPACE_POLICY = `The working directory is this project's workspace. Write generated files, drafts and intermediates to outputs/ there (create it as needed), unless the user specifies another destination. Read/search there and in configured context sources, including external sources. Access other locations only when instructions or the user name them.`;
 
 const UNAVAILABLE_PROJECT_CONTEXT_BLOCK = [
@@ -99,7 +97,6 @@ export function buildProjectContext(app: App, projectId: string): string {
     (entry) => !declaredNotePaths.has(manifestEntryKey(entry))
   );
 
-  // A document picked in the Files picker is already listed under Included notes, and a duplicate would spend the manifest cap. https://github.com/Brevilabs/obsidian-copilot-private/issues/657
   const documentEntries = resolveDocumentPaths(app, inclusions, exclusions, adapter).filter(
     (entry) => !declaredNotePaths.has(manifestEntryKey(entry))
   );

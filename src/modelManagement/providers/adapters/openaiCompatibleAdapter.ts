@@ -28,7 +28,6 @@ export const openaiCompatibleAdapter: ProviderAdapter<Extras> = {
         checkedAt: Date.now(),
       });
     }
-    // 公开目录可匿名读取时不能将缺失的必需密钥判为已验证。https://github.com/logancyang/obsidian-copilot/issues/3147
     if (!ctx.apiKey?.trim() && providerNeedsResolvedApiKey(ctx.provider)) {
       return Promise.resolve({
         ok: false,

@@ -51,7 +51,6 @@ export function partitionChatCandidates(
 ): CandidatePartition {
   const byokCandidates: Candidate[] = [];
   for (const configuredModel of configuredModels) {
-    // 基本设置与快捷工具使用相同能力规则，避免重新启用只能生成图片或语音的模型。https://github.com/logancyang/obsidian-copilot/issues/3147
     if (!isChatModelInfo(configuredModel.info)) continue;
     const provider = providers[configuredModel.providerId];
     if (!provider) continue;

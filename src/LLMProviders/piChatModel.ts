@@ -47,8 +47,6 @@ class PiStreamError extends Error {
   }
 }
 
-// 供应商错误正文可能原样回显请求凭据；进入会话、界面或日志前移除凭据，保留模型、协议与 HTTP 状态用于诊断。
-// 占位密钥不是真实凭据，脱敏时跳过。https://github.com/ItsDalk-Lane/Scribe/issues/9
 const NON_SECRET_KEYS = new Set(["keyless-endpoint", "provider-managed-auth", "default-key"]);
 
 function safeModelErrorDetail(detail: string, secrets: string[], status: number | undefined) {
@@ -81,7 +79,6 @@ export function createAssistantMessage(model: Model<Api>): AssistantMessage {
   };
 }
 
-// 网关的文字数组必须在结构仍完整时提取，避免逗号、对象标记或隐藏思考混入正文。https://github.com/ItsDalk-Lane/Scribe/issues/8
 function visibleText(value: unknown): string {
   if (typeof value === "string") return value;
   if (!Array.isArray(value)) return "";
@@ -100,8 +97,6 @@ export function createPiChatModel(
   model: Model<Api>,
   resolveRequest: (options: SimpleStreamOptions) => Promise<PiRequest>
 ): ProviderChatModel {
-  // 本轮请求的凭据候选与 HTTP 状态，仅用于错误脱敏，绝不离开诊断文本。
-  // https://github.com/ItsDalk-Lane/Scribe/issues/9
   let errorSecrets: string[] = [];
   let failureStatus: number | undefined;
   async function* run(
@@ -114,7 +109,6 @@ export function createPiChatModel(
     if (options.signal?.aborted) abort();
     let transportError: unknown;
     try {
-      // A stopped turn must not start a credential refresh or open another request. https://github.com/ItsDalk-Lane/Scribe/issues/8
       if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
       let request: PiRequest;
       try {
@@ -138,7 +132,6 @@ export function createPiChatModel(
       const requestFetch: typeof fetch = async (input, init) => {
         try {
           const response = await raceWithAbortSignal(transport(input, init), controller.signal);
-          // pi-ai 的错误事件只保留文字，认证失败状态也必须留在本轮请求中。https://github.com/ItsDalk-Lane/Scribe/issues/8
           failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
           return response;
@@ -151,7 +144,6 @@ export function createPiChatModel(
       };
       const initialText: string[] = [];
       let structuredRefusal = false;
-      // 按内容块记录已发送的正文，完成快照只更新结果，不能再次追加文字。https://github.com/ItsDalk-Lane/Scribe/issues/8
       const textByIndex = new Map<number, string>();
       const textSnapshot = (message: AssistantMessage): AssistantMessage => ({
         ...message,
@@ -227,7 +219,6 @@ export function createPiChatModel(
         fetch: requestFetch,
         onProviderStreamEvent: (data, descriptor) => {
           if (isRecord(data) && data.type === "response.refusal.delta") structuredRefusal = true;
-          // 先保存首块文字；队列中的 partial 仍会被 SDK 后续增量修改。https://github.com/ItsDalk-Lane/Scribe/issues/8
           if (
             isRecord(data) &&
             data.type === "content_block_start" &&
@@ -246,7 +237,6 @@ export function createPiChatModel(
           const next = await raceWithAbortSignal(iterator.next(), controller.signal);
           if (next.done) break;
           let event = next.value;
-          // Error events must never commit a partially generated answer as a successful turn. https://github.com/ItsDalk-Lane/Scribe/issues/8
           if (event.type === "error") {
             const error =
               transportError instanceof Error
@@ -259,7 +249,6 @@ export function createPiChatModel(
             const text = initialText.shift() ?? "";
             textByIndex.set(event.contentIndex, text);
             yield { ...event, partial: textSnapshot(event.partial) };
-            // 首块补发也要尊重两次迭代之间的停止，避免取消后新增可见文字。https://github.com/ItsDalk-Lane/Scribe/issues/8
             if (text && !controller.signal.aborted)
               yield {
                 type: "text_delta",
@@ -287,7 +276,6 @@ export function createPiChatModel(
         }
         if (!completed) throw new Error("The model stream ended before completion.");
       } finally {
-        // A pending iterator cannot finish until the event queue closes, even after its fetch is aborted. https://github.com/ItsDalk-Lane/Scribe/issues/8
         controller.abort();
         source.end();
         await iterator.return?.();

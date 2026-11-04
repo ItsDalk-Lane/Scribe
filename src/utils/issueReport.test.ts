@@ -28,8 +28,8 @@ const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 const LOG_BUDGET_BYTES = 24 * 1024 * 1024 - (64 + 8) * 1024;
 const TAILABLE_BUDGET_BYTES = 64 * 1024 + 256 + 512;
 const MAX_NOTE_BYTES = 64 * 1024;
-const ISSUE_URL = "https://github.com/Brevilabs/obsidian-copilot-private/issues/202";
-const FEEDBACK_ISSUE_URL = "https://github.com/Brevilabs/obsidian-copilot-private/issues/672";
+const ISSUE_URL = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
+const FEEDBACK_ISSUE_URL = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 
 const SECRET_LOG = "log line for /Users/alice/vault key sk-abcdef0123456789\n";
 const ACTIVITY_PATH = "/tmp/acp-frames.ndjson";
@@ -137,7 +137,7 @@ function centralDirectoryMethods(zip: Uint8Array): number[] {
 const bodyOf = (url: string) => new URLSearchParams(url.split("?")[1]).get("body") ?? "";
 
 describe("issueReport", () => {
-  describe("buildReportBundle()", () => {
+  describe("buildReportBundle", () => {
     it("packs report.md, the screenshot and every requested log into a zip named after the bundle id", async () => {
       const bundle = await build({});
 
@@ -218,23 +218,20 @@ describe("issueReport", () => {
     it.each([
       ["null", null],
       ["an empty buffer", new Uint8Array()],
-    ])(
-      `leaves the screenshot out with a note when the capture produced %s (${ISSUE_URL})`,
-      async (_case, png) => {
-        const bundle = await build({ screenshotPng: png });
+    ])(`leaves the screenshot out with a note when the capture produced %s`, async (_case, png) => {
+      const bundle = await build({ screenshotPng: png });
 
-        expect(attachment(bundle, "screenshot")).toEqual({
-          id: "screenshot",
-          name: "screenshot.png",
-          bytes: 0,
-          included: false,
-          note: "no screenshot was captured",
-        });
-        expect(entries(bundle)["screenshot.png"]).toBeUndefined();
-      }
-    );
+      expect(attachment(bundle, "screenshot")).toEqual({
+        id: "screenshot",
+        name: "screenshot.png",
+        bytes: 0,
+        included: false,
+        note: "no screenshot was captured",
+      });
+      expect(entries(bundle)["screenshot.png"]).toBeUndefined();
+    });
 
-    it(`lists no screenshot at all when the source was never offered or selected (${ISSUE_URL})`, async () => {
+    it(`lists no screenshot at all when the source was never offered or selected`, async () => {
       const bundle = await build({ screenshotPng: undefined });
 
       expect(bundle.attachments.map((a) => a.id)).toEqual(["report", "activityLog", "opencodeLog"]);
@@ -242,7 +239,7 @@ describe("issueReport", () => {
       expect(entryText(bundle, "report.md")).not.toContain("screenshot");
     });
 
-    it(`leaves an oversized screenshot out rather than failing the whole bundle (${ISSUE_URL})`, async () => {
+    it(`leaves an oversized screenshot out rather than failing the whole bundle`, async () => {
       const bundle = await build({ screenshotPng: new Uint8Array(LOG_BUDGET_BYTES + 1) });
 
       expect(attachment(bundle, "screenshot")).toMatchObject({
@@ -254,7 +251,7 @@ describe("issueReport", () => {
       expect(attachment(bundle, "report").included).toBe(true);
     });
 
-    it(`spends the budget on the screenshot before any log (${ISSUE_URL})`, async () => {
+    it(`spends the budget on the screenshot before any log`, async () => {
       const bundle = await build({
         screenshotPng: new Uint8Array(LOG_BUDGET_BYTES - 1024),
         logs: [{ id: "only", name: "only.log", text: "e\n".repeat(600) }],
@@ -298,7 +295,7 @@ describe("issueReport", () => {
       expect(attachment(bundle, "backend").bytes).toBeGreaterThan(TAILABLE_BUDGET_BYTES);
     });
 
-    it(`records a log with neither path nor text as not found, or with the reason its request gives (${ISSUE_URL})`, async () => {
+    it(`records a log with neither path nor text as not found, or with the reason its request gives`, async () => {
       const bundle = await build({
         logs: [
           { id: "chatLog", name: "chat.md" },
@@ -313,7 +310,7 @@ describe("issueReport", () => {
       });
     });
 
-    it(`redacts and flattens a request's own unavailable reason before it reaches the note, report.md and the issue body (${ISSUE_URL})`, async () => {
+    it(`redacts and flattens a request's own unavailable reason before it reaches the note, report.md and the issue body`, async () => {
       const unavailableReason = "opencode exited:\n  access_token=abc123secret";
       const bundle = await build({
         logs: [{ id: "opencodeLog", name: "opencode.log", unavailableReason }],
@@ -481,7 +478,7 @@ describe("issueReport", () => {
       },
     ];
     it.each(CROSS_CUT_LOGS.flatMap((row) => LOG_SOURCES.map((held) => ({ ...row, ...held }))))(
-      `treats $shape in a log held $held exactly as redacting the whole log would (${ISSUE_URL})`,
+      `treats $shape in a log held $held exactly as redacting the whole log would`,
       async ({ log, budget, keeps, source, rt }) => {
         const { result, packed } = await packedLog(source(log), budget, rt(log));
 
@@ -494,7 +491,7 @@ describe("issueReport", () => {
       }
     );
 
-    it(`reads a log whole, up to the ceiling, rather than a window around the budget (${ISSUE_URL})`, async () => {
+    it(`reads a log whole, up to the ceiling, rather than a window around the budget`, async () => {
       const readLog = jest.fn(runtime.readLog);
 
       await packedLog({ path: ACTIVITY_PATH }, TAILABLE_BUDGET_BYTES, { readLog });
@@ -502,7 +499,7 @@ describe("issueReport", () => {
       expect(readLog).toHaveBeenCalledWith(ACTIVITY_PATH, MAX_REDACTABLE_LOG_BYTES);
     });
 
-    it(`packs a log exactly at the redaction ceiling and leaves one byte over it out (${ISSUE_URL})`, async () => {
+    it(`packs a log exactly at the redaction ceiling and leaves one byte over it out`, async () => {
       const sized = (totalBytes: number) => ({
         readLog: async () => ({ text: SECRET_LOG, totalBytes }),
       });
@@ -574,7 +571,7 @@ describe("issueReport", () => {
       expect(result).toMatchObject({ included: false, bytes: 0, note });
     });
 
-    it(`names the redacted size in the floor note, since that is the size that did not fit (${ISSUE_URL})`, async () => {
+    it(`names the redacted size in the floor note, since that is the size that did not fit`, async () => {
       const rawBytes = encode(INFLATING_LINE).length;
       const redactedBytes = encode(redactLogText(INFLATING_LINE)).length;
 
@@ -588,7 +585,7 @@ describe("issueReport", () => {
       });
     });
 
-    it(`still packs report.md alone when every source is left out, and says so in it (${ISSUE_URL})`, async () => {
+    it(`still packs report.md alone when every source is left out, and says so in it`, async () => {
       const bundle = await build({
         screenshotPng: null,
         logs: [{ id: "opencodeLog", name: "opencode.log", unavailableReason: "not installed" }],
@@ -646,7 +643,7 @@ describe("issueReport", () => {
       expect(bundle.issueDraft.title).toBe("Scribe issue report");
     });
 
-    it(`refuses a report.md that overruns the room set aside for it (${ISSUE_URL})`, async () => {
+    it(`refuses a report.md that overruns the room set aside for it`, async () => {
       const logs = Array.from({ length: 20 }, (_unused, i) => ({
         id: `log${i}`,
         name: `log${i}.txt`,
@@ -677,7 +674,7 @@ describe("issueReport", () => {
     });
   });
 
-  describe("buildManualIssueUrl()", () => {
+  describe("buildManualIssueUrl", () => {
     it("prefills a bug issue on the public repo with the draft's title and body", () => {
       const url = buildManualIssueUrl({ title: "it exploded", body: "## What went wrong\n\nboom" });
 
@@ -697,7 +694,7 @@ describe("issueReport", () => {
     });
   });
 
-  describe("buildLinkedReportIssueUrl()", () => {
+  describe("buildLinkedReportIssueUrl", () => {
     const REPORT_ID = "9f3c1a7b2e4d5f60819a2b3c4d5e6f70";
 
     it("opens the issue body with the report ID and labels the issue a bug", () => {
@@ -725,7 +722,7 @@ describe("issueReport", () => {
     });
   });
 
-  describe("buildReportMarkdown()", () => {
+  describe("buildReportMarkdown", () => {
     const included = (id: string, name: string, note?: string): AttachmentResult => ({
       id,
       name,
@@ -780,7 +777,7 @@ describe("issueReport", () => {
     });
   });
 
-  describe("getNodeReportRuntime()", () => {
+  describe("getNodeReportRuntime", () => {
     let dir = "";
 
     beforeEach(async () => {

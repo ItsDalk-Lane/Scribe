@@ -14,15 +14,15 @@ import { App, FileSystemAdapter } from "obsidian";
 import { createNativeTools } from "@/agentMode/sdk/nativeTools";
 import type { NativeToolsOptions } from "@/agentMode/sdk/nativeTools";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
-import type { CopilotMode, PermissionDecision, SessionUpdate } from "@/agentMode/session/types";
+import type { ScribeMode, PermissionDecision, SessionUpdate } from "@/agentMode/session/types";
 
 describe("nativeTools", () => {
-  describe("createNativeTools()", () => {
+  describe("createNativeTools", () => {
     let root: string;
     let outside: string;
     let options: NativeToolsOptions;
     let events: SessionUpdate[];
-    let mode: CopilotMode;
+    let mode: ScribeMode;
     let tasks: NativeCommandTasks;
 
     beforeEach(async () => {
@@ -338,7 +338,7 @@ describe("nativeTools", () => {
       expect(await readFile(join(root, "notes/source.md"), "utf8")).toContain("second edit");
     });
 
-    it("routes auto-mode file edits through the shared permission decision while commands still request approval (https://github.com/ItsDalk-Lane/Scribe/issues/10)", async () => {
+    it("routes auto-mode file edits through the shared permission decision while commands still request approval", async () => {
       mode = "auto";
       await execute("write_note", { path: "auto.md", content: "Approved by selected mode" });
       expect(options.requestPermission).toHaveBeenCalledTimes(1);

@@ -55,7 +55,7 @@ function Harness({
   return (
     <div ref={containerRef}>
       <div data-testid="overlay">{isDragActive ? "active" : "idle"}</div>
-      <div ref={innerZoneRef} data-copilot-drop-zone="" data-testid="inner-zone" />
+      <div ref={innerZoneRef} data-scribe-drop-zone="" data-testid="inner-zone" />
     </div>
   );
 }

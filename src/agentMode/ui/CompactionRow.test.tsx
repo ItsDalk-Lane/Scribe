@@ -24,17 +24,17 @@ describe("CompactionRow", () => {
 
   afterEach(() => jest.useRealTimers());
 
-  describe("CompactionRow()", () => {
+  describe("CompactionRow", () => {
     it("announces a running manual compaction with a fold icon, a shimmering label, and the seconds elapsed so far", () => {
       const { container } = render(<CompactionRow part={part({ status: "in_progress" })} />);
 
       expect(screen.getByRole("status").textContent).toBe("Compacting conversation…");
-      expect(container.querySelector(".copilot-shimmer-text")?.textContent).toBe(
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe(
         "Compacting conversation…"
       );
       expect(screen.getByText("12s")).toBeTruthy();
       expect(container.querySelector(FOLD_ICON)).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeNull();
 
       act(() => jest.advanceTimersByTime(3_000));
 
@@ -46,7 +46,7 @@ describe("CompactionRow", () => {
         <CompactionRow part={part({ status: "in_progress", trigger: "auto" })} />
       );
 
-      expect(container.querySelector(".copilot-shimmer-text")?.textContent).toBe(
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe(
         "Context is full, compacting…"
       );
       expect(screen.getByRole("status").textContent).toBe("Context is full, compacting…");
@@ -58,22 +58,22 @@ describe("CompactionRow", () => {
       expect(screen.getByText("Context compacted")).toBeTruthy();
       expect(container.querySelector(FOLD_ICON)).toBeTruthy();
       expect(screen.queryByRole("status")).toBeNull();
-      expect(container.querySelector(".copilot-spinner")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeNull();
     });
 
-    it("shows how far a completed compaction shrank the context when both token counts are known https://github.com/Brevilabs/obsidian-copilot-private/issues/633", () => {
+    it("shows how far a completed compaction shrank the context when both token counts are known", () => {
       render(<CompactionRow part={part({ preTokens: 182_340, postTokens: 24_100 })} />);
 
       expect(screen.getByText("Context compacted · 182k → 24k tokens")).toBeTruthy();
     });
 
-    it("omits the token counts when the backend reported only one of them https://github.com/Brevilabs/obsidian-copilot-private/issues/633", () => {
+    it("omits the token counts when the backend reported only one of them", () => {
       render(<CompactionRow part={part({ preTokens: 182_340 })} />);
 
       expect(screen.getByText("Context compacted")).toBeTruthy();
     });
 
-    it("says an automatic completed compaction happened automatically https://github.com/Brevilabs/obsidian-copilot-private/issues/633", () => {
+    it("says an automatic completed compaction happened automatically", () => {
       render(
         <CompactionRow part={part({ trigger: "auto", preTokens: 90_000, postTokens: 8_000 })} />
       );
@@ -81,7 +81,7 @@ describe("CompactionRow", () => {
       expect(screen.getByText("Context compacted automatically · 90k → 8k tokens")).toBeTruthy();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 announces a failed compaction with its error and a warning-tinted fold icon", () => {
+    it("announces a failed compaction with its error and a warning-tinted fold icon", () => {
       const { container } = render(
         <CompactionRow part={part({ status: "failed", error: "Summary request overloaded" })} />
       );

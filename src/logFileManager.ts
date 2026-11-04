@@ -2,7 +2,7 @@ import { err2String } from "@/lib/errorFormat";
 import { App, Notice, TFile } from "obsidian";
 import { ensureFolderExists } from "@/utils";
 import { getSettings } from "@/settings/model";
-import { getEffectiveCopilotFolder } from "@/settings/copilotFolder";
+import { getEffectiveScribeFolder } from "@/settings/scribeFolder";
 import { isSensitiveKey } from "@/services/settingsSecretTransforms";
 
 type LogLevel = "INFO" | "WARN" | "ERROR";
@@ -29,7 +29,7 @@ class LogFileManager {
   }
 
   getLogPath(): string {
-    return `${getEffectiveCopilotFolder()}/scribe-log.md`;
+    return `${getEffectiveScribeFolder()}/scribe-log.md`;
   }
 
   private async ensureInitialized() {
@@ -183,7 +183,6 @@ class LogFileManager {
         await app.vault.create(path, content);
       }
     } catch (error) {
-      // The log file is the logger's own sink, so a write failure can only surface as a Notice. https://github.com/Brevilabs/obsidian-copilot-private/issues/647
       new Notice(`Could not write the Scribe log file: ${String(error)}`);
     }
 

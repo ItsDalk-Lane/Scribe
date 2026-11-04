@@ -9,7 +9,7 @@ import { useAllFolders } from "./useAllFolders";
 import { useOpenWebTabs } from "./useOpenWebTabs";
 import { useActiveWebTabState } from "./useActiveWebTabState";
 import { AtMentionCategory, AtMentionOption, CategoryOption } from "./useAtMentionCategories";
-import { getEffectiveCustomPromptsFolder } from "@/settings/copilotFolder";
+import { getEffectiveCustomPromptsFolder } from "@/settings/scribeFolder";
 
 const MAX_SEARCH_RESULTS = 30;
 

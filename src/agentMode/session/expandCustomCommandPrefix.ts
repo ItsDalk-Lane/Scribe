@@ -17,8 +17,6 @@ export async function expandCustomCommandPrefix(
 ): Promise<ExpandCustomCommandResult> {
   const resolved = resolveCustomCommandPrefix(input, commands);
   if (!resolved.matched) return resolved;
-  // The built-in /compact wins over a custom command with the same title.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/634
   if (isCompactCommand(input) && resolved.matched.title.toLowerCase() === COMPACT_COMMAND_NAME) {
     return { text: input };
   }

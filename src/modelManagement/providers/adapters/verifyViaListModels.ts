@@ -44,7 +44,6 @@ async function mapResponse(
   const { status } = response;
   const checkedAt = Date.now();
   if (status >= 200 && status < 300) {
-    // 登录页和错误对象也可能返回 200，必须确认响应属于当前检查接口。https://github.com/logancyang/obsidian-copilot/issues/3147
     if (responseShape === "openrouter-key") {
       let payload: unknown;
       try {
@@ -85,7 +84,6 @@ async function mapResponse(
       checkedAt,
     };
   }
-  // 无权读取目录不等于密钥失效，保留服务商给出的权限原因。https://github.com/logancyang/obsidian-copilot/issues/3147
   if (status === 403) {
     const detail = await readBodySnippet(response);
     const message = t("Access denied (HTTP 403). Check your account permissions.");
@@ -105,7 +103,6 @@ async function mapResponse(
     };
   }
   const snippet = await readBodySnippet(response);
-  // 检查地址不可用不能证明密钥有误或可用：https://github.com/logancyang/obsidian-copilot/issues/3147
   if (status === 404) {
     const message = t(
       "The check endpoint was not found (HTTP 404). Check the base URL; your API key and model access have not been verified."

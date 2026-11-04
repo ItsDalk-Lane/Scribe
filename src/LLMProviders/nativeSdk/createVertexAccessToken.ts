@@ -5,13 +5,11 @@ export function parseVertexCredentials(secret: string): string | Record<string, 
   const trimmed = secret.trim();
   const token = trimmed.replace(/^Bearer +/i, "");
   if (ACCESS_TOKEN_PATTERN.test(token)) return token;
-  // 数组或包裹在 Bearer 内的 JSON 不能进入请求头，否则错误可能回显私钥。https://github.com/ItsDalk-Lane/Scribe/issues/8
   if (!trimmed.startsWith("{"))
     throw new Error(t("A Google service account JSON or access token is required."));
   try {
     return JSON.parse(trimmed) as Record<string, unknown>;
   } catch {
-    // JSON 解析错误可能包含凭据片段，认证失败只能返回安全诊断。https://github.com/ItsDalk-Lane/Scribe/issues/8
     throw new Error(t("The provider credentials must be valid JSON."));
   }
 }

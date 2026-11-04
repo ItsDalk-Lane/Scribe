@@ -1,5 +1,5 @@
 import type { ModelManagementApi } from "@/modelManagement";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import {
   executeRetiredProviderRemoval,
   planRetiredProviderRemoval,
@@ -14,13 +14,13 @@ const REMOVED_LEGACY_SECRET_FIELD = "azureOpenAIApiKey";
 
 export type AzureRemovalPlan = RetiredProviderRemovalPlan;
 
-export function planAzureRemoval(settings: CopilotSettings): AzureRemovalPlan | null {
+export function planAzureRemoval(settings: ScribeSettings): AzureRemovalPlan | null {
   return planRetiredProviderRemoval(settings, REMOVED_PROVIDER_TYPE, REMOVED_LEGACY_PROVIDERS);
 }
 
 export async function executeAzureRemoval(
   api: ModelManagementApi,
-  settings: CopilotSettings
+  settings: ScribeSettings
 ): Promise<void> {
   await executeRetiredProviderRemoval(
     api,

@@ -22,8 +22,6 @@ export function buildTurnFileChange(
     if (part.added) additions += part.count ?? 0;
     else if (part.removed) deletions += part.count ?? 0;
   }
-  // A null side means the file was absent, so emptying a file stays a modification, not a delete.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/347
   const status = before === null ? "created" : after === null ? "deleted" : "modified";
   return { path, status, before, after, additions, deletions };
 }
@@ -42,8 +40,6 @@ export function filePatchesByVaultPath(
   for (const patch of parsePatch(turnDiff.unifiedDiff)) {
     const oldPath = diffSidePath(patch.oldFileName);
     const newPath = diffSidePath(patch.newFileName);
-    // A rename is a delete plus a create, so each path keeps its own snapshot.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/347
     if (oldPath !== null && newPath !== null && oldPath !== newPath) continue;
     const relativePath = newPath ?? oldPath;
     if (relativePath === null) continue;

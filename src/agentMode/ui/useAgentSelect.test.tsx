@@ -2,7 +2,7 @@ import { backendRegistry } from "@/agentMode/backends/registry";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import type { BackendId, InstallState } from "@/agentMode/session/types";
 import { logError } from "@/logger";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { act, renderHook } from "@testing-library/react";
 import { useAgentSelect } from "./useAgentSelect";
 import { useBackendInstallStates, useSessionBackendDescriptor } from "./useBackendDescriptor";
@@ -48,7 +48,7 @@ const mockSessionDescriptor = useSessionBackendDescriptor as jest.MockedFunction
 >;
 const openInstallUI = backendRegistry.codex.openInstallUI as jest.Mock;
 
-const plugin = {} as CopilotPlugin;
+const plugin = {} as ScribePlugin;
 
 function makeManager(startResult: Promise<unknown> = Promise.resolve({})) {
   const listeners = new Set<() => void>();
@@ -88,7 +88,7 @@ describe("useAgentSelect", () => {
     mockSessionDescriptor.mockReturnValue(backendRegistry.opencode);
   });
 
-  describe("useAgentSelect()", () => {
+  describe("useAgentSelect", () => {
     it("lists every backend in display order with the recommended one marked", () => {
       const { result } = render({}, makeManager());
 
@@ -139,7 +139,7 @@ describe("useAgentSelect", () => {
       expect(openInstallUI).not.toHaveBeenCalled();
     });
 
-    it("waits for an unavailable agent's pending launch before starting the selected alternative (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("waits for an unavailable agent's pending launch before starting the selected alternative", () => {
       const manager = makeManager();
       manager.setStarting(true);
       const { result } = render(
@@ -169,7 +169,7 @@ describe("useAgentSelect", () => {
       expect(manager.getOrCreateActiveSession).toHaveBeenCalledTimes(1);
     });
 
-    it("ignores a Start callback if a launch began since it rendered (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("ignores a Start callback if a launch began since it rendered", () => {
       const manager = makeManager();
       const { result } = render({ opencode: { kind: "ready", source: "managed" } }, manager);
       const start = result.current.runCta;
@@ -204,7 +204,7 @@ describe("useAgentSelect", () => {
       expect(manager.getOrCreateActiveSession).not.toHaveBeenCalled();
     });
 
-    it("configures a signed-out choice and starts an authenticated alternative (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("configures a signed-out choice and starts an authenticated alternative", () => {
       mockSessionDescriptor.mockReturnValue(backendRegistry.claude);
       mockAuthStatuses.claude = { signedIn: false };
       mockAuthStatuses.codex = null;
@@ -239,7 +239,7 @@ describe("useAgentSelect", () => {
       expect(manager.setDefaultBackend).toHaveBeenCalledWith("codex");
       expect(manager.getOrCreateActiveSession).toHaveBeenCalledTimes(1);
     });
-    it("preserves the binary error over authentication state (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("preserves the binary error over authentication state", () => {
       mockSessionDescriptor.mockReturnValue(backendRegistry.claude);
       mockAuthStatuses.claude = { signedIn: false };
       const { result } = render(

@@ -44,8 +44,8 @@ describe("deviceId", () => {
     window.localStorage.clear();
   });
 
-  describe("getDeviceId()", () => {
-    it("generates a stable UUIDv4 and persists it to vault-scoped storage (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+  describe("getDeviceId", () => {
+    it("generates a stable UUIDv4 and persists it to vault-scoped storage", async () => {
       const getDeviceId = await loadFreshGetDeviceId();
       const { app, store } = createFakeApp();
 
@@ -65,7 +65,7 @@ describe("deviceId", () => {
       expect(getDeviceId(app)).toBe("preset-device-id");
     });
 
-    it("ignores an expired raw-storage value when vault-scoped storage is empty (https://github.com/Brevilabs/obsidian-copilot-private/issues/246)", async () => {
+    it("ignores an expired raw-storage value when vault-scoped storage is empty", async () => {
       window.localStorage.setItem(STORAGE_KEY, "expired-device-id");
       const getDeviceId = await loadFreshGetDeviceId();
       const { app, store } = createFakeApp();
@@ -76,7 +76,7 @@ describe("deviceId", () => {
       expect(window.localStorage.getItem(STORAGE_KEY)).toBe("expired-device-id");
     });
 
-    it("generates distinct ids for distinct vault stores within one module (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("generates distinct ids for distinct vault stores within one module", async () => {
       const getDeviceIdA = await loadFreshGetDeviceId();
       const a = getDeviceIdA(createFakeApp().app);
       const b = getDeviceIdA(createFakeApp().app);
@@ -99,7 +99,7 @@ describe("deviceId", () => {
     });
   });
 
-  describe("getPersistedDeviceId()", () => {
+  describe("getPersistedDeviceId", () => {
     async function loadFreshDeviceIds() {
       jest.resetModules();
       return import("@/utils/deviceId");
@@ -127,7 +127,7 @@ describe("deviceId", () => {
       expect(app.saveLocalStorage).not.toHaveBeenCalled();
     });
 
-    it("generates a UUIDv4 when crypto.randomUUID is unavailable (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("generates a UUIDv4 when crypto.randomUUID is unavailable", async () => {
       const descriptor = Object.getOwnPropertyDescriptor(window.crypto, "randomUUID");
       Object.defineProperty(window.crypto, "randomUUID", { configurable: true, value: undefined });
       try {
@@ -146,20 +146,17 @@ describe("deviceId", () => {
       "unknown",
       "3f2a1d9e8b4c4f6d9e2a7c5b3a1d9e8f",
       "2e9c0d84-7f31-11ee-b962-0242ac120002",
-    ])(
-      "rejects %s without replacing the existing settings identity (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
-      async (id) => {
-        const { getDeviceId, getPersistedDeviceId } = await loadFreshDeviceIds();
-        const { app, store } = createFakeApp(new Map([[STORAGE_KEY, id]]));
+    ])("rejects %s without replacing the existing settings identity", async (id) => {
+      const { getDeviceId, getPersistedDeviceId } = await loadFreshDeviceIds();
+      const { app, store } = createFakeApp(new Map([[STORAGE_KEY, id]]));
 
-        expect(() => getPersistedDeviceId(app)).toThrow();
-        expect(getDeviceId(app)).toBe(id);
-        expect(store.get(STORAGE_KEY)).toBe(id);
-        expect(app.saveLocalStorage).not.toHaveBeenCalled();
-      }
-    );
+      expect(() => getPersistedDeviceId(app)).toThrow();
+      expect(getDeviceId(app)).toBe(id);
+      expect(store.get(STORAGE_KEY)).toBe(id);
+      expect(app.saveLocalStorage).not.toHaveBeenCalled();
+    });
 
-    it("rejects unavailable storage instead of returning the settings fallback (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("rejects unavailable storage instead of returning the settings fallback", async () => {
       const { getDeviceId, getPersistedDeviceId } = await loadFreshDeviceIds();
       const app = createThrowingApp();
 
@@ -168,7 +165,7 @@ describe("deviceId", () => {
     });
 
     it.each(["throw", "discard"])(
-      "rejects storage writes that %s instead of returning an ephemeral UUID (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
+      "rejects storage writes that %s instead of returning an ephemeral UUID",
       async (failure) => {
         const { getPersistedDeviceId } = await loadFreshDeviceIds();
         const { app, store } = createFakeApp();
@@ -182,7 +179,7 @@ describe("deviceId", () => {
     );
 
     it.each(["throw", "delete", "replace"])(
-      "rejects a cached UUID after storage reads %s (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
+      "rejects a cached UUID after storage reads %s",
       async (failure) => {
         const { getDeviceId, getPersistedDeviceId } = await loadFreshDeviceIds();
         const id = "3f2a1d9e-8b4c-4f6d-9e2a-7c5b3a1d9e8f";

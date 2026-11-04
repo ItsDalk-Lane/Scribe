@@ -36,7 +36,7 @@ function renderView(overrides: Partial<React.ComponentProps<typeof AgentSelectVi
 }
 
 describe("AgentSelectView", () => {
-  describe("AgentSelectView()", () => {
+  describe("AgentSelectView", () => {
     it("names the radiogroup after the visible heading and marks exactly one row checked", () => {
       renderView({ selectedId: "claude" });
 
@@ -59,7 +59,7 @@ describe("AgentSelectView", () => {
       expect(screen.getByText(label)).toBeTruthy();
     });
 
-    it("shows a sign-in requirement without an Error badge (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", () => {
+    it("shows a sign-in requirement without an Error badge", () => {
       renderView({
         rows: [row({ id: "claude", status: "signed-out" })],
         footerNote: "Claude not signed in",
@@ -131,7 +131,7 @@ describe("AgentSelectView", () => {
       ]);
     });
 
-    it("shows the footer note above the call to action (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+    it("shows the footer note above the call to action", () => {
       renderView({ footerNote: "Ready to go." });
 
       const note = screen.getByText("Ready to go.");

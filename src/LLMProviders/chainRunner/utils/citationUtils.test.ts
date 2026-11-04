@@ -11,7 +11,7 @@ describe("citationUtils", () => {
         "A cited answer [^1]\n\n#### Sources\n[^1]: [[Project notes]]"
       );
       expect(result).toContain("A cited answer");
-      expect(result).toContain('class="copilot-citation-ref"');
+      expect(result).toContain('class="scribe-citation-ref"');
       expect(result).toContain("<details");
       expect(result).toContain("Project notes");
     });

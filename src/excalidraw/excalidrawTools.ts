@@ -12,8 +12,6 @@ export const EXCALIDRAW_TOOL_NAMES: ReadonlySet<string> = new Set([
 export const EXCALIDRAW_TURNED_OFF_TEXT =
   "The Excalidraw tools are not available because the Excalidraw plugin (2.29 or later) is not enabled. Tell the user; don't call them again.";
 
-// Codex cuts the middle out of any MCP output over about 40,000 UTF-8 bytes, so element JSON asked for by id stays under it.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
 const MAX_ELEMENT_JSON_BYTES = 32_000;
 
 const PATH = {
@@ -95,8 +93,6 @@ const ELEMENT = {
   },
 };
 
-// Codex asks the user to approve MCP calls unless the tool is read-only, and reading or rendering changes nothing.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
 const READ_ONLY = Object.freeze({
   readOnlyHint: true,
   destructiveHint: false,
@@ -129,9 +125,6 @@ export const EXCALIDRAW_RENDER_TOOL = Object.freeze({
   annotations: READ_ONLY,
 });
 
-// One write tool for new and existing drawings: in the tool-design eval it drew as well as separate create and edit
-// tools, with fewer failed calls and fewer tokens for Codex.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
 export const EXCALIDRAW_WRITE_TOOL = Object.freeze({
   name: EXCALIDRAW_WRITE_TOOL_NAME,
   description: `Create or change an Obsidian Excalidraw drawing: pass elements for a new drawing, or operations for an existing one.
@@ -251,8 +244,6 @@ export function createExcalidrawTools(
       try {
         return await handler(api, input, path);
       } catch (error) {
-        // An exception here means the Excalidraw plugin's API no longer matches these tools; the fallback costs tokens only then.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
         return failure(
           `Excalidraw failed on ${path}: ${(error instanceof Error ? error.message : String(error)).replace(/\.?$/, ".")} If this keeps failing, work on the file directly and write your own decoder for its compressed-json block.`
         );
@@ -263,9 +254,6 @@ export function createExcalidrawTools(
     handler: Parameters<typeof run>[0]
   ): ExcalidrawTool =>
     Object.freeze({ definition, turnedOffText: EXCALIDRAW_TURNED_OFF_TEXT, call: run(handler) });
-  // Excalidraw publishes a scene snapshot taken before an async step, so two writes to one drawing from parallel tool calls
-  // or two chats would let the second drop the first's changes while both report success.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
   const writing = new Map<string, Promise<unknown>>();
   const writeQueuedPerDrawing: Parameters<typeof run>[0] = (api, input, path) => {
     const result = (writing.get(path) ?? Promise.resolve()).then(() => write(api, input, path));
@@ -338,8 +326,6 @@ async function write(
     (Array.isArray(input.icons) && input.icons.length > 0) ||
     (Array.isArray(input.operations) &&
       input.operations.some((op) => (op as Record<string, unknown> | null)?.op === "lucide"));
-  // Excalidraw 2.29 has no icon support and rejects the request with a generic unsupported-field error.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/792
   if (wantsIcons && !(await api.execute({ apiVersion: 1, command: "status" })).data?.lucideIcons)
     return failure(
       "No change made: the installed Excalidraw plugin can't add Lucide icons. Draw without icons, or tell the user to update Excalidraw."
@@ -369,8 +355,6 @@ async function create(
   const created = `Created ${path}.${describeIds(reply)}${describeWarnings(reply)}`;
   const groups = Array.isArray(input.groups) ? input.groups.filter(Array.isArray) : [];
   if (!groups.length) return { text: created, isError: false };
-  // The plugin's create can't group elements, so groups are applied to the new drawing right after it is created.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/792
   const idMap = (reply.data?.idMap ?? {}) as Record<string, string>;
   const grouped = await edit(
     api,
@@ -397,8 +381,6 @@ async function edit(
   const operations = input.operations.filter(
     (op): op is Record<string, unknown> => Boolean(op) && typeof op === "object"
   );
-  // A malformed bend point would write NaN coordinates into the user's drawing.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
   if (operations.some((op) => op.op === "connect" && op.via !== undefined && !isRoute(op.via)))
     return failure("No change made: via must be a list of [x, y] points, such as [[540, 40]].");
   if (operations.some((op) => op.op === "add" && bindsArrowToStickyNote(op.elements)))
@@ -406,8 +388,6 @@ async function edit(
   const opened = await api.execute({ apiVersion: 1, command: "open", path });
   if (!opened.ok) return failure(`Could not open ${path}: ${describeFailure(opened)}`);
 
-  // The plugin's connect operation can't label, dash, colour, route or restyle an arrow, so those connections are built on the open drawing.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
   const styled = operations.filter(
     (op) =>
       op.op === "connect" &&
@@ -441,8 +421,6 @@ async function edit(
   for (const op of styled) {
     const connection = op as unknown as LabelledConnection;
     try {
-      // A styled connection runs after apply, so it names shapes added in the same call by their real ids.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
       const { arrowId, labelId } = await api.connectLabelled(path, {
         ...connection,
         from: idMap[connection.from] ?? connection.from,
@@ -452,8 +430,6 @@ async function edit(
         `Connected ${connection.from} -> ${connection.to} with arrow ${arrowId}${labelId ? ` (label ${labelId})` : ""}.`
       );
     } catch (error) {
-      // Earlier operations in the call are already saved, so an agent that saw only the failure would redo them and duplicate shapes.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
       const reason = error instanceof Error ? error.message : String(error);
       return failure(
         `${done.length ? `Saved: ${done.join(" ")} ` : ""}Then failed to connect ${connection.from} -> ${connection.to}: ${reason} Don't redo the saved changes.`
@@ -463,9 +439,6 @@ async function edit(
   return { text: `Edited ${path}. ${done.join(" ")}`, isError: false };
 }
 
-// Excalidraw 2.29 fails the whole request with a generic "Request could not be completed" when an arrow binds to a
-// stickynote, so the agent would resend a large drawing without knowing why.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
 const STICKY_NOTE_ARROW =
   "No change made: arrows can't attach to a stickynote. Use a rectangle for any note an arrow starts or ends at.";
 
@@ -493,7 +466,7 @@ function isRoute(via: unknown): boolean {
 }
 
 function requestId(): string {
-  return `copilot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `scribe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function describeFailure(reply: ExcalidrawCliReply): string {

@@ -8,12 +8,12 @@ trap 'rm -rf "$TEST_ROOT"' EXIT
 FIXTURE_ROOT="$TEST_ROOT/repo"
 VAULT_ROOT="$TEST_ROOT/vault"
 FAKE_BIN="$TEST_ROOT/bin"
-mkdir -p "$FIXTURE_ROOT/scripts" "$VAULT_ROOT/.obsidian/plugins/copilot" "$FAKE_BIN"
+mkdir -p "$FIXTURE_ROOT/scripts" "$VAULT_ROOT/.obsidian/plugins/scribe" "$FAKE_BIN"
 cp "$REPO_ROOT/scripts/test-reset-data.sh" "$FIXTURE_ROOT/scripts/test-reset-data.sh"
 cp "$REPO_ROOT/scripts/obsidian-vault.sh" "$FIXTURE_ROOT/scripts/obsidian-vault.sh"
-printf '{ "id": "copilot" }\n' >"$FIXTURE_ROOT/manifest.json"
+printf '{ "id": "scribe" }\n' >"$FIXTURE_ROOT/manifest.json"
 printf '{ "fixture": true }\n' >"$TEST_ROOT/data.json"
-TARGET="$VAULT_ROOT/.obsidian/plugins/copilot/data.json"
+TARGET="$VAULT_ROOT/.obsidian/plugins/scribe/data.json"
 
 CALL_LOG="$TEST_ROOT/calls.log"
 REGISTRY="$TEST_ROOT/registry.tsv"
@@ -38,7 +38,7 @@ STDERR="$TEST_ROOT/stderr.log"
 run_reset() {
   : >"$CALL_LOG"
   PATH="$FAKE_BIN:$PATH" \
-    COPILOT_TEST_VAULT_PATH="$VAULT_ROOT" \
+    SCRIBE_TEST_VAULT_PATH="$VAULT_ROOT" \
     OBSIDIAN_BIN="$FAKE_BIN/obsidian" \
     CALL_LOG="$CALL_LOG" \
     REGISTRY="$REGISTRY" \
@@ -71,7 +71,7 @@ if ! cmp -s "$TEST_ROOT/data.json" "$TARGET"; then
   exit 1
 fi
 for action in plugin:enable plugin:reload; do
-  if ! grep -qxF "obsidian vault=vault $action id=copilot" "$CALL_LOG"; then
+  if ! grep -qxF "obsidian vault=vault $action id=scribe" "$CALL_LOG"; then
     echo "expected $action to name the registered test vault" >&2
     exit 1
   fi

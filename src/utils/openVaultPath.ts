@@ -22,7 +22,6 @@ export function openVaultPath(app: App, rawPath: string, opts: OpenVaultPathOpti
     }
     path = rel;
   }
-  // Bare PDF destinations inherit the previous vertical offset: https://github.com/logancyang/obsidian-copilot/issues/3894
   path = path.replace(/(\.pdf#page=\d+)$/i, "$1&offset=0,,0");
   const { filePath, anchor } = splitAnchor(path);
   if (filePath && !app.vault.getAbstractFileByPath(filePath)) {
@@ -78,7 +77,6 @@ function openLinkText(app: App, linkText: string, opts: OpenVaultPathOptions): v
 }
 
 function findReusableLeaf(app: App, file: TFile, pane: OpenPane): WorkspaceLeaf | undefined {
-  // Cmd/Ctrl-click and middle-click ask for a new tab, so they skip reusing the open one: https://github.com/Brevilabs/obsidian-copilot-private/issues/796
   if (pane) return undefined;
   const { leftSplit, rightSplit } = app.workspace;
   const leaves: WorkspaceLeaf[] = [];
@@ -97,8 +95,6 @@ async function focusLeaf(
   file: TFile,
   anchor: string
 ): Promise<void> {
-  // A tab restored at startup stays unloaded; revealing or scrolling it before it loads loses the scroll.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/796
   await (leaf as WorkspaceLeaf & { loadIfDeferred(): Promise<void> }).loadIfDeferred();
   app.workspace.revealLeaf(leaf);
   app.workspace.setActiveLeaf(leaf, { focus: true });

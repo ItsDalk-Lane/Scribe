@@ -14,7 +14,7 @@ const item: AgentExtensionItem = {
 };
 
 describe("extensionAvailability", () => {
-  describe("getExtensionSwitchState()", () => {
+  describe("getExtensionSwitchState", () => {
     it("enables the switch only after availability is confirmed", () => {
       expect(getExtensionSwitchState({ ...item, availability: "loaded" })).toMatchObject({
         checked: true,
@@ -38,7 +38,7 @@ describe("extensionAvailability", () => {
         getExtensionSwitchState({ ...item, availability: "disabled", parentPluginId: "notes" })
       ).toMatchObject({ checked: false, disabled: true });
     });
-    it("keeps unconfirmed and prerequisite-blocked items off their switch (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+    it("keeps unconfirmed and prerequisite-blocked items off their switch", () => {
       expect(getExtensionSwitchState({ ...item, availability: "not_listed" })).toMatchObject({
         disabled: true,
       });
@@ -70,7 +70,7 @@ describe("extensionAvailability", () => {
         getExtensionSwitchState({ ...item, kind: "plugin", availability: "loaded_with_errors" })
       ).toMatchObject({ checked: true, disabled: false });
     });
-    it("requires callable tools for a connected MCP server (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+    it("requires callable tools for a connected MCP server", () => {
       expect(
         getExtensionSwitchState({ ...item, kind: "mcp", availability: "connected" })
       ).toMatchObject({ checked: false, disabled: true });
@@ -79,8 +79,8 @@ describe("extensionAvailability", () => {
       ).toMatchObject({ checked: false, disabled: true });
     });
   });
-  describe("isExtensionToggleable()", () => {
-    it("allows switching only for entries the user controls in this scope (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+  describe("isExtensionToggleable", () => {
+    it("allows switching only for entries the user controls in this scope", () => {
       expect(isExtensionToggleable({ ...item, availability: "loaded" })).toBe(true);
       expect(isExtensionToggleable({ ...item, builtin: true })).toBe(false);
       expect(isExtensionToggleable({ ...item, readOnly: true })).toBe(false);
@@ -94,7 +94,7 @@ describe("extensionAvailability", () => {
         })
       ).toBe(false);
     });
-    it("renders a dot instead of a switch while connecting, unverifiable, or blocked by a prerequisite (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+    it("renders a dot instead of a switch while connecting, unverifiable, or blocked by a prerequisite", () => {
       expect(isExtensionToggleable({ ...item, availability: "needs-auth" })).toBe(false);
       expect(isExtensionToggleable({ ...item, availability: "failed" })).toBe(false);
       expect(isExtensionToggleable({ ...item, availability: "not_loaded" })).toBe(false);
@@ -103,7 +103,7 @@ describe("extensionAvailability", () => {
       expect(isExtensionToggleable({ ...item, kind: "mcp", availability: "pending" })).toBe(false);
       expect(isExtensionToggleable(item)).toBe(false);
     });
-    it("follows the scope rules recorded for the entry (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("follows the scope rules recorded for the entry", () => {
       expect(isExtensionToggleable({ ...item, availability: "loaded", canDisable: false })).toBe(
         false
       );
@@ -113,14 +113,14 @@ describe("extensionAvailability", () => {
       );
     });
   });
-  describe("getExtensionDotState()", () => {
-    it("marks confirmed entries as enabled without a reason (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+  describe("getExtensionDotState", () => {
+    it("marks confirmed entries as enabled without a reason", () => {
       expect(getExtensionDotState({ ...item, availability: "loaded" })).toEqual({ enabled: true });
       expect(
         getExtensionDotState({ ...item, kind: "mcp", availability: "connected", toolCount: 2 })
       ).toEqual({ enabled: true });
     });
-    it("explains where a confirmed but non-switchable row is managed instead of rendering nothing (https://github.com/ItsDalk-Lane/Scribe/issues/5)", () => {
+    it("explains where a confirmed but non-switchable row is managed instead of rendering nothing", () => {
       expect(getExtensionDotState({ ...item, availability: "loaded", readOnly: true })).toEqual({
         enabled: true,
         informational: true,
@@ -144,19 +144,19 @@ describe("extensionAvailability", () => {
         reason: "Reported by the running session.",
       });
     });
-    it("marks a connecting server with the connecting reason instead of a failure (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+    it("marks a connecting server with the connecting reason instead of a failure", () => {
       expect(getExtensionDotState({ ...item, kind: "mcp", availability: "pending" })).toEqual({
         enabled: false,
         connecting: true,
         reason: "Connecting…",
       });
     });
-    it("explains why a plugin-owned entry is unavailable (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("explains why a plugin-owned entry is unavailable", () => {
       expect(
         getExtensionDotState({ ...item, availability: "disabled", parentPluginId: "docs" })
       ).toEqual({ enabled: false, reason: "Its plugin is not enabled in this scope." });
     });
-    it("explains configuration-disabled, scope and prerequisite failures (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("explains configuration-disabled, scope and prerequisite failures", () => {
       expect(getExtensionDotState({ ...item, availability: "disabled", enabled: false })).toEqual({
         enabled: false,
         reason: "This item is disabled in the current configuration.",

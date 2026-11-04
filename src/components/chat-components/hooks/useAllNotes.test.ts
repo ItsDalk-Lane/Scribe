@@ -17,8 +17,8 @@ function vaultFile(path: string, ctime: number): TFile {
 }
 
 describe("useAllNotes", () => {
-  describe("useAllNotes()", () => {
-    it("offers PDFs and canvases alongside notes, newest first, in Agent Chat https://github.com/logancyang/obsidian-copilot/issues/3538", () => {
+  describe("useAllNotes", () => {
+    it("offers PDFs and canvases alongside notes, newest first, in Agent Ch", () => {
       const note = vaultFile("notes/Plan.md", 100);
       const pdf = vaultFile("media/Paper.pdf", 300);
       const canvas = vaultFile("boards/Map.canvas", 200);

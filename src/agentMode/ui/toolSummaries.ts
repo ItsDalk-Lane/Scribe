@@ -31,9 +31,6 @@ export function lookupToolSummary(part: ToolCallPart): ToolSummary {
 }
 
 function selectToolSummary(part: ToolCallPart): ToolSummary {
-  // A user's choice remains the visible result even when a late adapter
-  // update retains the original tool kind or vendor name.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/41
   if (part.userResponse) return USER_RESPONSE_SUMMARY;
   if (isOpencodeTaskTool(part)) return TASK_SUMMARY;
   if (part.vendorToolName) {
@@ -104,9 +101,6 @@ function fileChangeVerb(
   past: string,
   negated: string
 ): string {
-  // A failed, denied or stopped file change leaves the note untouched, so the label
-  // must not claim it happened.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/691
   return part.status === "failed" || part.status === "cancelled"
     ? t("Didn't {action}", { action: t(negated) })
     : verb(part, progressive, past);

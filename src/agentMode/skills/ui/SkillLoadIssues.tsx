@@ -60,7 +60,6 @@ export const SkillLoadIssuesModalContent: React.FC<SkillLoadIssuesModalContentPr
   onFixAll,
   onClose,
 }) => {
-  // Close first so Obsidian does not open an indexed file behind this modal. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
   const runAction = (action: () => void): void => {
     onClose();
     action();

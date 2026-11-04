@@ -36,8 +36,6 @@ interface QueuedMessageRowProps {
 }
 
 const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({ message, children }) => {
-  // Image-only turns need a visible queue label after the composer clears.
-  // https://github.com/logancyang/obsidian-copilot/issues/2850
   const label =
     message.text ||
     (message.promptContent?.some((block) => block.type === "image")
@@ -79,7 +77,7 @@ export const QueuedMessageList: React.FC<QueuedMessageListProps> = ({
           <div className="tw-min-w-0 tw-flex-1 tw-truncate tw-px-1 tw-text-ui-smaller tw-text-muted">
             {t("The agent reads these at its next step")}
           </div>
-          {/* Interrupting hands Claude every waiting message at once, so Send now belongs to the section, not to a row. https://github.com/Brevilabs/obsidian-copilot-private/issues/789 */}
+
           {onSendNow && (
             <Button
               variant="ghost2"

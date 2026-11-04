@@ -9,7 +9,7 @@ const SOUND_OPTIONS = [
 ];
 
 describe("AgentNotificationSoundSettings", () => {
-  describe("AgentNotificationSoundSettings()", () => {
+  describe("AgentNotificationSoundSettings", () => {
     afterEach(() => setInterfaceLocale("en"));
 
     it("shows Chinese sound names while preserving the selected sound id", () => {
@@ -30,7 +30,7 @@ describe("AgentNotificationSoundSettings", () => {
       expect(onSoundChange).toHaveBeenCalledWith("doorbell");
     });
 
-    it("shows the sound picker while notifications are enabled (https://github.com/logancyang/obsidian-copilot/issues/2987)", () => {
+    it("shows the sound picker while notifications are enabled", () => {
       render(
         <AgentNotificationSoundSettings
           enabled
@@ -47,7 +47,7 @@ describe("AgentNotificationSoundSettings", () => {
       expect(screen.getByDisplayValue("Piano key")).not.toBeNull();
     });
 
-    it("hides the sound picker while notifications are disabled (https://github.com/logancyang/obsidian-copilot/issues/2987)", () => {
+    it("hides the sound picker while notifications are disabled", () => {
       render(
         <AgentNotificationSoundSettings
           enabled={false}

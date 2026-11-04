@@ -22,7 +22,7 @@ function fakeResponse(status: number, body = '{"data":[]}'): Response {
 }
 
 describe("verifyViaListModels", () => {
-  describe("verifyViaListModels()", () => {
+  describe("verifyViaListModels", () => {
     afterEach(() => setInterfaceLocale("en"));
 
     beforeEach(() => {
@@ -44,7 +44,7 @@ describe("verifyViaListModels", () => {
       });
     });
 
-    it("does not verify an empty 204 response as provider access (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("does not verify an empty 204 response as provider access", async () => {
       mockSafeFetch.mockResolvedValue(fakeResponse(204, ""));
       expect(await verifyViaListModels("u", {}, MODELS_RESPONSE)).toMatchObject({
         ok: false,
@@ -60,7 +60,7 @@ describe("verifyViaListModels", () => {
       expect(result.message).toMatch(/check your API key/i);
     });
 
-    it("keeps a 403 permission denial distinct from an invalid key and retains the provider reason (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("keeps a 403 permission denial distinct from an invalid key and retains the provider reason", async () => {
       mockSafeFetch.mockResolvedValue(
         fakeResponse(403, '{"error":{"message":"Model listing permission is required"}}')
       );
@@ -76,7 +76,7 @@ describe("verifyViaListModels", () => {
       '{"data":[],"error":{"message":"Failed"}}',
       "null",
     ])(
-      "does not verify a successful HTTP response with an invalid model payload %p (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "does not verify a successful HTTP response with an invalid model payload %p",
       async (body) => {
         mockSafeFetch.mockResolvedValue(fakeResponse(200, body));
         expect(await verifyViaListModels("u", {}, MODELS_RESPONSE)).toMatchObject({
@@ -93,7 +93,7 @@ describe("verifyViaListModels", () => {
       expect(await verifyViaListModels("u", {}, GOOGLE_RESPONSE)).toMatchObject({ ok: true });
     });
 
-    it("does not accept another protocol's model list for Google (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("does not accept another protocol's model list for Google", async () => {
       mockSafeFetch.mockResolvedValue(fakeResponse(200, '{"data":[]}'));
       expect(await verifyViaListModels("u", {}, GOOGLE_RESPONSE)).toMatchObject({
         ok: false,
@@ -113,16 +113,13 @@ describe("verifyViaListModels", () => {
       '{"data":null}',
       '{"data":"login"}',
       '{"data":{},"error":{"message":"Denied"}}',
-    ])(
-      "does not accept invalid OpenRouter key metadata %p (https://github.com/logancyang/obsidian-copilot/issues/3147)",
-      async (body) => {
-        mockSafeFetch.mockResolvedValue(fakeResponse(200, body));
-        expect(await verifyViaListModels("u", {}, KEY_RESPONSE)).toMatchObject({
-          ok: false,
-          code: "invalid_response",
-        });
-      }
-    );
+    ])("does not accept invalid OpenRouter key metadata %p", async (body) => {
+      mockSafeFetch.mockResolvedValue(fakeResponse(200, body));
+      expect(await verifyViaListModels("u", {}, KEY_RESPONSE)).toMatchObject({
+        ok: false,
+        code: "invalid_response",
+      });
+    });
 
     it("maps 429 to rate_limited", async () => {
       mockSafeFetch.mockResolvedValue(fakeResponse(429));
@@ -135,7 +132,7 @@ describe("verifyViaListModels", () => {
       ["en", /not (?:been )?verified/i],
       ["zh-CN", /尚未验证/],
     ])(
-      "reports an unavailable 404 verification endpoint in %s while retaining the response detail (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "reports an unavailable 404 verification endpoint in %s while retaining the response detail",
       async (locale, expectedMessage) => {
         setInterfaceLocale(locale);
         mockSafeFetch.mockResolvedValue(fakeResponse(404, '{"error":"route_not_found"}'));

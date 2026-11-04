@@ -1,6 +1,6 @@
 import type { App } from "obsidian";
 import { DEFAULT_SETTINGS } from "@/constants";
-import { getSettings, resetSettings, setSettings, type CopilotSettings } from "@/settings/model";
+import { getSettings, resetSettings, setSettings, type ScribeSettings } from "@/settings/model";
 import {
   createNativeModel,
   getNativeDefaultModelId,
@@ -19,7 +19,7 @@ jest.mock("@/services/keychainService", () => ({
 }));
 jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 
-function settings(): CopilotSettings {
+function settings(): ScribeSettings {
   return {
     ...DEFAULT_SETTINGS,
     defaultModelKey: "reasoning",

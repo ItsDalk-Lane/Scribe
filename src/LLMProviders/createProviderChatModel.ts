@@ -34,7 +34,6 @@ const HTTP_PROTOCOLS = new Set([
   "scribe-ollama",
 ]);
 
-// Preserve the retired Anthropic client's omitted-limit defaults; pi-ai's catalog must not change saved-model behavior. https://github.com/ItsDalk-Lane/Scribe/issues/8
 const ANTHROPIC_OUTPUT_DEFAULTS = [
   ["claude-opus-5", 16384],
   ["claude-fable-5", 16384],
@@ -56,7 +55,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
   const model: CustomModel = {
     ...input,
     providerNpm: npm,
-    // The custom-provider example URL is documentation, never a credential destination. https://github.com/ItsDalk-Lane/Scribe/issues/8
     baseUrl:
       input.baseUrl?.trim() ||
       (legacy && provider !== ChatModelProviders.OPENAI_FORMAT
@@ -105,10 +103,7 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     baseUrl: model.baseUrl || "",
     input: ["text", "image"],
     reasoning: model.capabilities?.includes(ModelCapability.REASONING) ?? false,
-    // 未选择推理强度时沿用供应商默认值，避免 pi-ai 自动发送 none。https://github.com/ItsDalk-Lane/Scribe/issues/8
     thinkingLevelMap: { off: null },
-    // 窗口只信显式配置；0 表示未知，用量环与自动压缩按缺数处理，不得伪装成 Ollama 默认值。
-    // https://github.com/ItsDalk-Lane/Scribe/issues/15
     contextWindow: model.numCtx ?? 0,
     maxTokens:
       model.maxTokens ??
@@ -118,7 +113,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
           ? 4096
           : 0),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    // Keep saved protocol settings authoritative instead of adopting pi-ai's catalog defaults. https://github.com/ItsDalk-Lane/Scribe/issues/8
     compat: {
       supportsDeveloperRole: api === "openai-responses" && npm === "@ai-sdk/openai",
       supportsStore: false,
@@ -147,7 +141,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     model.providerCatalogId === "google-vertex-anthropic" ||
     model.providerCatalogId === "watsonx"
   ) {
-    // 托管秘密只交给认证传输层，也避免 SDK 将密钥识别为 OAuth 并改写提示。https://github.com/ItsDalk-Lane/Scribe/issues/8
     defaults.apiKey = "provider-managed-auth";
   }
   if (legacy && provider === ChatModelProviders.GOOGLE) {
@@ -176,7 +169,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
   defaults.headers = headers;
   defaults.onPayload = (payload) => {
     if (!isRecord(payload)) throw new Error(t("Unexpected response"));
-    // Existing OpenRouter budgets and cache controls must not gain a top-level output cap. https://github.com/ItsDalk-Lane/Scribe/issues/8
     if (openRouterOptions) {
       if (descriptor.reasoning)
         payload.reasoning = model.reasoningEffort
@@ -185,7 +177,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
                 model.reasoningEffort === ReasoningEffort.MINIMAL ? "low" : model.reasoningEffort,
             }
           : { max_tokens: 1024 };
-      // 自建网关沿用推理和用量设置，缓存字段仅发送给官方主机。https://github.com/ItsDalk-Lane/Scribe/issues/8
       if (
         (model.enablePromptCaching ?? true) &&
         new URL(descriptor.baseUrl).hostname === "openrouter.ai"

@@ -8,7 +8,7 @@ function renderSection() {
     onDebugChange: jest.fn(),
     frameLogEnabled: true,
     onFrameLogChange: jest.fn(),
-    frameLogPath: "/tmp/obsidian-copilot/acp-frames/3f9a/acp-frames.ndjson",
+    frameLogPath: "/tmp/obsidian-scribe/acp-frames/3f9a/acp-frames.ndjson",
     onReportIssue: jest.fn(),
     offerFeedbackCards: true,
     onOfferFeedbackCardsChange: jest.fn(),

@@ -23,7 +23,7 @@ import { ACTIVE_WEB_TAB_MARKER, EVENT_NAMES } from "@/constants";
 import { EventTargetContext } from "@/context";
 import { logError, logWarn } from "@/logger";
 import type { PromptContent, QueuedPrompt } from "@/agentMode/session/types";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { buildWebTabsWithActiveSnapshot } from "@/services/webViewerService/activeWebTabSnapshot";
 import {
   isNoteSelectedTextContext,
@@ -42,7 +42,7 @@ import { safeAsyncHandler } from "@/utils/safeAsyncHandler";
 
 interface AgentChatInputProps {
   backend: AgentChatBackend;
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   chatInputId: string;
   skillScope?: { cwd: string | null; projectDirectory: string };
   draft: AgentInputDraftControls;
@@ -112,8 +112,6 @@ const combineQueuedMessages = (items: QueuedAgentMessage[]): QueuedAgentMessage 
   };
 };
 
-// Agents only compact when /compact is the whole prompt, so a queued one never merges with neighbours.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/634
 const takeNextQueuedBatch = (
   items: QueuedAgentMessage[]
 ): { batch: QueuedAgentMessage[]; rest: QueuedAgentMessage[] } => {
@@ -214,16 +212,10 @@ export const AgentChatInput = memo(function AgentChatInput({
     clearSelection();
   }, [chatInputId]);
 
-  // Selected text remains ephemeral and is deliberately not restored.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/365
   const restoreToComposer = useCallback(
     (items: QueuedAgentMessage[], originalImages: File[] = []) => {
-      // Merged into one draft, /compact would swallow the queued messages as compaction input.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/634
       const nonCompact = items.filter((item) => !isCompactCommand(item.text));
       const restored = combineQueuedMessages(nonCompact.length > 0 ? nonCompact : items);
-      // A fixed copy of the current page would duplicate its Active Web Tab badge and outlive
-      // that badge's removal. https://github.com/Brevilabs/obsidian-copilot-private/issues/667
       const currentInput = activeChatInputId.current === chatInputId ? chatInputRef.current : null;
       const activeUrl = currentInput ? activeWebTabForMentions?.url : undefined;
       const restoredWebTabs = restored.context?.webTabs ?? [];
@@ -239,8 +231,6 @@ export const AgentChatInput = memo(function AgentChatInput({
         setInputMessage((previous) =>
           [restored.text, previous].filter((text) => text.trim()).join("\n\n")
         );
-      // A fixed copy of the active note would duplicate its Active Note badge and outlive that
-      // badge's removal. https://github.com/Brevilabs/obsidian-copilot-private/issues/670
       const activePath = currentInput ? app.workspace.getActiveFile()?.path : undefined;
       const restoredNotes = restored.context?.notes ?? [];
       if (restoredNotes.some((note) => note.path === activePath)) setIncludeActiveNote(true);
@@ -270,9 +260,6 @@ export const AgentChatInput = memo(function AgentChatInput({
   );
 
   const handleStopGenerating = useCallback(async () => {
-    // Restore before cancellation can finish the turn and flush the queue.
-    // Only runSend owns loading; a late cancel must not mark a newer turn idle.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/485
     setQueuedMessages([]);
     const preparation = preparationQueues.current.get(backend);
     const pending = preparation ? [...preparation.pending.entries()] : [];
@@ -294,7 +281,6 @@ export const AgentChatInput = memo(function AgentChatInput({
     }
   }, [backend, queuedMessages, restoreToComposer, setQueuedMessages]);
 
-  // A message withdrawn before the agent read it returns to the composer ahead of the draft. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
   useEffect(() => {
     const withdrawn = backend.takeWithdrawnPrompts();
     if (withdrawn.length === 0) return;
@@ -321,7 +307,6 @@ export const AgentChatInput = memo(function AgentChatInput({
     [backend, restoreToComposer, setLoading, updateUserMessageHistory]
   );
 
-  // The session shows the message once it reaches the agent, so the composer neither waits nor holds it. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
   const sendMidTurn = useCallback(
     (item: QueuedAgentMessage) => {
       try {
@@ -372,8 +357,6 @@ export const AgentChatInput = memo(function AgentChatInput({
         shouldIncludeActiveWebTab
       );
 
-      // /compact drops attachments, so an image the model can't read must not block it.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/634
       const images = isCompactCommand(resolvedText) ? [] : selectedImages;
       if (images.length > 0 && unsupportedImageModelLabel) {
         new Notice(
@@ -425,7 +408,6 @@ export const AgentChatInput = memo(function AgentChatInput({
 
         const starting = backend.isStarting();
         if (starting || backend.isTurnInFlight() || backend.getQueuedPrompts().length > 0) {
-          // Compaction waits until the agent finishes. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
           if (!starting && acceptsMidTurnMessages && !isCompactCommand(item.text)) {
             sendMidTurn(item);
             return;
@@ -461,7 +443,6 @@ export const AgentChatInput = memo(function AgentChatInput({
   );
 
   useEffect(() => {
-    // Held messages go after every message already handed to the agent. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
     if (
       disabled ||
       loading ||

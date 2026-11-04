@@ -152,7 +152,6 @@ export class TurnTracker {
   }
 
   endSend(signal: AbortSignal): void {
-    // A turn started after Stop already let go of this send's controller, and a later send may own the current one. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
     if (this.sendController?.signal === signal) this.sendController = null;
     this.deps.notifyStatus();
   }
@@ -168,7 +167,6 @@ export class TurnTracker {
     ]);
   }
 
-  // A message sent while the agent works is shown only once it reaches the agent, at that point in the transcript. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
   queue(
     prompt: QueuedPrompt,
     preparePrompt: () => Promise<() => PromptContent[]>
@@ -179,7 +177,6 @@ export class TurnTracker {
       try {
         await order.ready;
         const buildPrompt = await preparePrompt();
-        // A message withdrawn while it waited to be sent never reaches the agent. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
         if (!this.isQueued(prompt.id)) return "cancelled";
         const blocks = buildPrompt();
         const outcome = await this.submit(
@@ -190,7 +187,6 @@ export class TurnTracker {
         if (outcome.error !== undefined) throw outcome.error;
         return outcome.stopReason;
       } catch (err) {
-        // A message the agent refused before delivery goes back to the composer; either way the user is told. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
         if (this.isQueued(prompt.id)) this.withdrawPrompts([prompt.id]);
         new Notice(t("Failed to send message. Please try again."));
         throw err;
@@ -219,7 +215,6 @@ export class TurnTracker {
           throw err;
         }
       );
-    // Stop must free the chat while the agent is still signing in or starting up. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
     return Promise.race([ended, admitted]);
   }
 
@@ -230,7 +225,6 @@ export class TurnTracker {
     if (!this.isQueued(promptId)) return;
     if (!this.pendingPrompts.has(promptId)) return this.withdrawPrompts([promptId]);
     const withdrawn = await withdrawSent();
-    // A message the agent has already taken can no longer be withdrawn, so it shows as sent. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
     if (withdrawn === false) this.deliverPrompt(promptId);
   }
 
@@ -245,7 +239,6 @@ export class TurnTracker {
 
   stop(withdrawsUnsent: boolean): void {
     this.sendController?.abort();
-    // A message handed to the agent for its next step is the backend's to withdraw at Stop; a backend that cannot keeps it and runs it next. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
     const queued = new Set(this.queuedPrompts.map((p) => p.id));
     if (withdrawsUnsent) {
       this.withdrawPrompts(
@@ -253,7 +246,6 @@ export class TurnTracker {
       );
     }
     const stoppedIds = [...this.pendingPrompts.keys()].filter((id) => !queued.has(id));
-    // The stopped prompt's turn may still be running or yet to start; it renders nothing until it ends. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
     if (this.openTurnId !== null || stoppedIds.length > 0) {
       let end!: () => void;
       const ended = new Promise<void>((resolve) => (end = resolve));
@@ -283,7 +275,6 @@ export class TurnTracker {
 
   startTurn(turnId: string, startedAt?: number): void {
     if (this.stopDrain) return;
-    // A turn that starts after Stop runs a message kept through it, so the stopped prompt's cancellation must not drop its output. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
     if (this.sendController?.signal.aborted) this.sendController = null;
     this.openTurnId = turnId;
     if (!this.placeholderId) this.openReply(false, startedAt);
@@ -297,7 +288,6 @@ export class TurnTracker {
   }
 
   withdrawPrompts(promptIds: readonly string[]): void {
-    // A stopped message the agent never took has no turn left to wait for. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
     if (promptIds.some((id) => this.stopDrain?.promptIds.has(id))) this.endStopDrain();
     for (const promptId of promptIds) {
       this.pendingPrompts.get(promptId)?.settle({ stopReason: "cancelled" });
@@ -305,7 +295,6 @@ export class TurnTracker {
     }
     const ids = new Set(promptIds);
     const withdrawn = this.queuedPrompts.filter((p) => ids.has(p.id));
-    // A message the agent never read goes back to the composer, so its text is not lost. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
     if (withdrawn.length > 0) {
       this.withdrawnPrompts = Object.freeze([...this.withdrawnPrompts, ...withdrawn]);
       this.deps.promptsWithdrawn(withdrawn);
@@ -314,7 +303,6 @@ export class TurnTracker {
     this.deps.notifyStatus();
   }
 
-  // The next send reconnects the agent, so the chat only reports the loss. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
   disconnect(error: Error): void {
     this.endStopDrain();
     if (this.placeholderId || this.pendingPrompts.size > 0) this.failReply(error);
@@ -342,7 +330,6 @@ export class TurnTracker {
       this.failReply(end.error);
       return settle();
     }
-    // An agent cut off at its output limit gets the cause and one chance to continue in the same reply. https://github.com/Brevilabs/obsidian-copilot-private/issues/739
     if (end.stopReason === "max_tokens" && prompts.some((p) => p.continuesAtOutputLimit)) {
       if (this.placeholderId && this.deps.store.settleOpenParts(this.placeholderId, "failed")) {
         this.deps.notifyMessages();
@@ -355,8 +342,6 @@ export class TurnTracker {
   failReply(err: unknown): void {
     logWarn(`[AgentMode] prompt failed`, err);
     const placeholderId = this.placeholderId ?? this.openReply();
-    // The turn's error already shows the failure, so the row must not repeat it.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/633
     this.deps.store.settleOpenParts(placeholderId, "failed");
     this.deps.endLaunches("failed");
     const errorText = formatPromptFailure(err);
@@ -401,7 +386,6 @@ export class TurnTracker {
     return this.queuedPrompts.some((p) => p.id === promptId);
   }
 
-  // A message still being prepared must reach the agent before a later one. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
   private takeSendOrder(): { ready: Promise<void>; done: () => void } {
     const ready = this.sendOrder;
     let done!: () => void;
@@ -425,7 +409,6 @@ export class TurnTracker {
     if (!prompt) return;
     this.removeQueuedPrompts([promptId]);
     const { store } = this.deps;
-    // The agent's work before the message stays in its own reply and still counts for the turn; an empty reply gives way to the message. https://github.com/Brevilabs/obsidian-copilot-private/issues/509
     const reply = this.placeholderId;
     if (reply && store.hasAssistantActivity(reply)) {
       store.markTurnComplete(reply, "end_turn", Date.now() - this.replyStartedAtMs);
@@ -467,13 +450,11 @@ export class TurnTracker {
       );
       store.markMessageError(placeholderId, message);
     }
-    // Stop ends the turn's tool calls with it; a background task launched in the turn keeps running. https://github.com/Brevilabs/obsidian-copilot-private/issues/747
     if (stopReason === "cancelled") {
       store.stopToolCalls(placeholderId, this.deps.runningTaskToolCallIds());
     }
     store.settleOpenParts(placeholderId);
     this.deps.endLaunches(stopReason === "cancelled" ? "stopped" : "failed");
-    // A turn whose file changes cannot be captured, such as one with a malformed agent diff, must still end. https://github.com/Brevilabs/obsidian-copilot-private/issues/175
     const turnFiles = this.turnFiles;
     this.turnFiles = new Map();
     const filesChanged = await this.deps

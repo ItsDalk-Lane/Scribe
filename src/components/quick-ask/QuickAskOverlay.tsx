@@ -6,7 +6,7 @@ import { Root } from "react-dom/client";
 import { updateDynamicStyleClass, clearDynamicStyleClass } from "@/utils/dom/dynamicStyleManager";
 import { QuickAskPanel } from "./QuickAskPanel";
 import { createPluginRoot } from "@/utils/react/createPluginRoot";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import type { ReplaceGuard } from "@/editor/replaceGuard";
 import type { ResizeDirection } from "@/hooks/use-resizable";
 
@@ -28,7 +28,7 @@ interface AnchorRect {
 }
 
 interface QuickAskOverlayOptions {
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
   editor: Editor;
   view: EditorView;
   selectedText: string;
@@ -137,7 +137,7 @@ export class QuickAskOverlay {
       const host = overlayRoot.parentElement;
       overlayRoot.remove();
       QuickAskOverlay.overlayRoot = null;
-      host?.classList.remove("copilot-quick-ask-overlay-host");
+      host?.classList.remove("scribe-quick-ask-overlay-host");
     }
     this.bottomAnchorPos = null;
     this.topAnchorPos = null;
@@ -223,7 +223,7 @@ export class QuickAskOverlay {
       const handleAnimationEnd = (event: AnimationEvent) => {
         if (
           event.target !== this.overlayContainer ||
-          event.animationName !== "copilot-quick-ask-fade-out"
+          event.animationName !== "scribe-quick-ask-fade-out"
         ) {
           return;
         }
@@ -250,15 +250,15 @@ export class QuickAskOverlay {
 
   private static getOverlayRoot(host: HTMLElement): HTMLElement {
     if (QuickAskOverlay.overlayRoot && QuickAskOverlay.overlayRoot.parentElement !== host) {
-      QuickAskOverlay.overlayRoot.parentElement?.classList.remove("copilot-quick-ask-overlay-host");
+      QuickAskOverlay.overlayRoot.parentElement?.classList.remove("scribe-quick-ask-overlay-host");
       QuickAskOverlay.overlayRoot.remove();
       QuickAskOverlay.overlayRoot = null;
     }
 
     if (QuickAskOverlay.overlayRoot) return QuickAskOverlay.overlayRoot;
 
-    const root = host.createDiv("copilot-quick-ask-overlay-root");
-    host.classList.add("copilot-quick-ask-overlay-host");
+    const root = host.createDiv("scribe-quick-ask-overlay-root");
+    host.classList.add("scribe-quick-ask-overlay-host");
     QuickAskOverlay.overlayRoot = root;
     return root;
   }
@@ -273,7 +273,7 @@ export class QuickAskOverlay {
     this.ownerWindow = win;
 
     const overlayRoot = QuickAskOverlay.getOverlayRoot(overlayHost);
-    const overlayContainer = overlayRoot.createDiv("copilot-quick-ask-overlay");
+    const overlayContainer = overlayRoot.createDiv("scribe-quick-ask-overlay");
     this.overlayContainer = overlayContainer;
 
     this.root = createPluginRoot(overlayContainer, this.options.plugin.app);
@@ -493,7 +493,7 @@ export class QuickAskOverlay {
     const visibleHeight = visibleBottom - visibleTop;
     const minTop = visibleTop + PANEL_MARGIN;
 
-    updateDynamicStyleClass(this.overlayContainer, "copilot-quick-ask-overlay-pos", {
+    updateDynamicStyleClass(this.overlayContainer, "scribe-quick-ask-overlay-pos", {
       width: panelWidth,
       ...(typeof panelHeight === "number" ? { height: panelHeight } : {}),
       left: Math.round(left),
@@ -516,7 +516,7 @@ export class QuickAskOverlay {
       minTop
     );
 
-    updateDynamicStyleClass(this.overlayContainer, "copilot-quick-ask-overlay-pos", {
+    updateDynamicStyleClass(this.overlayContainer, "scribe-quick-ask-overlay-pos", {
       width: panelWidth,
       ...(typeof panelHeight === "number" ? { height: panelHeight } : {}),
       left: Math.round(left),
@@ -552,8 +552,8 @@ export class QuickAskOverlay {
       "bottom-left": "nesw-resize",
       "bottom-right": "nwse-resize",
     };
-    body.setCssProps({ "--copilot-resize-cursor": cursorMap[direction] ?? "default" });
-    body.classList.add("tw-select-none", "tw-cursor-[var(--copilot-resize-cursor)]");
+    body.setCssProps({ "--scribe-resize-cursor": cursorMap[direction] ?? "default" });
+    body.classList.add("tw-select-none", "tw-cursor-[var(--scribe-resize-cursor)]");
 
     doc.addEventListener("pointermove", this.handleResizeMove, true);
     doc.addEventListener("pointerup", this.handleResizeEnd, true);
@@ -562,7 +562,6 @@ export class QuickAskOverlay {
 
   private handleResizeMove = (e: PointerEvent): void => {
     if (!this.isResizing || !this.resizeStartRect || !this.resizeStartMouse) return;
-    // Ignore other touches so a second finger cannot move, resize, or release the panel. https://github.com/Brevilabs/obsidian-copilot-private/issues/798
     if (e.pointerId !== this.resizeStartMouse.pointerId) return;
 
     const win = this.ownerWindow ?? window;
@@ -597,8 +596,8 @@ export class QuickAskOverlay {
       doc.removeEventListener("pointermove", this.handleResizeMove, true);
       doc.removeEventListener("pointerup", this.handleResizeEnd, true);
       doc.removeEventListener("pointercancel", this.handleResizeEnd, true);
-      body.classList.remove("tw-select-none", "tw-cursor-[var(--copilot-resize-cursor)]");
-      body.setCssProps({ "--copilot-resize-cursor": "" });
+      body.classList.remove("tw-select-none", "tw-cursor-[var(--scribe-resize-cursor)]");
+      body.setCssProps({ "--scribe-resize-cursor": "" });
     }
 
     this.isResizing = false;
@@ -712,7 +711,7 @@ export class QuickAskOverlay {
     const panelWidth = this.resizeSize?.width ?? getDefaultPanelWidth(hostRect.width);
     const panelHeight = this.resizeSize?.height;
 
-    updateDynamicStyleClass(this.overlayContainer, "copilot-quick-ask-overlay-pos", {
+    updateDynamicStyleClass(this.overlayContainer, "scribe-quick-ask-overlay-pos", {
       width: panelWidth,
       ...(panelHeight ? { height: panelHeight } : {}),
       left: Math.round(this.dragPosition.x - hostRect.left),

@@ -34,8 +34,8 @@ describe("releaseCursorAssociation", () => {
     view.focus();
   }
 
-  describe("blur()", () => {
-    it("preserves a neutral cursor when focus moves to another input (https://github.com/logancyang/obsidian-copilot/issues/3328)", () => {
+  describe("blur", () => {
+    it("preserves a neutral cursor when focus moves to another input", () => {
       mount(EditorSelection.create([EditorSelection.cursor(10)]));
       const selection = view.state.selection;
 
@@ -46,7 +46,7 @@ describe("releaseCursorAssociation", () => {
     });
 
     it.each([-1, 1])(
-      "releases association %i on blur without moving the caret or editing text (https://github.com/logancyang/obsidian-copilot/issues/3328)",
+      "releases association %i on blur without moving the caret or editing text",
       (assoc) => {
         mount(EditorSelection.create([EditorSelection.cursor(32, assoc, 1, 12)]));
         const doc = view.state.doc;
@@ -62,7 +62,7 @@ describe("releaseCursorAssociation", () => {
       }
     );
 
-    it("preserves a nonempty selection when focus leaves the note (https://github.com/logancyang/obsidian-copilot/issues/3328)", () => {
+    it("preserves a nonempty selection when focus leaves the note", () => {
       mount(EditorSelection.create([EditorSelection.range(20, 5)]));
       const selection = view.state.selection;
 
@@ -71,7 +71,7 @@ describe("releaseCursorAssociation", () => {
       expect(view.state.selection).toBe(selection);
     });
 
-    it("preserves secondary ranges and the primary range index while releasing the primary caret (https://github.com/logancyang/obsidian-copilot/issues/3328)", () => {
+    it("preserves secondary ranges and the primary range index while releasing the primary caret", () => {
       const secondary = EditorSelection.range(3, 8);
       mount(EditorSelection.create([secondary, EditorSelection.cursor(32, -1)], 1));
 

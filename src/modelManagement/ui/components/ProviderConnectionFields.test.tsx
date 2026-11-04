@@ -3,10 +3,10 @@ import { setInterfaceLocale } from "@/lib/i18n";
 import React from "react";
 import { ProviderChatConnectionTest, ProviderParameterFields } from "./ProviderConnectionFields";
 
-const issue = "https://github.com/logancyang/obsidian-copilot/issues/3147";
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 
 describe("ProviderConnectionFields", () => {
-  describe("ProviderParameterFields()", () => {
+  describe("ProviderParameterFields", () => {
     it(`shows current public parameters and forwards a field edit without changing other values (${issue})`, () => {
       const onChange = jest.fn();
       const values = { region: "eu", unknown: "keep" };
@@ -85,7 +85,7 @@ describe("ProviderConnectionFields", () => {
     });
   });
 
-  describe("ProviderChatConnectionTest()", () => {
+  describe("ProviderChatConnectionTest", () => {
     it(`lets the user choose a model and explicitly start a chat test (${issue})`, () => {
       const onTest = jest.fn(),
         onModelChange = jest.fn();

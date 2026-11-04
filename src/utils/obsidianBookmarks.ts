@@ -14,8 +14,6 @@ function getBookmarksPlugin(app: App, lookup: "getPluginById" | "getEnabledPlugi
 
 export function getUrlBookmarks(app: App): UrlBookmarks | null {
   const instance = getBookmarksPlugin(app, "getEnabledPluginById");
-  // The Bookmarks core plugin has no public API, so a changed shape must hide bookmarking rather than throw.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/694
   if (
     !isRecord(instance) ||
     typeof instance.addItem !== "function" ||

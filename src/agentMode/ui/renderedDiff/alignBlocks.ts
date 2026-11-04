@@ -9,8 +9,6 @@ export type Pairing<T> =
 
 const EMPTY_PAIRINGS: readonly Pairing<never>[] = Object.freeze([]);
 const PAIR_SIMILARITY_THRESHOLD = 0.5;
-// Scoring every removed line against every added line made large rewrites freeze rendering for seconds.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 const PAIR_LOOKAHEAD = 32;
 
 export function diceSimilarity(before: string, after: string): number {

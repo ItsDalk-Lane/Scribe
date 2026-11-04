@@ -245,7 +245,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     profile.defaultBaseUrl ??
     "";
   const storedBaseUrl = baseUrl.trim() || defaultBaseUrl;
-  // QVAC 没有可猜测的服务地址，而 SAP 的地址由服务密钥提供。https://github.com/logancyang/obsidian-copilot/issues/3147
   const nativeApiSelected = profile.nativeApiSupported && extras.apiProtocol === "native";
   const missingRequiredBaseUrl =
     (nativeApiSelected && !baseUrl.trim()) ||
@@ -295,7 +294,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     testModel,
   ]);
   const currentConnectionKey = useRef(connectionKey);
-  // 只接受当前输入和当前请求的检查结果，旧成功与旧失败都不能回写。https://github.com/logancyang/obsidian-copilot/issues/3147
   if (currentConnectionKey.current !== connectionKey) {
     currentConnectionKey.current = connectionKey;
     chatRequest.current++;
@@ -723,7 +721,6 @@ async function saveProviderEdit({
 
   for (let i = 0; i < selectedInfos.length; i++) {
     if (prevWireIds.has(selectedInfos[i].id)) continue;
-    // 图片、语音和重排模型可以保存，但不能自动加入聊天后端。https://github.com/logancyang/obsidian-copilot/issues/3147
     if (!isChatModelInfo(selectedInfos[i])) continue;
     for (const backend of BYOK_DEFAULT_AUTO_ENROLL) {
       await api.backendConfigRegistry.enableModel(backend, ids[i]);

@@ -16,7 +16,7 @@ function buildStore({ live = ["a"], activeFile = null as TFile | null } = {}) {
 describe("AgentInputDraftStore", () => {
   afterEach(() => settingsStore.set(settingsAtom, DEFAULT_SETTINGS));
 
-  describe("get()", () => {
+  describe("get", () => {
     it("returns nothing for a chat input that has never been written", () => {
       const { store } = buildStore();
 
@@ -24,7 +24,7 @@ describe("AgentInputDraftStore", () => {
     });
   });
 
-  describe("update()", () => {
+  describe("update", () => {
     it("seeds a first write that includes the active note and web tab", () => {
       const { store } = buildStore();
 
@@ -42,7 +42,7 @@ describe("AgentInputDraftStore", () => {
       });
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3663 seeds a first write without the active note when auto-attach is off", () => {
+    it("seeds a first write without the active note when auto-attach is off", () => {
       updateSetting("autoAttachActiveNote", false);
       const { store } = buildStore();
 
@@ -72,8 +72,8 @@ describe("AgentInputDraftStore", () => {
     });
   });
 
-  describe("addContextNote()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 appends a note once, keeping existing attachments", () => {
+  describe("addContextNote", () => {
+    it("appends a note once, keeping existing attachments", () => {
       const { store } = buildStore();
       const existing = file("Existing.md");
       const clicked = file("Clicked.md");
@@ -85,7 +85,7 @@ describe("AgentInputDraftStore", () => {
       expect(store.get("a")?.contextNotes).toEqual([existing, clicked]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 replaces the dynamic Active Note badge when the added note is the active note", () => {
+    it("replaces the dynamic Active Note badge when the added note is the active note", () => {
       const clicked = file("Clicked.md");
       const { store } = buildStore({ activeFile: clicked });
 
@@ -104,7 +104,7 @@ describe("AgentInputDraftStore", () => {
     });
   });
 
-  describe("prune()", () => {
+  describe("prune", () => {
     it("drops drafts for chat inputs that are no longer live and keeps the rest", () => {
       const { store, liveIds } = buildStore({ live: ["a", "b"] });
       store.update("a", (draft) => ({ ...draft, input: "a text" }));
@@ -118,7 +118,7 @@ describe("AgentInputDraftStore", () => {
     });
   });
 
-  describe("subscribe()", () => {
+  describe("subscribe", () => {
     it("stops notifying after the returned unsubscribe runs", () => {
       const { store } = buildStore();
       const listener = jest.fn();

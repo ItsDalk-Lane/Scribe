@@ -56,7 +56,7 @@ describe("atoms", () => {
       ]);
     });
 
-    it("omits previously enabled non-chat models while retaining saved rows and genuinely broken entries (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("omits previously enabled non-chat models while retaining saved rows and genuinely broken entries", () => {
       const saved = [
         model("chat", "cloud"),
         {
@@ -96,7 +96,7 @@ describe("atoms", () => {
       expect(settingsStore.get(backendsAtom).chat?.enabledModels).toEqual(enabledModels);
     });
 
-    it("returns the canonical empty list when enabled records are all non-chat models (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("returns the canonical empty list when enabled records are all non-chat models", () => {
       setSettings({
         configuredModels: [model("rerank-v3", "cloud")],
         backends: { chat: { enabledModels: ["rerank-v3"] } },

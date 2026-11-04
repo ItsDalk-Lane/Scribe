@@ -12,8 +12,6 @@ export function createDefaultPermissionPrompter(
   return (req) => {
     const session = resolveSession(req.sessionId);
     if (!session) return Promise.resolve({ outcome: { outcome: "cancelled" } });
-    // Codex's ACP plan review carries the plan in a switch-mode request, without
-    // the SDK-only proposal marker. https://github.com/Brevilabs/obsidian-copilot-private/issues/551
     if (
       req.toolCall.isPlanProposal ||
       tryReadExitPlanModeCall({

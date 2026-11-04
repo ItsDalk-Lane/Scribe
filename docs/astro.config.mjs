@@ -2,8 +2,6 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import { remarkPublishedDocs } from "./src/remark-published-docs.mjs";
 
-// Existing guide routes stay stable while section links make the most important
-// workflows visible without splitting their source files.
 const sidebar = [
   { label: "Start here", items: [{ slug: "" }, { slug: "getting-started" }] },
   {

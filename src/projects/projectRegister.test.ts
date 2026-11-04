@@ -2,7 +2,7 @@ import { App, Vault } from "obsidian";
 import { ProjectRegister } from "@/projects/projectRegister";
 import type { ProjectFileRecord } from "@/projects/type";
 import { getCachedProjectRecords, updateCachedProjectRecords } from "@/projects/state";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
 jest.mock("obsidian", () => ({
   Notice: jest.fn(),
@@ -22,25 +22,25 @@ jest.mock("@/projects/ProjectFileManager", () => {
 });
 
 jest.mock("@/settings/model", () => ({
-  getSettings: jest.fn(() => ({ copilotFolder: "copilot" })),
+  getSettings: jest.fn(() => ({ scribeFolder: "scribe" })),
   subscribeToSettingsChange: jest.fn().mockReturnValue(() => {}),
 }));
 
 function recordWithId(id: string): ProjectFileRecord {
   return {
     project: { id, name: id },
-    filePath: `copilot/projects/${id}/project.md`,
+    filePath: `scribe/projects/${id}/project.md`,
     folderName: id,
   } as ProjectFileRecord;
 }
 
-function settingsWithRoot(copilotFolder: string): CopilotSettings {
-  return { copilotFolder } as CopilotSettings;
+function settingsWithRoot(scribeFolder: string): ScribeSettings {
+  return { scribeFolder } as ScribeSettings;
 }
 
 describe("projectRegister", () => {
   describe("ProjectRegister", () => {
-    let settingsChangeHandler: (prev: CopilotSettings, next: CopilotSettings) => void;
+    let settingsChangeHandler: (prev: ScribeSettings, next: ScribeSettings) => void;
     let fetchProjects: jest.Mock;
     let register: ProjectRegister;
 
@@ -94,7 +94,7 @@ describe("projectRegister", () => {
         updateCachedProjectRecords([recordWithId("stale")]);
         fetchProjects.mockResolvedValueOnce(fresh);
 
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("team/ai"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
         await jest.advanceTimersByTimeAsync(1000);
 
         expect(fetchProjects).toHaveBeenCalledTimes(1);
@@ -105,7 +105,7 @@ describe("projectRegister", () => {
         const cached = [recordWithId("cached")];
         updateCachedProjectRecords(cached);
 
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("copilot"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("scribe"));
         jest.advanceTimersByTime(1000);
 
         expect(fetchProjects).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe("projectRegister", () => {
         updateCachedProjectRecords([recordWithId("stale")]);
         fetchProjects.mockRejectedValueOnce(new Error("fetch failed"));
 
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("team/ai"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
         await jest.advanceTimersByTimeAsync(1000);
 
         expect(getCachedProjectRecords()).toEqual([]);

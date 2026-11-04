@@ -13,7 +13,7 @@ describe("ModelEffortPicker", () => {
       disconnect: jest.fn(),
     }));
   });
-  describe("ModelEffortPicker()", () => {
+  describe("ModelEffortPicker", () => {
     it("commits an available model only when dismissed", async () => {
       const commitSelection = jest.fn();
       render(
@@ -62,7 +62,7 @@ describe("ModelEffortPicker", () => {
       expect(screen.queryByRole("link")).toBeNull();
     });
     it.each([null, "removed"])(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/219 resolves effort %p to the lowest supported choice when committing the picker",
+      "resolves effort %p to the lowest supported choice when committing the picker",
       async (value) => {
         const onChange = jest.fn();
         render(
@@ -81,7 +81,7 @@ describe("ModelEffortPicker", () => {
         expect(onChange).toHaveBeenCalledWith("low");
       }
     );
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/219 preserves a supported effort when the picker closes unchanged", async () => {
+    it("preserves a supported effort when the picker closes unchanged", async () => {
       const onChange = jest.fn();
       render(
         <ModelEffortPicker

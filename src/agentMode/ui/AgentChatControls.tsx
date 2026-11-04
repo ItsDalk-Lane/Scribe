@@ -33,8 +33,6 @@ const resolveDeleteSummary = describeChatDelete;
 const resolveHistoryIcon = (item: ChatHistoryItem) =>
   item.backendId ? backendRegistry[item.backendId]?.Icon : undefined;
 
-// An empty chat has no note to link or bookmark, so its items stay visible but explain why they are off.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/702
 const NeedsMessageMenuItem: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <Tooltip>
     <TooltipTrigger asChild>
@@ -196,8 +194,7 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
                     {t("Add to bookmarks")}
                   </NeedsMessageMenuItem>
                 ))}
-              {/* A report from here names the chat's agent, model and session, so only a host with a chat offers it.
-                  https://github.com/Brevilabs/obsidian-copilot-private/issues/672 */}
+
               {onReportError && (
                 <DropdownMenuItem onSelect={onReportError}>
                   <Bug />

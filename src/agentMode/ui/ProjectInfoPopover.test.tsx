@@ -51,10 +51,10 @@ const PROJECT = {
 
 function makeFolder(names: string[]) {
   const folder = new (TFolder as unknown as new (path: string) => TFolder)(
-    "copilot/projects/proj-1"
+    "scribe/projects/proj-1"
   );
   (folder as unknown as { children: unknown[] }).children = names.map(
-    (n) => new (TFile as unknown as new (path: string) => TFile)(`copilot/projects/proj-1/${n}`)
+    (n) => new (TFile as unknown as new (path: string) => TFile)(`scribe/projects/proj-1/${n}`)
   );
   return folder;
 }
@@ -66,7 +66,7 @@ function renderPopover(
 ) {
   getCachedProjectRecordById.mockReturnValue({
     folderName: "proj-1",
-    filePath: "copilot/projects/proj-1/project.md",
+    filePath: "scribe/projects/proj-1/project.md",
     project: PROJECT,
   });
   const openFile = jest.fn().mockResolvedValue(undefined);
@@ -140,7 +140,7 @@ describe("ProjectInfoPopover", () => {
       expect.anything(),
       expect.objectContaining({ folderName: "proj-1" })
     );
-    expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), "copilot/projects/proj-1");
+    expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), "scribe/projects/proj-1");
   });
 
   it("reveals the project folder from the header button", async () => {

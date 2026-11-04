@@ -1,4 +1,4 @@
-import { CopilotBrandIcon } from "@/components/ui/CopilotBrandIcon";
+import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
@@ -25,8 +25,8 @@ import {
 } from "@/agentMode/backends/native/nativeExtensions";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
-import { openCopilotSettings } from "@/settings/openSettings";
-import { copilotAppDataDir, getVaultId } from "@/utils/appPaths";
+import { openScribeSettings } from "@/settings/openSettings";
+import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { isChatModelInfo, providerDestination } from "@/modelManagement";
 import { buildBuiltinSkillEnv } from "@/agentMode/backends/shared/builtinSkillEnv";
@@ -45,7 +45,7 @@ function noModelsState(): InstallState {
 export const NativeBackendDescriptor: BackendDescriptor = {
   id: "native",
   displayName: "Scribe",
-  Icon: CopilotBrandIcon,
+  Icon: ScribeBrandIcon,
   usesConfiguredModels: true,
   // 存英文原文键，由渲染处 t() 本地化（https://github.com/ItsDalk-Lane/Scribe/issues/28）。
   setupDescription: "Runs note tasks inside Scribe using the chat models you configure.",
@@ -99,7 +99,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       : noModelsState(),
   subscribeInstallState: (_plugin, listener) => subscribeToSettingsChange(() => listener()),
   openInstallUI: (plugin) =>
-    openCopilotSettings(
+    openScribeSettings(
       plugin.app,
       plugin.app.workspace.getMostRecentLeaf()?.view.containerEl.ownerDocument.defaultView ??
         window,
@@ -125,7 +125,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
     if (!isAgentBackendEnabled(getSettings(), "native")) throw new Error("This agent is disabled.");
     const path = requireNodeModule<typeof import("node:path")>("path");
     const os = requireNodeModule<typeof import("node:os")>("os");
-    const directory = path.join(copilotAppDataDir(os.homedir()), getVaultId(app), "native-agent");
+    const directory = path.join(scribeAppDataDir(os.homedir()), getVaultId(app), "native-agent");
     return new NativeBackendProcess({
       getModels: () => getNativeModelEntries(getSettings()),
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),
@@ -161,8 +161,6 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       },
       storage: new NodeNativeSessionStorage(path.join(directory, "sessions")),
       getExtensionRuntime: readNativeExtensionRuntime,
-      // Auto 授权按实际配置目录判定敏感写入，覆盖用户自定义的 vault.configDir。
-      // https://github.com/ItsDalk-Lane/Scribe/issues/10
       getVaultConfigDir: () => app.vault.configDir,
       maxSteps: () => getSettings().agentMode.backends.native?.maxSteps,
     });

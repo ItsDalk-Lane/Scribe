@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { modeStateSignature } from "@/agentMode/session/translateBackendState";
-import type { CopilotMode } from "@/agentMode/session/types";
+import type { ScribeMode } from "@/agentMode/session/types";
 import { buildAgentModePicker } from "./agentModePickerHelpers";
 import { useManagerSubscribe } from "./useManagerSubscribe";
 
 export interface AgentModePickerOverride {
-  options: { label: string; value: CopilotMode }[];
-  value: CopilotMode | null;
-  onChange: (value: CopilotMode) => void;
+  options: { label: string; value: ScribeMode }[];
+  value: ScribeMode | null;
+  onChange: (value: ScribeMode) => void;
   disabled?: boolean;
 }
 

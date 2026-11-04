@@ -3,7 +3,7 @@ import type { OpenSessionInput } from "@/agentMode/session/types";
 import { buildAgentSystemPrompt } from "@/agentMode/backends/shared/agentSystemPrompt";
 import { readAgentsFile } from "@/instructions/agentsFile";
 import { getCachedProjectRecordById } from "@/projects/state";
-import { getSettings, type CopilotSettings } from "@/settings/model";
+import { getSettings, type ScribeSettings } from "@/settings/model";
 import { getPromptFilePath } from "@/system-prompts/systemPromptUtils";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { stripFrontmatter } from "@/utils";
@@ -11,7 +11,7 @@ import { stripFrontmatter } from "@/utils";
 export async function buildNativeSystemPrompt(
   app: App,
   input: OpenSessionInput,
-  settings: CopilotSettings = getSettings()
+  settings: ScribeSettings = getSettings()
 ): Promise<string> {
   const path = requireNodeModule<typeof import("node:path")>("path");
   if (!(app.vault.adapter instanceof FileSystemAdapter))

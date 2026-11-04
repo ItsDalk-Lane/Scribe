@@ -161,8 +161,6 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
             if (writes) {
               if (options.getMode() === "plan")
                 throw new Error("Plan approval is required before changing drawings.");
-              // Auto 的自动放行与已保存的拒绝由共享的权限判定统一决定。
-              // https://github.com/ItsDalk-Lane/Scribe/issues/12
               const decision = await options.requestPermission({
                 sessionId: options.sessionId,
                 requester: options.requester,

@@ -8,13 +8,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CopilotMode } from "@/agentMode";
+import type { ScribeMode } from "@/agentMode";
 import { cn } from "@/lib/utils";
 
 export interface ModePickerOverride {
-  options: { label: string; value: CopilotMode }[];
-  value: CopilotMode | null;
-  onChange: (value: CopilotMode) => void;
+  options: { label: string; value: ScribeMode }[];
+  value: ScribeMode | null;
+  onChange: (value: ScribeMode) => void;
   disabled?: boolean;
 }
 
@@ -23,7 +23,7 @@ interface ModePickerProps {
   className?: string;
 }
 
-const MODE_DISPLAY: Record<CopilotMode, { label: string; description: string }> = {
+const MODE_DISPLAY: Record<ScribeMode, { label: string; description: string }> = {
   auto: {
     label: "Auto",
     description: "Uses the agent's Auto permissions for tools and edits.",
@@ -40,7 +40,7 @@ const MODE_DISPLAY: Record<CopilotMode, { label: string; description: string }> 
   },
 };
 
-function getModeLabel(value: CopilotMode): string {
+function getModeLabel(value: ScribeMode): string {
   return t(MODE_DISPLAY[value]?.label ?? value);
 }
 

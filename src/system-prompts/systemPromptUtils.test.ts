@@ -5,9 +5,9 @@ import {
   getSystemPromptsFolder,
 } from "@/system-prompts/systemPromptUtils";
 import {
-  COPILOT_SYSTEM_PROMPT_CREATED,
-  COPILOT_SYSTEM_PROMPT_LAST_USED,
-  COPILOT_SYSTEM_PROMPT_MODIFIED,
+  SCRIBE_SYSTEM_PROMPT_CREATED,
+  SCRIBE_SYSTEM_PROMPT_LAST_USED,
+  SCRIBE_SYSTEM_PROMPT_MODIFIED,
 } from "@/system-prompts/constants";
 import type { UserSystemPrompt } from "@/system-prompts/type";
 import type { App } from "obsidian";
@@ -19,12 +19,12 @@ jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError:
 describe("systemPromptUtils", () => {
   beforeEach(() => {
     resetSettings();
-    updateSetting("copilotFolder", "Archive");
+    updateSetting("scribeFolder", "Archive");
   });
 
   describe("getSystemPromptsFolder()", () => {
     it("returns the effective system prompts folder", () => {
-      updateSetting("copilotFolder", "CustomFolder");
+      updateSetting("scribeFolder", "CustomFolder");
       expect(getSystemPromptsFolder()).toBe("CustomFolder/system-prompts");
     });
   });
@@ -77,12 +77,12 @@ describe("systemPromptUtils", () => {
 
     it("fills missing migration timestamps without changing existing metadata", async () => {
       expect(
-        await applyFrontmatter({ author: "User", [COPILOT_SYSTEM_PROMPT_CREATED]: 40 })
+        await applyFrontmatter({ author: "User", [SCRIBE_SYSTEM_PROMPT_CREATED]: 40 })
       ).toEqual({
         author: "User",
-        [COPILOT_SYSTEM_PROMPT_CREATED]: 40,
-        [COPILOT_SYSTEM_PROMPT_MODIFIED]: 200,
-        [COPILOT_SYSTEM_PROMPT_LAST_USED]: 300,
+        [SCRIBE_SYSTEM_PROMPT_CREATED]: 40,
+        [SCRIBE_SYSTEM_PROMPT_MODIFIED]: 200,
+        [SCRIBE_SYSTEM_PROMPT_LAST_USED]: 300,
       });
     });
 
@@ -92,9 +92,9 @@ describe("systemPromptUtils", () => {
         expect(
           await applyFrontmatter({}, { ...prompt, createdMs: 0, modifiedMs: NaN, lastUsedMs: -1 })
         ).toEqual({
-          [COPILOT_SYSTEM_PROMPT_CREATED]: 500,
-          [COPILOT_SYSTEM_PROMPT_MODIFIED]: 500,
-          [COPILOT_SYSTEM_PROMPT_LAST_USED]: 0,
+          [SCRIBE_SYSTEM_PROMPT_CREATED]: 500,
+          [SCRIBE_SYSTEM_PROMPT_MODIFIED]: 500,
+          [SCRIBE_SYSTEM_PROMPT_LAST_USED]: 0,
         });
       } finally {
         now.mockRestore();

@@ -298,8 +298,6 @@ Budget is fixed for the quarter, and the pilot owns it.
 `,
 };
 
-// Recorded from Obsidian 1.14.4's computeMetadataAsync on each Markdown fixture, with CRLF read as LF,
-// so unit tests split blocks the way the app does: https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 export const RECORDED_PARSES: ReadonlyMap<
   RenderedDiffFixture,
   { before: RecordedParse; after: RecordedParse }
@@ -774,7 +772,7 @@ We will talk to eight people who installed the plugin in the last month. The goa
 
 - Find the first moment where a new user decides the plugin is worth keeping.
 - List the setup steps people skip, and what they assume those steps do.
-- Hear how people describe Copilot to a friend, in their own words.
+- Hear how people describe Scribe to a friend, in their own words.
 - Collect three to five concrete ideas for the first-run screen.
 
 We are not testing a prototype in these sessions. Each one is a conversation about the person's own vault and the first week they spent with the plugin.
@@ -795,10 +793,10 @@ Each participant gets a gift card. We schedule 45 minutes and aim to finish in 3
 
 1. Tell me about your vault. What do you keep in it?
 2. What made you look for an AI plugin in the first place?
-3. Walk me through the first time you opened Copilot.
+3. Walk me through the first time you opened Scribe.
 4. Which settings did you change before your first chat, and why?
 5. Was there a moment you almost uninstalled it?
-6. If Copilot disappeared tomorrow, what would you miss first?
+6. If Scribe disappeared tomorrow, what would you miss first?
 
 The script is a guide, not a checklist. If a participant goes deep on one question, follow them and drop the later questions instead of rushing.
 
@@ -843,6 +841,6 @@ export const LONG_NOTE_SCATTERED_EDITS: RenderedDiffFixture = {
     )
     .replace("in a spreadsheet", "in the Interviews base")
     .concat(
-      "\n## Open questions\n\n- Should we include people who only use Copilot on mobile?\n- Do we offer sessions in languages other than English?\n"
+      "\n## Open questions\n\n- Should we include people who only use Scribe on mobile?\n- Do we offer sessions in languages other than English?\n"
     ),
 };

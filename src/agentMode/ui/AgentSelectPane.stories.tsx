@@ -17,7 +17,7 @@ const ROWS: readonly AgentSelectRow[] = [
 ];
 
 const AgentControlsFixture = () => (
-  <div className="copilot-divider-t tw-flex tw-items-center tw-justify-between tw-p-2 tw-text-ui-smaller tw-text-muted">
+  <div className="scribe-divider-t tw-flex tw-items-center tw-justify-between tw-p-2 tw-text-ui-smaller tw-text-muted">
     <span>Agent Mode</span>
     <span>Default</span>
   </div>

@@ -7,10 +7,10 @@ import {
 } from "./ProviderVerificationStatus";
 import type { VerificationResult } from "@/modelManagement/types/runtime";
 
-const issue = "https://github.com/logancyang/obsidian-copilot/issues/3147";
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 
 describe("ProviderVerificationStatus", () => {
-  describe("ProviderVerificationStatus()", () => {
+  describe("ProviderVerificationStatus", () => {
     afterEach(() => setInterfaceLocale("en"));
 
     it.each<[VerificationResult | undefined, string]>([
@@ -59,7 +59,7 @@ describe("ProviderVerificationStatus", () => {
     });
   });
 
-  describe("ProviderVerificationProgress()", () => {
+  describe("ProviderVerificationProgress", () => {
     it(`announces pending checks and disappears once they finish (${issue})`, () => {
       const { rerender } = render(<ProviderVerificationProgress pending={2} />);
       expect(screen.getByRole("status").textContent).toBe("Verifying providers…");

@@ -20,7 +20,7 @@ const provider: Provider = {
 };
 
 describe("testProviderConnection integration", () => {
-  describe("testProviderConnection()", () => {
+  describe("testProviderConnection", () => {
     it.each([
       [401, "invalid_api_key"],
       [403, "permission_denied"],

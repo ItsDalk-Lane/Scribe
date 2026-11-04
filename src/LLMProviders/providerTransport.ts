@@ -224,7 +224,6 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
   return async (input, init) => {
     const request = typeof input !== "string" && "url" in input ? input : undefined;
     const signal = init?.signal !== undefined ? init.signal : request?.signal;
-    // 已停止的请求不应启动换票，Request 自带的取消信号同样有效。https://github.com/ItsDalk-Lane/Scribe/issues/8
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const inputUrl =
       typeof input === "string" ? input : request ? request.url : (input as URL).href;
@@ -234,14 +233,12 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     }
     const headers = new Headers(request?.headers);
     new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
-    // pi-ai uses Anthropic's beta client even for stable Messages; existing proxies require the stable URL. https://github.com/ItsDalk-Lane/Scribe/issues/8
     if (
       (model.providerNpm === "@ai-sdk/anthropic" || model.providerNpm === "gitlab-ai-provider") &&
       url.pathname.endsWith("/messages") &&
       url.searchParams.get("beta") === "true"
     )
       url.searchParams.delete("beta");
-    // 本机无密钥服务不能收到客户端为初始化而填入的占位凭据。https://github.com/logancyang/obsidian-copilot/issues/2946
     if (
       model.requiresApiKey === false &&
       !apiKey &&
@@ -341,7 +338,6 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       body,
       signal,
     };
-    // 共享换票完成后仍须尊重本轮停止，避免兼容传输继续发送笔记。https://github.com/ItsDalk-Lane/Scribe/issues/8
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     return model.enableCors === false
       ? fetch(url.toString(), options)

@@ -47,7 +47,6 @@ interface AgentTrailProps {
 
 const noopOpenFileChange = () => {};
 
-// A turn that ends early without an error leaves a reply that looks finished. https://github.com/Brevilabs/obsidian-copilot-private/issues/739
 const EARLY_STOP_CAUSES: Partial<Record<StopReason, string>> = {
   max_tokens: "the model hit its output limit",
   max_turn_requests: "the agent hit its step limit",
@@ -80,12 +79,8 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
   forkDisabled,
 }) => {
   const answer = agentResponseText(parts);
-  // A failed turn's error is stored as message text, which a reply with parts never shows.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/633
   const notice = errorText && answer.length === 0 ? errorText : stopReasonNotice(turnStopReason);
   const hasRunningDuration = isStreaming && turnStartedAtMs !== undefined;
-  // A compaction row reports its own progress and is not a reply to time or copy.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/633
   const trailNodes = buildAgentTrail(parts);
   const compactionOnly =
     trailNodes.length > 0 && trailNodes.every((node) => node.type === "compaction");
@@ -146,7 +141,6 @@ const LinearTrail: React.FC<{
   const expansion = useTrailExpansion(isStreaming);
   const tasks = useAgentTasks();
   const summaryCtx = useMemo(() => ({ vaultBase: getVaultBase(app) }), [app]);
-  // A task's launching card must stay visible, not folded into "Ran N commands". https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   const nodes = foldActivityGroups(buildAgentTrail(parts), (part) =>
     Boolean(tasks?.tasks.some((task) => task.toolCallId === part.id))
   );
@@ -180,7 +174,6 @@ function renderNode(
   atLiveEdge: boolean,
   trailId: string
 ): React.ReactNode {
-  // A task's work is shown in its own view, so its launching call is only a link there. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
   const launch = node.type === "action" ? node.part : node.type === "subagent" ? node.parent : null;
   const task = launch && ctx.tasks?.tasks.find((t) => t.toolCallId === launch.id);
   if (task && ctx.tasks) return <TaskCard key={key} task={task} onOpen={ctx.tasks.openTask} />;
@@ -242,9 +235,6 @@ function renderNode(
       );
     }
     case "reasoning": {
-      // Replacing an earlier singleton plan can freeze the final thought
-      // without appending another raw part, so duration also ends live state.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
       const isActive =
         atLiveEdge && node.part === ctx.lastPart && node.part.durationMs === undefined;
       return (
@@ -281,9 +271,6 @@ const ActivityGroupRow: React.FC<ActivityGroupRowProps> = ({
   turnDurationMs,
 }) => {
   const trailingMember = group.members[group.members.length - 1];
-  // A hidden trailing tool is absent from the rendered group but still ends
-  // the preceding reasoning span in the raw message parts.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
   const groupAtLiveEdge = atLiveEdge && trailingMember?.part === ctx.lastPart;
   const reasoningActive = isReasoningActive(group.members, groupAtLiveEdge);
   const activeThoughtStartedAtMs =

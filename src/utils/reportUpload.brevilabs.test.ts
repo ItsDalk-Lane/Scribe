@@ -49,7 +49,7 @@ async function rejection(promise: Promise<unknown>): Promise<ReportUploadError> 
 }
 
 describe("reportUpload.brevilabs", () => {
-  describe("createReportUploader()", () => {
+  describe("createReportUploader", () => {
     it("posts the attempt's bytes to the reports endpoint with exactly the contract's headers", async () => {
       const request = respondWith(201, OK_BODY);
 
@@ -67,7 +67,7 @@ describe("reportUpload.brevilabs", () => {
       expect(new Uint8Array(sent.body)).toEqual(ZIP_BYTES);
     });
 
-    it("reuses the vault's saved device UUID for report uploads (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("reuses the vault's saved device UUID for report uploads", async () => {
       const savedDeviceId = "3f2a1d9e-8b4c-4f6d-9e2a-7c5b3a1d9e8f";
       const app = {
         loadLocalStorage: jest.fn((key: string) =>
@@ -85,7 +85,7 @@ describe("reportUpload.brevilabs", () => {
     });
 
     it.each(["unreadable", "discarded writes", "legacy non-UUID"])(
-      "sends no report when device storage has %s (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
+      "sends no report when device storage has %s",
       async (failure) => {
         const app = {
           loadLocalStorage: jest.fn(() => {
@@ -119,7 +119,7 @@ describe("reportUpload.brevilabs", () => {
       });
     });
 
-    it("refuses to upload when the install id cannot be resolved, with fixed copy only (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("refuses to upload when the install id cannot be resolved, with fixed copy only", async () => {
       const request = respondWith(200, OK_BODY);
       const upload = makeUploader(request, {
         installId: () => {
@@ -138,32 +138,29 @@ describe("reportUpload.brevilabs", () => {
       ["the literal unknown sentinel", "unknown"],
       ["an empty string", ""],
       ["a value the server's pattern rejects", "4.1.0 beta!"],
-    ])(
-      "refuses to upload when the client version is %s (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
-      async (_label, clientVersion) => {
-        const request = respondWith(200, OK_BODY);
-        const upload = createReportUploader({
-          installId: () => "3f2a1d9e-8b4c-4f6d-9e2a-7c5b3a1d9e8f",
-          clientVersion,
-          request,
-        });
+    ])("refuses to upload when the client version is %s", async (_label, clientVersion) => {
+      const request = respondWith(200, OK_BODY);
+      const upload = createReportUploader({
+        installId: () => "3f2a1d9e-8b4c-4f6d-9e2a-7c5b3a1d9e8f",
+        clientVersion,
+        request,
+      });
 
-        const err = await rejection(upload(ATTEMPT));
+      const err = await rejection(upload(ATTEMPT));
 
-        expect(err.message).toMatch(/could not determine its own version/);
-        expect(request).not.toHaveBeenCalled();
-      }
-    );
+      expect(err.message).toMatch(/could not determine its own version/);
+      expect(request).not.toHaveBeenCalled();
+    });
 
     it.each([400, 429, 500, 302])(
-      "reports HTTP %i as one upload failure naming the status, whatever its class (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
+      "reports HTTP %i as one upload failure naming the status, whatever its class",
       async (status) => {
         const err = await rejection(makeUploader(respondWith(status, "nope"))(ATTEMPT));
         expect(err.message).toBe(`Upload failed (HTTP ${status})`);
       }
     );
 
-    it("appends the server's own reason on a 413, so the user learns the size limit (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("appends the server's own reason on a 413, so the user learns the size limit", async () => {
       const body = { detail: "Report ZIP exceeds 25 MiB" };
       const err = await rejection(makeUploader(respondWith(413, body))(ATTEMPT));
       expect(err.message).toBe("Upload failed (HTTP 413): Report ZIP exceeds 25 MiB");
@@ -180,15 +177,12 @@ describe("reportUpload.brevilabs", () => {
         "x".repeat(1000),
         `${"x".repeat(200)}…`,
       ],
-    ])(
-      "%s, so a proxy's body cannot flood the failure callout (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)",
-      async (_shape, detail, reason) => {
-        const err = await rejection(makeUploader(respondWith(413, { detail }))(ATTEMPT));
-        expect(err.message).toBe(`Upload failed (HTTP 413): ${reason}`);
-      }
-    );
+    ])("%s, so a proxy's body cannot flood the failure callout", async (_shape, detail, reason) => {
+      const err = await rejection(makeUploader(respondWith(413, { detail }))(ATTEMPT));
+      expect(err.message).toBe(`Upload failed (HTTP 413): ${reason}`);
+    });
 
-    it("never echoes a body that is not a server reason, which a proxy or captive portal can fill with anything (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", async () => {
+    it("never echoes a body that is not a server reason, which a proxy or captive portal can fill with anything", async () => {
       const sentinel = "SENTINEL-c0ffee-do-not-leak";
       const bodies: Array<[number, string]> = [
         [400, sentinel],

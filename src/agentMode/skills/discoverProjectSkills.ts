@@ -79,8 +79,6 @@ export async function discoverProjectSkills(
           } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
             logWarn(`[skills] Skipping ${skillMd}: ${reason}`);
-            // Hidden agent folders are not indexed by Obsidian, so Settings must keep their
-            // format failures to offer external-editor recovery. https://github.com/Brevilabs/obsidian-copilot-private/issues/166
             if (err instanceof SkillFormatError) {
               return {
                 name,

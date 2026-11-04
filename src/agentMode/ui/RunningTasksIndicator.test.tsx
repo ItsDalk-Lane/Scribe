@@ -12,8 +12,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
-const ISSUE_749 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/749";
-const ISSUE_748 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/748";
 const OUTPUT = "/tmp/tasks/task-2.output";
 
 function renderIndicator(
@@ -51,7 +49,7 @@ describe("RunningTasksIndicator", () => {
     jest.useRealTimers();
   });
 
-  it(`keeps the task entry after the last task completes (${ISSUE_749})`, () => {
+  it(`keeps the task entry after the last task completes`, () => {
     const { rerenderWith, container } = renderIndicator({});
 
     expect(screen.getByRole("button", { name: "2 tasks running" })).toBeTruthy();
@@ -62,7 +60,7 @@ describe("RunningTasksIndicator", () => {
     expect(container.textContent).not.toBe("");
   });
 
-  it(`keeps its list closed when tasks run again after the last one ended while the list was open (${ISSUE_749})`, () => {
+  it(`keeps its list closed when tasks run again after the last one ended while the list was open`, () => {
     const { rerenderWith } = renderIndicator({});
     fireEvent.pointerEnter(screen.getByRole("button", { name: "2 tasks running" }));
     expect(screen.getByText("Print 30 progress lines")).toBeTruthy();
@@ -74,7 +72,7 @@ describe("RunningTasksIndicator", () => {
     expect(screen.queryByText("Print 30 progress lines")).toBeNull();
   });
 
-  it(`opens on hover with one row per running task, each saying it runs only to screen readers beside its spinner (${ISSUE_749})`, async () => {
+  it(`opens on hover with one row per running task, each saying it runs only to screen readers beside its spinner`, async () => {
     renderIndicator({ permissions: [] }, { [OUTPUT]: "line 1\n" });
 
     fireEvent.pointerEnter(screen.getByRole("button", { name: "2 tasks running" }));
@@ -90,7 +88,7 @@ describe("RunningTasksIndicator", () => {
     expect(await screen.findByText("line 1")).toBeTruthy();
   });
 
-  it(`shows a subagent waiting on its permission request as needing approval, in words since it shares the running spinner (${ISSUE_749})`, () => {
+  it(`shows a subagent waiting on its permission request as needing approval, in words since it shares the running spinner`, () => {
     const permission: PermissionPrompt = {
       sessionId: "s",
       requester: { taskId: "task-1" },
@@ -102,7 +100,7 @@ describe("RunningTasksIndicator", () => {
     expect(screen.getByText("Needs approval").classList.contains("tw-sr-only")).toBe(false);
   });
 
-  it(`follows a command's output file so its row shows the latest line (${ISSUE_749})`, async () => {
+  it(`follows a command's output file so its row shows the latest line`, async () => {
     jest.useFakeTimers();
     const files = { [OUTPUT]: "line 1\n" };
     renderIndicator({ defaultOpen: true }, files);
@@ -121,7 +119,7 @@ describe("RunningTasksIndicator", () => {
     expect(screen.getByText("No output yet")).toBeTruthy();
   });
 
-  it(`moves an ended task into Completed while preserving its row and removing its stop control (${ISSUE_749})`, () => {
+  it(`moves an ended task into Completed while preserving its row and removing its stop control`, () => {
     const onStopTask = jest.fn();
     const { rerenderWith } = renderIndicator({ defaultOpen: true, onStopTask });
 
@@ -169,7 +167,7 @@ describe("RunningTasksIndicator", () => {
     expect(onOpenTask).toHaveBeenCalledWith("call-4");
   });
 
-  it(`opens a task's view when its row is clicked (${ISSUE_749})`, () => {
+  it(`opens a task's view when its row is clicked`, () => {
     const { onOpenTask } = renderIndicator({ defaultOpen: true });
 
     fireEvent.click(screen.getByText("Print 30 progress lines"));
@@ -177,7 +175,7 @@ describe("RunningTasksIndicator", () => {
     expect(onOpenTask).toHaveBeenCalledWith("call-2");
   });
 
-  it(`gives every running subagent and command row a stop control that stops that task without opening it (${ISSUE_748})`, () => {
+  it(`gives every running subagent and command row a stop control that stops that task without opening it`, () => {
     const onStopTask = jest.fn();
     const { onOpenTask } = renderIndicator({ defaultOpen: true, onStopTask });
     const stops = screen.getAllByRole("button", { name: "Stop task" });
@@ -190,7 +188,7 @@ describe("RunningTasksIndicator", () => {
     expect(onOpenTask).not.toHaveBeenCalled();
   });
 
-  it(`shows a launched task's stop control disabled with the reason until the agent names the task, then enables the same control in place (${ISSUE_749})`, async () => {
+  it(`shows a launched task's stop control disabled with the reason until the agent names the task, then enables the same control in place`, async () => {
     const onStopTask = jest.fn();
     const launching = makeTask({ taskId: undefined });
     const { rerenderWith } = renderIndicator({
@@ -217,7 +215,7 @@ describe("RunningTasksIndicator", () => {
     expect(onStopTask).toHaveBeenCalledWith("task-1");
   });
 
-  it(`shows no stop control when the agent cannot stop one task (${ISSUE_748})`, () => {
+  it(`shows no stop control when the agent cannot stop one task`, () => {
     renderIndicator({ defaultOpen: true });
 
     expect(screen.getByText("Print 30 progress lines")).toBeTruthy();

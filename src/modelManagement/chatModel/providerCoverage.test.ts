@@ -109,7 +109,7 @@ function jsonReply(url: string): Record<string, unknown> {
 }
 
 describe("providerCoverage", () => {
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     beforeEach(() => {
       requests = [];
       setRequestUrlImpl(

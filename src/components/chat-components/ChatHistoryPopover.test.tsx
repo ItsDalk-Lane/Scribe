@@ -6,7 +6,7 @@ jest.mock("@/settings/model", () => ({
   useSettingsValue: jest.fn(() => ({ chatHistorySortStrategy: "recent" })),
 }));
 
-const issue = "https://github.com/Brevilabs/obsidian-copilot-private/issues/429";
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 const history = ["Open research", "Saved research"].map((title) => ({
   id: title,
   title,
@@ -21,8 +21,8 @@ describe("ChatHistoryPopover", () => {
       disconnect: jest.fn(),
     })) as unknown as typeof IntersectionObserver;
   });
-  describe("ChatHistoryPopover()", () => {
-    it("https://github.com/logancyang/obsidian-copilot/issues/2888 shows the delete summary of the chat being confirmed", () => {
+  describe("ChatHistoryPopover", () => {
+    it("shows the delete summary of the chat being confirmed", () => {
       render(
         <ChatHistoryPopover
           chatHistory={history}

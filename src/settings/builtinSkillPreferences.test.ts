@@ -5,10 +5,10 @@ import {
   setSettings,
   settingsAtom,
   settingsStore,
-  type CopilotSettings,
+  type ScribeSettings,
 } from "@/settings/model";
 
-const persist = jest.fn<Promise<void>, [CopilotSettings]>();
+const persist = jest.fn<Promise<void>, [ScribeSettings]>();
 let inTransaction = false;
 jest.mock("@/services/settingsPersistence", () => ({
   runPersistenceTransaction: async (task: () => Promise<void>) => {
@@ -19,7 +19,7 @@ jest.mock("@/services/settingsPersistence", () => ({
       inTransaction = false;
     }
   },
-  persistSettingsWithinTransaction: (settings: CopilotSettings) => persist(settings),
+  persistSettingsWithinTransaction: (settings: ScribeSettings) => persist(settings),
 }));
 
 describe("builtinSkillPreferences", () => {
@@ -27,13 +27,13 @@ describe("builtinSkillPreferences", () => {
     jest.clearAllMocks();
     settingsStore.set(settingsAtom, {
       ...DEFAULT_SETTINGS,
-      agentMode: { ...DEFAULT_SETTINGS.agentMode, skills: { folder: "copilot/skills" } },
+      agentMode: { ...DEFAULT_SETTINGS.agentMode, skills: { folder: "scribe/skills" } },
     });
     persist.mockResolvedValue(undefined);
   });
 
-  describe("saveBuiltinPreferences()", () => {
-    it("merges concurrent updater saves instead of losing the first opt-out https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+  describe("saveBuiltinPreferences", () => {
+    it("merges concurrent updater saves instead of losing the first opt-out", async () => {
       await Promise.all([
         saveBuiltinPreferences(
           (current) => ({ ...current, "obsidian-markdown": { disabled: true } }),
@@ -52,7 +52,7 @@ describe("builtinSkillPreferences", () => {
         getSettings().agentMode.skills.builtinPreferences
       );
     });
-    it("preserves untouched preference objects when saving another skill https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("preserves untouched preference objects when saving another skill", async () => {
       await saveBuiltinPreferences(
         () => ({ "obsidian-markdown": { disabledAgents: ["codex"] } }),
         jest.fn()
@@ -69,7 +69,7 @@ describe("builtinSkillPreferences", () => {
         disabled: true,
       });
     });
-    it("activates opt-outs only after the durable transaction exits (https://github.com/logancyang/obsidian-copilot/issues/3022)", async () => {
+    it("activates opt-outs only after the durable transaction exits", async () => {
       const preferences = { "obsidian-markdown": { disabled: true } };
       persist.mockImplementation(async (settings) => {
         expect(inTransaction).toBe(true);
@@ -87,7 +87,7 @@ describe("builtinSkillPreferences", () => {
       }
     });
 
-    it("preserves settings edits made during the write (https://github.com/logancyang/obsidian-copilot/issues/3022)", async () => {
+    it("preserves settings edits made during the write", async () => {
       persist.mockImplementation(async () => {
         setSettings((current) => ({
           debug: true,
@@ -108,7 +108,7 @@ describe("builtinSkillPreferences", () => {
       });
     });
 
-    it("persists, activates, and returns empty preferences when restoring defaults https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("persists, activates, and returns empty preferences when restoring defaults", async () => {
       await saveBuiltinPreferences(
         () => ({ "obsidian-markdown": { disabled: true, disabledAgents: ["opencode"] } }),
         jest.fn()
@@ -122,7 +122,7 @@ describe("builtinSkillPreferences", () => {
       expect(persist.mock.calls[1][0].agentMode.skills.builtinPreferences).toBe(preferences);
     });
 
-    it("continues queued saves after a failed write without committing the failed opt-out https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("continues queued saves after a failed write without committing the failed opt-out", async () => {
       persist.mockRejectedValueOnce(new Error("disk full"));
       const results = await Promise.allSettled([
         saveBuiltinPreferences(
@@ -143,7 +143,7 @@ describe("builtinSkillPreferences", () => {
       );
     });
 
-    it("leaves preferences unchanged when persistence fails (https://github.com/logancyang/obsidian-copilot/issues/3022)", async () => {
+    it("leaves preferences unchanged when persistence fails", async () => {
       persist.mockRejectedValue(new Error("disk full"));
       await expect(
         saveBuiltinPreferences(() => ({ "obsidian-markdown": { disabled: true } }), jest.fn())

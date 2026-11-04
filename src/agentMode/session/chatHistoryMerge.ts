@@ -16,14 +16,10 @@ export const UNTITLED_NATIVE_CHAT = "Untitled chat";
 const MAX_DERIVED_TITLE_CHARS = 60;
 
 export function deriveChatTitleFromMessages(messages: AgentChatMessage[]): string | null {
-  // A /compact command says nothing about what the chat is about.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/634
   const firstUser = messages.find(
     (m) => m.sender === USER_SENDER && m.message.trim() && !isCompactCommand(m.message)
   );
   if (!firstUser) {
-    // Screenshot-only sessions still need a recognizable tab and history title.
-    // https://github.com/logancyang/obsidian-copilot/issues/2850
     return messages.some(
       (m) =>
         m.sender === USER_SENDER &&

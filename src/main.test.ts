@@ -67,12 +67,12 @@ jest.mock("@/agentMode", () => ({
   registerTurnDiffCommands: jest.fn(),
   acpFrameSink: { narrowLegacyLogs: jest.fn(async () => undefined) },
   createAgentSessionManager: jest.fn(() => ({})),
-  CopilotAgentView: class {},
+  ScribeAgentView: class {},
   PlanPreviewView: class {},
   closeAgentDetailModals: jest.fn(),
 }));
 
-import CopilotPlugin from "@/main";
+import ScribePlugin from "@/main";
 import { QuickAskController } from "@/editor";
 import { getSelectedTextContexts } from "@/selection/selectionStore";
 import { DEFAULT_SETTINGS } from "@/constants";
@@ -105,7 +105,7 @@ import { getLanguage } from "obsidian";
 import { setInterfaceLocale, t } from "@/lib/i18n";
 
 function createPluginUnderTest(calls: string[]) {
-  const plugin = Object.create(CopilotPlugin.prototype) as CopilotPlugin;
+  const plugin = Object.create(ScribePlugin.prototype) as ScribePlugin;
 
   Object.assign(plugin, {
     app: { workspace: { getLeavesOfType: jest.fn(() => []) } },
@@ -132,8 +132,8 @@ async function flushTeardown(): Promise<void> {
 }
 
 describe("main", () => {
-  describe("CopilotPlugin", () => {
-    describe("copyChatLink()", () => {
+  describe("ScribePlugin", () => {
+    describe("copyChatLink", () => {
       beforeEach(() => jest.clearAllMocks());
 
       it("copies a markdown link titled by the chat topic that targets the note's epoch", async () => {
@@ -171,7 +171,7 @@ describe("main", () => {
           },
         ],
       ])(
-        "reports a failure and copies nothing when saving the chat %s https://github.com/Brevilabs/obsidian-copilot-private/issues/601",
+        "reports a failure and copies nothing when saving the chat %s",
         async (_, resolveNotePath) => {
           const plugin = createPluginUnderTest([]);
           const writeText = jest.fn().mockResolvedValue(undefined);
@@ -188,7 +188,7 @@ describe("main", () => {
       );
     });
 
-    describe("openChatDeepLink()", () => {
+    describe("openChatDeepLink", () => {
       beforeEach(() => jest.clearAllMocks());
 
       it("opens a saved ordinary chat as a note when its epoch link is followed", async () => {
@@ -233,14 +233,14 @@ describe("main", () => {
       });
     });
 
-    describe("initWebSelectionWatcher()", () => {
+    describe("initWebSelectionWatcher", () => {
       it("enables desktop web selection tracking even when the retired preference was saved as false", () => {
         settingsStore.set(settingsAtom, {
           ...DEFAULT_SETTINGS,
           ...{ autoAddSelectionToContext: false, autoIncludeTextSelection: false },
         });
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
-        const plugin = Object.create(CopilotPlugin.prototype) as CopilotPlugin;
+        const plugin = Object.create(ScribePlugin.prototype) as ScribePlugin;
         Object.assign(plugin, { app: {} });
 
         plugin.initWebSelectionWatcher();
@@ -255,7 +255,7 @@ describe("main", () => {
 
       it("attaches a web tab's selection and clears it once the tab deselects it", () => {
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
-        const plugin = Object.create(CopilotPlugin.prototype) as CopilotPlugin;
+        const plugin = Object.create(ScribePlugin.prototype) as ScribePlugin;
         Object.assign(plugin, { app: {} });
         plugin.initWebSelectionWatcher();
         const options = mockSelectionTrackerOptions.mock.calls.at(
@@ -278,7 +278,7 @@ describe("main", () => {
       });
     });
 
-    describe("addNoteToAgentChat()", () => {
+    describe("addNoteToAgentChat", () => {
       class AgentView {
         eventTarget = { queueVisible: jest.fn() };
       }
@@ -288,14 +288,14 @@ describe("main", () => {
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 reveals an existing Agent Chat and attaches the note to its active draft", async () => {
+      it("reveals an existing Agent Chat and attaches the note to its active draft", async () => {
         const plugin = createPluginUnderTest([]);
         const leaf = { view: new AgentView() } as unknown as WorkspaceLeaf;
         const revealLeaf = jest.fn();
         const getRightLeaf = jest.fn();
         const addContextNoteToActiveChat = jest.fn().mockResolvedValue(undefined);
         Object.assign(plugin, {
-          CopilotAgentView: AgentView,
+          ScribeAgentView: AgentView,
           agentSessionManager: { addContextNoteToActiveChat },
           app: { workspace: { getLeavesOfType: jest.fn(() => [leaf]), revealLeaf, getRightLeaf } },
         });
@@ -308,7 +308,7 @@ describe("main", () => {
         expect(addContextNoteToActiveChat).toHaveBeenCalledWith(note);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 opens Agent Chat in the right sidebar before attaching the note when none is open", async () => {
+      it("opens Agent Chat in the right sidebar before attaching the note when none is open", async () => {
         const plugin = createPluginUnderTest([]);
         const leaf = {
           view: new AgentView(),
@@ -319,7 +319,7 @@ describe("main", () => {
         const revealLeaf = jest.fn();
         const addContextNoteToActiveChat = jest.fn().mockResolvedValue(undefined);
         Object.assign(plugin, {
-          CopilotAgentView: AgentView,
+          ScribeAgentView: AgentView,
           agentSessionManager: { addContextNoteToActiveChat },
           app: {
             workspace: { getLeavesOfType: jest.fn(() => []), getRightLeaf, getLeaf, revealLeaf },
@@ -336,11 +336,11 @@ describe("main", () => {
         expect(addContextNoteToActiveChat).toHaveBeenCalledWith(note);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 reports a failed attachment without throwing", async () => {
+      it("reports a failed attachment without throwing", async () => {
         const plugin = createPluginUnderTest([]);
         const failure = new Error("backend missing");
         Object.assign(plugin, {
-          CopilotAgentView: AgentView,
+          ScribeAgentView: AgentView,
           agentSessionManager: {
             addContextNoteToActiveChat: jest.fn().mockRejectedValue(failure),
           },
@@ -362,12 +362,12 @@ describe("main", () => {
         );
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 reports a failure to open the Agent Chat pane without throwing", async () => {
+      it("reports a failure to open the Agent Chat pane without throwing", async () => {
         const plugin = createPluginUnderTest([]);
         const failure = new Error("view state rejected");
         const addContextNoteToActiveChat = jest.fn();
         Object.assign(plugin, {
-          CopilotAgentView: AgentView,
+          ScribeAgentView: AgentView,
           agentSessionManager: { addContextNoteToActiveChat },
           app: {
             workspace: {
@@ -389,7 +389,7 @@ describe("main", () => {
       });
     });
 
-    describe("onload()", () => {
+    describe("onload", () => {
       const pendingTeardown = Symbol.for("obsidian-scribe:pending-teardown");
 
       beforeEach(() => {
@@ -436,7 +436,7 @@ describe("main", () => {
         });
         const finishStartup = () =>
           (plugin as unknown as { initialization: Promise<void> }).initialization;
-        const openCopilotChatLink = (params: Record<string, string>) =>
+        const openScribeChatLink = (params: Record<string, string>) =>
           (
             registrations.registerObsidianProtocolHandler.mock.calls[0][1] as (
               params: Record<string, string>
@@ -446,7 +446,7 @@ describe("main", () => {
           const call = registrations.registerView.mock.calls.find(([type]) => type === viewType);
           return call?.[1]({} as WorkspaceLeaf);
         };
-        return { plugin, registrations, finishStartup, openCopilotChatLink, openRegisteredView };
+        return { plugin, registrations, finishStartup, openScribeChatLink, openRegisteredView };
       }
 
       function deferred() {
@@ -470,7 +470,7 @@ describe("main", () => {
         }
       });
 
-      it("returns before settings load so Obsidian can open the vault without waiting for Copilot https://github.com/logancyang/obsidian-copilot/issues/3518", () => {
+      it("returns before settings load so Obsidian can open the vault without waiting for Scribe", () => {
         const settings = deferred();
         const { plugin, registrations } = createLoadingPlugin(() => settings.promise);
 
@@ -497,7 +497,7 @@ describe("main", () => {
         expect(openRegisteredView("scribe-chat-view")).toBeUndefined();
       });
 
-      it("registers Agent Chat and plan preview views up front on desktop https://github.com/logancyang/obsidian-copilot/issues/3518", () => {
+      it("registers Agent Chat and plan preview views up front on desktop", () => {
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
         const settings = deferred();
         const { plugin, registrations, openRegisteredView } = createLoadingPlugin(
@@ -543,7 +543,7 @@ describe("main", () => {
         }
       });
 
-      it("keeps the active web tab when focus moves into Agent Chat on desktop https://github.com/Brevilabs/obsidian-copilot-private/issues/667", async () => {
+      it("keeps the active web tab when focus moves into Agent Chat on desktop", async () => {
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
         (startActiveWebTabTracking as jest.Mock).mockReturnValue({
           activeLeafRef: {},
@@ -560,7 +560,7 @@ describe("main", () => {
       });
 
       it.each([["settings load", "settings"]] as const)(
-        "registers no commands and keeps restored tabs loading after Obsidian unloads it during %s https://github.com/logancyang/obsidian-copilot/issues/3518",
+        "registers no commands and keeps restored tabs loading after Obsidian unloads it during %s",
         async (_step, pausedStep) => {
           (isDesktopRuntime as jest.Mock).mockReturnValue(true);
           const step = deferred();
@@ -581,7 +581,7 @@ describe("main", () => {
         }
       );
 
-      it("loads settings only after the previous copy finishes shutting down https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("loads settings only after the previous copy finishes shutting down", async () => {
         const calls: string[] = [];
         const previous = createPluginUnderTest(calls);
         (logFileManager.flush as jest.Mock).mockImplementation(async () => {
@@ -598,7 +598,7 @@ describe("main", () => {
         expect(calls.slice(-2)).toEqual(["previousLogFlushed", "settingsLoaded"]);
       });
 
-      it("waits for every earlier copy's shutdown, not only the most recently unloaded one https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("waits for every earlier copy's shutdown, not only the most recently unloaded one", async () => {
         jest.useFakeTimers();
         try {
           const slow = createPluginUnderTest([]);
@@ -620,7 +620,7 @@ describe("main", () => {
         }
       });
 
-      it("skips settings load when Obsidian unloads it while it waits for the previous copy's shutdown https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("skips settings load when Obsidian unloads it while it waits for the previous copy's shutdown", async () => {
         const previousTeardown = deferred();
         (window as unknown as Record<symbol, unknown>)[pendingTeardown] = previousTeardown.promise;
         const { plugin, finishStartup } = createLoadingPlugin();
@@ -634,7 +634,7 @@ describe("main", () => {
         expect(plugin.loadSettings).not.toHaveBeenCalled();
       });
 
-      it("keeps the next copy from loading settings until a copy unloaded mid-load settles https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("keeps the next copy from loading settings until a copy unloaded mid-load settles", async () => {
         jest.useFakeTimers();
         try {
           const previousSettingsStarted = deferred();
@@ -660,7 +660,7 @@ describe("main", () => {
         }
       });
 
-      it("starts anyway after 10 seconds when the previous copy's shutdown hangs https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("starts anyway after 10 seconds when the previous copy's shutdown hangs", async () => {
         jest.useFakeTimers();
         try {
           (window as unknown as Record<symbol, unknown>)[pendingTeardown] = new Promise(
@@ -684,7 +684,7 @@ describe("main", () => {
         }
       });
 
-      it("delays only the first start after a shutdown that never finishes https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("delays only the first start after a shutdown that never finishes", async () => {
         jest.useFakeTimers();
         try {
           (window as unknown as Record<symbol, unknown>)[pendingTeardown] = new Promise(
@@ -706,14 +706,14 @@ describe("main", () => {
         }
       });
 
-      it("opens a copilot-chat link that arrives during startup once the chat managers exist https://github.com/logancyang/obsidian-copilot/issues/3271", async () => {
+      it("opens a scribe-chat link that arrives during startup once the chat managers exist", async () => {
         const settings = deferred();
-        const { plugin, finishStartup, openCopilotChatLink } = createLoadingPlugin(
+        const { plugin, finishStartup, openScribeChatLink } = createLoadingPlugin(
           () => settings.promise
         );
 
         plugin.onload();
-        openCopilotChatLink({ action: "scribe-chat", id: "epoch:1" });
+        openScribeChatLink({ action: "scribe-chat", id: "epoch:1" });
         expect(plugin.openChatDeepLink).not.toHaveBeenCalled();
         settings.resolve();
         await finishStartup();
@@ -724,14 +724,14 @@ describe("main", () => {
         });
       });
 
-      it("ignores a copilot-chat link when Copilot is unloaded before startup finishes https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("ignores a scribe-chat link when Scribe is unloaded before startup finishes", async () => {
         const settings = deferred();
-        const { plugin, finishStartup, openCopilotChatLink } = createLoadingPlugin(
+        const { plugin, finishStartup, openScribeChatLink } = createLoadingPlugin(
           () => settings.promise
         );
 
         plugin.onload();
-        openCopilotChatLink({ action: "scribe-chat", id: "epoch:1" });
+        openScribeChatLink({ action: "scribe-chat", id: "epoch:1" });
         plugin.onunload();
         settings.resolve();
         await finishStartup();
@@ -739,19 +739,19 @@ describe("main", () => {
         expect(plugin.openChatDeepLink).not.toHaveBeenCalled();
       });
 
-      it("ignores a copilot-chat link when Copilot is unloaded before the link's queued open runs https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
-        const { plugin, finishStartup, openCopilotChatLink } = createLoadingPlugin();
+      it("ignores a scribe-chat link when Scribe is unloaded before the link's queued open runs", async () => {
+        const { plugin, finishStartup, openScribeChatLink } = createLoadingPlugin();
         plugin.onload();
         await finishStartup();
 
-        openCopilotChatLink({ action: "scribe-chat", id: "epoch:1" });
+        openScribeChatLink({ action: "scribe-chat", id: "epoch:1" });
         plugin.onunload();
         await finishStartup();
 
         expect(plugin.openChatDeepLink).not.toHaveBeenCalled();
       });
 
-      it("reports a startup failure even with debug logging off, then unloads what startup registered https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("reports a startup failure even with debug logging off, then unloads what startup registered", async () => {
         const failure = new Error("settings unreadable");
         const { plugin, finishStartup } = createLoadingPlugin(async () => {
           throw failure;
@@ -771,7 +771,7 @@ describe("main", () => {
         ["runs", "stays loaded", true],
         ["skips", "unloads", false],
       ] as const)(
-        "%s the legacy command migration when Copilot %s while its files load https://github.com/logancyang/obsidian-copilot/issues/3518",
+        "%s the legacy command migration when Scribe %s while its files load",
         async (_outcome, _lifecycle, staysLoaded) => {
           const { plugin, finishStartup } = createLoadingPlugin();
           plugin.onload();
@@ -794,7 +794,7 @@ describe("main", () => {
         }
       );
 
-      it("skips legacy prompt and command migration when unloading before layout is ready https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("skips legacy prompt and command migration when unloading before layout is ready", async () => {
         const { plugin, finishStartup } = createLoadingPlugin();
         plugin.onload();
         await finishStartup();
@@ -809,7 +809,7 @@ describe("main", () => {
       });
     });
 
-    describe("onunload()", () => {
+    describe("onunload", () => {
       beforeEach(() => {
         jest.clearAllMocks();
         (disposeNotificationSound as jest.Mock).mockReset();
@@ -824,7 +824,7 @@ describe("main", () => {
         expect(plugin.onunload()).toBeUndefined();
       });
 
-      it("revokes lifecycle-sensitive mutations before returning (https://github.com/Brevilabs/obsidian-copilot-private/issues/284)", () => {
+      it("revokes lifecycle-sensitive mutations before returning", () => {
         const plugin = createPluginUnderTest([]);
         Object.assign(plugin, { pluginLifecycleActive: true });
         expect(plugin.isPluginLifecycleActive()).toBe(true);
@@ -834,7 +834,7 @@ describe("main", () => {
         expect(plugin.isPluginLifecycleActive()).toBe(false);
       });
 
-      it("releases audio before asynchronous teardown can overlap a later plugin lifecycle (https://github.com/logancyang/obsidian-copilot/issues/2987)", async () => {
+      it("releases audio before asynchronous teardown can overlap a later plugin lifecycle", async () => {
         const calls: string[] = [];
         let releaseSessions: () => void = () => undefined;
         (disposeNotificationSound as jest.Mock).mockImplementation(() => calls.push("audio"));
@@ -855,7 +855,7 @@ describe("main", () => {
         await flushTeardown();
       });
 
-      it("tears down collaborators in order, draining settings writes only after it stops queuing them and the log last https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("tears down collaborators in order, draining settings writes only after it stops queuing them and the log last", async () => {
         const calls: string[] = [];
         const plugin = createPluginUnderTest(calls);
         (flushPersistence as jest.Mock).mockImplementation(async () => {
@@ -938,13 +938,13 @@ describe("main", () => {
       });
     });
 
-    describe("newAgentChatWithDraft()", () => {
+    describe("newAgentChatWithDraft", () => {
       beforeEach(() => {
         jest.clearAllMocks();
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
       });
 
-      it("opens a global Agent session with reviewable text left as a draft for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+      it("opens a global Agent session with reviewable text left as a draft", async () => {
         const plugin = createPluginUnderTest([]);
         const createGlobalSessionWithDraft = jest.fn().mockResolvedValue(undefined);
         Object.assign(plugin.agentSessionManager as object, {
@@ -961,7 +961,7 @@ describe("main", () => {
         );
       });
 
-      it("surfaces session creation failures without sending or throwing for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+      it("surfaces session creation failures without sending or throwing", async () => {
         const plugin = createPluginUnderTest([]);
         const failure = new Error("create failed");
         Object.assign(plugin.agentSessionManager as object, {

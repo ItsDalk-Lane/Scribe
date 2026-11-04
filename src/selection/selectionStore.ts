@@ -19,10 +19,6 @@ const contextsAtom = atom((get) => {
   return context ? [context] : NO_CONTEXTS;
 });
 
-// Sources re-report an unchanged selection on every click and keystroke, and the store remembers the last one
-// across a removed badge or a sent message, so neither brings back a selection the user has not changed. Only
-// deselecting where it was made forgets it; nothing selected in another note or page says nothing about it.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/797
 export function reportSelection(report: SelectionReport): void {
   const last = settingsStore.get(lastSelectionAtom);
   if (!report.context) {

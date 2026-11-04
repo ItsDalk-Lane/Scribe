@@ -99,8 +99,6 @@ export async function buildReportBundle(
 
   if (input.screenshotPng !== undefined)
     admit(screenshotEntry(input.screenshotPng, remainingBytes));
-  // Each log gets an even share of the room left, so a large backend log a report asks for cannot crowd out the chat's own activity log.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/672
   for (const [index, log] of input.logs.entries()) {
     const share = Math.floor(remainingBytes / (input.logs.length - index));
     admit(await logEntry(log, share, runtime));
@@ -170,12 +168,8 @@ async function logEntry(
         ? await runtime.readLog(log.path, MAX_REDACTABLE_LOG_BYTES)
         : tailOfText(log.text ?? "", MAX_REDACTABLE_LOG_BYTES);
     if (raw.totalBytes === 0) return leftOut("empty");
-    // A log read in part cannot be redacted: the omitted part may hold the key that names a value inside it.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/202
     if (raw.totalBytes > MAX_REDACTABLE_LOG_BYTES)
       return tooBig(raw.totalBytes, `${formatBytes(MAX_REDACTABLE_LOG_BYTES)} a report can redact`);
-    // Read whole, redact whole, then cut: a key can sit any distance ahead of its value, so only full-text redaction is safe.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/202
     const redacted = redactLogText(raw.text);
     const redactedBytes = byteLength(redacted);
     const truncated = redactedBytes > remainingBytes;
@@ -193,8 +187,6 @@ async function logEntry(
       bytes,
     };
   } catch (err) {
-    // A fresh install enables the activity log before anything is written, so the first report meets a missing file, not a read failure.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/202
     if ((err as { code?: unknown } | null)?.code === "ENOENT") return leftOut("not found");
     return leftOut(`failed: ${describeReason(err2String(err))}`);
   }

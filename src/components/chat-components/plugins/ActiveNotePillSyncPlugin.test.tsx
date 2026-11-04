@@ -95,7 +95,7 @@ describe("ActiveNotePillSyncPlugin", () => {
     expect(onActiveNoteRemoved).toHaveBeenCalledTimes(1);
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/670 keeps the Active Note when the composer clears its text after a send", async () => {
+  it("keeps the Active Note when the composer clears its text after a send", async () => {
     const { Harness, rerender, nextValueSync, onActiveNoteAdded, onActiveNoteRemoved } =
       setupWithPill();
     const harness = (value: string) => (

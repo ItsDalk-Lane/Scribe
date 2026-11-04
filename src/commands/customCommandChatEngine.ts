@@ -35,7 +35,6 @@ export async function createChatChain(
       );
     },
     saveContext(input: string, output: string) {
-      // USER_STOPPED text is accepted conversation history, not an aborted pi-ai response to omit on replay. https://github.com/ItsDalk-Lane/Scribe/issues/8
       const assistant = createAssistantMessage(chatModel.model);
       assistant.content = [{ type: "text", text: output }];
       assistant.stopReason = "stop";

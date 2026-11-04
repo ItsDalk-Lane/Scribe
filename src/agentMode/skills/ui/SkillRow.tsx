@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { useApp } from "@/context";
 import { logError } from "@/logger";
-import { getEffectiveSkillsFolder } from "@/settings/copilotFolder";
+import { getEffectiveSkillsFolder } from "@/settings/scribeFolder";
 import { SkillManager } from "@/agentMode/skills/SkillManager";
 import { decideToggleAction } from "@/agentMode/skills/toggleDecision";
 import { formatSkillDisplayName } from "@/agentMode/skills/mergeDiscovery";
@@ -215,8 +215,6 @@ export const SkillRow: React.FC<SkillRowProps> = ({
         </div>
       }
       actions={
-        // Non-modal: a modal menu can strand Radix's wheel listener after Reveal in vault.
-        // https://github.com/logancyang/obsidian-copilot-preview/issues/118
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen} modal={false}>
           <DropdownMenuTrigger asChild>
             <Button

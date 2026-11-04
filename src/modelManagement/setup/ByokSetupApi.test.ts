@@ -35,7 +35,7 @@ describe("ByokSetupApi", () => {
     api = new ByokSetupApi(providers, models, backends);
   });
 
-  describe("setupProvider()", () => {
+  describe("setupProvider", () => {
     it("creates a catalog-linked BYOK provider with its key and models and enrolls the models into the default backends", async () => {
       const result = await api.setupProvider({
         catalogProviderId: "anthropic",
@@ -85,7 +85,7 @@ describe("ByokSetupApi", () => {
       expect(provider.apiKeyKeychainId).toBeNull();
     });
 
-    it("persists the provider's Quick tools CORS choice (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", async () => {
+    it("persists the provider's Quick tools CORS choice", async () => {
       const result = await api.setupProvider({
         providerType: "openai-compatible",
         displayName: "Work endpoint",

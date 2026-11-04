@@ -24,8 +24,6 @@ export interface ExcalidrawDrawingNode {
 export type GroupedTrailNode = RenderNode | ActivityGroupNode | ExcalidrawDrawingNode;
 
 function isInteractive(part: ToolCallPart): boolean {
-  // A submitted response must remain visible after its action card closes.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/551
   if (part.userResponse) return true;
   if (part.mcpServer) return false;
   const name = part.vendorToolName;
@@ -69,9 +67,6 @@ export function foldActivityGroups(
         break;
       case "action": {
         const excalidraw = excalidrawToolRun(node.part);
-        // One card per drawing between two messages, so an agent's write-render-fix loop reads as one change; a call
-        // whose path is unknown may target any drawing, so it never joins a card.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
         if (excalidraw?.path && drawing?.path === excalidraw.path) {
           drawing.members.push(node.part);
           break;
@@ -146,9 +141,6 @@ interface FileCount {
 }
 
 function filePathsFor(part: ToolCallPart): Set<string> {
-  // Codex sends one edit tool with a diff record per file, while other
-  // backends may put the same paths in `locations`.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
   const paths = new Set(part.locations?.map((location) => location.path) ?? []);
   for (const output of part.output ?? []) {
     if (output.type === "diff") paths.add(output.path);
@@ -186,8 +178,6 @@ export function summarizeActivity(
     if (member.part.status === "failed") failed++;
     const family = fileFamilyFor(member.part);
     if (!family) continue;
-    // A failed or stopped edit left the note unchanged, so it is not an edited file.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/691
     if (
       family === "edit" &&
       (member.part.status === "failed" || member.part.status === "cancelled")
@@ -200,9 +190,6 @@ export function summarizeActivity(
     }
     const count = fileCounts.get(family)!;
     const paths = filePathsFor(member.part);
-    // Some backends classify a file tool but omit structured paths. Count the
-    // call as one file instead of dropping it from the summary entirely.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
     if (paths.size === 0) count.withoutPath++;
     else for (const path of paths) count.paths.add(path);
   }

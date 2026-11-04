@@ -44,7 +44,7 @@ const projectsDisabled: AgentHomeShelfSection = {
 };
 
 describe("AgentHomeShelf", () => {
-  describe("AgentHomeShelf()", () => {
+  describe("AgentHomeShelf", () => {
     it("activates the first selectable section when another section is disabled", () => {
       renderShelf([chats, projectsDisabled]);
       expect(screen.queryByText("CHATS BODY")).not.toBeNull();
@@ -76,7 +76,7 @@ describe("AgentHomeShelf", () => {
       expect(screen.queryByText("CHATS BODY")).not.toBeNull();
     });
 
-    it("restores the remembered Projects tab after temporary suppression — https://github.com/Brevilabs/obsidian-copilot-private/issues/468", () => {
+    it("restores the remembered Projects tab after temporary suppression", () => {
       const projectSection: AgentHomeShelfSection = {
         id: "projects",
         icon: <span />,

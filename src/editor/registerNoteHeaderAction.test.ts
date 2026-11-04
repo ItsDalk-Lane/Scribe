@@ -3,9 +3,9 @@ jest.mock("obsidian", () => ({
   TFile: class TFile {},
 }));
 
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { registerNoteHeaderAction } from "@/editor/registerNoteHeaderAction";
-import { COPILOT_AGENT_ICON_ID } from "@/constants";
+import { SCRIBE_AGENT_ICON_ID } from "@/constants";
 import { MarkdownView, TFile, type WorkspaceLeaf } from "obsidian";
 
 interface NoteView extends MarkdownView {
@@ -51,7 +51,7 @@ function fixture(views: NoteView[]) {
     register: jest.fn((callback: () => void) => {
       cleanup = callback;
     }),
-  } as unknown as CopilotPlugin;
+  } as unknown as ScribePlugin;
   return {
     plugin,
     workspace,
@@ -63,7 +63,7 @@ function fixture(views: NoteView[]) {
 }
 
 describe("registerNoteHeaderAction", () => {
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 adds a Copilot action to every open note and passes the clicked view's current file", () => {
+  it("adds a Scribe action to every open note and passes the clicked view's current file", () => {
     const research = noteView("Research.md");
     const journal = noteView("Journal.md");
     const { plugin, layoutReady, addNoteToAgentChat } = fixture([research, journal]);
@@ -71,7 +71,7 @@ describe("registerNoteHeaderAction", () => {
     registerNoteHeaderAction(plugin);
     layoutReady();
     const button = research.addAction.mock.results[0].value as HTMLButtonElement;
-    expect(button.dataset.icon).toBe(COPILOT_AGENT_ICON_ID);
+    expect(button.dataset.icon).toBe(SCRIBE_AGENT_ICON_ID);
     expect(button.getAttribute("aria-label")).toBe("Open Scribe Agent Chat with this note");
 
     research.file = Object.assign(new TFile(), { path: "Reused tab.md" });
@@ -80,7 +80,7 @@ describe("registerNoteHeaderAction", () => {
     expect(journal.addAction).toHaveBeenCalledTimes(1);
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 adds an action once per note leaf, including leaves opened later, and removes them on unload", () => {
+  it("adds an action once per note leaf, including leaves opened later, and removes them on unload", () => {
     const first = noteView("First.md");
     const views = [first];
     const { plugin, layoutReady, listeners, cleanup } = fixture(views);
@@ -100,7 +100,7 @@ describe("registerNoteHeaderAction", () => {
     expect((second.addAction.mock.results[0].value as HTMLElement).isConnected).toBe(false);
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/579 leaves Agent Chat closed when the clicked Markdown view has no note", () => {
+  it("leaves Agent Chat closed when the clicked Markdown view has no note", () => {
     const view = noteView("Research.md");
     const { plugin, layoutReady, addNoteToAgentChat } = fixture([view]);
 

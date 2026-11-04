@@ -39,9 +39,9 @@ export async function inspectBuiltinSkill(
   }
 }
 
-const ENABLED_AGENTS_RE = /^([ \t]*copilot-enabled-agents:[ \t]*)(.*)$/m;
-const CONTENT_HASH_RE = /^[ \t]*copilot-content-hash:[ \t]*.*$\n?/m;
-const BUILTIN_VERSION_RE = /^([ \t]*copilot-builtin-version:[ \t]*.*\n)/m;
+const ENABLED_AGENTS_RE = /^([ \t]*scribe-enabled-agents:[ \t]*)(.*)$/m;
+const CONTENT_HASH_RE = /^[ \t]*scribe-content-hash:[ \t]*.*$\n?/m;
+const BUILTIN_VERSION_RE = /^([ \t]*scribe-builtin-version:[ \t]*.*\n)/m;
 
 // 指纹覆盖 SKILL.md 全文但排除两处易变行（启用行、哈希行自身），
 // 使"改启用开关"不算用户编辑，改其余任何内容都算。
@@ -57,7 +57,7 @@ function withContentHashLine(content: string): string {
   const indent = anchor[1].match(/^[ \t]*/)?.[0] ?? "";
   return withoutHash.replace(
     BUILTIN_VERSION_RE,
-    `${anchor[1]}${indent}copilot-content-hash: "${skillFingerprint(withoutHash)}"\n`
+    `${anchor[1]}${indent}scribe-content-hash: "${skillFingerprint(withoutHash)}"\n`
   );
 }
 
@@ -111,7 +111,6 @@ export async function seedBuiltinSkills(
           }
         }
       } catch (e) {
-        // Unreadable content may be user-owned: retry later instead of overwriting it. https://github.com/logancyang/obsidian-copilot/issues/3022
         logError(`[Skills] could not read builtin skill ${skill.name} for version check`, e);
         continue;
       }
@@ -146,7 +145,6 @@ export async function seedBuiltinSkills(
             continue;
           }
         }
-        // Copilot owns the whole marked folder, so replacement drops obsolete files. https://github.com/logancyang/obsidian-copilot/issues/3022
         if (existingContent !== null) await fs.removeDir(dir);
         await ensureDir(fs, dir);
         const skillMd =
@@ -185,7 +183,6 @@ export async function removeSeededBuiltin(
   try {
     if (!(await fs.exists(skillMdPath))) return "absent";
     if (getBuiltinSkillVersion(await fs.read(skillMdPath)) === null) return "collision";
-    // Copilot owns the whole marked directory, so removal leaves no orphans. https://github.com/logancyang/obsidian-copilot/issues/3022
     await fs.removeDir(dir);
     logInfo(`[Skills] removed de-gated builtin skill: ${name}`);
     return "removed";

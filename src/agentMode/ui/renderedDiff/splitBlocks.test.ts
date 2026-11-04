@@ -3,7 +3,7 @@ import { appParsing } from "@/agentMode/ui/renderedDiff/testing/recordedParserAp
 import { splitMarkdown } from "@/agentMode/ui/renderedDiff/splitBlocks";
 
 describe("splitBlocks", () => {
-  describe("splitMarkdown()", () => {
+  describe("splitMarkdown", () => {
     it("separates a leading frontmatter section, fences included, from the body blocks", async () => {
       const source =
         "---\ntags: [pilot]\n---\n# Alpha pilot\nThe pilot runs in three regions.\n## Rollout\n| Region | Partners |\n| --- | --- |\n| EMEA | 2 |\n\n```bash\nnpm run migrate\n\nnpm run verify\n```\n\n- Kickoff Monday\n- Review Friday\n";
@@ -39,7 +39,7 @@ describe("splitBlocks", () => {
       });
     });
 
-    it("records the blank lines past the first separator on the block they precede, but not after frontmatter (https://github.com/Brevilabs/obsidian-copilot-private/issues/751)", async () => {
+    it("records the blank lines past the first separator on the block they precede, but not after frontmatter", async () => {
       const source =
         "---\nstatus: draft\n---\n\n\n# Alpha pilot\n\n\n\nThe pilot runs.\n\n\n- Kickoff\n- Review\n";
       const app = appParsing({
@@ -102,7 +102,7 @@ describe("splitBlocks", () => {
       ]);
     });
 
-    it("classifies any paragraph, heading or list item holding an inline %%comment%% as code so its edit stays visible (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("classifies any paragraph, heading or list item holding an inline %%comment%% as code so its edit stays visible", async () => {
       const source = "# Plan %%draft%%\n\nAfter\n%%hidden%%\n\n- One\n- Two %%todo%%\n";
       const app = appParsing({
         sections: [
@@ -126,7 +126,7 @@ describe("splitBlocks", () => {
       ]);
     });
 
-    it("classifies comment, reference definition, math and HTML sections as code so a word diff never lands inside them (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("classifies comment, reference definition, math and HTML sections as code so a word diff never lands inside them", async () => {
       const source =
         "Before\n\n%%\nhidden note\nsecond\n%%\n\nSee [ref].\n\n[ref]: https://example.com/a\n\n$$\nx^2\ny^2\n$$\n\n<div>\n  hi\n</div>\n\nAfter\n";
       const app = appParsing({
@@ -154,7 +154,7 @@ describe("splitBlocks", () => {
       ]);
     });
 
-    it("skips the empty sections Obsidian appends past a note that ends in a footnote definition (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("skips the empty sections Obsidian appends past a note that ends in a footnote definition", async () => {
       const app = appParsing({
         sections: [
           ["paragraph", 0, 0],
@@ -200,7 +200,7 @@ describe("splitBlocks", () => {
       ]);
     });
 
-    it("keeps a loose list, whose items blank lines separate, as one block so its paragraph spacing survives (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("keeps a loose list, whose items blank lines separate, as one block so its paragraph spacing survives", async () => {
       const app = appParsing({
         sections: [["list", 0, 2]],
         listItems: [
@@ -214,7 +214,7 @@ describe("splitBlocks", () => {
       expect(split.blocks).toEqual([{ type: "text", text: "- a\n\n- b" }]);
     });
 
-    it("classifies only the item holding a tab-indented fence as code (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", async () => {
+    it("classifies only the item holding a tab-indented fence as code", async () => {
       const source = "- one\n- step\n\t```bash\n\tnpm run a\n\n\tnpm run b\n\t```\n- three\n";
       const app = appParsing({
         sections: [["list", 0, 7]],
@@ -254,7 +254,7 @@ describe("splitBlocks", () => {
       expect(split.blocks.map((block) => block.type)).toEqual(["text", "heading", "text"]);
     });
 
-    it("classifies a list section holding a tab-indented fence as code so it is never word-diffed (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", async () => {
+    it("classifies a list section holding a tab-indented fence as code so it is never word-diffed", async () => {
       const source = "- step\n\t```bash\n\tnpm run a\n\n\tnpm run b\n\t```\n";
 
       const split = await splitMarkdown(appParsing({ sections: [["list", 0, 5]] }), source);
@@ -291,7 +291,7 @@ describe("splitBlocks", () => {
       expect(Object.isFrozen(first.blocks)).toBe(true);
     });
 
-    it("rejects when Obsidian does not expose computeMetadataAsync so the caller can fall back to a line diff (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("rejects when Obsidian does not expose computeMetadataAsync so the caller can fall back to a line diff", async () => {
       const app = { metadataCache: {} } as unknown as App;
 
       await expect(splitMarkdown(app, "# Alpha pilot\n")).rejects.toThrow(

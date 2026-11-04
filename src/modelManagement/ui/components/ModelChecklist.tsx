@@ -136,7 +136,7 @@ export const ModelChecklist: React.FC<ModelChecklistProps> = ({
                   removable
                     ? "tw-grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]"
                     : "tw-grid-cols-[auto_minmax(0,1fr)_auto_auto]",
-                  isLastChecked && "copilot-divider-b"
+                  isLastChecked && "scribe-divider-b"
                 )}
               >
                 <Checkbox
@@ -152,7 +152,7 @@ export const ModelChecklist: React.FC<ModelChecklistProps> = ({
                       {t("Embedding")}
                     </Badge>
                   )}
-                  {/* 非聊天模型仍可保存使用，但不能让用户误以为它能在快捷工具中回答。https://github.com/logancyang/obsidian-copilot/issues/3147 */}
+
                   {!model.isEmbedding && !isChatModelInfo(model) && (
                     <Badge variant={"secondary"} className="tw-shrink-0 tw-text-ui-smaller">
                       {t("Non-chat")}

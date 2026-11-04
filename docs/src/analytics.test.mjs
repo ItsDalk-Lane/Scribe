@@ -8,11 +8,9 @@ import {
   startDocsAnalytics,
 } from "./analytics.mjs";
 
-const ISSUE = "https://github.com/Brevilabs/obsidian-copilot-private/issues/335";
-
 describe("analytics", () => {
-  describe("resolveAnalyticsConfig()", () => {
-    it(`${ISSUE} enables only the canonical production hostname`, () => {
+  describe("resolveAnalyticsConfig", () => {
+    it(` enables only the canonical production hostname`, () => {
       assert.deepEqual(
         resolveAnalyticsConfig({
           hostname: "docs.obsidiancopilot.com",
@@ -31,7 +29,7 @@ describe("analytics", () => {
       );
     });
 
-    it(`${ISSUE} disables analytics when either optional setting is missing`, () => {
+    it(` disables analytics when either optional setting is missing`, () => {
       assert.equal(
         resolveAnalyticsConfig({
           hostname: "docs.obsidiancopilot.com",
@@ -51,8 +49,8 @@ describe("analytics", () => {
     });
   });
 
-  describe("hasUsableStorage()", () => {
-    it(`${ISSUE} fails closed when browser storage is unavailable`, () => {
+  describe("hasUsableStorage", () => {
+    it(` fails closed when browser storage is unavailable`, () => {
       assert.equal(
         hasUsableStorage(() => {
           throw new Error("blocked");
@@ -61,7 +59,7 @@ describe("analytics", () => {
       );
     });
 
-    it(`${ISSUE} removes its successful storage probe`, () => {
+    it(` removes its successful storage probe`, () => {
       const values = new Map();
       assert.equal(
         hasUsableStorage(() => ({
@@ -74,7 +72,7 @@ describe("analytics", () => {
       assert.equal(values.size, 0);
     });
 
-    it(`${ISSUE} fails closed when storage silently drops writes`, () => {
+    it(` fails closed when storage silently drops writes`, () => {
       assert.equal(
         hasUsableStorage(() => ({
           setItem: () => {},
@@ -86,8 +84,8 @@ describe("analytics", () => {
     });
   });
 
-  describe("createPostHogOptions()", () => {
-    it(`${ISSUE} disables automatic collection and identity joining`, () => {
+  describe("createPostHogOptions", () => {
+    it(` disables automatic collection and identity joining`, () => {
       const options = createPostHogOptions(
         "https://us.i.posthog.com",
         () => "https://docs.obsidiancopilot.com/"
@@ -108,7 +106,7 @@ describe("analytics", () => {
       assert.equal(options.cross_subdomain_cookie, false);
     });
 
-    it(`${ISSUE} replaces pageleave request paths with the generated 404 route`, () => {
+    it(` replaces pageleave request paths with the generated 404 route`, () => {
       const options = createPostHogOptions(
         "https://us.i.posthog.com",
         () => "https://docs.obsidiancopilot.com/404/"
@@ -132,7 +130,7 @@ describe("analytics", () => {
       });
     });
 
-    it(`${ISSUE} drops events without a canonical docs route`, () => {
+    it(` drops events without a canonical docs route`, () => {
       for (const canonicalUrl of [undefined, "not a URL", "https://example.com/private"]) {
         const options = createPostHogOptions("https://us.i.posthog.com", () => canonicalUrl);
         assert.equal(
@@ -143,8 +141,8 @@ describe("analytics", () => {
     });
   });
 
-  describe("sanitizeAnalyticsEvent()", () => {
-    it(`${ISSUE} allows only pageview and pageleave events`, () => {
+  describe("sanitizeAnalyticsEvent", () => {
+    it(` allows only pageview and pageleave events`, () => {
       assert.equal(
         sanitizeAnalyticsEvent({ event: "$autocapture", properties: {}, uuid: "event-id" }),
         null
@@ -159,7 +157,7 @@ describe("analytics", () => {
       );
     });
 
-    it(`${ISSUE} strips private URL, referrer, content, and person properties`, () => {
+    it(` strips private URL, referrer, content, and person properties`, () => {
       const timestamp = new Date("2026-08-31T12:00:00Z");
       const result = sanitizeAnalyticsEvent({
         uuid: "event-id",
@@ -208,7 +206,7 @@ describe("analytics", () => {
       });
     });
 
-    it(`${ISSUE} preserves direct traffic and drops malformed or non-URL values`, () => {
+    it(` preserves direct traffic and drops malformed or non-URL values`, () => {
       const direct = sanitizeAnalyticsEvent({
         uuid: "event-id",
         event: "$pageview",
@@ -232,7 +230,7 @@ describe("analytics", () => {
       });
     });
 
-    it(`${ISSUE} keeps only bounded source, medium, and campaign attribution`, () => {
+    it(` keeps only bounded source, medium, and campaign attribution`, () => {
       const result = sanitizeAnalyticsEvent({
         uuid: "event-id",
         event: "$pageview",
@@ -257,8 +255,8 @@ describe("analytics", () => {
     });
   });
 
-  describe("startDocsAnalytics()", () => {
-    it(`${ISSUE} does not load the SDK when analytics is ineligible`, async () => {
+  describe("startDocsAnalytics", () => {
+    it(` does not load the SDK when analytics is ineligible`, async () => {
       const usableStorage = { setItem: () => {}, getItem: () => "1", removeItem: () => {} };
       const ineligibleInputs = [
         { hostname: "preview.example.com", apiKey: "phc_test", getStorage: () => usableStorage },
@@ -287,7 +285,7 @@ describe("analytics", () => {
       }
     });
 
-    it(`${ISSUE} buffers each generated route while the SDK loads`, async () => {
+    it(` buffers each generated route while the SDK loads`, async () => {
       const captures = [];
       let navigationListener;
       let canonicalUrl = "https://docs.obsidiancopilot.com/404/";
@@ -334,7 +332,7 @@ describe("analytics", () => {
       ]);
     });
 
-    it(`${ISSUE} fails closed when the SDK cannot load`, async () => {
+    it(` fails closed when the SDK cannot load`, async () => {
       let listenerRemoved = false;
       const enabled = await startDocsAnalytics({
         loadPostHog: async () => {

@@ -41,7 +41,7 @@ return () => doc.removeEventListener("keydown", handler);
 
 Do **not** rely on `activeDocument` at registration _and_ removal — it can shift between the two calls if focus moves.
 
-**View migrated to a new window:** for a view that owns React or other long-lived renderers, register `this.containerEl.onWindowMigrated((win) => { ... })` in `onOpen`. The callback fires when Obsidian reparents the element into a different window's document. Tear down and rebuild the renderer there so it captures the new window. Save the returned destroy function and call it in `onClose` to avoid leaks. `CopilotView` is the canonical example — it unmounts and recreates the React root on migration so Lexical re-binds to the popout's window.
+**View migrated to a new window:** for a view that owns React or other long-lived renderers, register `this.containerEl.onWindowMigrated((win) => { ... })` in `onOpen`. The callback fires when Obsidian reparents the element into a different window's document. Tear down and rebuild the renderer there so it captures the new window. Save the returned destroy function and call it in `onClose` to avoid leaks. `ScribeAgentView` is the canonical example — it unmounts and recreates the React root on migration so Lexical re-binds to the popout's window.
 
 **Cross-realm `instanceof`:** popout windows have their own `Element`, `MouseEvent`, etc., so standard `instanceof` checks fail across windows. Use Obsidian's `element.instanceOf(HTMLElement)` and `event.instanceOf(MouseEvent)` when checking type across realms.
 

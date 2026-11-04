@@ -8,7 +8,7 @@ import type {
   ProviderType,
 } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
-import { type CopilotSettings, setSettings } from "@/settings/model";
+import { type ScribeSettings, setSettings } from "@/settings/model";
 
 import {
   executeRetiredProviderRemoval,
@@ -85,7 +85,7 @@ function legacyModel(name: string, providerName: string): CustomModel {
   return { name, provider: providerName, enabled: true };
 }
 
-function settingsWith(overrides: Partial<CopilotSettings> = {}): CopilotSettings {
+function settingsWith(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return { ...DEFAULT_SETTINGS, ...overrides };
 }
 

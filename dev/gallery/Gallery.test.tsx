@@ -161,7 +161,7 @@ describe("Gallery", () => {
     getGalleryModalMock().open.mockClear();
   });
 
-  describe("createGalleryCatalog()", () => {
+  describe("createGalleryCatalog", () => {
     it("normalizes permanent component and host modules and renders their stories", () => {
       const catalog = createGalleryCatalog(
         [
@@ -319,7 +319,7 @@ describe("Gallery", () => {
     });
   });
 
-  describe("resolveGalleryViewState()", () => {
+  describe("resolveGalleryViewState", () => {
     it("restores valid identities and persisted widths", () => {
       const stories = [makeStory("UI/Button/Default"), makeStory("UI/Button/Sizes")];
 
@@ -381,7 +381,7 @@ describe("Gallery", () => {
     });
   });
 
-  describe("Gallery()", () => {
+  describe("Gallery", () => {
     it("lists top-level components with contact-sheet buttons and marks only the selected story as current", () => {
       const gallery = render(<GalleryHarness catalog={makeCatalog()} />);
       const navigation = gallery.getByRole("complementary", {
@@ -634,7 +634,7 @@ describe("Gallery", () => {
       ).toBeTruthy();
     });
 
-    it("applies the selected width to a fullscreen modal frame for https://github.com/Brevilabs/obsidian-copilot-private/issues/317", () => {
+    it("applies the selected width to a fullscreen modal frame", () => {
       const catalog = createGalleryCatalog(
         [
           {
@@ -784,7 +784,7 @@ describe("Gallery", () => {
 
     it("applies a preset width to the canvas and the rendered story", () => {
       const gallery = render(<GalleryHarness catalog={makeCatalog()} />);
-      const canvas = gallery.container.querySelector<HTMLElement>(".copilot-gallery-canvas");
+      const canvas = gallery.container.querySelector<HTMLElement>(".scribe-gallery-canvas");
 
       expect(canvas?.dataset.galleryWidth).toBe("400");
 
@@ -801,7 +801,7 @@ describe("Gallery", () => {
 
     it("applies a valid custom width across stories and rejects invalid drafts", () => {
       const gallery = render(<GalleryHarness catalog={makeCatalog()} />);
-      const canvas = gallery.container.querySelector<HTMLElement>(".copilot-gallery-canvas");
+      const canvas = gallery.container.querySelector<HTMLElement>(".scribe-gallery-canvas");
       const customWidth = gallery.getByRole("spinbutton", {
         name: "Custom story width in pixels",
       }) as HTMLInputElement;
@@ -847,7 +847,7 @@ describe("Gallery", () => {
       const gallery = render(
         <GalleryHarness catalog={makeCatalog()} initialState={{ width: 512 }} />
       );
-      const canvas = gallery.container.querySelector<HTMLElement>(".copilot-gallery-canvas");
+      const canvas = gallery.container.querySelector<HTMLElement>(".scribe-gallery-canvas");
       const customWidth = gallery.getByRole("spinbutton", {
         name: "Custom story width in pixels",
       }) as HTMLInputElement;

@@ -1,6 +1,6 @@
 import type { AgentToolStatus } from "@/agentMode/session/types";
 import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
-import { codeStringField, copilotToolCall } from "@/agentMode/ui/copilotToolCall";
+import { codeStringField, scribeToolCall } from "@/agentMode/ui/scribeToolCall";
 import {
   EXCALIDRAW_READ_TOOL,
   EXCALIDRAW_RENDER_TOOL,
@@ -24,12 +24,10 @@ export interface ExcalidrawDrawingSummary {
 }
 
 export function excalidrawToolRun(part: ToolCallPart): ExcalidrawToolRun | null {
-  const read = copilotToolCall(part, EXCALIDRAW_READ_TOOL.name);
-  const write = read ? null : copilotToolCall(part, EXCALIDRAW_WRITE_TOOL.name);
-  const call = read ?? write ?? copilotToolCall(part, EXCALIDRAW_RENDER_TOOL.name);
+  const read = scribeToolCall(part, EXCALIDRAW_READ_TOOL.name);
+  const write = read ? null : scribeToolCall(part, EXCALIDRAW_WRITE_TOOL.name);
+  const call = read ?? write ?? scribeToolCall(part, EXCALIDRAW_RENDER_TOOL.name);
   if (!call) return null;
-  // A call made after Excalidraw was turned off completes without drawing anything, so it keeps the ordinary row that
-  // shows the tool's explanation. https://github.com/Brevilabs/obsidian-copilot-private/issues/787
   if (part.output?.some((o) => o.type === "text" && o.text.includes(EXCALIDRAW_TURNED_OFF_TEXT))) {
     return null;
   }

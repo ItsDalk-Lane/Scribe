@@ -19,9 +19,6 @@ function registerEscapeContainment(rootElement: HTMLElement): () => void {
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
 
-    // Lexical skips key commands while composing, so contain Escape on the native
-    // editor root before Obsidian can move focus into the note editor.
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/302
     event.stopPropagation();
   };
 
@@ -113,8 +110,6 @@ export function KeyboardPlugin({
   return null;
 }
 
-// isComposing/"Process" replace the deprecated keyCode 229 IME guard.
-// https://github.com/logancyang/obsidian-copilot-preview/issues/302
 export function isImeCompositionEvent(event: KeyboardEvent): boolean {
   return event.isComposing || event.key === "Process";
 }

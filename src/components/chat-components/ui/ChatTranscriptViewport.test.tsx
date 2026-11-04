@@ -18,7 +18,7 @@ function props(overrides: Partial<ChatTranscriptViewportProps> = {}): ChatTransc
 }
 
 describe("ChatTranscriptViewport", () => {
-  describe("ChatTranscriptViewport()", () => {
+  describe("ChatTranscriptViewport", () => {
     it("shows the response without a return control while following the end", () => {
       render(<ChatTranscriptViewport {...props()} />);
 
@@ -26,7 +26,7 @@ describe("ChatTranscriptViewport", () => {
       expect(screen.queryByRole("button", { name: "Scroll to end" })).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/277 shows the floating return control while paused and resumes on click", () => {
+    it("shows the floating return control while paused and resumes on click", () => {
       const scrollToEnd = jest.fn();
       render(<ChatTranscriptViewport {...props({ isScrollPaused: true, scrollToEnd })} />);
 
