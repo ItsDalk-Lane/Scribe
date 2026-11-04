@@ -1,4 +1,5 @@
 import type { App } from "obsidian";
+import { join } from "node:path";
 import type ScribePlugin from "@/main";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { getSettings, resetSettings, setSettings } from "@/settings/model";
@@ -314,7 +315,7 @@ describe("nativeDescriptor", () => {
       await options.getExtensionRuntime?.("/vault/project");
       expect(readNativeExtensionRuntime).toHaveBeenCalledWith("/vault/project");
       expect(NodeNativeSessionStorage).toHaveBeenCalledWith(
-        "/synthetic-scribe/vault-scope/native-agent/sessions"
+        join("/synthetic-scribe", "vault-scope", "native-agent", "sessions")
       );
       const context = {
         sessionId: "native-session",
@@ -365,7 +366,7 @@ describe("nativeDescriptor", () => {
         expect.objectContaining({
           cwd: "/vault/project",
           sessionId: "native-session",
-          outputDirectory: "/synthetic-scribe/vault-scope/native-agent/tasks",
+          outputDirectory: join("/synthetic-scribe", "vault-scope", "native-agent", "tasks"),
           getEnv: buildBuiltinSkillEnv,
         })
       );

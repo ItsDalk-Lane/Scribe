@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { App, FileSystemAdapter } from "obsidian";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
@@ -129,10 +129,18 @@ describe("NativeBackendProcess integration", () => {
         return {
           files: entries
             .filter((entry) => entry.isFile())
-            .map((entry) => relative(root, join(root, path, entry.name))),
+            .map((entry) =>
+              relative(root, join(root, path, entry.name))
+                .split(sep)
+                .join("/")
+            ),
           folders: entries
             .filter((entry) => entry.isDirectory())
-            .map((entry) => relative(root, join(root, path, entry.name))),
+            .map((entry) =>
+              relative(root, join(root, path, entry.name))
+                .split(sep)
+                .join("/")
+            ),
         };
       };
     });

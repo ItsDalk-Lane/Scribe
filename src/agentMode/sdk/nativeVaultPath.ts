@@ -93,7 +93,7 @@ export async function writeNativeVaultTarget(
   const nofollow = (fs.constants as { O_NOFOLLOW?: number }).O_NOFOLLOW ?? 0;
   const flags = creating
     ? fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | nofollow
-    : fs.constants.O_WRONLY | fs.constants.O_TRUNC | nofollow;
+    : fs.constants.O_RDWR | nofollow;
   let fd: number;
   try {
     fd = fs.openSync(absolute, flags);
@@ -106,6 +106,7 @@ export async function writeNativeVaultTarget(
     throw error;
   }
   try {
+    if (!creating) fs.ftruncateSync(fd, 0);
     fs.writeFileSync(fd, content);
   } finally {
     fs.closeSync(fd);

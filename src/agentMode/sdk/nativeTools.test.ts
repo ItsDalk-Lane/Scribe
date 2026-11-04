@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { App, FileSystemAdapter } from "obsidian";
 import { createNativeTools } from "@/agentMode/sdk/nativeTools";
 import type { NativeToolsOptions } from "@/agentMode/sdk/nativeTools";
@@ -50,10 +50,18 @@ describe("nativeTools", () => {
         return {
           files: children
             .filter((child) => child.isFile())
-            .map((child) => relative(root, join(root, path, child.name))),
+            .map((child) =>
+              relative(root, join(root, path, child.name))
+                .split(sep)
+                .join("/")
+            ),
           folders: children
             .filter((child) => child.isDirectory() || child.isSymbolicLink())
-            .map((child) => relative(root, join(root, path, child.name))),
+            .map((child) =>
+              relative(root, join(root, path, child.name))
+                .split(sep)
+                .join("/")
+            ),
         };
       };
       events = [];
