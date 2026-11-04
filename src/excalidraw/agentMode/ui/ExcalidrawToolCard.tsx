@@ -1,7 +1,7 @@
 import React, { useId } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CopilotBrandIcon } from "@/components/ui/CopilotBrandIcon";
+import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import type { ExcalidrawDrawingSummary } from "@/excalidraw/agentMode/excalidrawToolRun";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -52,12 +52,12 @@ export const ExcalidrawToolCard: React.FC<ExcalidrawToolCardProps> = ({
   return (
     <div className="tw-my-1 tw-flex tw-w-full tw-flex-col tw-gap-1 tw-overflow-hidden tw-rounded-md tw-border tw-border-solid tw-bg-secondary tw-px-2 tw-py-1.5 tw-text-sm tw-border-interactive-accent/40">
       <div className="tw-flex tw-w-full tw-items-center tw-gap-2">
-        <CopilotBrandIcon className="tw-size-4 tw-text-normal" />
+        <ScribeBrandIcon className="tw-size-4 tw-text-normal" />
         <span
           className={cn(
             "tw-shrink-0 tw-font-medium",
             state === "running"
-              ? "copilot-shimmer-text motion-reduce:tw-animate-none"
+              ? "scribe-shimmer-text motion-reduce:tw-animate-none"
               : "tw-text-normal"
           )}
         >

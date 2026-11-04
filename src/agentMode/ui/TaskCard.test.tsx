@@ -3,10 +3,8 @@ import { makeCommandTask, makeTask } from "@/agentMode/ui/testing/taskFixtures";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
-const ISSUE_749 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/749";
-
 describe("TaskCard", () => {
-  it(`shows a subagent's type and title, and that it is running only to screen readers beside the spinner (${ISSUE_749})`, () => {
+  it(`shows a subagent's type and title, and that it is running only to screen readers beside the spinner`, () => {
     render(<TaskCard task={makeTask()} onOpen={jest.fn()} />);
 
     expect(screen.getByText("general-purpose · Count words in Welcome")).toBeTruthy();
@@ -18,7 +16,7 @@ describe("TaskCard", () => {
     ["failed", "Failed"],
     ["stopped", "Stopped"],
   ] as const)(
-    `shows a %s task's final status by its icon, in words only to screen readers, and no result text (${ISSUE_749})`,
+    `shows a %s task's final status by its icon, in words only to screen readers, and no result text`,
     (status, label) => {
       render(
         <TaskCard
@@ -33,7 +31,7 @@ describe("TaskCard", () => {
     }
   );
 
-  it(`opens the task's view when clicked, whether running or finished (${ISSUE_749})`, () => {
+  it(`opens the task's view when clicked, whether running or finished`, () => {
     const onOpen = jest.fn();
     render(<TaskCard task={makeTask({ status: "completed" })} onOpen={onOpen} />);
 

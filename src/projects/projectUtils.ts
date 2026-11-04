@@ -1,14 +1,14 @@
 import { ProjectConfig } from "@/aiParams";
 import {
-  COPILOT_PROJECT_CREATED,
-  COPILOT_PROJECT_DESCRIPTION,
-  COPILOT_PROJECT_EXCLUSIONS,
-  COPILOT_PROJECT_ID,
-  COPILOT_PROJECT_INCLUSIONS,
-  COPILOT_PROJECT_LAST_USED,
-  COPILOT_PROJECT_NAME,
-  COPILOT_PROJECT_WEB_URLS,
-  COPILOT_PROJECT_YOUTUBE_URLS,
+  SCRIBE_PROJECT_CREATED,
+  SCRIBE_PROJECT_DESCRIPTION,
+  SCRIBE_PROJECT_EXCLUSIONS,
+  SCRIBE_PROJECT_ID,
+  SCRIBE_PROJECT_INCLUSIONS,
+  SCRIBE_PROJECT_LAST_USED,
+  SCRIBE_PROJECT_NAME,
+  SCRIBE_PROJECT_WEB_URLS,
+  SCRIBE_PROJECT_YOUTUBE_URLS,
   EMPTY_PROJECT_CONFIG,
   PROJECT_CONFIG_FILE_NAME,
   PROJECTS_UNSUPPORTED_FOLDER_NAME,
@@ -51,15 +51,15 @@ export async function writeProjectFrontmatter(
   const youtubeUrls = splitUrlsStringToArray(project.contextSource?.youtubeUrls || "");
 
   await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-    frontmatter[COPILOT_PROJECT_ID] = project.id.trim();
-    frontmatter[COPILOT_PROJECT_NAME] = (project.name || folderName).trim();
-    frontmatter[COPILOT_PROJECT_DESCRIPTION] = (project.description || "").trim();
-    frontmatter[COPILOT_PROJECT_INCLUSIONS] = project.contextSource?.inclusions || "";
-    frontmatter[COPILOT_PROJECT_EXCLUSIONS] = project.contextSource?.exclusions || "";
-    frontmatter[COPILOT_PROJECT_WEB_URLS] = webUrls;
-    frontmatter[COPILOT_PROJECT_YOUTUBE_URLS] = youtubeUrls;
-    frontmatter[COPILOT_PROJECT_CREATED] = timestamps.createdMs;
-    frontmatter[COPILOT_PROJECT_LAST_USED] = timestamps.lastUsedMs;
+    frontmatter[SCRIBE_PROJECT_ID] = project.id.trim();
+    frontmatter[SCRIBE_PROJECT_NAME] = (project.name || folderName).trim();
+    frontmatter[SCRIBE_PROJECT_DESCRIPTION] = (project.description || "").trim();
+    frontmatter[SCRIBE_PROJECT_INCLUSIONS] = project.contextSource?.inclusions || "";
+    frontmatter[SCRIBE_PROJECT_EXCLUSIONS] = project.contextSource?.exclusions || "";
+    frontmatter[SCRIBE_PROJECT_WEB_URLS] = webUrls;
+    frontmatter[SCRIBE_PROJECT_YOUTUBE_URLS] = youtubeUrls;
+    frontmatter[SCRIBE_PROJECT_CREATED] = timestamps.createdMs;
+    frontmatter[SCRIBE_PROJECT_LAST_USED] = timestamps.lastUsedMs;
   });
 }
 
@@ -133,37 +133,35 @@ export async function parseProjectConfigFile(
     return null;
   }
 
-  const rawId = frontmatter?.[COPILOT_PROJECT_ID];
+  const rawId = frontmatter?.[SCRIBE_PROJECT_ID];
   const idFromFrontmatter =
     typeof rawId === "number" && Number.isFinite(rawId)
       ? String(rawId)
       : coerceFrontmatterString(rawId);
   if (!idFromFrontmatter.trim()) {
-    logWarn(`[Projects] Missing ${COPILOT_PROJECT_ID} in frontmatter, skipping file: ${file.path}`);
+    logWarn(`[Projects] Missing ${SCRIBE_PROJECT_ID} in frontmatter, skipping file: ${file.path}`);
     return null;
   }
   const projectId = idFromFrontmatter.trim();
 
-  const nameFromFrontmatter = coerceFrontmatterString(frontmatter?.[COPILOT_PROJECT_NAME]).trim();
+  const nameFromFrontmatter = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_NAME]).trim();
   const projectName = nameFromFrontmatter || folderName;
 
-  const description = coerceFrontmatterString(frontmatter?.[COPILOT_PROJECT_DESCRIPTION]).trim();
+  const description = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_DESCRIPTION]).trim();
 
-  const rawInclusions = coerceFrontmatterString(frontmatter?.[COPILOT_PROJECT_INCLUSIONS]);
-  const rawExclusions = coerceFrontmatterString(frontmatter?.[COPILOT_PROJECT_EXCLUSIONS]);
+  const rawInclusions = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_INCLUSIONS]);
+  const rawExclusions = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_EXCLUSIONS]);
   const inclusions = stripYamlFoldingArtifacts(rawInclusions);
   const exclusions = stripYamlFoldingArtifacts(rawExclusions);
 
-  const webUrlsArray = coerceFrontmatterStringArray(frontmatter?.[COPILOT_PROJECT_WEB_URLS]);
-  const youtubeUrlsArray = coerceFrontmatterStringArray(
-    frontmatter?.[COPILOT_PROJECT_YOUTUBE_URLS]
-  );
+  const webUrlsArray = coerceFrontmatterStringArray(frontmatter?.[SCRIBE_PROJECT_WEB_URLS]);
+  const youtubeUrlsArray = coerceFrontmatterStringArray(frontmatter?.[SCRIBE_PROJECT_YOUTUBE_URLS]);
 
   const createdMs = coerceFrontmatterNumber(
-    frontmatter?.[COPILOT_PROJECT_CREATED],
+    frontmatter?.[SCRIBE_PROJECT_CREATED],
     file.stat?.ctime ?? 0
   );
-  const lastUsedMs = coerceFrontmatterNumber(frontmatter?.[COPILOT_PROJECT_LAST_USED], 0);
+  const lastUsedMs = coerceFrontmatterNumber(frontmatter?.[SCRIBE_PROJECT_LAST_USED], 0);
 
   return {
     project: {
@@ -262,38 +260,38 @@ export async function ensureProjectFrontmatter(
     if (!alreadyPending) addPendingFileWrite(file.path);
 
     await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-      if (frontmatter[COPILOT_PROJECT_ID] == null && record.project.id) {
-        frontmatter[COPILOT_PROJECT_ID] = record.project.id;
+      if (frontmatter[SCRIBE_PROJECT_ID] == null && record.project.id) {
+        frontmatter[SCRIBE_PROJECT_ID] = record.project.id;
       }
-      if (frontmatter[COPILOT_PROJECT_NAME] == null) {
-        frontmatter[COPILOT_PROJECT_NAME] = record.project.name || record.folderName;
+      if (frontmatter[SCRIBE_PROJECT_NAME] == null) {
+        frontmatter[SCRIBE_PROJECT_NAME] = record.project.name || record.folderName;
       }
-      if (frontmatter[COPILOT_PROJECT_DESCRIPTION] == null && record.project.description) {
-        frontmatter[COPILOT_PROJECT_DESCRIPTION] = record.project.description;
+      if (frontmatter[SCRIBE_PROJECT_DESCRIPTION] == null && record.project.description) {
+        frontmatter[SCRIBE_PROJECT_DESCRIPTION] = record.project.description;
       }
       if (
-        frontmatter[COPILOT_PROJECT_INCLUSIONS] == null &&
+        frontmatter[SCRIBE_PROJECT_INCLUSIONS] == null &&
         record.project.contextSource?.inclusions
       ) {
-        frontmatter[COPILOT_PROJECT_INCLUSIONS] = record.project.contextSource.inclusions;
+        frontmatter[SCRIBE_PROJECT_INCLUSIONS] = record.project.contextSource.inclusions;
       }
       if (
-        frontmatter[COPILOT_PROJECT_EXCLUSIONS] == null &&
+        frontmatter[SCRIBE_PROJECT_EXCLUSIONS] == null &&
         record.project.contextSource?.exclusions
       ) {
-        frontmatter[COPILOT_PROJECT_EXCLUSIONS] = record.project.contextSource.exclusions;
+        frontmatter[SCRIBE_PROJECT_EXCLUSIONS] = record.project.contextSource.exclusions;
       }
-      if (frontmatter[COPILOT_PROJECT_WEB_URLS] == null && webUrls.length > 0) {
-        frontmatter[COPILOT_PROJECT_WEB_URLS] = webUrls;
+      if (frontmatter[SCRIBE_PROJECT_WEB_URLS] == null && webUrls.length > 0) {
+        frontmatter[SCRIBE_PROJECT_WEB_URLS] = webUrls;
       }
-      if (frontmatter[COPILOT_PROJECT_YOUTUBE_URLS] == null && youtubeUrls.length > 0) {
-        frontmatter[COPILOT_PROJECT_YOUTUBE_URLS] = youtubeUrls;
+      if (frontmatter[SCRIBE_PROJECT_YOUTUBE_URLS] == null && youtubeUrls.length > 0) {
+        frontmatter[SCRIBE_PROJECT_YOUTUBE_URLS] = youtubeUrls;
       }
-      if (frontmatter[COPILOT_PROJECT_CREATED] == null) {
-        frontmatter[COPILOT_PROJECT_CREATED] = createdMs;
+      if (frontmatter[SCRIBE_PROJECT_CREATED] == null) {
+        frontmatter[SCRIBE_PROJECT_CREATED] = createdMs;
       }
-      if (frontmatter[COPILOT_PROJECT_LAST_USED] == null) {
-        frontmatter[COPILOT_PROJECT_LAST_USED] = lastUsedMs;
+      if (frontmatter[SCRIBE_PROJECT_LAST_USED] == null) {
+        frontmatter[SCRIBE_PROJECT_LAST_USED] = lastUsedMs;
       }
     });
   } finally {

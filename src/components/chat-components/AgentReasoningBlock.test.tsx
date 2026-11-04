@@ -14,10 +14,10 @@ describe("AgentReasoningBlock", () => {
       );
 
       expect(container.querySelector(".lucide-brain")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeNull();
       expect(container.textContent).toContain("Reasoning...");
       expect(screen.queryByText("3s")).toBeNull();
-      expect(container.querySelector(".copilot-shimmer-text")?.textContent).toBe("...");
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe("...");
 
       rerender(
         <AgentReasoningBlock
@@ -28,10 +28,10 @@ describe("AgentReasoningBlock", () => {
       );
 
       expect(container.querySelector(".lucide-brain")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeNull();
       expect(screen.getByText("Thought for")).toBeTruthy();
       expect(screen.getByText("4s")).toBeTruthy();
-      expect(container.querySelector(".copilot-shimmer-text")).toBeNull();
+      expect(container.querySelector(".scribe-shimmer-text")).toBeNull();
     });
   });
 });

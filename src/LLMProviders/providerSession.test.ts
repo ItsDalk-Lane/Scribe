@@ -8,7 +8,7 @@ const GO_MODEL = {
 const issue = "https://github.com/anomalyco/opencode/issues/47756";
 
 describe("providerSession", () => {
-  describe("getProviderSessionOptions()", () => {
+  describe("getProviderSessionOptions", () => {
     it.each([
       [ChatModelProviders.ANTHROPIC, "https://opencode.ai/inference/go/anthropic/v1"],
       [ChatModelProviders.GOOGLE, "https://opencode.ai/inference/go/google/v1beta"],
@@ -74,7 +74,7 @@ describe("providerSession", () => {
     });
   });
 
-  describe("resetProviderSession()", () => {
+  describe("resetProviderSession", () => {
     it(`starts a different session when a memory owner is reused for a new conversation (${issue})`, () => {
       const owner = {};
       const first = getProviderSessionOptions(GO_MODEL, owner);

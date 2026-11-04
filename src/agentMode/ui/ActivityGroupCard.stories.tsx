@@ -42,11 +42,11 @@ function renderMember(member: ActivityMember, key: string | number): React.React
 }
 
 const MIXED = group([
-  action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+  action("Read Projects/Scribe/Roadmap.md", { vendorToolName: "Read" }),
   THINKING,
   action("npm run lint", { vendorToolName: "Bash" }),
   action("npm run test -- activityGroups", { vendorToolName: "Bash" }),
-  action("Edit Projects/Copilot/Roadmap.md", { vendorToolName: "Edit" }),
+  action("Edit Projects/Scribe/Roadmap.md", { vendorToolName: "Edit" }),
 ]);
 
 const meta = {
@@ -164,9 +164,9 @@ const ExpandedDemo: React.FC = () => {
 export const Expanded: StoryObj<ActivityGroupCardProps> = { render: ExpandedDemo };
 
 const LIVE_FRAMES: ActivityMember[][] = [
-  [action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }), LIVE_THINKING],
+  [action("Read Projects/Scribe/Roadmap.md", { vendorToolName: "Read" }), LIVE_THINKING],
   [
-    action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+    action("Read Projects/Scribe/Roadmap.md", { vendorToolName: "Read" }),
     LIVE_THINKING,
     action("lint", {
       vendorToolName: "Bash",
@@ -175,7 +175,7 @@ const LIVE_FRAMES: ActivityMember[][] = [
     }),
   ],
   [
-    action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+    action("Read Projects/Scribe/Roadmap.md", { vendorToolName: "Read" }),
     LIVE_THINKING,
     action("lint", { vendorToolName: "Bash", input: { command: "npm run lint" } }),
     action("test", {
@@ -185,7 +185,7 @@ const LIVE_FRAMES: ActivityMember[][] = [
     }),
   ],
   [
-    action("Read Projects/Copilot/Roadmap.md", { vendorToolName: "Read" }),
+    action("Read Projects/Scribe/Roadmap.md", { vendorToolName: "Read" }),
     LIVE_THINKING,
     action("lint", { vendorToolName: "Bash", input: { command: "npm run lint" } }),
     action("test", {

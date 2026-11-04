@@ -6,7 +6,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { App } from "obsidian";
 import { TFile } from "obsidian";
 import { getSettings } from "@/settings/model";
-import { getEffectiveConversationsFolder } from "@/settings/copilotFolder";
+import { getEffectiveConversationsFolder } from "@/settings/scribeFolder";
 
 /* eslint-disable obsidianmd/no-tfile-tfolder-cast -- test fixtures; not real TFiles */
 
@@ -19,11 +19,11 @@ jest.mock("@/logger");
 jest.mock("@/settings/model", () => ({
   getSettings: jest.fn().mockReturnValue({
     defaultSaveFolder: "test-folder",
-    defaultConversationTag: "copilot-conversation",
+    defaultConversationTag: "scribe-conversation",
     defaultConversationNoteName: "{$date}_{$time}__{$topic}",
   }),
 }));
-jest.mock("@/settings/copilotFolder", () => ({
+jest.mock("@/settings/scribeFolder", () => ({
   getEffectiveConversationsFolder: jest.fn(() => "test-folder"),
   deriveConversationAttachmentsFolder: jest.fn((folder: string) => `${folder}/attachments`),
 }));
@@ -145,7 +145,7 @@ describe("AgentChatPersistenceManager", () => {
     manager = new AgentChatPersistenceManager(app as unknown as App);
   });
 
-  describe("saveSession()", () => {
+  describe("saveSession", () => {
     it("keeps the transcript baseline cache bounded across many chats", async () => {
       for (let i = 0; i < 55; i++) {
         const messages = [makeMessage(USER_SENDER, `hello ${i}`, 1735732800000 + i)];
@@ -178,7 +178,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(messages[0].timestamp!.epoch).toBe(1000);
     });
 
-    it("preserves organizer links after native rehydration, reopening and later deletion (https://github.com/Brevilabs/obsidian-copilot-private/issues/533)", async () => {
+    it("preserves organizer links after native rehydration, reopening and later deletion", async () => {
       const message = {
         ...makeMessage(USER_SENDER, "image"),
         content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AQID" } }],
@@ -205,7 +205,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(app.vault.createBinary).toHaveBeenCalledTimes(1);
     });
 
-    it("preserves host moves of reopened legacy links while accepting intentional embed edits (https://github.com/Brevilabs/obsidian-copilot-private/issues/533)", async () => {
+    it("preserves host moves of reopened legacy links while accepting intentional embed edits", async () => {
       const saved = await manager.saveSession(
         [makeMessage(USER_SENDER, "image\n\n![[old.png]]")],
         "claude"
@@ -230,7 +230,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(app.vault.createBinary).not.toHaveBeenCalled();
     });
 
-    it("saves uploaded image embeds beside the user message and preserves them on reload (https://github.com/logancyang/obsidian-copilot/issues/2900)", async () => {
+    it("saves uploaded image embeds beside the user message and preserves them on reload", async () => {
       const message = {
         ...makeMessage(USER_SENDER, "Look at this"),
         content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AQID" } }],
@@ -253,7 +253,7 @@ describe("AgentChatPersistenceManager", () => {
     });
 
     it.each([false, true])(
-      "saves a fresh image for a different chat with the same filename, including a failed upload retry=%s (https://github.com/Brevilabs/obsidian-copilot-private/issues/533)",
+      "saves a fresh image for a different chat with the same filename, including a failed upload retry=%s",
       async (failUpload) => {
         const message = {
           ...makeMessage(USER_SENDER, "Same opening"),
@@ -292,7 +292,7 @@ describe("AgentChatPersistenceManager", () => {
       }
     );
 
-    it("preserves the existing transcript and reports failure when an image write fails (https://github.com/logancyang/obsidian-copilot/issues/2900)", async () => {
+    it("preserves the existing transcript and reports failure when an image write fails", async () => {
       const messages = [makeMessage(USER_SENDER, "Original")];
       const original = await manager.saveSession(messages, "claude");
       const content = app.files.get(original!.path)!.contents;
@@ -460,7 +460,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(loaded.usage).toBeUndefined();
     });
 
-    it("keeps an existing note's epoch when a later save's first message carries a different time, so chat links keep working (https://github.com/Brevilabs/obsidian-copilot-private/issues/744)", async () => {
+    it("keeps an existing note's epoch when a later save's first message carries a different time, so chat links keep working", async () => {
       const first = await manager.saveSession(
         [makeMessage(USER_SENDER, "hi", 1792522547700)],
         "claude"
@@ -478,7 +478,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(note.contents).not.toContain("1792522549569");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/698 keeps frontmatter properties it does not manage when it saves an existing chat again", async () => {
+    it("keeps frontmatter properties it does not manage when it saves an existing chat again", async () => {
       const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
         sessionId: "s1",
       });
@@ -502,7 +502,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(note.contents).toContain("**ai**: hello");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/698 keeps a property written to the note even when the metadata cache still holds its older value", async () => {
+    it("keeps a property written to the note even when the metadata cache still holds its older value", async () => {
       const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
       const note = app.files.get(first!.path)!;
       Object.setPrototypeOf(note, TFile.prototype);
@@ -519,7 +519,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(note.contents).not.toContain("Old");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/698 drops the projectId of a project chat that is saved again as a global chat", async () => {
+    it("drops the projectId of a project chat that is saved again as a global chat", async () => {
       const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
         projectId: "proj-123",
       });
@@ -531,7 +531,7 @@ describe("AgentChatPersistenceManager", () => {
 
       expect(app.files.get(first!.path)!.contents).not.toContain("projectId:");
     });
-    it("preserves separate chats when their filenames collide (https://github.com/Brevilabs/obsidian-copilot-private/issues/698)", async () => {
+    it("preserves separate chats when their filenames collide", async () => {
       const first = await manager.saveSession(
         [makeMessage(USER_SENDER, "hi"), makeMessage(AI_SENDER, "First answer")],
         "claude",
@@ -563,7 +563,7 @@ describe("AgentChatPersistenceManager", () => {
     });
   });
 
-  describe("setPinnedAt()", () => {
+  describe("setPinnedAt", () => {
     it("pins a chat by writing the pin time to its note's frontmatter", async () => {
       const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
 
@@ -581,7 +581,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(app.files.get(saved!.path)!.contents).not.toContain("pinnedAt");
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 rejects pinning a note that was moved or deleted so the row is not shown pinned", async () => {
+    it("rejects pinning a note that was moved or deleted so the row is not shown pinned", async () => {
       await expect(
         manager.setPinnedAt("test-folder/agent__gone.md", 1_760_000_000_000)
       ).rejects.toThrow("test-folder/agent__gone.md");
@@ -602,7 +602,7 @@ describe("AgentChatPersistenceManager", () => {
     });
   });
 
-  describe("loadFile()", () => {
+  describe("loadFile", () => {
     it("throws on missing backendId instead of silently defaulting", async () => {
       const path = "test-folder/agent__broken.md";
       await app.vault.adapter.write(
@@ -661,7 +661,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(loaded.projectId).toBe(GLOBAL_SCOPE);
     });
 
-    it("keeps the frontmatter epoch's milliseconds when a loaded chat is saved again (https://github.com/Brevilabs/obsidian-copilot-private/issues/661)", async () => {
+    it("keeps the frontmatter epoch's milliseconds when a loaded chat is saved again", async () => {
       const path = "test-folder/agent__with-ms.md";
       await app.vault.adapter.write(
         path,
@@ -696,32 +696,29 @@ describe("AgentChatPersistenceManager", () => {
       ["has a non-numeric epoch", ["epoch: soon"]],
       ["has a zero epoch", ["epoch: 0"]],
       ["has a fractional epoch that chat links cannot carry", ["epoch: 1789109351267.5"]],
-    ])(
-      "falls back to the visible timestamp when the note %s (https://github.com/Brevilabs/obsidian-copilot-private/issues/661)",
-      async (_label, epochLines) => {
-        const path = "test-folder/agent__no-epoch.md";
-        await app.vault.adapter.write(
-          path,
-          [
-            "---",
-            ...epochLines,
-            "mode: agent",
-            "backendId: claude",
-            "---",
-            "",
-            "**user**: hi",
-            "[Timestamp: 2026/09/10 23:49:11]",
-          ].join("\n")
-        );
-        const visibleEpoch = new Date("2026/09/10 23:49:11").getTime();
+    ])("falls back to the visible timestamp when the note %s", async (_label, epochLines) => {
+      const path = "test-folder/agent__no-epoch.md";
+      await app.vault.adapter.write(
+        path,
+        [
+          "---",
+          ...epochLines,
+          "mode: agent",
+          "backendId: claude",
+          "---",
+          "",
+          "**user**: hi",
+          "[Timestamp: 2026/09/10 23:49:11]",
+        ].join("\n")
+      );
+      const visibleEpoch = new Date("2026/09/10 23:49:11").getTime();
 
-        const loaded = await manager.loadFile(app.files.get(path) as unknown as TFile);
-        expect(loaded.messages[0].timestamp?.epoch).toBe(visibleEpoch);
+      const loaded = await manager.loadFile(app.files.get(path) as unknown as TFile);
+      expect(loaded.messages[0].timestamp?.epoch).toBe(visibleEpoch);
 
-        const saved = await manager.saveSession(loaded.messages, "claude");
-        expect(app.files.get(saved!.path)!.contents).toContain(`epoch: ${visibleEpoch}\n`);
-      }
-    );
+      const saved = await manager.saveSession(loaded.messages, "claude");
+      expect(app.files.get(saved!.path)!.contents).toContain(`epoch: ${visibleEpoch}\n`);
+    });
 
     it("ignores malformed usage JSON instead of failing the load", async () => {
       const path = "test-folder/agent__badusage.md";

@@ -2,19 +2,19 @@ import type { App } from "obsidian";
 import { FileSystemAdapter, Platform } from "obsidian";
 import * as path from "node:path";
 import { md5 } from "@/utils/hash";
-import { copilotAppDataDir, getVaultId } from "./appPaths";
+import { scribeAppDataDir, getVaultId } from "./appPaths";
 
 describe("appPaths", () => {
-  describe("copilotAppDataDir()", () => {
+  describe("scribeAppDataDir()", () => {
     it("is ~/.obsidian-scribe under the given home dir", () => {
-      expect(copilotAppDataDir("/Users/me")).toBe(path.join("/Users/me", ".obsidian-scribe"));
+      expect(scribeAppDataDir("/Users/me")).toBe(path.join("/Users/me", ".obsidian-scribe"));
     });
 
     it("throws the desktop-only error on non-desktop runtimes instead of a TypeError", () => {
       const platform = Platform as { isMobile: boolean };
       platform.isMobile = true;
       try {
-        expect(() => copilotAppDataDir("/Users/me")).toThrow(/unavailable outside the desktop/);
+        expect(() => scribeAppDataDir("/Users/me")).toThrow(/unavailable outside the desktop/);
       } finally {
         platform.isMobile = false;
       }

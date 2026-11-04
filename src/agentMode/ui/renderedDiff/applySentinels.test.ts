@@ -24,7 +24,7 @@ const marked = (root: HTMLElement, selector: string): string[] =>
   Array.from(root.querySelectorAll(selector)).map((element) => element.textContent ?? "");
 
 describe("applySentinels", () => {
-  describe("applySentinels()", () => {
+  describe("applySentinels", () => {
     it("wraps text between an opening and a closing sentinel and removes the sentinels", () => {
       const root = el(
         "div",
@@ -132,7 +132,7 @@ describe("applySentinels", () => {
       expect(marked(root, "ins[data-change=inserted]")).toEqual(["3"]);
     });
 
-    it("leaves a row whose cells hold the note's own ins elements untagged so authored markup never reads as a change (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("leaves a row whose cells hold the note's own ins elements untagged so authored markup never reads as a change", () => {
       const root = el(
         "div",
         el("table", el("tbody", el("tr", el("td", el("ins", "AMER")), el("td", el("ins", "4")))))
@@ -208,7 +208,7 @@ describe("applySentinels", () => {
       expect(root.querySelector("del.tw-me-1")).toBeNull();
     });
 
-    it("ends a mark whose closing sentinel the renderer swallowed at the end of its block so the next block stays unmarked (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("ends a mark whose closing sentinel the renderer swallowed at the end of its block so the next block stays unmarked", () => {
       const root = el("div", el("p", `Kept ${INS_OPEN}added`), el("p", "Next paragraph."));
 
       applySentinels(root);
@@ -217,7 +217,7 @@ describe("applySentinels", () => {
       expect(root.textContent).toBe("Kept addedNext paragraph.");
     });
 
-    it("frames a replaced image as removed and its replacement as added, leaving unchanged images alone (https://github.com/Brevilabs/obsidian-copilot-private/issues/727)", () => {
+    it("frames a replaced image as removed and its replacement as added, leaving unchanged images alone", () => {
       const image = (src: string): HTMLElement => {
         const element = el("img");
         element.setAttribute("src", src);
@@ -246,7 +246,7 @@ describe("applySentinels", () => {
       expect(root.textContent).toBe("");
     });
 
-    it("frames an inserted embed around its container so content the embed loads later stays inside the frame (https://github.com/Brevilabs/obsidian-copilot-private/issues/727)", () => {
+    it("frames an inserted embed around its container so content the embed loads later stays inside the frame", () => {
       const embed = el("span", el("img"), "caption");
       embed.className = "internal-embed";
       const root = el("div", el("p", INS_OPEN, embed, INS_CLOSE));
@@ -267,8 +267,8 @@ describe("applySentinels", () => {
     });
   });
 
-  describe("frameMedia()", () => {
-    it("frames every image and embed in a wholly added block as added (https://github.com/Brevilabs/obsidian-copilot-private/issues/727)", () => {
+  describe("frameMedia", () => {
+    it("frames every image and embed in a wholly added block as added", () => {
       const image = el("img");
       image.setAttribute("src", "slides.png");
       const embed = el("span", el("img"));

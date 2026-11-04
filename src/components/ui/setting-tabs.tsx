@@ -66,7 +66,7 @@ export const TabItem: React.FC<TabItemProps> = ({ tab, isSelected, onClick }) =>
       >
         {tab.label}
       </span>
-      {/* https://github.com/Brevilabs/obsidian-copilot-private/issues/166 The Skills panel is unmounted while inactive, so the tab carries the marker. */}
+
       {tab.warningLabel && (
         <span
           aria-hidden="true"

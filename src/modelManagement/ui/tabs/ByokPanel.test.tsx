@@ -103,7 +103,7 @@ describe("ByokPanel", () => {
     mockVerify.mockReset().mockResolvedValue({ ok: true, checkedAt: 0 });
     mockEnsureLoaded.mockResolvedValue(undefined);
   });
-  describe("ByokPanel()", () => {
+  describe("ByokPanel", () => {
     it("renders configured providers and their models after the catalog loads", async () => {
       render(<ByokPanel />);
       const providerCard = await screen.findByText("Anthropic");
@@ -119,7 +119,7 @@ describe("ByokPanel", () => {
       fireEvent.click(screen.getByRole("button", { name: /Add a provider/i }));
       expect(mockAddProviderOpen).toHaveBeenCalled();
     });
-    it("checks each provider independently and clears progress only after every result (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("checks each provider independently and clears progress only after every result", async () => {
       let resolveFirst!: (result: { ok: boolean; checkedAt: number }) => void;
       let resolveSecond!: (result: { ok: boolean; code: string; checkedAt: number }) => void;
       mockVerify.mockImplementation((id: string) =>
@@ -150,7 +150,7 @@ describe("ByokPanel", () => {
       expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("rechecks rotated keys and ignores previous requests after a completed save (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("rechecks rotated keys and ignores previous requests after a completed save", async () => {
       const oldResolvers: Array<(result: { ok: boolean; checkedAt: number }) => void> = [];
       mockVerify.mockImplementation(
         () =>
@@ -173,7 +173,7 @@ describe("ByokPanel", () => {
       expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("clears an earlier success while checking edited providers and shows rejected checks (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("clears an earlier success while checking edited providers and shows rejected checks", async () => {
       render(<ByokPanel />);
       await screen.findAllByText("Endpoint accessible");
       let rejectCheck!: (error: Error) => void;
@@ -195,7 +195,7 @@ describe("ByokPanel", () => {
       expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("runs fresh checks when the tab remounts (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("runs fresh checks when the tab remounts", async () => {
       const first = render(<ByokPanel />);
       await screen.findAllByText("Endpoint accessible");
       first.unmount();
@@ -206,7 +206,7 @@ describe("ByokPanel", () => {
       expect(mockVerify).toHaveBeenCalledTimes(4);
     });
 
-    it("does not probe intermediate registry mutations before a save completes (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("does not probe intermediate registry mutations before a save completes", async () => {
       render(<ByokPanel />);
       await screen.findAllByText("Endpoint accessible");
       act(() => {
@@ -219,21 +219,21 @@ describe("ByokPanel", () => {
       expect(mockVerify).toHaveBeenCalledTimes(4);
     });
 
-    it("finishes without a progress banner when there are no providers (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("finishes without a progress banner when there are no providers", async () => {
       mockListByOrigin.mockReturnValue([]);
       render(<ByokPanel />);
       await waitFor(() => expect(mockEnsureLoaded).toHaveBeenCalled());
       expect(mockVerify).not.toHaveBeenCalled();
       expect(screen.queryByRole("status")).toBeNull();
     });
-    it("shows current provider health while the catalog is still loading (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("shows current provider health while the catalog is still loading", async () => {
       mockEnsureLoaded.mockReturnValue(new Promise(() => {}));
       render(<ByokPanel />);
       expect(screen.getByText("Anthropic")).toBeTruthy();
       await screen.findAllByText("Endpoint accessible");
     });
 
-    it("discards in-flight results after leaving and reopening the tab (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("discards in-flight results after leaving and reopening the tab", async () => {
       const oldResolvers: Array<(result: { ok: boolean; checkedAt: number }) => void> = [];
       mockVerify.mockImplementation(
         () =>

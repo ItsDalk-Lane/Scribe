@@ -1,7 +1,7 @@
 import {
   STARTUP_LOADING_TEXT,
   StartupLoadingView,
-  type CopilotStartup,
+  type ScribeStartup,
 } from "@/components/StartupLoadingView";
 import { logError } from "@/logger";
 import type { View, WorkspaceLeaf } from "obsidian";
@@ -33,7 +33,7 @@ function createStartedView() {
   return { view, stateApplied: stateApplied.promise };
 }
 
-function openLoadingView(createView: CopilotStartup["createStartedView"]) {
+function openLoadingView(createView: ScribeStartup["createStartedView"]) {
   const started = deferred();
   const leaf: FakeLeaf = {
     view: null,
@@ -42,13 +42,13 @@ function openLoadingView(createView: CopilotStartup["createStartedView"]) {
       return view;
     }),
   };
-  const startup: CopilotStartup = {
+  const startup: ScribeStartup = {
     whenStarted: () => started.promise,
     createStartedView: jest.fn(createView),
   };
   const view = new StartupLoadingView(
     leaf as unknown as WorkspaceLeaf,
-    "copilot-agent-chat-view",
+    "scribe-agent-chat-view",
     startup
   );
   leaf.view = view;
@@ -57,15 +57,15 @@ function openLoadingView(createView: CopilotStartup["createStartedView"]) {
 
 describe("StartupLoadingView", () => {
   describe("StartupLoadingView", () => {
-    describe("getViewType()", () => {
+    describe("getViewType", () => {
       it("reports the type of the Scribe tab it stands in for, so Obsidian saves the layout unchanged", () => {
         const { view } = openLoadingView(() => undefined);
 
-        expect(view.getViewType()).toBe("copilot-agent-chat-view");
+        expect(view.getViewType()).toBe("scribe-agent-chat-view");
       });
     });
 
-    describe("setState()", () => {
+    describe("setState", () => {
       it("keeps the tab state Obsidian restored, so a layout save during startup does not drop it", async () => {
         const { view } = openLoadingView(() => undefined);
 
@@ -75,7 +75,7 @@ describe("StartupLoadingView", () => {
       });
     });
 
-    describe("onOpen()", () => {
+    describe("onOpen", () => {
       it("shows that Scribe is starting while startup runs", async () => {
         const { view } = openLoadingView(() => undefined);
 
@@ -84,7 +84,7 @@ describe("StartupLoadingView", () => {
         expect(view.contentEl.textContent).toBe(STARTUP_LOADING_TEXT);
       });
 
-      it("swaps itself for the started view and hands over the restored state once Copilot starts https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("swaps itself for the started view and hands over the restored state once Scribe starts", async () => {
         const started = createStartedView();
         const { view, leaf, started: startup } = openLoadingView(() => started.view);
         await view.setState({ chatId: "chat-1" });
@@ -97,19 +97,19 @@ describe("StartupLoadingView", () => {
         expect(leaf.view).toBe(started.view);
       });
 
-      it("stays in place when startup ends without a view because Copilot unloaded https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("stays in place when startup ends without a view because Scribe unloaded", async () => {
         const { view, leaf, startup, started } = openLoadingView(() => undefined);
 
         await view.onOpen();
         started.resolve();
         await started.promise;
 
-        expect(startup.createStartedView).toHaveBeenCalledWith("copilot-agent-chat-view", leaf);
+        expect(startup.createStartedView).toHaveBeenCalledWith("scribe-agent-chat-view", leaf);
         expect(leaf.open).not.toHaveBeenCalled();
         expect(leaf.view).toBe(view);
       });
 
-      it("leaves a tab closed or reused before Copilot started untouched https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("leaves a tab closed or reused before Scribe started untouched", async () => {
         const { view, leaf, startup, started } = openLoadingView(() => createStartedView().view);
 
         await view.onOpen();

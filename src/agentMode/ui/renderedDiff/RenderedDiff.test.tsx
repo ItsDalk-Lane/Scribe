@@ -56,7 +56,7 @@ describe("RenderedDiff", () => {
     jest.restoreAllMocks();
   });
 
-  describe("RenderedDiff()", () => {
+  describe("RenderedDiff", () => {
     it("marks the replaced and replacing words inside a changed Markdown block", async () => {
       const { container } = render(diffElement(WORDING_CHANGE));
 
@@ -82,7 +82,7 @@ describe("RenderedDiff", () => {
       expect(inserted.classList).toContain("tw-bg-success");
     });
 
-    it("frames the image in a wholly removed block as removed and the one in a wholly added block as added (https://github.com/Brevilabs/obsidian-copilot-private/issues/727)", async () => {
+    it("frames the image in a wholly removed block as removed and the one in a wholly added block as added", async () => {
       jest.mocked(renderMarkdown).mockImplementation(async (_app, markdown, target) => {
         const image = /!\[([^\]]*)\]\([^)]*\)/.exec(markdown);
         if (image === null) target.textContent = markdown;
@@ -98,7 +98,7 @@ describe("RenderedDiff", () => {
       expect(framedAlt("inserted")).toEqual(["Q3 chart"]);
     });
 
-    it("renders every segment under one Obsidian Markdown root so block margins collapse between segments as they do in the note (https://github.com/Brevilabs/obsidian-copilot-private/issues/751)", async () => {
+    it("renders every segment under one Obsidian Markdown root so block margins collapse between segments as they do in the note", async () => {
       const { container } = render(diffElement(BLOCK_MOVED));
 
       await waitFor(() => expect(container.querySelector("[data-change=inserted]")).not.toBeNull());
@@ -107,7 +107,7 @@ describe("RenderedDiff", () => {
       expect(roots[0]).toBe(container.firstElementChild);
     });
 
-    it("drops the list margins between segments that split one list so a removed middle item sits as close as its siblings (https://github.com/Brevilabs/obsidian-copilot-private/issues/751)", async () => {
+    it("drops the list margins between segments that split one list so a removed middle item sits as close as its siblings", async () => {
       const { container } = render(diffElement(REMOVED_LIST_ITEM));
 
       await waitFor(() => expect(container.querySelector("[data-change=deleted]")).not.toBeNull());
@@ -121,7 +121,7 @@ describe("RenderedDiff", () => {
       ]);
     });
 
-    it("moves a lone table's margins onto the container Obsidian scrolls it in, so they fall outside the highlight instead of padding it (https://github.com/Brevilabs/obsidian-copilot-private/issues/751)", async () => {
+    it("moves a lone table's margins onto the container Obsidian scrolls it in, so they fall outside the highlight instead of padding it", async () => {
       const { container } = render(diffElement(TABLE_COLUMN_ADDED));
 
       await waitFor(() => expect(container.querySelector("[data-change=inserted]")).not.toBeNull());
@@ -158,7 +158,7 @@ describe("RenderedDiff", () => {
       ["a changed task list", TASK_CHECKBOX_TOGGLED],
       ["an inserted task block", TASK_BLOCK_INSERTED],
     ])(
-      "disables the task checkboxes in %s so a click cannot rewrite the note https://github.com/Brevilabs/obsidian-copilot-private/issues/348",
+      "disables the task checkboxes in %s so a click cannot rewrite the note",
       async (_name, fixture) => {
         jest.mocked(renderMarkdown).mockImplementation(async (_app, markdown, target) => {
           const box = target.ownerDocument.createElement("input");
@@ -219,7 +219,7 @@ describe("RenderedDiff", () => {
       ]);
     });
 
-    it("hides the previous file's diff while the next file is still parsing (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("hides the previous file's diff while the next file is still parsing", async () => {
       const { app, release } = appHoldingParse(BLOCK_MOVED.before!);
       const { container, rerender } = render(diffElement(WORDING_CHANGE, app));
       await waitFor(() => expect(textOf(container, "del")).toEqual(["six", "two"]));

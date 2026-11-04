@@ -26,8 +26,6 @@ export async function patchFrontmatter(
   if (!(file instanceof TFile)) return;
   await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
     for (const [key, value] of Object.entries(updates)) {
-      // A null update removes the key so a cleared flag such as an unpin leaves no stale value.
-      // https://github.com/logancyang/obsidian-copilot/issues/3195
       if (value === null) delete frontmatter[key];
       else frontmatter[key] = value;
     }

@@ -2,7 +2,7 @@ import { AgentModeStatus } from "@/agentMode/ui/AgentModeStatus";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import type { BackendAuth, BackendDescriptor } from "@/agentMode/session/types";
 import type { BackendAuthUiState } from "@/agentMode/session/useBackendAuthState";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
@@ -35,7 +35,7 @@ jest.mock("@/settings/model", () => ({
 }));
 
 describe("AgentModeStatus", () => {
-  describe("AgentModeStatus()", () => {
+  describe("AgentModeStatus", () => {
     beforeEach(() => {
       descriptor = {
         id: "claude",
@@ -61,7 +61,7 @@ describe("AgentModeStatus", () => {
     it("runs the supplied install action when the backend is absent", () => {
       installState = { kind: "absent" };
       const onInstallClick = jest.fn();
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus plugin={plugin} onInstallClick={onInstallClick} />);
 
@@ -71,7 +71,7 @@ describe("AgentModeStatus", () => {
 
     it("renders the checking state without an alert or action", () => {
       installState = { kind: "checking", source: "custom" };
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus plugin={plugin} onInstallClick={jest.fn()} />);
 
@@ -80,7 +80,7 @@ describe("AgentModeStatus", () => {
       expect(screen.queryByRole("button")).toBeNull();
     });
 
-    it("renders the actionable backend boot error instead of a generic retry label (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+    it("renders the actionable backend boot error instead of a generic retry label", () => {
       const error =
         "Claude Code 2.1.205 is not supported. Scribe requires Claude Code 2.1.206 or newer. Update Claude Code with: npm install -g @anthropic-ai/claude-code";
       const manager = {
@@ -90,7 +90,7 @@ describe("AgentModeStatus", () => {
         isBackendRestartPending: jest.fn(() => false),
         getOrCreateActiveSession: jest.fn().mockResolvedValue({}),
       } as unknown as AgentSessionManager;
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus manager={manager} plugin={plugin} onInstallClick={jest.fn()} />);
 
@@ -102,7 +102,7 @@ describe("AgentModeStatus", () => {
       expect(screen.queryByText("Error — click Retry")).toBeNull();
     });
 
-    it("opens Claude configuration instead of retrying an incompatible version (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+    it("opens Claude configuration instead of retrying an incompatible version", () => {
       const message =
         "Claude Code 2.1.205 is not supported. Scribe requires Claude Code 2.1.206 or newer.";
       installState = {
@@ -119,7 +119,7 @@ describe("AgentModeStatus", () => {
         isBackendRestartPending: jest.fn(() => false),
         getOrCreateActiveSession: jest.fn(),
       } as unknown as AgentSessionManager;
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus manager={manager} plugin={plugin} onInstallClick={jest.fn()} />);
 
@@ -130,7 +130,7 @@ describe("AgentModeStatus", () => {
       expect(descriptor.openInstallUI).toHaveBeenCalledWith(plugin);
     });
 
-    it("runs an available upgrade once and disables the action while it is busy (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+    it("runs an available upgrade once and disables the action while it is busy", () => {
       installState = {
         kind: "incompatible",
         source: "managed",
@@ -147,7 +147,7 @@ describe("AgentModeStatus", () => {
           run,
         },
       };
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       const { rerender } = render(<AgentModeStatus plugin={plugin} onInstallClick={jest.fn()} />);
 
@@ -167,11 +167,11 @@ describe("AgentModeStatus", () => {
       expect(run).toHaveBeenCalledTimes(2);
     });
 
-    it("keeps the full setup error and its Configure action under a state-based summary (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+    it("keeps the full setup error and its Configure action under a state-based summary", () => {
       const message =
         "Could not read /opt/local/custom-agent-runtime/bin/claude. Check the configured path.";
       installState = { kind: "error", message };
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
       render(<AgentModeStatus plugin={plugin} onInstallClick={jest.fn()} />);
       expect(screen.getByText("Claude setup error")).toBeTruthy();
       expect(screen.getByText(message).closest("details")).toBeNull();
@@ -192,7 +192,7 @@ describe("AgentModeStatus", () => {
         cancelSignIn: jest.fn(),
         failed: false,
       };
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
       const { rerender } = render(<AgentModeStatus plugin={plugin} onInstallClick={jest.fn()} />);
 
       fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
@@ -211,7 +211,7 @@ describe("AgentModeStatus", () => {
       );
     });
 
-    it("applies a held config change on demand instead of restarting the session under the user (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", () => {
+    it("applies a held config change on demand instead of restarting the session under the user", () => {
       const manager = {
         subscribe: jest.fn(() => () => {}),
         getLastError: jest.fn(() => null),
@@ -219,7 +219,7 @@ describe("AgentModeStatus", () => {
         isBackendRestartPending: jest.fn(() => false),
         applyHeldConfigChange: jest.fn().mockResolvedValue(undefined),
       } as unknown as AgentSessionManager;
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus manager={manager} plugin={plugin} onInstallClick={jest.fn()} />);
 
@@ -228,7 +228,7 @@ describe("AgentModeStatus", () => {
       expect(manager.applyHeldConfigChange).toHaveBeenCalledWith("claude");
     });
 
-    it("reports a restart queued behind a running turn as in progress (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", () => {
+    it("reports a restart queued behind a running turn as in progress", () => {
       const manager = {
         subscribe: jest.fn(() => () => {}),
         getLastError: jest.fn(() => null),
@@ -236,7 +236,7 @@ describe("AgentModeStatus", () => {
         isBackendRestartPending: jest.fn(() => true),
         applyHeldConfigChange: jest.fn().mockResolvedValue(undefined),
       } as unknown as AgentSessionManager;
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus manager={manager} plugin={plugin} onInstallClick={jest.fn()} />);
 
@@ -244,7 +244,7 @@ describe("AgentModeStatus", () => {
       expect(action.hasAttribute("disabled")).toBe(true);
     });
 
-    it("Retry applies corrected config when a failed session has a held change (https://github.com/Brevilabs/obsidian-copilot-private/issues/475)", () => {
+    it("Retry applies corrected config when a failed session has a held change", () => {
       const manager = {
         subscribe: jest.fn(() => () => {}),
         getLastError: jest.fn(() => "Claude stopped unexpectedly."),
@@ -253,7 +253,7 @@ describe("AgentModeStatus", () => {
         isBackendRestartPending: jest.fn(() => false),
         applyHeldConfigChange: jest.fn().mockResolvedValue(undefined),
       } as unknown as AgentSessionManager;
-      const plugin = { app: {} } as unknown as CopilotPlugin;
+      const plugin = { app: {} } as unknown as ScribePlugin;
 
       render(<AgentModeStatus manager={manager} plugin={plugin} onInstallClick={jest.fn()} />);
 

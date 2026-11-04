@@ -1,7 +1,6 @@
-import { DEFAULT_COPILOT_FOLDER } from "@/constants";
 import { logInfo } from "@/logger";
 import type { ModelManagementApi } from "@/modelManagement";
-import { getSettings, normalizeRootFolders, setSettings, sanitizeSettings } from "@/settings/model";
+import { getSettings, setSettings, sanitizeSettings } from "@/settings/model";
 
 import { executeAzureRemoval } from "./azureRemovalMigration";
 import { executeBedrockRemoval } from "./bedrockRemovalMigration";
@@ -26,17 +25,6 @@ export async function runSettingsMigrations(api: ModelManagementApi): Promise<vo
   if (fromVersion < 5) {
     const backfilled = planRequiresApiKeyBackfill(getSettings().providers);
     if (backfilled) setSettings({ providers: backfilled });
-  }
-
-  if (fromVersion < 8) {
-    setSettings({ copilotFolder: DEFAULT_COPILOT_FOLDER });
-
-    const currentRoot = getSettings().copilotFolder;
-    setSettings({
-      copilotRootHistory: normalizeRootFolders([DEFAULT_COPILOT_FOLDER, currentRoot]),
-    });
-
-    setSettings({ upgradedToV8FromLegacy: true });
   }
 
   if (fromVersion < 9) {

@@ -36,17 +36,10 @@ export function RenderedDiff({
       stale = true;
     };
   }, [app, before, after, path]);
-  // A plan built for earlier props would show the previous file's changes under the new path until the new parse lands.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   if (plan === null || plan.before !== before || plan.after !== after || plan.path !== path) {
     return null;
   }
   return (
-    // Strikethrough marks deletions here, so completed tasks drop Obsidian's done strike at every nesting depth.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
-    // One rendered root spans every segment, so Obsidian's margins collapse between segments as they
-    // do between blocks of the note instead of being cut at each segment's first and last child.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/751
     <div className="markdown-rendered [--checklist-done-decoration:none]">
       {plan.segments.map((segment, index) => (
         <DiffSegmentView
@@ -73,10 +66,6 @@ function continuesList(segment: DiffSegment | undefined): boolean {
 
 function DiffSegmentView({ continued, path, segment }: DiffSegmentViewProps): React.ReactElement {
   if (segment.kind === "code") return <CodeDiffView lines={segment.lines} />;
-  // Obsidian scrolls a lone table by setting overflow-x on its container, which traps the table's
-  // margins inside the highlight, so they move onto the container. Items of one list split across
-  // segments render as separate lists, so the list margins between them go.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/751
   const spacing = cn(
     "[&[style*=overflow-x]>table]:tw-my-0 [&[style*=overflow-x]]:tw-my-[var(--p-spacing)]",
     segment.continuesList && "[&>:first-child]:tw-mt-0",
@@ -128,8 +117,6 @@ function decorateMarkdown(container: HTMLElement): void {
   disableTaskCheckboxes(container);
 }
 
-// Rendered task boxes carry the real note path, so a click would rewrite the note from a read-only diff.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/348
 function disableTaskCheckboxes(container: HTMLElement): void {
   for (const box of container.querySelectorAll<HTMLInputElement>("input[type=checkbox]")) {
     box.disabled = true;

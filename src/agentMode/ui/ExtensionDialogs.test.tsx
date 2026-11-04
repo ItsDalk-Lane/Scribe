@@ -36,7 +36,7 @@ class TestModal extends ExtensionModal {
 
 describe("ExtensionDialogs", () => {
   describe("ExtensionModal", () => {
-    describe("renderContent()", () => {
+    describe("renderContent", () => {
       it("renders the supplied native-modal body and forwards its close action", () => {
         const close = jest.fn();
         const modal = new TestModal({} as App, "Details", (dismiss) => (
@@ -50,7 +50,7 @@ describe("ExtensionDialogs", () => {
       });
     });
   });
-  describe("PluginInstallForm()", () => {
+  describe("PluginInstallForm", () => {
     it("selects a marketplace plugin and installs its catalog identity in the selected scope", async () => {
       const onInstall = jest.fn().mockResolvedValue(undefined);
       const onClose = jest.fn();
@@ -143,7 +143,7 @@ describe("ExtensionDialogs", () => {
       });
     });
   });
-  describe("ExtensionImportForm()", () => {
+  describe("ExtensionImportForm", () => {
     it("imports pasted configuration into the selected kind and scope", async () => {
       const onImport = jest.fn().mockResolvedValue(undefined);
       const onClose = jest.fn();
@@ -201,7 +201,7 @@ describe("ExtensionDialogs", () => {
       );
     });
   });
-  describe("ExtensionDetailsView()", () => {
+  describe("ExtensionDetailsView", () => {
     it("shows the extension's scope beside its availability", () => {
       render(
         <ExtensionDetailsView
@@ -213,7 +213,7 @@ describe("ExtensionDialogs", () => {
       expect(screen.getByText("Scope")).toBeTruthy();
       expect(screen.getByText("Project · Notes")).toBeTruthy();
     });
-    it("copies the extension name to the clipboard when its button is clicked (https://github.com/ItsDalk-Lane/Scribe/issues/2)", async () => {
+    it("copies the extension name to the clipboard when its button is clicked", async () => {
       const writeText = jest.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
@@ -225,7 +225,7 @@ describe("ExtensionDialogs", () => {
       await waitFor(() => expect(writeText).toHaveBeenCalledWith("Notes"));
       expect(Notice).toHaveBeenCalledWith("Copied to clipboard");
     });
-    it("reports a notice when copying the extension name fails (https://github.com/ItsDalk-Lane/Scribe/issues/2)", async () => {
+    it("reports a notice when copying the extension name fails", async () => {
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
         value: { writeText: jest.fn().mockRejectedValue(new Error("denied")) },
@@ -274,7 +274,7 @@ describe("ExtensionDialogs", () => {
       expect(screen.getByText("Available in this scope")).toBeTruthy();
     });
 
-    it("groups the plugin's five component kinds and marks the unavailable ones with a reason dot (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("groups the plugin's five component kinds and marks the unavailable ones with a reason dot", () => {
       const children: AgentExtensionItem[] = [
         { id: "notes:skill", name: "review-notes", kind: "skill", availability: "loaded" },
         { id: "notes:command", name: "summarize", kind: "command", availability: "loaded" },
@@ -342,7 +342,7 @@ describe("ExtensionDialogs", () => {
       }
     );
 
-    it("shows the unavailable reason of a failed plugin without a switch (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("shows the unavailable reason of a failed plugin without a switch", () => {
       render(
         <ExtensionDetailsView
           details={{

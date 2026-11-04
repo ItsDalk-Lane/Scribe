@@ -12,7 +12,7 @@ const TabProbe: React.FC = () => {
 };
 
 describe("TabContext", () => {
-  describe("TabProvider()", () => {
+  describe("TabProvider", () => {
     it("selects Basic for an ordinary settings render", () => {
       render(
         <TabProvider>
@@ -23,7 +23,7 @@ describe("TabContext", () => {
       expect(screen.getByText("basic")).toBeTruthy();
     });
 
-    it("selects the requested initial tab for a direct handoff (https://github.com/Brevilabs/obsidian-copilot-private/issues/280)", () => {
+    it("selects the requested initial tab for a direct handoff", () => {
       render(
         <TabProvider initialTab="agents">
           <TabProbe />
@@ -34,7 +34,7 @@ describe("TabContext", () => {
     });
   });
 
-  describe("useTab()", () => {
+  describe("useTab", () => {
     it("exposes the current tab and its selector", () => {
       render(
         <TabProvider>

@@ -66,10 +66,10 @@ Maintainers should also read the [review-gate maintenance guide](./internal-docs
 
 #### Limiting Jest Workers
 
-`npm test` starts one Jest worker per CPU core, minus one, and each worker can use 2 GB of memory or more. A full run can use up all the RAM on a 16 GB machine. To cap the number of workers, set `COPILOT_JEST_MAX_WORKERS` in your shell profile:
+`npm test` starts one Jest worker per CPU core, minus one, and each worker can use 2 GB of memory or more. A full run can use up all the RAM on a 16 GB machine. To cap the number of workers, set `SCRIBE_JEST_MAX_WORKERS` in your shell profile:
 
 ```bash
-export COPILOT_JEST_MAX_WORKERS=2
+export SCRIBE_JEST_MAX_WORKERS=2
 ```
 
 It takes a number (`2`) or a share of your CPU cores (`50%`). When it's unset, Jest uses its default. Passing `--maxWorkers` on the command line overrides it for that run.
@@ -85,7 +85,7 @@ If you work across multiple worktrees or just want one command to build and load
 3. Set an env var pointing at the vault path. Add this to `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`:
 
    ```bash
-   export COPILOT_TEST_VAULT_PATH="$HOME/Obsidian/CopilotTestVault"
+   export SCRIBE_TEST_VAULT_PATH="$HOME/Obsidian/ScribeTestVault"
    ```
 
 **Per change:**
@@ -137,7 +137,7 @@ Test the items relevant to your change using a separate test vault. Enable debug
 
 ### Fresh Install and Model Setup
 
-- Use a new test vault with no existing Copilot settings. Confirm the plugin starts and guides you to configure your own model or coding agent.
+- Use a new test vault with no existing Scribe settings. Confirm the plugin starts and guides you to configure your own model or coding agent.
 - Configure a provider with your own API key, a local Ollama / LM Studio model, or an available coding agent account. Confirm model selection and ordinary chat work.
 - Do not reset settings in a vault containing the user's working configuration.
 

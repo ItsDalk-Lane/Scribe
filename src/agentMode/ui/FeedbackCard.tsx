@@ -38,7 +38,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({
       data-testid="agent-feedback-card"
       className="tw-mx-3 tw-my-2 tw-w-[calc(100%-1.5rem)] tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-secondary"
     >
-      <div className="copilot-divider-b tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-b tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2">
         {report ? (
           <Check className="tw-size-4 tw-shrink-0 tw-text-success" />
         ) : (
@@ -65,7 +65,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({
         ) : null}
       </div>
 
-      <div className="copilot-divider-t tw-flex tw-flex-wrap tw-items-center tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-t tw-flex tw-flex-wrap tw-items-center tw-gap-2 tw-px-3 tw-py-2">
         {report ? (
           <a href={report.issueUrl} className="tw-text-xs">
             {t("Open the GitHub issue")}

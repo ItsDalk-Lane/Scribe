@@ -9,7 +9,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
 describe("AgentTabStrip", () => {
-  describe("computeVisibleCount()", () => {
+  describe("computeVisibleCount", () => {
     it("returns 0 for empty input", () => {
       expect(computeVisibleCount(500, 0)).toBe(0);
     });
@@ -37,7 +37,7 @@ describe("AgentTabStrip", () => {
     });
   });
 
-  describe("partitionSessions()", () => {
+  describe("partitionSessions", () => {
     const s = (id: string) => ({ internalId: id });
 
     it("returns empty arrays for empty input", () => {
@@ -92,8 +92,8 @@ describe("AgentTabStrip", () => {
     });
   });
 
-  describe("AgentTabStrip()", () => {
-    it("detaches a closed tab without closing its backend session for https://github.com/Brevilabs/obsidian-copilot-private/issues/429", () => {
+  describe("AgentTabStrip", () => {
+    it("detaches a closed tab without closing its backend session", () => {
       const session = {
         internalId: "existing",
         backendId: "test",

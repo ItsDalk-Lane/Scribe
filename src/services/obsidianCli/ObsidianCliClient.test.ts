@@ -21,7 +21,7 @@ describe("ObsidianCliClient", () => {
     jest.clearAllMocks();
   });
 
-  describe("isObsidianCliEnabled()", () => {
+  describe("isObsidianCliEnabled", () => {
     function installCliToggle(reply: unknown): jest.Mock {
       const sendSync = jest.fn(() => reply);
       (window as unknown as TestRequireContainer).require = jest.fn((id: string) =>
@@ -30,7 +30,7 @@ describe("ObsidianCliClient", () => {
       return sendSync;
     }
 
-    it("reads Obsidian's command line interface toggle without changing it (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("reads Obsidian's command line interface toggle without changing it", () => {
       const sendSync = installCliToggle(true);
 
       expect(isObsidianCliEnabled()).toBe(true);
@@ -43,7 +43,7 @@ describe("ObsidianCliClient", () => {
       expect(isObsidianCliEnabled()).toBe(false);
     });
 
-    it("returns false on Obsidian releases that do not answer the toggle message (https://github.com/Brevilabs/obsidian-copilot-private/issues/726)", () => {
+    it("returns false on Obsidian releases that do not answer the toggle message", () => {
       installCliToggle(undefined);
 
       expect(isObsidianCliEnabled()).toBe(false);

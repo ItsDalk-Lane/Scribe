@@ -1,10 +1,10 @@
 import { type App, Platform, TFile } from "obsidian";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { logError } from "@/logger";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
-import { deriveSkillsFolder } from "@/settings/copilotFolder";
-import { copilotAppDataDir, getVaultId } from "@/utils/appPaths";
+import { deriveSkillsFolder } from "@/settings/scribeFolder";
+import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
 import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { backendRegistry, listBackendDescriptors } from "./backends/registry";
@@ -35,10 +35,10 @@ export type { ModelEnableGroup } from "@/components/ui/ModelEnableList";
 export { backendDisplayOrder, listBackendDescriptors } from "./backends/registry";
 export type { AgentSessionManager } from "./session/AgentSessionManager";
 export { frameSink as acpFrameSink, setFrameSinkVaultBasePath } from "./session/debugSink";
-export type { BackendDescriptor, BackendId, CopilotMode, ModelSelection } from "./session/types";
+export type { BackendDescriptor, BackendId, ScribeMode, ModelSelection } from "./session/types";
 export { getManagedSkills, SkillManager, SkillsSettings } from "./skills";
 export type { Skill } from "./skills";
-export { default as CopilotAgentView } from "./ui/CopilotAgentView";
+export { default as ScribeAgentView } from "./ui/ScribeAgentView";
 export { PlanPreviewView } from "./ui/PlanPreviewView";
 export { closeAgentDetailModals } from "./ui/AgentDetailModal";
 export { openReportIssueModal } from "./ui/ReportIssueModal";
@@ -56,7 +56,7 @@ function collectAgentSkillsDirsProjectRel(): Record<string, string> {
   return out;
 }
 
-export function createAgentSessionManager(app: App, plugin: CopilotPlugin): AgentSessionManager {
+export function createAgentSessionManager(app: App, plugin: ScribePlugin): AgentSessionManager {
   const os = requireNodeModule<typeof import("node:os")>("os");
   const path = requireNodeModule<typeof import("node:path")>("path");
   let lastAvailableSkillAgents: readonly string[] = [];
@@ -89,7 +89,6 @@ export function createAgentSessionManager(app: App, plugin: CopilotPlugin): Agen
   const beforeBackendStart = async (id: BackendId): Promise<void> => {
     await initializing.get(id);
     if (!isAgentBackendEnabled(getSettings(), id)) throw new Error("This agent is disabled.");
-    // Obsidian 不会通知命令行开关的变化，因此每次启动代理前重新检查。https://github.com/Brevilabs/obsidian-copilot-private/issues/726
     if (isObsidianCliEnabled() !== seededWithCli) {
       await seedManagedBuiltins().catch((error) =>
         logError("[Skills] Refresh after an Obsidian CLI toggle change failed", error)
@@ -105,7 +104,7 @@ export function createAgentSessionManager(app: App, plugin: CopilotPlugin): Agen
   const persistenceManager = new AgentChatPersistenceManager(app);
   const vaultId = getVaultId(app);
   const indexPath = path.join(
-    copilotAppDataDir(os.homedir()),
+    scribeAppDataDir(os.homedir()),
     "vaults",
     vaultId,
     "agent-chat-index.json"
@@ -155,10 +154,7 @@ export function createAgentSessionManager(app: App, plugin: CopilotPlugin): Agen
   });
   for (const descriptor of listBackendDescriptors()) {
     descriptor.subscribeInstallState(plugin, () => {
-      // Startup reads the final installation; reacting to intermediate writes would duplicate
-      // probes. https://github.com/Brevilabs/obsidian-copilot-private/issues/530
       if (initializing.has(descriptor.id)) return;
-      // The first warm probe must see newly installed skills. https://github.com/logancyang/obsidian-copilot/issues/3022
       void seedManagedBuiltins()
         .then(() => manager.onInstallStateChanged(descriptor.id))
         .catch((error) =>

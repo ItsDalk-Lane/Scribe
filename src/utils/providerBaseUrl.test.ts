@@ -6,7 +6,7 @@ import {
 } from "./providerBaseUrl";
 
 describe("providerBaseUrl", () => {
-  describe("googleHostBaseUrl()", () => {
+  describe("googleHostBaseUrl", () => {
     it("strips a trailing /v1beta (Google's documented endpoint form)", () => {
       expect(googleHostBaseUrl("https://generativelanguage.googleapis.com/v1beta")).toBe(
         "https://generativelanguage.googleapis.com"
@@ -50,14 +50,14 @@ describe("providerBaseUrl", () => {
     });
   });
 
-  describe("anthropicHostBaseUrl()", () => {
+  describe("anthropicHostBaseUrl", () => {
     it.each([
       ["https://api.anthropic.com", "https://api.anthropic.com"],
       ["https://api.anthropic.com/v1", "https://api.anthropic.com"],
       [" https://proxy.example/gateway/v1/// ", "https://proxy.example/gateway"],
       ["https://proxy.example/v1/account/anthropic", "https://proxy.example/v1/account/anthropic"],
     ])(
-      "normalizes %s to the SDK host base %s without changing intermediate proxy paths (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "normalizes %s to the SDK host base %s without changing intermediate proxy paths",
       (value, expected) => {
         expect(anthropicHostBaseUrl(value)).toBe(expected);
       }
@@ -68,7 +68,7 @@ describe("providerBaseUrl", () => {
     });
   });
 
-  describe("groqHostBaseUrl()", () => {
+  describe("groqHostBaseUrl", () => {
     it("strips a trailing /openai/v1 (the models.dev form the dialog seeds)", () => {
       expect(groqHostBaseUrl("https://api.groq.com/openai/v1")).toBe("https://api.groq.com");
     });
@@ -91,7 +91,7 @@ describe("providerBaseUrl", () => {
     });
   });
 
-  describe("isCatalogProviderDefaultEndpoint()", () => {
+  describe("isCatalogProviderDefaultEndpoint", () => {
     it("recognizes the versioned Google endpoint", () => {
       expect(
         isCatalogProviderDefaultEndpoint(

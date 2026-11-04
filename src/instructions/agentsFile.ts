@@ -5,7 +5,7 @@ import { App, normalizePath, TFile, TFolder } from "obsidian";
 
 export const AGENTS_FILE_NAME = "AGENTS.md";
 const GENERATED_MIRROR_HEADER =
-  /^(\uFEFF?)<!-- copilot:generated-agents-mirror [^\r\n]* -->\r?\n\r?\n/;
+  /^(\uFEFF?)<!-- scribe:generated-agents-mirror [^\r\n]* -->\r?\n\r?\n/;
 
 export async function agentsFileIsUninitialized(app: App, folderPath: string): Promise<boolean> {
   const agentsPath = childPath(folderPath, AGENTS_FILE_NAME);

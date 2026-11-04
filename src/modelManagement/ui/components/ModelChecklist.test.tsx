@@ -33,7 +33,7 @@ const EMBED: ModelInfo = {
 };
 
 describe("ModelChecklist", () => {
-  describe("ModelChecklist()", () => {
+  describe("ModelChecklist", () => {
     it("shows the empty state when there are no models", () => {
       renderList();
       expect(screen.getByTestId("model-checklist-empty")).toBeTruthy();
@@ -50,7 +50,7 @@ describe("ModelChecklist", () => {
       expect(screen.getByText("Embedding")).toBeTruthy();
     });
 
-    it("labels non-chat models without preventing their selection for other uses (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("labels non-chat models without preventing their selection for other uses", () => {
       const props = renderList({
         availableModels: [
           {
@@ -103,7 +103,7 @@ describe("ModelChecklist", () => {
       expect(onToggle).toHaveBeenCalledWith("gpt-5", true);
     });
 
-    it("keeps manual entry above model search when discovery is unavailable (https://github.com/logancyang/obsidian-copilot/issues/2894)", () => {
+    it("keeps manual entry above model search when discovery is unavailable", () => {
       renderList({ fetchError: "Endpoint did not return a model list." });
       const inputs = screen.getAllByRole("textbox");
       expect(inputs[0]).toBe(screen.getByTestId("model-checklist-manual-input"));

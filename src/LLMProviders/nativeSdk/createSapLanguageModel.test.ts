@@ -32,7 +32,7 @@ const descriptor: Model<"scribe-sap"> = {
 };
 
 describe("createSapLanguageModel", () => {
-  describe("createSapLanguageModel()", () => {
+  describe("createSapLanguageModel", () => {
     let transport: jest.MockedFunction<typeof fetch>;
     let tokenCount: number;
     beforeEach(() => {

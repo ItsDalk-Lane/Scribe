@@ -4,8 +4,8 @@ import React from "react";
 import { CORS_COMPATIBILITY_TOOLTIP, CorsCompatibilitySetting } from "./CorsCompatibilitySetting";
 
 describe("CorsCompatibilitySetting", () => {
-  describe("CorsCompatibilitySetting()", () => {
-    it("explains the Quick tools streaming tradeoff in a tooltip (https://github.com/logancyang/obsidian-copilot-preview/issues/313)", async () => {
+  describe("CorsCompatibilitySetting", () => {
+    it("explains the Quick tools streaming tradeoff in a tooltip", async () => {
       render(<CorsCompatibilitySetting checked={false} onCheckedChange={jest.fn()} />);
 
       fireEvent.pointerMove(

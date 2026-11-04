@@ -35,8 +35,6 @@ interface RunningCommand {
   stop(): void;
 }
 
-// 只收集属于目标任务的后代进程；脱离进程组的子孙也在其中，别的任务的进程不受影响。
-// https://github.com/ItsDalk-Lane/Scribe/issues/16
 function collectDescendants(
   pid: number | undefined,
   childProcess: typeof import("node:child_process"),
@@ -159,8 +157,6 @@ export class NativeCommandTasks {
     const stop = (): void => {
       if (stopped) return;
       stopped = true;
-      // 先收集后代快照再开始终止：进程被杀并回收后父链会断开，事后就找不到这棵树了。
-      // https://github.com/ItsDalk-Lane/Scribe/issues/16
       descendants = collectDescendants(child.pid, childProcess, fs, processRuntime);
       killGroup("SIGTERM");
       killDescendants("SIGTERM");
@@ -198,8 +194,6 @@ export class NativeCommandTasks {
     child.once("close", (exitCode) => {
       if (killTimer) window.clearTimeout(killTimer);
       output = (output + decoder.decode()).slice(-65_536);
-      // 主进程退出不代表脱离进程组的后代也停了；确认终止后代之后才允许报告 stopped。
-      // https://github.com/ItsDalk-Lane/Scribe/issues/16
       if (stopped) {
         killDescendants("SIGKILL");
         if (processRuntime.platform !== "win32") killGroup("SIGKILL");

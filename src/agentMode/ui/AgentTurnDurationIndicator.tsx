@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import { CopilotSpinner } from "@/components/chat-components/CopilotSpinner";
+import { ScribeSpinner } from "@/components/chat-components/ScribeSpinner";
 import { cn } from "@/lib/utils";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -63,10 +63,10 @@ export const AgentTurnDurationIndicator: React.FC<AgentTurnDurationIndicatorProp
         )}
       >
         <span className="tw-flex tw-size-icon-xs tw-shrink-0 tw-items-center tw-justify-start">
-          {props.icon ?? <CopilotSpinner animated={isRunning} />}
+          {props.icon ?? <ScribeSpinner animated={isRunning} />}
         </span>
         <span>
-          <span className={isRunning ? "copilot-shimmer-text tw-font-medium" : "tw-font-medium"}>
+          <span className={isRunning ? "scribe-shimmer-text tw-font-medium" : "tw-font-medium"}>
             {props.label ?? t("Worked for")}
           </span>{" "}
           <span className="tw-tabular-nums">{formatWorkedDuration(durationMs)}</span>

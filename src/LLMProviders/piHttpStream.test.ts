@@ -17,7 +17,7 @@ const model: Model<"scribe-http"> = {
 };
 
 describe("piHttpStream", () => {
-  describe("streamHttpCompletion()", () => {
+  describe("streamHttpCompletion", () => {
     it("gives separate calls unique IDs when the endpoint omits IDs in simultaneous replies", async () => {
       const clock = jest.spyOn(Date, "now").mockReturnValue(1);
       try {
@@ -129,7 +129,7 @@ describe("piHttpStream", () => {
     });
   });
 
-  describe("readJsonStream()", () => {
+  describe("readJsonStream", () => {
     it(`decodes split UTF-8, CRLF and multiline SSE data and stops at DONE (${issue})`, async () => {
       const bytes = new TextEncoder().encode(
         'event: content\r\ndata: {"text":\r\ndata: "中文"}\r\n\r\ndata: [DONE]\r\n\r\ndata: {"ignored":true}\r\n\r\n'

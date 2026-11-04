@@ -26,7 +26,7 @@ const model: Model<"google-generative-ai"> = {
 };
 
 describe("httpChatApis", () => {
-  describe("postChatRequest()", () => {
+  describe("postChatRequest", () => {
     it("preserves the payload override and per-turn headers", async () => {
       const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
         async () => new Response("OK")
@@ -82,7 +82,7 @@ describe("httpChatApis", () => {
     });
   });
 
-  describe("textContent()", () => {
+  describe("textContent", () => {
     it("keeps plain user content and combines assistant text without reasoning", () => {
       expect(textContent({ role: "user", content: "Original", timestamp: 0 })).toBe("Original");
       const assistant = createAssistantMessage(model);
@@ -95,7 +95,7 @@ describe("httpChatApis", () => {
     });
   });
 
-  describe("streamGoogle()", () => {
+  describe("streamGoogle", () => {
     it(`preserves system, multi-turn text, image input, reasoning and usage without an implicit output cap (${issue})`, async () => {
       const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
         async () =>
@@ -185,7 +185,7 @@ describe("httpChatApis", () => {
     );
   });
 
-  describe("streamCohere()", () => {
+  describe("streamCohere", () => {
     it(`preserves native v2 history, text, thinking and the token-limit finish reason (${issue})`, async () => {
       const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
         async () =>
@@ -229,7 +229,7 @@ describe("httpChatApis", () => {
     });
   });
 
-  describe("streamOllama()", () => {
+  describe("streamOllama", () => {
     it(`retains legacy local context size, thinking, repetition penalty and keyless NDJSON streaming (${issue})`, async () => {
       const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
         async () =>
@@ -268,7 +268,7 @@ describe("httpChatApis", () => {
       });
       expect(fetch.mock.calls[0][0]).toBe("https://fixture.invalid/api/chat");
     });
-    it("omits num_ctx when the context window is unknown so Ollama keeps its own runtime configuration (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+    it("omits num_ctx when the context window is unknown so Ollama keeps its own runtime configuration", async () => {
       const fetch = jest.fn(
         async (_url: unknown, init?: { body?: string }) =>
           new Response(

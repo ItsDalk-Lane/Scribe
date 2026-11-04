@@ -60,7 +60,7 @@ const props = {
 } as unknown as QuickAskPanelProps;
 
 describe("QuickAskPanel", () => {
-  describe("QuickAskPanel()", () => {
+  describe("QuickAskPanel", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       mockDefaultModel = "gemini";
@@ -85,7 +85,7 @@ describe("QuickAskPanel", () => {
       expect(screen.getByLabelText<HTMLInputElement>("Question").value).toBe("");
     });
 
-    it("keeps a popup model choice local and reopens with the default — https://github.com/Brevilabs/obsidian-copilot-private/issues/616", () => {
+    it("keeps a popup model choice local and reopens with the default", () => {
       const { unmount } = render(<QuickAskPanel {...props} />);
       fireEvent.change(screen.getByLabelText("Model"), { target: { value: "gpt" } });
       expect(screen.getByLabelText<HTMLSelectElement>("Model").value).toBe("gpt");
@@ -95,7 +95,7 @@ describe("QuickAskPanel", () => {
       expect(screen.getByLabelText<HTMLSelectElement>("Model").value).toBe("gemini");
     });
 
-    it("preserves the question without a model and sends it after an explicit choice — https://github.com/Brevilabs/obsidian-copilot-private/issues/616", async () => {
+    it("preserves the question without a model and sends it after an explicit choice", async () => {
       mockDefaultModel = undefined;
       render(<QuickAskPanel {...props} />);
       expect(screen.getByLabelText<HTMLSelectElement>("Model").value).toBe("");

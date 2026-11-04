@@ -6,13 +6,13 @@ import { CustomCommand } from "@/commands/type";
 import { getSettings, updateSetting } from "@/settings/model";
 import { ensureFolderExists } from "@/utils";
 import {
-  COPILOT_COMMAND_CONTEXT_MENU_ORDER,
-  COPILOT_COMMAND_LAST_USED,
-  COPILOT_COMMAND_MODEL_KEY,
-  COPILOT_COMMAND_SLASH_ENABLED,
+  SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
+  SCRIBE_COMMAND_LAST_USED,
+  SCRIBE_COMMAND_MODEL_KEY,
+  SCRIBE_COMMAND_SLASH_ENABLED,
   DEFAULT_COMMANDS,
 } from "@/commands/constants";
-import { COPILOT_COMMAND_CONTEXT_MENU_ENABLED } from "@/commands/constants";
+import { SCRIBE_COMMAND_CONTEXT_MENU_ENABLED } from "@/commands/constants";
 import { getCachedCustomCommands } from "@/commands/state";
 import type { StartupMigrationItem } from "@/services/startupMigration";
 
@@ -25,11 +25,11 @@ async function saveUnsupportedCommands(app: App, commands: CustomCommand[]) {
       const filePath = `${unsupportedFolderPath}/${command.title}.md`;
       const file = await app.vault.create(filePath, command.content);
       await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
-        frontmatter[COPILOT_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] = command.order;
-        frontmatter[COPILOT_COMMAND_MODEL_KEY] = command.modelKey;
-        frontmatter[COPILOT_COMMAND_LAST_USED] = 0;
+        frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
+        frontmatter[SCRIBE_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
+        frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] = command.order;
+        frontmatter[SCRIBE_COMMAND_MODEL_KEY] = command.modelKey;
+        frontmatter[SCRIBE_COMMAND_LAST_USED] = 0;
       });
     })
   );

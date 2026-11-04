@@ -9,7 +9,7 @@ const paragraph = (text: string): MarkdownBlock => ({ type: "text", text });
 const heading = (text: string): MarkdownBlock => ({ type: "heading", text });
 
 describe("alignBlocks", () => {
-  describe("diceSimilarity()", () => {
+  describe("diceSimilarity", () => {
     it("scores identical text 1", () => {
       expect(diceSimilarity("The pilot runs.", "The pilot runs.")).toBe(1);
     });
@@ -32,7 +32,7 @@ describe("alignBlocks", () => {
     });
   });
 
-  describe("alignSequences()", () => {
+  describe("alignSequences", () => {
     const rules = {
       isEqual: (left: string, right: string) => left === right,
       similarity: diceSimilarity,
@@ -73,7 +73,7 @@ describe("alignBlocks", () => {
       ]);
     });
 
-    it("pairs every line of a 1,000-line run where each line changed while scoring each line against a bounded window of candidates (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("pairs every line of a 1,000-line run where each line changed while scoring each line against a bounded window of candidates", () => {
       const before = Array.from({ length: 1000 }, (_, index) => `- item ${index} keeps its text`);
       const after = Array.from({ length: 1000 }, (_, index) => `- item ${index} keeps new text`);
       const similarity = jest.fn(diceSimilarity);
@@ -90,7 +90,7 @@ describe("alignBlocks", () => {
     });
   });
 
-  describe("alignBlocks()", () => {
+  describe("alignBlocks", () => {
     it("reports an edited paragraph as one modified block rather than a delete and an insert", () => {
       const before = [paragraph("The pilot runs for six weeks with two design partners.")];
       const after = [paragraph("The pilot runs for eight weeks with three design partners.")];

@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import { type App, type SecretStorage, FileSystemAdapter } from "obsidian";
-import { type CopilotSettings, getModelKeyFromModel, getSettings } from "@/settings/model";
+import { type ScribeSettings, getModelKeyFromModel, getSettings } from "@/settings/model";
 import { type CustomModel } from "@/aiParams";
 import type { Provider } from "@/modelManagement";
 import {
@@ -54,9 +54,6 @@ function getVaultBasePath(app: App): string | undefined {
 }
 
 const MAX_SECRET_ID_LENGTH = 64;
-// Provider names must not embed the provider's random id: `data.json` syncs, the Keychain does
-// not, so a pointer minted on one device has to name an entry every device can hold.
-// https://github.com/logancyang/obsidian-copilot/issues/3618
 const LEGACY_PROVIDER_SECRET_ID = /^scribe-v[0-9a-f]{8}-provider-(.+)$/;
 
 function slugify(raw: string): string {
@@ -129,12 +126,12 @@ export function providerKeychainName(
   }
 }
 
-export function isCopilotOwnedSecret(id: string): boolean {
+export function isScribeOwnedSecret(id: string): boolean {
   return id.startsWith("scribe-");
 }
 
 export interface HydrateResult {
-  settings: CopilotSettings;
+  settings: ScribeSettings;
   hadFailures: boolean;
 }
 
@@ -143,7 +140,7 @@ export interface PersistSecretsResult {
   keychainIdsToDelete: string[];
 }
 
-export type SaveDataFn = (data: CopilotSettings) => Promise<void>;
+export type SaveDataFn = (data: ScribeSettings) => Promise<void>;
 
 export class KeychainService {
   private static instance: KeychainService | null = null;
@@ -222,7 +219,7 @@ export class KeychainService {
     return this.storage.getSecret(id);
   }
 
-  async hydrateFromKeychain(settings: CopilotSettings): Promise<HydrateResult> {
+  async hydrateFromKeychain(settings: ScribeSettings): Promise<HydrateResult> {
     const hydrated = { ...settings };
     let hadFailures = false;
 
@@ -258,7 +255,7 @@ export class KeychainService {
     return { settings: hydrated, hadFailures };
   }
 
-  persistSecrets(settings: CopilotSettings, prevSettings?: CopilotSettings): PersistSecretsResult {
+  persistSecrets(settings: ScribeSettings, prevSettings?: ScribeSettings): PersistSecretsResult {
     const secretEntries: Array<[string, string]> = [];
     const clearedSecretIds: string[] = [];
 
@@ -296,15 +293,12 @@ export class KeychainService {
     return { secretEntries, keychainIdsToDelete };
   }
 
-  // Every device migrates on load because the pointer it reads may have been rewritten by another
-  // device that already ran this, while this device's key still sits under the old name.
-  // https://github.com/logancyang/obsidian-copilot/issues/3618
-  migrateProviderNames(settings: CopilotSettings): CopilotSettings {
+  migrateProviderNames(settings: ScribeSettings): ScribeSettings {
     const providers = { ...(settings.providers ?? {}) };
     let changed = false;
     for (const row of Object.values(settings.providers ?? {})) {
       const pointer = row.apiKeyKeychainId;
-      if (!pointer || !isCopilotOwnedSecret(pointer)) continue;
+      if (!pointer || !isScribeOwnedSecret(pointer)) continue;
       const isLegacy = LEGACY_PROVIDER_SECRET_ID.exec(pointer)?.[1] === row.providerId;
       const name = isLegacy ? providerKeychainName(this.vaultId, row, providers) : pointer;
       const legacyIds = new Set([pointer, `scribe-v${this.vaultId}-provider-${row.providerId}`]);
@@ -356,7 +350,7 @@ export class KeychainService {
 
   async forgetAllSecrets(
     saveData: SaveDataFn,
-    syncMemory: (data: Partial<CopilotSettings>) => void
+    syncMemory: (data: Partial<ScribeSettings>) => void
   ): Promise<void> {
     const current = getSettings();
     if (!this.isAvailable()) {

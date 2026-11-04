@@ -44,7 +44,7 @@ function groupAt(nodes: GroupedTrailNode[], index: number) {
 }
 
 describe("activityGroups", () => {
-  describe("foldActivityGroups()", () => {
+  describe("foldActivityGroups", () => {
     it("folds a run of different tool families into one group", () => {
       const grouped = foldActivityGroups([
         action("a", { vendorToolName: "Read" }),
@@ -55,7 +55,7 @@ describe("activityGroups", () => {
       expect(groupAt(grouped, 0).members).toHaveLength(3);
     });
 
-    describe("with Copilot's Excalidraw tools (https://github.com/Brevilabs/obsidian-copilot-private/issues/787)", () => {
+    describe("with Scribe's Excalidraw tools", () => {
       const BOARD = "Boards/Launch board.excalidraw.md";
       const draw = (
         id: string,
@@ -132,7 +132,7 @@ describe("activityGroups", () => {
         ]);
       });
 
-      it("gives each call whose drawing path is unknown its own card, since it may target a different drawing (https://github.com/Brevilabs/obsidian-copilot-private/issues/787)", () => {
+      it("gives each call whose drawing path is unknown its own card, since it may target a different drawing", () => {
         const unknown = (id: string): RenderNode => ({
           type: "action",
           part: excalidrawToolCall("excalidraw_write", { operations: [] }, { id }),
@@ -153,7 +153,7 @@ describe("activityGroups", () => {
       });
     });
 
-    it("keeps a call the caller marks standalone out of the group, such as a task's launching call (https://github.com/Brevilabs/obsidian-copilot-private/issues/749)", () => {
+    it("keeps a call the caller marks standalone out of the group, such as a task's launching call", () => {
       const grouped = foldActivityGroups(
         [
           action("a", { vendorToolName: "Read" }),
@@ -217,7 +217,7 @@ describe("activityGroups", () => {
       expect(types(grouped)).toEqual(["text", "reasoning", "text"]);
     });
 
-    it("keeps a submitted question answer visible beside agent tools (https://github.com/Brevilabs/obsidian-copilot-private/issues/551)", () => {
+    it("keeps a submitted question answer visible beside agent tools", () => {
       const grouped = foldActivityGroups([
         action("shell", { vendorToolName: "Bash" }),
         action("answer", { userResponse: "Answered: Checklist" }),
@@ -337,7 +337,7 @@ describe("activityGroups", () => {
     });
   });
 
-  describe("summarizeActivity()", () => {
+  describe("summarizeActivity", () => {
     it("names each tool family in first-appearance order", () => {
       const { line } = summarizeActivity([
         member("a", { vendorToolName: "Read" }),
@@ -347,7 +347,7 @@ describe("activityGroups", () => {
       expect(line).toBe("Ran 3 commands, read 2 files");
     });
 
-    it("uses one-file fallbacks when file tools omit paths (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("uses one-file fallbacks when file tools omit paths", () => {
       const { line } = summarizeActivity([
         member("a", { vendorToolName: "Edit" }),
         member("b", { vendorToolName: "Write" }),
@@ -364,7 +364,7 @@ describe("activityGroups", () => {
       expect(line).toBe("Ran 2 commands, read 1 file");
     });
 
-    it("counts every grouped tool call as a command (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("counts every grouped tool call as a command", () => {
       const { line } = summarizeActivity([
         member("a", { vendorToolName: "Grep" }),
         member("b", { vendorToolName: "WebFetch" }),
@@ -399,7 +399,7 @@ describe("activityGroups", () => {
       expect(line).toBe("Ran 1 command, thought for 51s");
     });
 
-    it("adds frozen reasoning spans to the active span (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("adds frozen reasoning spans to the active span", () => {
       const recorded: ActivityMember = {
         type: "reasoning",
         part: { kind: "thought", text: "first", durationMs: 12_648 },
@@ -412,7 +412,7 @@ describe("activityGroups", () => {
       expect(line).toBe("Ran 1 command, thought for 18s");
     });
 
-    it("counts structured diff paths and every tool call (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("counts structured diff paths and every tool call", () => {
       const { line } = summarizeActivity([
         member("python", { toolKind: "execute" }),
         member("edit", {
@@ -430,7 +430,7 @@ describe("activityGroups", () => {
       expect(line).toBe("Ran 3 commands, edited 5 files");
     });
 
-    it("de-duplicates structured paths across file tools (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("de-duplicates structured paths across file tools", () => {
       const { line } = summarizeActivity([
         member("a", { toolKind: "edit", locations: [{ path: "same.md" }] }),
         member("b", { toolKind: "edit", locations: [{ path: "same.md" }] }),
@@ -461,7 +461,7 @@ describe("activityGroups", () => {
       expect(failed).toBe(1);
     });
 
-    it("does not claim a failed edit as an edited file (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("does not claim a failed edit as an edited file", () => {
       const { line, failed } = summarizeActivity([
         member("a", { vendorToolName: "Edit", status: "failed", input: { file_path: "plan.md" } }),
         member("b", { vendorToolName: "Edit", input: { file_path: "todo.md" } }),
@@ -470,7 +470,7 @@ describe("activityGroups", () => {
       expect(failed).toBe(1);
     });
 
-    it("omits the edit phrase when every edit in the group failed (https://github.com/Brevilabs/obsidian-copilot-private/issues/691)", () => {
+    it("omits the edit phrase when every edit in the group failed", () => {
       const { line } = summarizeActivity([
         member("a", { vendorToolName: "Read" }),
         member("b", { toolKind: "edit", status: "failed" }),
@@ -478,7 +478,7 @@ describe("activityGroups", () => {
       expect(line).toBe("Ran 2 commands, read 1 file");
     });
 
-    it("does not count a stopped edit as an edited file or as a failure (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", () => {
+    it("does not count a stopped edit as an edited file or as a failure", () => {
       const { line, failed } = summarizeActivity([
         member("a", {
           vendorToolName: "Edit",

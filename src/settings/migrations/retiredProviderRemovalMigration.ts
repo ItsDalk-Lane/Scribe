@@ -2,11 +2,11 @@ import type { CustomModel } from "@/aiParams";
 import { logWarn } from "@/logger";
 import type { ModelManagementApi } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
-import { type CopilotSettings, setSettings } from "@/settings/model";
+import { type ScribeSettings, setSettings } from "@/settings/model";
 
 export interface RetiredProviderRemovalPlan {
   providerIds: readonly string[];
-  patch: Partial<CopilotSettings>;
+  patch: Partial<ScribeSettings>;
 }
 
 export function referencesRetiredProvider(
@@ -17,7 +17,7 @@ export function referencesRetiredProvider(
 }
 
 export function planRetiredProviderRemoval(
-  settings: CopilotSettings,
+  settings: ScribeSettings,
   providerType: string,
   legacyProviders: readonly string[]
 ): RetiredProviderRemovalPlan | null {
@@ -34,7 +34,7 @@ export function planRetiredProviderRemoval(
     !!modelKey &&
     (removedModelIds.has(modelKey) || referencesRetiredProvider(modelKey, legacyProviders));
 
-  const patch: Partial<CopilotSettings> = {};
+  const patch: Partial<ScribeSettings> = {};
   const models = settings.activeModels ?? [];
   const keptLegacyModels = models.filter(
     (model: CustomModel) => !legacyProviders.includes(model.provider)

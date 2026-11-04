@@ -36,13 +36,13 @@ describe("chatModelManager", () => {
       setRequestUrlImpl(undefined);
     });
 
-    describe("getInstance()", () => {
+    describe("getInstance", () => {
       it("shares the model manager without sharing conversation history", () => {
         expect(ChatModelManager.getInstance()).toBe(ChatModelManager.getInstance());
       });
     });
 
-    describe("createModelInstanceFromBridged()", () => {
+    describe("createModelInstanceFromBridged", () => {
       it("does not fall back to a legacy top-level provider key", async () => {
         setSettings({ openAIApiKey: "legacy-key" });
         await expect(
@@ -50,16 +50,13 @@ describe("chatModelManager", () => {
         ).rejects.toBeInstanceOf(MissingApiKeyError);
       });
 
-      it.each([false, true])(
-        "rejects a required missing key with CORS=%s (https://github.com/logancyang/obsidian-copilot/issues/2946)",
-        async (enableCors) => {
-          await expect(
-            ChatModelManager.getInstance().createModelInstanceFromBridged(
-              bridgedModel({ requiresApiKey: true, enableCors })
-            )
-          ).rejects.toBeInstanceOf(MissingApiKeyError);
-        }
-      );
+      it.each([false, true])("rejects a required missing key with CORS=%s", async (enableCors) => {
+        await expect(
+          ChatModelManager.getInstance().createModelInstanceFromBridged(
+            bridgedModel({ requiresApiKey: true, enableCors })
+          )
+        ).rejects.toBeInstanceOf(MissingApiKeyError);
+      });
 
       it.each(
         [false, true].flatMap((enableCors) =>
@@ -145,7 +142,7 @@ describe("chatModelManager", () => {
       );
     });
 
-    describe("countTokens()", () => {
+    describe("countTokens", () => {
       it.each([
         ["", 0],
         ["abcd", 1],

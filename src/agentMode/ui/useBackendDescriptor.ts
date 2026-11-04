@@ -15,7 +15,7 @@ import type {
 } from "@/agentMode/session/types";
 import { useSettingsValue } from "@/settings/model";
 import React from "react";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 
 const IDLE_MANAGED_INSTALL_ACTION_STATE = Object.freeze({
   kind: "idle" as const,
@@ -54,7 +54,7 @@ export function useSessionBackendDescriptor(
 
 export function useBackendInstallState(
   descriptor: BackendDescriptor,
-  plugin: CopilotPlugin
+  plugin: ScribePlugin
 ): InstallState {
   const settings = useSettingsValue();
   const subscribe = React.useCallback(
@@ -74,7 +74,7 @@ export function useBackendInstallState(
 
 export function useManagedInstallActionState(
   descriptor: BackendDescriptor,
-  plugin: CopilotPlugin
+  plugin: ScribePlugin
 ): ManagedInstallActionState {
   const action = descriptor.managedInstall;
   const subscribe = React.useCallback(
@@ -95,7 +95,7 @@ export function useManagedInstallActionState(
   }, [action, plugin, signature]);
 }
 
-export function useBackendInstallStates(plugin: CopilotPlugin) {
+export function useBackendInstallStates(plugin: ScribePlugin) {
   const descriptors = React.useMemo(() => listBackendDescriptors(), []);
   return useDescriptorInstallStates(plugin, descriptors);
 }

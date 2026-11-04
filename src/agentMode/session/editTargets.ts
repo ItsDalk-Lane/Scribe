@@ -18,8 +18,6 @@ export function diffTargetPaths(
   return [...paths];
 }
 
-// One file must map to one capture key, and backslashes must not slip hidden or outside paths past capture.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/347
 export function toVaultTargetPath(path: string, vaultBase: string | null): string {
   return toVaultRelative(path, vaultBase).replace(/\\/g, "/");
 }

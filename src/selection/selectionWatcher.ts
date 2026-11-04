@@ -52,16 +52,12 @@ export function readingSelectionReport(app: App, doc: Document): SelectionReport
   const file = view?.file;
   if (!anchor || !focus || !file || view.getMode() !== "preview") return null;
 
-  // Only rendered text inside the note is a note selection; a later chat
-  // selection leaves the pending one attached. https://github.com/Brevilabs/obsidian-copilot-private/issues/597
   const readingEl = view.previewMode.containerEl;
   if (!readingEl.contains(anchor) || !readingEl.contains(focus)) return null;
 
   const content = selection.toString();
   if (!content.trim()) return { location: file.path, context: null };
 
-  // Rendered Markdown does not expose reliable source line numbers for every selection.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/597
   return {
     location: file.path,
     key: `preview:${file.path}:${content}`,
@@ -97,8 +93,6 @@ export function watchSelections(
     EditorView.updateListener.of((update) => {
       if (!update.selectionSet || !update.view.hasFocus) return;
 
-      // The originating editor identifies its note even in a popout, where
-      // the active leaf may differ. https://github.com/Brevilabs/obsidian-copilot-private/issues/597
       const info = update.state.field(editorInfoField, false);
       if (info) schedule(() => editorSelectionReport(info));
     })
@@ -115,8 +109,6 @@ export function watchSelections(
       const report = readingSelectionReport(plugin.app, doc);
       if (report) schedule(() => report);
     });
-    // Canvas views such as Excalidraw select without a DOM selection, so they are read after each click or key.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/794
     plugin.registerDomEvent(doc, "pointerup", readInputSources);
     plugin.registerDomEvent(doc, "keyup", readInputSources);
   };

@@ -123,7 +123,6 @@ export const RunningTasksIndicator: React.FC<RunningTasksIndicatorProps> = ({
   );
 };
 
-// Stopping needs the id the agent gives a task once it starts; until then the control stays in place, disabled, and says why. https://github.com/Brevilabs/obsidian-copilot-private/issues/749
 const StopTaskButton: React.FC<{
   taskId: string | undefined;
   onStopTask: (taskId: string) => void;

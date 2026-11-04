@@ -2,7 +2,7 @@ name: Windows tests
 
 # Every PR gets native coverage, including drafts and changes outside src/.
 # Releases call the same jobs pinned to their exact merge commit.
-# https://github.com/Brevilabs/obsidian-copilot-private/issues/479
+# https://github.com/ItsDalk-Lane/Scribe/issues/479
 on:
   push:
     branches: [main]
@@ -45,7 +45,7 @@ jobs:
         run: node --no-regexp-optimization node_modules/jest/bin/jest.js --runInBand --runTestsByPath src/utils/redactLog.test.ts
 
   # Native coverage is required to diagnose Windows-only fixture failures.
-  # https://github.com/logancyang/obsidian-copilot/issues/2967
+  # https://github.com/logancyang/obsidian-scribe/issues/2967
   test-windows:
     name: test-windows (shard ${{ matrix.shard }}/4)
     runs-on: windows-latest

@@ -13,8 +13,6 @@ const loadCriticalFiles = [
   "src/settings/SettingsPage.tsx",
   "src/settings/v2/SettingsMainV2.tsx",
   "src/settings/v2/components/AdvancedSettings.tsx",
-  // Quick tools settings must not load desktop agents on mobile.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/373
   "src/settings/v2/components/BasicSettings.tsx",
   "src/settings/v2/components/QuickToolsPanel.tsx",
   "src/settings/v2/components/ChatModelEnableList.tsx",
@@ -161,7 +159,7 @@ function createObsidianStub(requestUrl = async () => ({ json: {}, text: "", stat
     constructor(app, manifest) {
       super();
       this.app = app;
-      this.manifest = manifest ?? { id: "copilot", version: "mobile-load-smoke" };
+      this.manifest = manifest ?? { id: "scribe", version: "mobile-load-smoke" };
     }
 
     addCommand() {}
@@ -364,7 +362,6 @@ function runBundleEvaluationSmoke() {
 async function runByokFirstUseSmoke() {
   const { default: nodeModuleShim, nodeBuiltinExternals } = await import("../nodeModuleShim.mjs");
   const { default: svgrPlugin } = await import("../svgrPlugin.mjs");
-  // Loading alone misses SDKs that touch Node globals only on the first request. https://github.com/ItsDalk-Lane/Scribe/issues/8
   const build = await require("esbuild").build({
     stdin: {
       contents:

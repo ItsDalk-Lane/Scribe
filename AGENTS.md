@@ -4,7 +4,7 @@ This file provides guidance to any coding agent when working with code in this r
 
 ## Overview
 
-Copilot for Obsidian is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) and the Claude Code agent with Obsidian. It provides chat interfaces and various AI-powered commands for note-taking and knowledge management.
+Scribe is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) and the Claude Code agent with Obsidian. It provides chat interfaces and various AI-powered commands for note-taking and knowledge management.
 
 This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/logancyang/obsidian-copilot), forked from upstream v4.0.17. It tracks upstream releases and selectively syncs the updates this project can use. The currently followed upstream version is recorded in the README's "Upstream project" section — update that record whenever a sync lands. Scribe's own version numbering is independent of upstream and starts at 1.0.0.
 
@@ -16,7 +16,7 @@ This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/loga
 - `npm run format` / `npm run format:check` — Prettier write / check.
 - **Before PR: always run `npm run format && npm run lint`.**
 - `npm run test` — unit tests. Single test: `npm test -- -t "test name"`.
-- `npm run test:vault` — macOS-only build-and-deploy into `$COPILOT_TEST_VAULT_PATH`; see [`TESTING_GUIDE.md`](./internal-docs/TESTING_GUIDE.md).
+- `npm run test:vault` — macOS-only build-and-deploy into `$SCRIBE_TEST_VAULT_PATH`; see [`TESTING_GUIDE.md`](./internal-docs/TESTING_GUIDE.md).
 
 ## Core principles (apply to every change)
 
@@ -31,7 +31,7 @@ This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/loga
 - **Pair every production TypeScript function and method with unit coverage.** Directly test exported and public callables; cover private and module-local helpers through their observable public contract unless direct isolation materially improves clarity. Test-only helper functions are exempt.
 - **Never wait for async work by ticks or timers.** No `setTimeout(…, 0)`, `queueMicrotask`, or `await Promise.resolve()` to "let pending work land". Await the work itself, handle events where their order is defined, or signal completion explicitly. → [`Async ordering`](./internal-docs/STYLE_GUIDE.md#async-ordering)
 - **Never call `console` directly** — use `logInfo()` / `logWarn()` / `logError()` from `@/logger`.
-- **Every JavaScript/TypeScript comment links a GitHub issue.** A comment may only record a tricky decision tied to a specific issue: the one-line why plus the issue's full URL (`https://github.com/OWNER/REPO/issues/N`). Everything else, including JSDoc, section banners, restated logic, and issue-less TODOs, is expressed through names, types, and tests. If a decision needs explaining and no issue exists, file one. When you change code under an issue-linked comment, re-check the comment against its issue and update or delete it. `copilot/issue-linked-comments` enforces this in `npm run lint`; tool directives (`eslint-disable`, `@ts-expect-error`, `prettier-ignore`, …) are exempt. → [`STYLE_GUIDE.md`](./internal-docs/STYLE_GUIDE.md)
+- **Every JavaScript/TypeScript comment links a GitHub issue.** A comment may only record a tricky decision tied to a specific issue: the one-line why plus the issue's full URL (`https://github.com/OWNER/REPO/issues/N`). Everything else, including JSDoc, section banners, restated logic, and issue-less TODOs, is expressed through names, types, and tests. If a decision needs explaining and no issue exists, file one. When you change code under an issue-linked comment, re-check the comment against its issue and update or delete it. Existing comments were cleared during the Scribe naming reset; this rule applies to comments written from that point on. `scribe/issue-linked-comments` enforces this in `npm run lint`; tool directives (`eslint-disable`, `@ts-expect-error`, `prettier-ignore`, …) are exempt. → [`STYLE_GUIDE.md`](./internal-docs/STYLE_GUIDE.md)
 - **Keep React styling in Tailwind.** Put static styles on React-owned elements with Tailwind utilities, and reuse a shared component when the same visual pattern appears more than once. Do not add one-off selector families such as `.feature`, `.feature-copy`, and `.feature-actions` to `src/styles/tailwind.css` just to move utility declarations out of JSX. Add custom CSS only for markup React does not own or a styling contract Tailwind cannot express, and document that constraint beside the rule. Never edit `styles.css` (generated), use inline `style` for static values, or add arbitrary font sizes; wrap composed class strings in `cn()`. → [`STYLE_GUIDE.md`](./internal-docs/STYLE_GUIDE.md)
 - **TypeScript:** `@/` absolute imports; `interface` for shapes, `type` for unions. **React:** custom hooks, props interfaces above components. → [`STYLE_GUIDE.md`](./internal-docs/STYLE_GUIDE.md)
 - **Never use the global `app`** (footgun in popouts, hides dependencies); thread it via `useApp()` or a parameter. → [`PLUGIN_DEV_GUIDE.md`](./internal-docs/PLUGIN_DEV_GUIDE.md)

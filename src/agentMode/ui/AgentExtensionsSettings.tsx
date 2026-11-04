@@ -60,9 +60,6 @@ interface InventoryState {
   runtimeState: "not_started" | "checked" | "partial" | "error";
 }
 
-// The saved answer is the state a reopened page paints before its configuration scan finishes, so the
-// previous result appears instantly instead of a loading state.
-// https://github.com/ItsDalk-Lane/Scribe/issues/3
 function savedInventoryState(
   app: App | null | undefined,
   identity: string,
@@ -192,9 +189,6 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
     ),
     () => sessionManager?.isExtensionChangePending?.(descriptor.id, scope) ?? false
   );
-  // An explicit refresh re-runs the backend check even when the configuration fingerprint is
-  // unchanged; automatic loads answer from the saved view and the check cache instead.
-  // https://github.com/ItsDalk-Lane/Scribe/issues/3
   const load = React.useCallback(
     async (force = false) => {
       const id = ++requestId.current;
@@ -249,11 +243,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           },
           inventory
         );
-        // A disabled backend never reuses a check it is not allowed to run.
-        // https://github.com/ItsDalk-Lane/Scribe/issues/3
         const cached = enabled && !force ? readCachedExtensionCheck(plugin.app, key) : null;
-        // A scope-isolated view keeps only its own entries: runtime rows would reintroduce the
-        // other scopes the check session also loaded. https://github.com/ItsDalk-Lane/Scribe/issues/6
         const mergeOptions = { appendRuntimeEntries: true };
         let runtime: AgentExtensionRuntimeSnapshot | null = cached;
         let failed = false;
@@ -261,9 +251,6 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           setState((current) =>
             current.context === context ? { ...current, loading: true } : current
           );
-          // The check returns while remote MCP servers may still be connecting; each refreshed
-          // snapshot repaints the panel and, once settled, becomes the saved answer.
-          // https://github.com/ItsDalk-Lane/Scribe/issues/3
           const applyUpdate = (snapshot: AgentExtensionRuntimeSnapshot) => {
             storeCachedExtensionCheck(plugin.app, key, snapshot);
             const mergedSnapshot = mergeExtensionRuntime(

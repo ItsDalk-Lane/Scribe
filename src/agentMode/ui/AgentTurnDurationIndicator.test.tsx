@@ -37,8 +37,8 @@ describe("AgentTurnDurationIndicator", () => {
       expect(screen.getByRole("status").textContent).toBe("Agent is working");
       const duration = screen.getByText("2m 18s");
       expect(duration.closest('[aria-hidden="true"]')).toBeNull();
-      expect(container.querySelector(".copilot-spinner")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner-dot-0")).toBeTruthy();
+      expect(container.querySelector(".scribe-spinner")).toBeTruthy();
+      expect(container.querySelector(".scribe-spinner-dot-0")).toBeTruthy();
 
       act(() => jest.advanceTimersByTime(2_000));
 
@@ -70,8 +70,8 @@ describe("AgentTurnDurationIndicator", () => {
       );
 
       expect(screen.getByText("2m 18s").parentElement?.textContent).toContain("Worked for 2m 18s");
-      expect(container.querySelector(".copilot-spinner")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner-dot-0")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeTruthy();
+      expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
       expect(screen.queryByRole("status")).toBeNull();
 
       act(() => jest.advanceTimersByTime(60_000));
@@ -104,7 +104,7 @@ describe("AgentTurnDurationIndicator", () => {
       );
 
       expect(screen.getByTestId("custom-icon")).toBeTruthy();
-      expect(container.querySelector(".copilot-spinner")).toBeNull();
+      expect(container.querySelector(".scribe-spinner")).toBeNull();
       expect(screen.getByText("2m 18s")).toBeTruthy();
     });
   });

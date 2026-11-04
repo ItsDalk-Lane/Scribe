@@ -770,12 +770,12 @@ describe("customCommandUtils", () => {
 
   describe("parseCustomCommandFile()", () => {
     interface MockFrontmatter {
-      "copilot-command-enabled"?: boolean;
-      "copilot-command-context-menu-enabled"?: boolean;
-      "copilot-command-slash-enabled"?: boolean;
-      "copilot-command-context-menu-order"?: number;
-      "copilot-command-model-key"?: string;
-      "copilot-command-last-used"?: number;
+      "scribe-command-enabled"?: boolean;
+      "scribe-command-context-menu-enabled"?: boolean;
+      "scribe-command-slash-enabled"?: boolean;
+      "scribe-command-context-menu-order"?: number;
+      "scribe-command-model-key"?: string;
+      "scribe-command-last-used"?: number;
     }
     interface MockMetadata {
       frontmatter: MockFrontmatter;
@@ -794,11 +794,11 @@ describe("customCommandUtils", () => {
     beforeEach(() => {
       originalApp = (window as unknown as AppRef).app;
       mockFrontmatter = {
-        "copilot-command-context-menu-enabled": true,
-        "copilot-command-slash-enabled": false,
-        "copilot-command-context-menu-order": 42,
-        "copilot-command-model-key": "gpt-4",
-        "copilot-command-last-used": 1234567890,
+        "scribe-command-context-menu-enabled": true,
+        "scribe-command-slash-enabled": false,
+        "scribe-command-context-menu-order": 42,
+        "scribe-command-model-key": "gpt-4",
+        "scribe-command-last-used": 1234567890,
       };
       mockMetadata = { frontmatter: mockFrontmatter };
       const mockedApp: MockAppLike = {
@@ -806,7 +806,7 @@ describe("customCommandUtils", () => {
           read: jest
             .fn()
             .mockResolvedValue(
-              "---\ncopilot-command-context-menu-enabled: true\ncopilot-command-slash-enabled: false\ncopilot-command-context-menu-order: 42\ncopilot-command-model-key: gpt-4\ncopilot-command-last-used: 1234567890\n---\nPrompt content here."
+              "---\nscribe-command-context-menu-enabled: true\nscribe-command-slash-enabled: false\nscribe-command-context-menu-order: 42\nscribe-command-model-key: gpt-4\nscribe-command-last-used: 1234567890\n---\nPrompt content here."
             ),
         },
         metadataCache: {
@@ -843,7 +843,7 @@ describe("customCommandUtils", () => {
     });
 
     it("preserves a disabled command and both saved menu preferences", async () => {
-      mockFrontmatter["copilot-command-enabled"] = false;
+      mockFrontmatter["scribe-command-enabled"] = false;
       const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
       const result = await parseCustomCommandFile(window.app, mockFile);
       expect(result.enabled).toBe(false);

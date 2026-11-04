@@ -1,7 +1,7 @@
 import { redactAddressRun, redactLogText } from "@/utils/redactLog";
 
 describe("redactLog", () => {
-  describe("redactLogText()", () => {
+  describe("redactLogText", () => {
     it("replaces a home-directory username in a Unix path but keeps the path shape", () => {
       expect(redactLogText('{"file":"/Users/chaoyang/vault/note.md"}')).toBe(
         '{"file":"/Users/<user>/vault/note.md"}'
@@ -17,18 +17,18 @@ describe("redactLog", () => {
       expect(redactLogText("from logan@brevilabs.com to a@b.co")).toBe("from <email> to <email>");
     });
 
-    it("stays fast on a long run of address-legal characters instead of backtracking over it (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("stays fast on a long run of address-legal characters instead of backtracking over it", () => {
       const started = Date.now();
       expect(redactLogText("A".repeat(256 * 1024))).toBe("A".repeat(256 * 1024));
       expect(Date.now() - started).toBeLessThan(1000);
     });
 
-    it("replaces an over-long address whole, leaving no part of it behind (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("replaces an over-long address whole, leaving no part of it behind", () => {
       expect(redactLogText(`${"a".repeat(500)}@example.com`)).toBe("<email>");
       expect(redactLogText(`user@example.${"z".repeat(40)}`)).toBe("<email>");
     });
 
-    it("replaces addresses chained by an address-legal character, not just the first (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("replaces addresses chained by an address-legal character, not just the first", () => {
       for (const glue of [".", "-", "+", "_", "%"]) {
         expect(redactLogText(`a@b.com${glue}c@d.com`)).toBe("<email>");
       }
@@ -36,35 +36,35 @@ describe("redactLog", () => {
       expect(redactLogText("a@b.com, c@d.com")).toBe("<email>, <email>");
     });
 
-    it("replaces an address that opens with @, as a fediverse handle does (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("replaces an address that opens with @, as a fediverse handle does", () => {
       expect(redactLogText("ping @alice@mastodon.social now")).toBe("ping <email> now");
       expect(redactLogText("@@foo@bar.com")).toBe("<email>");
     });
 
-    it("keeps punctuation that follows an address instead of swallowing it (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("keeps punctuation that follows an address instead of swallowing it", () => {
       expect(redactLogText("write to a@b.com.")).toBe("write to <email>.");
     });
 
-    it("leaves address-shaped text that is not an address alone, so the log stays diagnostic (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("leaves address-shaped text that is not an address alone, so the log stays diagnostic", () => {
       expect(redactLogText("package@1.0.0-beta")).toBe("package@1.0.0-beta");
       expect(redactLogText("a@b")).toBe("a@b");
       expect(redactLogText("@scope")).toBe("@scope");
       expect(redactLogText("@@@@")).toBe("@@@@");
     });
 
-    it("replaces a run holding a valid address even when it ends in an invalid one (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("replaces a run holding a valid address even when it ends in an invalid one", () => {
       expect(redactLogText("a@b.com@c.d")).toBe("<email>");
       expect(redactLogText("a@b.com@c.d@e.f")).toBe("<email>");
     });
 
-    it("stays fast on a long run that ends just past its trailing punctuation (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("stays fast on a long run that ends just past its trailing punctuation", () => {
       const started = Date.now();
       const run = `a@${".".repeat(100_000)}a`;
       expect(redactLogText(run)).toBe(run);
       expect(Date.now() - started).toBeLessThan(1000);
     });
 
-    it("applies the email rule to exactly the output String.prototype.replace gives it, run for run (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("applies the email rule to exactly the output String.prototype.replace gives it, run for run", () => {
       const fixture = [
         "first@start.io opens the text, then plain words and a version pkg@1.2.3-rc,",
         "glued a@b.com.c@d.com, a fediverse @alice@mastodon.social handle, and @@foo@bar.com;",
@@ -102,7 +102,7 @@ describe("redactLog", () => {
       expect(header).toContain("<token>");
     });
 
-    it("removes a Basic credential, which carries a password in plain base64 (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("removes a Basic credential, which carries a password in plain base64", () => {
       const header = redactLogText("Authorization: Basic dXNlcjpwYXNzd29yZA==");
       expect(header).not.toContain("dXNlcjpwYXNzd29yZA");
       expect(header).toContain("<redacted>");
@@ -122,7 +122,7 @@ describe("redactLog", () => {
       );
     });
 
-    it("redacts a multi-MiB Basic credential without exhausting the regex stack (https://github.com/Brevilabs/obsidian-copilot-private/issues/479)", () => {
+    it("redacts a multi-MiB Basic credential without exhausting the regex stack", () => {
       const huge = `Authorization: Basic ${"A".repeat(16 * 1024 * 1024)}`;
 
       expect(redactLogText(huge)).toBe("Authorization: Basic <redacted>");
@@ -131,12 +131,12 @@ describe("redactLog", () => {
       );
     });
 
-    it("redacts a multi-MiB address whole and preserves surrounding punctuation (https://github.com/Brevilabs/obsidian-copilot-private/issues/479)", () => {
+    it("redacts a multi-MiB address whole and preserves surrounding punctuation", () => {
       const address = `${"a".repeat(16 * 1024 * 1024)}@example.com`;
       expect(redactLogText(`before (${address}.) after`)).toBe("before (<email>.) after");
     });
 
-    it("preserves Basic credential delimiters and padding boundaries across repeated headers (https://github.com/Brevilabs/obsidian-copilot-private/issues/479)", () => {
+    it("preserves Basic credential delimiters and padding boundaries across repeated headers", () => {
       const headers = [
         "Authorization: Basic dTpw",
         '"authorization": "Basic YTpiYw=="',
@@ -159,7 +159,7 @@ describe("redactLog", () => {
       );
     });
 
-    it("removes AWS secret and session values, whose field names the key/secret rule misses (https://github.com/Brevilabs/obsidian-copilot-private/issues/202)", () => {
+    it("removes AWS secret and session values, whose field names the key/secret rule misses", () => {
       expect(redactLogText("aws_secret_access_key=0123456789abcdefghijklmnopqrstuv")).toBe(
         "aws_secret_access_key=<redacted>"
       );
@@ -187,7 +187,7 @@ describe("redactLog", () => {
     });
   });
 
-  describe("redactAddressRun()", () => {
+  describe("redactAddressRun", () => {
     it("replaces a run that is a plain address with the email marker", () => {
       expect(redactAddressRun("alice@example.com")).toBe("<email>");
     });

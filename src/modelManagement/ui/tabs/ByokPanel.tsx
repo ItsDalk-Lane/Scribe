@@ -53,9 +53,6 @@ export const ByokPanel: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    // https://github.com/logancyang/obsidian-copilot/issues/3147:
-    // Check completed saves, including CORS-only edits. Registry events can fire
-    // between key and endpoint writes and would send the new key to the old URL.
 
     for (const provider of verificationProviders) {
       void api.providerRegistry

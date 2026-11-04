@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS } from "@/constants";
 import { stripLegacyIndexSettings } from "@/settings/migrations/legacyIndexSettings";
-import { type CopilotSettings } from "@/settings/model";
+import { type ScribeSettings } from "@/settings/model";
 import { type CustomModel } from "@/aiParams";
 
 export const MODEL_SECRET_FIELDS = ["apiKey"] as const;
@@ -21,7 +21,7 @@ export const TOP_LEVEL_SECRET_FIELDS: readonly string[] = Object.freeze(
   Object.keys(DEFAULT_SETTINGS as unknown as Record<string, unknown>).filter(isSensitiveKey)
 );
 
-function asRecord(obj: CopilotSettings): Record<string, unknown> {
+function asRecord(obj: ScribeSettings): Record<string, unknown> {
   return obj as unknown as Record<string, unknown>;
 }
 
@@ -32,9 +32,6 @@ export function hasPersistedSecrets(rawData: Record<string, unknown>): boolean {
     if (typeof value === "string" && value.length > 0) return true;
   }
 
-  // Scan every top-level model-like list so credentials in a retired list are
-  // backed up before the migration strips that list from persisted settings.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/283
   for (const models of Object.values(rawData)) {
     if (!Array.isArray(models)) continue;
     for (const model of models) {
@@ -76,7 +73,7 @@ function stripNestedSecrets(value: unknown): unknown {
     : value;
 }
 
-export function stripKeychainFields(settings: CopilotSettings): CopilotSettings {
+export function stripKeychainFields(settings: ScribeSettings): ScribeSettings {
   const out = asRecord({ ...settings });
 
   for (const key of Object.keys(out)) {
@@ -90,7 +87,7 @@ export function stripKeychainFields(settings: CopilotSettings): CopilotSettings 
 
   if (settings.agentMode) out.agentMode = stripNestedSecrets(settings.agentMode);
 
-  return out as unknown as CopilotSettings;
+  return out as unknown as ScribeSettings;
 }
 
 function stripModelSecrets(models: CustomModel[]): CustomModel[] {
@@ -105,7 +102,7 @@ function stripModelSecrets(models: CustomModel[]): CustomModel[] {
   });
 }
 
-export function cleanupLegacyFields(settings: CopilotSettings): CopilotSettings {
+export function cleanupLegacyFields(settings: ScribeSettings): ScribeSettings {
   const out = asRecord(stripLegacyIndexSettings(settings));
   delete out.enableEncryption;
   delete out._keychainMigrated;
@@ -132,5 +129,5 @@ export function cleanupLegacyFields(settings: CopilotSettings): CopilotSettings 
     }
     out.agentMode = agentMode;
   }
-  return out as unknown as CopilotSettings;
+  return out as unknown as ScribeSettings;
 }

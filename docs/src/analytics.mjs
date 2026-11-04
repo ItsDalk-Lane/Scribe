@@ -35,8 +35,6 @@ function sanitizeUrl(value, includePath = true) {
     if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
     url.username = "";
     url.password = "";
-    // Referring-domain attribution does not need arbitrary paths that may contain private input.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
     if (!includePath) url.pathname = "/";
     url.search = "";
     url.hash = "";
@@ -49,8 +47,6 @@ function sanitizeUrl(value, includePath = true) {
 function sanitizeCampaignValue(value) {
   if (typeof value !== "string") return undefined;
   const sanitized = value.trim();
-  // Campaign fields are free text, so a short bound prevents them from becoming a content channel.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
   return sanitized.length > 0 && sanitized.length <= 80 ? sanitized : undefined;
 }
 
@@ -91,12 +87,8 @@ function sanitizeProperties(properties) {
 }
 
 export function resolveAnalyticsConfig({ hostname, apiKey, apiHost }) {
-  // Production-only collection prevents previews from polluting metrics or testing real-user policy.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
   if (hostname !== CANONICAL_HOSTNAME) return null;
 
-  // Analytics is optional so missing Vercel configuration can never break documentation rendering.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
   if (!apiKey?.trim() || !apiHost?.trim()) return null;
 
   try {
@@ -111,8 +103,6 @@ export function resolveAnalyticsConfig({ hostname, apiKey, apiHost }) {
 }
 
 export function hasUsableStorage(getStorage) {
-  // A failed storage probe disables collection instead of falling back to shared cookies or identity.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
   try {
     const storage = getStorage();
     if (!storage) return false;
@@ -128,8 +118,6 @@ export function hasUsableStorage(getStorage) {
 }
 
 export function sanitizeAnalyticsEvent(event) {
-  // The allowlist is the final privacy boundary if an SDK default or remote setting changes.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
   if (!event || !ALLOWED_EVENTS.has(event.event)) return null;
 
   return {
@@ -146,8 +134,6 @@ export function createPostHogOptions(apiHost, getCanonicalUrl) {
     autocapture: false,
     rageclick: false,
     capture_pageview: false,
-    // Boolean true keeps the SDK unload handler active when pageviews are captured manually.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
     capture_pageleave: true,
     capture_dead_clicks: false,
     capture_exceptions: false,
@@ -169,8 +155,6 @@ export function createPostHogOptions(apiHost, getCanonicalUrl) {
     disable_scroll_properties: true,
     save_referrer: true,
     save_campaign_params: true,
-    // The final event boundary replaces SDK-derived request paths with the generated route identity.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
     before_send: (event) => {
       const canonicalUrl = sanitizeUrl(getCanonicalUrl());
       if (!canonicalUrl || new URL(canonicalUrl).host !== CANONICAL_HOSTNAME) return null;
@@ -203,8 +187,6 @@ export async function startDocsAnalytics({
   let previousNavigation;
   const handleNavigation = () => {
     const canonicalUrl = getCanonicalUrl();
-    // Missing route identity cannot satisfy the outgoing-event privacy contract.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
     if (!canonicalUrl || canonicalUrl === previousNavigation) return;
     previousNavigation = canonicalUrl;
     dispatchNavigation(canonicalUrl);
@@ -212,8 +194,6 @@ export async function startDocsAnalytics({
   let removeNavigationListener = () => {};
 
   try {
-    // Subscribe before the chunk load so cold-cache navigation still produces one event per route.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/335
     removeNavigationListener = addNavigationListener(handleNavigation);
     handleNavigation();
 

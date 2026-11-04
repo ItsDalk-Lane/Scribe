@@ -62,9 +62,6 @@ function extraString(extras: Record<string, unknown>, key: string): string | und
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-// `maxTokens` is set only for Anthropic, the one provider that rejects a request without one;
-// elsewhere a limit can push prompt plus output past the context window:
-// https://github.com/logancyang/obsidian-copilot-preview/issues/312
 export function configuredModelToCustomModel(params: {
   provider: Provider;
   configuredModel: ConfiguredModel;
@@ -107,16 +104,10 @@ export function configuredModelToCustomModel(params: {
     baseUrl: connection.baseUrl,
     apiKey: trimmedKey,
     requiresApiKey,
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/313:
-    // verification can pass through requestUrl while Quick tools fails through
-    // native fetch. Preserve the user's explicit compatibility-versus-streaming
-    // choice when bridging the provider into the legacy chat runtime.
     enableCors: provider.enableCors ?? true,
     capabilities,
     maxTokens,
     openAIOrgId: extraString(extras, "openAIOrgId"),
-    // 目录里的真实窗口必须传给运行时；缺失时保持未设置，不得伪装成任何默认值。
-    // https://github.com/ItsDalk-Lane/Scribe/issues/15
     numCtx: info.limits?.context,
   };
 }

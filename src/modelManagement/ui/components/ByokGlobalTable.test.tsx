@@ -56,7 +56,7 @@ const renderWithProvider = (ui: React.ReactElement) =>
   );
 
 describe("ByokGlobalTable", () => {
-  describe("ByokGlobalTable()", () => {
+  describe("ByokGlobalTable", () => {
     it("shows the empty state when there are no groups", () => {
       renderWithProvider(
         <ByokGlobalTable groups={[]} onConfigure={jest.fn()} onRemove={jest.fn()} />
@@ -75,7 +75,7 @@ describe("ByokGlobalTable", () => {
       expect(screen.getByText("Claude Opus 4.5")).toBeTruthy();
     });
 
-    it("names where each provider sends requests for https://github.com/logancyang/obsidian-copilot/issues/2889", () => {
+    it("names where each provider sends requests", () => {
       const local: ByokTableGroup = {
         provider: {
           ...group.provider,
@@ -100,7 +100,7 @@ describe("ByokGlobalTable", () => {
       expect(screen.getByText("Endpoint accessible")).toBeTruthy();
     });
 
-    it("shows No key instead of Endpoint accessible when verification reports a missing key (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("shows No key instead of Endpoint accessible when verification reports a missing key", () => {
       const noKeyGroup: ByokTableGroup = {
         provider: { ...group.provider, apiKeyKeychainId: undefined },
         models: group.models,
@@ -123,7 +123,7 @@ describe("ByokGlobalTable", () => {
       expect(screen.getByText("Endpoint accessible")).toBeTruthy();
     });
 
-    it("shows Checking… instead of Endpoint accessible for a keyless provider until verification returns (https://github.com/logancyang/obsidian-copilot/issues/3147)", () => {
+    it("shows Checking… instead of Endpoint accessible for a keyless provider until verification returns", () => {
       const localGroup: ByokTableGroup = {
         provider: { ...group.provider, displayName: "Ollama", requiresApiKey: false },
         models: [],

@@ -82,7 +82,6 @@ export async function postChatRequest(
   if (!options?.fetch) throw new Error("A provider transport is required.");
   const fetch = options.fetch;
   const replacement: unknown = await options.onPayload?.(body, model);
-  // Retry only request setup, never a stream that has already displayed text. https://github.com/ItsDalk-Lane/Scribe/issues/8
   return retryProviderRequest(async () => {
     let response: Response;
     try {
@@ -161,14 +160,12 @@ export function streamGoogle(
             });
       contents.push({ role: message.role === "assistant" ? "model" : "user", parts });
     }
-    // Gemma 只接受用户和模型两种角色；资源名按路径段编码，避免改变已配置的目标地址。https://github.com/ItsDalk-Lane/Scribe/issues/8
     const supportsSystemInstruction = !model.id.split("/").pop()?.startsWith("gemma-");
     if (system && !supportsSystemInstruction && contents[0]?.role === "user")
       contents[0].parts.unshift({ text: `${system}\n\n` });
     const resourcePath = /^(?:models|tunedModels|projects|publishers)\//.test(model.id)
       ? model.id.split("/").map(encodeURIComponent).join("/")
       : `models/${encodeURIComponent(model.id)}`;
-    // Vertex 的完整资源名复用版本或网关前缀，不重复项目路径，也不更改配置的主机。https://github.com/ItsDalk-Lane/Scribe/issues/8
     const resourceRoot = /^(projects|publishers)\//.exec(model.id)?.[1];
     let requestModel = model;
     if (resourceRoot) {
@@ -274,7 +271,6 @@ export function streamGoogle(
           };
         }
         if (candidate?.finishReason === "CONTINUATION") {
-          // 沿用原请求续传，限制异常令牌或无限续传，防止重复发送已显示的正文。https://github.com/ItsDalk-Lane/Scribe/issues/8
           const token = candidate.continuationToken;
           if (!token) throw new Error("Google continuation token is missing.");
           if (seenContinuationTokens.has(token))
@@ -454,8 +450,6 @@ export function streamOllama(
         stream: true,
         think: options?.reasoning ?? model.reasoning,
         options: {
-          // 窗口未知时不发 num_ctx，让 Ollama 使用自己的运行配置。
-          // https://github.com/ItsDalk-Lane/Scribe/issues/15
           ...(model.contextWindow > 0 ? { num_ctx: model.contextWindow } : {}),
           repeat_penalty: 1.1,
           ...(options?.maxTokens === undefined ? {} : { num_predict: options.maxTokens }),

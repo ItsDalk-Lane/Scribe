@@ -38,7 +38,7 @@ export async function inspectBuiltinSkill(
   }
 }
 
-const ENABLED_AGENTS_RE = /^([ \t]*copilot-enabled-agents:[ \t]*)(.*)$/m;
+const ENABLED_AGENTS_RE = /^([ \t]*scribe-enabled-agents:[ \t]*)(.*)$/m;
 
 function preserveEnabledAgents(existingMd: string, bundledMd: string): string {
   const existing = existingMd.match(ENABLED_AGENTS_RE);
@@ -84,7 +84,6 @@ export async function seedBuiltinSkills(
           ).then((results) => results.every(Boolean));
         }
       } catch (e) {
-        // Unreadable content may be user-owned: retry later instead of overwriting it. https://github.com/logancyang/obsidian-copilot/issues/3022
         logError(`[Skills] could not read builtin skill ${skill.name} for version check`, e);
         continue;
       }
@@ -100,7 +99,6 @@ export async function seedBuiltinSkills(
     }
     if (!current) {
       try {
-        // Copilot owns the whole marked folder, so replacement drops obsolete files. https://github.com/logancyang/obsidian-copilot/issues/3022
         if (existingContent !== null) await fs.removeDir(dir);
         await ensureDir(fs, dir);
         const skillMd =
@@ -139,7 +137,6 @@ export async function removeSeededBuiltin(
   try {
     if (!(await fs.exists(skillMdPath))) return "absent";
     if (getBuiltinSkillVersion(await fs.read(skillMdPath)) === null) return "collision";
-    // Copilot owns the whole marked directory, so removal leaves no orphans. https://github.com/logancyang/obsidian-copilot/issues/3022
     await fs.removeDir(dir);
     logInfo(`[Skills] removed de-gated builtin skill: ${name}`);
     return "removed";

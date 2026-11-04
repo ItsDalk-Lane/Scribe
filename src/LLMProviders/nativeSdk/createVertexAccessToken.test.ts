@@ -8,15 +8,15 @@ function response(payload: unknown, status = 200): Response {
 }
 
 describe("createVertexAccessToken", () => {
-  describe("parseVertexCredentials()", () => {
+  describe("parseVertexCredentials", () => {
     it.each(["ya29.fixture", "Bearer ya29.fixture", "  Bearer ya29.fixture  "])(
-      "returns the supplied OAuth token without an optional Bearer prefix: %s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "returns the supplied OAuth token without an optional Bearer prefix: %s",
       (secret) => {
         expect(parseVertexCredentials(secret)).toBe("ya29.fixture");
       }
     );
 
-    it("retains service-account fields for the caller's existing validation and signing (https://github.com/ItsDalk-Lane/Scribe/issues/8)", () => {
+    it("retains service-account fields for the caller's existing validation and signing", () => {
       const credentials = {
         type: "service_account",
         client_email: "fixture@example.invalid",
@@ -33,25 +33,22 @@ describe("createVertexAccessToken", () => {
       '{"private_key":SYNTHETIC_PRIVATE_KEY}',
       "Bearer\nSYNTHETIC_PRIVATE_KEY",
       "SYNTHETIC_PRIVATE_KEY\nremaining",
-    ])(
-      "rejects an invalid credential representation with a safe diagnostic (%s) (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
-      (secret) => {
-        let failure: unknown;
-        try {
-          parseVertexCredentials(secret);
-        } catch (error) {
-          failure = error;
-        }
-        expect(failure).toBeInstanceOf(Error);
-        expect((failure as Error).message).toMatch(
-          /JSON or access token is required|must be valid JSON/
-        );
-        expect((failure as Error).message).not.toContain("SYNTHETIC_PRIVATE_KEY");
+    ])("rejects an invalid credential representation with a safe diagnostic (%s)", (secret) => {
+      let failure: unknown;
+      try {
+        parseVertexCredentials(secret);
+      } catch (error) {
+        failure = error;
       }
-    );
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toMatch(
+        /JSON or access token is required|must be valid JSON/
+      );
+      expect((failure as Error).message).not.toContain("SYNTHETIC_PRIVATE_KEY");
+    });
   });
 
-  describe("createVertexAccessToken()", () => {
+  describe("createVertexAccessToken", () => {
     beforeAll(() => {
       Object.defineProperty(window.crypto, "subtle", {
         configurable: true,
@@ -162,14 +159,11 @@ describe("createVertexAccessToken", () => {
       { access_token: '{"private_key":"SYNTHETIC_PRIVATE_KEY"}', expires_in: 3600 },
       { access_token: "first\nSYNTHETIC_PRIVATE_KEY", expires_in: 3600 },
       { access_token: "Bearer token", expires_in: 3600 },
-    ])(
-      "rejects malformed OAuth credentials without caching them: %j (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
-      async (payload) => {
-        const getToken = createVertexAccessToken("fixture@example.invalid", privateKey, async () =>
-          response(payload)
-        );
-        await expect(getToken()).rejects.toThrow("Google did not return an access token.");
-      }
-    );
+    ])("rejects malformed OAuth credentials without caching them: %j", async (payload) => {
+      const getToken = createVertexAccessToken("fixture@example.invalid", privateKey, async () =>
+        response(payload)
+      );
+      await expect(getToken()).rejects.toThrow("Google did not return an access token.");
+    });
   });
 });

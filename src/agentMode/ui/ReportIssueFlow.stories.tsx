@@ -20,15 +20,15 @@ const SOURCES: ReportSourceOption[] = [
 ];
 
 const REPORT: PreparedReport = {
-  zipDir: "/tmp/copilot-report-a1b2c3",
-  zipPath: "/tmp/copilot-report-a1b2c3/copilot-report-a1b2c3.zip",
-  zipName: "copilot-report-a1b2c3.zip",
+  zipDir: "/tmp/scribe-report-a1b2c3",
+  zipPath: "/tmp/scribe-report-a1b2c3/scribe-report-a1b2c3.zip",
+  zipName: "scribe-report-a1b2c3.zip",
   uploadAttempt: {
     body: new ArrayBuffer(4_404_019),
     idempotencyKey: "3f2a1d9e-8b4c-4f6d-9e2a-7c5b3a1d9e8f",
   },
   issueDraft: { title: "Agent stops mid-turn", body: "It stops after the first tool call." },
-  manualIssueUrl: "https://github.com/logancyang/obsidian-copilot/issues/new",
+  manualIssueUrl: "https://github.com/ItsDalk-Lane/Scribe/issues/new",
   attachments: [
     { id: "report", name: "report.md", bytes: 2_310, included: true },
     { id: "screenshot", name: "screenshot.png", bytes: 284_115, included: true },
@@ -41,7 +41,7 @@ const REPORT: PreparedReport = {
     },
     {
       id: "chatLog",
-      name: "copilot-log.md",
+      name: "scribe-log.md",
       bytes: 0,
       included: false,
       note: "failed: EACCES",
@@ -52,7 +52,7 @@ const REPORT: PreparedReport = {
 const UPLOADED: UploadOutcome = {
   ok: true,
   reportId: "9f3c1a7b2e4d5f60819a2b3c4d5e6f70",
-  issueUrl: "https://github.com/logancyang/obsidian-copilot/issues/new?body=...",
+  issueUrl: "https://github.com/ItsDalk-Lane/Scribe/issues/new?body=...",
 };
 
 const pending = <T,>(): Promise<T> => new Promise<T>(() => undefined);

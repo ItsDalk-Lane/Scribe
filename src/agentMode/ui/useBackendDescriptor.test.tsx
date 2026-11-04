@@ -7,8 +7,8 @@ import type {
   InstallState,
   ManagedInstallActionState,
 } from "@/agentMode/session/types";
-import type CopilotPlugin from "@/main";
-import type { CopilotSettings } from "@/settings/model";
+import type ScribePlugin from "@/main";
+import type { ScribeSettings } from "@/settings/model";
 import {
   useBackendInstallState,
   useBackendInstallStates,
@@ -16,7 +16,7 @@ import {
   useSessionBackendDescriptor,
 } from "./useBackendDescriptor";
 
-let mockSettings = {} as CopilotSettings;
+let mockSettings = {} as ScribeSettings;
 
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mock name must match */
 jest.mock("@/settings/model", () => ({
@@ -72,7 +72,7 @@ function makeInstallDescriptor(initial: InstallState, id: BackendId = "claude") 
   const backend = {
     id,
     getInstallState: () => ({ ...state }),
-    subscribeInstallState: (_plugin: CopilotPlugin, listener: () => void) => {
+    subscribeInstallState: (_plugin: ScribePlugin, listener: () => void) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
@@ -95,7 +95,7 @@ function makeManagedInstallDescriptor() {
     id: "opencode",
     managedInstall: {
       getState: () => ({ ...state }),
-      subscribe: (_plugin: CopilotPlugin, listener: () => void) => {
+      subscribe: (_plugin: ScribePlugin, listener: () => void) => {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
@@ -114,7 +114,7 @@ function makeManagedInstallDescriptor() {
 
 describe("useBackendDescriptor", () => {
   beforeEach(() => {
-    mockSettings = {} as CopilotSettings;
+    mockSettings = {} as ScribeSettings;
     mockGetActiveBackendDescriptor.mockReset();
     for (const id of Object.keys(registry)) delete registry[id];
   });
@@ -153,7 +153,7 @@ describe("useBackendDescriptor", () => {
   describe("useBackendInstallState()", () => {
     it("updates when the install-state value changes despite fresh descriptor objects", () => {
       const fake = makeInstallDescriptor({ kind: "checking", source: "custom" });
-      const plugin = {} as CopilotPlugin;
+      const plugin = {} as ScribePlugin;
       const { result } = renderHook(() => useBackendInstallState(fake.backend, plugin));
 
       expect(result.current).toEqual({ kind: "checking", source: "custom" });
@@ -178,7 +178,7 @@ describe("useBackendDescriptor", () => {
     it("skips rerenders when a notification does not change install state", () => {
       const ready: InstallState = { kind: "ready", source: "custom" };
       const fake = makeInstallDescriptor(ready);
-      const plugin = {} as CopilotPlugin;
+      const plugin = {} as ScribePlugin;
       let renderCount = 0;
       const { result } = renderHook(() => {
         renderCount += 1;
@@ -196,7 +196,7 @@ describe("useBackendDescriptor", () => {
     it("unsubscribes from install-state changes on unmount", () => {
       const fake = makeInstallDescriptor({ kind: "absent" });
       const { unmount } = renderHook(() =>
-        useBackendInstallState(fake.backend, {} as CopilotPlugin)
+        useBackendInstallState(fake.backend, {} as ScribePlugin)
       );
 
       unmount();
@@ -207,7 +207,7 @@ describe("useBackendDescriptor", () => {
 
   describe("useManagedInstallActionState()", () => {
     it("returns one stable idle state when the backend has no managed action", () => {
-      const plugin = {} as CopilotPlugin;
+      const plugin = {} as ScribePlugin;
       const backend = descriptor("claude");
       const { result, rerender } = renderHook(() => useManagedInstallActionState(backend, plugin));
       const first = result.current;
@@ -220,7 +220,7 @@ describe("useBackendDescriptor", () => {
 
     it("tracks the shared action progress and unsubscribes on unmount", () => {
       const fake = makeManagedInstallDescriptor();
-      const plugin = {} as CopilotPlugin;
+      const plugin = {} as ScribePlugin;
       const { result, unmount } = renderHook(() =>
         useManagedInstallActionState(fake.backend, plugin)
       );
@@ -235,7 +235,7 @@ describe("useBackendDescriptor", () => {
 
   describe("useBackendInstallStates()", () => {
     it("reuses one frozen empty record across settings identity changes", () => {
-      const { result, rerender } = renderHook(() => useBackendInstallStates({} as CopilotPlugin));
+      const { result, rerender } = renderHook(() => useBackendInstallStates({} as ScribePlugin));
       const first = result.current;
 
       mockSettings = { ...mockSettings };
@@ -251,7 +251,7 @@ describe("useBackendDescriptor", () => {
       registry.opencode = opencode.backend;
       registry.claude = claude.backend;
 
-      const { result } = renderHook(() => useBackendInstallStates({} as CopilotPlugin));
+      const { result } = renderHook(() => useBackendInstallStates({} as ScribePlugin));
 
       expect(result.current).toEqual({
         opencode: { kind: "ready", source: "managed" },
@@ -264,7 +264,7 @@ describe("useBackendDescriptor", () => {
       const claude = makeInstallDescriptor({ kind: "absent" }, "claude");
       registry.opencode = opencode.backend;
       registry.claude = claude.backend;
-      const { result } = renderHook(() => useBackendInstallStates({} as CopilotPlugin));
+      const { result } = renderHook(() => useBackendInstallStates({} as ScribePlugin));
 
       act(() => claude.emit({ kind: "ready", source: "custom" }));
 
@@ -276,7 +276,7 @@ describe("useBackendDescriptor", () => {
       const ready: InstallState = { kind: "ready", source: "managed" };
       const opencode = makeInstallDescriptor(ready, "opencode");
       registry.opencode = opencode.backend;
-      const { result } = renderHook(() => useBackendInstallStates({} as CopilotPlugin));
+      const { result } = renderHook(() => useBackendInstallStates({} as ScribePlugin));
       const before = result.current;
 
       act(() => opencode.emit(ready));
@@ -289,7 +289,7 @@ describe("useBackendDescriptor", () => {
       const claude = makeInstallDescriptor({ kind: "absent" }, "claude");
       registry.opencode = opencode.backend;
       registry.claude = claude.backend;
-      const { unmount } = renderHook(() => useBackendInstallStates({} as CopilotPlugin));
+      const { unmount } = renderHook(() => useBackendInstallStates({} as ScribePlugin));
 
       unmount();
 

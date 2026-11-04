@@ -226,9 +226,6 @@ module.exports = {
         5.5: "calc(var(--size-4-5) + 2px)",
         6: "var(--size-4-6)",
       },
-      // A tint painted as an image layers over the reading view's striped table cells instead of
-      // competing with their background-color rules on specificity.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
       backgroundImage: {
         "overlay-success":
           "linear-gradient(rgba(var(--color-green-rgb),0.2),rgba(var(--color-green-rgb),0.2))",

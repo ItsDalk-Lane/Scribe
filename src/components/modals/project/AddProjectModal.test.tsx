@@ -64,7 +64,7 @@ const PROJECT = {
   contextSource: { inclusions: "", exclusions: "", webUrls: "", youtubeUrls: "" },
 } as unknown as ProjectConfig;
 
-const PROJECT_FOLDER = "copilot/projects/proj-1";
+const PROJECT_FOLDER = "scribe/projects/proj-1";
 
 function renderModal(overrides: Partial<AddProjectModalContentProps> = {}) {
   const onSave = overrides.onSave ?? jest.fn().mockResolvedValue(undefined);

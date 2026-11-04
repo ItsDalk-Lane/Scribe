@@ -77,7 +77,7 @@ beforeEach(() => {
 });
 
 describe("manifestBuilder", () => {
-  describe("buildProjectContext()", () => {
+  describe("buildProjectContext", () => {
     it("lists included notes by absolute path in the context block", () => {
       getRecord.mockReturnValue(record({ inclusions: "[[Spec]]" }));
       const app = fakeApp([{ path: "Notes/Spec.md", ext: "md" }]);
@@ -186,7 +186,7 @@ describe("manifestBuilder", () => {
       expect(block).not.toContain("secret.pdf");
     });
 
-    it("lists a document picked as a file once, under Included notes, so it does not spend a second manifest entry https://github.com/Brevilabs/obsidian-copilot-private/issues/657", () => {
+    it("lists a document picked as a file once, under Included notes, so it does not spend a second manifest entry", () => {
       getRecord.mockReturnValue(record({ inclusions: "[[report]]" }));
       const app = fakeApp([{ path: "Docs/report.pdf", ext: "pdf" }]);
 
@@ -240,7 +240,7 @@ describe("manifestBuilder", () => {
       expect(buildProjectContext(fakeApp(), "missing")).toContain("could not be loaded");
     });
 
-    it("tells a project chat to save generated files to outputs/ even when the project has no sources or cannot be loaded https://github.com/logancyang/obsidian-copilot/issues/3801", () => {
+    it("tells a project chat to save generated files to outputs/ even when the project has no sources or cannot be loaded", () => {
       getRecord.mockReturnValue(record({}));
       const noSources = buildProjectContext(fakeApp(), "p1");
       getRecord.mockReturnValue(undefined);
@@ -251,14 +251,14 @@ describe("manifestBuilder", () => {
     });
   });
 
-  describe("buildProjectContextBlock()", () => {
+  describe("buildProjectContextBlock", () => {
     it("wraps the listing in a <project_context> block", () => {
       const md = buildProjectContextBlock(sources({ tags: ["#research"] }));
       expect(md.startsWith("<project_context>")).toBe(true);
       expect(md.endsWith("</project_context>")).toBe(true);
     });
 
-    it("states the outputs/ workspace policy ahead of the source listing, so the entry cap never drops it https://github.com/logancyang/obsidian-copilot/issues/3801", () => {
+    it("states the outputs/ workspace policy ahead of the source listing, so the entry cap never drops it", () => {
       const md = buildProjectContextBlock(sources({ tags: ["#research"] }));
 
       expect(md.startsWith(`<project_context>\n${PROJECT_WORKSPACE_POLICY}\n`)).toBe(true);

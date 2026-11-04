@@ -59,7 +59,7 @@ function makeAdapter(files: Record<string, string>): SkillsFsAdapter {
   };
 }
 
-const SKILLS_ROOT = "copilot/skills";
+const SKILLS_ROOT = "scribe/skills";
 
 const validSkillMd = (overrides: Record<string, string> = {}) => {
   const fm = {
@@ -74,7 +74,7 @@ const validSkillMd = (overrides: Record<string, string> = {}) => {
 };
 
 describe("discoverManagedSkills", () => {
-  describe("discoverManagedSkills()", () => {
+  describe("discoverManagedSkills", () => {
     beforeEach(() => {
       mockedLogWarn.mockClear();
     });
@@ -106,7 +106,7 @@ describe("discoverManagedSkills", () => {
       expect(skills[0].body).toBe("body");
     });
 
-    it("returns a rejected SKILL.md with its repair details for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", async () => {
+    it("returns a rejected SKILL.md with its repair details", async () => {
       const adapter = makeAdapter({
         [`${SKILLS_ROOT}/Bad/SKILL.md`]: validSkillMd({ name: "Bad" }),
       });
@@ -119,8 +119,8 @@ describe("discoverManagedSkills", () => {
       expect(result.rejected).toEqual([
         {
           name: "Bad",
-          dirPath: "copilot/skills/Bad",
-          filePath: "copilot/skills/Bad/SKILL.md",
+          dirPath: "scribe/skills/Bad",
+          filePath: "scribe/skills/Bad/SKILL.md",
           reason: expect.stringMatching(/lowercase/),
           offendingText: "name: Bad",
         },
@@ -170,13 +170,13 @@ describe("discoverManagedSkills", () => {
       expect(skills.map((s) => s.name)).toEqual(["alpha", "beta", "gamma"]);
     });
 
-    it("parses metadata.copilot-enabled-agents into BackendId[]", async () => {
+    it("parses metadata.scribe-enabled-agents into BackendId[]", async () => {
       const content = [
         "---",
         "name: multi",
         "description: A skill",
         "metadata:",
-        '  copilot-enabled-agents: "claude,opencode"',
+        '  scribe-enabled-agents: "claude,opencode"',
         "---",
         "body",
       ].join("\n");
@@ -198,12 +198,12 @@ describe("discoverManagedSkills", () => {
       });
       const { accepted: skills } = await discoverManagedSkills({
         skillsFolderRelPath: SKILLS_ROOT,
-        skillsFolderAbsPath: "/abs/vault/copilot/skills",
+        skillsFolderAbsPath: "/abs/vault/scribe/skills",
         adapter,
       });
       expect(skills).toHaveLength(1);
-      expect(skills[0].dirPath).toBe("/abs/vault/copilot/skills/foo");
-      expect(skills[0].filePath).toBe("/abs/vault/copilot/skills/foo/SKILL.md");
+      expect(skills[0].dirPath).toBe("/abs/vault/scribe/skills/foo");
+      expect(skills[0].filePath).toBe("/abs/vault/scribe/skills/foo/SKILL.md");
     });
 
     it("ignores subdirectories without a SKILL.md", async () => {
@@ -219,7 +219,7 @@ describe("discoverManagedSkills", () => {
       expect(skills.map((s) => s.name)).toEqual(["has-skill"]);
       expect(mockedLogWarn).not.toHaveBeenCalled();
     });
-    it("marks only catalog skills with YAML metadata read-only, preserving renamed copies and body examples https://github.com/logancyang/obsidian-copilot/issues/3022", async () => {
+    it("marks only catalog skills with YAML metadata read-only, preserving renamed copies and body examples", async () => {
       const [managed, bodyExample, markerless] = BUILTIN_SKILLS;
       const result = await discoverManagedSkills({
         skillsFolderRelPath: SKILLS_ROOT,
@@ -227,14 +227,14 @@ describe("discoverManagedSkills", () => {
         adapter: makeAdapter({
           [`${SKILLS_ROOT}/${managed.name}/SKILL.md`]: validSkillMd({
             name: managed.name,
-            metadata: '\n  copilot-builtin-version: "1"',
+            metadata: '\n  scribe-builtin-version: "1"',
           }),
           [`${SKILLS_ROOT}/renamed-copy/SKILL.md`]: validSkillMd({
             name: "renamed-copy",
-            metadata: '\n  copilot-builtin-version: "1"',
+            metadata: '\n  scribe-builtin-version: "1"',
           }),
           [`${SKILLS_ROOT}/${bodyExample.name}/SKILL.md`]:
-            validSkillMd({ name: bodyExample.name }) + '\nExample:\n  copilot-builtin-version: "1"',
+            validSkillMd({ name: bodyExample.name }) + '\nExample:\n  scribe-builtin-version: "1"',
           [`${SKILLS_ROOT}/${markerless.name}/SKILL.md`]: validSkillMd({ name: markerless.name }),
         }),
       });

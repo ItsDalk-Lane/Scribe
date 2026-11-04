@@ -18,8 +18,5 @@ function getRuntimeRequire(): (id: string) => unknown {
 
 export function isObsidianCliEnabled(): boolean {
   const electron = getRuntimeRequire()("electron") as ElectronModule;
-  // Obsidian keeps its per-device Command line interface toggle in the main process and has no
-  // plugin API for it; a null "cli" message reads it, and releases before 1.12 do not answer.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/726
   return electron.ipcRenderer.sendSync("cli", null) === true;
 }

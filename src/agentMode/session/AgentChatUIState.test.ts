@@ -114,7 +114,7 @@ describe("AgentChatUIState", () => {
     };
   }
 
-  describe("resolvePlanProposal()", () => {
+  describe("resolvePlanProposal", () => {
     it("keeps the newer plan pending when a button from an older revision is clicked", async () => {
       const review = planReview();
       const next = {
@@ -147,24 +147,21 @@ describe("AgentChatUIState", () => {
       ["approve", "Approved plan"],
       ["reject", "Rejected plan"],
       ["feedback", "Requested plan changes: revise step two"],
-    ] as const)(
-      "shows the user's %s decision in the transcript (https://github.com/Brevilabs/obsidian-copilot-private/issues/41)",
-      async (decision, expected) => {
-        const review = planReview();
-        await review.chat.resolvePlanProposal(review.plan.id, decision, "revise step two");
-        const part = review.chat
-          .getMessages()
-          .flatMap((message) => message.parts ?? [])
-          .find((item) => item.kind === "tool_call" && item.id === "plan-review-tool");
-        expect(part?.kind).toBe("tool_call");
-        if (part?.kind === "tool_call") {
-          expect(lookupToolSummary(part).collapsedLine(part, { vaultBase: null })).toBe(expected);
-        }
-        review.finishFirstTurn();
-        await review.firstTurn;
+    ] as const)("shows the user's %s decision in the transcript", async (decision, expected) => {
+      const review = planReview();
+      await review.chat.resolvePlanProposal(review.plan.id, decision, "revise step two");
+      const part = review.chat
+        .getMessages()
+        .flatMap((message) => message.parts ?? [])
+        .find((item) => item.kind === "tool_call" && item.id === "plan-review-tool");
+      expect(part?.kind).toBe("tool_call");
+      if (part?.kind === "tool_call") {
+        expect(lookupToolSummary(part).collapsedLine(part, { vaultBase: null })).toBe(expected);
       }
-    );
-    it("sends Codex feedback as a visible follow-up after its plan permission ends the turn (https://github.com/Brevilabs/obsidian-copilot-private/issues/41)", async () => {
+      review.finishFirstTurn();
+      await review.firstTurn;
+    });
+    it("sends Codex feedback as a visible follow-up after its plan permission ends the turn", async () => {
       const review = planReview("next_turn");
       const resolution = review.chat.resolvePlanProposal(
         review.plan.id,
@@ -209,7 +206,7 @@ describe("AgentChatUIState", () => {
       );
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/551 ignores a decision made before the plan permission arrives and keeps the card reviewable", async () => {
+    it("ignores a decision made before the plan permission arrives and keeps the card reviewable", async () => {
       const review = planReview("permission", { permissionArrived: false });
       await review.chat.resolvePlanProposal(review.plan.id, "approve");
       expect(review.chat.getCurrentPlan()?.id).toBe(review.plan.id);
@@ -241,8 +238,8 @@ describe("AgentChatUIState", () => {
     );
   });
 
-  describe("resolveAskUserQuestion()", () => {
-    it("shows the selected answer in the transcript (https://github.com/Brevilabs/obsidian-copilot-private/issues/551)", async () => {
+  describe("resolveAskUserQuestion", () => {
+    it("shows the selected answer in the transcript", async () => {
       const review = planReview();
       const answer = review.session.handleAskUserQuestion({
         sessionId: "codex-session",
@@ -283,13 +280,13 @@ describe("AgentChatUIState", () => {
     return chat;
   }
 
-  describe("getFeedbackOffer()", () => {
+  describe("getFeedbackOffer", () => {
     it("serves the session's open feedback card", () => {
       expect(feedbackChat().getFeedbackOffer()?.status).toBe("open");
     });
   });
 
-  describe("dismissFeedbackOffer()", () => {
+  describe("dismissFeedbackOffer", () => {
     it("dismisses the session's open card and notifies the view", () => {
       const chat = feedbackChat();
       const listener = jest.fn();
@@ -302,7 +299,7 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("markFeedbackReported()", () => {
+  describe("markFeedbackReported", () => {
     it("records the sent report on the session's card", () => {
       const chat = feedbackChat();
 
@@ -315,8 +312,8 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("isTurnInFlight()", () => {
-    it("stays true while an approved plan is being implemented and clears when the turn finishes (https://github.com/Brevilabs/obsidian-copilot-private/issues/41)", async () => {
+  describe("isTurnInFlight", () => {
+    it("stays true while an approved plan is being implemented and clears when the turn finishes", async () => {
       const review = planReview("next_turn");
       expect(review.chat.isTurnInFlight()).toBe(true);
 
@@ -356,15 +353,15 @@ describe("AgentChatUIState", () => {
     return Object.assign(chat, { emit });
   }
 
-  describe("acceptsMidTurnMessages()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 follows the backend's mid-turn delivery capability", () => {
+  describe("acceptsMidTurnMessages", () => {
+    it("follows the backend's mid-turn delivery capability", () => {
       expect(liveChat({ midTurnDelivery: true }).acceptsMidTurnMessages()).toBe(true);
       expect(liveChat({}).acceptsMidTurnMessages()).toBe(false);
     });
   });
 
-  describe("getQueuedPrompts()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/509 lists a message sent while the agent works, and notifies the composer when the agent withdraws it", () => {
+  describe("getQueuedPrompts", () => {
+    it("lists a message sent while the agent works, and notifies the composer when the agent withdraws it", () => {
       const chat = liveChat({ midTurnDelivery: true });
       chat.sendMessage("list the notes");
       const { id } = chat.sendMessage("only the first two");
@@ -381,15 +378,15 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("canWithdrawMessages()", () => {
-    it("follows the backend's withdraw capability (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", () => {
+  describe("canWithdrawMessages", () => {
+    it("follows the backend's withdraw capability", () => {
       expect(liveChat({ withdraw: true }).canWithdrawMessages()).toBe(true);
       expect(liveChat({}).canWithdrawMessages()).toBe(false);
     });
   });
 
-  describe("withdrawMessage()", () => {
-    it("asks the backend to withdraw a queued message (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", async () => {
+  describe("withdrawMessage", () => {
+    it("asks the backend to withdraw a queued message", async () => {
       const withdraw = jest.fn(async () => false);
       const prompt = jest.fn(async () => undefined);
       const chat = liveChat({ midTurnDelivery: true, withdraw: true }, { prompt, withdraw });
@@ -403,8 +400,8 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("sendWaitingNow()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/789 interrupts the running reply and leaves the waiting messages with the agent", async () => {
+  describe("sendWaitingNow", () => {
+    it("interrupts the running reply and leaves the waiting messages with the agent", async () => {
       const cancel = jest.fn(async () => undefined);
       const prompt = jest.fn(async () => undefined);
       const chat = liveChat({ midTurnDelivery: true, withdraw: true }, { prompt, cancel });
@@ -419,8 +416,8 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("isReplyRunning()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/788 follows whether the agent's reply is running", () => {
+  describe("isReplyRunning", () => {
+    it("follows whether the agent's reply is running", () => {
       const chat = liveChat({ midTurnDelivery: true });
       expect(chat.isReplyRunning()).toBe(false);
 
@@ -430,8 +427,8 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("takeWithdrawnPrompts()", () => {
-    it("hands over the messages the agent withdrew, once (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", () => {
+  describe("takeWithdrawnPrompts", () => {
+    it("hands over the messages the agent withdrew, once", () => {
       const chat = liveChat({ midTurnDelivery: true });
       chat.sendMessage("list the notes");
       const { id } = chat.sendMessage("only the first two");
@@ -443,8 +440,8 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("getTasks()", () => {
-    it("lists the session's tasks and notifies the UI when one starts (https://github.com/Brevilabs/obsidian-copilot-private/issues/749)", () => {
+  describe("getTasks", () => {
+    it("lists the session's tasks and notifies the UI when one starts", () => {
       const chat = liveChat({});
       const listener = jest.fn();
       chat.subscribe(listener);
@@ -464,8 +461,8 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("getTaskMessages()", () => {
-    it("returns a task's own messages and notifies the UI as they grow (https://github.com/Brevilabs/obsidian-copilot-private/issues/749)", () => {
+  describe("getTaskMessages", () => {
+    it("returns a task's own messages and notifies the UI as they grow", () => {
       const chat = liveChat({});
       chat.emit({
         sessionUpdate: "task_started",
@@ -488,15 +485,15 @@ describe("AgentChatUIState", () => {
     });
   });
 
-  describe("canStopTasks()", () => {
-    it("follows the backend's per-task stop capability (https://github.com/Brevilabs/obsidian-copilot-private/issues/748)", () => {
+  describe("canStopTasks", () => {
+    it("follows the backend's per-task stop capability", () => {
       expect(liveChat({ stopTask: true }).canStopTasks()).toBe(true);
       expect(liveChat({}).canStopTasks()).toBe(false);
     });
   });
 
-  describe("stopTask()", () => {
-    it("asks the backend to stop the task with that id (https://github.com/Brevilabs/obsidian-copilot-private/issues/748)", async () => {
+  describe("stopTask", () => {
+    it("asks the backend to stop the task with that id", async () => {
       const stopTask = jest.fn(async () => undefined);
       const chat = liveChat({ stopTask: true }, { stopTask });
 

@@ -126,7 +126,7 @@ describe("ChangeScroller", () => {
     delete (HTMLElement.prototype as { animate?: unknown }).animate;
   });
 
-  describe("ChangeScroller()", () => {
+  describe("ChangeScroller", () => {
     it("places one tick per change on the left strip at the change's position in the whole note", () => {
       render(
         <Harness>
@@ -210,7 +210,7 @@ describe("ChangeScroller", () => {
       expect(scroller().scrollTop).toBe(1000 - ANCHOR);
     });
 
-    it("scrolls the note in Obsidian's reading-view container so its text takes the note's font, size and line height (https://github.com/Brevilabs/obsidian-copilot-private/issues/755)", () => {
+    it("scrolls the note in Obsidian's reading-view container so its text takes the note's font, size and line height", () => {
       render(<Harness>note</Harness>);
 
       expect(scroller().classList).toContain("markdown-preview-view");
@@ -222,7 +222,7 @@ describe("ChangeScroller", () => {
       expect(screen.queryAllByRole("button", { name: /Go to change/ })).toEqual([]);
     });
 
-    it("adds ticks once a section marks its changes after the first layout (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", async () => {
+    it("adds ticks once a section marks its changes after the first layout", async () => {
       render(
         <Harness>
           <p>note</p>
@@ -236,7 +236,7 @@ describe("ChangeScroller", () => {
       await waitFor(() => expect(placement(tick(1, 1))).toEqual(["20%", "1%"]));
     });
 
-    it("moves ticks when late-loading images resize the note (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", () => {
+    it("moves ticks when late-loading images resize the note", () => {
       render(
         <Harness>
           <Mark change="inserted" top={400} />
@@ -249,7 +249,7 @@ describe("ChangeScroller", () => {
       expect(tick(1, 1).style.top).toBe("30%");
     });
 
-    it("re-places ticks when the pane is resized around a note shorter than the view (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", () => {
+    it("re-places ticks when the pane is resized around a note shorter than the view", () => {
       render(
         <Harness>
           <Mark change="inserted" top={400} />
@@ -263,7 +263,7 @@ describe("ChangeScroller", () => {
     });
   });
 
-  describe("useChangeNavigation()", () => {
+  describe("useChangeNavigation", () => {
     it("shows the first change as current before the reader reaches it, and steps to it and on through the changes in note order", () => {
       render(<ThreeChanges />);
       expect([currentChange(), scroller().scrollTop]).toEqual(["1", 0]);
@@ -284,7 +284,7 @@ describe("ChangeScroller", () => {
       expect(currentChange()).toBe("1");
     });
 
-    it("moves two changes for two steps that arrive before the view re-renders, as a held hotkey does (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", () => {
+    it("moves two changes for two steps that arrive before the view re-renders, as a held hotkey does", () => {
       render(<ThreeChanges />);
 
       press("Next twice");
@@ -306,7 +306,7 @@ describe("ChangeScroller", () => {
       expect([currentChange(), scroller().scrollTop]).toEqual(["2", 800 - ANCHOR]);
     });
 
-    it("steps from the first change to the second in a note short enough to fit the view, which is at its end from the start (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", () => {
+    it("steps from the first change to the second in a note short enough to fit the view, which is at its end from the start", () => {
       jest.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(VIEW_HEIGHT);
       render(
         <Harness>
@@ -340,7 +340,7 @@ describe("ChangeScroller", () => {
       expect(currentChange()).toBe("1");
     });
 
-    it("makes the last change current once the reader scrolls to the end of a note too short for it to reach the upper third (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", () => {
+    it("makes the last change current once the reader scrolls to the end of a note too short for it to reach the upper third", () => {
       render(
         <Harness>
           <Mark change="inserted" top={1500} height={40} />
@@ -354,7 +354,7 @@ describe("ChangeScroller", () => {
       expect(currentChange()).toBe("2");
     });
 
-    it("keeps a jumped-to change current when the note ends before it reaches the upper third (https://github.com/Brevilabs/obsidian-copilot-private/issues/709)", () => {
+    it("keeps a jumped-to change current when the note ends before it reaches the upper third", () => {
       render(
         <Harness>
           <Mark change="inserted" top={1500} height={40} />

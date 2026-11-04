@@ -9,7 +9,7 @@ Agent Chat is available in Obsidian on desktop. Scribe Commands, Quick Command, 
 1. Copy `main.js`, `manifest.json`, and `styles.css` into your vault’s `.obsidian/plugins/scribe/` folder.
 2. Open **Obsidian Settings → Community plugins** and enable Scribe. The Agent Chat icon appears in the left ribbon on desktop.
 
-Scribe starts with its own settings and data; it does not automatically import Copilot settings or chats.
+Scribe starts with its own settings and data; it does not automatically import Scribe settings or chats.
 
 ### Install or update with BRAT
 

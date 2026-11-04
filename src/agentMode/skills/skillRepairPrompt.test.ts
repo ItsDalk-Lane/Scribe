@@ -1,10 +1,8 @@
 import { buildSkillRepairPrompt } from "@/agentMode/skills/skillRepairPrompt";
 
-const ISSUE_URL = "https://github.com/Brevilabs/obsidian-copilot-private/issues/166";
-
 describe("skillRepairPrompt", () => {
-  describe("buildSkillRepairPrompt()", () => {
-    it(`builds one factual repair request without inventing a correction for ${ISSUE_URL}`, () => {
+  describe("buildSkillRepairPrompt", () => {
+    it(`builds one factual repair request without inventing a correction for`, () => {
       const reason = 'The description contains ": " and must be quoted.';
       const prompt = buildSkillRepairPrompt([
         {
@@ -23,10 +21,10 @@ describe("skillRepairPrompt", () => {
       expect(prompt).not.toContain("Change to");
     });
 
-    it(`includes every rejected file and omits unavailable source lines for ${ISSUE_URL}`, () => {
+    it(`includes every rejected file and omits unavailable source lines for`, () => {
       const prompt = buildSkillRepairPrompt([
         {
-          location: "copilot/skills/one/SKILL.md",
+          location: "scribe/skills/one/SKILL.md",
           reason: "Missing name.",
         },
         {
@@ -37,7 +35,7 @@ describe("skillRepairPrompt", () => {
       ]);
 
       expect(prompt).toContain("Repair these Scribe skills so they load successfully.");
-      expect(prompt).toContain('1. File: "copilot/skills/one/SKILL.md"');
+      expect(prompt).toContain('1. File: "scribe/skills/one/SKILL.md"');
       expect(prompt).toContain('2. File: ".codex/skills/two/SKILL.md"');
       expect(prompt).toContain("Inspect each complete SKILL.md and its folder before editing.");
       expect(prompt).toContain("Validate each repaired skill after the change.");

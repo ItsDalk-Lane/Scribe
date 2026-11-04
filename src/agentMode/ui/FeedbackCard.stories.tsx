@@ -73,7 +73,7 @@ export const Sent: StoryObj<FeedbackCardProps> = {
       status: "reported",
       report: {
         reportId: "da3b3782d2a776df9f0bf6fd0ebd570b",
-        issueUrl: "https://github.com/logancyang/obsidian-copilot/issues/new",
+        issueUrl: "https://github.com/ItsDalk-Lane/Scribe/issues/new",
       },
     },
   },

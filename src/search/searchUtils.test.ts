@@ -100,7 +100,7 @@ describe("searchUtils", () => {
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",
         qaExclusions: "",
-        copilotFolder: "scribe",
+        scribeFolder: "scribe",
         projectsFolder: "scribe/projects",
       });
       expect(
@@ -515,28 +515,28 @@ describe("searchUtils", () => {
   });
 
   describe("getSystemExcludedFolders()", () => {
-    it("always includes the historical copilot root", () => {
+    it("always includes the historical scribe root", () => {
       const folders = getSystemExcludedFolders({
-        copilotFolder: "copilot",
-        copilotRootHistory: [],
+        scribeFolder: "scribe",
+        scribeRootHistory: [],
       } as unknown as Parameters<typeof getSystemExcludedFolders>[0]);
-      expect(folders).toContain("copilot");
+      expect(folders).toContain("scribe");
     });
 
     it("includes the active root and every historical root", () => {
       const folders = getSystemExcludedFolders({
-        copilotFolder: "team-ai",
-        copilotRootHistory: ["copilot", "ai"],
+        scribeFolder: "team-ai",
+        scribeRootHistory: ["scribe", "ai"],
       } as unknown as Parameters<typeof getSystemExcludedFolders>[0]);
-      expect(new Set(folders)).toEqual(new Set(["scribe", "copilot", "ai", "team-ai"]));
+      expect(new Set(folders)).toEqual(new Set(["scribe", "scribe", "ai", "team-ai"]));
     });
 
     it("normalizes and dedupes without lowercasing (matcher is case-sensitive)", () => {
       const folders = getSystemExcludedFolders({
-        copilotFolder: "Copilot/",
-        copilotRootHistory: ["copilot", "Copilot"],
+        scribeFolder: "Scribe/",
+        scribeRootHistory: ["scribe", "Scribe"],
       } as unknown as Parameters<typeof getSystemExcludedFolders>[0]);
-      expect(new Set(folders)).toEqual(new Set(["scribe", "copilot", "Copilot"]));
+      expect(new Set(folders)).toEqual(new Set(["scribe", "scribe", "Scribe"]));
     });
   });
 
@@ -545,27 +545,27 @@ describe("searchUtils", () => {
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",
         qaExclusions: "",
-        copilotFolder: "copilot",
+        scribeFolder: "scribe",
       });
-      expect(isInternalExcludedPath("copilot/projects/my-project/project.md")).toBe(true);
+      expect(isInternalExcludedPath("scribe/projects/my-project/project.md")).toBe(true);
     });
 
     it("derives the projects folder from a custom root, not the retired projectsFolder field", () => {
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",
         qaExclusions: "",
-        copilotFolder: "team-ai",
-        projectsFolder: "copilot/projects",
+        scribeFolder: "team-ai",
+        projectsFolder: "scribe/projects",
       });
       expect(isInternalExcludedPath("team-ai/projects/my-project/project.md")).toBe(true);
-      expect(isInternalExcludedPath("copilot/projects/my-project/project.md")).toBe(false);
+      expect(isInternalExcludedPath("scribe/projects/my-project/project.md")).toBe(false);
     });
 
     it("does not exclude ordinary user files that merely live under the projects folder", () => {
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",
         qaExclusions: "",
-        copilotFolder: "team-ai",
+        scribeFolder: "team-ai",
       });
       expect(isInternalExcludedPath("team-ai/projects/my-project/notes.md")).toBe(false);
     });

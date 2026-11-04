@@ -1,7 +1,7 @@
 import { compareSemver, parseSemver } from "@/utils/semver";
 
 describe("semver", () => {
-  describe("compareSemver()", () => {
+  describe("compareSemver", () => {
     it("orders by major, minor, then patch", () => {
       expect(compareSemver("1.15.11", "1.15.13")).toBeLessThan(0);
       expect(compareSemver("1.15.13", "1.15.11")).toBeGreaterThan(0);
@@ -25,7 +25,7 @@ describe("semver", () => {
     });
   });
 
-  describe("parseSemver()", () => {
+  describe("parseSemver", () => {
     it("returns numeric components for a stable version", () => {
       expect(parseSemver("1.20.3")).toEqual({
         major: 1,
@@ -51,7 +51,7 @@ describe("semver", () => {
     });
 
     it.each(["", "garbage", "1.2", "v1.2.3", "cli 1.2.3", "1.2.3 ", "01.2.3", "1.2.3-", "1.2.3+"])(
-      "rejects invalid package metadata %j, https://github.com/Brevilabs/obsidian-copilot-private/issues/535",
+      "rejects invalid package metadata %j,",
       (version) => {
         expect(parseSemver(version)).toBeNull();
       }

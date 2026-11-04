@@ -137,7 +137,7 @@ export default function AgentContextSection({
   return (
     <div
       ref={sectionRef}
-      data-copilot-drop-zone
+      data-scribe-drop-zone
       className={cn("tw-flex tw-min-h-48 tw-grow tw-flex-col tw-p-2")}
     >
       <ProjectContextSourceEditor

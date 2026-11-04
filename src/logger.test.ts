@@ -1,6 +1,6 @@
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
-const mockGetSettings = jest.fn<CopilotSettings, []>();
+const mockGetSettings = jest.fn<ScribeSettings, []>();
 
 jest.mock("@/settings/model", () => ({
   getSettings: () => mockGetSettings(),
@@ -23,7 +23,7 @@ describe("logger", () => {
   let errorSpy: jest.SpyInstance;
 
   function setDebug(debug: boolean): void {
-    mockGetSettings.mockReturnValue({ debug } as CopilotSettings);
+    mockGetSettings.mockReturnValue({ debug } as ScribeSettings);
   }
 
   beforeEach(() => {
@@ -105,10 +105,10 @@ describe("logger", () => {
       const failure = new Error("settings unreadable");
       setDebug(false);
 
-      logFatalError("Copilot failed to start.", failure);
+      logFatalError("Scribe failed to start.", failure);
 
-      expect(errorSpy).toHaveBeenCalledWith("Copilot failed to start.", failure);
-      expect(mockAppend).toHaveBeenCalledWith("ERROR", "Copilot failed to start.", failure);
+      expect(errorSpy).toHaveBeenCalledWith("Scribe failed to start.", failure);
+      expect(mockAppend).toHaveBeenCalledWith("ERROR", "Scribe failed to start.", failure);
     });
   });
 });

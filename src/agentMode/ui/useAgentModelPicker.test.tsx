@@ -3,7 +3,7 @@ import type { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
 import type { AgentSession } from "@/agentMode/session/AgentSession";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import type { BackendDescriptor, BackendState } from "@/agentMode/session/types";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { useAgentModelPicker } from "./useAgentModelPicker";
 
 let mockInstallKind: "ready" | "incompatible" = "ready";
@@ -21,7 +21,7 @@ const mockDescriptors = [
             minVersion: "1.16.0",
             message: "Update required",
           } as const),
-    subscribeInstallState: (_plugin: CopilotPlugin, listener: () => void) => {
+    subscribeInstallState: (_plugin: ScribePlugin, listener: () => void) => {
       mockInstallListener = listener;
       return () => {
         mockInstallListener = null;
@@ -29,7 +29,7 @@ const mockDescriptors = [
     },
   },
 ] as unknown as BackendDescriptor[];
-const plugin = {} as CopilotPlugin;
+const plugin = {} as ScribePlugin;
 
 jest.mock("@/settings/model", () => ({
   useSettingsValue: jest.fn().mockReturnValue({}),

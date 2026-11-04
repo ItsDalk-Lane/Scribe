@@ -3,10 +3,10 @@ import {
   stripChatImageReceipts,
   updateChatTranscript,
 } from "@/utils/chatImagePersistence";
-import { AGENT_CHAT_MODE, AI_SENDER, COPILOT_CONVERSATION_TAG, USER_SENDER } from "@/constants";
+import { AGENT_CHAT_MODE, AI_SENDER, SCRIBE_CONVERSATION_TAG, USER_SENDER } from "@/constants";
 import { logError, logInfo, logWarn } from "@/logger";
 import { getSettings } from "@/settings/model";
-import { getEffectiveConversationsFolder } from "@/settings/copilotFolder";
+import { getEffectiveConversationsFolder } from "@/settings/scribeFolder";
 import { FormattedDateTime } from "@/types/message";
 import {
   ensureFolderExists,
@@ -157,8 +157,6 @@ export class AgentChatPersistenceManager {
         projectId: options?.projectId,
         usage: options?.usage,
       });
-      // A chat link finds its note by exact epoch, and a resumed Claude transcript starts at a later time than the note.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/744
       const renderNote = (current: string) => {
         const existingEpoch = parseLinkableEpoch(this.splitFrontmatter(current).frontmatter.epoch);
         const owned = existingEpoch ? updates.filter(([key]) => key !== "epoch") : updates;
@@ -197,8 +195,6 @@ export class AgentChatPersistenceManager {
       try {
         return await this.app.vault.create(candidate, content);
       } catch (error) {
-        // 不同聊天不能因为文件名相同而覆盖彼此，创建时发生冲突也必须另存。
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/698
         if (!isFileAlreadyExistsError(error)) throw error;
       }
     }
@@ -236,8 +232,6 @@ export class AgentChatPersistenceManager {
   }
 
   async setPinnedAt(fileId: string, pinnedAt: number | null): Promise<void> {
-    // A row whose note was moved or deleted must fail the pin instead of showing a pin that was never written.
-    // https://github.com/logancyang/obsidian-copilot/issues/3195
     if (!(this.app.vault.getAbstractFileByPath(fileId) instanceof TFile)) {
       throw new Error(`Chat note not found: ${fileId}`);
     }
@@ -301,8 +295,6 @@ export class AgentChatPersistenceManager {
           };
         }
       }
-      // Display timestamps omit milliseconds but chat links match the frontmatter epoch exactly, so keep it across reloads.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/661
       if (messages.length === 0 && conversationEpoch !== undefined) {
         timestamp = { epoch: conversationEpoch, display: timestampStr, fileName: "" };
       }
@@ -423,8 +415,6 @@ export class AgentChatPersistenceManager {
     const projectId = coerceProjectId(args.projectId);
     const quoted = (key: string, value: string | null | undefined) =>
       value ? `${key}: "${escapeYamlString(value)}"` : undefined;
-    // A merged save keeps keys it omits, so leaving global scope must delete the stale projectId explicitly.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/698
     return [
       ["epoch", `epoch: ${args.firstMessageEpoch}`],
       ["mode", `mode: ${AGENT_CHAT_MODE}`],
@@ -434,7 +424,7 @@ export class AgentChatPersistenceManager {
       ["agentLabel", quoted("agentLabel", args.label)],
       ["modelKey", quoted("modelKey", args.modelKey)],
       ["usage", args.usage ? `usage: '${JSON.stringify(args.usage)}'` : undefined],
-      ["tags", `tags:\n  - ${COPILOT_CONVERSATION_TAG}`],
+      ["tags", `tags:\n  - ${SCRIBE_CONVERSATION_TAG}`],
     ];
   }
 }

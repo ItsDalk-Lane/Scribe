@@ -37,7 +37,7 @@ const atomicEdits = [
 ] as const;
 
 describe("tokenDiff", () => {
-  describe("splitStructuralPrefix()", () => {
+  describe("splitStructuralPrefix", () => {
     it("keeps a list bullet out of the diffable content", () => {
       expect(splitStructuralPrefix("- Who owns the runbook?")).toEqual({
         prefix: "- ",
@@ -73,7 +73,7 @@ describe("tokenDiff", () => {
       });
     });
 
-    it("keeps a blockquote nested in a list item in the prefix so the quote still renders (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("keeps a blockquote nested in a list item in the prefix so the quote still renders", () => {
       expect(splitStructuralPrefix("- > Quoted risk")).toEqual({
         prefix: "- > ",
         content: "Quoted risk",
@@ -88,7 +88,7 @@ describe("tokenDiff", () => {
     });
   });
 
-  describe("tokenizeInline()", () => {
+  describe("tokenizeInline", () => {
     it("keeps a Markdown link whole so no marker can land inside its URL", () => {
       expect(tokenizeInline("See [the checklist](https://example.com/a b).")).toContain(
         "[the checklist](https://example.com/a b)"
@@ -109,7 +109,7 @@ describe("tokenDiff", () => {
       expect(tokenizeInline("**bold**")).toEqual(["**", "bold", "**"]);
     });
 
-    it("does not read a $$ display-math delimiter as inline math (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", () => {
+    it("does not read a $$ display-math delimiter as inline math", () => {
       expect(tokenizeInline("$$x$$")).toEqual(["$$x$$"]);
     });
 
@@ -118,7 +118,7 @@ describe("tokenDiff", () => {
     });
 
     it.each(["``", "```", "````"])(
-      "does not shorten an unmatched %s opener to manufacture a code span (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)",
+      "does not shorten an unmatched %s opener to manufacture a code span",
       (opening) => {
         expect(tokenizeInline(`${opening}alpha \` beta`)).toEqual([
           `${opening}alpha`,
@@ -131,7 +131,7 @@ describe("tokenDiff", () => {
     );
   });
 
-  describe("diffInline()", () => {
+  describe("diffInline", () => {
     it("marks only the words that changed and leaves the rest of the line alone", () => {
       const merged = diffInline("The pilot runs for six weeks.", "The pilot runs for eight weeks.");
 
@@ -155,13 +155,13 @@ describe("tokenDiff", () => {
       expect(diffInline("The pilot runs.", "The pilot runs.")).toBe("The pilot runs.");
     });
 
-    it("replaces edited inline math whole so no marker lands inside the TeX (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", () => {
+    it("replaces edited inline math whole so no marker lands inside the TeX", () => {
       expect(diffInline("Area is $\\pi r^2$ here.", "Area is $\\pi d^2$ here.")).toBe(
         `Area is ${deleted("$\\pi r^2$")}${inserted("$\\pi d^2$")} here.`
       );
     });
 
-    it("replaces a bare URL whole, leaving emphasis delimiters around it outside the marks https://github.com/Brevilabs/obsidian-copilot-private/issues/349", () => {
+    it("replaces a bare URL whole, leaving emphasis delimiters around it outside the marks", () => {
       expect(diffInline("see https://ex.com/a_b1 now", "see https://ex.com/a_b2 now")).toBe(
         `see ${deleted("https://ex.com/a_b1")}${inserted("https://ex.com/a_b2")} now`
       );
@@ -171,7 +171,7 @@ describe("tokenDiff", () => {
     });
 
     it.each(atomicEdits)(
-      "replaces %s whole without inserting markers inside syntax (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)",
+      "replaces %s whole without inserting markers inside syntax",
       (_name, before, after) => {
         expect(diffInline(`See ${before} first.`, `See ${after} first.`)).toBe(
           `See ${deleted(before)}${inserted(after)} first.`
@@ -180,7 +180,7 @@ describe("tokenDiff", () => {
     );
   });
 
-  describe("markDeletedLine()", () => {
+  describe("markDeletedLine", () => {
     it("marks the content of a list item while leaving its bullet renderable", () => {
       expect(markDeletedLine("- Do we still need the staging vault?")).toBe(
         `- ${deleted("Do we still need the staging vault?")}`
@@ -192,24 +192,24 @@ describe("tokenDiff", () => {
     });
   });
 
-  describe("markInsertedLine()", () => {
+  describe("markInsertedLine", () => {
     it("marks the content of a heading while leaving its hashes renderable", () => {
       expect(markInsertedLine("## Rollout plan")).toBe(`## ${inserted("Rollout plan")}`);
     });
 
-    it("leaves trailing hard-break spaces outside the mark so the line break still renders (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("leaves trailing hard-break spaces outside the mark so the line break still renders", () => {
       expect(markInsertedLine("Ship it  ")).toBe(`${inserted("Ship it")}  `);
     });
   });
 
-  describe("diffTextBlock()", () => {
+  describe("diffTextBlock", () => {
     it("marks an added list item without disturbing the items around it", () => {
       const merged = diffTextBlock("- One\n- Two", "- One\n- Two\n- Three");
 
       expect(merged).toBe(`- One\n- Two\n- ${inserted("Three")}`);
     });
 
-    it("shows a mostly reworded line as the whole old line and the whole new line https://github.com/Brevilabs/obsidian-copilot-private/issues/349", () => {
+    it("shows a mostly reworded line as the whole old line and the whole new line", () => {
       const before = "Watering should happen in the morning to reduce evaporation.";
       const after = "Water the beds early in the morning so less moisture evaporates.";
 
@@ -268,7 +268,7 @@ describe("tokenDiff", () => {
       ["removed", "**bold** stays", "bold stays"],
       ["added", "bold stays", "**bold** stays"],
     ])(
-      "emits a line whose emphasis was %s as a removed line and an added line because markers around bare delimiters render nothing (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)",
+      "emits a line whose emphasis was %s as a removed line and an added line because markers around bare delimiters render nothing",
       (_change, before, after) => {
         expect(diffTextBlock(before, after)).toBe(`${deleted(before)}\n${inserted(after)}`);
       }
@@ -290,19 +290,19 @@ describe("tokenDiff", () => {
       );
     });
 
-    it("emits a callout whose numbered type changed as a removed line and an added line (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("emits a callout whose numbered type changed as a removed line and an added line", () => {
       const merged = diffTextBlock("> [!type1] Risks", "> [!type2] Risks");
 
       expect(merged).toBe(`> [!type1] ${deleted("Risks")}\n> [!type2] ${inserted("Risks")}`);
     });
 
-    it("emits a line that gained a hard break as a removed line and an added line because the renderer consumes the trailing spaces (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("emits a line that gained a hard break as a removed line and an added line because the renderer consumes the trailing spaces", () => {
       const merged = diffTextBlock("Ship it\nnow", "Ship it  \nnow");
 
       expect(merged).toBe(`${deleted("Ship it")}\n${inserted("Ship it")}  \nnow`);
     });
 
-    it("keeps renumbered ordered-list items unmarked when only their numbers changed (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", () => {
+    it("keeps renumbered ordered-list items unmarked when only their numbers changed", () => {
       const merged = diffTextBlock("1. Draft\n2. Review", "1. Plan\n2. Draft\n3. Review");
 
       expect(merged).toBe(`1. ${inserted("Plan")}\n2. Draft\n3. Review`);

@@ -5,9 +5,6 @@ const REASONING_LABEL = "Reasoning";
 
 export function isReasoningActive(members: ActivityMember[], atLiveEdge: boolean): boolean {
   const trailingMember = members[members.length - 1];
-  // A frozen thought can remain at the visible edge when a trailing internal
-  // tool is filtered out, but restarting its clock would double-count it.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
   return (
     atLiveEdge &&
     trailingMember?.type === "reasoning" &&

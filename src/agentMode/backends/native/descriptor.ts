@@ -1,4 +1,4 @@
-import { CopilotBrandIcon } from "@/components/ui/CopilotBrandIcon";
+import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
@@ -24,8 +24,8 @@ import {
 } from "@/agentMode/backends/native/nativeExtensions";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
-import { openCopilotSettings } from "@/settings/openSettings";
-import { copilotAppDataDir, getVaultId } from "@/utils/appPaths";
+import { openScribeSettings } from "@/settings/openSettings";
+import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { isChatModelInfo, providerDestination } from "@/modelManagement";
 import { buildBuiltinSkillEnv } from "@/agentMode/backends/shared/builtinSkillEnv";
@@ -39,7 +39,7 @@ const NO_MODELS: InstallState = Object.freeze({
 export const NativeBackendDescriptor: BackendDescriptor = {
   id: "native",
   displayName: "Scribe",
-  Icon: CopilotBrandIcon,
+  Icon: ScribeBrandIcon,
   usesConfiguredModels: true,
   setupDescription: "使用已配置的聊天模型，在 Scribe 内执行笔记任务。",
   skillsProjectDir: NATIVE_SKILLS_PROJECT_DIR,
@@ -92,7 +92,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       : NO_MODELS,
   subscribeInstallState: (_plugin, listener) => subscribeToSettingsChange(() => listener()),
   openInstallUI: (plugin) =>
-    openCopilotSettings(
+    openScribeSettings(
       plugin.app,
       plugin.app.workspace.getMostRecentLeaf()?.view.containerEl.ownerDocument.defaultView ??
         window,
@@ -118,7 +118,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
     if (!isAgentBackendEnabled(getSettings(), "native")) throw new Error("This agent is disabled.");
     const path = requireNodeModule<typeof import("node:path")>("path");
     const os = requireNodeModule<typeof import("node:os")>("os");
-    const directory = path.join(copilotAppDataDir(os.homedir()), getVaultId(app), "native-agent");
+    const directory = path.join(scribeAppDataDir(os.homedir()), getVaultId(app), "native-agent");
     return new NativeBackendProcess({
       getModels: () => getNativeModelEntries(getSettings()),
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),
@@ -154,8 +154,6 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       },
       storage: new NodeNativeSessionStorage(path.join(directory, "sessions")),
       getExtensionRuntime: readNativeExtensionRuntime,
-      // Auto 授权按实际配置目录判定敏感写入，覆盖用户自定义的 vault.configDir。
-      // https://github.com/ItsDalk-Lane/Scribe/issues/10
       getVaultConfigDir: () => app.vault.configDir,
       maxSteps: () => getSettings().agentMode.backends.native?.maxSteps,
     });

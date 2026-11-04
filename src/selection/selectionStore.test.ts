@@ -10,8 +10,6 @@ import {
 import type { NoteSelectedTextContext, WebSelectedTextContext } from "@/types/message";
 import { act, renderHook } from "@testing-library/react";
 
-const ISSUE_797 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/797";
-
 let nextId = 0;
 const noteExcerpt = (notePath: string, content: string): NoteSelectedTextContext => ({
   id: `note-${nextId++}`,
@@ -39,7 +37,7 @@ const select = (context: NoteSelectedTextContext | WebSelectedTextContext, key: 
 describe("selectionStore", () => {
   beforeEach(() => clearSelection());
 
-  describe("reportSelection()", () => {
+  describe("reportSelection", () => {
     it("attaches a reported selection and replaces it with the next one from any source", () => {
       const note = noteExcerpt("Research.md", "Excerpt");
       const web = webExcerpt("https://example.com/", "Quote");
@@ -60,7 +58,7 @@ describe("selectionStore", () => {
       expect(getSelectedTextContexts()).toEqual([first]);
     });
 
-    it(`clears the attached selection when its own note reports nothing selected (${ISSUE_797})`, () => {
+    it(`clears the attached selection when its own note reports nothing selected`, () => {
       select(noteExcerpt("Research.md", "Excerpt"), "own:select");
 
       reportSelection({ location: "Research.md", context: null });
@@ -68,7 +66,7 @@ describe("selectionStore", () => {
       expect(getSelectedTextContexts()).toEqual([]);
     });
 
-    it(`keeps the attached selection, without notifying listeners, when another note reports nothing selected (${ISSUE_797})`, () => {
+    it(`keeps the attached selection, without notifying listeners, when another note reports nothing selected`, () => {
       const excerpt = noteExcerpt("Research.md", "Excerpt");
       select(excerpt, "other:select");
       const listener = jest.fn();
@@ -91,7 +89,7 @@ describe("selectionStore", () => {
       expect(getSelectedTextContexts()).toEqual([again]);
     });
 
-    it(`keeps a removed selection removed when another page reports nothing selected in between (${ISSUE_797})`, () => {
+    it(`keeps a removed selection removed when another page reports nothing selected in between`, () => {
       const excerpt = noteExcerpt("Research.md", "Excerpt");
       select(excerpt, "elsewhere:select");
       dismissSelection(excerpt.id);
@@ -103,7 +101,7 @@ describe("selectionStore", () => {
     });
   });
 
-  describe("attachSelection()", () => {
+  describe("attachSelection", () => {
     it("attaches a command's selection, which its note's later empty report clears", () => {
       const excerpt = noteExcerpt("Research.md", "Excerpt");
 
@@ -114,7 +112,7 @@ describe("selectionStore", () => {
       expect(getSelectedTextContexts()).toEqual([]);
     });
 
-    it(`keeps a removed command selection removed when the source then reports the same selection (${ISSUE_797})`, () => {
+    it(`keeps a removed command selection removed when the source then reports the same selection`, () => {
       const excerpt = webExcerpt("https://example.com/", "Quote");
       attachSelection({ location: excerpt.url, key: "command:quote", context: excerpt });
 
@@ -125,8 +123,8 @@ describe("selectionStore", () => {
     });
   });
 
-  describe("dismissSelection()", () => {
-    it(`keeps a removed selection removed while the same selection is reported, until it changes (${ISSUE_797})`, () => {
+  describe("dismissSelection", () => {
+    it(`keeps a removed selection removed while the same selection is reported, until it changes`, () => {
       const excerpt = webExcerpt("https://example.com/", "Quote");
       select(excerpt, "dismiss:quote");
 
@@ -149,8 +147,8 @@ describe("selectionStore", () => {
     });
   });
 
-  describe("clearSelection()", () => {
-    it(`removes the selection for a new message without bringing it back on the next identical report (${ISSUE_797})`, () => {
+  describe("clearSelection", () => {
+    it(`removes the selection for a new message without bringing it back on the next identical report`, () => {
       select(noteExcerpt("Research.md", "Excerpt"), "sent:select");
 
       clearSelection();
@@ -160,13 +158,13 @@ describe("selectionStore", () => {
     });
   });
 
-  describe("getSelectedTextContexts()", () => {
+  describe("getSelectedTextContexts", () => {
     it("returns the same empty list every time nothing is attached", () => {
       expect(getSelectedTextContexts()).toBe(getSelectedTextContexts());
     });
   });
 
-  describe("useSelectedTextContexts()", () => {
+  describe("useSelectedTextContexts", () => {
     it("re-renders with the attached selection and with the empty list once it is cleared", () => {
       const { result } = renderHook(() => useSelectedTextContexts());
       const excerpt = noteExcerpt("Research.md", "Excerpt");
@@ -179,7 +177,7 @@ describe("selectionStore", () => {
     });
   });
 
-  describe("subscribeSelection()", () => {
+  describe("subscribeSelection", () => {
     it("notifies the listener of each change until it unsubscribes", () => {
       const listener = jest.fn();
       const unsubscribe = subscribeSelection(listener);

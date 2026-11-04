@@ -94,7 +94,7 @@ function fixture(
 
 describe("NativeBackendProcess", () => {
   describe("NativeBackendProcess", () => {
-    describe("newSession()", () => {
+    describe("newSession", () => {
       it("uses the explicitly selected model before resolving an unusable saved default", async () => {
         const createModel = jest.fn(async (id: string) => {
           if (id !== model.id) throw new Error("Saved default has no credentials");
@@ -122,7 +122,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("getExtensionRuntime()", () => {
+    describe("getExtensionRuntime", () => {
       it("reads registered extensions for the originating working folder without sending a model request", async () => {
         const getRuntime = jest.fn(async () => null);
         const request = jest.fn(() => response("unused"));
@@ -134,7 +134,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("refreshSessionConfiguration()", () => {
+    describe("refreshSessionConfiguration", () => {
       it("refreshes the tool registration on the next prompt while keeping conversation history", async () => {
         const contexts: Context[] = [];
         const createTools = jest.fn(() => ({ tools: [] }));
@@ -155,7 +155,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("prompt()", () => {
+    describe("prompt", () => {
       it.each([false, true])(
         "keeps a saving-phase message isolated from the ended agent when cancel=%s",
         async (cancel) => {
@@ -504,7 +504,7 @@ describe("NativeBackendProcess", () => {
         await f.send(id, "after-compact", "Continue");
         expect(JSON.stringify(contexts[2].messages)).toContain("Saved summary of the actual notes");
       });
-      it("keeps the original context when the manual compaction summary ends truncated (https://github.com/ItsDalk-Lane/Scribe/issues/14)", async () => {
+      it("keeps the original context when the manual compaction summary ends truncated", async () => {
         const contexts: Context[] = [];
         let round = 0;
         const f = fixture((_model, context) => {
@@ -533,7 +533,7 @@ describe("NativeBackendProcess", () => {
         expect(JSON.stringify(contexts.at(-1))).toContain("secret hidden near end");
         expect(JSON.stringify(contexts.at(-1))).not.toContain("first two words before cutoff");
       });
-      it("keeps the original context when the automatic compaction summary ends truncated (https://github.com/ItsDalk-Lane/Scribe/issues/14)", async () => {
+      it("keeps the original context when the automatic compaction summary ends truncated", async () => {
         const contexts: Context[] = [];
         let round = 0;
         const f = fixture(undefined, [], {
@@ -573,7 +573,7 @@ describe("NativeBackendProcess", () => {
         expect(statuses).toEqual(["in_progress", "failed"]);
         expect(JSON.stringify(contexts.at(-1))).toContain("unique marker 762");
       });
-      it("builds the compaction request from continuation-relevant text without assistant error details (https://github.com/ItsDalk-Lane/Scribe/issues/9)", async () => {
+      it("builds the compaction request from continuation-relevant text without assistant error details", async () => {
         const contexts: Context[] = [];
         const secret = "audit-secret-ONE-not-real";
         let round = 0;
@@ -599,7 +599,7 @@ describe("NativeBackendProcess", () => {
         expect(summaryRequest).not.toContain(secret);
         expect(summaryRequest).not.toContain("errorMessage");
       });
-      it("reports an unknown context window instead of a fabricated one (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+      it("reports an unknown context window instead of a fabricated one", async () => {
         const f = fixture(undefined, [], {
           createModel: async () => ({
             model: { ...model, contextWindow: 0 },
@@ -734,7 +734,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("cancel()", () => {
+    describe("cancel", () => {
       it("stops during instruction loading and does not start a model request when that loading finishes later", async () => {
         let started!: () => void;
         let finish!: (text: string) => void;
@@ -796,7 +796,7 @@ describe("NativeBackendProcess", () => {
           f.events.filter((e) => e.update.sessionUpdate === "agent_message_chunk")
         ).toHaveLength(0);
       });
-      it("sends the unread queued message on its own after Send now cancels the running reply (https://github.com/ItsDalk-Lane/Scribe/issues/13)", async () => {
+      it("sends the unread queued message on its own after Send now cancels the running reply", async () => {
         let started!: () => void;
         const ready = new Promise<void>((resolve) => {
           started = resolve;
@@ -843,7 +843,7 @@ describe("NativeBackendProcess", () => {
           expect.objectContaining({ turnId: "queued", stopReason: "end_turn" }),
         ]);
       });
-      it("does not resend a queued message that was withdrawn after Send now (https://github.com/ItsDalk-Lane/Scribe/issues/13)", async () => {
+      it("does not resend a queued message that was withdrawn after Send now", async () => {
         let started!: () => void;
         const ready = new Promise<void>((resolve) => {
           started = resolve;
@@ -879,7 +879,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("withdraw()", () => {
+    describe("withdraw", () => {
       it("withdraws an unread queued prompt and never sends it to the model", async () => {
         let ready!: () => void;
         const started = new Promise<void>((resolve) => {
@@ -916,7 +916,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("stopTask()", () => {
+    describe("stopTask", () => {
       it("passes the requested task identity to its runner without cancelling the chat", async () => {
         const stopTask = jest.fn(async () => {});
         const f = fixture(undefined, [], { createTools: () => ({ tools: [], stopTask }) });
@@ -930,7 +930,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("loadSession()", () => {
+    describe("loadSession", () => {
       it("replays stored history without executing its recorded tools", async () => {
         const execute = jest.fn(async () => ({
           content: [{ type: "text" as const, text: "read result" }],
@@ -966,7 +966,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("isRunning()", () => {
+    describe("isRunning", () => {
       it("reports unavailable after shutdown", async () => {
         const f = fixture();
         await f.proc.shutdown();
@@ -974,7 +974,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("onExit()", () => {
+    describe("onExit", () => {
       it("notifies subscribed listeners once and lets removed listeners stay silent", async () => {
         const f = fixture();
         const listener = jest.fn();
@@ -988,7 +988,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("setPermissionPrompter()", () => {
+    describe("setPermissionPrompter", () => {
       it("remembers only an explicit persistent decision for the same action in the same chat and requester", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1049,7 +1049,7 @@ describe("NativeBackendProcess", () => {
           expect.objectContaining({ ...prompt, requester: "main" })
         );
       });
-      it("auto-approves an ordinary note edit in Auto mode without prompting (https://github.com/ItsDalk-Lane/Scribe/issues/10)", async () => {
+      it("auto-approves an ordinary note edit in Auto mode without prompting", async () => {
         const f = fixture();
         const id = await f.open();
         await f.proc.setSessionMode({ sessionId: id, modeId: "auto" });
@@ -1078,34 +1078,31 @@ describe("NativeBackendProcess", () => {
           undefined,
         ],
         ["a custom config directory", ".myconfig/workspace.json", ".myconfig"],
-      ])(
-        "still prompts in Auto mode for writes inside %s (https://github.com/ItsDalk-Lane/Scribe/issues/10)",
-        async (_label, path, configDir) => {
-          const f = fixture(undefined, [], {
-            ...(configDir ? { getVaultConfigDir: () => configDir } : {}),
-          });
-          const id = await f.open();
-          await f.proc.setSessionMode({ sessionId: id, modeId: "auto" });
-          const permission = jest.fn(async () => ({
-            outcome: { outcome: "selected" as const, optionId: "reject_once" },
-          }));
-          f.proc.setPermissionPrompter(permission);
-          const decision = await f.toolContexts[0].requestPermission({
-            sessionId: id,
-            toolCall: {
-              toolCallId: "config-write",
-              title: "Edit",
-              kind: "edit",
-              rawInput: { path },
-              locations: [{ path }],
-            },
-            options: [],
-          });
-          expect(decision.outcome).toEqual({ outcome: "selected", optionId: "reject_once" });
-          expect(permission).toHaveBeenCalledTimes(1);
-        }
-      );
-      it("honors a saved reject_always decision before Auto mode can auto-approve the same target (https://github.com/ItsDalk-Lane/Scribe/issues/12)", async () => {
+      ])("still prompts in Auto mode for writes inside %s", async (_label, path, configDir) => {
+        const f = fixture(undefined, [], {
+          ...(configDir ? { getVaultConfigDir: () => configDir } : {}),
+        });
+        const id = await f.open();
+        await f.proc.setSessionMode({ sessionId: id, modeId: "auto" });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "reject_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const decision = await f.toolContexts[0].requestPermission({
+          sessionId: id,
+          toolCall: {
+            toolCallId: "config-write",
+            title: "Edit",
+            kind: "edit",
+            rawInput: { path },
+            locations: [{ path }],
+          },
+          options: [],
+        });
+        expect(decision.outcome).toEqual({ outcome: "selected", optionId: "reject_once" });
+        expect(permission).toHaveBeenCalledTimes(1);
+      });
+      it("honors a saved reject_always decision before Auto mode can auto-approve the same target", async () => {
         const f = fixture();
         const id = await f.open();
         const permission = jest.fn(async () => ({
@@ -1131,7 +1128,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("setAskUserQuestionPrompter()", () => {
+    describe("setAskUserQuestionPrompter", () => {
       it("returns the actual answer for the originating request", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1146,7 +1143,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("registerSessionHandler()", () => {
+    describe("registerSessionHandler", () => {
       it("keeps a replacement handler subscribed when the previous handler unsubscribes", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1161,7 +1158,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("setSessionModel()", () => {
+    describe("setSessionModel", () => {
       it("selects the configured model for subsequent requests and persists its id", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1176,7 +1173,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("setSessionMode()", () => {
+    describe("setSessionMode", () => {
       it("changes the policy seen by tools and only leaves plan mode after the matching approval", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1190,7 +1187,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("setSessionConfigOption()", () => {
+    describe("setSessionConfigOption", () => {
       it.each(["high", "default"])(
         "keeps an already started child's %s thinking intent when the parent changes off and default",
         async (initial) => {
@@ -1351,7 +1348,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("listSessions()", () => {
+    describe("listSessions", () => {
       it("returns only sessions belonging to the requested working folder", async () => {
         const f = fixture();
         await f.open();
@@ -1361,7 +1358,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("resumeSession()", () => {
+    describe("resumeSession", () => {
       it("resumes the original project and refuses an attempt from another project", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1378,7 +1375,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("sessionExistsLocally()", () => {
+    describe("sessionExistsLocally", () => {
       it("checks the native identity against its original vault", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1394,7 +1391,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("closeSession()", () => {
+    describe("closeSession", () => {
       it("saves the transcript, frees its runtime, and refuses another prompt until resumed", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1407,7 +1404,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("deleteSession()", () => {
+    describe("deleteSession", () => {
       it("closes the selected runtime and removes only that native transcript from storage", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1421,7 +1418,7 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("shutdown()", () => {
+    describe("shutdown", () => {
       it("disposes every session's task resources before announcing exit", async () => {
         const dispose = jest.fn(async () => {});
         const f = fixture(undefined, [], { createTools: () => ({ tools: [], shutdown: dispose }) });
@@ -1432,17 +1429,17 @@ describe("NativeBackendProcess", () => {
       });
     });
 
-    describe("isSetSessionModelSupported()", () => {
+    describe("isSetSessionModelSupported", () => {
       it("advertises model switching to the existing selector", () =>
         expect(fixture().proc.isSetSessionModelSupported()).toBe(true));
     });
 
-    describe("isSetSessionModeSupported()", () => {
+    describe("isSetSessionModeSupported", () => {
       it("advertises permission switching to the existing selector", () =>
         expect(fixture().proc.isSetSessionModeSupported()).toBe(true));
     });
 
-    describe("isSetSessionConfigOptionSupported()", () => {
+    describe("isSetSessionConfigOptionSupported", () => {
       it("advertises effort switching to the existing selector", () =>
         expect(fixture().proc.isSetSessionConfigOptionSupported()).toBe(true));
     });

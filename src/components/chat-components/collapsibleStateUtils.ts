@@ -1,16 +1,16 @@
-const COPILOT_COLLAPSIBLE_DOM_ID_PREFIX = "copilot-collapsible";
+const SCRIBE_COLLAPSIBLE_DOM_ID_PREFIX = "scribe-collapsible";
 
 declare global {
   interface Window {
-    __copilotCollapsibleStates?: Map<string, Map<string, boolean>>;
+    __scribeCollapsibleStates?: Map<string, Map<string, boolean>>;
   }
 }
 
 const getCollapsibleStateRegistry = (): Map<string, Map<string, boolean>> => {
-  if (!window.__copilotCollapsibleStates) {
-    window.__copilotCollapsibleStates = new Map<string, Map<string, boolean>>();
+  if (!window.__scribeCollapsibleStates) {
+    window.__scribeCollapsibleStates = new Map<string, Map<string, boolean>>();
   }
-  return window.__copilotCollapsibleStates;
+  return window.__scribeCollapsibleStates;
 };
 
 export const getMessageCollapsibleStates = (messageId: string): Map<string, boolean> => {
@@ -23,22 +23,22 @@ export const getMessageCollapsibleStates = (messageId: string): Map<string, bool
   return states;
 };
 
-export const buildCopilotCollapsibleDomId = (
+export const buildScribeCollapsibleDomId = (
   messageInstanceId: string,
   sectionKey: string
 ): string => {
   const safeMessageId = messageInstanceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return `${COPILOT_COLLAPSIBLE_DOM_ID_PREFIX}-${safeMessageId}-${sectionKey}`;
+  return `${SCRIBE_COLLAPSIBLE_DOM_ID_PREFIX}-${safeMessageId}-${sectionKey}`;
 };
 
-export const captureCopilotCollapsibleOpenStates = (
+export const captureScribeCollapsibleOpenStates = (
   root: HTMLElement,
   stateById: Map<string, boolean>,
   options: { overwriteExisting?: boolean } = {}
 ): void => {
   const overwriteExisting = options.overwriteExisting ?? true;
   const detailsList = root.querySelectorAll<HTMLDetailsElement>(
-    `details[id^="${COPILOT_COLLAPSIBLE_DOM_ID_PREFIX}-"]`
+    `details[id^="${SCRIBE_COLLAPSIBLE_DOM_ID_PREFIX}-"]`
   );
   detailsList.forEach((details) => {
     const id = details.id;
@@ -52,7 +52,7 @@ export const captureCopilotCollapsibleOpenStates = (
   });
 };
 
-export const getCopilotCollapsibleDetailsFromEvent = (
+export const getScribeCollapsibleDetailsFromEvent = (
   event: Event,
   root: HTMLElement
 ): HTMLDetailsElement | null => {
@@ -60,10 +60,7 @@ export const getCopilotCollapsibleDetailsFromEvent = (
   for (const entry of path) {
     if (entry instanceof HTMLElement && entry.tagName === "DETAILS") {
       const details = entry as HTMLDetailsElement;
-      if (
-        details.id.startsWith(`${COPILOT_COLLAPSIBLE_DOM_ID_PREFIX}-`) &&
-        root.contains(details)
-      ) {
+      if (details.id.startsWith(`${SCRIBE_COLLAPSIBLE_DOM_ID_PREFIX}-`) && root.contains(details)) {
         return details;
       }
     }
@@ -74,7 +71,7 @@ export const getCopilotCollapsibleDetailsFromEvent = (
     return null;
   }
 
-  const details = target.closest(`details[id^="${COPILOT_COLLAPSIBLE_DOM_ID_PREFIX}-"]`);
+  const details = target.closest(`details[id^="${SCRIBE_COLLAPSIBLE_DOM_ID_PREFIX}-"]`);
   if (details?.instanceOf(HTMLElement) && details.tagName === "DETAILS" && root.contains(details)) {
     return details as HTMLDetailsElement;
   }

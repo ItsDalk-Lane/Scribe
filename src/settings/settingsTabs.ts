@@ -1,4 +1,4 @@
-export const COPILOT_SETTINGS_TAB_IDS = [
+export const SCRIBE_SETTINGS_TAB_IDS = [
   "basic",
   "quickActions",
   "agents",
@@ -7,4 +7,4 @@ export const COPILOT_SETTINGS_TAB_IDS = [
   "subagents",
 ] as const;
 
-export type CopilotSettingsTabId = (typeof COPILOT_SETTINGS_TAB_IDS)[number];
+export type ScribeSettingsTabId = (typeof SCRIBE_SETTINGS_TAB_IDS)[number];

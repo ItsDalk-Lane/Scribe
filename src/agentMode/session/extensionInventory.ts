@@ -95,9 +95,6 @@ export function hasPendingMcpServers(runtime: AgentExtensionRuntimeSnapshot): bo
   return runtime.mcpServers?.some((server) => server.status === "pending") ?? false;
 }
 
-// A pending status means the remote server never finished dialing in within the settle window,
-// so the terminal snapshot records it as unconfirmed instead of eternally connecting.
-// https://github.com/ItsDalk-Lane/Scribe/issues/3
 export function markPendingMcpServersUnconfirmed(
   runtime: AgentExtensionRuntimeSnapshot
 ): AgentExtensionRuntimeSnapshot {

@@ -40,7 +40,7 @@ function bubbles(store: AgentMessageStore): { sender: string; message: string }[
 
 describe("SessionHistoryReplay", () => {
   describe("SessionHistoryReplay", () => {
-    describe("start()", () => {
+    describe("start", () => {
       it("makes the replay take frames as the chat's past turns", () => {
         const store = new AgentMessageStore();
         const replay = new SessionHistoryReplay({
@@ -58,7 +58,7 @@ describe("SessionHistoryReplay", () => {
       });
     });
 
-    describe("isOpen()", () => {
+    describe("isOpen", () => {
       it("reports the replay closed before it starts and after it ends, and open in between", () => {
         const replay = new SessionHistoryReplay({
           store: new AgentMessageStore(),
@@ -75,8 +75,8 @@ describe("SessionHistoryReplay", () => {
       });
     });
 
-    describe("append()", () => {
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/602 turns replayed user and agent frames into one user bubble and one agent bubble", () => {
+    describe("append", () => {
+      it("turns replayed user and agent frames into one user bubble and one agent bubble", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "test", "u1"), undefined);
@@ -90,7 +90,7 @@ describe("SessionHistoryReplay", () => {
         expect(store.getDisplayMessages().map((m) => m.timestamp)).toEqual([null, null]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/602 folds several replayed agent messages between two user messages into one agent bubble", () => {
+      it("folds several replayed agent messages between two user messages into one agent bubble", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "first", "u1"), undefined);
@@ -107,7 +107,7 @@ describe("SessionHistoryReplay", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/175 gives a replayed reply the agent started on its own its own bubble when the replay ends the turn before it", () => {
+      it("gives a replayed reply the agent started on its own its own bubble when the replay ends the turn before it", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "start a task", "u1"), undefined);
@@ -125,7 +125,7 @@ describe("SessionHistoryReplay", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/602 joins user chunks that share a message id and splits chunks that have none", () => {
+      it("joins user chunks that share a message id and splits chunks that have none", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "one prompt ", "u1"), undefined);
@@ -141,7 +141,7 @@ describe("SessionHistoryReplay", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/602 shows a replayed user message that spans chunks only once it ends, stripped of its prompt envelope, so the raw context is never displayed", () => {
+      it("shows a replayed user message that spans chunks only once it ends, stripped of its prompt envelope, so the raw context is never displayed", () => {
         const { store, replay } = startReplay();
 
         replay.append(
@@ -166,7 +166,7 @@ describe("SessionHistoryReplay", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/602 renders replayed thoughts, tool calls with their updates, and plans as parts of the agent bubble", () => {
+      it("renders replayed thoughts, tool calls with their updates, and plans as parts of the agent bubble", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "do it", "u1"), undefined);
@@ -201,7 +201,7 @@ describe("SessionHistoryReplay", () => {
         expect(tool).toMatchObject({ id: "t1", status: "completed" });
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/643 hands each replayed task list to the todo list so the last one stays current", () => {
+      it("hands each replayed task list to the todo list so the last one stays current", () => {
         const { replay, applyTodoList } = startReplay();
         const entries = [
           { content: "step", status: "completed" as const, priority: "medium" as const },
@@ -212,7 +212,7 @@ describe("SessionHistoryReplay", () => {
         expect(applyTodoList).toHaveBeenCalledWith(entries);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/638 opens a reply bubble for a replayed compaction that no reply precedes", () => {
+      it("opens a reply bubble for a replayed compaction that no reply precedes", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "hello", "u1"), undefined);
@@ -228,7 +228,7 @@ describe("SessionHistoryReplay", () => {
         expect(reply.parts?.map((p) => p.kind)).toEqual(["compaction"]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/638 upserts a replayed compaction's later status over its earlier one", () => {
+      it("upserts a replayed compaction's later status over its earlier one", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "hello", "u1"), undefined);
@@ -247,7 +247,7 @@ describe("SessionHistoryReplay", () => {
         expect(parts?.[0]).toMatchObject({ kind: "compaction", status: "completed" });
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/638 settles a replayed compaction that never reports an end as cancelled so no spinner shows", () => {
+      it("settles a replayed compaction that never reports an end as cancelled so no spinner shows", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "hello", "u1"), undefined);
@@ -261,7 +261,7 @@ describe("SessionHistoryReplay", () => {
         expect(parts?.[0]).toMatchObject({ kind: "compaction", status: "cancelled" });
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 shows no user bubble for the plugin's own output-limit continuation in a replayed chat", () => {
+      it("shows no user bubble for the plugin's own output-limit continuation in a replayed chat", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "Write the note", "u1"), undefined);
@@ -278,7 +278,7 @@ describe("SessionHistoryReplay", () => {
         ]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/643 dates replayed bubbles from their frames' times and times the agent's turn from its prompt to its last frame", () => {
+      it("dates replayed bubbles from their frames' times and times the agent's turn from its prompt to its last frame", () => {
         const { store, replay } = startReplay();
         const prompt = Date.parse("2026-10-03T19:31:18.000Z");
         const reply = Date.parse("2026-10-03T19:31:22.000Z");
@@ -303,7 +303,7 @@ describe("SessionHistoryReplay", () => {
         expect(ai.turnDurationMs).toBe(turnEnd - prompt);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/643 leaves replayed bubbles undated and untimed when their frames carry no time", () => {
+      it("leaves replayed bubbles undated and untimed when their frames carry no time", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "test", "u1"), undefined);
@@ -350,7 +350,7 @@ describe("SessionHistoryReplay", () => {
       });
     });
 
-    describe("end()", () => {
+    describe("end", () => {
       it("shows a replayed user message that was still open when the replay ends", () => {
         const { store, replay } = startReplay();
         replay.append(replayText("user_message_chunk", "earlier", "u1"), undefined);
@@ -360,7 +360,7 @@ describe("SessionHistoryReplay", () => {
         expect(bubbles(store)).toEqual([{ sender: USER_SENDER, message: "earlier" }]);
       });
 
-      it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 fails a replayed tool call that never finished once its turn closes", () => {
+      it("fails a replayed tool call that never finished once its turn closes", () => {
         const { store, replay } = startReplay();
 
         replay.append(replayText("user_message_chunk", "Write the note", "u1"), undefined);

@@ -1,6 +1,6 @@
 import React from "react";
 import type { App } from "obsidian";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { NativeSettingsForm } from "@/agentMode/backends/native/ui/NativeSettingsForm";
 import { getNativeEnabledModelEntries } from "@/agentMode/backends/native/nativeModels";
 import {
@@ -11,7 +11,7 @@ import {
 
 const EMPTY_NATIVE_SETTINGS: NativeBackendSettings = Object.freeze({});
 
-export function NativeSettingsPanel(_props: { plugin: CopilotPlugin; app: App }) {
+export function NativeSettingsPanel(_props: { plugin: ScribePlugin; app: App }) {
   const settings = useSettingsValue();
   return (
     <NativeSettingsForm

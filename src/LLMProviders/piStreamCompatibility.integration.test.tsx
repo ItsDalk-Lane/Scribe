@@ -258,7 +258,7 @@ describe("piChatModel stream compatibility", () => {
     window.fetch = originalFetch;
   });
 
-  describe("createPiChatModel()", () => {
+  describe("createPiChatModel", () => {
     it.each(
       cases.flatMap((fixture) => [false, true].map((enableCors) => ({ ...fixture, enableCors })))
     )(
@@ -334,7 +334,7 @@ describe("piChatModel stream compatibility", () => {
     });
   });
 
-  describe("useStreamingChatSession()", () => {
+  describe("useStreamingChatSession", () => {
     it.each(cases)(
       `returns $name and sends that exact accepted answer in the next turn (${issue})`,
       async (fixture) => {
@@ -414,7 +414,7 @@ describe("piChatModel stream compatibility", () => {
     );
   });
 
-  describe("testProviderConnection()", () => {
+  describe("testProviderConnection", () => {
     it.each(cases)(
       `accepts the visible $name as a nonempty connection reply (${issue})`,
       async (fixture) => {

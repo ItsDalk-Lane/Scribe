@@ -1,7 +1,7 @@
 import { applyModeSpec } from "@/agentMode/session/modeApply";
 
 describe("modeApply", () => {
-  describe("applyModeSpec()", () => {
+  describe("applyModeSpec", () => {
     it("applies one native mode selection", async () => {
       const session = {
         setMode: jest.fn().mockResolvedValue(undefined),
@@ -30,7 +30,7 @@ describe("modeApply", () => {
       expect(session.setMode).not.toHaveBeenCalled();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/551 applies the approval preset before Codex collaboration Plan", async () => {
+    it("applies the approval preset before Codex collaboration Plan", async () => {
       const order: string[] = [];
       const session = {
         setMode: jest.fn(async (value: string) => {
@@ -52,7 +52,7 @@ describe("modeApply", () => {
       expect(order).toEqual(["mode:agent", "collaboration_mode:plan"]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/551 stops before entering Plan when the approval preset fails", async () => {
+    it("stops before entering Plan when the approval preset fails", async () => {
       const session = {
         setMode: jest.fn().mockRejectedValue(new Error("mode rejected")),
         setConfigOption: jest.fn().mockResolvedValue(undefined),

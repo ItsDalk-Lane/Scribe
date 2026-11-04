@@ -120,7 +120,7 @@ const exists = (p: string): boolean => fsSync.existsSync(p);
 const describePosix = process.platform === "win32" ? describe.skip : describe;
 
 describe("debugSink", () => {
-  describe("getFrameLogPaths()", () => {
+  describe("getFrameLogPaths", () => {
     it("stores frame logs in stable, distinct per-vault temp directories", () => {
       const runtime = makeRuntime("C:/Users/zero/AppData/Local/Temp");
       const first = getFrameLogPaths("C:/Users/zero/Vault", runtime);
@@ -134,7 +134,7 @@ describe("debugSink", () => {
   });
 
   describe("FrameSink", () => {
-    describe("append()", () => {
+    describe("append", () => {
       it("summarizes oversized frames before appending", async () => {
         const runtime = makeRuntime();
         const sink = new FrameSink({ vaultBasePath: "/vault", runtime });
@@ -180,7 +180,7 @@ describe("debugSink", () => {
             entry: { uid: 1000, mode: 0o770, isDirectory: true, isSymbolicLink: false },
           },
         ])(
-          "writes nothing while the temp root is $condition, then logs once it is safe (https://github.com/logancyang/obsidian-copilot-preview/issues/250)",
+          "writes nothing while the temp root is $condition, then logs once it is safe",
           async ({ entry }) => {
             const runtime = makeRuntime();
             const paths = getFrameLogPaths("/vault", runtime);
@@ -206,7 +206,7 @@ describe("debugSink", () => {
           }
         );
 
-        it("logs under a root-owned sticky temp root, the shape of a standard Linux /tmp (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("logs under a root-owned sticky temp root, the shape of a standard Linux /tmp", async () => {
           const runtime = makeRuntime();
           const paths = getFrameLogPaths("/vault", runtime);
           const lstat = runtime.lstat as jest.MockedFunction<NodeRuntime["lstat"]>;
@@ -225,7 +225,7 @@ describe("debugSink", () => {
         });
       });
 
-      it("refuses a level that is still not a real directory after creating it (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      it("refuses a level that is still not a real directory after creating it", async () => {
         const runtime = makeRuntime();
         const paths = getFrameLogPaths("/vault", runtime);
         const lstat = runtime.lstat as jest.MockedFunction<NodeRuntime["lstat"]>;
@@ -244,7 +244,7 @@ describe("debugSink", () => {
         expect(runtime.files.size).toBe(0);
       });
 
-      it("refuses to write when a directory occupies the log file path (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      it("refuses to write when a directory occupies the log file path", async () => {
         const runtime = makeRuntime();
         const paths = getFrameLogPaths("/vault", runtime);
         const lstat = runtime.lstat as jest.MockedFunction<NodeRuntime["lstat"]>;
@@ -263,7 +263,7 @@ describe("debugSink", () => {
         expect(runtime.rm).not.toHaveBeenCalled();
       });
 
-      it("drops the frame instead of writing when path validation fails, then recovers (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      it("drops the frame instead of writing when path validation fails, then recovers", async () => {
         const runtime = makeRuntime();
         const lstat = runtime.lstat as jest.MockedFunction<NodeRuntime["lstat"]>;
         lstat.mockRejectedValueOnce(errno("EACCES"));
@@ -281,7 +281,7 @@ describe("debugSink", () => {
       });
     });
 
-    describe("getValidatedPath()", () => {
+    describe("getValidatedPath", () => {
       it("returns the log path once the location passes the sink's own checks", async () => {
         const runtime = makeRuntime();
         const sink = new FrameSink({ runtime, vaultBasePath: "/vault" });
@@ -291,14 +291,14 @@ describe("debugSink", () => {
         );
       });
 
-      it("returns null when there is no vault to key the location off (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      it("returns null when there is no vault to key the location off", async () => {
         const runtime = makeRuntime();
         const sink = new FrameSink({ runtime });
 
         await expect(sink.getValidatedPath()).resolves.toBeNull();
       });
 
-      it("returns null rather than throwing when the temp root cannot be trusted (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      it("returns null rather than throwing when the temp root cannot be trusted", async () => {
         const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
         Object.defineProperty(process, "platform", { value: "linux" });
         try {
@@ -349,7 +349,7 @@ describe("debugSink", () => {
       });
     });
 
-    describe("clear()", () => {
+    describe("clear", () => {
       it("clears active and rotated log files", async () => {
         const runtime = makeRuntime();
         const sink = new FrameSink({ vaultBasePath: "/vault", runtime });
@@ -366,7 +366,7 @@ describe("debugSink", () => {
         );
       });
 
-      it("deletes nothing when path validation fails (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      it("deletes nothing when path validation fails", async () => {
         const runtime = makeRuntime();
         const lstat = runtime.lstat as jest.MockedFunction<NodeRuntime["lstat"]>;
         lstat.mockRejectedValueOnce(errno("EACCES"));
@@ -381,9 +381,6 @@ describe("debugSink", () => {
       });
     });
 
-    // Real-filesystem groups: the in-memory runtime cannot prove the owner-only permission
-    // boundary. They need a per-test mkdtemp sandbox, umask save/restore and a POSIX-only skip.
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/250
     describePosix("on the real filesystem (POSIX)", () => {
       let tmpBase: string;
       let prevUmask: number;
@@ -398,9 +395,9 @@ describe("debugSink", () => {
         await fs.rm(tmpBase, { recursive: true, force: true });
       });
 
-      describe("append()", () => {
+      describe("append", () => {
         it.each([[0o000], [0o022], [0o077]])(
-          "creates the directory chain 0700 and the log file 0600 under umask %o (https://github.com/logancyang/obsidian-copilot-preview/issues/250)",
+          "creates the directory chain 0700 and the log file 0600 under umask %o",
           async (umask) => {
             process.umask(umask);
             const runtime = makeRealRuntime(tmpBase);
@@ -418,7 +415,7 @@ describe("debugSink", () => {
           }
         );
 
-        it("narrows a pre-existing permissive directory and both log generations from an older build (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("narrows a pre-existing permissive directory and both log generations from an older build", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           process.umask(0o000);
@@ -439,7 +436,7 @@ describe("debugSink", () => {
           expect(content).toContain('"session/update"');
         });
 
-        it("removes a symlink squatting the leaf directory and never writes through it (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("removes a symlink squatting the leaf directory and never writes through it", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           const victim = path.join(tmpBase, "victim");
@@ -459,7 +456,7 @@ describe("debugSink", () => {
           expect(modeOf(paths.logPath)).toBe(0o600);
         });
 
-        it("refuses a plain file squatting a directory level without deleting it (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("refuses a plain file squatting a directory level without deleting it", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(path.dirname(paths.dirPath), { recursive: true });
@@ -476,7 +473,7 @@ describe("debugSink", () => {
           expect(exists(paths.logPath)).toBe(false);
         });
 
-        it("removes a dangling symlink squatting the leaf directory path (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("removes a dangling symlink squatting the leaf directory path", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(path.dirname(paths.dirPath), { recursive: true });
@@ -493,7 +490,7 @@ describe("debugSink", () => {
           expect(modeOf(paths.logPath)).toBe(0o600);
         });
 
-        it("removes a symlink squatting the log file itself and leaves its target untouched (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("removes a symlink squatting the log file itself and leaves its target untouched", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           const victimFile = path.join(tmpBase, "victim.txt");
@@ -512,7 +509,7 @@ describe("debugSink", () => {
           expect(modeOf(paths.logPath)).toBe(0o600);
         });
 
-        it("refuses to write into a directory owned by another user instead of falling back (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("refuses to write into a directory owned by another user instead of falling back", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true });
@@ -530,7 +527,7 @@ describe("debugSink", () => {
           expect(exists(paths.rotatedPath)).toBe(false);
         });
 
-        it("leaves a log file owned by another user unread and unnarrowed (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("leaves a log file owned by another user unread and unnarrowed", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true });
@@ -549,7 +546,7 @@ describe("debugSink", () => {
           expect(modeOf(paths.logPath)).toBe(0o644);
         });
 
-        it("creates the fresh post-rotation file 0600 (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("creates the fresh post-rotation file 0600", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true });
@@ -566,8 +563,8 @@ describe("debugSink", () => {
         });
       });
 
-      describe("getValidatedPath()", () => {
-        it("unlinks a same-name symlink planted at the log path instead of vouching for its target (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      describe("getValidatedPath", () => {
+        it("unlinks a same-name symlink planted at the log path instead of vouching for its target", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           const decoyDir = path.join(tmpBase, "decoy");
@@ -588,7 +585,7 @@ describe("debugSink", () => {
           expect(exists(paths.logPath)).toBe(false);
         });
 
-        it("refuses a log file another account owns (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("refuses a log file another account owns", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true, mode: 0o700 });
@@ -610,8 +607,8 @@ describe("debugSink", () => {
         });
       });
 
-      describe("open()", () => {
-        it("creates a missing log file 0600 before opening it (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      describe("open", () => {
+        it("creates a missing log file 0600 before opening it", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           const sink = new FrameSink({ vaultBasePath: "/vault", runtime });
@@ -624,8 +621,8 @@ describe("debugSink", () => {
         });
       });
 
-      describe("narrowLegacyLogs()", () => {
-        it("narrows both log generations an older build left world-readable (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      describe("narrowLegacyLogs", () => {
+        it("narrows both log generations an older build left world-readable", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true, mode: 0o755 });
@@ -639,7 +636,7 @@ describe("debugSink", () => {
           expect(await fs.readFile(paths.logPath, "utf8")).toBe("old prompts\n");
         });
 
-        it("creates nothing when no log was ever written (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("creates nothing when no log was ever written", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
 
@@ -649,7 +646,7 @@ describe("debugSink", () => {
           expect(exists(paths.logPath)).toBe(false);
         });
 
-        it("leaves a legacy log owned by another user untouched (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("leaves a legacy log owned by another user untouched", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true });
@@ -665,7 +662,7 @@ describe("debugSink", () => {
           expect(modeOf(paths.logPath)).toBe(0o644);
         });
 
-        it("still narrows the rotated log when the active one cannot be secured (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+        it("still narrows the rotated log when the active one cannot be secured", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           await fs.mkdir(paths.dirPath, { recursive: true });
@@ -684,8 +681,8 @@ describe("debugSink", () => {
         });
       });
 
-      describe("clear()", () => {
-        it("does not delete through a symlink squatting the leaf directory (https://github.com/logancyang/obsidian-copilot-preview/issues/250)", async () => {
+      describe("clear", () => {
+        it("does not delete through a symlink squatting the leaf directory", async () => {
           const runtime = makeRealRuntime(tmpBase);
           const paths = getFrameLogPaths("/vault", runtime);
           const victim = path.join(tmpBase, "victim");

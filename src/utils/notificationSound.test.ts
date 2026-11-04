@@ -82,7 +82,7 @@ describe("notificationSound", () => {
     delete (window as unknown as Record<string, unknown>).AudioContext;
   });
 
-  describe("playNotificationSound()", () => {
+  describe("playNotificationSound", () => {
     it("plays one enveloped tone that starts immediately and stops on its own", () => {
       const audio = installMockAudio();
 
@@ -149,7 +149,7 @@ describe("notificationSound", () => {
       expect(audio.instance.createOscillator).toHaveBeenCalledTimes(2);
     });
 
-    it("allows at most one sound per second (https://github.com/logancyang/obsidian-copilot/issues/2987)", () => {
+    it("allows at most one sound per second", () => {
       const audio = installMockAudio();
       jest
         .spyOn(window.performance, "now")
@@ -164,7 +164,7 @@ describe("notificationSound", () => {
       expect(audio.instance.createOscillator).toHaveBeenCalledTimes(2);
     });
 
-    it("still plays after one monotonic second when the wall clock moves backward (https://github.com/logancyang/obsidian-copilot/issues/2987)", () => {
+    it("still plays after one monotonic second when the wall clock moves backward", () => {
       const audio = installMockAudio();
       jest.spyOn(Date, "now").mockReturnValueOnce(2_000).mockReturnValueOnce(1_000);
       jest.spyOn(window.performance, "now").mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
@@ -183,7 +183,7 @@ describe("notificationSound", () => {
       expect(audio.instance.resume).toHaveBeenCalled();
     });
 
-    it("logs and absorbs a rejected context resume (https://github.com/logancyang/obsidian-copilot/issues/2987)", async () => {
+    it("logs and absorbs a rejected context resume", async () => {
       const audio = installMockAudio("suspended");
       const error = new Error("playback blocked");
       audio.instance.resume.mockRejectedValue(error);
@@ -194,7 +194,7 @@ describe("notificationSound", () => {
       expect(logWarn).toHaveBeenCalledWith("Scribe: failed to resume notification audio.", error);
     });
 
-    it("does nothing when the runtime exposes no Web Audio (https://github.com/logancyang/obsidian-copilot/issues/2987)", () => {
+    it("does nothing when the runtime exposes no Web Audio", () => {
       delete (window as unknown as Record<string, unknown>).AudioContext;
 
       expect(() => playNotificationSound("piano")).not.toThrow();
@@ -210,7 +210,7 @@ describe("notificationSound", () => {
     });
   });
 
-  describe("disposeNotificationSound()", () => {
+  describe("disposeNotificationSound", () => {
     it("closes the open context and builds a fresh one for the next play", () => {
       const audio = installMockAudio();
       playNotificationSound("piano");

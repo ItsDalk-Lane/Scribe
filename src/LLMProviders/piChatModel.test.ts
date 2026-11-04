@@ -18,7 +18,7 @@ const model: Model<"openai-completions"> = {
 };
 
 describe("piChatModel", () => {
-  describe("createAssistantMessage()", () => {
+  describe("createAssistantMessage", () => {
     it("creates independent pending messages with the selected model identity", () => {
       const first = createAssistantMessage(model);
       first.content.push({ type: "text", text: "One" });
@@ -34,8 +34,8 @@ describe("piChatModel", () => {
     });
   });
 
-  describe("createPiChatModel()", () => {
-    describe("agentStream()", () => {
+  describe("createPiChatModel", () => {
+    describe("agentStream", () => {
       it("provides the same tool events and final result through Pi's event-stream contract", async () => {
         const reply = createAssistantMessage(model);
         reply.stopReason = "toolUse";
@@ -134,7 +134,7 @@ describe("piChatModel", () => {
           },
         },
       ])(
-        "redacts provider error bodies before they persist: $name (https://github.com/ItsDalk-Lane/Scribe/issues/9)",
+        "redacts provider error bodies before they persist: $name",
         async ({ body, secret, expects }) => {
           const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
           const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(

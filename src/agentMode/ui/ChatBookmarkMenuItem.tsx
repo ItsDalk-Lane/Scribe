@@ -28,8 +28,6 @@ export function ChatBookmarkMenuItem({
     };
   }, [getBookmarkState]);
 
-  // A turned-off Bookmarks plugin still shows the item, so users can find the feature and how to enable it.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/694
   if (state === "off") {
     return (
       <DropdownMenuItem

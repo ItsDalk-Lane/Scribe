@@ -9,9 +9,6 @@ export function looksLikeEmbeddingModel(idOrHaystack: string): boolean {
   return EMBEDDING_TOKEN.test(idOrHaystack);
 }
 
-// Bedrock routes by per-account region and Azure by per-deployment URL, neither of which the BYOK dialog can enter:
-// https://github.com/logancyang/obsidian-copilot/issues/2928
-// https://github.com/logancyang/obsidian-copilot/issues/2932
 const UNROUTABLE_PROVIDER_NPM: ReadonlySet<string> = new Set([
   "@ai-sdk/amazon-bedrock",
   "@ai-sdk/azure",

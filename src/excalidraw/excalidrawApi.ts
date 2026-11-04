@@ -69,8 +69,6 @@ function excalidrawAutomate(app: App): ExcalidrawAutomate | null {
   return plugins?.getPlugin(EXCALIDRAW_PLUGIN_ID)?.ea ?? null;
 }
 
-// The plugin's onSceneChangeHook has one slot per drawing, owned by the user's own scripts, so the selection is read on demand.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/794
 export function activeDrawingSelection(app: App): (() => SelectionReport) | null {
   const ea = excalidrawAutomate(app);
   const view = app.workspace.getActiveViewOfType(ItemView) as ExcalidrawView | null;
@@ -102,8 +100,6 @@ export function activeDrawingSelection(app: App): (() => SelectionReport) | null
   };
 }
 
-// executeCLI arrived in Excalidraw 2.29, the first release whose create and apply commands bind labels and arrows both ways.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/787
 export function getExcalidrawApi(app: App): ExcalidrawApi | null {
   const ea = excalidrawAutomate(app);
   if (!ea || typeof ea.executeCLI !== "function") return null;
@@ -154,8 +150,6 @@ export function getExcalidrawApi(app: App): ExcalidrawApi | null {
         fresh.copyViewElementsToEAforEditing([from, to]);
         fresh.style.strokeStyle = connection.dashed ? "dashed" : "solid";
         if (connection.color) fresh.style.strokeColor = connection.color;
-        // The plugin's own connect draws in the default style, so arrows added to a sketchy drawing came out clean.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/792
         if (connection.roughness !== undefined) fresh.style.roughness = connection.roughness;
         if (connection.strokeWidth !== undefined) fresh.style.strokeWidth = connection.strokeWidth;
         const arrowId = fresh.connectObjects(
@@ -192,9 +186,6 @@ export function getExcalidrawApi(app: App): ExcalidrawApi | null {
           fresh.getElement(labelId).containerId = arrowId;
           arrow.boundElements = [...(arrow.boundElements ?? []), { type: "text", id: labelId }];
         }
-        // Saving through addElementsToView only schedules an autosave, so the arrow could be missing from the file the
-        // agent reads next; the plugin's own apply saves explicitly and waits for the acknowledgement.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/787
         await fresh.addElementsToView(false, false, true);
         const saved = await view.saveWithOutcome();
         if (

@@ -19,7 +19,7 @@ const wire: CustomModel = {
 };
 
 describe("createProviderChatModel OpenRouter", () => {
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     let requests: Array<{ url: string; body: string; headers: Record<string, string> }>;
     let response: string;
     beforeEach(() => {

@@ -6,7 +6,6 @@ import { deserialize, serialize } from "v8";
 window.TextEncoder = TextEncoder;
 window.TextDecoder = TextDecoder;
 
-// jsdom lacks the Fetch classes required by pi-ai's browser SDKs. https://github.com/ItsDalk-Lane/Scribe/issues/8
 window.MessagePort = MessagePort;
 const { Response, Request, Headers } = jest.requireActual("undici");
 Object.assign(window, { Response, Request, Headers });

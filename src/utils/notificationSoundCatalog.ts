@@ -51,8 +51,6 @@ export const NOTIFICATION_SOUND_OPTIONS: ReadonlyArray<{ label: string; value: s
   );
 
 export function isNotificationSoundId(value: unknown): value is NotificationSoundId {
-  // Persisted ids are untrusted: Object.prototype names must not resolve as sounds.
-  // https://github.com/logancyang/obsidian-copilot/issues/2987
   return (
     typeof value === "string" &&
     Boolean(Object.prototype.hasOwnProperty.call(NOTIFICATION_SOUNDS, value))

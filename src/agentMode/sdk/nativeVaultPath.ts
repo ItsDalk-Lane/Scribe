@@ -25,8 +25,6 @@ function insideVault(root: string, absolute: string): boolean {
   return !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`);
 }
 
-// 区分普通缺失路径与悬空符号链接：悬空链接一旦写入会落到不可预测的链接目标，必须整体拒绝。
-// https://github.com/ItsDalk-Lane/Scribe/issues/11
 export async function resolveNativeVaultPath(
   adapter: FileSystemAdapter,
   requested: string,
@@ -83,9 +81,6 @@ export async function resolveNativeVaultPath(
   return relative.split(path.sep).join("/");
 }
 
-// 最终写入绑定到已验证的目标：新文件用 O_EXCL 创建（批准期间被替换为链接时直接失败），
-// 覆盖已存在文件时用 O_NOFOLLOW 打开（最终段被换成链接时报错而不是跟随）。
-// https://github.com/ItsDalk-Lane/Scribe/issues/11
 export async function writeNativeVaultTarget(
   vaultBase: string,
   vaultPath: string,

@@ -8,8 +8,8 @@ const baseProps = {
 };
 
 describe("setting-tabs", () => {
-  describe("TabItem()", () => {
-    it("shows an accessible warning dot when the tab carries a warning for https://github.com/Brevilabs/obsidian-copilot-private/issues/166", () => {
+  describe("TabItem", () => {
+    it("shows an accessible warning dot when the tab carries a warning", () => {
       render(
         <TabItem
           {...baseProps}

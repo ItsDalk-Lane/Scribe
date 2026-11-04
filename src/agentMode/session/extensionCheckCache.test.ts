@@ -10,8 +10,6 @@ import {
 } from "./extensionCheckCache";
 import type { App } from "obsidian";
 
-const ISSUE = "https://github.com/ItsDalk-Lane/Scribe/issues/3";
-
 const groups: readonly AgentExtensionGroup[] = [
   {
     kind: "mcp",
@@ -45,7 +43,7 @@ function fakeApp(): { app: App; storage: Map<string, unknown> } {
 describe("extensionCheckCache", () => {
   beforeEach(() => resetExtensionCheckCacheForTests());
 
-  describe("extensionCheckCacheKey()", () => {
+  describe("extensionCheckCacheKey", () => {
     it("separates backends, scopes, and configuration content", () => {
       const base = extensionCheckCacheKey(
         { backendId: "claude", scopeKind: "user", cwd: null },
@@ -74,8 +72,8 @@ describe("extensionCheckCache", () => {
     });
   });
 
-  describe("extensionCheckCacheIdentity()", () => {
-    it(`separates the backend, scope, working directory, and vault a saved answer belongs to (${ISSUE})`, () => {
+  describe("extensionCheckCacheIdentity", () => {
+    it(`separates the backend, scope, working directory, and vault a saved answer belongs to`, () => {
       const identity = extensionCheckCacheIdentity({
         backendId: "claude",
         scopeKind: "user",
@@ -109,7 +107,7 @@ describe("extensionCheckCache", () => {
     });
   });
 
-  describe("storeCachedExtensionCheck()", () => {
+  describe("storeCachedExtensionCheck", () => {
     it("stores a settled snapshot and answers it under the same key", () => {
       const key = extensionCheckCacheKey(
         { backendId: "claude", scopeKind: "user", cwd: null },
@@ -150,7 +148,7 @@ describe("extensionCheckCache", () => {
       }
       expect(readCachedExtensionCheck(null, first)).toBeNull();
     });
-    it(`answers after a plugin reload from the snapshot saved in local storage (${ISSUE})`, () => {
+    it(`answers after a plugin reload from the snapshot saved in local storage`, () => {
       const { app } = fakeApp();
       const key = extensionCheckCacheKey(
         { backendId: "claude", scopeKind: "user", cwd: null },
@@ -166,11 +164,11 @@ describe("extensionCheckCache", () => {
     });
   });
 
-  describe("readCachedExtensionView()", () => {
+  describe("readCachedExtensionView", () => {
     it("answers nothing when no page has saved an answer for the scope yet", () => {
       expect(readCachedExtensionView(null, "claude")).toBeNull();
     });
-    it(`restores the saved answer after a plugin reload (${ISSUE})`, () => {
+    it(`restores the saved answer after a plugin reload`, () => {
       const { app } = fakeApp();
       const view = { groups, runtimeState: "checked" as const };
       storeCachedExtensionView(app, "claude", view);
@@ -186,8 +184,8 @@ describe("extensionCheckCache", () => {
     });
   });
 
-  describe("storeCachedExtensionView()", () => {
-    it(`keeps the most recent answer for each backend and scope (${ISSUE})`, () => {
+  describe("storeCachedExtensionView", () => {
+    it(`keeps the most recent answer for each backend and scope`, () => {
       const { app } = fakeApp();
       storeCachedExtensionView(app, "claude", { groups, runtimeState: "checked" });
       const changed = { groups, runtimeState: "partial" as const };

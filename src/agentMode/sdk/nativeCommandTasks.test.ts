@@ -44,7 +44,7 @@ describe("nativeCommandTasks", () => {
       await rm(directory, { recursive: true, force: true });
     });
 
-    describe("run()", () => {
+    describe("run", () => {
       it("passes the Scribe skill environment to the real command without changing machine configuration", async () => {
         const runner = new NativeCommandTasks({
           cwd: directory,
@@ -168,7 +168,7 @@ describe("nativeCommandTasks", () => {
       });
     });
 
-    describe("stop()", () => {
+    describe("stop", () => {
       it("stops only the selected task and writes a stopped lifecycle result", async () => {
         const first = await tasks.run({
           toolCallId: "first",
@@ -245,8 +245,6 @@ describe("nativeCommandTasks", () => {
             pid = Number(await waitForFile(ready));
             await runner.stop(job.taskId);
             expect(ended).toEqual([`${job.taskId}:stopped`]);
-            // 任务报告已停止时，脱离进程组的后代必须已经终止，释放信号后不可能再写文件。
-            // https://github.com/ItsDalk-Lane/Scribe/issues/16
             const deadline = Date.now() + 3000;
             for (;;) {
               try {
@@ -278,7 +276,7 @@ describe("nativeCommandTasks", () => {
       );
     });
 
-    describe("shutdown()", () => {
+    describe("shutdown", () => {
       it("waits for all running processes to stop and prevents new commands", async () => {
         const result = await tasks.run({
           toolCallId: "unload",

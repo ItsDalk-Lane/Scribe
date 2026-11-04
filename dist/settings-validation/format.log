@@ -1,6 +1,0 @@
-
-> obsidian-scribe@4.0.17 format:check
-> prettier --check 'src/**/*.{js,ts,tsx,md}'
-
-Checking formatting...
-All matched files use Prettier code style!

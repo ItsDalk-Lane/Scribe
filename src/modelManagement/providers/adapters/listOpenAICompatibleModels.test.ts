@@ -13,7 +13,7 @@ function fakeResponse(status: number, json: unknown, text = ""): Response {
 }
 
 describe("listOpenAICompatibleModels", () => {
-  describe("listOpenAICompatibleModels()", () => {
+  describe("listOpenAICompatibleModels", () => {
     beforeEach(() => {
       mockSafeFetch.mockReset();
     });
@@ -54,7 +54,7 @@ describe("listOpenAICompatibleModels", () => {
       ["https://opencode.ai/inference/go/openai/v1", "https://opencode.ai/inference/go/v1/models"],
       ["https://opencode.ai/inference/openai/v1", "https://opencode.ai/inference/v1/models"],
     ])(
-      "discovers models for %s through its separate official directory with Bearer auth (https://github.com/logancyang/obsidian-copilot/issues/3147)",
+      "discovers models for %s through its separate official directory with Bearer auth",
       async (baseUrl, modelsUrl) => {
         mockSafeFetch.mockResolvedValue(
           fakeResponse(200, { data: [{ id: "deepseek-v4.1-flash" }] })
@@ -68,7 +68,7 @@ describe("listOpenAICompatibleModels", () => {
       }
     );
 
-    it("keeps a custom proxy as the credential destination even with the official Go path (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("keeps a custom proxy as the credential destination even with the official Go path", async () => {
       mockSafeFetch.mockResolvedValue(fakeResponse(200, { data: [] }));
       await listOpenAICompatibleModels("https://proxy.example/inference/go/openai/v1", {
         apiKey: "fixture-proxy-key",
@@ -82,7 +82,7 @@ describe("listOpenAICompatibleModels", () => {
       );
     });
 
-    it("reports a rejected Go credential from the official directory without retrying another address (https://github.com/logancyang/obsidian-copilot/issues/3147)", async () => {
+    it("reports a rejected Go credential from the official directory without retrying another address", async () => {
       mockSafeFetch.mockResolvedValue(fakeResponse(401, {}));
       const result = await listOpenAICompatibleModels(
         "https://opencode.ai/inference/go/openai/v1",

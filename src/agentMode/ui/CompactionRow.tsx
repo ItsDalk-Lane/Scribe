@@ -18,8 +18,6 @@ function formatTokens(count: number): string {
   return count >= 1000 ? `${Math.round(count / 1000)}k` : String(count);
 }
 
-// Not every backend reports both token counts, and an automatic compaction says so because the user didn't ask for it.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/633
 function completedText(part: CompactionPart): string {
   const label =
     part.trigger === "auto" ? t("Context compacted automatically") : t("Context compacted");
@@ -65,8 +63,6 @@ export const CompactionRow: React.FC<CompactionRowProps> = ({ part }) => {
         </div>
       );
     case "failed":
-      // The running row's live region unmounts here, so a failure needs its own announcement.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/633
       return (
         <div
           role="alert"

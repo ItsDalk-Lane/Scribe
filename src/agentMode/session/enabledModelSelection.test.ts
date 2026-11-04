@@ -23,7 +23,7 @@ function catalog(modelIds: string[]): BackendState["model"] {
 }
 
 describe("enabledModelSelection", () => {
-  describe("pickEnabledModel()", () => {
+  describe("pickEnabledModel", () => {
     it("settles on the seed once the catalog offers it", () => {
       const seed = { baseModelId: USER_MODEL, effort: "low" };
 
@@ -32,7 +32,7 @@ describe("enabledModelSelection", () => {
       ).toEqual({ target: seed, settled: true });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 stays unsettled, offering an enabled fallback, while a runnable seed is missing from the catalog", () => {
+    it("stays unsettled, offering an enabled fallback, while a runnable seed is missing from the catalog", () => {
       expect(
         pickEnabledModel(
           [enabled(USER_MODEL), enabled(STEP_FLASH)],
@@ -42,7 +42,7 @@ describe("enabledModelSelection", () => {
       ).toEqual({ target: { baseModelId: STEP_FLASH, effort: null }, settled: false });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 stays unsettled with no target when the seed cannot run and no enabled model is offered yet", () => {
+    it("stays unsettled with no target when the seed cannot run and no enabled model is offered yet", () => {
       expect(
         pickEnabledModel([enabled(STEP_FLASH)], catalog([BIG_PICKLE]), {
           baseModelId: BIG_PICKLE,
@@ -51,7 +51,7 @@ describe("enabledModelSelection", () => {
       ).toEqual({ target: null, settled: false });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 settles on the first offered enabled model when the seed's provider key is missing", () => {
+    it("settles on the first offered enabled model when the seed's provider key is missing", () => {
       expect(
         pickEnabledModel(
           [enabled(USER_MODEL, "missing_key"), enabled(STEP_FLASH)],
@@ -61,14 +61,14 @@ describe("enabledModelSelection", () => {
       ).toEqual({ target: { baseModelId: STEP_FLASH, effort: null }, settled: true });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/625 settles with no target at once when no enabled model can run", () => {
+    it("settles with no target at once when no enabled model can run", () => {
       expect(
         pickEnabledModel([enabled(USER_MODEL, "missing_key")], catalog([USER_MODEL]), null)
       ).toEqual({ target: null, settled: true });
     });
   });
 
-  describe("noEnabledModelError()", () => {
+  describe("noEnabledModelError", () => {
     it("names the agent and points the user to Scribe's model settings", () => {
       expect(noEnabledModelError("opencode").message).toBe(
         "None of the models enabled for opencode are available. Check them in Scribe's model settings."

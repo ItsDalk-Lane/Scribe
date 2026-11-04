@@ -9,7 +9,7 @@ import {
 } from "@/services/settingsPersistence";
 import type { CustomModel } from "@/aiParams";
 import type { Provider } from "@/modelManagement";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import { getSettings, resetSettings, settingsAtom, settingsStore } from "@/settings/model";
 
 jest.mock("@/logger", () => ({
@@ -59,7 +59,7 @@ function makeProvider(overrides: Partial<Provider>): Provider {
 }
 
 describe("model", () => {
-  describe("resetSettings()", () => {
+  describe("resetSettings", () => {
     beforeEach(() => {
       secrets = new Map();
       app = makeApp();
@@ -68,7 +68,7 @@ describe("model", () => {
       KeychainService.getInstance(app).setVaultId(VAULT_ID);
     });
 
-    it("keeps every credential — top-level, legacy model and BYOK — reachable through reset, persistence, and a fresh hydration cycle (https://github.com/logancyang/obsidian-copilot-preview/issues/259)", async () => {
+    it("keeps every credential — top-level, legacy model and BYOK — reachable through reset, persistence, and a fresh hydration cycle", async () => {
       const customRow: CustomModel = {
         name: "custom-gpt",
         provider: "openai",
@@ -102,7 +102,7 @@ describe("model", () => {
 
       resetSettings();
 
-      let savedToDisk: CopilotSettings | undefined;
+      let savedToDisk: ScribeSettings | undefined;
       await persistSettings(getSettings(), async (data) => {
         savedToDisk = structuredClone(data);
       });

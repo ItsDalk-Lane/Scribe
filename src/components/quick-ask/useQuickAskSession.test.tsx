@@ -31,7 +31,7 @@ jest.mock("@/commands/customCommandUtils", () => ({ processCommandPrompt: jest.f
 jest.mock("@/logger", () => ({ logError: jest.fn() }));
 
 describe("useQuickAskSession", () => {
-  describe("useQuickAskSession()", () => {
+  describe("useQuickAskSession", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       jest.mocked(useResolvedChatBackendModel).mockReturnValue(mockModel);
@@ -57,7 +57,7 @@ describe("useQuickAskSession", () => {
       expect(result.current.messages).toEqual([]);
       expect(mockReset).toHaveBeenCalled();
     });
-    it("exposes unavailable selections to the panel (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+    it("exposes unavailable selections to the panel", () => {
       jest.mocked(useResolvedChatBackendModel).mockReturnValue(null);
       const { result } = renderHook(() =>
         useQuickAskSession({

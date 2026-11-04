@@ -5,7 +5,7 @@ import { FileSystemAdapter } from "obsidian";
 import { resolveNativeVaultPath, withNativeWriteLock } from "@/agentMode/sdk/nativeVaultPath";
 
 describe("nativeVaultPath", () => {
-  describe("resolveNativeVaultPath()", () => {
+  describe("resolveNativeVaultPath", () => {
     let root: string;
     let outside: string;
     let adapter: FileSystemAdapter;
@@ -43,7 +43,7 @@ describe("nativeVaultPath", () => {
         "inside the current vault"
       );
     });
-    it("rejects a dangling end symlink instead of treating it as a missing in-vault file (https://github.com/ItsDalk-Lane/Scribe/issues/11)", async () => {
+    it("rejects a dangling end symlink instead of treating it as a missing in-vault file", async () => {
       await symlink(join(outside, "not-created-yet.md"), join(root, "looks-safe.md"));
       await expect(resolveNativeVaultPath(adapter, "looks-safe.md", true)).rejects.toThrow(
         /dangling symbolic link/i
@@ -52,20 +52,20 @@ describe("nativeVaultPath", () => {
         code: "ENOENT",
       });
     });
-    it("rejects a missing path beneath a dangling symlinked parent directory (https://github.com/ItsDalk-Lane/Scribe/issues/11)", async () => {
+    it("rejects a missing path beneath a dangling symlinked parent directory", async () => {
       await symlink(join(outside, "missing-dir"), join(root, "linked-dir"));
       await expect(resolveNativeVaultPath(adapter, "linked-dir/new.md", true)).rejects.toThrow(
         /dangling symbolic link/i
       );
       await expect(access(join(outside, "missing-dir"))).rejects.toMatchObject({ code: "ENOENT" });
     });
-    it("resolves an in-vault symlink target that actually exists (https://github.com/ItsDalk-Lane/Scribe/issues/11)", async () => {
+    it("resolves an in-vault symlink target that actually exists", async () => {
       await symlink(join(root, "notes", "source.md"), join(root, "alias.md"));
       expect(await resolveNativeVaultPath(adapter, "alias.md")).toBe("notes/source.md");
     });
   });
 
-  describe("withNativeWriteLock()", () => {
+  describe("withNativeWriteLock", () => {
     it("serializes one target, allows another target and releases a lock after failure", async () => {
       let release!: () => void;
       const pending = new Promise<void>((resolve) => {

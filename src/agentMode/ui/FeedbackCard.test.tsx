@@ -40,7 +40,7 @@ function renderCard(offer: FeedbackOffer = OPEN_OFFER) {
 jest.mock("@/constants", () => ({ USER_SENDER: "user" }));
 
 describe("FeedbackCard", () => {
-  describe("findFeedbackCardIndex()", () => {
+  describe("findFeedbackCardIndex", () => {
     it("places the card after the last reply of the turn that raised it", () => {
       expect(findFeedbackCardIndex(TRANSCRIPT, OPEN_OFFER)).toBe(4);
     });
@@ -62,7 +62,7 @@ describe("FeedbackCard", () => {
     });
   });
 
-  describe("FeedbackCard()", () => {
+  describe("FeedbackCard", () => {
     it("shows the drafted title and the user's own words with review, dismiss and opt-out actions", () => {
       renderCard();
 

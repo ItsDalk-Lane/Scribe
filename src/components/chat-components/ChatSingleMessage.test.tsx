@@ -117,7 +117,7 @@ describe("ChatSingleMessage", () => {
     });
   });
 
-  describe("ChatSingleMessage()", () => {
+  describe("ChatSingleMessage", () => {
     const baseMessage: ChatMessage = {
       id: "message-1",
       message: "Test message",
@@ -228,7 +228,7 @@ describe("ChatSingleMessage", () => {
     });
 
     it.each(["", "chat/Conversation.md"])(
-      "resolves user Markdown from conversation source %s instead of the active editor https://github.com/Brevilabs/obsidian-copilot-private/issues/539",
+      "resolves user Markdown from conversation source %s instead of the active editor",
       async (sourcePath) => {
         const app = {
           ...testApp,
@@ -280,7 +280,7 @@ describe("ChatSingleMessage", () => {
 
     describe("sent context selections", () => {
       it.each(["note", "web"] as const)(
-        "shows one full-excerpt tooltip for a sent %s selection https://github.com/Brevilabs/obsidian-copilot-private/issues/465",
+        "shows one full-excerpt tooltip for a sent %s selection",
         async (sourceType) => {
           const source =
             sourceType === "note"
@@ -343,7 +343,7 @@ describe("ChatSingleMessage", () => {
       );
     });
 
-    it("renders a truncated response as an ordinary message, with no card offering a setting to raise (https://github.com/logancyang/obsidian-copilot-preview/issues/312)", async () => {
+    it("renders a truncated response as an ordinary message, with no card offering a setting to raise", async () => {
       const { container } = render(
         <TooltipProvider>
           <ChatSingleMessage
@@ -456,7 +456,7 @@ describe("ChatSingleMessage", () => {
       );
       expect(screen.getByText(timestamp)).toBeTruthy();
     });
-    it("collapses an oversized user message behind a Show more control (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", () => {
+    it("collapses an oversized user message behind a Show more control", () => {
       const restoreContentHeight = stubContentDimensions(2000, 240);
 
       try {
@@ -480,7 +480,7 @@ describe("ChatSingleMessage", () => {
       }
     });
 
-    it("leaves a short user message without an expand control (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", () => {
+    it("leaves a short user message without an expand control", () => {
       const restoreContentHeight = stubContentDimensions(40, 40);
 
       try {
@@ -501,7 +501,7 @@ describe("ChatSingleMessage", () => {
       }
     });
 
-    it("never collapses an assistant message, whose trail owns its own folding (https://github.com/Brevilabs/obsidian-copilot-private/issues/151)", async () => {
+    it("never collapses an assistant message, whose trail owns its own folding", async () => {
       const restoreContentHeight = stubContentDimensions(2000, 240);
 
       try {
@@ -577,7 +577,7 @@ describe("ChatSingleMessage", () => {
     );
   });
 
-  describe("normalizeFootnoteRendering()", () => {
+  describe("normalizeFootnoteRendering", () => {
     it("removes separator and backref while preserving non-footnote elements", () => {
       const container = window.document.createElement("div");
       container.append(

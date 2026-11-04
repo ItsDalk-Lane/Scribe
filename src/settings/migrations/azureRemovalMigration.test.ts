@@ -6,7 +6,7 @@ import type {
   ProviderType,
 } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
 import { executeAzureRemoval, planAzureRemoval } from "./azureRemovalMigration";
 
@@ -63,8 +63,8 @@ function configuredModel(configuredModelId: string, providerId: string): Configu
 }
 
 function settingsWith(
-  overrides: Partial<CopilotSettings> & Record<string, unknown> = {}
-): CopilotSettings {
+  overrides: Partial<ScribeSettings> & Record<string, unknown> = {}
+): ScribeSettings {
   return { ...DEFAULT_SETTINGS, ...overrides };
 }
 
@@ -73,7 +73,7 @@ describe("azureRemovalMigration", () => {
     jest.clearAllMocks();
   });
 
-  describe("planAzureRemoval()", () => {
+  describe("planAzureRemoval", () => {
     it("returns null for a vault that never configured Azure", () => {
       expect(
         planAzureRemoval(
@@ -97,7 +97,7 @@ describe("azureRemovalMigration", () => {
       expect(plan?.patch.configuredModels).toBeUndefined();
     });
 
-    it("removes a legacy Azure chat model and the selection naming it (https://github.com/logancyang/obsidian-copilot/issues/2932)", () => {
+    it("removes a legacy Azure chat model and the selection naming it", () => {
       const plan = planAzureRemoval(
         settingsWith({
           activeModels: [
@@ -112,7 +112,7 @@ describe("azureRemovalMigration", () => {
     });
   });
 
-  describe("executeAzureRemoval()", () => {
+  describe("executeAzureRemoval", () => {
     it("hands each Azure row to the cascade rather than deleting it directly", async () => {
       keychain();
       const { api, removeProvider } = makeApi();
@@ -126,7 +126,7 @@ describe("azureRemovalMigration", () => {
       expect(removeProvider).toHaveBeenCalledWith("az");
     });
 
-    it("deletes the pre-BYOK top-level key even for a vault with nothing else to clean (https://github.com/logancyang/obsidian-copilot/issues/2932)", async () => {
+    it("deletes the pre-BYOK top-level key even for a vault with nothing else to clean", async () => {
       const store = keychain();
       const { api } = makeApi();
       await executeAzureRemoval(api, settingsWith({}));

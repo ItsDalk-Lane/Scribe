@@ -212,7 +212,7 @@ describe("NativeBackendProcess integration", () => {
       };
     }
 
-    describe("prompt()", () => {
+    describe("prompt", () => {
       it("does not let a late failed save for an ended turn settle the next real-session reply", async () => {
         const storage = new NodeNativeSessionStorage(join(data, "late-save"));
         const failOldSave = deferred<void>();
@@ -653,7 +653,7 @@ describe("NativeBackendProcess integration", () => {
         expect(JSON.stringify(parentResults[1])).toContain("Permission denied");
       });
       const posix = process.platform === "win32" ? it.skip : it;
-      it("keeps an enabled plugin entrypoint byte-identical in Auto mode when every approval is denied (https://github.com/ItsDalk-Lane/Scribe/issues/10)", async () => {
+      it("keeps an enabled plugin entrypoint byte-identical in Auto mode when every approval is denied", async () => {
         const configEntry = [OBSIDIAN_DEFAULT_CONFIG_DIR, "plugins", "fixture"].join("/");
         await mkdir(join(root, ...configEntry.split("/")), { recursive: true });
         const pluginEntry = join(root, ...configEntry.split("/"), "main.js");
@@ -744,7 +744,7 @@ describe("NativeBackendProcess integration", () => {
         }
       );
 
-      it("keeps a persisted always-deny effective in Auto mode for the identical in-vault target (https://github.com/ItsDalk-Lane/Scribe/issues/12)", async () => {
+      it("keeps a persisted always-deny effective in Auto mode for the identical in-vault target", async () => {
         let attempt = 0;
         const f = fixture(() =>
           ++attempt % 2
@@ -776,7 +776,7 @@ describe("NativeBackendProcess integration", () => {
         expect(permission).toHaveBeenCalledTimes(1);
       });
 
-      it("delivers the queued message to the model exactly once after Send now cancels the running reply (https://github.com/ItsDalk-Lane/Scribe/issues/13)", async () => {
+      it("delivers the queued message to the model exactly once after Send now cancels the running reply", async () => {
         let started!: () => void;
         const ready = new Promise<void>((resolve) => {
           started = resolve;
@@ -826,7 +826,7 @@ describe("NativeBackendProcess integration", () => {
       });
     });
 
-    describe("stopTask()", () => {
+    describe("stopTask", () => {
       it("marks a real child waiting for an answer as stopped when that child is stopped", async () => {
         const questionAsked = deferred<AskUserQuestionPrompt>();
         const f = fixture((context) => {
@@ -944,7 +944,7 @@ describe("NativeBackendProcess integration", () => {
       });
     });
 
-    describe("loadSession()", () => {
+    describe("loadSession", () => {
       it("restores real saved history and task records without another model request or tool side effect", async () => {
         const first = fixture((context) =>
           results(context).length === 0
@@ -1082,7 +1082,7 @@ describe("NativeBackendProcess integration", () => {
         return { provider, process };
       }
 
-      it("uses the configured catalog window for usage and the auto-compaction threshold through the real model factories (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+      it("uses the configured catalog window for usage and the auto-compaction threshold through the real model factories", async () => {
         const { getSettings, setSettings } = await import("@/settings/model");
         const previous = getSettings();
         try {
@@ -1127,7 +1127,7 @@ describe("NativeBackendProcess integration", () => {
         }
       });
 
-      it("keeps an unknown window unreported and skips auto-compaction for it (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+      it("keeps an unknown window unreported and skips auto-compaction for it", async () => {
         const { getSettings, setSettings } = await import("@/settings/model");
         const previous = getSettings();
         try {

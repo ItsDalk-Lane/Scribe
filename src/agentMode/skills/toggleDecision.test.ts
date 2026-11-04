@@ -5,8 +5,8 @@ function canonicalSkill(enabledAgents: string[]): Skill {
   return {
     name: "foo",
     description: "A skill.",
-    filePath: "/vault/copilot/skills/foo/SKILL.md",
-    dirPath: "/vault/copilot/skills/foo",
+    filePath: "/vault/scribe/skills/foo/SKILL.md",
+    dirPath: "/vault/scribe/skills/foo",
     body: "body",
     enabledAgents,
     location: { kind: "canonical" },

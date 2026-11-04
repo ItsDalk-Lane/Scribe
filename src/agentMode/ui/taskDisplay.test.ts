@@ -12,8 +12,6 @@ import {
 } from "@/agentMode/ui/taskDisplay";
 import { makeCommandTask, makeTask } from "@/agentMode/ui/testing/taskFixtures";
 
-const ISSUE_749 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/749";
-
 function permission(requester: PermissionPrompt["requester"]): PermissionPrompt {
   return {
     sessionId: "s",
@@ -25,7 +23,7 @@ function permission(requester: PermissionPrompt["requester"]): PermissionPrompt 
 
 describe("taskDisplay", () => {
   afterEach(() => setInterfaceLocale("en"));
-  describe("taskTitle()", () => {
+  describe("taskTitle", () => {
     it("uses the task's description, then its subagent type, then its command", () => {
       expect(taskTitle(makeTask())).toBe("Count words in Welcome");
       expect(taskTitle(makeTask({ description: "" }))).toBe("general-purpose");
@@ -36,15 +34,15 @@ describe("taskDisplay", () => {
     });
   });
 
-  describe("taskLabel()", () => {
-    it(`names a subagent by its type and description, and by its type alone while its launch has no description yet (${ISSUE_749})`, () => {
+  describe("taskLabel", () => {
+    it(`names a subagent by its type and description, and by its type alone while its launch has no description yet`, () => {
       expect(taskLabel(makeTask())).toBe("general-purpose · Count words in Welcome");
       expect(taskLabel(makeTask({ description: "", subagentType: undefined }))).toBe("Subagent");
       expect(taskLabel(makeCommandTask())).toBe("Print 30 progress lines");
     });
   });
 
-  describe("taskKindLabel()", () => {
+  describe("taskKindLabel", () => {
     it("names a command a command and a subagent by its type, or Subagent without one", () => {
       expect(taskKindLabel(makeCommandTask())).toBe("Command");
       expect(taskKindLabel(makeTask())).toBe("general-purpose");
@@ -52,7 +50,7 @@ describe("taskDisplay", () => {
     });
   });
 
-  describe("taskStatusLabel()", () => {
+  describe("taskStatusLabel", () => {
     it("translates task status labels into Chinese while keeping task state values unchanged", () => {
       setInterfaceLocale("zh-CN");
       expect(taskStatusLabel("running")).toBe("运行中");
@@ -72,7 +70,7 @@ describe("taskDisplay", () => {
     });
   });
 
-  describe("taskBadgeStatus()", () => {
+  describe("taskBadgeStatus", () => {
     it("shows running work as in progress, approval as pending, and a stopped task with the stop mark", () => {
       expect(taskBadgeStatus("running")).toBe("in_progress");
       expect(taskBadgeStatus("needs_approval")).toBe("pending");
@@ -82,8 +80,8 @@ describe("taskDisplay", () => {
     });
   });
 
-  describe("runningTasks()", () => {
-    it(`counts running subagents and background commands and leaves out ended tasks (${ISSUE_749})`, () => {
+  describe("runningTasks", () => {
+    it(`counts running subagents and background commands and leaves out ended tasks`, () => {
       const tasks = [
         makeTask(),
         makeCommandTask(),
@@ -95,7 +93,7 @@ describe("taskDisplay", () => {
     });
   });
 
-  describe("taskDisplayStatus()", () => {
+  describe("taskDisplayStatus", () => {
     it("labels an unreconnected task as interrupted instead of successfully completed", () => {
       expect(taskDisplayStatus(makeTask({ status: "stopped", interrupted: true }), [])).toBe(
         "interrupted"
@@ -103,7 +101,7 @@ describe("taskDisplay", () => {
       expect(taskStatusLabel("interrupted")).toBe("Interrupted");
       expect(taskBadgeStatus("interrupted")).toBe("cancelled");
     });
-    it(`shows a running task that is waiting on its own permission request as needing approval (${ISSUE_749})`, () => {
+    it(`shows a running task that is waiting on its own permission request as needing approval`, () => {
       const task = makeTask();
 
       expect(taskDisplayStatus(task, [permission({ taskId: "task-1" })])).toBe("needs_approval");
@@ -118,8 +116,8 @@ describe("taskDisplay", () => {
     });
   });
 
-  describe("permissionRequesterName()", () => {
-    it(`names the task that asked for a permission (${ISSUE_749})`, () => {
+  describe("permissionRequesterName", () => {
+    it(`names the task that asked for a permission`, () => {
       expect(permissionRequesterName(permission({ taskId: "task-1" }), [makeTask()])).toBe(
         'general-purpose "Count words in Welcome"'
       );

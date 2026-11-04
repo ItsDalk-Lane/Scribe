@@ -161,8 +161,8 @@ describe("GlobalRecentChatsSection", () => {
     mockOpenedModals.splice(0).forEach((modal) => modal.containerEl.remove());
   });
 
-  describe("GlobalRecentChatsSection()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/429 shows open sessions and retains saved chats after close", async () => {
+  describe("GlobalRecentChatsSection", () => {
+    it("shows open sessions and retains saved chats after close", async () => {
       const onLoadChat = jest.fn(noop);
       const onDeleteChat = jest.fn(noop);
       const onCloseSession = jest.fn(noop);
@@ -303,7 +303,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.getAllByLabelText("Project: Product research")).toHaveLength(11);
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3040 finds an older chat beyond the initial rendered batch", () => {
+    it("finds an older chat beyond the initial rendered batch", () => {
       const items = makeRecentItems("search", 120);
       renderSection({ items });
       expect(screen.queryByText("Chat search-100")).toBeNull();
@@ -315,7 +315,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.getByText("Chat search-100")).toBeTruthy();
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3040 honors the saved name and created chat-history sort strategies", () => {
+    it("honors the saved name and created chat-history sort strategies", () => {
       const items = [
         makeItem("alpha", {
           title: "Alpha",
@@ -343,7 +343,7 @@ describe("GlobalRecentChatsSection", () => {
       ]);
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3040 renders at most 50 chats before the user scrolls", () => {
+    it("renders at most 50 chats before the user scrolls", () => {
       const items = makeRecentItems("paged", 120);
       renderSection({ items });
 
@@ -351,7 +351,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.queryByText("Chat paged-50")).toBeNull();
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3040 appends 50 chats when the scroll sentinel enters view", () => {
+    it("appends 50 chats when the scroll sentinel enters view", () => {
       const items = makeRecentItems("paged", 120);
       renderSection({ items });
 
@@ -362,7 +362,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.queryByText("Chat paged-100")).toBeNull();
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3040 resets a new search to the first 50 matching chats", () => {
+    it("resets a new search to the first 50 matching chats", () => {
       const items = makeRecentItems("search-page", 120);
       renderSection({ items });
       act(() => intersect());
@@ -451,7 +451,7 @@ describe("GlobalRecentChatsSection", () => {
       }
     );
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 lists pinned chats first with the newest pin on top, then the other chats in the saved sort order", () => {
+    it("lists pinned chats first with the newest pin on top, then the other chats in the saved sort order", () => {
       renderSection({
         items: [
           makeItem("recent", { title: "Recent", lastAccessedAt: new Date(9_000) }),
@@ -472,7 +472,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(rowTitles()).toEqual(["Second pin", "First pin", "Recent", "Older"]);
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 keeps pinned chats in pin order while the other chats follow a changed sort strategy", () => {
+    it("keeps pinned chats in pin order while the other chats follow a changed sort strategy", () => {
       const items = [
         makeItem("zulu-pin", { title: "Zulu pin", pinnedAt: 2_000 }),
         makeItem("alpha-pin", { title: "Alpha pin", pinnedAt: 1_000 }),
@@ -485,7 +485,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(rowTitles()).toEqual(["Zulu pin", "Alpha pin", "Alpha", "Zulu"]);
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 renders every pinned chat in the first batch even when it is the least recently used", () => {
+    it("renders every pinned chat in the first batch even when it is the least recently used", () => {
       renderSection({
         items: [
           ...makeRecentItems("paged", 60),
@@ -511,7 +511,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.queryByRole("separator")).toBeNull();
     });
 
-    it("https://github.com/logancyang/obsidian-copilot/issues/3195 keeps matching pinned chats above the divider while searching and drops the divider when no unpinned chat matches", () => {
+    it("keeps matching pinned chats above the divider while searching and drops the divider when no unpinned chat matches", () => {
       renderSection({
         items: [
           makeItem("plan-pinned", {
@@ -660,7 +660,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(onLoadChat).not.toHaveBeenCalled();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/693 opens the menu in the row's own window when another window is active", () => {
+    it("opens the menu in the row's own window when another window is active", () => {
       renderSection({ items: [makeItem("chats/saved.md", { title: "Saved chat" })] });
       const otherWindowDocument = document.implementation.createHTMLDocument();
       const globals = window as unknown as { activeDocument: Document };
@@ -685,7 +685,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(onLoadChat).not.toHaveBeenCalled();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/693 keeps the hover actions shown in place of the time while the menu is open", () => {
+    it("keeps the hover actions shown in place of the time while the menu is open", () => {
       renderSection({ items: [makeItem("chats/saved.md", { title: "Saved chat" })] });
 
       openMenuFromButton("Saved chat");
@@ -696,7 +696,7 @@ describe("GlobalRecentChatsSection", () => {
       );
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/693 does not open the chat when a menu item is chosen", () => {
+    it("does not open the chat when a menu item is chosen", () => {
       const onLoadChat = jest.fn(noop);
       renderSection({ items: [makeItem("chats/saved.md", { title: "Saved chat" })], onLoadChat });
 
@@ -705,7 +705,7 @@ describe("GlobalRecentChatsSection", () => {
       expect(onLoadChat).not.toHaveBeenCalled();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/693 leaves Open source note out for a chat with no saved note", () => {
+    it("leaves Open source note out for a chat with no saved note", () => {
       const nativeId = buildNativeChatId("opencode", "session-1");
       renderSection({ items: [makeItem(nativeId, { title: "Native chat" })] });
 
@@ -717,7 +717,7 @@ describe("GlobalRecentChatsSection", () => {
       ).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/699 offers Copy chat link for a chat with no saved note and copies it by that chat's id", () => {
+    it("offers Copy chat link for a chat with no saved note and copies it by that chat's id", () => {
       const nativeId = buildNativeChatId("opencode", "session-1");
       const onCopyChatLink = jest.fn(noop);
       renderSection({ items: [makeItem(nativeId, { title: "Native chat" })], onCopyChatLink });
@@ -791,21 +791,16 @@ describe("GlobalRecentChatsSection", () => {
       expect(screen.getByText("Saved chat")).toBeTruthy();
     });
 
-    it.each([["native"]])(
-      "https://github.com/logancyang/obsidian-copilot/issues/2888 asks to delete the %s chat from Scribe",
-      async (backendId) => {
-        renderSection({
-          items: [makeItem("chats/agent__a.md", { title: "Agent chat", backendId })],
-        });
+    it.each([["native"]])("asks to delete the %s chat from Scribe", async (backendId) => {
+      renderSection({
+        items: [makeItem("chats/agent__a.md", { title: "Agent chat", backendId })],
+      });
 
-        const menu = openMenuFromButton("Agent chat");
-        act(() => chooseMenuItem(menu, "Delete"));
+      const menu = openMenuFromButton("Agent chat");
+      act(() => chooseMenuItem(menu, "Delete"));
 
-        expect(
-          within(lastModal().contentEl).getByText("Delete this chat from Scribe?")
-        ).toBeTruthy();
-      }
-    );
+      expect(within(lastModal().contentEl).getByText("Delete this chat from Scribe?")).toBeTruthy();
+    });
 
     it("refreshes once when the parent re-renders with the items that refresh produced", () => {
       const loadHistory = jest.fn(async () => {});

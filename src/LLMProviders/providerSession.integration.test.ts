@@ -71,7 +71,7 @@ function session(headers: Record<string, string>): string {
 }
 
 describe("providerSession integration", () => {
-  describe("useStreamingChatSession()", () => {
+  describe("useStreamingChatSession", () => {
     it(`keeps headers across quick-ask turns and model changes, then rotates on a new chat (${issue})`, async () => {
       const requests = captureRequests();
       const { result, rerender, unmount } = renderHook(

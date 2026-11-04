@@ -14,14 +14,14 @@ import { openAgentsFile, writeAgentsFile } from "@/instructions/agentsFile";
 import { useAgentsFileDraft } from "@/instructions/useAgentsFileDraft";
 import { logError } from "@/logger";
 import { debounce } from "@/utils/debounce";
-import { ensureCopilotSubfolders } from "@/settings/copilotFolder";
+import { ensureScribeSubfolders } from "@/settings/scribeFolder";
 import {
-  applyCopilotRootChange,
-  copilotRootContainsNotes,
-  findCopilotRootFileConflict,
-} from "@/settings/copilotRootChange";
-import { updateSetting, useSettingsValue, validateCopilotFolder } from "@/settings/model";
-import { CopilotFolderChangeNotice } from "@/settings/v2/components/CopilotFolderChangeNotice";
+  applyScribeRootChange,
+  scribeRootContainsNotes,
+  findScribeRootFileConflict,
+} from "@/settings/scribeRootChange";
+import { updateSetting, useSettingsValue, validateScribeFolder } from "@/settings/model";
+import { ScribeFolderChangeNotice } from "@/settings/v2/components/ScribeFolderChangeNotice";
 import { VaultInstructionsSetting } from "@/settings/v2/components/VaultInstructionsSetting";
 import { formatDateTime } from "@/utils";
 import { revealFolderInExplorer } from "@/utils/revealFolderInExplorer";
@@ -42,7 +42,7 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
     settings.defaultConversationNoteName || "{$date}_{$time}__{$topic}"
   );
 
-  const persistedRoot = settings.copilotFolder;
+  const persistedRoot = settings.scribeFolder;
   const [folderDraft, setFolderDraft] = useState(persistedRoot);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
   };
 
   const applyFolderChange = () => {
-    const validation = validateCopilotFolder(folderDraft, app.vault.configDir);
+    const validation = validateScribeFolder(folderDraft, app.vault.configDir);
     if (!validation.ok) {
       new Notice(t("Invalid Scribe folder: {reason}", { reason: validation.reason }), 5000);
       return;
@@ -101,7 +101,7 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
       new Notice(t("That's already the Scribe folder."), 3000);
       return;
     }
-    const conflict = findCopilotRootFileConflict(app, folder);
+    const conflict = findScribeRootFileConflict(app, folder);
     if (conflict) {
       new Notice(
         t(
@@ -112,12 +112,12 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
       );
       return;
     }
-    const containsMarkdown = copilotRootContainsNotes(app, folder);
+    const containsMarkdown = scribeRootContainsNotes(app, folder);
     new ConfirmModal(
       app,
       () => {
-        void applyCopilotRootChange(app, folder)
-          .then(() => ensureCopilotSubfolders(app.vault, { copilotFolder: folder }))
+        void applyScribeRootChange(app, folder)
+          .then(() => ensureScribeSubfolders(app.vault, { scribeFolder: folder }))
           .then(
             () => new Notice(t('Scribe folder changed to "{folder}".', { folder: folder }), 4000)
           )
@@ -125,7 +125,7 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
             () => new Notice(t("Failed to change the Scribe folder. Check the Scribe log."), 5000)
           );
       },
-      <CopilotFolderChangeNotice
+      <ScribeFolderChangeNotice
         oldRoot={persistedRoot}
         newRoot={folder}
         containsMarkdown={containsMarkdown}
@@ -277,7 +277,7 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
               <Button
                 variant="secondary"
                 size="icon"
-                onClick={() => revealFolderInExplorer(app, settings.copilotFolder)}
+                onClick={() => revealFolderInExplorer(app, settings.scribeFolder)}
                 aria-label={t("Open Scribe folder")}
                 title={t("Open Scribe folder")}
               >

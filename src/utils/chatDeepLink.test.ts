@@ -8,8 +8,8 @@ import {
 import { listMarkdownFiles, readFrontmatterViaAdapter } from "@/utils/vaultAdapterUtils";
 import type { App, TFile } from "obsidian";
 
-jest.mock("@/settings/copilotFolder", () => ({
-  getEffectiveConversationsFolder: () => "Copilot/conversations",
+jest.mock("@/settings/scribeFolder", () => ({
+  getEffectiveConversationsFolder: () => "Scribe/conversations",
 }));
 jest.mock("@/utils/vaultAdapterUtils", () => ({
   listMarkdownFiles: jest.fn(),
@@ -30,7 +30,7 @@ describe("chatDeepLink", () => {
     mockReadFrontmatter.mockResolvedValue(null);
   });
 
-  describe("buildChatDeepLink()", () => {
+  describe("buildChatDeepLink", () => {
     it("encodes the vault and chat id without exposing a file path", () => {
       expect(buildChatDeepLink("My Vault", "epoch:1735732800000")).toBe(
         "obsidian://scribe-chat?vault=My%20Vault&id=epoch%3A1735732800000"
@@ -44,7 +44,7 @@ describe("chatDeepLink", () => {
     });
   });
 
-  describe("buildChatMarkdownLink()", () => {
+  describe("buildChatMarkdownLink", () => {
     it("uses the chat title as the link text", () => {
       expect(buildChatMarkdownLink("Trip planning", "obsidian://scribe-chat?id=1")).toBe(
         "[Trip planning](obsidian://scribe-chat?id=1)"
@@ -58,67 +58,67 @@ describe("chatDeepLink", () => {
     });
   });
 
-  describe("getSavedChatDeepLinkId()", () => {
+  describe("getSavedChatDeepLinkId", () => {
     it("uses the cached frontmatter epoch so a renamed note keeps its link", async () => {
       mockGetCache.mockReturnValue({ frontmatter: { epoch: 1735732800000 } } as never);
-      expect(await getSavedChatDeepLinkId(app, "Copilot/conversations/renamed.md")).toBe(
+      expect(await getSavedChatDeepLinkId(app, "Scribe/conversations/renamed.md")).toBe(
         "epoch:1735732800000"
       );
     });
 
-    it("reads the epoch from disk when a just-saved note has no metadata cache entry yet (https://github.com/Brevilabs/obsidian-copilot-private/issues/712)", async () => {
+    it("reads the epoch from disk when a just-saved note has no metadata cache entry yet", async () => {
       mockReadFrontmatter.mockResolvedValue({ epoch: "1735732800000" });
-      expect(await getSavedChatDeepLinkId(app, "Copilot/conversations/chat.md")).toBe(
+      expect(await getSavedChatDeepLinkId(app, "Scribe/conversations/chat.md")).toBe(
         "epoch:1735732800000"
       );
     });
 
     it("returns null when the note has no epoch", async () => {
-      expect(await getSavedChatDeepLinkId(app, "Copilot/conversations/chat.md")).toBeNull();
+      expect(await getSavedChatDeepLinkId(app, "Scribe/conversations/chat.md")).toBeNull();
     });
 
-    it("returns null for a fractional epoch the link grammar cannot express (https://github.com/logancyang/obsidian-copilot/issues/3271)", async () => {
+    it("returns null for a fractional epoch the link grammar cannot express", async () => {
       mockGetCache.mockReturnValue({ frontmatter: { epoch: 1.5 } } as never);
-      expect(await getSavedChatDeepLinkId(app, "Copilot/conversations/chat.md")).toBeNull();
+      expect(await getSavedChatDeepLinkId(app, "Scribe/conversations/chat.md")).toBeNull();
     });
   });
 
-  describe("findChatFileByDeepLinkId()", () => {
+  describe("findChatFileByDeepLinkId", () => {
     it("resolves the conversation whose epoch matches after a file rename", async () => {
-      const other = chat("Copilot/conversations/other.md");
-      const renamed = chat("Copilot/conversations/renamed.md");
+      const other = chat("Scribe/conversations/other.md");
+      const renamed = chat("Scribe/conversations/renamed.md");
       mockList.mockReturnValue([other, renamed]);
       mockReadFrontmatter.mockImplementation(async (_app, path) => ({
         epoch: path === renamed.path ? "1735732800000" : "1600000000000",
       }));
       expect(await findChatFileByDeepLinkId(app, "epoch:1735732800000")).toBe(renamed);
-      expect(mockList).toHaveBeenCalledWith(app, "Copilot/conversations");
+      expect(mockList).toHaveBeenCalledWith(app, "Scribe/conversations");
     });
 
     it("returns null when no conversation owns the epoch", async () => {
-      mockList.mockReturnValue([chat("Copilot/conversations/chat.md")]);
+      mockList.mockReturnValue([chat("Scribe/conversations/chat.md")]);
       mockReadFrontmatter.mockResolvedValue({ epoch: "1600000000000" });
       expect(await findChatFileByDeepLinkId(app, "epoch:1735732800000")).toBeNull();
     });
 
-    it("ignores a matching note in a sibling folder that shares the folder's name prefix (https://github.com/logancyang/obsidian-copilot/issues/3271)", async () => {
-      mockList.mockReturnValue([chat("Copilot/conversations-backup/chat.md")]);
+    it("ignores a matching note in a sibling folder that shares the folder's name prefix", async () => {
+      mockList.mockReturnValue([chat("Scribe/conversations-backup/chat.md")]);
       mockReadFrontmatter.mockResolvedValue({ epoch: "1735732800000" });
       expect(await findChatFileByDeepLinkId(app, "epoch:1735732800000")).toBeNull();
     });
 
-    it("returns null when two conversations share the epoch, such as a sync conflict copy (https://github.com/logancyang/obsidian-copilot/issues/3271)", async () => {
+    it("returns null when two conversations share the epoch, such as a sync conflict copy", async () => {
       mockList.mockReturnValue([
-        chat("Copilot/conversations/chat.md"),
-        chat("Copilot/conversations/chat (conflicted copy).md"),
+        chat("Scribe/conversations/chat.md"),
+        chat("Scribe/conversations/chat (conflicted copy).md"),
       ]);
       mockReadFrontmatter.mockResolvedValue({ epoch: "1735732800000" });
       expect(await findChatFileByDeepLinkId(app, "epoch:1735732800000")).toBeNull();
     });
 
     it("never resolves an id that is not an epoch, such as a file path", async () => {
-      mockList.mockReturnValue([chat("Copilot/conversations/chat.md")]);
-      expect(await findChatFileByDeepLinkId(app, "Copilot/conversations/chat.md")).toBeNull();
+      mockList.mockReturnValue([chat("Scribe/conversations/chat.md")]);
+      expect(await findChatFileByDeepLinkId(app, "Scribe/conversations/chat.md")).toBeNull();
       expect(mockList).not.toHaveBeenCalled();
     });
   });

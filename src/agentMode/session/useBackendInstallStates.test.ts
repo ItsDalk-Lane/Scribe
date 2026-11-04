@@ -1,11 +1,11 @@
 import type { BackendDescriptor, InstallState } from "@/agentMode/session/types";
 import { act, renderHook } from "@testing-library/react";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { installStateSignature, useBackendInstallStates } from "./useBackendInstallStates";
 
 describe("useBackendInstallStates", () => {
-  describe("useBackendInstallStates()", () => {
-    it("observes readiness changes and releases descriptor subscriptions for https://github.com/logancyang/obsidian-copilot/issues/3022", () => {
+  describe("useBackendInstallStates", () => {
+    it("observes readiness changes and releases descriptor subscriptions", () => {
       let state: InstallState = { kind: "absent" };
       let notify = () => {};
       const unsubscribe = jest.fn();
@@ -13,13 +13,13 @@ describe("useBackendInstallStates", () => {
         {
           id: "opencode",
           getInstallState: () => state,
-          subscribeInstallState: (_plugin: CopilotPlugin, listener: () => void) => {
+          subscribeInstallState: (_plugin: ScribePlugin, listener: () => void) => {
             notify = listener;
             return unsubscribe;
           },
         },
       ] as unknown as BackendDescriptor[];
-      const plugin = {} as CopilotPlugin;
+      const plugin = {} as ScribePlugin;
       const { result, unmount } = renderHook(() => useBackendInstallStates(plugin, descriptors));
       expect(result.current.opencode.kind).toBe("absent");
       act(() => {
@@ -31,7 +31,7 @@ describe("useBackendInstallStates", () => {
       expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
   });
-  describe("installStateSignature()", () => {
+  describe("installStateSignature", () => {
     it("preserves readiness and diagnostic differences in subscription snapshots", () => {
       const states: InstallState[] = [
         { kind: "absent" },

@@ -1,7 +1,7 @@
 import React from "react";
 import type { App } from "obsidian";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { getSettings, resetSettings, setSettings } from "@/settings/model";
 import { NativeSettingsPanel } from "@/agentMode/backends/native/NativeSettingsPanel";
@@ -19,7 +19,7 @@ describe("NativeSettingsPanel", () => {
           backends: { native: { maxSteps: 75 } },
         },
       });
-      render(<NativeSettingsPanel app={{} as App} plugin={{} as CopilotPlugin} />);
+      render(<NativeSettingsPanel app={{} as App} plugin={{} as ScribePlugin} />);
       fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "auto" } });
       expect(getSettings().agentMode.backends.native).toEqual({
         defaultMode: "auto",
@@ -28,7 +28,7 @@ describe("NativeSettingsPanel", () => {
       expect(getSettings().agentMode.offerFeedbackCards).toBe(false);
     });
     it("renders the existing defaults when no native settings have been saved", () => {
-      render(<NativeSettingsPanel app={{} as App} plugin={{} as CopilotPlugin} />);
+      render(<NativeSettingsPanel app={{} as App} plugin={{} as ScribePlugin} />);
       expect(screen.getByRole("spinbutton").getAttribute("value")).toBe("50");
       expect((screen.getAllByRole("combobox")[0] as HTMLSelectElement).value).toBe("");
     });

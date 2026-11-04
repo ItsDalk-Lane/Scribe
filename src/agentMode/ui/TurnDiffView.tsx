@@ -128,8 +128,6 @@ function turnDiffKey(turnId: string, path: string): string {
 
 function openNote(app: App, path: string, pane: OpenPane): void {
   const file = app.vault.getAbstractFileByPath(path);
-  // Opening a path whose file was renamed or deleted after the turn would create an empty note.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/348
   if (!(file instanceof TFile)) {
     new Notice(t("{p0} no longer exists.", { p0: path }));
     return;

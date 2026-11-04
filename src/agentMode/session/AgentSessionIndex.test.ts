@@ -6,7 +6,7 @@ jest.mock("@/logger", () => ({
   logError: jest.fn(),
 }));
 
-const INDEX_PATH = "config/plugins/copilot/agent-chat-index.json";
+const INDEX_PATH = "config/plugins/scribe/agent-chat-index.json";
 
 function makeStorage(initial?: Record<string, string>): AgentSessionIndexStorage & {
   files: Map<string, string>;

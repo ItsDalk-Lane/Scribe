@@ -19,7 +19,7 @@ import {
 import { loadAllProjects } from "@/projects/projectUtils";
 import { PROJECT_CONFIG_FILE_NAME, PROJECTS_UNSUPPORTED_FOLDER_NAME } from "@/projects/constants";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
-import { deriveProjectsFolder } from "@/settings/copilotFolder";
+import { deriveProjectsFolder } from "@/settings/scribeFolder";
 import type { StartupMigrationItem } from "@/services/startupMigration";
 import { debounce, type DebouncedFunction } from "@/utils/debounce";
 import { App, Notice, TAbstractFile, Vault } from "obsidian";

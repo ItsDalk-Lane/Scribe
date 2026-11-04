@@ -9,7 +9,7 @@ import {
 describe("editTargets", () => {
   const VAULT = "/Users/me/vault";
 
-  describe("diffTargetPaths()", () => {
+  describe("diffTargetPaths", () => {
     it("collects each diff output's path once, in arrival order", () => {
       expect(
         diffTargetPaths([
@@ -27,18 +27,18 @@ describe("editTargets", () => {
     });
   });
 
-  describe("toVaultTargetPath()", () => {
+  describe("toVaultTargetPath", () => {
     it("makes an in-vault absolute path vault-relative with forward slashes", () => {
       expect(toVaultTargetPath(`${VAULT}/notes/a.md`, VAULT)).toBe("notes/a.md");
       expect(toVaultTargetPath("C:\\vault\\notes\\a.md", "C:\\vault")).toBe("notes/a.md");
     });
 
-    it("rewrites backslashes in a relative path so each file has one key (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)", () => {
+    it("rewrites backslashes in a relative path so each file has one key", () => {
       expect(toVaultTargetPath("notes\\diff-demo\\a.md", VAULT)).toBe("notes/diff-demo/a.md");
     });
   });
 
-  describe("primaryEditTargetPath()", () => {
+  describe("primaryEditTargetPath", () => {
     it("prefers the first reported location and makes it vault-relative", () => {
       expect(
         primaryEditTargetPath(
@@ -79,7 +79,7 @@ describe("editTargets", () => {
     });
   });
 
-  describe("editTargetPaths()", () => {
+  describe("editTargetPaths", () => {
     it("unions every file a batch patch call touches, deduped and vault-relative", () => {
       expect(
         editTargetPaths(
@@ -93,7 +93,7 @@ describe("editTargets", () => {
       ).toEqual(["notes/a.md", "notes/b.md", "notes/c.md"]);
     });
 
-    it("reports one key for a file named with both separators (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)", () => {
+    it("reports one key for a file named with both separators", () => {
       expect(
         editTargetPaths(
           { locations: [{ path: "C:\\vault\\notes\\a.md" }], input: { file_path: "notes\\a.md" } },
@@ -107,7 +107,7 @@ describe("editTargets", () => {
     });
   });
 
-  describe("isCapturableVaultPath()", () => {
+  describe("isCapturableVaultPath", () => {
     it("accepts a vault-relative note path", () => {
       expect(isCapturableVaultPath("notes/diff-demo/a.md")).toBe(true);
     });
@@ -127,7 +127,7 @@ describe("editTargets", () => {
     });
 
     it("rejects hidden configuration folders and paths escaping the vault", () => {
-      expect(isCapturableVaultPath(".config/plugins/copilot/data.json")).toBe(false);
+      expect(isCapturableVaultPath(".config/plugins/scribe/data.json")).toBe(false);
       expect(isCapturableVaultPath("notes/.trash/a.md")).toBe(false);
       expect(isCapturableVaultPath("../outside.md")).toBe(false);
     });
@@ -137,13 +137,10 @@ describe("editTargets", () => {
       "notes\\..\\..\\outside.md",
       "\\\\server\\share\\secret.md",
       "\\outside.md",
-    ])(
-      "rejects unsafe backslash target %s before snapshot reads (https://github.com/Brevilabs/obsidian-copilot-private/issues/347)",
-      (target) => {
-        const [path] = editTargetPaths({ input: { file_path: target } }, VAULT);
-        expect(isCapturableVaultPath(path)).toBe(false);
-      }
-    );
+    ])("rejects unsafe backslash target %s before snapshot reads", (target) => {
+      const [path] = editTargetPaths({ input: { file_path: target } }, VAULT);
+      expect(isCapturableVaultPath(path)).toBe(false);
+    });
 
     it("rejects an empty path", () => {
       expect(isCapturableVaultPath("")).toBe(false);

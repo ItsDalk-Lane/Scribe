@@ -3,8 +3,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
 describe("AgentStatusCard", () => {
-  describe("AgentStatusCard()", () => {
-    it("shows installation progress when requested (https://github.com/Brevilabs/obsidian-copilot-private/issues/530)", () => {
+  describe("AgentStatusCard", () => {
+    it("shows installation progress when requested", () => {
       render(<AgentStatusCard message="Downloading agent…" progress={{ percent: 42 }} />);
       expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("42");
     });
@@ -44,7 +44,7 @@ describe("AgentStatusCard", () => {
       expect(screen.getByText("Claude could not start").className).toContain("tw-text-normal");
     });
 
-    it("keeps exact recovery details visible below a caller-owned summary (https://github.com/Brevilabs/obsidian-copilot-private/issues/410)", () => {
+    it("keeps exact recovery details visible below a caller-owned summary", () => {
       const message =
         "Could not execute /Users/example/Agent Runtime/bin/codex-acp.\nCheck the configured binary path and retry.\nEACCES: permission denied";
       const onClick = jest.fn();

@@ -188,7 +188,7 @@ describe("providerTransport authentication integration", () => {
     setSettings({ debug: previousDebug });
   });
 
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     it.each(
       ["@ai-sdk/mistral", "@ai-sdk/openai-compatible"].flatMap((npm) =>
         [false, true].flatMap((enableCors) =>

@@ -1,7 +1,7 @@
 import type { CustomModel } from "@/aiParams";
-import { ChatModelProviders, DEFAULT_COPILOT_FOLDER, DEFAULT_SETTINGS } from "@/constants";
+import { ChatModelProviders, DEFAULT_SETTINGS } from "@/constants";
 import type { ModelManagementApi, ProviderType } from "@/modelManagement";
-import { getSettings, settingsAtom, settingsStore, type CopilotSettings } from "@/settings/model";
+import { getSettings, settingsAtom, settingsStore, type ScribeSettings } from "@/settings/model";
 
 import { CURRENT_SETTINGS_VERSION, runSettingsMigrations } from "./index";
 
@@ -16,10 +16,10 @@ jest.mock("@/services/keychainService", () => ({
 }));
 
 function seedVault(
-  overrides: Partial<CopilotSettings> & Record<string, unknown>,
+  overrides: Partial<ScribeSettings> & Record<string, unknown>,
   models: CustomModel[] = []
-): CopilotSettings {
-  const seeded: CopilotSettings = { ...DEFAULT_SETTINGS, activeModels: models, ...overrides };
+): ScribeSettings {
+  const seeded: ScribeSettings = { ...DEFAULT_SETTINGS, activeModels: models, ...overrides };
   settingsStore.set(settingsAtom, seeded);
   return seeded;
 }
@@ -35,7 +35,7 @@ function makeApi() {
   return { api, setupProvider, removeProvider };
 }
 
-function keyedAnthropicVault(settingsVersion: number | undefined): CopilotSettings {
+function keyedAnthropicVault(settingsVersion: number | undefined): ScribeSettings {
   return seedVault({ settingsVersion, anthropicApiKey: "sk-ant" }, [
     {
       name: "claude-sonnet-4-5",
@@ -45,7 +45,7 @@ function keyedAnthropicVault(settingsVersion: number | undefined): CopilotSettin
   ]);
 }
 
-function codexVaultAt(settingsVersion: number): CopilotSettings {
+function codexVaultAt(settingsVersion: number): ScribeSettings {
   return seedVault({
     settingsVersion,
     providers: {
@@ -64,7 +64,7 @@ function codexVaultAt(settingsVersion: number): CopilotSettings {
       configuredAt: 0,
     })),
     backends: { codex: { enabledModels: ["cm-high"] } },
-  } as unknown as Partial<CopilotSettings>);
+  } as unknown as Partial<ScribeSettings>);
 }
 
 describe("settingsMigrations", () => {
@@ -73,7 +73,7 @@ describe("settingsMigrations", () => {
     settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS });
   });
 
-  describe("runSettingsMigrations()", () => {
+  describe("runSettingsMigrations", () => {
     it("clears obsolete builtin opt-outs while preserving the native model and permission configuration", async () => {
       const settings = seedVault({
         settingsVersion: 17,
@@ -207,25 +207,6 @@ describe("settingsMigrations", () => {
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
     });
 
-    it.each([7, undefined])(
-      "v8: seeds the Copilot root, its history, and the upgrade flag for a settingsVersion=%s vault",
-      async (settingsVersion) => {
-        seedVault({
-          settingsVersion,
-          copilotFolder: undefined,
-          copilotRootHistory: undefined,
-          upgradedToV8FromLegacy: undefined,
-        });
-        const { api } = makeApi();
-
-        await runSettingsMigrations(api);
-
-        expect(getSettings().copilotFolder).toBe(DEFAULT_COPILOT_FOLDER);
-        expect(getSettings().copilotRootHistory).toEqual([DEFAULT_COPILOT_FOLDER]);
-        expect(getSettings().upgradedToV8FromLegacy).toBe(true);
-      }
-    );
-
     it("v9: drops GitHub Copilot models and selections for a v8 vault", async () => {
       seedVault({ settingsVersion: 8, defaultModelKey: "gpt-4o|github-copilot" }, [
         { name: "gpt-4o", provider: "github-copilot", enabled: true },
@@ -238,7 +219,7 @@ describe("settingsMigrations", () => {
       expect(getSettings().defaultModelKey).toBe("");
     });
 
-    it("v10: makes auth optional for an existing custom OpenAI-compatible provider (https://github.com/logancyang/obsidian-copilot/issues/2895)", async () => {
+    it("v10: makes auth optional for an existing custom OpenAI-compatible provider", async () => {
       seedVault({
         settingsVersion: 9,
         providers: {

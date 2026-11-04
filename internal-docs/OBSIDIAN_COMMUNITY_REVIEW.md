@@ -8,7 +8,7 @@ The safety rule is simple: review compliance must not change plugin behavior, pe
 
 ## Stack invariants
 
-- New Copilot-root values are checked against `app.vault.configDir`; persisted roots are not revalidated against a later config-directory change, which could silently relocate user data.
+- New Scribe-root values are checked against `app.vault.configDir`; persisted roots are not revalidated against a later config-directory change, which could silently relocate user data.
 - Forbidden source suppressions were replaced with types or narrower boundaries, not runtime rewrites.
 - Safe element-owned DOM creation was migrated to Obsidian helpers. Provider networking, async handlers, document-owned DOM creation, settings search, and risky CSS warnings were deliberately not rewritten by this stack.
 - `src/logger.ts` is the only console boundary, and it calls only the methods upstream's `no-console` allows: `debug`, `warn`, `error`. Reaching for `console.log` or `console.table` there is not an option, because the upstream config also bans disabling `no-console` through `eslint-comments/no-restricted-disable`. `console.debug` is in the repo's own `no-restricted-syntax` logging boundary so callers cannot route around `logInfo()`.

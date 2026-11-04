@@ -36,7 +36,7 @@ const web: SelectedTextContext = {
 };
 
 describe("ContextBadges", () => {
-  describe("ContextSelectedTextBadge()", () => {
+  describe("ContextSelectedTextBadge", () => {
     it.each([
       { source: note, content: "Interview findings", label: "Interview findings" },
       { source: note, content: "a".repeat(79) + "😀👩‍💻é", label: "a".repeat(79) + "😀👩‍💻é" },
@@ -54,7 +54,7 @@ describe("ContextBadges", () => {
         label: "The selected passage starts here. ".repeat(4).trim(),
       },
     ])(
-      "previews $source.sourceType excerpt '$label' instead of its source title - https://github.com/Brevilabs/obsidian-copilot-private/issues/465",
+      "previews $source.sourceType excerpt '$label' instead of its source title",
       ({ source, content, label }) => {
         render(<ContextSelectedTextBadge selectedText={{ ...source, content }} />);
         expect(screen.getByTestId("label").textContent).toBe(label);
@@ -63,7 +63,7 @@ describe("ContextBadges", () => {
     );
 
     it.each([note, web])(
-      "keeps the full $sourceType excerpt and source in its tooltip - https://github.com/Brevilabs/obsidian-copilot-private/issues/465",
+      "keeps the full $sourceType excerpt and source in its tooltip",
       (source) => {
         const content = "First paragraph.\n\n" + "Additional interview findings. ".repeat(5);
         render(<ContextSelectedTextBadge selectedText={{ ...source, content }} />);
@@ -75,7 +75,7 @@ describe("ContextBadges", () => {
       }
     );
 
-    it("shows a Reading view excerpt and note path without a false line number (https://github.com/Brevilabs/obsidian-copilot-private/issues/597)", () => {
+    it("shows a Reading view excerpt and note path without a false line number", () => {
       render(
         <ContextSelectedTextBadge
           selectedText={{

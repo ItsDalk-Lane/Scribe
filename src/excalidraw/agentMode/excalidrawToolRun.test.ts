@@ -30,7 +30,7 @@ function opencodeCall(code: string): ToolCallPart {
 }
 
 describe("excalidrawToolRun", () => {
-  describe("excalidrawToolRun()", () => {
+  describe("excalidrawToolRun", () => {
     it.each([
       ["Claude", excalidrawToolCall("excalidraw_write", CREATE)],
       ["Codex", codexCall("excalidraw_write", CREATE)],
@@ -109,7 +109,7 @@ describe("excalidrawToolRun", () => {
       });
     });
 
-    it("reads an OpenCode call that writes and then renders as the write, so the drawing still gets its card (https://github.com/Brevilabs/obsidian-scribe-private/issues/787)", () => {
+    it("reads an OpenCode call that writes and then renders as the write, so the drawing still gets its card", () => {
       const part = opencodeCall(
         `await tools["obsidian-scribe"].excalidraw_write({ path: "${PATH}", operations: [] });\nreturn tools["obsidian-scribe"].excalidraw_render({ path: "${PATH}" });`
       );
@@ -121,7 +121,7 @@ describe("excalidrawToolRun", () => {
       expect(excalidrawToolRun(part)?.status).toBe("failed");
     });
 
-    it("returns null for a write answered with the Excalidraw-turned-off text so its explanation stays visible (https://github.com/Brevilabs/obsidian-scribe-private/issues/787)", () => {
+    it("returns null for a write answered with the Excalidraw-turned-off text so its explanation stays visible", () => {
       const part = excalidrawToolCall("excalidraw_write", CREATE, {
         output: [{ type: "text", text: EXCALIDRAW_TURNED_OFF_TEXT }],
       });
@@ -134,7 +134,7 @@ describe("excalidrawToolRun", () => {
     });
   });
 
-  describe("summarizeDrawing()", () => {
+  describe("summarizeDrawing", () => {
     const write = (status: ToolCallPart["status"], input: Record<string, unknown> = EDIT) =>
       excalidrawToolCall("excalidraw_write", input, { status });
 
@@ -168,7 +168,7 @@ describe("excalidrawToolRun", () => {
       ).toEqual({ action: "read", status: "completed", path: PATH, failed: 0 });
     });
 
-    it("names a finished drawing by the calls that finished, not by a change that was stopped (https://github.com/Brevilabs/obsidian-scribe-private/issues/787)", () => {
+    it("names a finished drawing by the calls that finished, not by a change that was stopped", () => {
       expect(
         summarizeDrawing([
           excalidrawToolCall("excalidraw_read", { path: PATH }),

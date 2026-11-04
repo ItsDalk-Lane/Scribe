@@ -105,7 +105,7 @@ function mkFs(initial: Record<string, Node> = {}): DeleteSkillFs & {
 }
 
 const VAULT = "/vault";
-const CANON = "/vault/copilot/skills";
+const CANON = "/vault/scribe/skills";
 const CLAUDE_DIR = `${VAULT}/.claude/skills`;
 const CODEX_DIR = `${VAULT}/.agents/skills`;
 const OPENCODE_DIR = `${VAULT}/.opencode/skills`;
@@ -121,7 +121,7 @@ const SKILL_MD = (name: string, agents = ""): string =>
     `name: ${name}`,
     "description: A short skill.",
     "metadata:",
-    `  copilot-enabled-agents: "${agents}"`,
+    `  scribe-enabled-agents: "${agents}"`,
     "---",
     "body",
   ].join("\n");
@@ -157,7 +157,7 @@ describe("toggleAgent", () => {
       const skillMd = fs.__dump()[`${CANON}/foo/SKILL.md`];
       expect(skillMd.kind).toBe("file");
       expect((skillMd as { kind: "file"; content: string }).content).toMatch(
-        /copilot-enabled-agents:\s*"?claude"?/
+        /scribe-enabled-agents:\s*"?claude"?/
       );
       expect(fs.__dump()["/vault/.claude/skills/foo"]).toEqual({
         kind: "link",
@@ -203,7 +203,7 @@ describe("toggleAgent", () => {
       if (result.ok === false) expect(result.reason).toBe("eperm");
       const skillMd = fs.__dump()[`${CANON}/foo/SKILL.md`];
       expect((skillMd as { kind: "file"; content: string }).content).toMatch(
-        /copilot-enabled-agents:\s*"?claude"?/
+        /scribe-enabled-agents:\s*"?claude"?/
       );
       expect(fs.__dump()["/vault/.claude/skills/foo"]).toBeUndefined();
     });

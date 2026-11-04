@@ -6,7 +6,7 @@ import {
   type PersistentHighlightRange,
 } from "@/editor/persistentHighlight";
 
-const selectionHighlight = createPersistentHighlight("copilot-selection-highlight");
+const selectionHighlight = createPersistentHighlight("scribe-selection-highlight");
 
 type SelectionHighlightRange = PersistentHighlightRange;
 

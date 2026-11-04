@@ -11,7 +11,7 @@ import {
 } from "./promptEnvelope";
 
 describe("promptEnvelope", () => {
-  describe("stripUserMessageWrapper()", () => {
+  describe("stripUserMessageWrapper", () => {
     it("returns the typed text from a prompt wrapped with a context block", () => {
       const wrapped =
         "<scribe-context>\nNotes:\n- a.md\n</scribe-context>\n\n" +
@@ -71,7 +71,7 @@ describe("promptEnvelope", () => {
     });
   });
 
-  describe("buildPromptBlocks()", () => {
+  describe("buildPromptBlocks", () => {
     // eslint-disable-next-line obsidianmd/no-tfile-tfolder-cast -- test fixture; not a real TFile
     const makeFile = (path: string) => ({ path }) as unknown as TFile;
 
@@ -103,14 +103,14 @@ describe("promptEnvelope", () => {
 
     it("wraps the message with note paths offered as context to open when needed", () => {
       const blocks = buildPromptBlocks("summarize them", {
-        notes: [makeFile("daily/2026-04-28.md"), makeFile("projects/copilot.md")],
+        notes: [makeFile("daily/2026-04-28.md"), makeFile("projects/scribe.md")],
       });
       expect(blocks).toHaveLength(1);
       expect(blocks[0].type).toBe("text");
       const text = (blocks[0] as { type: "text"; text: string }).text;
       expect(text).toContain("<scribe-context>");
       expect(text).toContain("- daily/2026-04-28.md");
-      expect(text).toContain("- projects/copilot.md");
+      expect(text).toContain("- projects/scribe.md");
       expect(text).toContain("open them if you need their contents");
       expect(text).not.toContain("use the Read tool");
       expect(text).toContain("</scribe-context>");
@@ -124,8 +124,8 @@ describe("promptEnvelope", () => {
           {
             id: "s1",
             sourceType: "note",
-            notePath: "projects/copilot.md",
-            noteTitle: "copilot",
+            notePath: "projects/scribe.md",
+            noteTitle: "scribe",
             startLine: 12,
             endLine: 18,
             content: "line one\nline two",
@@ -134,20 +134,20 @@ describe("promptEnvelope", () => {
       });
       const text = (blocks[0] as { type: "text"; text: string }).text;
       expect(text).toContain("Selected excerpts");
-      expect(text).toContain("- projects/copilot.md (lines 12-18):");
+      expect(text).toContain("- projects/scribe.md (lines 12-18):");
       expect(text).toContain("  line one");
       expect(text).toContain("  line two");
     });
 
-    it("inlines a Reading view excerpt without claiming source lines (https://github.com/Brevilabs/obsidian-copilot-private/issues/597)", () => {
+    it("inlines a Reading view excerpt without claiming source lines", () => {
       const blocks = buildPromptBlocks("explain", {
         notes: [],
         selectedTextContexts: [
           {
             id: "reading-excerpt",
             sourceType: "note",
-            notePath: "projects/copilot.md",
-            noteTitle: "copilot",
+            notePath: "projects/scribe.md",
+            noteTitle: "scribe",
             content: "Rendered note passage",
             startLine: 0,
             endLine: 0,
@@ -155,7 +155,7 @@ describe("promptEnvelope", () => {
         ],
       });
       const text = (blocks[0] as { type: "text"; text: string }).text;
-      expect(text).toContain("- projects/copilot.md:\n  Rendered note passage");
+      expect(text).toContain("- projects/scribe.md:\n  Rendered note passage");
       expect(text).not.toContain("(lines");
     });
 
@@ -290,7 +290,7 @@ describe("promptEnvelope", () => {
     });
   });
 
-  describe("buildUserDisplayContent()", () => {
+  describe("buildUserDisplayContent", () => {
     it("returns undefined when there are no images", () => {
       expect(buildUserDisplayContent("hi")).toBeUndefined();
       expect(buildUserDisplayContent("hi", [])).toBeUndefined();
@@ -317,7 +317,7 @@ describe("promptEnvelope", () => {
     });
   });
 
-  describe("buildUserMessage()", () => {
+  describe("buildUserMessage", () => {
     it("builds a visible user bubble with the prompt's id, text, context and timestamp", () => {
       const context = { notes: [], webTabs: [{ url: "https://example.com" }] };
 
@@ -346,7 +346,7 @@ describe("promptEnvelope", () => {
     });
   });
 
-  describe("serializeWebTabContext()", () => {
+  describe("serializeWebTabContext", () => {
     afterEach(() => jest.restoreAllMocks());
 
     it("returns an empty string without asking for page contents when no web tab is attached", async () => {
@@ -373,7 +373,7 @@ describe("promptEnvelope", () => {
     });
   });
 
-  describe("extractText()", () => {
+  describe("extractText", () => {
     it("returns a text block's text", () => {
       expect(extractText({ type: "text", text: "hello" })).toBe("hello");
     });

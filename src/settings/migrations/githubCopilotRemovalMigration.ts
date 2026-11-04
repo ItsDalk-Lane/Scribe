@@ -1,10 +1,6 @@
-// A saved model naming the removed GitHub Copilot provider can never be instantiated, and its
-// keychain-backed tokens outlive the settings fields unless deleted explicitly:
-// https://github.com/logancyang/obsidian-copilot-preview/issues/316
-
 import { logWarn } from "@/logger";
 import { KeychainService } from "@/services/keychainService";
-import { type CopilotSettings, setSettings } from "@/settings/model";
+import { type ScribeSettings, setSettings } from "@/settings/model";
 
 const REMOVED_PROVIDER = "github-copilot";
 
@@ -14,10 +10,8 @@ function referencesRemovedProvider(modelKey: string | undefined): boolean {
   return modelKey?.endsWith(`|${REMOVED_PROVIDER}`) ?? false;
 }
 
-export function planGitHubCopilotRemoval(
-  settings: CopilotSettings
-): Partial<CopilotSettings> | null {
-  const patch: Partial<CopilotSettings> = {};
+export function planGitHubCopilotRemoval(settings: ScribeSettings): Partial<ScribeSettings> | null {
+  const patch: Partial<ScribeSettings> = {};
 
   const models = settings.activeModels ?? [];
   const keptModels = models.filter((model) => model.provider !== REMOVED_PROVIDER);
@@ -31,7 +25,7 @@ export function planGitHubCopilotRemoval(
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
-export function executeGitHubCopilotRemoval(settings: CopilotSettings): void {
+export function executeGitHubCopilotRemoval(settings: ScribeSettings): void {
   const patch = planGitHubCopilotRemoval(settings);
   if (patch) setSettings(patch);
 

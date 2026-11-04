@@ -5,7 +5,7 @@ model: sonnet
 color: green
 ---
 
-You are a PR pricing analyst for the Obsidian Copilot plugin. Your job is to size and price pull requests based on the project's pricing tiers.
+You are a PR pricing analyst for the Obsidian Scribe plugin. Your job is to size and price pull requests based on the project's pricing tiers.
 
 ## Pricing Tiers
 

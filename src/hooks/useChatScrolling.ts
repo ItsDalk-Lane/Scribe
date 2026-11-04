@@ -69,9 +69,6 @@ export const useChatScrolling = ({
 
       if (node) {
         const resizeObserver = new ResizeObserver(() => {
-          // Markdown and images can grow after React commits the streaming message, and a
-          // taller viewport can reach the end without firing a scroll event.
-          // https://github.com/Brevilabs/obsidian-copilot-private/issues/277
           if (isFollowingRef.current || isNearEnd(node)) scrollToEnd();
         });
         resizeObserver.observe(node);

@@ -16,7 +16,7 @@ const makeCommand = (overrides: Partial<CustomCommand>): CustomCommand => ({
 });
 
 describe("expandCustomCommandPrefix", () => {
-  describe("expandCustomCommandPrefix()", () => {
+  describe("expandCustomCommandPrefix", () => {
     it("returns input unchanged when text does not start with slash", async () => {
       const result = await expandCustomCommandPrefix("hello world", [], "", null);
       expect(result).toEqual({ text: "hello world" });
@@ -39,7 +39,7 @@ describe("expandCustomCommandPrefix", () => {
       expect(result).toEqual({ text: "/foo" });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 leaves /compact and its arguments unexpanded even when a custom command is titled compact", async () => {
+    it("leaves /compact and its arguments unexpanded even when a custom command is titled compact", async () => {
       const cmd = makeCommand({ title: "compact", content: "CUSTOM COMPACT BODY" });
       expect(await expandCustomCommandPrefix("/compact", [cmd], "", null)).toEqual({
         text: "/compact",
@@ -49,7 +49,7 @@ describe("expandCustomCommandPrefix", () => {
       });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 expands a custom command whose title starts with compact and a space instead of treating it as /compact", async () => {
+    it("expands a custom command whose title starts with compact and a space instead of treating it as /compact", async () => {
       const builtinTitle = makeCommand({ title: "compact", content: "CUSTOM COMPACT BODY" });
       const longer = makeCommand({ title: "compact notes", content: "COMPACT NOTES BODY" });
       const result = await expandCustomCommandPrefix(

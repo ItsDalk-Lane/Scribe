@@ -53,7 +53,6 @@ export function useModelCandidatePool({
   const connectionKey = JSON.stringify([providerType, effectiveBaseUrl, apiKey, extras]);
   const currentConnectionKey = useRef(connectionKey);
   const requestNumber = useRef(0);
-  // 输入改变后不能接纳旧目录的内容、错误或完成状态。https://github.com/logancyang/obsidian-copilot/issues/3147
   if (currentConnectionKey.current !== connectionKey) {
     currentConnectionKey.current = connectionKey;
     requestNumber.current++;
@@ -78,7 +77,6 @@ export function useModelCandidatePool({
     (id: string): ModelInfo => {
       const catalog = catalogMetadata[id];
       const existing = existingByWireId.get(id);
-      // 目录可能只返回部分信息，保存过的模型能力和协议元数据不能丢失。https://github.com/logancyang/obsidian-copilot/issues/3147
       if (catalog && existing) return { ...existing, ...catalog };
       return (
         catalog ??
@@ -164,7 +162,6 @@ export function useModelCandidatePool({
     }
   }, [providerType, effectiveBaseUrl, apiKey, extras, connectionKey]);
 
-  // 自定义地址输入完后由用户获取目录，避免把输入过程当成一次有效发现。https://github.com/logancyang/obsidian-copilot/issues/2895
   const initialBaseUrlRef = useRef(effectiveBaseUrl);
 
   const mountFetchedRef = useRef(false);

@@ -4,7 +4,7 @@ import { App, FileSystemAdapter } from "obsidian";
 import type {
   AgentQuestionAnswers,
   AskUserQuestionPrompt,
-  CopilotMode,
+  ScribeMode,
   PermissionDecision,
   PermissionPrompt,
   PermissionRequester,
@@ -26,7 +26,7 @@ export interface NativeToolsOptions {
   emit(update: SessionUpdate): void;
   requestPermission(prompt: PermissionPrompt): Promise<PermissionDecision>;
   askUser(prompt: AskUserQuestionPrompt): Promise<AgentQuestionAnswers>;
-  getMode(): CopilotMode;
+  getMode(): ScribeMode;
   requester?: PermissionRequester;
   onPlanApproved?(): void;
   commandTasks: NativeCommandTasks;
@@ -76,8 +76,6 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
     if (!proposal && options.getMode() === "plan") {
       throw new Error("Plan approval is required before changing files or running commands.");
     }
-    // Auto 的自动放行与已保存的拒绝由共享的权限判定统一决定，工具侧不再短路。
-    // https://github.com/ItsDalk-Lane/Scribe/issues/12
     const decision = await options.requestPermission({
       sessionId: options.sessionId,
       requester: options.requester,

@@ -30,7 +30,7 @@ describe("legacyCaches", () => {
       vaultFolders.clear();
       jest.clearAllMocks();
       mockHome = fs.mkdtempSync(
-        path.join(jest.requireActual<typeof import("os")>("os").tmpdir(), "copilot-cache-home-")
+        path.join(jest.requireActual<typeof import("os")>("os").tmpdir(), "scribe-cache-home-")
       );
     });
 

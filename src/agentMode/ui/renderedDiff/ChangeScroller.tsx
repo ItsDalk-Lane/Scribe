@@ -44,12 +44,8 @@ const KIND_COLOR: Record<ChangeKind, string> = {
   modified: cn("!tw-bg-change-modified"),
 };
 
-// A jump leaves the change in the upper third so the text leading into it stays readable.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/709
 const JUMP_ANCHOR = 0.3;
 
-// A jump only flashes its change, so the highlight never outlasts the moment the reader lands on it.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/709
 const FLASH_KEYFRAMES: Keyframe[] = [
   { backgroundColor: "hsla(var(--interactive-accent-hsl), 0.3)", offset: 0 },
 ];
@@ -60,16 +56,11 @@ export function useChangeNavigation(): ChangeNavigation {
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [layout, setLayout] = React.useState<ChangeLayout>(EMPTY_LAYOUT);
   const [current, setCurrentState] = React.useState<number | null>(null);
-  // Commands step outside React's event system, so a held hotkey repeats before the next render.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/709
   const currentRef = React.useRef<number | null>(null);
   const setCurrent = React.useCallback((index: number | null) => {
     currentRef.current = index;
     setCurrentState(index);
   }, []);
-  // The scroll event a jump fires must not re-derive the position, or a change near the end of the note,
-  // which cannot scroll up to the anchor, would hand the position back to an earlier change.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/709
   const jumpedTo = React.useRef<number | null>(null);
 
   React.useLayoutEffect(() => {
@@ -78,10 +69,6 @@ export function useChangeNavigation(): ChangeNavigation {
     if (!scroller || !content) return;
     const measure = (): void => setLayout(measureChanges(scroller, content));
     measure();
-    // Sections render and mark their changes asynchronously, images and embeds load after the first
-    // layout and push changes down the note, and resizing the pane changes the scroll height that
-    // tick positions are a share of.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/709
     const view = content.doc.defaultView;
     const mutations = view ? new view.MutationObserver(measure) : null;
     mutations?.observe(content, { childList: true, subtree: true });
@@ -126,17 +113,11 @@ export function useChangeNavigation(): ChangeNavigation {
     setCurrent(reachedIndex(scroller, layout.ticks));
   }, [layout, setCurrent]);
 
-  // Before the reader reaches the first change the header still names it, so the count never switches
-  // between a total and a position; the first step then goes to that change rather than past it.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/709
   return { scrollerRef, contentRef, layout, current: current ?? 0, goTo, step, syncToScroll };
 }
 
 function reachedIndex(scroller: HTMLElement, ticks: readonly ChangeTick[]): number | null {
   const anchor = scroller.scrollTop + scroller.clientHeight * JUMP_ANCHOR;
-  // A change near the end of the note never scrolls up to the anchor, so scrolling to the end selects the
-  // last one; a note that fits the view is at its end without scrolling and keeps counting from the top.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/709
   const atEnd =
     scroller.scrollTop > 0 &&
     scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
@@ -176,8 +157,7 @@ export function ChangeScroller({ navigation, children }: ChangeScrollerProps): R
           ))}
         </div>
       ) : null}
-      {/* Obsidian gives reading view the note's font, size and line height through this container's class.
-      https://github.com/Brevilabs/obsidian-copilot-private/issues/755 */}
+
       <div
         ref={navigation.scrollerRef}
         className="markdown-preview-view tw-flex-1"
@@ -194,8 +174,6 @@ export function ChangeScroller({ navigation, children }: ChangeScrollerProps): R
   );
 }
 
-// Marks at most a line apart read as one change, so they share a tick.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/709
 function measureChanges(scroller: HTMLElement, content: HTMLElement): ChangeLayout {
   const marks = Array.from(content.querySelectorAll<HTMLElement>(CHANGE_MARK)).filter(
     (mark) => mark.parentElement?.closest(CHANGE_MARK) === null

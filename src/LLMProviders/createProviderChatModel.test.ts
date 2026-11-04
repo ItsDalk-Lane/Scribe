@@ -75,7 +75,7 @@ function reply(request: Request): Record<string, unknown> {
 }
 
 describe("createProviderChatModel", () => {
-  describe("createProviderChatModel()", () => {
+  describe("createProviderChatModel", () => {
     beforeEach(() => {
       requests.length = 0;
       nativeFactory.mockClear();
@@ -104,7 +104,7 @@ describe("createProviderChatModel", () => {
         expect(new Headers(requests[0].headers).get("authorization")).toBe("Bearer fixture-key");
       }
     );
-    it("uses the configured context window and reports a genuinely unknown window as zero (https://github.com/ItsDalk-Lane/Scribe/issues/15)", async () => {
+    it("uses the configured context window and reports a genuinely unknown window as zero", async () => {
       const known = await createProviderChatModel(wire({ numCtx: 8192 }));
       expect(known.model.contextWindow).toBe(8192);
       const unknown = await createProviderChatModel(wire({}));
@@ -125,7 +125,7 @@ describe("createProviderChatModel", () => {
       await collectText(model);
       expect(requests[0].url.endsWith("/responses")).toBe(true);
     });
-    it("normalizes a versioned Anthropic proxy and preserves the stable URL and user message (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("normalizes a versioned Anthropic proxy and preserves the stable URL and user message", async () => {
       const model = await createProviderChatModel(
         wire({ providerNpm: "@ai-sdk/anthropic", baseUrl: "https://proxy.invalid/anthropic/v1" })
       );
@@ -139,7 +139,7 @@ describe("createProviderChatModel", () => {
       ["private-model", undefined, 4096],
       ["claude-sonnet-4-6", 512, 512],
     ] as const)(
-      "preserves Anthropic's existing omitted or explicit limit for %s (https://github.com/ItsDalk-Lane/Scribe/issues/8)",
+      "preserves Anthropic's existing omitted or explicit limit for %s",
       async (name, maxTokens, limit) => {
         const model = await createProviderChatModel(
           wire({ name, providerNpm: "@ai-sdk/anthropic", maxTokens })
@@ -148,13 +148,13 @@ describe("createProviderChatModel", () => {
         expect(JSON.parse(requests[0].body!).max_tokens).toBe(limit);
       }
     );
-    it("requires a real legacy custom-provider address instead of sending credentials to an example host (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("requires a real legacy custom-provider address instead of sending credentials to an example host", async () => {
       await expect(
         createProviderChatModel(wire({ providerNpm: undefined, baseUrl: undefined }))
       ).rejects.toThrow("A base URL is required");
       expect(requests).toHaveLength(0);
     });
-    it("keeps an OAuth-looking BYOK key from rewriting the system prompt or client identity (https://github.com/ItsDalk-Lane/Scribe/issues/8)", async () => {
+    it("keeps an OAuth-looking BYOK key from rewriting the system prompt or client identity", async () => {
       const model = await createProviderChatModel(
         wire({ providerNpm: "@ai-sdk/anthropic", apiKey: "sk-ant-oat-fixture" })
       );
@@ -218,7 +218,7 @@ describe("createProviderChatModel", () => {
         expect(requests).toHaveLength(0);
       }
     );
-    it("keeps keyless endpoints unauthenticated instead of sending the SDK placeholder (https://github.com/logancyang/obsidian-copilot/issues/2946)", async () => {
+    it("keeps keyless endpoints unauthenticated instead of sending the SDK placeholder", async () => {
       const model = await createProviderChatModel(
         wire({ apiKey: undefined, requiresApiKey: false })
       );

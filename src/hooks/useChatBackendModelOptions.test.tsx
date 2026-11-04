@@ -57,13 +57,13 @@ jest.mock("@/settings/model", () => ({ settingsStore: {} }));
 jest.mock("@/services/keychainService", () => ({ KeychainService: { getInstance: jest.fn() } }));
 
 describe("useChatBackendModelOptions", () => {
-  describe("useChatBackendModelOptions()", () => {
-    it("lists enabled models whose provider can authenticate and resolves a legacy selection (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+  describe("useChatBackendModelOptions", () => {
+    it("lists enabled models whose provider can authenticate and resolves a legacy selection", () => {
       const { result } = renderHook(() => useChatBackendModelOptions(false));
       expect(result.current.options).toEqual([{ label: "GPT-4o", value: "model-a" }]);
       expect(result.current.resolveSelectionId("gpt-4o|openai")).toBe("model-a");
     });
-    it("does not substitute the first model for a removed command selection (https://github.com/Brevilabs/obsidian-copilot-private/issues/616)", () => {
+    it("does not substitute the first model for a removed command selection", () => {
       const { result } = renderHook(() => useChatBackendModelOptions(false));
       expect(result.current.resolveSelectionId("removed")).toBeUndefined();
       expect(result.current.resolveSelectionId(undefined)).toBeUndefined();

@@ -24,9 +24,6 @@ export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({
     return () => window.clearInterval(id);
   }, [isStreaming]);
 
-  // Older saved parts have no timing metadata. They retain the prior local
-  // fallback while live and render as `< 1s` once complete.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/336
   const startedAt = part.startedAtMs ?? fallbackStartedAtRef.current;
   const elapsedMs = part.durationMs ?? (isStreaming ? Math.max(0, now - startedAt) : 0);
   const elapsedSeconds = Math.floor(elapsedMs / 1000);

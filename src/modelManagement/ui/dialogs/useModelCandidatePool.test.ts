@@ -8,7 +8,7 @@ jest.mock("@/modelManagement/providers/adapters/listProviderModels", () => ({
 }));
 
 const listModels = jest.mocked(listProviderModels);
-const issue = "https://github.com/logancyang/obsidian-copilot/issues/3147";
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 
 function args(overrides: Partial<UseModelCandidatePoolArgs> = {}): UseModelCandidatePoolArgs {
   return {
@@ -26,7 +26,7 @@ function args(overrides: Partial<UseModelCandidatePoolArgs> = {}): UseModelCandi
 }
 
 describe("useModelCandidatePool", () => {
-  describe("useModelCandidatePool()", () => {
+  describe("useModelCandidatePool", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       listModels.mockResolvedValue({ ok: true, modelIds: [] });

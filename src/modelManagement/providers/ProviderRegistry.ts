@@ -102,10 +102,6 @@ export class ProviderRegistry {
       }
     }
     if (Object.keys(safePatch).length === 0) return;
-    // https://github.com/logancyang/obsidian-copilot-preview/issues/313:
-    // enableCors selects only Quick tools's renderer transport. Do not restart
-    // OpenCode Agent for a CORS-only edit; the settings subscription already
-    // rebuilds Quick tools with the updated provider row.
     const affectsAgentProviderConfig = Object.keys(safePatch).some((key) => key !== "enableCors");
     const next: Provider = { ...existing, ...(safePatch as Partial<Provider>) };
     setSettings((cur) => ({
@@ -194,8 +190,6 @@ export class ProviderRegistry {
       );
     }
     const apiKey = await this.getApiKey(providerId);
-    // https://github.com/logancyang/obsidian-copilot/issues/3147:
-    // A public models endpoint must not mask a missing stored credential.
     if (providerNeedsResolvedApiKey(provider) && !apiKey?.trim()) {
       return {
         ok: false,

@@ -15,8 +15,8 @@ function promptFor(sessionId: string, kind: AgentToolKind): PermissionPrompt {
 }
 
 describe("permissionPrompter", () => {
-  describe("createDefaultPermissionPrompter()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/551 routes a Codex collaboration plan review to the plan card", async () => {
+  describe("createDefaultPermissionPrompter", () => {
+    it("routes a Codex collaboration plan review to the plan card", async () => {
       const handlePlanProposalPermission = jest
         .fn()
         .mockResolvedValue({ outcome: { outcome: "cancelled" } });

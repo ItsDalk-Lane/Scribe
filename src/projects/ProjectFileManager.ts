@@ -1,7 +1,7 @@
 import { ProjectConfig } from "@/aiParams";
 import { removeGeneratedInstructionFiles } from "@/instructions/agentsFile";
 import { logError, logInfo, logWarn } from "@/logger";
-import { COPILOT_PROJECT_LAST_USED, PROJECTS_UNSUPPORTED_FOLDER_NAME } from "@/projects/constants";
+import { SCRIBE_PROJECT_LAST_USED, PROJECTS_UNSUPPORTED_FOLDER_NAME } from "@/projects/constants";
 import { ProjectFileRecord } from "@/projects/type";
 import {
   getProjectAnchorFromConfigPath,
@@ -26,7 +26,6 @@ import { ensureFolderExists } from "@/utils";
 import { RecentUsageManager } from "@/utils/recentUsageManager";
 import { trashFile } from "@/utils/vaultAdapterUtils";
 import { App, normalizePath, TFile, TFolder, Vault } from "obsidian";
-import { ensureProjectsMigratedIfNeeded } from "@/projects/projectMigration";
 import type { StartupMigrationItem } from "@/services/startupMigration";
 
 export class ProjectFileManager {
@@ -50,9 +49,8 @@ export class ProjectFileManager {
 
   public async initialize(): Promise<StartupMigrationItem | null> {
     logInfo("[Projects] Initializing ProjectFileManager");
-    const migrationResult = await ensureProjectsMigratedIfNeeded(this.app);
     await loadAllProjects(this.app);
-    return migrationResult;
+    return null;
   }
 
   public async fetchProjects(): Promise<ProjectFileRecord[]> {
@@ -400,11 +398,11 @@ export class ProjectFileManager {
         await this.app.fileManager.processFrontMatter(
           file,
           (frontmatter: Record<string, unknown>) => {
-            const existing = Number(frontmatter[COPILOT_PROJECT_LAST_USED]);
+            const existing = Number(frontmatter[SCRIBE_PROJECT_LAST_USED]);
             const existingMs = Number.isFinite(existing) && existing > 0 ? existing : 0;
             actualPersistedValue = Math.max(existingMs, timestampToPersist);
             if (existingMs === actualPersistedValue) return;
-            frontmatter[COPILOT_PROJECT_LAST_USED] = actualPersistedValue;
+            frontmatter[SCRIBE_PROJECT_LAST_USED] = actualPersistedValue;
           }
         );
       } finally {

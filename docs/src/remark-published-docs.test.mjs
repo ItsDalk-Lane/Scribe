@@ -10,8 +10,8 @@ function transform(children) {
 }
 
 describe("remark-published-docs", () => {
-  describe("remarkPublishedDocs()", () => {
-    it("removes only an opening level-one heading (https://github.com/Brevilabs/obsidian-copilot-private/issues/301)", () => {
+  describe("remarkPublishedDocs", () => {
+    it("removes only an opening level-one heading", () => {
       const openingHeading = { type: "heading", depth: 1, children: [] };
       const laterHeading = { type: "heading", depth: 1, children: [] };
       const paragraph = { type: "paragraph", children: [] };
@@ -23,7 +23,7 @@ describe("remark-published-docs", () => {
       assert.deepEqual(transform([paragraph, laterHeading]).children, [paragraph, laterHeading]);
     });
 
-    it("rewrites sibling guide links and leaves other links unchanged (https://github.com/Brevilabs/obsidian-copilot-private/issues/301)", () => {
+    it("rewrites sibling guide links and leaves other links unchanged", () => {
       const links = [
         { type: "link", url: "index.md", children: [] },
         { type: "link", url: "getting-started.md#first-chat", children: [] },

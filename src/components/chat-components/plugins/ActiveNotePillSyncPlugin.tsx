@@ -45,8 +45,6 @@ export function ActiveNotePillSyncPlugin({
           onActiveNoteAdded?.();
         } else if (!foundActiveNotePill && hasActiveNotePill) {
           hasActiveNotePill = false;
-          // Clearing the composer after a send is not the user removing the Active Note.
-          // https://github.com/Brevilabs/obsidian-copilot-private/issues/670
           if (!tags.has(VALUE_SYNC_TAG)) onActiveNoteRemoved?.();
         }
       });

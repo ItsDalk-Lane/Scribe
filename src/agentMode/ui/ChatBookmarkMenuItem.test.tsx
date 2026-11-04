@@ -26,7 +26,7 @@ function renderItem(
 }
 
 describe("ChatBookmarkMenuItem", () => {
-  describe("ChatBookmarkMenuItem()", () => {
+  describe("ChatBookmarkMenuItem", () => {
     beforeAll(() => {
       Element.prototype.scrollIntoView = () => {};
     });
@@ -55,7 +55,7 @@ describe("ChatBookmarkMenuItem", () => {
       expect(screen.queryByRole("menuitem")).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 shows a muted Add to bookmarks when the Bookmarks core plugin is off and opens it in Settings when selected", async () => {
+    it("shows a muted Add to bookmarks when the Bookmarks core plugin is off and opens it in Settings when selected", async () => {
       const search = document.createElement("input");
       search.type = "search";
       const containerEl = document.createElement("div");
@@ -79,7 +79,7 @@ describe("ChatBookmarkMenuItem", () => {
       expect(onSetBookmarked).not.toHaveBeenCalled();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/694 is left out when Obsidian's Bookmarks internals are unavailable", async () => {
+    it("is left out when Obsidian's Bookmarks internals are unavailable", async () => {
       let resolve: (state: ChatBookmarkState) => void = () => {};
       renderItem(() => new Promise((r) => (resolve = r)));
 

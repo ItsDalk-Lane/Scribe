@@ -5,7 +5,7 @@
 AGENTS.md[SG8M]: F:Defines agent workflows, source boundaries, upstream tracking and repository cognition policy | R:- | A:- | S:Do not change AI prompt content without explicit instruction; RELEASES.md changes belong only to release PRs; empty slices use frozen constants
 CONTRIBUTING.md[SQ4S]: F:Contribution workflow covering issue reporting, dev environment setup, and the Obsidian review preflight | R:- | A:- | S:-
 LICENSE[SZ1L]: F:Full GNU Affero General Public License v3 text governing the project | R:- | A:- | S:-
-README.md[SG7S]: F:Introduces Scribe, its Claude workflows, setup, privacy, and the tracked upstream version | R:- | A:- | S:Agent Chat is desktop-only; Scribe versions start at 1.0.0 independently of the tracked Copilot 4.0.17 base
+README.md[SG7S]: F:Introduces Scribe, its Claude workflows, setup, privacy, and the tracked upstream version | R:- | A:- | S:Agent Chat is desktop-only; Scribe versions start at 1.0.0 independently of the tracked upstream 4.0.17 base
 esbuild.config.mjs[XV8S]: F:Production esbuild config producing the plugin bundle with banner, shims, and guards | R:- | A:- | S:Every production build enforces the bundle size guard
 eslint.config.mjs[XQ8L]: F:Repository-wide ESLint flat config including the custom no-direct-node-imports rule | R:code:eslint.review.config.mjs | A:- | S:Node built-ins must be reached through requireNodeModule from the desktop runtime helper, not imported directly
 manifest.json[FV7T]: F:Declares Scribe identity, release version, minimum Obsidian version, and author metadata | R:code:package.json | A:- | S:-
@@ -58,7 +58,7 @@ system-prompts.md[SU4T]: F:Guide to Agent Chat instructions: vault AGENTS.md, pr
 troubleshooting-and-faq.md[SU4S]: F:Troubleshooting guide for startup, models, permissions, and common failures | R:code:docs/getting-started.md | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/===
-main.ts[EC9L]: F:Plugin entry registering views, commands, agents, projects, and migrations | R:code:src/commands/index.ts | A:CopilotPlugin | S:Loads in the background without blocking vault startup; Agent Chat registers only on desktop
+main.ts[EC9L]: F:Plugin entry registering views, commands, agents, projects, and migrations | R:code:src/commands/index.ts | A:ScribePlugin | S:Loads in the background without blocking vault startup; Agent Chat registers only on desktop
 aiParams.ts[EG7T]: F:Core parameter types for projects and custom models | R:- | A:ProjectConfig, CustomModel | S:-
 constants.ts[EG7M]: F:Shared constants: view types, event names, commands, and default values | R:- | A:CHAT_AGENT_VIEWTYPE, EVENT_NAMES, COMMAND_IDS | S:View type strings and event names are stable surfaces; renaming them breaks persisted state and registered listeners
 context.ts[EU4T]: F:React contexts for the app instance and chat view events | R:code:src/constants.ts | A:AppContext, ChatViewEventTarget, EventTargetContext | S:-
@@ -194,16 +194,16 @@ mockObsidian.ts[TQ3T]: F:Builders that construct TFile and TFolder test doubles 
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/===
 AGENTS.md[SG7S]: F:Agent Mode layer rules: enforced import boundaries across session, native sdk runtime, native backend wiring, and UI | R:code:eslint.config.mjs | A:- | S:The backend-agnostic contract lives in session types; the native Pi runtime and UI never leak into each other's layers; restoring history must not rerun tools or reuse permission decisions
-index.ts[EC7S]: F:Agent Mode public surface wiring sessions, skills, views, and native backend resources from settings | R:code:src/agentMode/backends/registry.ts | A:CopilotAgentView, PlanPreviewView, SkillsSettings, ModelEnableList | S:Agent Mode layers import each other only through this module surface and the session contract
+index.ts[EC7S]: F:Agent Mode public surface wiring sessions, skills, views, and native backend resources from settings | R:code:src/agentMode/backends/registry.ts | A:ScribeAgentView, PlanPreviewView, SkillsSettings, ModelEnableList | S:Agent Mode layers import each other only through this module surface and the session contract
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/backends/===
 registry.ts[EC6T]: F:Backend registry registering only the native Scribe backend with display order and active resolution | R:code:src/agentMode/backends/native/descriptor.ts | A:backendRegistry, getActiveBackendDescriptor, listBackendDescriptors, backendDisplayOrder | S:Unknown saved backend ids resolve to native; there is no second backend switch
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/backends/shared/===
-agentSystemPrompt.ts[DB4T]: F:Builds agent steering prompt lines for web research, Excalidraw drawings, and Obsidian format skills | R:code:src/builtinSkills/builtinSkills.ts | A:COPILOT_WEB_RESEARCH_STEERING, COPILOT_EXCALIDRAW_STEERING, COPILOT_OBSIDIAN_FORMAT_LEAD | S:The Excalidraw steering line only rides while the Excalidraw tools are available
+agentSystemPrompt.ts[DB4T]: F:Builds agent steering prompt lines for web research, Excalidraw drawings, and Obsidian format skills | R:code:src/builtinSkills/builtinSkills.ts | A:SCRIBE_WEB_RESEARCH_STEERING, SCRIBE_EXCALIDRAW_STEERING, SCRIBE_OBSIDIAN_FORMAT_LEAD | S:The Excalidraw steering line only rides while the Excalidraw tools are available
 builtinSkillEnv.ts[IE3T]: F:Builds managed environment variables for builtin skills, currently the bundled Obsidian CLI path | R:code:src/agentMode/backends/shared/obsidianCliPath.ts | A:buildBuiltinSkillEnv | S:-
 installStatus.tsx[EU4T]: F:Maps install and auth states to status badge specifications | R:code:src/agentMode/session/types.ts | A:installBadge, InstallBadge, ConfigStatusBadge | S:-
-obsidianCliPath.ts[IR4T]: F:Resolves the Obsidian-bundled CLI binary path per platform | R:- | A:resolveObsidianCliPath, COPILOT_OBSIDIAN_CLI_ENV | S:-
+obsidianCliPath.ts[IR4T]: F:Resolves the Obsidian-bundled CLI binary path per platform | R:- | A:resolveObsidianCliPath, SCRIBE_OBSIDIAN_CLI_ENV | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/backends/shared/ui/===
 AgentConfigurationCard.stories.tsx[TQ3T]: F:Gallery stories for the agent configuration card states | R:code:src/agentMode/backends/shared/ui/AgentConfigurationCard.tsx | A:- | S:-
@@ -227,7 +227,6 @@ UsageTracker.ts[DO4T]: F:Keeps session and plan usage snapshots for display | R:
 agentChatYaml.ts[DC4T]: F:Escapes YAML scalars and merges chat frontmatter safely | R:- | A:escapeYamlString, unescapeYamlString, mergeFrontmatter | S:-
 chatHistoryMerge.ts[DD4T]: F:Merges Markdown chat notes with native session index entries and derives titles | R:code:src/agentMode/session/AgentSessionIndex.ts | A:deriveChatTitleFromMessages, mergeChatHistoryItems | S:-
 conversationHistory.ts[DB5S]: F:Builds the earlier-conversation context block with a character cap and read-only framing | R:- | A:buildConversationHistoryBlock, buildBranchHistoryContent, CONVERSATION_HISTORY_MAX_CHARS | S:-
-copilotMcpServer.ts[IN2T]: F:Re-exports the feedback tool contract and the per-session feedback server interface | R:code:src/agentMode/session/scribeToolDefinitions.ts | A:CopilotMcpServer | S:-
 debugSink.ts[DO5L]: F:Appends framed request and response records to a rotating ndjson debug log | R:- | A:frameSink, setFrameSinkVaultBasePath, FrameRecord | S:-
 descriptor.ts[EG5M]: F:Defines backend setup, authentication, model selection and scoped extension-check contracts | R:code:src/agentMode/session/types.ts | A:BackendDescriptor, InstallState | S:checkExtensions may stream status-only updates through onUpdate and always shuts its temporary process down
 editTargets.ts[DD4T]: F:Extracts vault-relative edit targets from tool inputs and diff outputs | R:- | A:diffTargetPaths, editTargetPaths, toVaultTargetPath | S:-
@@ -260,7 +259,8 @@ useBackendInstallStates.ts[EU4T]: F:React hook aggregating every backend's insta
 extensionAvailability.ts[DB6S]: F:Derives confirmed, locked, and uncertain switch states from runtime availability and control prerequisites | R:code:src/agentMode/session/extensionInventory.ts | A:getExtensionSwitchState, getExtensionDotState, isExtensionToggleable, ExtensionSwitchState, ExtensionDotState | S:Pending, unconfirmed, failed, needs-auth, and not-loaded entries render dots; an informational dot marks a confirmed read-only entry; only confirmed toggleable entries render switches
 extensionCheckCache.ts[DP5S]: F:Caches extension checks by configuration fingerprint and the last rendered view for an instant reopen | R:code:src/agentMode/ui/AgentExtensionsSettings.tsx,code:src/agentMode/session/extensionInventory.ts | A:extensionCheckCacheKey, extensionCheckCacheIdentity, readCachedExtensionCheck, storeCachedExtensionCheck, readCachedExtensionView, storeCachedExtensionView | S:A snapshot with pending MCP servers is never cached; checks and views are capped at 20 and 8 entries in localStorage; a disabled backend never reuses a check
 scopedSkills.ts[DC2T]: F:Filters discovered skills to those visible in one working scope, keeping canonical skills always visible | R:- | A:filterSkillsForScope | S:-
-scribeToolDefinitions.ts[DG4T]: F:Defines the send_feedback tool contract and its draft result types owned by Scribe | R:- | A:SEND_FEEDBACK_TOOL, COPILOT_MCP_SERVER_NAME, FeedbackOfferHandler | S:The tool is read-only and returns at once; the draft is only ever shown and nothing sends without the user's own approval
+scribeToolDefinitions.ts[DG4T]: F:Defines the send_feedback tool contract and its draft result types owned by Scribe | R:- | A:SEND_FEEDBACK_TOOL, SCRIBE_MCP_SERVER_NAME, FeedbackOfferHandler | S:The tool is read-only and returns at once; the draft is only ever shown and nothing sends without the user's own approval
+scribeMcpServer.ts[IN2T]: F:Re-exports the feedback tool contract and the per-session feedback server interface | R:code:src/agentMode/session/scribeToolDefinitions.ts | A:ScribeMcpServer | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/session/feedback/===
 feedbackOffer.ts[EG3T]: F:Feedback offer types binding an error or agent trigger to a draft report | R:code:src/agentMode/session/scribeToolDefinitions.ts | A:FeedbackOffer | S:-
@@ -369,7 +369,6 @@ AskUserQuestionCard.stories.tsx[TQ3T]: F:Gallery stories for the question card |
 AskUserQuestionCard.tsx[EU5M]: F:Renders an agent question with selectable options and free-text input | R:code:src/agentMode/session/types.ts | A:AskUserQuestionCard | S:-
 ChatBookmarkMenuItem.tsx[EU3T]: F:Menu item toggling a chat's bookmark state | R:code:src/agentMode/ui/hooks/useAgentHistoryControls.ts | A:ChatBookmarkMenuItem | S:-
 CompactionRow.tsx[EU3T]: F:Row showing compaction progress or outcome | R:- | A:CompactionRow | S:-
-CopilotAgentView.tsx[EC6T]: F:Obsidian ItemView hosting the Agent Chat React root | R:code:src/agentMode/ui/AgentModeChat.tsx | A:CopilotAgentView | S:-
 CreateProjectPanel.tsx[EU4S]: F:Anchored panel hosting the project creation form | R:code:src/agentMode/ui/AgentProjectCreateForm.tsx | A:CreateProjectPanel | S:-
 ExtensionDialogs.stories.tsx[TQ4S]: F:Previews install, import, and plugin detail dialogs with component, ownership, and missing-file states | R:code:src/agentMode/ui/ExtensionDialogs.tsx | A:- | S:-
 ExtensionDialogs.tsx[EU5L]: F:Renders extension install and import forms plus versioned plugin details and component availability | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:ExtensionModal, PluginInstallForm, ExtensionImportForm, ExtensionDetailsView | S:A details modal may omit its native title so the name and copy button start the content; an optional scope label renders between the name and the availability row
@@ -421,7 +420,6 @@ agentModePickerHelpers.ts[DA4T]: F:Helpers resolving the active mode and applyin
 agentModelPickerHelpers.ts[DA5L]: F:Builds model picker entries and applies model, effort, and backend switches | R:code:src/agentMode/backends/registry.ts | A:- | S:-
 agentSelectModel.ts[DB4T]: F:Maps backend install and auth states to selection row status | R:code:src/agentMode/session/types.ts | A:AgentSelectRow | S:-
 agentTrail.ts[DB5S]: F:Builds the renderable trail tree from message parts and copyable response text | R:code:src/agentMode/session/types.ts | A:buildAgentTrail, agentResponseText, RenderNode | S:Native tool names map to the existing card kinds at this classification layer
-copilotToolCall.ts[DB3T]: F:Extracts copilot tool call arguments across backend wire shapes | R:code:src/agentMode/session/scribeToolDefinitions.ts | A:- | S:-
 diffRender.ts[DB3T]: F:Renders simple diffs and formats tool inputs for display | R:- | A:renderDiff, formatAgentInput, extractDiffContents | S:-
 homeShelfPrefs.ts[DC2T]: F:Persists the selected home shelf tab in local storage | R:- | A:HOME_SHELF_TAB_STORAGE_KEY | S:-
 landingGreetings.ts[EU2T]: F:Rotating landing greeting strings | R:- | A:- | S:-
@@ -438,6 +436,8 @@ useBackendDescriptor.ts[EU4S]: F:Hooks resolving backend descriptors, install st
 useManagerSubscribe.ts[EU2T]: F:Hook subscribing to session manager notifications | R:- | A:useManagerSubscribe | S:-
 useThinkingClock.ts[EU2T]: F:Hook ticking elapsed thinking time while active | R:- | A:useThinkingClock | S:-
 useTrailExpansion.ts[EU2T]: F:Hook holding per-node trail expansion overrides | R:- | A:useTrailExpansion | S:-
+ScribeAgentView.tsx[EC6T]: F:Obsidian ItemView hosting the Agent Chat React root | R:code:src/agentMode/ui/AgentModeChat.tsx | A:ScribeAgentView | S:-
+scribeToolCall.ts[DB3T]: F:Extracts scribe tool call arguments across backend wire shapes | R:code:src/agentMode/session/scribeToolDefinitions.ts | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/ui/hooks/===
 useAgentChatRuntimeState.ts[EU4T]: F:Hook collecting runtime chat state from the backend into render-friendly snapshots | R:code:src/agentMode/session/AgentChatBackend.ts | A:useAgentChatRuntimeState | S:-
@@ -534,7 +534,6 @@ ContextBadgeWrapper.tsx[EU3T]: F:Badge chrome with icon, removal, and truncation
 ContextBadges.stories.tsx[TQ4S]: F:Gallery stories for every context badge kind | R:code:src/components/chat-components/ContextBadges.tsx | A:- | S:-
 ContextBadges.tsx[EU5M]: F:Badge set for notes, folders, tags, properties, tabs, and selections | R:code:src/components/chat-components/ContextBadgeWrapper.tsx | A:ContextNoteBadge, ContextFolderBadge, ContextWebTabBadge | S:-
 ContextControl.tsx[EU3T]: F:Row of context badges above the composer | R:code:src/components/chat-components/ChatContextMenu.tsx | A:ContextControl | S:-
-CopilotSpinner.tsx[EU2T]: F:Animated loading spinner | R:- | A:CopilotSpinner | S:-
 CopyButton.tsx[EU2T]: F:Copy-to-clipboard button with confirmation state | R:code:src/components/chat-components/MessageActionButton.tsx | A:CopyButton | S:-
 LexicalEditor.tsx[EU5M]: F:Lexical composer wrapper providing the chat text editor | R:- | A:LexicalEditor | S:-
 MessageActionButton.tsx[EU2T]: F:Icon button with tooltip for message actions | R:- | A:MessageActionButton | S:-
@@ -547,6 +546,7 @@ attachChatViewLayoutObservers.ts[EU3T]: F:Attaches layout observers keeping the 
 collapsibleStateUtils.ts[DB4T]: F:Utilities for saving and restoring collapsible section states | R:- | A:- | S:-
 openImagePicker.ts[IO3T]: F:Opens a detached file input for image picking | R:- | A:openImagePicker | S:A detached input can swallow clicks after cancel
 useChatModelPicker.ts[DB4T]: F:Builds quick-chat model picker entries from configured models | R:code:src/modelManagement/index.ts | A:useChatModelPicker | S:-
+ScribeSpinner.tsx[EU2T]: F:Animated loading spinner | R:- | A:ScribeSpinner | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/components/chat-components/context/===
 ActiveFileContext.tsx[EU2T]: F:React context supplying the currently active file | R:- | A:ActiveFileContextProvider | S:-
@@ -618,8 +618,6 @@ model-settings-button.tsx[EU2T]: F:Button opening model settings when a model is
 ApplyCustomCommandModal.tsx[EU3T]: F:Fuzzy picker applying a custom command to the editor selection | R:code:src/commands/CustomCommandChatModal.tsx | A:ApplyCustomCommandModal | S:-
 BaseNoteModal.tsx[EU3T]: F:Fuzzy note picker base filtering out the active note | R:- | A:BaseNoteModal | S:-
 ConfirmModal.tsx[EU4T]: F:Generic confirmation modal with React content | R:- | A:ConfirmModal | S:-
-CopilotFolderMigration.stories.tsx[TQ2T]: F:Gallery story for the folder migration notice | R:code:src/components/modals/CopilotFolderMigration.tsx | A:- | S:-
-CopilotFolderMigration.tsx[EU3T]: F:Notice offering to rename a hidden data folder | R:- | A:CopilotFolderMigration | S:-
 FolderSearchModal.tsx[EU3T]: F:Fuzzy folder picker excluding ignored paths | R:code:src/search/searchUtils.ts | A:FolderSearchModal | S:-
 ProjectFileSelectModal.tsx[EU4S]: F:Picker scoped to a project folder's files | R:code:src/components/modals/BaseNoteModal.tsx | A:ProjectFileSelectModal | S:-
 PropertySearchModal.tsx[EU3T]: F:Picker over note property keys with selectable-key rules | R:code:src/search/searchUtils.ts | A:PropertySearchModal | S:-
@@ -661,8 +659,6 @@ AssistantResponseFooter.stories.tsx[TQ3T]: F:Gallery stories for the assistant r
 AssistantResponseFooter.tsx[EU2T]: F:Footer layout row with leading content, timestamp, and actions | R:- | A:AssistantResponseFooter | S:-
 ChatSendButton.stories.tsx[TQ1T]: F:Gallery story for the send button | R:code:src/components/ui/ChatSendButton.tsx | A:- | S:-
 ChatSendButton.tsx[EU2T]: F:Send button reflecting composer readiness | R:- | A:ChatSendButton | S:-
-CopilotBrandIcon.stories.tsx[TQ1T]: F:Gallery story for the brand icon | R:code:src/components/ui/CopilotBrandIcon.tsx | A:- | S:-
-CopilotBrandIcon.tsx[EU1T]: F:Renders the brand icon path | R:code:src/constants.ts | A:CopilotBrandIcon | S:-
 DestinationIcon.stories.tsx[TQ2T]: F:Gallery story for the destination icon | R:code:src/components/ui/DestinationIcon.tsx | A:- | S:-
 DestinationIcon.tsx[EU2T]: F:Cloud or local icon for a model's destination | R:code:src/types/destination.ts | A:DestinationIcon | S:-
 FreeModelWarningIcon.tsx[EU2T]: F:Warning icon explaining free model privacy tradeoffs | R:- | A:FreeModelWarningIcon | S:-
@@ -719,6 +715,8 @@ extension-availability-switch.stories.tsx[TQ3T]: F:Previews availability switche
 extension-availability-switch.tsx[EU4T]: F:Renders accessible availability switches with loading, pending, and reason tooltips | R:code:src/components/ui/setting-switch.tsx | A:ExtensionAvailabilitySwitch | S:An unknown phase is no longer rendered by the switch; unverifiable rows use the availability dot instead
 extension-availability-dot.tsx[EU3T]: F:Renders failed, connecting, informational, or unconfirmed availability as a colored dot with a reason tooltip | R:code:src/agentMode/session/extensionAvailability.ts | A:ExtensionAvailabilityDot | S:Connecting dots pulse; informational dots show
 extension-availability-dot.stories.tsx[TQ3T]: F:Previews failed, connecting, informational and unconfirmed availability dots | R:code:src/components/ui/extension-availability-dot.tsx | A:- | S:-
+ScribeBrandIcon.stories.tsx[TQ1T]: F:Gallery story for the brand icon | R:code:src/components/ui/ScribeBrandIcon.tsx | A:- | S:-
+ScribeBrandIcon.tsx[EU1T]: F:Renders the brand icon path | R:code:src/constants.ts | A:ScribeBrandIcon | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/context/===
 ChatHistoryCompactor.ts[DB5T]: F:Compacts earlier chat context blocks for token budgets | R:code:src/context/contextBlockRegistry.ts | A:- | S:-
@@ -746,7 +744,7 @@ replaceGuard.ts[DB6M]: F:Guards text replacements so concurrent edits cannot cor
 selectionHighlight.ts[DB3T]: F:CodeMirror extension highlighting a selected range | R:code:src/editor/persistentHighlight.ts | A:SelectionHighlight | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/excalidraw/agentMode/===
-excalidrawToolRun.ts[DB4T]: F:Derives drawing tool run display state from a tool call | R:code:src/agentMode/ui/copilotToolCall.ts | A:excalidrawToolRun | S:-
+excalidrawToolRun.ts[DB4T]: F:Derives drawing tool run display state from a tool call | R:code:src/agentMode/ui/scribeToolCall.ts | A:excalidrawToolRun | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/excalidraw/agentMode/testing/===
 excalidrawToolCall.ts[TQ2T]: F:Tool call fixture for excalidraw UI tests | R:- | A:- | S:-
@@ -896,18 +894,16 @@ orderCatalogModels.ts[DB2T]: F:Orders catalog models with selection first | R:- 
 ===/Users/study_superior/Desktop/Code/Scribe/src/projects/===
 ProjectFileManager.ts[DP6L]: F:Creates, updates, and deletes project notes and folders | R:code:src/projects/projectPaths.ts | A:ProjectFileManager | S:-
 constants.ts[DC3T]: F:Project defaults and frontmatter property names | R:- | A:EMPTY_PROJECT_CONFIG | S:-
-legacyAgentsResidue.ts[DP4T]: F:Reconciles leftover files from the legacy project layout | R:code:src/instructions/agentsFile.ts | A:reconcileLegacyAgentsResidue | S:-
 moveProjectPrompt.ts[DP3T]: F:Moves a project prompt into its AGENTS.md | R:code:src/projects/ProjectFileManager.ts | A:moveProjectPromptToAgentsFile | S:-
 projectContextSignature.ts[DB4T]: F:Builds a change signature over project context sources | R:code:src/projects/projectPaths.ts | A:- | S:-
-projectMigration.ts[DP6L]: F:Migrates legacy project records into the current layout | R:code:src/projects/legacyAgentsResidue.ts | A:- | S:A project whose fallback backup cannot be written stays in projectList and is retried; an identical existing backup counts as success
-projectPaths.ts[DP5S]: F:Path helpers for project folders and config files | R:code:src/settings/copilotFolder.ts | A:getProjectsFolder, getProjectAnchorFromConfigPath | S:-
+projectPaths.ts[DP5S]: F:Path helpers for project folders and config files | R:code:src/settings/scribeFolder.ts | A:getProjectsFolder, getProjectAnchorFromConfigPath | S:-
 projectRegister.ts[DA6M]: F:Watches the projects folder and keeps project state current | R:code:src/projects/ProjectFileManager.ts | A:ProjectRegister | S:-
 projectUtils.ts[DP6M]: F:Parses and serializes project frontmatter and records | R:code:src/projects/constants.ts | A:- | S:-
 state.ts[DD5S]: F:Jotai store caching project records | R:code:src/projects/type.ts | A:getCachedProjectRecords, getCachedProjectRecordById, useProjects | S:-
 type.ts[EG2T]: F:Project file record type | R:- | A:ProjectFileRecord | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/search/===
-searchUtils.ts[DB6M]: F:Pattern matching, categorization, and vault character counting for context indexing | R:code:src/settings/copilotFolder.ts | A:getMatchingPatterns, shouldIndexFile, categorizePatterns, getVaultCharacterCount | S:Vault counting reads notes in batches and sums lengths, never building the whole text; a malformed exclusion pattern falls back to its raw form
+searchUtils.ts[DB6M]: F:Pattern matching, categorization, and vault character counting for context indexing | R:code:src/settings/scribeFolder.ts | A:getMatchingPatterns, shouldIndexFile, categorizePatterns, getVaultCharacterCount | S:Vault counting reads notes in batches and sums lengths, never building the whole text; a malformed exclusion pattern falls back to its raw form
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/selection/===
 selectionStore.ts[DD4T]: F:Jotai store of reported text selections | R:- | A:reportSelection, subscribeSelection, clearSelection | S:-
@@ -938,15 +934,13 @@ webViewerServiceTypes.ts[EG4S]: F:Web viewer service types and view type constan
 SettingsPage.tsx[EC4T]: F:Settings tab root rendering the React settings page | R:code:src/components/StartupLoadingView.ts | A:- | S:-
 agentEnablement.ts[DC3T]: F:Whether an agent backend is enabled in settings | R:- | A:isAgentBackendEnabled | S:-
 builtinSkillPreferences.ts[DC4T]: F:Reads and sanitizes builtin skill preferences | R:code:src/settings/model.ts | A:sanitizeBuiltinPreferences | S:-
-copilotFolder.ts[DC5S]: F:Resolves effective Scribe folder roots for data, chats, and projects | R:code:src/constants.ts | A:getEffectiveCopilotFolder, getEffectiveConversationsFolder, getEffectiveProjectsFolder | S:-
-copilotRootChange.ts[DC4T]: F:Handles a changed data root without moving existing files | R:code:src/settings/copilotFolder.ts | A:- | S:-
-copilotSaveData.ts[DP3T]: F:Builds the settings save callback writing through persistence | R:code:src/services/settingsPersistence.ts | A:getCopilotSaveData | S:-
 model.ts[DC8L]: F:Settings model: defaults, sanitize, store, subscriptions, and native agent backend fields | R:code:src/constants.ts | A:DEFAULT_SETTINGS, getSettings, setSettings, sanitizeSettings | S:A malformed percent sequence in qaExclusions falls back to the raw pattern; sanitization fills missing fields and drops unknown ones; the settings atom is the single shared store
-openSettings.ts[DA4T]: F:Opens the plugin settings to a requested tab | R:code:src/settings/settingsTabs.ts | A:consumeRequestedCopilotSettingsTab | S:-
-revealCopilotFolder.ts[DP4T]: F:Detects hidden data folders and offers a rename | R:- | A:HiddenFolderMigration | S:-
-settingsTabs.ts[EG2T]: F:Settings tab identifiers | R:- | A:COPILOT_SETTINGS_TAB_IDS | S:-
+openSettings.ts[DA4T]: F:Opens the plugin settings to a requested tab | R:code:src/settings/settingsTabs.ts | A:consumeRequestedScribeSettingsTab | S:-
+settingsTabs.ts[EG2T]: F:Settings tab identifiers | R:- | A:SCRIBE_SETTINGS_TAB_IDS | S:-
 skillLoadErrorState.ts[EU2T]: F:Atom counting skill load errors for a badge | R:- | A:- | S:-
-upgradeNotice.ts[DV4T]: F:Notices about folder layout changes after upgrades | R:code:src/settings/copilotFolder.ts | A:- | S:-
+scribeFolder.ts[DC5S]: F:Resolves effective Scribe folder roots for data, chats, and projects | R:code:src/constants.ts | A:getEffectiveScribeFolder, getEffectiveConversationsFolder, getEffectiveProjectsFolder | S:-
+scribeRootChange.ts[DC4T]: F:Handles a changed data root without moving existing files | R:code:src/settings/scribeFolder.ts | A:- | S:-
+scribeSaveData.ts[DP3T]: F:Builds the settings save callback writing through persistence | R:code:src/services/settingsPersistence.ts | A:getScribeSaveData | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/settings/migrations/===
 azureRemovalMigration.ts[DV3T]: F:Removes the retired Azure provider and its models | R:code:src/settings/migrations/retiredProviderRemovalMigration.ts | A:- | S:-
@@ -973,8 +967,6 @@ BasicSettings.tsx[EU6L]: F:General tab combining chat, save, and interface secti
 ChatModelEnableList.tsx[EU4T]: F:Enables quick-tool chat models | R:code:src/components/ui/ModelEnableList.tsx | A:ChatModelEnableList | S:-
 CommandSettings.tsx[EU5M]: F:Commands settings tab with the command list and options | R:code:src/commands/ui/CommandConfigurationRow.tsx | A:CommandSettings | S:-
 ConfiguredModelEnableList.tsx[EU3T]: F:Enables configured models for the native agent backend | R:code:src/components/ui/ModelEnableList.tsx | A:ConfiguredModelEnableList | S:-
-CopilotFolderChangeNotice.stories.tsx[TQ2T]: F:Gallery story for the folder change notice | R:code:src/settings/v2/components/CopilotFolderChangeNotice.tsx | A:- | S:-
-CopilotFolderChangeNotice.tsx[EU3T]: F:Warning about data left under an old root | R:- | A:CopilotFolderChangeNotice | S:-
 DebuggingSupportSection.stories.tsx[TQ3T]: F:Gallery stories for the debugging section | R:code:src/settings/v2/components/DebuggingSupportSection.tsx | A:- | S:-
 DebuggingSupportSection.tsx[EU4T]: F:Debug toggles, log export, and issue reporting controls | R:- | A:DebuggingSupportSection | S:-
 DesktopOnlySettingsPanel.tsx[EU1T]: F:Panel explaining desktop-only settings on mobile | R:- | A:DesktopOnlySettingsPanel | S:-
@@ -985,6 +977,8 @@ VaultInstructionsSetting.stories.tsx[TQ2T]: F:Gallery story for the vault instru
 VaultInstructionsSetting.tsx[EU3T]: F:Setting editing the vault AGENTS.md inline | R:code:src/instructions/InstructionsTextarea.tsx | A:VaultInstructionsSetting | S:-
 configuredModelGrouping.ts[DB4S]: F:Groups configured models by provider destination and origin | R:code:src/modelManagement/providers/providerDestination.ts | A:- | S:-
 ConfiguredModelEnableList.stories.tsx[TQ3T]: F:Gallery stories for configured model visibility rows including manual IDs | R:code:src/settings/v2/components/ConfiguredModelEnableList.tsx | A:- | S:-
+ScribeFolderChangeNotice.stories.tsx[TQ2T]: F:Gallery story for the folder change notice | R:code:src/settings/v2/components/ScribeFolderChangeNotice.tsx | A:- | S:-
+ScribeFolderChangeNotice.tsx[EU3T]: F:Warning about data left under an old root | R:- | A:ScribeFolderChangeNotice | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/settings/v2/components/ui/===
 AboutSettings.stories.tsx[TQ1T]: F:Gallery story for the about section | R:code:src/settings/v2/components/ui/AboutSettings.tsx | A:- | S:-
@@ -1007,7 +1001,7 @@ vaultDataAtoms.ts[DD4S]: F:Jotai atoms caching vault notes and folders | R:- | A
 tailwind.css[FU6L]: F:Tailwind source stylesheet with theme tokens and component classes | R:code:tailwind.config.js | A:- | S:The untitled-modal rule hides only the empty title so the native close button stays usable
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/system-prompts/===
-constants.ts[DC2T]: F:Prompt frontmatter property names | R:- | A:COPILOT_SYSTEM_PROMPT_CREATED | S:-
+constants.ts[DC2T]: F:Prompt frontmatter property names | R:- | A:SCRIBE_SYSTEM_PROMPT_CREATED | S:-
 migration.ts[DP5M]: F:Migrates settings-defined system prompts into vault notes | R:code:src/system-prompts/systemPromptUtils.ts | A:migrateSystemPromptsFromSettings | S:-
 systemPromptUtils.ts[DP4T]: F:Prompt note frontmatter and path helpers | R:code:src/system-prompts/constants.ts | A:ensurePromptFrontmatter, getPromptFilePath | S:-
 type.ts[EG2T]: F:User system prompt type | R:- | A:UserSystemPrompt | S:-
@@ -1017,10 +1011,10 @@ destination.ts[EG2T]: F:Destination kind type for model routing | R:- | A:Destin
 message.ts[EG5T]: F:Chat message and context types shared across the plugin | R:- | A:MessageContext, ChatMessage, FormattedDateTime | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/utils/===
-appPaths.ts[DP4T]: F:Resolves the plugin's app data directory and vault id | R:code:src/utils/hash.ts | A:copilotAppDataDir, getVaultId | S:-
+appPaths.ts[DP4T]: F:Resolves the plugin's app data directory and vault id | R:code:src/utils/hash.ts | A:scribeAppDataDir, getVaultId | S:-
 base64.ts[DB4T]: F:Chunked base64 conversion without Buffer polyfills | R:- | A:arrayBufferToBase64, base64ToArrayBuffer | S:-
 binaryPath.ts[IR4T]: F:Well-known binary directories and PATH augmentation for detection | R:code:src/utils/nodeToolBinDirs.ts | A:WELL_KNOWN_BIN_DIRS, augmentPathForDetection | S:-
-chatDeepLink.ts[DB4T]: F:Builds and resolves deep links to saved chats | R:code:src/settings/copilotFolder.ts | A:buildChatDeepLink, findChatFileByDeepLinkId | S:-
+chatDeepLink.ts[DB4T]: F:Builds and resolves deep links to saved chats | R:code:src/settings/scribeFolder.ts | A:buildChatDeepLink, findChatFileByDeepLinkId | S:-
 chatHistoryUtils.ts[DD5S]: F:History item helpers: files, pins, titles, and recent usage | R:code:src/utils/recentUsageManager.ts | A:fileToHistoryItem, parseChatPinnedAt, extractChatTitle | S:-
 chatImagePersistence.ts[DP6M]: F:Persists chat images into a vault attachments folder with receipts | R:code:src/utils/base64.ts | A:prepareChatImagesForSave, stripChatImageReceipts, updateChatTranscript | S:-
 debounce.ts[EG1T]: F:Re-exports the debounce utility | R:code:src/lib/debounce.ts | A:debounce | S:-

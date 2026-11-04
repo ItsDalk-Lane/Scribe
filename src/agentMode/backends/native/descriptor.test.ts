@@ -1,5 +1,5 @@
 import type { App } from "obsidian";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { getSettings, resetSettings, setSettings } from "@/settings/model";
 import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
@@ -14,7 +14,7 @@ import {
   readNativeExtensions,
   createNativeExtensionManager,
 } from "@/agentMode/backends/native/nativeExtensions";
-import { openCopilotSettings } from "@/settings/openSettings";
+import { openScribeSettings } from "@/settings/openSettings";
 import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import type { BackendState } from "@/agentMode/session/types";
 import { createNativeModel } from "@/agentMode/backends/native/nativeModels";
@@ -57,10 +57,10 @@ jest.mock("@/agentMode/backends/native/nativeModels", () => ({
   createNativeModel: jest.fn().mockResolvedValue({ model: { id: "manual-model" } }),
 }));
 jest.mock("@/utils/appPaths", () => ({
-  copilotAppDataDir: () => "/synthetic-scribe",
+  scribeAppDataDir: () => "/synthetic-scribe",
   getVaultId: () => "vault-scope",
 }));
-jest.mock("@/settings/openSettings", () => ({ openCopilotSettings: jest.fn() }));
+jest.mock("@/settings/openSettings", () => ({ openScribeSettings: jest.fn() }));
 jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 
 function configure(): void {
@@ -127,7 +127,7 @@ describe("nativeDescriptor", () => {
   describe("checkExtensions()", () => {
     it("reports the current native runtime without starting a model turn", async () => {
       await NativeBackendDescriptor.checkExtensions?.({
-        plugin: {} as CopilotPlugin,
+        plugin: {} as ScribePlugin,
         cwd: "/vault/project",
       });
       expect(readNativeExtensionRuntime).toHaveBeenCalledWith("/vault/project");
@@ -138,7 +138,7 @@ describe("nativeDescriptor", () => {
       controller.abort();
       await expect(
         NativeBackendDescriptor.checkExtensions?.({
-          plugin: {} as CopilotPlugin,
+          plugin: {} as ScribePlugin,
           cwd: "/vault/project",
           signal: controller.signal,
         })
@@ -171,7 +171,7 @@ describe("nativeDescriptor", () => {
   describe("subscribeInstallState()", () => {
     it("reports settings changes until its subscription is disposed", () => {
       const listener = jest.fn();
-      const dispose = NativeBackendDescriptor.subscribeInstallState({} as CopilotPlugin, listener);
+      const dispose = NativeBackendDescriptor.subscribeInstallState({} as ScribePlugin, listener);
       setSettings({ configuredModels: [] });
       expect(listener).toHaveBeenCalledTimes(1);
       dispose();
@@ -186,8 +186,8 @@ describe("nativeDescriptor", () => {
           getMostRecentLeaf: () => ({ view: { containerEl: document.createElement("div") } }),
         },
       } as unknown as App;
-      NativeBackendDescriptor.openInstallUI({ app } as CopilotPlugin);
-      expect(openCopilotSettings).toHaveBeenCalledWith(app, window, "quickActions");
+      NativeBackendDescriptor.openInstallUI({ app } as ScribePlugin);
+      expect(openScribeSettings).toHaveBeenCalledWith(app, window, "quickActions");
     });
   });
   describe("getEnabledModelEntries()", () => {
@@ -286,7 +286,7 @@ describe("nativeDescriptor", () => {
       const app = {} as App;
       NativeBackendDescriptor.createBackendProcess({
         app,
-        plugin: {} as CopilotPlugin,
+        plugin: {} as ScribePlugin,
         clientVersion: "test",
         descriptor: NativeBackendDescriptor,
       });
@@ -379,7 +379,7 @@ describe("nativeDescriptor", () => {
       });
       const offerFeedback = jest.fn().mockReturnValue("offered");
       const getSessionByBackendId = jest.fn().mockReturnValue({ offerFeedback });
-      const plugin = { agentSessionManager: { getSessionByBackendId } } as unknown as CopilotPlugin;
+      const plugin = { agentSessionManager: { getSessionByBackendId } } as unknown as ScribePlugin;
       NativeBackendDescriptor.createBackendProcess({
         app: {} as App,
         plugin,
@@ -411,7 +411,7 @@ describe("nativeDescriptor", () => {
       expect(() =>
         NativeBackendDescriptor.createBackendProcess({
           app: {} as App,
-          plugin: {} as CopilotPlugin,
+          plugin: {} as ScribePlugin,
           clientVersion: "test",
           descriptor: NativeBackendDescriptor,
         })

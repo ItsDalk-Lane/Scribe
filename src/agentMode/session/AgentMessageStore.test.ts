@@ -42,7 +42,7 @@ describe("AgentMessageStore", () => {
     deletions: 1,
   });
 
-  describe("addMessage()", () => {
+  describe("addMessage", () => {
     it("keeps a null timestamp so a replayed message does not show the time it was loaded", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage({ ...placeholder(), timestamp: null });
@@ -51,7 +51,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("appendDisplayText()", () => {
+  describe("appendDisplayText", () => {
     it("accumulates streaming chunks", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
@@ -66,7 +66,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("appendAgentText()", () => {
+  describe("appendAgentText", () => {
     it("folds successive chunks into one trailing text part", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
@@ -101,7 +101,7 @@ describe("AgentMessageStore", () => {
       expect(store.appendAgentText("missing", "x")).toBe(false);
     });
 
-    it("extends a provisional late thought when completed prose ends it (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("extends a provisional late thought when completed prose ends it", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -122,8 +122,8 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("appendAgentThought()", () => {
-    it("folds successive chunks into one timed part (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+  describe("appendAgentThought", () => {
+    it("folds successive chunks into one timed part", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -139,7 +139,7 @@ describe("AgentMessageStore", () => {
       });
     });
 
-    it("extends a completed trailing thought when its final chunk arrives late (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("extends a completed trailing thought when its final chunk arrives late", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -161,7 +161,7 @@ describe("AgentMessageStore", () => {
       ]);
     });
 
-    it("freezes a new late thought after completed prose and extends it with later chunks (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("freezes a new late thought after completed prose and extends it with later chunks", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -188,7 +188,7 @@ describe("AgentMessageStore", () => {
       });
     });
 
-    it("starts a new timed thought after a completed thought (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("starts a new timed thought after a completed thought", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -207,8 +207,8 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("markTurnComplete()", () => {
-    it("freezes a trailing thought when the turn completes (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+  describe("markTurnComplete", () => {
+    it("freezes a trailing thought when the turn completes", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -221,7 +221,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("upsertAgentPart()", () => {
+  describe("upsertAgentPart", () => {
     it("appends a new tool call by its id", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
@@ -236,7 +236,7 @@ describe("AgentMessageStore", () => {
       expect(parts[0]).toMatchObject({ kind: "tool_call", id: "tc1", title: "Read README" });
     });
 
-    it("freezes a thought when a tool call follows it (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("freezes a thought when a tool call follows it", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -349,7 +349,7 @@ describe("AgentMessageStore", () => {
       });
     });
 
-    it("lets a replacement plan freeze the trailing thought (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+    it("lets a replacement plan freeze the trailing thought", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
       const store = new AgentMessageStore();
@@ -420,7 +420,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("hasAssistantActivity()", () => {
+  describe("hasAssistantActivity", () => {
     it("is false for a placeholder that has received nothing", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
@@ -428,7 +428,7 @@ describe("AgentMessageStore", () => {
       expect(store.hasAssistantActivity(id)).toBe(false);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 counts a compaction row as activity so a compaction-only turn is not an empty turn", () => {
+    it("counts a compaction row as activity so a compaction-only turn is not an empty turn", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
 
@@ -438,8 +438,8 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("settleOpenParts()", () => {
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 settles every in-progress compaction to the given status and leaves settled rows alone", () => {
+  describe("settleOpenParts", () => {
+    it("settles every in-progress compaction to the given status and leaves settled rows alone", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
       const done = compaction({ id: "done", status: "completed", postTokens: 5 });
@@ -453,7 +453,7 @@ describe("AgentMessageStore", () => {
       expect(parts[1]).toEqual(compaction({ id: "open", trigger: "auto", status: "cancelled" }));
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 fails an in-progress compaction without a reason of its own", () => {
+    it("fails an in-progress compaction without a reason of its own", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
       store.upsertAgentPart(id, compaction());
@@ -463,7 +463,7 @@ describe("AgentMessageStore", () => {
       expect(store.getMessage(id)?.parts?.[0]).toEqual(compaction({ status: "failed" }));
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 fails every tool call still pending, since it never started, even when compactions settle as cancelled, and leaves running background and finished calls alone", () => {
+    it("fails every tool call still pending, since it never started, even when compactions settle as cancelled, and leaves running background and finished calls alone", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
       store.upsertAgentPart(id, {
@@ -508,8 +508,8 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("stopToolCalls()", () => {
-    it("marks every pending or running tool call stopped, except the ones to keep and those already finished (https://github.com/Brevilabs/obsidian-copilot-private/issues/747)", () => {
+  describe("stopToolCalls", () => {
+    it("marks every pending or running tool call stopped, except the ones to keep and those already finished", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
       const call = (callId: string, status: "pending" | "in_progress" | "completed") =>
@@ -533,7 +533,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("findMessageIdWithToolCall()", () => {
+  describe("findMessageIdWithToolCall", () => {
     it("returns the message owning a tool call, or undefined", () => {
       const store = new AgentMessageStore();
       const first = store.addMessage(placeholder());
@@ -557,7 +557,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("markMessageError()", () => {
+  describe("markMessageError", () => {
     it("flags the message and appends formatted error text", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage({
@@ -575,7 +575,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("loadMessages()", () => {
+  describe("loadMessages", () => {
     it("keeps a message that has no send time undated instead of stamping the load time", () => {
       const store = new AgentMessageStore();
 
@@ -608,7 +608,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("fillMissingTimestamps()", () => {
+  describe("fillMissingTimestamps", () => {
     const sentAt = formatDateTime(new Date("2026-01-02T03:04:05Z"));
     const keptAt = formatDateTime(new Date("2026-03-04T05:06:07Z"));
     const saved = (sender: string, id: string) => ({
@@ -619,7 +619,7 @@ describe("AgentMessageStore", () => {
       isVisible: true,
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/671 gives each undated message the saved time at its position and keeps a time it already has", () => {
+    it("gives each undated message the saved time at its position and keeps a time it already has", () => {
       const store = new AgentMessageStore();
       store.addMessage({ message: "q", sender: USER_SENDER, timestamp: null, isVisible: true });
       store.addMessage({ message: "a", sender: AI_SENDER, timestamp: keptAt, isVisible: true });
@@ -629,7 +629,7 @@ describe("AgentMessageStore", () => {
       expect(store.getDisplayMessages().map((m) => m.timestamp)).toEqual([sentAt, keptAt]);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/671 leaves messages undated from the first position where the saved sender differs", () => {
+    it("leaves messages undated from the first position where the saved sender differs", () => {
       const store = new AgentMessageStore();
       store.addMessage({ message: "q", sender: USER_SENDER, timestamp: null, isVisible: true });
       store.addMessage({ message: "a", sender: AI_SENDER, timestamp: null, isVisible: true });
@@ -645,7 +645,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("extendTurnDuration()", () => {
+  describe("extendTurnDuration", () => {
     it("advances only an already-completed turn", () => {
       const store = new AgentMessageStore();
       const runningId = store.addMessage(placeholder());
@@ -659,7 +659,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("truncateAfterMessageId()", () => {
+  describe("truncateAfterMessageId", () => {
     it("drops everything after the target", () => {
       const store = new AgentMessageStore();
       const a = store.addMessage(placeholder());
@@ -670,7 +670,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("getDisplayMessages()", () => {
+  describe("getDisplayMessages", () => {
     it("includes structured message parts", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
@@ -770,7 +770,7 @@ describe("AgentMessageStore", () => {
     });
   });
 
-  describe("setFileChanges()", () => {
+  describe("setFileChanges", () => {
     it("publishes the turn's file changes on the message and invalidates its cached view", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());

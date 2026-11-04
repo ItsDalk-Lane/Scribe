@@ -1,4 +1,4 @@
-# Sourced by the scripts that deploy into $COPILOT_TEST_VAULT_PATH and reload a
+# Sourced by the scripts that deploy into $SCRIBE_TEST_VAULT_PATH and reload a
 # plugin through the Obsidian CLI.
 #
 # The CLI targets the vault named by `vault=`, else the registered vault

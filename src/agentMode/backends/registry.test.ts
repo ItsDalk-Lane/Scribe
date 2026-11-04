@@ -1,4 +1,4 @@
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 import {
   backendDisplayOrder,
   backendRegistry,
@@ -20,7 +20,7 @@ jest.mock("obsidian", () => ({
 }));
 
 describe("registry", () => {
-  const baseSettings = (activeBackend?: string): CopilotSettings =>
+  const baseSettings = (activeBackend?: string): ScribeSettings =>
     ({
       agentMode: {
         enabled: true,
@@ -28,7 +28,7 @@ describe("registry", () => {
         activeBackend,
         backends: { native: {} },
       },
-    }) as unknown as CopilotSettings;
+    }) as unknown as ScribeSettings;
 
   describe("getActiveBackendDescriptor()", () => {
     it("returns Scribe when no agent has been selected", () => {

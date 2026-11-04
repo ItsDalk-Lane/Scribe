@@ -1,8 +1,5 @@
 import { outlineScene, type SceneElement } from "./excalidrawOutline";
 
-const ISSUE_787 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/787";
-const ISSUE_792 = "https://github.com/Brevilabs/obsidian-copilot-private/issues/792";
-
 function shape(
   id: string,
   x: number,
@@ -79,7 +76,7 @@ function stickerStraddlingTwoCards(order: "sticker-under-lower-card" | "sticker-
 }
 
 describe("excalidrawOutline", () => {
-  describe("outlineScene()", () => {
+  describe("outlineScene", () => {
     it("opens with the path, the element count by type and how positions are written", () => {
       const lines = outlineScene(
         "Boards/Flow.excalidraw.md",
@@ -109,7 +106,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_792} lists an icon's unlabelled parts as one group, inside the shape that holds it`, () => {
+    it(` lists an icon's unlabelled parts as one group, inside the shape that holds it`, () => {
       const icon = [
         shape("i1", 50, 20, 40, 10, { type: "ellipse", groupIds: ["iconG"] }),
         shape("i2", 50, 25, 0, 30, {
@@ -139,7 +136,7 @@ describe("excalidrawOutline", () => {
       expect(lines.join("\n")).not.toMatch(/ i[123] /);
     });
 
-    it(`${ISSUE_792} counts the parts of icons and drawn groups toward the drawing's usual style`, () => {
+    it(` counts the parts of icons and drawn groups toward the drawing's usual style`, () => {
       const sketchy = {
         roughness: 2,
         strokeWidth: 3,
@@ -157,7 +154,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_792} flags an icon drawn under a filled shape that covers it`, () => {
+    it(` flags an icon drawn under a filled shape that covers it`, () => {
       const elements = [
         shape("i1", 40, 40, 30, 30, { type: "ellipse", groupIds: ["iconG"] }),
         shape("i2", 50, 50, 10, 10, { groupIds: ["iconG"] }),
@@ -231,7 +228,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_787} flags loose text sitting on an unlabelled shape, because it will not move with the shape`, () => {
+    it(` flags loose text sitting on an unlabelled shape, because it will not move with the shape`, () => {
       const elements = [
         shape("box", 0, 0, 200, 80),
         shape("note", 20, 30, 120, 20, { type: "text", text: "Send email" }),
@@ -242,7 +239,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_787} flags an arrow whose link is recorded on the arrow but not on the shape, because it detaches on drag`, () => {
+    it(` flags an arrow whose link is recorded on the arrow but not on the shape, because it detaches on drag`, () => {
       const elements = withArrow(
         [
           ...labelled("a", "Start", 0, 0, 180, 80),
@@ -258,7 +255,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_787} lists a line drawn between two shapes as a connector that cannot bind`, () => {
+    it(` lists a line drawn between two shapes as a connector that cannot bind`, () => {
       const elements = [
         ...labelled("a", "Start", 0, 0, 180, 80),
         ...labelled("b", "Finish", 300, 0, 180, 80),
@@ -276,7 +273,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_787} writes an arrow drawn without arrowheads as an undirected connector, not a flow from one shape to the other`, () => {
+    it(` writes an arrow drawn without arrowheads as an undirected connector, not a flow from one shape to the other`, () => {
       const elements = withArrow(
         [
           ...labelled("a", "API", 0, 0, 180, 80),
@@ -321,7 +318,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_787} flags a sticker partly hidden under a filled card drawn after it, listing it first`, () => {
+    it(` flags a sticker partly hidden under a filled card drawn after it, listing it first`, () => {
       const lines = outlineScene(
         "Board.excalidraw.md",
         stickerStraddlingTwoCards("sticker-under-lower-card")
@@ -345,7 +342,7 @@ describe("excalidrawOutline", () => {
       );
     });
 
-    it(`${ISSUE_787} flags a shape drawn under a filled shape that covers it completely`, () => {
+    it(` flags a shape drawn under a filled shape that covers it completely`, () => {
       const elements = [
         shape("card", 40, 40, 100, 50),
         shape("panel", 0, 0, 300, 200, { backgroundColor: "#f1f3f5" }),
@@ -365,7 +362,7 @@ describe("excalidrawOutline", () => {
       expect(outlineScene("Board.excalidraw.md", elements).join("\n")).not.toContain("Overlaps");
     });
 
-    it(`${ISSUE_787} lists at most 40 overlaps, flagged ones first, and counts the rest`, () => {
+    it(` lists at most 40 overlaps, flagged ones first, and counts the rest`, () => {
       const cards = Array.from({ length: 46 }, (_, i) =>
         shape(`c${i}`, i * 50, 0, 60, 40, { backgroundColor: i === 45 ? "#ffffff" : "transparent" })
       );

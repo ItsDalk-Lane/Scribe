@@ -64,7 +64,7 @@ describe("PropertySearchModal", () => {
         expect(modal.getItems()).toEqual(["Subject"]);
       });
 
-      it("omits keys that only exist under a system Copilot root", () => {
+      it("omits keys that only exist under a system Scribe root", () => {
         const app = makeApp([
           { path: "Notes/a.md", frontmatter: { Topics: "Physics" } },
           { path: "scribe/scribe-conversations/chat.md", frontmatter: { mode: "agent" } },
@@ -134,7 +134,7 @@ describe("PropertySearchModal", () => {
 
         expect(modal.getItems()).toEqual([null, "Chemistry", "Physics"]);
       });
-      it("omits values that only exist under a system Copilot root", () => {
+      it("omits values that only exist under a system Scribe root", () => {
         const app = makeApp([
           { path: "Notes/a.md", frontmatter: { Topics: "Physics" } },
           { path: "scribe/scribe-conversations/chat.md", frontmatter: { Topics: "ChatOnly" } },

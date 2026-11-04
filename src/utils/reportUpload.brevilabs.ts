@@ -73,8 +73,6 @@ function readUploadResult(status: number, text: string): ReportUploadResult {
 export function createReportUploader(deps: ReportUploaderDeps): ReportUploader {
   const request = deps.request ?? requestUrl;
   return async (attempt) => {
-    // The server rate-limits and dedupes on the install id, so an upload without a usable id would be rejected after spending an upload slot.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/202
     let installId: string;
     try {
       installId = deps.installId();

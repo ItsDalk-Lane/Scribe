@@ -249,7 +249,6 @@ export function useStreamingChatSession(
         });
 
         for await (const event of stream) {
-          // Only deltas add content; pi-ai's end/done events repeat the accumulated answer. https://github.com/ItsDalk-Lane/Scribe/issues/8
           if (event.type === "text_delta") thinkStreamer.processChunk({ content: event.delta });
           else if (event.type === "thinking_delta")
             thinkStreamer.processChunk({

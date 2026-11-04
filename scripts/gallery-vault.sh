@@ -3,9 +3,9 @@ set -euo pipefail
 
 OBSIDIAN_BIN="${OBSIDIAN_BIN:-/Applications/Obsidian.app/Contents/MacOS/obsidian}"
 
-if [[ -z "${COPILOT_TEST_VAULT_PATH:-}" ]]; then
+if [[ -z "${SCRIBE_TEST_VAULT_PATH:-}" ]]; then
   cat >&2 <<'EOF'
-error: COPILOT_TEST_VAULT_PATH is not set.
+error: SCRIBE_TEST_VAULT_PATH is not set.
 
 Set it once at the user level to the absolute path of an Obsidian vault you've
 opened at least once, then re-run: npm run gallery:vault
@@ -13,7 +13,7 @@ EOF
   exit 1
 fi
 
-VAULT_PATH="$COPILOT_TEST_VAULT_PATH"
+VAULT_PATH="$SCRIBE_TEST_VAULT_PATH"
 
 if [[ ! -d "$VAULT_PATH" ]]; then
   echo "error: vault directory not found: $VAULT_PATH" >&2
@@ -37,7 +37,7 @@ case "$WORKTREE_REAL" in
 error: the worktree is inside the test vault — refusing to deploy.
   worktree: $WORKTREE_REAL
   vault:    $VAULT_REAL
-Move the worktree outside the vault, or point \$COPILOT_TEST_VAULT_PATH
+Move the worktree outside the vault, or point \$SCRIBE_TEST_VAULT_PATH
 at a different vault, then re-run.
 EOF
     exit 1

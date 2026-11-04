@@ -14,23 +14,13 @@ import React, { useMemo, useState } from "react";
 interface ToolPermissionCardProps {
   request: PermissionPrompt;
   onResolve: (toolCallId: string, optionId: string) => void;
-  /**
-   * Name of the tool as the chat already shows it. Some agents send only the
-   * tool's argument as the request title (OpenCode's web search sends the bare
-   * query), which reads as if the query itself were a command.
-   * https://github.com/Brevilabs/obsidian-copilot-private/issues/599
-   */
   toolName?: string;
   requester?: string;
 }
 
 const EMPTY_OPTION_NAMES: readonly string[] = Object.freeze([]);
-// Codex quotes the whole command prefix in its "don't ask again" option name, which can fill the card.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/618
 const QUOTED_CODE = /\s*`([^`\n]+)`/;
 
-// Every "always" grant says on hover what it covers and how long it lasts, even when the agent
-// does not. https://github.com/logancyang/obsidian-copilot/issues/2889
 const UNKNOWN_ALWAYS_SCOPE =
   "The agent decides what this covers, and it may keep it for later chats. Undo it in the agent's own settings.";
 
@@ -69,7 +59,7 @@ export const ToolPermissionCard: React.FC<ToolPermissionCardProps> = ({
 
   return (
     <div className="tw-w-full tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-secondary">
-      <div className="copilot-divider-b tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-b tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2">
         <ShieldQuestion className="tw-size-4 tw-shrink-0 tw-text-accent" />
         <div className="tw-truncate tw-text-sm tw-font-medium">{t("Permission required")}</div>
       </div>
@@ -119,7 +109,7 @@ export const ToolPermissionCard: React.FC<ToolPermissionCardProps> = ({
         ) : null}
       </div>
 
-      <div className="copilot-divider-t tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-px-3 tw-py-2">
+      <div className="scribe-divider-t tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-px-3 tw-py-2">
         <TooltipProvider delayDuration={0}>
           {orderedOptions.map((option, index) => {
             const { code, description } = optionLabels[index];
@@ -158,8 +148,6 @@ export const ToolPermissionCard: React.FC<ToolPermissionCardProps> = ({
   );
 };
 
-// One-time approval is the default; an "always" grant must not look like the safe pick.
-// https://github.com/logancyang/obsidian-copilot/issues/2889
 function variantForKind(kind: PermissionOptionKind): "default" | "secondary" | "destructive" {
   switch (kind) {
     case "allow_once":

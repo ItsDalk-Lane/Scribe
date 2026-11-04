@@ -34,8 +34,6 @@ export function getDeviceId(app: App): string {
 
 export function getPersistedDeviceId(app: App): string {
   const id = getDeviceId(app);
-  // Uploads reject non-UUID identities, and accepting a cached but unpersisted identity would give a fresh rate-limit bucket after every restart.
-  // https://github.com/Brevilabs/obsidian-copilot-private/issues/202
   if (
     !validateUuid(id) ||
     uuidVersion(id) !== 4 ||

@@ -179,7 +179,7 @@ describe("AgentTrail", () => {
       turnStartedAtMs: Date.now() - 2_000,
     });
     expect(screen.getByText("Plain response")).toBeTruthy();
-    expect(container.querySelector(".copilot-spinner-dot-0")).toBeTruthy();
+    expect(container.querySelector(".scribe-spinner-dot-0")).toBeTruthy();
     rerenderTrail({
       parts: [text("Plain response")],
       isStreaming: false,
@@ -187,7 +187,7 @@ describe("AgentTrail", () => {
       turnDurationMs: 2_000,
     });
     expect(screen.getByText("Plain response")).toBeTruthy();
-    expect(container.querySelector(".copilot-spinner-dot-0")).toBeNull();
+    expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
   });
 
   it("keeps a running group's manual close when later tools join it", () => {
@@ -430,7 +430,7 @@ describe("AgentTrail", () => {
       ] satisfies AgentMessagePart[],
     },
   ])(
-    "https://github.com/Brevilabs/obsidian-copilot-private/issues/633 hides Worked for and the copy action on a completed reply that renders $scenario",
+    "hides Worked for and the copy action on a completed reply that renders $scenario",
     ({ parts }) => {
       renderTrail({
         parts,
@@ -445,7 +445,7 @@ describe("AgentTrail", () => {
     }
   );
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 restores Worked for and the copy action once an answer streams into the same parts list after a compaction", () => {
+  it("restores Worked for and the copy action once an answer streams into the same parts list after a compaction", () => {
     const parts: AgentMessagePart[] = [compaction({ trigger: "auto" })];
     const { rerenderTrail } = renderTrail({ parts, turnDurationMs: 138_000 });
     expect(screen.queryByTitle("Copy")).toBeNull();
@@ -457,7 +457,7 @@ describe("AgentTrail", () => {
     expect(screen.getByTitle("Copy")).toBeTruthy();
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 shows only the compaction's own elapsed time while a compaction-only reply is running", () => {
+  it("shows only the compaction's own elapsed time while a compaction-only reply is running", () => {
     renderTrail({
       parts: [compaction({ status: "in_progress", startedAtMs: Date.now() - 5_000 })],
       isStreaming: true,
@@ -470,7 +470,7 @@ describe("AgentTrail", () => {
     expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 shows a failed turn's error under a reply that holds parts but no answer text", () => {
+  it("shows a failed turn's error under a reply that holds parts but no answer text", () => {
     renderTrail({
       parts: [compaction()],
       errorText: "**Error:** stream error",
@@ -481,7 +481,7 @@ describe("AgentTrail", () => {
     expect(screen.getByTestId("agent-md").textContent).toBe("**Error:** stream error");
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/633 leaves a reply that has answer text alone, since its error text would repeat the answer", () => {
+  it("leaves a reply that has answer text alone, since its error text would repeat the answer", () => {
     renderTrail({
       parts: [text("Partial answer."), compaction()],
       errorText: "Partial answer.\n\n**Error:** stream error",
@@ -492,7 +492,7 @@ describe("AgentTrail", () => {
     ]);
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 says the turn stopped at the output limit under a reply that already has answer text, rendering the answer once", () => {
+  it("says the turn stopped at the output limit under a reply that already has answer text, rendering the answer once", () => {
     renderTrail({
       parts: [
         text("I'll load the meeting note skill first."),
@@ -507,7 +507,7 @@ describe("AgentTrail", () => {
     ]);
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 says why the turn stopped at the agent's step limit or a safety stop", () => {
+  it("says why the turn stopped at the agent's step limit or a safety stop", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "max_turn_requests" });
     expect(screen.getAllByTestId("agent-md")[1].textContent).toBe(
       "**Stopped early:** the agent hit its step limit, so its last step may not have run. Send another message to continue."
@@ -519,7 +519,7 @@ describe("AgentTrail", () => {
     );
   });
 
-  it("https://github.com/Brevilabs/obsidian-copilot-private/issues/739 shows no stop notice for a reply that ended normally or was cancelled", () => {
+  it("shows no stop notice for a reply that ended normally or was cancelled", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "end_turn" });
     expect(screen.getAllByTestId("agent-md")).toHaveLength(1);
 
@@ -603,7 +603,7 @@ describe("AgentTrail", () => {
     expect(screen.queryByText("Thought for")).toBeNull();
   });
 
-  it("does not restart a frozen thought when a hidden tool trails it (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+  it("does not restart a frozen thought when a hidden tool trails it", () => {
     jest.useFakeTimers();
     try {
       jest.setSystemTime(30_000);
@@ -629,7 +629,7 @@ describe("AgentTrail", () => {
     }
   });
 
-  it("renders a frozen standalone trailing thought as complete (https://github.com/Brevilabs/obsidian-copilot-private/issues/336)", () => {
+  it("renders a frozen standalone trailing thought as complete", () => {
     renderTrail({
       parts: [
         {
@@ -701,7 +701,7 @@ describe("AgentTrail", () => {
     expect(screen.getByText("Ran 2 commands, read 1 file")).toBeTruthy();
   });
 
-  it("counts each call folded into a sub-agent's Excalidraw card as a tool (https://github.com/Brevilabs/obsidian-copilot-private/issues/787)", () => {
+  it("counts each call folded into a sub-agent's Excalidraw card as a tool", () => {
     const board = { path: "Boards/Launch board.excalidraw.md", operations: [] };
     renderTrail({
       parts: [
@@ -806,7 +806,7 @@ describe("AgentTrail", () => {
     expect(screen.getByText("Running `npm run root`")).toBeTruthy();
   });
 
-  it("renders an Excalidraw write as a Copilot card between grouped work and opens the drawing in a new tab (https://github.com/Brevilabs/obsidian-copilot-private/issues/787)", () => {
+  it("renders an Excalidraw write as a Scribe card between grouped work and opens the drawing in a new tab", () => {
     const openLinkText = jest.fn();
     const app = {
       workspace: { getActiveFile: jest.fn(() => null), openLinkText },
@@ -825,7 +825,7 @@ describe("AgentTrail", () => {
     expect(openLinkText).toHaveBeenCalledWith("Drawings/Release plan.excalidraw.md", "", "tab");
   });
 
-  it("shows an agent's uninterrupted work on one drawing as one card whose steps include a failed write's error (https://github.com/Brevilabs/obsidian-copilot-private/issues/787)", () => {
+  it("shows an agent's uninterrupted work on one drawing as one card whose steps include a failed write's error", () => {
     const board = { path: "Boards/Launch board.excalidraw.md", operations: [] };
     renderTrail({
       parts: [
@@ -879,7 +879,7 @@ describe("AgentTrail", () => {
       return { openTask };
     }
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/749 shows a task's launching call as a compact card with the task's status that opens the task", () => {
+    it("shows a task's launching call as a compact card with the task's status that opens the task", () => {
       const { openTask } = renderWithTasks([AGENT_LAUNCH, text("Started.")]);
 
       expect(screen.getByText("general-purpose · Count words in Welcome")).toBeTruthy();
@@ -891,7 +891,7 @@ describe("AgentTrail", () => {
       expect(openTask).toHaveBeenCalledWith("call-1");
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/749 keeps a background command's card out of the surrounding command group", () => {
+    it("keeps a background command's card out of the surrounding command group", () => {
       renderWithTasks([READ_A, BASH_LAUNCH, LINT, text("Started.")]);
 
       expect(screen.getByText("Print 30 progress lines")).toBeTruthy();

@@ -1,7 +1,7 @@
 import { App, Plugin, Vault } from "obsidian";
 import { CustomCommandRegister } from "@/commands/customCommandRegister";
 import type { CustomCommand } from "@/commands/type";
-import type { CopilotSettings } from "@/settings/model";
+import type { ScribeSettings } from "@/settings/model";
 
 jest.mock("obsidian", () => ({
   Plugin: jest.fn(),
@@ -25,8 +25,8 @@ jest.mock("@/commands/customCommandManager", () => ({
 }));
 
 jest.mock("@/commands/customCommandUtils", () => ({
-  getCommandId: (title: string) => `copilot-command-${title}`,
-  getCommandFilePath: (title: string) => `copilot/scribe-custom-prompts/${title}.md`,
+  getCommandId: (title: string) => `scribe-command-${title}`,
+  getCommandFilePath: (title: string) => `scribe/scribe-custom-prompts/${title}.md`,
   isCustomCommandFile: jest.fn(() => true),
   loadAllCustomCommands: jest.fn().mockResolvedValue([]),
   fetchAllCustomCommands: jest.fn(),
@@ -47,7 +47,7 @@ jest.mock("@/commands/state", () => ({
 }));
 
 jest.mock("@/settings/model", () => ({
-  getSettings: jest.fn(() => ({ copilotFolder: "copilot" })),
+  getSettings: jest.fn(() => ({ scribeFolder: "scribe" })),
   subscribeToSettingsChange: jest.fn().mockReturnValue(() => {}),
 }));
 
@@ -63,14 +63,14 @@ function command(title: string): CustomCommand {
   };
 }
 
-function settingsWithRoot(copilotFolder: string): CopilotSettings {
-  return { copilotFolder } as CopilotSettings;
+function settingsWithRoot(scribeFolder: string): ScribeSettings {
+  return { scribeFolder } as ScribeSettings;
 }
 
 describe("customCommandRegister", () => {
   describe("CustomCommandRegister", () => {
-    describe("handleSettingsChange()", () => {
-      let settingsChangeHandler: (prev: CopilotSettings, next: CopilotSettings) => void;
+    describe("handleSettingsChange", () => {
+      let settingsChangeHandler: (prev: ScribeSettings, next: ScribeSettings) => void;
       let unsubscribe: jest.Mock;
       let addCommand: jest.Mock;
       let removeCommand: jest.Mock;
@@ -110,12 +110,12 @@ describe("customCommandRegister", () => {
         getCachedCustomCommands.mockReturnValue([command("Old")]);
         fetchAllCustomCommands.mockResolvedValue([command("New")]);
 
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("team/ai"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
         await jest.advanceTimersByTimeAsync(0);
 
-        expect(removeCommand).toHaveBeenCalledWith("copilot-command-Old");
+        expect(removeCommand).toHaveBeenCalledWith("scribe-command-Old");
         expect(addCommand).toHaveBeenCalledWith(
-          expect.objectContaining({ id: "copilot-command-New", name: "New" })
+          expect.objectContaining({ id: "scribe-command-New", name: "New" })
         );
         expect(updateCachedCommands).toHaveBeenCalledWith([command("New")]);
       });
@@ -123,13 +123,13 @@ describe("customCommandRegister", () => {
       it("starts the reload without waiting, so no timer delay keeps old commands live", () => {
         fetchAllCustomCommands.mockResolvedValue([]);
 
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("team/ai"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
 
         expect(fetchAllCustomCommands).toHaveBeenCalledTimes(1);
       });
 
       it("does not reload when the root — and thus the derived folder — is unchanged", async () => {
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("copilot"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("scribe"));
         await jest.advanceTimersByTimeAsync(1000);
 
         expect(fetchAllCustomCommands).not.toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe("customCommandRegister", () => {
           .mockReturnValueOnce(stalePromise)
           .mockResolvedValueOnce([command("Fresh")]);
 
-        settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("a"));
+        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("a"));
         await jest.advanceTimersByTimeAsync(0);
 
         settingsChangeHandler(settingsWithRoot("a"), settingsWithRoot("b"));
@@ -161,7 +161,7 @@ describe("customCommandRegister", () => {
       });
     });
 
-    describe("initialize()", () => {
+    describe("initialize", () => {
       it("unregisters a disabled command as soon as the shared command state changes", async () => {
         const state = jest.requireMock<{
           getCachedCustomCommands: jest.Mock;
@@ -188,7 +188,7 @@ describe("customCommandRegister", () => {
         state.getCachedCustomCommands.mockReturnValue([{ ...active, enabled: false }]);
         changed();
 
-        expect(removeCommand).toHaveBeenCalledWith("copilot-command-Review");
+        expect(removeCommand).toHaveBeenCalledWith("scribe-command-Review");
         expect(addCommand).not.toHaveBeenCalled();
         register.cleanup();
       });
@@ -209,11 +209,11 @@ describe("customCommandRegister", () => {
         await register.initialize();
 
         expect(addCommand).toHaveBeenCalledWith(
-          expect.objectContaining({ id: "copilot-command-Summarize", name: "Summarize" })
+          expect.objectContaining({ id: "scribe-command-Summarize", name: "Summarize" })
         );
       });
 
-      it("registers nothing when cleanup runs while commands are still loading https://github.com/logancyang/obsidian-copilot/issues/3518", async () => {
+      it("registers nothing when cleanup runs while commands are still loading", async () => {
         jest.clearAllMocks();
         const { loadAllCustomCommands } = jest.requireMock<{ loadAllCustomCommands: jest.Mock }>(
           "@/commands/customCommandUtils"
@@ -242,12 +242,12 @@ describe("customCommandRegister", () => {
       });
     });
 
-    describe("handleFileRename()", () => {
+    describe("handleFileRename", () => {
       it.each([
-        ["copilot/scribe-custom-prompts/Summarize.md", true],
+        ["scribe/scribe-custom-prompts/Summarize.md", true],
         ["notes/Summarize.md", false],
-        ["copilot/scribe-custom-prompts/archive/Summarize.md", false],
-        ["copilot/scribe-custom-prompts/Summarize", false],
+        ["scribe/scribe-custom-prompts/archive/Summarize.md", false],
+        ["scribe/scribe-custom-prompts/Summarize", false],
       ])(
         "unregisters a renamed file from %s only when it was a command (%p)",
         async (oldPath, wasCommand) => {
@@ -276,7 +276,7 @@ describe("customCommandRegister", () => {
             oldPath
           );
           if (wasCommand) {
-            expect(removeCommand).toHaveBeenCalledWith("copilot-command-Summarize");
+            expect(removeCommand).toHaveBeenCalledWith("scribe-command-Summarize");
             expect(state.deleteCachedCommand).toHaveBeenCalledWith("Summarize");
           } else {
             expect(removeCommand).not.toHaveBeenCalled();
@@ -287,7 +287,7 @@ describe("customCommandRegister", () => {
       );
     });
 
-    describe("cleanup()", () => {
+    describe("cleanup", () => {
       it("unsubscribes from settings changes on teardown", () => {
         const unsubscribe = jest.fn();
         const { subscribeToSettingsChange } = jest.requireMock<{
@@ -344,11 +344,11 @@ describe("customCommandRegister", () => {
           } as unknown as App);
 
           const settingsChangeHandler = subscribeToSettingsChange.mock.calls[0][0] as (
-            prev: CopilotSettings,
-            next: CopilotSettings
+            prev: ScribeSettings,
+            next: ScribeSettings
           ) => void;
 
-          settingsChangeHandler(settingsWithRoot("copilot"), settingsWithRoot("team/ai"));
+          settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
           await jest.advanceTimersByTimeAsync(0);
 
           register.cleanup();

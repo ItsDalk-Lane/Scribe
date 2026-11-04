@@ -40,7 +40,7 @@ import type { App } from "obsidian";
 jest.mock("@/logger", () => ({ logWarn: jest.fn() }));
 
 describe("mergeMarkdown", () => {
-  describe("isMarkdownPath()", () => {
+  describe("isMarkdownPath", () => {
     it("accepts the note extensions Obsidian renders", () => {
       expect(isMarkdownPath("projects/Alpha/Project brief.md")).toBe(true);
       expect(isMarkdownPath("notes/README.markdown")).toBe(true);
@@ -53,7 +53,7 @@ describe("mergeMarkdown", () => {
     });
   });
 
-  describe("diffCodeLines()", () => {
+  describe("diffCodeLines", () => {
     it("classifies every line of both sides without interpreting their content", () => {
       expect(diffCodeLines("one\ntwo\n", "one\ntwo changed\n")).toEqual([
         { change: "unchanged", text: "one" },
@@ -66,7 +66,7 @@ describe("mergeMarkdown", () => {
       expect(diffCodeLines("", "")).toEqual([]);
     });
 
-    it("shows an added final newline without losing the unterminated original line (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", () => {
+    it("shows an added final newline without losing the unterminated original line", () => {
       expect(diffCodeLines('{"ready":true}', '{"ready":true}\n')).toEqual([
         { change: "deleted", text: '{"ready":true}' },
         { change: "deleted", text: "\\ No newline at end of file" },
@@ -74,7 +74,7 @@ describe("mergeMarkdown", () => {
       ]);
     });
 
-    it("shows a removed final newline without losing the unterminated replacement line (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", () => {
+    it("shows a removed final newline without losing the unterminated replacement line", () => {
       expect(diffCodeLines('{"ready":true}\n', '{"ready":true}')).toEqual([
         { change: "deleted", text: '{"ready":true}' },
         { change: "inserted", text: '{"ready":true}' },
@@ -82,7 +82,7 @@ describe("mergeMarkdown", () => {
       ]);
     });
 
-    it("preserves unchanged and edited unterminated lines without inventing a newline change (https://github.com/Brevilabs/obsidian-copilot-private/issues/349)", () => {
+    it("preserves unchanged and edited unterminated lines without inventing a newline change", () => {
       expect(diffCodeLines("same", "same")).toEqual([{ change: "unchanged", text: "same" }]);
       expect(diffCodeLines("context\nold", "context\nnew")).toEqual([
         { change: "unchanged", text: "context" },
@@ -92,17 +92,17 @@ describe("mergeMarkdown", () => {
     });
   });
 
-  describe("buildRenderedDiffPlan()", () => {
+  describe("buildRenderedDiffPlan", () => {
     const app = appParsingRecordedFixtures();
 
-    it("preserves raw markers in an unchanged note verbatim without highlighting them (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("preserves raw markers in an unchanged note verbatim without highlighting them", async () => {
       const text = "Keep \uE000 literal \uE003.";
       expect(await buildRenderedDiffPlan(app, text, text, true)).toEqual([
         { kind: "code", lines: [{ change: "unchanged", text }] },
       ]);
     });
 
-    it("preserves raw markers in a changed note as verbatim changed lines (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("preserves raw markers in a changed note as verbatim changed lines", async () => {
       const marked = "\uE000added\uE001\uE002removed\uE003";
       expect(await buildRenderedDiffPlan(app, marked, "plain", true)).toEqual([
         {
@@ -115,7 +115,7 @@ describe("mergeMarkdown", () => {
       ]);
     });
 
-    it("renders a CRLF-to-LF conversion as unchanged instead of marking every line changed (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("renders a CRLF-to-LF conversion as unchanged instead of marking every line changed", async () => {
       const { before, after } = CRLF_TO_LF_CONVERSION;
 
       expect(await buildRenderedDiffPlan(app, before, after, true)).toEqual([
@@ -123,7 +123,7 @@ describe("mergeMarkdown", () => {
       ]);
     });
 
-    it("falls back to a verbatim line diff when the only change is blank lines rendering would hide (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("falls back to a verbatim line diff when the only change is blank lines rendering would hide", async () => {
       expect(
         await buildRenderedDiffPlan(app, BLANK_LINE_ADDED.before, BLANK_LINE_ADDED.after, true)
       ).toEqual([
@@ -139,7 +139,7 @@ describe("mergeMarkdown", () => {
       ]);
     });
 
-    it("falls back to a verbatim line diff when the only marks wrap spaces rendering would hide (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("falls back to a verbatim line diff when the only marks wrap spaces rendering would hide", async () => {
       const { before, after } = INNER_SPACE_WIDENED;
 
       expect(await buildRenderedDiffPlan(app, before, after, true)).toEqual([
@@ -249,7 +249,7 @@ describe("mergeMarkdown", () => {
       });
     });
 
-    it("renders a created file as one inserted region so its paragraph gaps stay inside one highlight and its list stays one list (https://github.com/Brevilabs/obsidian-copilot-private/issues/751)", async () => {
+    it("renders a created file as one inserted region so its paragraph gaps stay inside one highlight and its list stays one list", async () => {
       const plan = await buildRenderedDiffPlan(app, FILE_CREATED.before, FILE_CREATED.after, true);
 
       expect(plan).toEqual([
@@ -290,7 +290,7 @@ describe("mergeMarkdown", () => {
       expect(plan).toEqual([{ kind: "markdown", markdown: "# Alpha\n\n- One\n- Two" }]);
     });
 
-    it("keeps each blank line past the first between blocks as a line break inside the same Markdown, so reference links and footnotes still resolve across them (https://github.com/Brevilabs/obsidian-copilot-private/issues/751)", async () => {
+    it("keeps each blank line past the first between blocks as a line break inside the same Markdown, so reference links and footnotes still resolve across them", async () => {
       const { before, after } = SPACED_WORDING_CHANGE;
 
       expect(await buildRenderedDiffPlan(app, before, after, true)).toEqual([
@@ -406,7 +406,7 @@ describe("mergeMarkdown", () => {
       ]);
     });
 
-    it("keeps a loose list as one rendered block so its blank-line spacing survives (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("keeps a loose list as one rendered block so its blank-line spacing survives", async () => {
       const { before, after } = LOOSE_LIST_ITEM_EDIT;
 
       expect(await buildRenderedDiffPlan(app, before, after, true)).toEqual([
@@ -426,7 +426,7 @@ describe("mergeMarkdown", () => {
       expect(verbatimPlan).toBe(markdownPlan);
     });
 
-    it("shows a verbatim line diff and logs a warning when Obsidian's parser rejects (https://github.com/Brevilabs/obsidian-copilot-private/issues/348)", async () => {
+    it("shows a verbatim line diff and logs a warning when Obsidian's parser rejects", async () => {
       const failure = new Error("parser unavailable");
       const rejectingApp = {
         metadataCache: { computeMetadataAsync: jest.fn().mockRejectedValue(failure) },

@@ -45,7 +45,7 @@ const runtime = (
 });
 
 describe("mergeExtensionRuntime", () => {
-  describe("mergeExtensionRuntime()", () => {
+  describe("mergeExtensionRuntime", () => {
     it("adds runtime-only built-in subagents as read-only and retains discovered custom agent controls", () => {
       const local: AgentExtensionGroup[] = [
         {
@@ -142,7 +142,7 @@ describe("mergeExtensionRuntime", () => {
         availability: "needs-auth",
       });
     });
-    it("keeps a scope-isolated list free of entries the report knows only from other scopes (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+    it("keeps a scope-isolated list free of entries the report knows only from other scopes", () => {
       const result = mergeExtensionRuntime(
         groups(),
         runtime({
@@ -254,7 +254,7 @@ describe("mergeExtensionRuntime", () => {
           .availability
       ).toBe("disabled");
     });
-    it("hides the children of a disabled plugin from every kind except plugins (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("hides the children of a disabled plugin from every kind except plugins", () => {
       const local = groups();
       local[1].items = [{ ...local[1].items[0], enabled: false }];
       const owned = (id: string): AgentExtensionGroup["items"][number] => ({
@@ -276,7 +276,7 @@ describe("mergeExtensionRuntime", () => {
       for (const kind of ["skill", "command", "mcp", "hook"])
         expect(result.find((group) => group.kind === kind)!.items).toEqual([]);
     });
-    it("keeps the children of an enabled plugin listed (https://github.com/ItsDalk-Lane/Scribe/issues/1)", () => {
+    it("keeps the children of an enabled plugin listed", () => {
       const local = groups();
       local[0].items = [
         {

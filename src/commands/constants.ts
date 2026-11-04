@@ -1,6 +1,6 @@
 import { CustomCommand } from "@/commands/type";
 
-export const LEGACY_SELECTED_TEXT_PLACEHOLDER = "{copilot-selection}";
+export const LEGACY_SELECTED_TEXT_PLACEHOLDER = "{scribe-selection}";
 export const EMPTY_COMMAND: CustomCommand = {
   title: "",
   enabled: true,
@@ -12,12 +12,12 @@ export const EMPTY_COMMAND: CustomCommand = {
   lastUsedMs: 0,
 };
 
-export const COPILOT_COMMAND_ENABLED = "copilot-command-enabled";
-export const COPILOT_COMMAND_CONTEXT_MENU_ENABLED = "copilot-command-context-menu-enabled";
-export const COPILOT_COMMAND_SLASH_ENABLED = "copilot-command-slash-enabled";
-export const COPILOT_COMMAND_CONTEXT_MENU_ORDER = "copilot-command-context-menu-order";
-export const COPILOT_COMMAND_MODEL_KEY = "copilot-command-model-key";
-export const COPILOT_COMMAND_LAST_USED = "copilot-command-last-used";
+export const SCRIBE_COMMAND_ENABLED = "scribe-command-enabled";
+export const SCRIBE_COMMAND_CONTEXT_MENU_ENABLED = "scribe-command-context-menu-enabled";
+export const SCRIBE_COMMAND_SLASH_ENABLED = "scribe-command-slash-enabled";
+export const SCRIBE_COMMAND_CONTEXT_MENU_ORDER = "scribe-command-context-menu-order";
+export const SCRIBE_COMMAND_MODEL_KEY = "scribe-command-model-key";
+export const SCRIBE_COMMAND_LAST_USED = "scribe-command-last-used";
 export const DEFAULT_COMMANDS: CustomCommand[] = [
   {
     title: "Fix grammar and spelling",

@@ -18,15 +18,11 @@ export function playNotificationSound(id: NotificationSoundId): void {
     const nowMs = window.performance.now();
     if (lastPlayedAtMs !== undefined && nowMs - lastPlayedAtMs < SOUND_GRACE_PERIOD_MS) return;
     if (!context) {
-      // A runtime without Web Audio must not interrupt the agent event.
-      // https://github.com/logancyang/obsidian-copilot/issues/2987
       if (!window.AudioContext) return;
       context = new window.AudioContext();
     }
     lastPlayedAtMs = nowMs;
     if (context.state === "suspended") {
-      // Autoplay policy can reject asynchronously, outside the synchronous guard.
-      // https://github.com/logancyang/obsidian-copilot/issues/2987
       void context
         .resume()
         .catch((error) => logWarn("Scribe: failed to resume notification audio.", error));

@@ -136,8 +136,6 @@ export class InteractiveRequests {
             : decision === "reject"
               ? "Rejected plan"
               : `Requested plan changes: ${feedbackText ?? "Feedback sent"}`;
-        // ACP may report only a titleless completion after the user decides.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/41
         this.recordUserResponse(this.currentPlan.pendingToolCallId, summary);
       }
     }
@@ -249,8 +247,6 @@ export class InteractiveRequests {
     if (request.signal?.aborted) return Promise.resolve(EMPTY_ANSWERS);
     return new Promise<AgentQuestionAnswers>((resolve) => {
       this.pendingQuestionResolvers.set(requestId, { request, resolve });
-      // ACP timeout and cancellation withdraw the card without an answer.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/551
       request.signal?.addEventListener(
         "abort",
         () => this.resolveAskUserQuestion(requestId, EMPTY_ANSWERS),
@@ -269,9 +265,6 @@ export class InteractiveRequests {
       const answer = answers[question.answerKey ?? question.question];
       return answer ? [{ question: question.question, answer }] : [];
     });
-    // ACP elicitation may have no tool call of its own; record the submitted
-    // answers in the current assistant turn.
-    // https://github.com/Brevilabs/obsidian-copilot-private/issues/551
     if (responses.length > 0) {
       const summary = `Answered: ${responses.map(({ answer }) => answer).join("; ")}`;
       const detail = responses.map(({ question, answer }) => `${question}: ${answer}`).join("\n");

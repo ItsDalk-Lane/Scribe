@@ -14,8 +14,8 @@ function runtimeWith(
 }
 
 describe("extensionInventory", () => {
-  describe("hasPendingMcpServers()", () => {
-    it("is true only while some server is still connecting (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+  describe("hasPendingMcpServers", () => {
+    it("is true only while some server is still connecting", () => {
       expect(hasPendingMcpServers(runtimeWith([{ name: "a", status: "connected" }]))).toBe(false);
       expect(hasPendingMcpServers(runtimeWith([]))).toBe(false);
       expect(
@@ -31,8 +31,8 @@ describe("extensionInventory", () => {
       expect(hasPendingMcpServers(runtimeWith(null))).toBe(false);
     });
   });
-  describe("markPendingMcpServersUnconfirmed()", () => {
-    it("rewrites only the still-connecting servers and keeps the rest untouched (https://github.com/ItsDalk-Lane/Scribe/issues/3)", () => {
+  describe("markPendingMcpServersUnconfirmed", () => {
+    it("rewrites only the still-connecting servers and keeps the rest untouched", () => {
       const runtime = runtimeWith([
         { name: "zread", status: "pending" },
         { name: "notes", status: "connected", toolCount: 2 },

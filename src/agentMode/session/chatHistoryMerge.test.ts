@@ -41,7 +41,7 @@ function nativeEntry(overrides: Partial<AgentSessionIndexEntry> = {}): AgentSess
 }
 
 describe("chatHistoryMerge", () => {
-  describe("mergeChatHistoryItems()", () => {
+  describe("mergeChatHistoryItems", () => {
     it("a session saved as markdown AND present natively appears exactly once, as the markdown item", () => {
       const item = mdItem();
       const merged = mergeChatHistoryItems(
@@ -125,8 +125,8 @@ describe("chatHistoryMerge", () => {
     });
   });
 
-  describe("deriveChatTitleFromMessages()", () => {
-    it("labels image-only sessions and prefers usable user text https://github.com/logancyang/obsidian-copilot/issues/2850", () => {
+  describe("deriveChatTitleFromMessages", () => {
+    it("labels image-only sessions and prefers usable user text", () => {
       const imageMessage = {
         ...msg(USER_SENDER, ""),
         content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AQID" } }],
@@ -140,7 +140,7 @@ describe("chatHistoryMerge", () => {
         deriveChatTitleFromMessages([{ ...imageMessage, content: [null, {}, { type: "text" }] }])
       ).toBeNull();
     });
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/634 skips /compact messages so the chat is titled from the first real message", () => {
+    it("skips /compact messages so the chat is titled from the first real message", () => {
       expect(deriveChatTitleFromMessages([msg(USER_SENDER, "/compact")])).toBeNull();
       expect(
         deriveChatTitleFromMessages([

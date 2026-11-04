@@ -9,9 +9,6 @@ import { AgentExtensionsSettings, EXTENSION_KINDS } from "@/agentMode/ui/AgentEx
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
-// Sections start collapsed, so tests that exercise entries click every collapsible header first.
-// The headers appear once the inventory loads, so the click pass retries until then.
-// https://github.com/ItsDalk-Lane/Scribe/issues/4
 const expandAllSections = async () => {
   await waitFor(() => {
     const triggers = screen
@@ -128,7 +125,7 @@ jest.mock("@/agentMode/ui/ExtensionDialogs", () => ({
 }));
 
 describe("AgentExtensionsSettings", () => {
-  describe("AgentExtensionsSettings()", () => {
+  describe("AgentExtensionsSettings", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       resetExtensionCheckCacheForTests();
@@ -221,7 +218,7 @@ describe("AgentExtensionsSettings", () => {
         ).toBe("false")
       );
     });
-    it("shows the unconfirmed dot after a failed check and confirms the switch only after a successful retry (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+    it("shows the unconfirmed dot after a failed check and confirms the switch only after a successful retry", async () => {
       mockCheck.mockRejectedValueOnce(new Error("check unavailable"));
       render(<AgentExtensionsSettings kind="mcp" />);
       await expandAllSections();
@@ -237,7 +234,7 @@ describe("AgentExtensionsSettings", () => {
         ).toBe("true")
       );
     });
-    it("writes a toggle using fresh details and marks configuration for the next natural agent start without repeating an unchanged check (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+    it("writes a toggle using fresh details and marks configuration for the next natural agent start without repeating an unchanged check", async () => {
       render(<AgentExtensionsSettings kind="mcp" />);
       await expandAllSections();
       fireEvent.click(await screen.findByRole("switch", { name: "Enable notes" }));
@@ -248,7 +245,7 @@ describe("AgentExtensionsSettings", () => {
       await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * LISTS_PER_LOAD));
       expect(mockCheck).toHaveBeenCalledTimes(1);
     });
-    it("answers from the cached check while the configuration is unchanged and rechecks on an explicit refresh (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+    it("answers from the cached check while the configuration is unchanged and rechecks on an explicit refresh", async () => {
       const first = render(<AgentExtensionsSettings kind="mcp" />);
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
       await expandAllSections();
@@ -267,7 +264,7 @@ describe("AgentExtensionsSettings", () => {
       fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
     });
-    it("shows the saved answer immediately after a plugin reload instead of a loading state and starts no check (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+    it("shows the saved answer immediately after a plugin reload instead of a loading state and starts no check", async () => {
       const first = render(<AgentExtensionsSettings kind="mcp" />);
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
       await expandAllSections();
@@ -283,7 +280,7 @@ describe("AgentExtensionsSettings", () => {
       await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * LISTS_PER_LOAD));
       expect(mockCheck).toHaveBeenCalledTimes(1);
     });
-    it("checks again when the saved answer no longer matches the configuration (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+    it("checks again when the saved answer no longer matches the configuration", async () => {
       const first = render(<AgentExtensionsSettings kind="mcp" />);
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
       first.unmount();
@@ -294,7 +291,7 @@ describe("AgentExtensionsSettings", () => {
       await screen.findByRole("article", { name: "added" });
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
     });
-    it("shows the connecting dot and replaces it with the switch once the settle continuation reports (https://github.com/ItsDalk-Lane/Scribe/issues/3)", async () => {
+    it("shows the connecting dot and replaces it with the switch once the settle continuation reports", async () => {
       let deliver!: (runtime: unknown) => void;
       mockCheck.mockImplementation(async ({ onUpdate }) => {
         deliver = (runtime: unknown) => onUpdate(runtime);
@@ -381,7 +378,7 @@ describe("AgentExtensionsSettings", () => {
       expect(details.props.onUpdate).toBeUndefined();
       expect(details.props.onDelete).toBeDefined();
     });
-    it("shows a plugin inherited from the user scope as unavailable without editor or uninstall actions (https://github.com/ItsDalk-Lane/Scribe/issues/1)", async () => {
+    it("shows a plugin inherited from the user scope as unavailable without editor or uninstall actions", async () => {
       const plugin: AgentExtensionItem = {
         ...mockItem,
         kind: "plugin",
@@ -540,7 +537,7 @@ describe("AgentExtensionsSettings", () => {
       expect(await screen.findByRole("article", { name: "global" })).toBeTruthy();
       expect(await screen.findByRole("article", { name: "personal" })).toBeTruthy();
     });
-    it("reveals matching entries without manual expansion once a search query filters the list (https://github.com/ItsDalk-Lane/Scribe/issues/4)", async () => {
+    it("reveals matching entries without manual expansion once a search query filters the list", async () => {
       render(<AgentExtensionsSettings kind="mcp" />);
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
       expect(screen.queryByRole("switch", { name: "Enable notes" })).toBeNull();

@@ -1,11 +1,11 @@
 import {
-  COPILOT_SYSTEM_PROMPT_CREATED,
-  COPILOT_SYSTEM_PROMPT_MODIFIED,
-  COPILOT_SYSTEM_PROMPT_LAST_USED,
+  SCRIBE_SYSTEM_PROMPT_CREATED,
+  SCRIBE_SYSTEM_PROMPT_MODIFIED,
+  SCRIBE_SYSTEM_PROMPT_LAST_USED,
 } from "@/system-prompts/constants";
 import { UserSystemPrompt } from "@/system-prompts/type";
 import { App, normalizePath, TFile } from "obsidian";
-import { getEffectiveSystemPromptsFolder } from "@/settings/copilotFolder";
+import { getEffectiveSystemPromptsFolder } from "@/settings/scribeFolder";
 export function getSystemPromptsFolder(): string {
   return getEffectiveSystemPromptsFolder();
 }
@@ -30,14 +30,14 @@ export async function ensurePromptFrontmatter(app: App, file: TFile, prompt: Use
     Number.isFinite(prompt.lastUsedMs) && prompt.lastUsedMs > 0 ? prompt.lastUsedMs : 0;
 
   await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-    if (frontmatter[COPILOT_SYSTEM_PROMPT_CREATED] == null) {
-      frontmatter[COPILOT_SYSTEM_PROMPT_CREATED] = createdMs;
+    if (frontmatter[SCRIBE_SYSTEM_PROMPT_CREATED] == null) {
+      frontmatter[SCRIBE_SYSTEM_PROMPT_CREATED] = createdMs;
     }
-    if (frontmatter[COPILOT_SYSTEM_PROMPT_MODIFIED] == null) {
-      frontmatter[COPILOT_SYSTEM_PROMPT_MODIFIED] = modifiedMs;
+    if (frontmatter[SCRIBE_SYSTEM_PROMPT_MODIFIED] == null) {
+      frontmatter[SCRIBE_SYSTEM_PROMPT_MODIFIED] = modifiedMs;
     }
-    if (frontmatter[COPILOT_SYSTEM_PROMPT_LAST_USED] == null) {
-      frontmatter[COPILOT_SYSTEM_PROMPT_LAST_USED] = lastUsedMs;
+    if (frontmatter[SCRIBE_SYSTEM_PROMPT_LAST_USED] == null) {
+      frontmatter[SCRIBE_SYSTEM_PROMPT_LAST_USED] = lastUsedMs;
     }
   });
 }

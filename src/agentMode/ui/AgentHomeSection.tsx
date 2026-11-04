@@ -100,8 +100,6 @@ interface AgentHomePreviewListProps {
 
 export function AgentHomePreviewList({ children }: AgentHomePreviewListProps): React.ReactElement {
   return (
-    // Radix overlays its scrollbar; the gutter keeps row actions readable.
-    // https://github.com/logancyang/obsidian-copilot/issues/3017
     <ScrollArea className="tw-min-h-0 tw-flex-1 tw-overflow-y-auto tw-pr-2.5">
       {children}
     </ScrollArea>

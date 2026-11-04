@@ -8,7 +8,7 @@ import type { BackendDescriptor } from "@/agentMode/session/types";
 import { useBackendInstallStates } from "@/agentMode/ui/useBackendDescriptor";
 import { buildAgentModelPicker } from "./agentModelPickerHelpers";
 import { useManagerSubscribe } from "./useManagerSubscribe";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 
 export interface AgentModelPickerOverride {
   models: ModelSelectorEntry[];
@@ -52,7 +52,7 @@ function useAgentModelSignal(
 
 export function useAgentModelPicker(
   manager: AgentSessionManager | null,
-  plugin: CopilotPlugin
+  plugin: ScribePlugin
 ): AgentModelPickerOverride | null {
   const settings = useSettingsValue();
   const descriptors = useMemo(() => listBackendDescriptors(), []);

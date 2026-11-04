@@ -84,7 +84,7 @@ Good examples:
 
 - "Validate Agent Mode end-to-end on Windows"
 - "Upgrade pinned opencode binary to latest version"
-- "Pass Copilot system prompt to opencode, Claude Code, and Codex"
+- "Pass Scribe system prompt to opencode, Claude Code, and Codex"
 - "Verify agents cannot edit files outside the user vault (sandbox mode)"
 - "Render AskUserQuestion prompts inline in chat"
 

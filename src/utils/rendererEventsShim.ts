@@ -3,7 +3,7 @@ import { isDesktopRuntime, requireNodeModule } from "@/utils/desktopRuntime";
 type SetMaxListenersFn = (n?: number, ...targets: unknown[]) => void;
 type MarkedFn = SetMaxListenersFn & { [APPLIED]?: boolean };
 
-const APPLIED = Symbol.for("obsidian-copilot:setMaxListeners-shim");
+const APPLIED = Symbol.for("obsidian-scribe:setMaxListeners-shim");
 
 function hasAbortSignalShape(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;

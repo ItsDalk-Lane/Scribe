@@ -4,20 +4,18 @@ import { ItemView, type View, type WorkspaceLeaf } from "obsidian";
 
 export const STARTUP_LOADING_TEXT = "Starting Scribe…";
 
-export interface CopilotStartup {
+export interface ScribeStartup {
   whenStarted(): Promise<void>;
   createStartedView(viewType: string, leaf: WorkspaceLeaf): View | undefined;
 }
 
-// A tab restored while Copilot starts in the background would otherwise read "Plugin no longer
-// active", inviting users to close it. https://github.com/logancyang/obsidian-copilot/issues/3518
 export class StartupLoadingView extends ItemView {
   private savedState: Record<string, unknown> = {};
 
   constructor(
     leaf: WorkspaceLeaf,
     private readonly viewType: string,
-    private readonly startup: CopilotStartup
+    private readonly startup: ScribeStartup
   ) {
     super(leaf);
   }
@@ -54,8 +52,6 @@ export class StartupLoadingView extends ItemView {
 
   private async replaceOnceStarted(): Promise<void> {
     await this.startup.whenStarted();
-    // A tab closed or reused while Copilot starts, or a startup cut short by an unload, has no
-    // view to restore. https://github.com/logancyang/obsidian-copilot/issues/3518
     if (this.leaf.view !== this) return;
     const view = this.startup.createStartedView(this.viewType, this.leaf);
     if (!view) return;

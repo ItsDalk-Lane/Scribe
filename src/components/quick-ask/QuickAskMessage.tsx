@@ -5,7 +5,7 @@ import { Copy, ClipboardPaste, Replace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage, type ReplaceInvalidReason } from "@/editor/replaceGuard";
 import { logError } from "@/logger";
-import type CopilotPlugin from "@/main";
+import type ScribePlugin from "@/main";
 import { preprocessAIResponse } from "@/utils/markdownPreprocess";
 import type { QuickAskMessage } from "./types";
 
@@ -21,7 +21,7 @@ interface QuickAskMessageProps {
   replaceInvalidReason: ReplaceInvalidReason | null;
   isDisabledDueToStreaming?: boolean;
   filePathSnapshot: string | null;
-  plugin: CopilotPlugin;
+  plugin: ScribePlugin;
 }
 
 export const QuickAskMessageComponent = React.memo(function QuickAskMessageComponent({

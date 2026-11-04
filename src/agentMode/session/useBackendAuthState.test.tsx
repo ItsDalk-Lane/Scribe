@@ -20,7 +20,7 @@ const makeDescriptor = (): BackendDescriptor =>
   }) as unknown as BackendDescriptor;
 
 describe("useBackendAuthState", () => {
-  describe("useBackendAuthState()", () => {
+  describe("useBackendAuthState", () => {
     it("re-probes when the caller's auth-relevant key changes", async () => {
       const descriptor = makeDescriptor();
       descriptor.auth!.getStatus = jest
@@ -50,7 +50,7 @@ describe("useBackendAuthState", () => {
       expect(result.current.url).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 re-probes backend profile changes even without a caller key", async () => {
+    it("re-probes backend profile changes even without a caller key", async () => {
       const descriptor = makeDescriptor();
       let profile = "first";
       descriptor.auth!.getProbeKey = () => profile;
@@ -60,7 +60,7 @@ describe("useBackendAuthState", () => {
       hook.rerender();
       await waitFor(() => expect(descriptor.auth!.getStatus).toHaveBeenCalledTimes(2));
     });
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 keeps canonical backend identity when legacy caller paths change", async () => {
+    it("keeps canonical backend identity when legacy caller paths change", async () => {
       const descriptor = makeDescriptor();
       descriptor.auth!.getProbeKey = () => "same-profile";
       let finish!: (status: { signedIn: boolean }) => void;
@@ -139,7 +139,7 @@ describe("useBackendAuthState", () => {
       expect(descriptor.auth!.getStatus).toHaveBeenCalledTimes(2);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 cancels on dialog teardown and ignores a late login result", async () => {
+    it("cancels on dialog teardown and ignores a late login result", async () => {
       const descriptor = makeDescriptor();
       let finish!: (status: { signedIn: boolean }) => void;
       descriptor.auth!.signIn = jest.fn(
@@ -161,7 +161,7 @@ describe("useBackendAuthState", () => {
       await waitFor(() => expect(observer.result.current.status?.signedIn).toBe(false));
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 aborts the owned login when the backend changes", async () => {
+    it("aborts the owned login when the backend changes", async () => {
       const descriptor = makeDescriptor();
       let finish!: (status: { signedIn: boolean }) => void;
       descriptor.auth!.signIn = jest.fn(
@@ -184,7 +184,7 @@ describe("useBackendAuthState", () => {
       expect(hook.result.current.status).toBeNull();
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 preserves another surface's login on observer replacement and supports explicit shared cancellation", async () => {
+    it("preserves another surface's login on observer replacement and supports explicit shared cancellation", async () => {
       const descriptor = makeDescriptor();
       let finish!: (status: { signedIn: boolean }) => void;
       descriptor.auth!.signIn = jest.fn(
@@ -213,7 +213,7 @@ describe("useBackendAuthState", () => {
       expect(owner.result.current.status?.signedIn).toBe(false);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 retains cached status and reports a pending refresh for a new consumer (https://github.com/Brevilabs/obsidian-copilot-private/issues/532)", async () => {
+    it("retains cached status and reports a pending refresh for a new consumer", async () => {
       const descriptor = makeDescriptor();
       const first = renderHook(() => useBackendAuthState(descriptor));
       await waitFor(() => expect(first.result.current.status?.signedIn).toBe(false));
@@ -237,7 +237,7 @@ describe("useBackendAuthState", () => {
       expect(second.result.current.checking).toBe(false);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 clears a previous profile's failure before probing its replacement", async () => {
+    it("clears a previous profile's failure before probing its replacement", async () => {
       const descriptor = makeDescriptor();
       descriptor.auth!.signIn = jest.fn().mockResolvedValue({ signedIn: false });
       const hook = renderHook(({ profile }) => useBackendAuthState(descriptor, profile), {
@@ -254,7 +254,7 @@ describe("useBackendAuthState", () => {
       expect(hook.result.current.failed).toBe(false);
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 waits for profile cancellation before probing or starting another login", async () => {
+    it("waits for profile cancellation before probing or starting another login", async () => {
       const descriptor = makeDescriptor();
       let finish!: (status: { signedIn: boolean }) => void;
       descriptor.auth!.signIn = jest.fn(
@@ -295,7 +295,7 @@ describe("useBackendAuthState", () => {
       });
     });
 
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 shares sign-out state and excludes concurrent account changes", async () => {
+    it("shares sign-out state and excludes concurrent account changes", async () => {
       const descriptor = makeDescriptor();
       descriptor.auth!.getStatus = jest.fn().mockResolvedValue({ signedIn: true });
       let finish!: (status: { signedIn: boolean }) => void;
@@ -325,7 +325,7 @@ describe("useBackendAuthState", () => {
         expect(hook.result.current.failed).toBe(false);
       }
     });
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 does not let an older probe undo sign-out", async () => {
+    it("does not let an older probe undo sign-out", async () => {
       const descriptor = makeDescriptor();
       let finish!: (status: { signedIn: boolean }) => void;
       descriptor.auth!.getStatus = jest.fn(
@@ -342,7 +342,7 @@ describe("useBackendAuthState", () => {
       expect(hook.result.current.status?.signedIn).toBe(false);
     });
     it.each(["reject", "still signed in"])(
-      "https://github.com/Brevilabs/obsidian-copilot-private/issues/379 retains the account and permits retry after sign-out failure: %s",
+      "retains the account and permits retry after sign-out failure: %s",
       async (failure) => {
         const descriptor = makeDescriptor();
         descriptor.auth!.getStatus = jest.fn().mockResolvedValue({ signedIn: true });
@@ -362,7 +362,7 @@ describe("useBackendAuthState", () => {
         expect(hook.result.current.failed).toBe(false);
       }
     );
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 waits for cancelled sign-out before probing the replacement profile", async () => {
+    it("waits for cancelled sign-out before probing the replacement profile", async () => {
       const descriptor = makeDescriptor();
       descriptor.auth!.getStatus = jest.fn().mockResolvedValue({ signedIn: true });
       let finish!: (status: { signedIn: boolean }) => void;
@@ -388,7 +388,7 @@ describe("useBackendAuthState", () => {
       expect(hook.result.current.status?.signedIn).toBe(true);
       expect(hook.result.current.signingOut).toBe(false);
     });
-    it("https://github.com/Brevilabs/obsidian-copilot-private/issues/379 leaves auth unchanged when sign-out is unsupported", async () => {
+    it("leaves auth unchanged when sign-out is unsupported", async () => {
       const descriptor = makeDescriptor();
       const hook = renderHook(() => useBackendAuthState(descriptor));
       await waitFor(() => expect(hook.result.current.status?.signedIn).toBe(false));

@@ -1,4 +1,4 @@
-import { deriveConversationAttachmentsFolder } from "@/settings/copilotFolder";
+import { deriveConversationAttachmentsFolder } from "@/settings/scribeFolder";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/utils/base64";
 import { sha256 } from "@/utils/hash";
 import { isFileAlreadyExistsError } from "@/utils/vaultAdapterUtils";
@@ -18,8 +18,6 @@ interface MessageWithImages {
   content?: unknown[];
 }
 
-// Deleting a saved asset must not turn it into a new upload.
-// https://github.com/Brevilabs/obsidian-copilot-private/issues/533
 const savedUploads = new WeakMap<App, Map<string, Promise<string>>>();
 const pendingUploads = new WeakMap<App, Map<string, Promise<string>>>();
 const RECEIPT = /<!-- scribe-image:([a-f0-9]{64}) -->\r?\n([\s\S]*?)\r?\n<!-- \/scribe-image -->/g;
@@ -144,8 +142,6 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
       try {
         bytes = base64ToArrayBuffer(match[2]);
       } catch {
-        // atob rejects malformed padding; a stricter regex instead fails to match multi-megabyte photos on iOS.
-        // https://github.com/Brevilabs/obsidian-copilot-private/issues/94
         throw new Error("Cannot save an invalid uploaded image.");
       }
       const base64 = arrayBufferToBase64(bytes);
@@ -161,8 +157,6 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
       const hash = sha256(base64);
       const name = `scribe-image-${hash}`;
       const savedKey = `${sourcePath || conversationsFolder}\0${hash}`;
-      // 新聊天尚未分配最终文件名，不能借用同名旧聊天已删除附件的保存记录。
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/533
       let saved = reuseSavedUploads ? savedImages.get(savedKey) : undefined;
       const ordinal = imageIndex++;
       let persisted = receipts.get(hash);
@@ -172,8 +166,6 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
           const target = embed.startsWith("![[")
             ? embed.slice(3, -2).split("|")[0]
             : decodeURIComponent(embed.slice(embed.indexOf("](") + 2, -1).replace(/^<|>$/g, ""));
-          // Readable legacy files must match bytes even with a hash filename; only missing targets may rely on the filename as a receipt.
-          // https://github.com/Brevilabs/obsidian-copilot-private/issues/533
           const file = app.metadataCache?.getFirstLinkpathDest(target, sourcePath);
           const path = file?.path ?? target.replace(/^\//, "");
           if (await app.vault.adapter.exists(path)) {
@@ -184,14 +176,10 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
           ) {
             persisted = embed;
           }
-        } catch {
-          // An unreadable or malformed legacy link cannot prove upload identity.
-          // https://github.com/Brevilabs/obsidian-copilot-private/issues/533
-        }
+          // eslint-disable-next-line no-empty -- the lookup is best-effort and must not fail the save
+        } catch {}
       }
 
-      // The saved receipt stays authoritative even when its target is missing; deleting an attachment must never trigger another upload.
-      // https://github.com/Brevilabs/obsidian-copilot-private/issues/533
       if (persisted !== undefined) {
         saved = Promise.resolve(persisted);
       } else if (!saved) {
@@ -231,8 +219,6 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
         );
         let reused = false;
         for (const candidate of candidates) {
-          // A matching name alone must not embed somebody else's attachment, so reuse only matching bytes.
-          // https://github.com/logancyang/obsidian-copilot/issues/2900
           if (arrayBufferToBase64(await app.vault.adapter.readBinary(candidate)) === base64) {
             path = candidate;
             reused = true;
@@ -243,8 +229,6 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
           try {
             await app.vault.createBinary(path, bytes);
           } catch (error) {
-            // Concurrent saves can allocate the same path; reuse the winner only when its bytes match.
-            // https://github.com/logancyang/obsidian-copilot/issues/2900
             const existing = isFileAlreadyExistsError(error)
               ? await app.vault.adapter.readBinary(path).catch(() => null)
               : null;
@@ -255,8 +239,6 @@ export async function prepareChatImagesForSave<T extends MessageWithImages>(
       }
 
       function formatLink(path: string): string {
-        // Root-relative Markdown survives folders whose characters terminate wikilinks or Markdown destinations.
-        // https://github.com/logancyang/obsidian-copilot/issues/2900
         const linkPath = path
           .split("/")
           .map(encodeURIComponent)
