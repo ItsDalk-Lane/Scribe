@@ -21,7 +21,7 @@ import type { BackendState } from "@/agentMode/session/types";
 import { createNativeModel } from "@/agentMode/backends/native/nativeModels";
 import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
-import { buildBuiltinSkillEnv } from "@/agentMode/backends/shared/builtinSkillEnv";
+import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
 
 const mockStop = jest.fn().mockResolvedValue(undefined);
 const mockShutdown = jest.fn().mockResolvedValue(undefined);
@@ -169,12 +169,10 @@ describe("nativeDescriptor", () => {
       expect(NativeBackendDescriptor.managedInstall).toBeUndefined();
       expect(NativeBackendDescriptor.getResolvedBinaryPath).toBeUndefined();
     });
-    it("reports a model configuration error after every native model is disabled (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+    it("keeps configured models ready despite legacy disabled lists https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       setSettings({ backends: { ...getSettings().backends, native: { enabledModels: [] } } });
       expect(NativeBackendDescriptor.getInstallState(getSettings())).toMatchObject({
-        kind: "error",
-        reason: "configuration",
-        message: expect.stringContaining("chat model"),
+        kind: "ready",
       });
     });
     it("shows a localized model setup error when no BYOK chat model exists (https://github.com/ItsDalk-Lane/Scribe/issues/28)", () => {
@@ -194,9 +192,24 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("subscribeInstallState()", () => {
-    it("reports settings changes until its subscription is disposed", () => {
+    it("reports model configuration changes without restarting for selection preferences or obsolete switches https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const listener = jest.fn();
       const dispose = NativeBackendDescriptor.subscribeInstallState({} as ScribePlugin, listener);
+      setSettings((current) => ({
+        agentMode: {
+          ...current.agentMode,
+          backends: {
+            native: {
+              defaultModel: { baseModelId: "manual-model", effort: "high" },
+              defaultMode: "auto",
+              maxSteps: 50,
+            },
+          },
+        },
+        backends: { native: { enabledModels: [] } },
+      }));
+      expect(listener).not.toHaveBeenCalled();
+
       setSettings({ configuredModels: [] });
       expect(listener).toHaveBeenCalledTimes(1);
       dispose();
@@ -377,20 +390,12 @@ describe("nativeDescriptor", () => {
       expect(tools.tools.map((tool) => tool.name)).toEqual(["invoke_skill"]);
       const advancedOptions = jest.mocked(createNativeAdvancedTools).mock.calls[0][0];
       expect(advancedOptions.skills().map((skill) => skill.name)).toEqual(["enabled"]);
-      expect(
-        advancedOptions.offerFeedback({
-          title: "Draft",
-          whatHappened: "Error",
-          repro: "Steps",
-          userSaid: "",
-        })
-      ).toBe("unattributed");
       expect(NativeCommandTasks).toHaveBeenCalledWith(
         expect.objectContaining({
           cwd: "/vault/project",
           sessionId: "native-session",
           outputDirectory: join("/synthetic-scribe", "vault-scope", "native-agent", "tasks"),
-          getEnv: buildBuiltinSkillEnv,
+          getEnv: buildObsidianCommandEnv,
         })
       );
       expect(createNativeTools).toHaveBeenCalledWith(
@@ -401,19 +406,16 @@ describe("nativeDescriptor", () => {
       expect(mockStop).toHaveBeenCalledWith("command-id");
       expect(mockShutdown).toHaveBeenCalledTimes(1);
     });
-    it("attributes a feedback draft to its source chat and registers drawing tools only when the drawing plugin is available", () => {
+    it("registers drawing tools when the drawing plugin is available", () => {
       jest.mocked(getExcalidrawApi).mockReturnValue({
         sceneElements: jest.fn(),
         renderPng: jest.fn(),
         execute: jest.fn(),
         connectLabelled: jest.fn(),
       });
-      const offerFeedback = jest.fn().mockReturnValue("offered");
-      const getSessionByBackendId = jest.fn().mockReturnValue({ offerFeedback });
-      const plugin = { agentSessionManager: { getSessionByBackendId } } as unknown as ScribePlugin;
       NativeBackendDescriptor.createBackendProcess({
         app: {} as App,
-        plugin,
+        plugin: {} as ScribePlugin,
         clientVersion: "test",
         descriptor: NativeBackendDescriptor,
       });
@@ -429,13 +431,8 @@ describe("nativeDescriptor", () => {
         onPlanApproved: jest.fn(),
       });
       expect(tools.tools.map((tool) => tool.name)).toContain("excalidraw_read");
-      const advanced = jest.mocked(createNativeAdvancedTools).mock.calls[0][0];
-      const draft = { title: "Draft", whatHappened: "Error", repro: "Steps", userSaid: "" };
-      expect(advanced.offerFeedback(draft)).toBe("offered");
-      expect(getSessionByBackendId).toHaveBeenCalledWith("source-chat");
-      expect(offerFeedback).toHaveBeenCalledWith(draft);
     });
-    it("rejects a disabled agent before constructing any runtime resources", () => {
+    it("constructs native runtime despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       setSettings({
         agentMode: { ...getSettings().agentMode, backends: { native: { enabled: false } } },
       });
@@ -446,8 +443,8 @@ describe("nativeDescriptor", () => {
           clientVersion: "test",
           descriptor: NativeBackendDescriptor,
         })
-      ).toThrow("disabled");
-      expect(NativeBackendProcess).not.toHaveBeenCalled();
+      ).not.toThrow();
+      expect(NativeBackendProcess).toHaveBeenCalled();
     });
   });
 });

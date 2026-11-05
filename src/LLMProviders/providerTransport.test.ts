@@ -73,6 +73,17 @@ describe("providerTransport", () => {
 
     afterEach(() => jest.restoreAllMocks());
 
+    it("marks network-layer failures as transient while keeping invalid request configuration deterministic (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+      nativeFetch.mockRejectedValueOnce(new TypeError("Network unavailable"));
+      await expect(
+        createProviderFetch(model({ enableCors: false }))("https://proxy.example/chat")
+      ).rejects.toMatchObject({ failure: { kind: "transient" } });
+      await expect(createProviderFetch(model())("invalid-url")).rejects.toMatchObject({
+        name: "TypeError",
+      });
+      expect(safeFetch).not.toHaveBeenCalled();
+    });
+
     it.each([undefined, true])(
       "uses Obsidian transport by default or when compatibility is %s without changing normal provider identity",
       async (enableCors) => {

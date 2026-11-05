@@ -95,6 +95,29 @@ describe("SessionHistoryReplay", () => {
         });
         expect(store.getDisplayMessages()[1].turnDurationMs).toBeUndefined();
       });
+      it.each([
+        "quota_exhausted",
+        "authentication_error",
+        "context_limit",
+        "request_error",
+        "max_turn_requests",
+        "cancelled",
+      ] as const)(
+        "restores %s even without assistant text or a UI snapshot (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+        (stopReason) => {
+          const { store, replay } = startReplay();
+          replay.append(replayText("user_message_chunk", "Question", "u1"), 100);
+          replay.append({ sessionUpdate: "turn_ended", turnId: "t1", stopReason }, 150);
+          replay.end();
+          expect(store.getDisplayMessages()[1]).toMatchObject({
+            sender: AI_SENDER,
+            turnStopReason: stopReason,
+            turnDurationMs: 50,
+          });
+          expect(store.getDisplayMessages()[1].isErrorMessage).not.toBe(true);
+        }
+      );
+
       it("restores an explicit stop ahead of an accompanying transport error", () => {
         const { store, replay } = startReplay();
         replay.append(replayText("user_message_chunk", "Question", "u1"), 100);

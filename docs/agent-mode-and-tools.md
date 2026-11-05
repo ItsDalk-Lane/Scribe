@@ -6,19 +6,15 @@ Quick Ask、Quick Command 继续用于编辑器旁的简短提问和改写，也
 
 ## Set up Scribe
 
-1. 打开 **Settings → Scribe → 快捷操作 → 模型与供应商**，添加供应商或本机模型，并填写它需要的连接信息。
-2. 在 **代理 → Scribe** 中启用要用于聊天的模型，选择默认模型和权限模式。支持时，可在聊天输入框旁调整本次聊天的推理强度。
+1. 打开 **Settings → Scribe → 模型**，添加供应商或本机模型，并填写它需要的连接信息。
+2. 配置完成且连接可用的模型可直接用于聊天，无需另外启用。可在聊天输入框旁选择模型、推理强度和权限模式。
 3. 点击 Agent Chat 图标，或运行 **打开 Scribe 代理聊天窗口**，输入任务。
 
-没有可用模型时，请检查供应商连接并在代理设置中启用模型。已有连接可能需要重新检查，不同设备的密钥不会自动共享；Agent Chat 与快捷工具可以分别启用模型。Anthropic 也通过同一套模型与供应商设置接入。
-
-隔离测试发现，即使代理模型全部停用，状态仍可能显示就绪；如果设置中的密钥引用在本机没有对应密钥，也可能显示可用但启动失败。在[文件安全问题](troubleshooting-and-faq.md)修复后，请分别检查 **代理 → Scribe** 中的模型开关和 **快捷操作 → 模型与供应商** 中的密钥。测试使用替身宿主，未验证真实桌面或设备密钥。
-
-Isolated tests found that the agent may still appear ready when all its models are disabled, or appear available but fail to start when a saved key reference has no key on this device. After the [file-safety issues](troubleshooting-and-faq.md) are fixed, check the model switches under **代理 → Scribe** and the key under **快捷操作 → 模型与供应商**. The tests used a simulated host, not a real desktop or device credentials.
+新聊天记住上次成功选择的模型、推理强度和权限模式。首次使用默认选择配置顺序中的第一个可运行模型，权限模式默认为自动模式；恢复旧聊天时保留该聊天自己的选择。没有可用模型时，请在“模型”页检查服务商连接和凭证；不同设备的密钥不会自动共享。
 
 ## Models, effort, and permissions
 
-输入框旁的模型选择只影响当前聊天。推理强度按模型支持的选项显示；更改后在下一次请求中使用。具体支持情况和费用由你的模型服务决定。
+输入框旁的模型选择用于当前聊天，并记住为之后新聊天的选择。推理强度按模型支持的选项显示；更改后在下一次请求中使用。具体支持情况和费用由你的模型服务决定。
 
 | 模式        | 行为                                                                                 |
 | ----------- | ------------------------------------------------------------------------------------ |
@@ -40,13 +36,9 @@ Note tools are intended to stay inside the current vault. Isolated tests found t
 
 打开的聊天分别保留自己的草稿、待发送附件和排队消息；切换聊天不会把另一条聊天的问题或草稿带进来。这些未发送内容只保存在运行中的内存里，不属于已保存的聊天记录。隐藏聊天标签不一定会立即结束聊天，但结束聊天或退出 Obsidian 后不能依靠历史记录找回这些内容；请先另存需要的文字，并保留附件原件。
 
-隔离测试发现，停用代理最后一个可用模型时，当前聊天可能结束，未发送的草稿也会丢失。更改模型前请先另存草稿；测试未验证真实桌面上的全部恢复情况。
-
-Isolated tests found that disabling the agent's last enabled model can close the current chat and discard its unsent draft. Save the draft elsewhere before changing models; recovery on a real desktop has not been fully verified.
-
 - 通过原输入区添加笔记、编辑器选区、网页、图片和其他支持的附件；输入 `@` 或 `[[` 选择笔记。
 - 项目保留自己的说明、上下文和聊天列表。共享技能可以复用；当前版本可能无法自动发现项目目录中的技能。
-- **最近聊天** 和 **聊天历史** 保留查找、重命名、分叉、保存为笔记、复制链接、书签和删除入口。删除一条聊天会移除它的会话记录、快照和已保存的会话笔记；删除前请确认笔记中没有需要保留的内容。
+- **最近聊天** 和 **聊天历史** 保留查找、重命名、分叉、置顶、复制链接、书签和删除入口。聊天通过内部记录保存和恢复；复制链接、加入书签和置顶都不会创建笔记。原有的聊天笔记和附件会保留，后续对话不再自动改写它们。删除一条聊天会移除它的会话记录、快照和已保存的会话笔记；删除前请确认笔记中没有需要保留的内容。
 - 消息下面可以复制正文、在编辑器光标处插入或替换，以及从该处建立新的聊天分支。
 - 新的原生会话使用独立的记录。重新打开可恢复的聊天时，Scribe 会载入已保存的对话，以便继续提问；过往工具活动只回放显示，不会重跑终端或重新写文件。中断的任务不会自动重启，结果不明时请先检查实际文件和任务。旧外部代理的会话不导入、不接续；原有的会话笔记仍可作为资料库文件查看，但不能保证在当前 Agent Chat 中打开或继续。
 
@@ -60,13 +52,17 @@ Isolated tests found that disabling the agent's last enabled model can close the
 
 ### Compact a long chat
 
-在输入开头选择 **/compact**，可让当前模型总结较长的聊天。模型上下文窗口已知，且上一条助手回复报告的用量达到窗口的 80% 时，Scribe 会在发送下一条普通消息前尝试自动压缩；窗口未知时不会自动触发。聊天中分别显示进行、完成、失败、取消或无需压缩；完成后可继续追问。
+在输入开头选择 **/compact**，可让当前模型总结较长的聊天。模型窗口已知时，Scribe 在每次请求前检查上下文，包括同一条消息执行很多步骤的过程中；接近窗口的 80% 或需要为输出预留空间时，会尝试自动压缩较早内容。当前要求和最近完整的工具调用及结果仍保留。
 
-Use **/compact** at the start of an input to ask the current model to summarize a long chat. Automatic compaction is attempted before the next ordinary message only when the model's context window is known and the previous assistant reply reported usage of at least 80% of that window. An unknown window does not trigger it automatically. The chat shows whether compaction is running, completed, failed, cancelled, or unnecessary.
+聊天会显示压缩进行、完成、失败、取消或无需压缩的状态。只有可用的摘要才会替换旧内容；摘要被截断、拒绝或无法安全容纳时停止本轮，保留原记录。窗口未知时无法提前按窗口比例压缩；明确收到上下文超限错误时仍会停止并提示。
 
 ### When a reply stops early
 
-模型拒答、输出长度上限和每轮步数上限会显示提前停止提示；主动停止时不一定另有文字提示。连接等错误可能在已有部分回复时不显示，重新打开聊天后错误信息也可能缺失。如果回复不完整或操作结果不确定，请先检查实际文件和任务，再发送新消息继续。
+每轮步数默认无限制。可在 **Agent 配置 → 常规** 中明确选择限制并填写正整数；已经保存的上限继续生效。达到上限时，已执行的工具结果会交给模型，再进行一次不允许调用工具的收尾，总结完成事项、剩余工作及继续方式。若收尾仍要求工具调用，该调用不会执行。子代理也会收尾，并把达到上限的原因和实际总结交回父聊天。
+
+步数上限、服务额度不足、身份验证失败、上下文问题、请求失败和主动取消分别显示原因。额度不足会立即停止，不再自动重试；这是服务账户限制，不是代码错误，补充额度或重新打开会话后可发送新消息继续。只有明确的临时故障才有限重试；已经显示部分回答或工具调用后，不自动重放整个请求。
+
+错误分类依据服务商返回的结构化信息。若兼容服务只返回一段文字，或只给出无法区分额度和限流的状态，Scribe 会显示普通请求失败并停止自动重试，不猜测原因。自动停止后，尚未读取的排队内容会保留供你再次发送；已完成的操作不会回滚。
 
 ## While the agent works
 
@@ -88,11 +84,11 @@ Scribe 可以委派真实子代理，也能执行前台或后台系统命令。�
 
 ## Skills
 
-在 **Settings → Scribe → 技能** 管理 Scribe 技能。可查看和编辑你管理的技能，调整是否允许模型调用或在 `/` 菜单中显示。
+在 **Settings → Scribe → 技能** 管理个人和项目技能。可查看和编辑你管理的技能，调整是否允许模型调用或在 `/` 菜单中显示。Scribe 不随插件附带、自动安装或更新技能；此前保存的技能和附加文件会保留，并作为普通技能管理。
 
-隔离测试发现，内置技能缺少文件时，启动、更改或重置设置、刷新技能时可能覆盖已修改的参考文件并删除新增文件；启用同名技能还可能删除已有目录并误报成功。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。
+隔离测试发现，启用同名技能可能删除已有目录并误报成功。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。
 
-Isolated tests found that startup, changing or resetting settings, or refresh can overwrite edited support files and delete added files when a built-in skill is missing a file. Enabling a same-named skill can also delete an existing folder while reporting success. Back up your existing files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown.
+Isolated tests found that enabling a same-named skill can delete an existing folder while reporting success. Back up your existing files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown.
 
 隔离测试还发现，保存技能的描述或启用状态时，文件中额外属性的高精度数字可能被改写；真实技能设置界面尚未核验。
 
@@ -104,13 +100,13 @@ Isolated tests also found that saving a skill's description or enabled state can
 
 An isolated test found that a same-named enabled command may be expanded when a skill is selected. Until this is fixed, avoid invoking a shared name in Agent Chat; see [Commands or skills?](custom-commands.md#commands-or-skills).
 
-Scribe 内置 Obsidian Markdown、Bases、Canvas 等说明技能。`obsidian-cli` 技能仍需要在 Obsidian 的 **Settings → General → Command line interface** 开启命令行功能。
+个人或项目技能需要的程序、插件或其他条件，以该技能自己的说明为准。
 
 ## Check extensions without sending a message
 
 **Skills、Commands、Subagents** 页面使用 Scribe 实际注册的条目。**刷新并检查** 核对其状态，不发送模型消息，也不为了检查而执行任务。
 
-命令与 **快捷操作 → 我的指令** 共用同一份 Scribe 命令文件；新建、编辑、启停和删除会影响共享列表及相应快捷入口。删除会把命令文件移至 Obsidian 配置的回收位置，而不只是从当前页面移除。更完整的自定义指令选项位于 **我的指令**。子代理页显示内置委派能力及详情。
+命令与 **我的指令** 共用同一份 Scribe 命令文件；新建、编辑、启停和删除会影响共享列表及相应快捷入口。删除会把命令文件移至 Obsidian 配置的回收位置，而不只是从当前页面移除。更完整的自定义指令选项位于 **我的指令**。子代理页显示内置委派能力及详情。
 
 本版本不加载旧外部代理的插件市场、插件包、启动钩子或 MCP 配置，也不提供这些安装和导入入口。机器上原有的外部配置文件保留。
 
@@ -119,10 +115,6 @@ Scribe 内置 Obsidian Markdown、Bases、Canvas 等说明技能。`obsidian-cli
 启用支持的 Obsidian Excalidraw 插件后，Scribe 会注册原有绘图读取、图片预览和写入工具。模型可以按任务选择这些工具。
 
 绘图仍由 Excalidraw 插件创建和保存；写入服从所选权限模式，聊天保留专用卡、打开绘图入口和实际文件差异。插件未启用或某项功能不受支持时，Scribe 显示对应原因。
-
-## Feedback
-
-模型可以起草 Scribe 问题报告；草稿只属于发起它的聊天。你可以审阅、编辑、取消或提交，模型起草本身不会发送报告。也可以从聊天的原菜单自行 **反馈问题**。
 
 ## Applying a settings change
 

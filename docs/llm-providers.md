@@ -2,9 +2,9 @@
 
 Scribe 的 Agent Chat 和快捷工具共用现有的供应商、密钥及连接地址。你可以连接云端模型、兼容网关或本机服务，费用由对应模型服务收取。
 
-隔离测试发现，更改 Scribe 设置可能触发内置技能刷新；如果技能缺少文件，已修改和新增的文件可能丢失。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
+隔离测试发现，移除供应商、更改或清空密钥可能影响其他供应商或插件使用的共用密钥。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
 
-Isolated tests found that changing Scribe settings can refresh built-in skills; if a skill is missing a file, edited or added files may be lost. Back up your files first, then disable Scribe until this is fixed; pending saves may finish during shutdown. Follow the setup steps below after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
+Isolated tests found that removing a provider, or changing or clearing its key, can affect keys shared with another provider or plugin. Back up your files first, then disable Scribe until this is fixed; pending saves may finish during shutdown. Follow the setup steps below after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
 
 ## Choose a model source
 
@@ -23,7 +23,7 @@ Some local or custom endpoints do not require a key.
 Quick Ask, Quick Command, and Agent Chat share the provider connections saved in
 Scribe. The selected model depends on the tool or chat you are using.
 
-1. Open **Settings → Scribe → 快捷操作 → 模型与供应商** (**Settings → Scribe → Quick actions → Models and providers** in English).
+1. Open **Settings → Scribe → 模型** (**Settings → Scribe → Models** in English).
 2. Click **添加供应商** (**Add a provider**).
 3. Choose a provider, **Ollama**, **LM Studio**, or **添加自定义供应商** (**Add a custom provider**).
 4. Enter the credential, **基础地址** (**Base URL**), and any provider-specific fields, such
@@ -93,7 +93,7 @@ devices; test your actual endpoint on each device you use.
 
 New chat models are enabled for Quick tools by default. Image, speech, embedding, and reranking models remain saved but are marked separately and are not offered as chat choices.
 
-**快捷操作 → 工具配置** (**Quick actions → Tool configuration**) controls **Quick tools models** and its **快捷指令默认模型** (**Default quick command model**), shared by Quick Ask and commands.
+配置后的聊天模型直接供 Agent Chat 和快捷工具使用，无需分别启用。快捷工具默认使用配置顺序中第一个可用模型；聊天记住最近一次成功选择的模型、推理强度和权限模式。首次新聊天使用第一个可运行模型和自动模式。
 
 ### OpenCode and OpenCode Go
 
@@ -181,7 +181,7 @@ server can let you turn compatibility off and keep word-by-word streaming.
 
 ## Agent Chat model access
 
-Agent Chat 使用你在 **代理 → Scribe** 启用的模型。模型目录和纯文字聊天测试不能证明工具可用：只有模型确实返回结构化工具调用，并在收到对应工具结果后继续回复，才完成一次工具交互。端点拒绝工具时会保留错误；真实服务的模型访问权限和额度仍需你自己的账号验证。
+Agent Chat 使用你在 **模型** 中配置并在聊天中选择的模型。模型目录和纯文字聊天测试不能证明工具可用：只有模型确实返回结构化工具调用，并在收到对应工具结果后继续回复，才完成一次工具交互。端点拒绝工具时会保留错误；真实服务的模型访问权限和额度仍需你自己的账号验证。
 
 聊天模型测试会消耗所选供应商的用量。Scribe 不使用外部代理的登录或订阅账户，也不另存一份 Agent 专用密钥。
 
@@ -215,11 +215,11 @@ until this is fixed.
 
 隔离测试发现，移除供应商、更改或清空其密钥可能影响其他供应商使用的共用密钥；更改或清空密钥还可能影响其他插件的密钥。如果同一设备上的两个资料库共用 Scribe 密钥存储标识，在一个库中删除全部密钥也可能移除另一个库的密钥。请先备份现有文件，再暂时停用 Scribe，直到这些问题修复；关闭时程序可能完成之前排队的保存。不要通过移除供应商、更改或清空密钥排查问题，也不要使用 **删除所有密钥**。测试使用的是替身宿主，没有操作真实界面或设备密钥。
 
-After these issues are fixed, to remove stored credentials, open **Settings → Scribe → 通用 → 其他 → API 密钥存储** (**Settings → Scribe → Common → Others → API key storage** in English) and click **删除所有密钥** (**Delete All Keys**).
+After these issues are fixed, to remove stored credentials, open **Settings → Scribe → 关于 → API 密钥存储** (**Settings → Scribe → About → API key storage** in English) and click **删除所有密钥** (**Delete All Keys**).
 
 ## Related
 
 - [Getting Started](getting-started.md)
 - [Agent Chat](agent-mode-and-tools.md)
 - [Models, Effort, and Permissions](models-and-parameters.md)
-- [Settings: Models and providers](settings.md#模型与供应商)
+- [Settings: Models and providers](settings.md#模型)

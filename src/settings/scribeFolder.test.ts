@@ -1,6 +1,5 @@
 import {
   SCRIBE_SUBFOLDER,
-  deriveConversationAttachmentsFolder,
   deriveConversationsFolder,
   deriveCustomPromptsFolder,
   deriveMemoryFolder,
@@ -42,7 +41,7 @@ describe("scribeFolder", () => {
       expect(deriveConversationsFolder(settingsWithRoot("scribe"))).toBe(
         "scribe/scribe-conversations"
       );
-      expect(deriveConversationsFolder(DEFAULT_SETTINGS)).toBe(DEFAULT_SETTINGS.defaultSaveFolder);
+      expect(deriveConversationsFolder(DEFAULT_SETTINGS)).toBe("scribe/scribe-conversations");
     });
 
     it("re-roots the conversations folder under a custom root", () => {
@@ -53,20 +52,6 @@ describe("scribeFolder", () => {
 
     it("falls back to the default root when the configured root is blank", () => {
       expect(deriveConversationsFolder(settingsWithRoot("  "))).toBe("scribe/scribe-conversations");
-    });
-  });
-
-  describe("deriveConversationAttachmentsFolder()", () => {
-    it("nests the attachment store inside the conversations folder it is given", () => {
-      expect(deriveConversationAttachmentsFolder("scribe/scribe-conversations")).toBe(
-        "scribe/scribe-conversations/attachments"
-      );
-    });
-
-    it("follows a relocated Scribe root through the conversations folder", () => {
-      expect(deriveConversationAttachmentsFolder("team/ai/scribe-conversations")).toBe(
-        "team/ai/scribe-conversations/attachments"
-      );
     });
   });
 
@@ -90,9 +75,7 @@ describe("scribeFolder", () => {
   describe("deriveSystemPromptsFolder()", () => {
     it("derives the historical default system-prompts path for the default root", () => {
       expect(deriveSystemPromptsFolder(settingsWithRoot("scribe"))).toBe("scribe/system-prompts");
-      expect(deriveSystemPromptsFolder(DEFAULT_SETTINGS)).toBe(
-        DEFAULT_SETTINGS.userSystemPromptsFolder
-      );
+      expect(deriveSystemPromptsFolder(DEFAULT_SETTINGS)).toBe("scribe/system-prompts");
     });
 
     it("re-roots the system-prompts folder under a custom root", () => {
@@ -178,11 +161,10 @@ describe("scribeFolder", () => {
 
     beforeEach(() => ensureFolderExists.mockClear());
 
-    it("creates all six derived sub-folders under the given root", async () => {
+    it("creates the current data folders without a chat-note folder https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       await ensureScribeSubfolders(fakeVault, settingsWithRoot("team/ai"));
       const created = ensureFolderExists.mock.calls.map((call) => call[1]);
       expect(created).toEqual([
-        "team/ai/scribe-conversations",
         "team/ai/scribe-custom-prompts",
         "team/ai/system-prompts",
         "team/ai/skills",
@@ -198,7 +180,7 @@ describe("scribeFolder", () => {
       await expect(
         ensureScribeSubfolders(fakeVault, settingsWithRoot("scribe"))
       ).resolves.toBeUndefined();
-      expect(ensureFolderExists).toHaveBeenCalledTimes(6);
+      expect(ensureFolderExists).toHaveBeenCalledTimes(5);
     });
   });
 });

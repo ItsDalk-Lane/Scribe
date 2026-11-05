@@ -10,8 +10,7 @@ must use the names below when referring to the same concept.
    `Community plugins`, `Live Preview`), because they render in Obsidian's own UI.
 2. **Scribe-owned UI labels** are referenced by their Chinese label in docs (the
    primary audience), with the English label recorded here. The live labels come
-   from `SettingsMainV2.tsx`, `GeneralSettingsTabs.tsx`, `QuickActionsTabs.tsx`, and
-   `src/lib/locales/`.
+   from `SettingsMainV2.tsx` and `src/lib/locales/`.
 3. **Concept names** (modes, chats, context kinds) use one canonical zh/en pair;
    a label that no longer matches is a bug, fixed with an issue reference (e.g.
    the "Safe" → "Default" rename, https://github.com/ItsDalk-Lane/Scribe/issues/26).
@@ -21,17 +20,19 @@ must use the names below when referring to the same concept.
 
 ## Settings page labels (verified against the UI code)
 
-| Level      | zh (shown)                                              | en key                                                                              |
-| ---------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Top tab    | 通用                                                    | Common                                                                              |
-| Top tab    | 快捷操作                                                | Quick actions                                                                       |
-| Top tab    | 代理                                                    | Agents                                                                              |
-| Top tab    | 技能                                                    | Skills                                                                              |
-| Top tab    | 命令                                                    | Commands                                                                            |
-| Top tab    | 子代理                                                  | Subagents                                                                           |
-| 通用 →     | 常规 / 自定义说明 / 聊天保存 / 其他 / 调试与支持 / 关于 | General / Custom instructions / Saving chats / Others / Debugging & support / About |
-| 快捷操作 → | 模型与供应商 / 工具配置 / 我的指令                      | Models and providers / Tool configuration / My commands                             |
-| Button     | 反馈问题                                                | Report an issue                                                                     |
+| Level        | zh (shown)                              | en key                                                       |
+| ------------ | --------------------------------------- | ------------------------------------------------------------ |
+| Top tab      | Agent 配置                              | Agent configuration                                          |
+| Top tab      | 快捷操作                                | Quick actions                                                |
+| Top tab      | 代理                                    | Agents                                                       |
+| Top tab      | 技能                                    | Skills                                                       |
+| Top tab      | 命令                                    | Commands                                                     |
+| Top tab      | 子代理                                  | Subagents                                                    |
+| Top tab      | 关于                                    | About                                                        |
+| Agent 配置 → | 常规 / 自定义说明                       | General / Custom instructions                                |
+| 关于 →       | 关于 / 通知 / API 密钥存储 / 调试与支持 | About / Notification / API key storage / Debugging & support |
+| 快捷操作 →   | 模型与供应商 / 工具配置 / 我的指令      | Models and providers / Tool configuration / My commands      |
+| Button       | 反馈问题                                | Report an issue                                              |
 
 Note: the commands list is configured in **我的指令** (Quick actions), while the
 top-level **命令** tab manages the same files' lifecycle — two pages, one store.

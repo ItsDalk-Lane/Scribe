@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ExtensionAvailabilityDot } from "@/components/ui/extension-availability-dot";
 import { ExtensionAvailabilitySwitch } from "@/components/ui/extension-availability-switch";
 import { SkillRowLayout, type SkillRowLayoutProps } from "./SkillRowLayout";
+import { EmptyPlaceholder } from "./EmptyPlaceholder";
+import { SkillLoadIssues } from "./SkillLoadIssues";
 
 const meta = {
   title: "Skills/Custom skill row",
@@ -153,4 +155,47 @@ export const UnconfirmedProjectPreference: StoryObj<SkillRowLayoutProps> = {
       />
     ),
   },
+};
+
+export const PersonalSkillsEmpty: StoryObj<SkillRowLayoutProps> = {
+  args,
+  render: () => <EmptyPlaceholder folder="scribe/skills" />,
+};
+
+export const LegacyNamedPersonalSkill: StoryObj<SkillRowLayoutProps> = {
+  args: {
+    ...args,
+    name: "obsidian-markdown",
+    description: "My own Markdown rules, with the edits I saved in this skill.",
+    onOpen: () => undefined,
+    controls: (
+      <ExtensionAvailabilitySwitch
+        label="Enable obsidian-markdown"
+        state={{ checked: false, disabled: false }}
+        onToggle={() => undefined}
+      />
+    ),
+  },
+};
+
+export const PersonalSkillsWithLoadError: StoryObj<SkillRowLayoutProps> = {
+  args: LegacyNamedPersonalSkill.args,
+  render: (props) => (
+    <section aria-label="Your skills" className="tw-space-y-3">
+      <SkillLoadIssues
+        issues={[
+          {
+            location: "scribe/skills/review-notes/SKILL.md",
+            reason: "The skill description is missing.",
+            revealLabel: "Reveal in vault",
+            onFixWithAgent: () => undefined,
+            onOpen: () => undefined,
+            onReveal: () => undefined,
+          },
+        ]}
+        onViewDetails={() => undefined}
+      />
+      <SkillRowLayout {...args} {...props} />
+    </section>
+  ),
 };

@@ -4,26 +4,19 @@ import type {
   AgentExtensionRuntimeSnapshot,
 } from "@/agentMode/session/extensionInventory";
 import type {
-  AgentExtensionDetails,
   AgentExtensionManager,
   AgentExtensionScope,
 } from "@/agentMode/session/extensionManagement";
 import { filterSkillsForScope } from "@/agentMode/session/scopedSkills";
 import { getManagedSkills } from "@/agentMode/skills/SkillManager";
 import type { Skill } from "@/agentMode/skills/types";
-import { CustomCommandManager } from "@/commands/customCommandManager";
-import { EMPTY_COMMAND } from "@/commands/constants";
-import { getCommandFilePath, validateCommandName } from "@/commands/customCommandUtils";
-import { getCachedCustomCommands } from "@/commands/state";
-import type { CustomCommand } from "@/commands/type";
-import { joinPosix, normalizeAbsPath } from "@/utils/pathUtils";
+import { normalizeAbsPath } from "@/utils/pathUtils";
 import { sha256 } from "@/utils/hash";
 import { frozenOr } from "@/utils/sliceCache";
 
 export const NATIVE_SKILLS_PROJECT_DIR = ".scribe/skills";
 const EMPTY_ENTRIES: readonly never[] = Object.freeze([]);
 const READ_ONLY = Object.freeze({ edit: false, delete: false, toggle: false });
-const COMMAND_ACTIONS = Object.freeze({ edit: true, delete: true, toggle: true });
 const SUBAGENT = Object.freeze({
   name: "delegate_task",
   description:
@@ -48,7 +41,6 @@ function skillItem(skill: Skill, cwd: string | null): AgentExtensionItem {
     enabled,
     location: skill.filePath,
     runtimeName: skill.name,
-    builtin: skill.builtin,
     availability: !enabled
       ? "disabled"
       : !available
@@ -64,32 +56,6 @@ function skillItem(skill: Skill, cwd: string | null): AgentExtensionItem {
       ? {
           target: {
             path: skill.filePath,
-            format: "markdown" as const,
-            scope: { kind: "project" as const, cwd },
-          },
-        }
-      : {}),
-  };
-}
-
-function commandItem(command: CustomCommand, cwd: string | null): AgentExtensionItem {
-  return {
-    id: `command:${command.title}`,
-    name: command.title,
-    source: "project",
-    kind: "command",
-    enabled: command.enabled !== false,
-    availability: command.enabled === false ? "disabled" : "loaded",
-    location: cwd
-      ? joinPosix(cwd, getCommandFilePath(command.title))
-      : getCommandFilePath(command.title),
-    capabilities: COMMAND_ACTIONS,
-    canEnable: true,
-    canDisable: true,
-    ...(cwd
-      ? {
-          target: {
-            path: joinPosix(cwd, getCommandFilePath(command.title)),
             format: "markdown" as const,
             scope: { kind: "project" as const, cwd },
           },
@@ -117,10 +83,7 @@ export function readNativeExtensions({
       kind: "command",
       status: "partial",
       warnings: EMPTY_ENTRIES,
-      items: frozenOr(
-        getCachedCustomCommands().map((command) => commandItem(command, cwd)),
-        EMPTY_ENTRIES
-      ),
+      items: EMPTY_ENTRIES,
     },
     {
       kind: "subagent",
@@ -170,12 +133,7 @@ export function readNativeExtensionRuntime(cwd: string | null): AgentExtensionRu
         .map((skill) => skill.name),
       EMPTY_ENTRIES
     ),
-    commands: frozenOr(
-      getCachedCustomCommands()
-        .filter((command) => command.enabled !== false)
-        .map((command) => command.title),
-      EMPTY_ENTRIES
-    ),
+    commands: EMPTY_ENTRIES,
     builtinCommands: BUILTIN_COMMANDS,
     subagents: SUBAGENTS,
     hooks: EMPTY_ENTRIES,
@@ -202,14 +160,6 @@ export function createNativeExtensionManager({
       normalizeAbsPath(scope.cwd) === normalizeAbsPath(cwd)
     );
   }
-  function currentCommand(details: AgentExtensionDetails): CustomCommand {
-    const command = getCachedCustomCommands().find(
-      (entry) => `command:${entry.title}` === details.item.id
-    );
-    if (!command || details.revision !== sha256(JSON.stringify(command)))
-      throw new Error("The command changed; reopen it before saving.");
-    return command;
-  }
   return {
     async list(kind, scope) {
       if (scope.kind === "user") return EMPTY_ENTRIES;
@@ -227,18 +177,6 @@ export function createNativeExtensionManager({
       );
     },
     async details(item) {
-      if (item.kind === "command") {
-        const command = getCachedCustomCommands().find(
-          (entry) => `command:${entry.title}` === item.id
-        );
-        if (!command) throw new Error("The command is no longer registered.");
-        return {
-          item: commandItem(command, cwd),
-          revision: sha256(JSON.stringify(command)),
-          content: command.content,
-          config: { ...command },
-        };
-      }
       if (item.kind === "skill") {
         const skill = getManagedSkills().find((entry) => `skill:${entry.filePath}` === item.id);
         if (!skill) throw new Error("The skill is no longer registered.");
@@ -252,48 +190,9 @@ export function createNativeExtensionManager({
         return { item, revision: "builtin:delegate_task", content: SUBAGENT.description };
       return unsupported();
     },
-    async save(draft) {
-      if (draft.kind !== "command" || !ownsScope(draft.scope)) return unsupported();
-      const previous = draft.original ? currentCommand(draft.original) : undefined;
-      const validation = validateCommandName(
-        draft.name,
-        getCachedCustomCommands(),
-        previous?.title
-      );
-      if (validation) throw new Error(validation);
-      const command = {
-        ...(previous ?? EMPTY_COMMAND),
-        title: draft.name,
-        content: draft.content ?? "",
-      };
-      const manager = CustomCommandManager.getInstance();
-      if (previous) await manager.updateCommand(command, previous.title, false, previous);
-      else await manager.createCommand(command);
-    },
-    async toggle(details, enabled) {
-      if (
-        details.item.kind !== "command" ||
-        !details.item.target ||
-        !ownsScope(details.item.target.scope)
-      )
-        return unsupported();
-      const previous = currentCommand(details);
-      await CustomCommandManager.getInstance().updateCommand(
-        { ...previous, enabled },
-        previous.title,
-        false,
-        previous
-      );
-    },
-    async delete(details) {
-      if (
-        details.item.kind !== "command" ||
-        !details.item.target ||
-        !ownsScope(details.item.target.scope)
-      )
-        return unsupported();
-      await CustomCommandManager.getInstance().deleteCommand(currentCommand(details));
-    },
+    save: unsupported,
+    toggle: unsupported,
+    delete: unsupported,
     import: unsupported,
     pluginAction: unsupported,
     marketplaces: unsupported,

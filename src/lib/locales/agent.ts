@@ -1,4 +1,22 @@
 export const agentTranslations: Record<string, string> = {
+  "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue.":
+    "**已达到步数上限。** 代理已结束本轮，请查看收尾总结；发送新消息即可继续。",
+  "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.":
+    "**服务额度已耗尽。** 这是账户额度问题，不是代码问题。补充额度或重新打开会话后，发送新消息即可继续。",
+  "**Authentication failed.** Check the provider credentials in Models, then send another message to continue.":
+    "**身份验证失败。** 请在“模型”中检查服务商凭证，再发送新消息继续。",
+  "**Context limit reached.** Context could not be compacted safely. Your conversation is preserved; shorten the request or choose a model with a larger context window.":
+    "**已达到上下文上限。** 无法安全压缩内容，聊天记录已保留。请缩短请求或选择能容纳更多内容的模型。",
+  "**Model request failed.** Check the provider connection and settings, then send another message to retry.":
+    "**模型请求失败。** 请检查服务商连接和设置，再发送新消息重试。",
+  "**Cancelled by you.** Send another message when you want to continue.":
+    "**你已取消本轮。** 需要继续时发送新消息即可。",
+  "Step limit reached": "已达到步数上限",
+  "Service quota exhausted": "服务额度已耗尽",
+  "Authentication failed": "身份验证失败",
+  "Context limit reached": "已达到上下文上限",
+  "Model request failed": "模型请求失败",
+
   "No enabled chat model has usable credentials on this device. Check Models and providers.":
     "此设备上没有凭据可用的已启用聊天模型，请检查“模型与供应商”。",
   "Cannot read API key on this device": "无法读取此设备上的 API 密钥",
@@ -6,7 +24,6 @@ export const agentTranslations: Record<string, string> = {
   "Always deny this action in this chat": "在此聊天中始终拒绝此操作",
   "Only this file or exact command, in this folder, chat, and requester.":
     "仅限当前文件或完全相同的命令，且只对当前目录、聊天和发起者有效。",
-  "Agent configuration": "代理配置",
   "Runs inside Scribe": "由 Scribe 内置运行",
   "Connection not completed in this check": "本次检查尚未连通",
   "Check extensions": "检查扩展",
@@ -88,8 +105,6 @@ export const agentTranslations: Record<string, string> = {
     "此项目已不存在。恢复项目后才能打开其中的聊天。",
   "This chat belongs to a project that no longer exists.": "此聊天所属的项目已不存在。",
   "Failed to send message. Please try again.": "发送消息失败，请重试。",
-  "Built-in skills": "内置技能",
-  "No built-in skills match your search.": "没有找到匹配的内置技能。",
   Disabled: "已停用",
   "More actions": "更多操作",
   "View SKILL.md (read-only)": "查看 SKILL.md（只读）",
@@ -164,12 +179,10 @@ export const agentTranslations: Record<string, string> = {
   "Migrate it to your shared folder first to enable edits.": "请先迁移到共享文件夹，再进行编辑。",
   "Send a message to the chat first.": "请先向聊天发送一条消息。",
   "New chat": "新建聊天",
-  "Save chat as note": "将聊天保存为笔记",
   "Chat history": "聊天历史",
   "Copy chat link": "复制聊天链接",
   "Add to bookmarks": "添加到书签",
   "Remove from bookmarks": "从书签中移除",
-  "Report an issue": "反馈问题",
   "Could not read the attached images. Please attach them again.": "无法读取附加图片，请重新添加。",
   "Ask anything • @ to add context • / for commands": "随时提问 • @ 添加参考内容 • / 使用指令",
   "Pending agent actions": "待处理的代理操作",
@@ -181,10 +194,6 @@ export const agentTranslations: Record<string, string> = {
     "用于此代理的新聊天，已打开的聊天会在下一轮切换。",
   "Agent default": "代理默认值",
   "Not supported": "不支持",
-  "Chat saved as note.": "聊天已保存为笔记。",
-  "Nothing to save yet.": "暂无可保存的内容。",
-  "Failed to save chat as note. Check the Scribe log for details.":
-    "将聊天保存为笔记失败，请查看 Scribe 日志。",
   "Failed to start a new chat. Please try again.": "新建聊天失败，请重试。",
   "Failed to leave project. Please try again.": "退出项目失败，请重试。",
   "Failed to open project. Please try again.": "打开项目失败，请重试。",
@@ -220,10 +229,7 @@ export const agentTranslations: Record<string, string> = {
   "Context is full, compacting…": "上下文已满，正在压缩…",
   "Context compacted automatically": "上下文已自动压缩",
   "Context compacted": "上下文已压缩",
-  "You said: “": "您说：“",
-  "Report ID": "报告编号",
   "Don&apos;t offer again": "不再提示",
-  "Review & report": "查看并反馈",
   "Files changed (": "已更改文件（",
   "Open source note": "打开来源笔记",
   Responding: "正在回答",
@@ -260,47 +266,9 @@ export const agentTranslations: Record<string, string> = {
   "Empty message": "空消息",
   "Chat title": "聊天标题",
   "Rename chat": "重命名聊天",
-  "Could not prepare the report": "无法准备报告",
-  "What went wrong?": "遇到了什么问题？",
-  "Describe what you were doing and what happened…": "请描述您当时的操作和遇到的情况…",
-  "Attachments — bundled into one zip": "附件将打包为一个压缩文件",
-  "Before you upload": "上传前请检查",
-  "Scribe redacts common sensitive data from diagnostic text on your device before upload. Review it before sending; screenshots are not automatically redacted.":
-    "上传前，Scribe 会在本机遮盖诊断文字中常见的敏感信息。发送前请检查；截图不会自动遮盖。",
-  "The draft may include your description, app details and attachment names; GitHub receives it when the issue page opens. Review the draft before submitting.":
-    "草稿可能包含您的描述、应用信息和附件名称；打开问题页面时，GitHub 会收到这些内容。提交前请检查草稿。",
-  "Uploads go to Brevilabs. Upstream documentation says reports are private and deleted after 60 days; Scribe cannot verify privacy, retention or maintainer access.":
-    "上传会发送至 Brevilabs。上游文档称报告会保密并在 60 天后删除；Scribe 无法核实报告是否私密、保存期限或维护者能否访问。",
-  "Prepare report": "准备报告",
-  "Report contents": "报告内容",
-  "Preparing report…": "正在准备报告…",
-  "Could not upload the report": "无法上传报告",
-  "The zip is still on your machine; retrying sends the same report, and the earlier attempt may already have arrived. Or use":
-    "压缩文件仍保存在本机。重试会再次发送同一份报告，之前的尝试可能已经送达。也可以选择",
-  "Open issue anyway": "直接打开问题页面",
-  "— that issue carries no report ID, so you would have to attach the zip to it yourself.":
-    "；该问题不会带有报告编号，需要您自行附上压缩文件。",
   "Uploading — this can&apos;t be canceled…": "正在上传，无法取消…",
-  "Show zip": "显示压缩文件",
-  "Retry upload": "重试上传",
-  "Upload & open issue": "上传并打开问题页面",
-  "Reporting an issue is available on desktop only.": "问题反馈仅支持桌面端。",
-  "Report uploaded. Finish the issue in your browser.": "报告已上传，请在浏览器中完成反馈。",
-  "Report uploaded": "报告已上传",
-  "Review and submit the issue on GitHub.": "请在 GitHub 检查并提交问题。",
-  "Report this to the Scribe team?": "要向 Scribe 团队反馈此问题吗？",
-  "Screenshot of the Obsidian window": "Obsidian 窗口截图",
   "Agent activity log": "代理活动日志",
-  "turned off in Settings → Advanced": "已在设置 → 高级中关闭",
-  "Scribe log": "Scribe 日志",
-  "includes agent errors": "包含代理错误",
   "may include unrelated sessions": "可能包含其他会话",
-  "Something went wrong while uploading the report.": "上传报告时发生错误。",
-  "Scribe could not open your browser.": "Scribe 无法打开浏览器。",
-  "Open the GitHub issue page": "打开 GitHub 问题页面",
-  "The agent activity log is turned off.": "代理活动日志已关闭。",
-  "The agent activity log's location is unavailable.": "无法获取代理活动日志的位置。",
-  "No chat log entries.": "暂无聊天日志。",
   running: "运行中",
   "Stop task": "停止任务",
   "Can stop once the task starts": "任务开始后可停止",
@@ -498,10 +466,6 @@ export const agentTranslations: Record<string, string> = {
   "Couldn't compact: {p0}": "无法压缩：{p0}",
   "Project info for {p0}": "{p0} 的项目信息",
   "Project: {p0}": "项目：{p0}",
-  "Report uploaded (ID {p0}).": "报告已上传（编号 {p0}）。",
-  "Report uploaded (ID {p0}), but Scribe could not open your browser.":
-    "报告已上传（编号 {p0}），但 Scribe 无法打开浏览器。",
-  "Scribe could not open the folder. The report is at {p0}": "Scribe 无法打开文件夹，报告位于 {p0}",
   "{p0} reasoning": "{p0} 段思考",
   'Sub-agent · "{p0}"': "子代理 · “{p0}”",
   "{p0} task list": "{p0}任务列表",
@@ -517,8 +481,8 @@ export const agentTranslations: Record<string, string> = {
     "无法启动 {p0}，请查看 Scribe 日志了解详情。",
   "Checking {p0} setup…": "正在检查 {p0} 的配置…",
   "{p0} isn't set up on this machine yet.": "此设备尚未配置 {p0}。",
-  "No chat model is enabled for {p0} yet. Add a provider and enable a model first.":
-    "{p0} 还没有启用聊天模型。请先添加供应商并启用一个模型。",
+  "No runnable chat model is configured for {p0} yet. Add a provider and model in Models.":
+    "{p0} 尚未配置可运行的聊天模型。请在“模型”中添加供应商和模型。",
   "Failed to {p0}.": "无法{p0}。",
   'No chat link for "{p0}".': "“{p0}”没有聊天链接。",
   "Go to change {p0} of {p1}": "前往第 {p0} 处更改，共 {p1} 处",
@@ -630,20 +594,17 @@ export const agentTranslations: Record<string, string> = {
   "”.": "”。",
   "Scribe shares a skill by adding a shortcut to each agent’s skills folder, and Windows allows that only for admins or with Developer Mode (Settings → Privacy & security → For developers). Until then, turning a skill on for an agent is saved, but the agent can’t see the skill.":
     "Scribe 通过在各代理技能文件夹中创建快捷链接来共享技能。Windows 仅允许管理员或开发者模式执行此操作（设置 → 隐私和安全性 → 开发者选项）。开启前，技能启用状态会保存，但代理无法看到技能。",
-  "Don't offer again": "不再提示",
-  "Uploading — this can't be canceled…": "正在上传，无法取消…",
   "{count} skill could not be loaded": "有 {count} 个技能无法加载",
   "{count} skills could not be loaded": "有 {count} 个技能无法加载",
   "Show {count} more chat": "显示另外 {count} 个聊天",
   "Show {count} more chats": "显示另外 {count} 个聊天",
   "Configuring…": "正在配置…",
   "Agent Chat requires Obsidian on desktop.": "代理聊天需要桌面版 Obsidian。",
-  "Configure and enable a chat model in your model settings first.":
-    "请先在现有模型设置中配置并启用聊天模型。",
-  "Enable a model for {p0} in Scribe's model settings to start a chat.":
-    "请先在 Scribe 的模型设置中为{p0}启用一个模型，才能开始聊天。",
-  "This agent is disabled. Enable it in Agent settings to continue.":
-    "此代理已停用。请先在代理设置中启用后再继续。",
+  "Configure a runnable chat model in Models first.": "请先在“模型”中配置一个可运行的聊天模型。",
+  "Configure a runnable model for {p0} in Models to start a chat.":
+    "请先在“模型”中为{p0}配置一个可运行的模型，再开始聊天。",
+  "This agent is unavailable. Check its model configuration in Models.":
+    "此代理暂不可用。请在“模型”中检查模型配置。",
   "Runs note tasks inside Scribe using the chat models you configure.":
     "使用已配置的聊天模型，在 Scribe 内执行笔记任务。",
   "Allow once": "允许一次",

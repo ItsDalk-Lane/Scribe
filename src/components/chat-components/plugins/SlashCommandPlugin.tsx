@@ -2,9 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getSelection, $isRangeSelection, TextNode } from "lexical";
 
-import { useCustomCommands } from "@/commands/state";
-import { CustomCommandManager } from "@/commands/customCommandManager";
-import { sortSlashCommands } from "@/commands/customCommandUtils";
 import { logError } from "@/logger";
 import { useSettingsValue } from "@/settings/model";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
@@ -102,18 +99,14 @@ interface SlashCommandPluginProps {
 
 export function SlashCommandPlugin({ skills }: SlashCommandPluginProps): JSX.Element {
   const [editor] = useLexicalComposerContext();
-  const commands = useCustomCommands();
   const agentSlashData = useAgentSlashData();
   const activeBackend = useActiveSlashBackend(agentSlashData.enabled, agentSlashData.backendIds);
   const [currentQuery, setCurrentQuery] = useState("");
   const [slashStartsPrompt, setSlashStartsPrompt] = useState(false);
 
-  const sortedCommands = useMemo(() => sortSlashCommands(commands), [commands]);
-
   const allOptions = useMemo<SlashCommandOption[]>(() => {
     const items = composeSlashMenuItems(
       skills ?? agentSlashData.skills,
-      sortedCommands,
       activeBackend,
       slashStartsPrompt
     );
@@ -124,7 +117,7 @@ export function SlashCommandPlugin({ skills }: SlashCommandPluginProps): JSX.Ele
       content: item.body,
       item,
     }));
-  }, [skills, agentSlashData.skills, sortedCommands, activeBackend, slashStartsPrompt]);
+  }, [skills, agentSlashData.skills, activeBackend, slashStartsPrompt]);
 
   const filteredOptions = useMemo(
     () => filterSlashMenuOptions(allOptions, currentQuery),
@@ -155,11 +148,7 @@ export function SlashCommandPlugin({ skills }: SlashCommandPluginProps): JSX.Ele
 
   const handleSelect = useCallback(
     (option: SlashCommandOption) => {
-      const item = option.item;
-      if (item.kind === "command") {
-        void CustomCommandManager.getInstance().recordUsage(item.command);
-      }
-      replaceSlashWithName(item.name);
+      replaceSlashWithName(option.item.name);
     },
     [replaceSlashWithName]
   );

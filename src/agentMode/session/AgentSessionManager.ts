@@ -1,8 +1,6 @@
 import { t } from "@/lib/i18n";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { isCompactCommand } from "@/commands/compactCommand";
-import type { AgentMcpServer } from "@/agentMode/session/types";
-import type { ScribeMcpServer, FeedbackOfferHandler } from "@/agentMode/session/scribeMcpServer";
 import { logError, logInfo, logWarn } from "@/logger";
 import type ScribePlugin from "@/main";
 import { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
@@ -25,6 +23,7 @@ import { v4 as uuidv4 } from "uuid";
 import { AgentSession, ATTENTION_TRIGGER_STATUSES, DEFAULT_TITLE_PREFIX } from "./AgentSession";
 import type { AgentChatPersistenceManager, LoadedAgentChat } from "./AgentChatPersistenceManager";
 import type { AgentModelPreloader } from "./AgentModelPreloader";
+import { getSavedChatDeepLinkId } from "@/utils/chatDeepLink";
 import { buildNativeChatId, parseNativeChatId } from "@/utils/nativeChatId";
 import { CHAT_AGENT_VIEWTYPE, USER_SENDER } from "@/constants";
 import { playNotificationSound } from "@/utils/notificationSound";
@@ -125,7 +124,6 @@ const EMPTY_SESSIONS = Object.freeze([]) as unknown as AgentSession[];
 const EMPTY_HISTORY_ITEMS = Object.freeze([]) as unknown as ChatHistoryItem[];
 const EMPTY_RECENT_CHAT_IDS: ReadonlySet<string> = new Set();
 const EMPTY_CHAT_INPUT_IDS: readonly string[] = Object.freeze([]);
-const EMPTY_MCP_SERVERS: ReadonlyArray<AgentMcpServer> = Object.freeze([]);
 
 const RESUMED_SESSION_BEHIND_EPOCH = -1;
 const MAX_HIDDEN_PROCESS_CHATS = 3;
@@ -175,7 +173,6 @@ export interface AgentSessionManagerOptions {
   sessionIndex?: AgentSessionIndex;
   sessionSnapshots?: AgentSessionSnapshots;
   taskOutputReader?: TaskOutputReader;
-  scribeMcpServer?: ScribeMcpServer;
 }
 
 export class AgentSessionManager {
@@ -219,12 +216,8 @@ export class AgentSessionManager {
     string,
     {
       source?: { path: string };
-      timer?: number;
-      saving?: Promise<unknown>;
       indexTimer?: number;
       unsub?: () => void;
-      signature?: string;
-      dirty?: boolean;
       attentionUnsub?: () => void;
       snapshotTimer?: number;
       snapshotSaving?: Promise<void>;
@@ -382,23 +375,6 @@ export class AgentSessionManager {
     this.notify();
   }
 
-  async setBackendEnabled(backendId: BackendId, enabled: boolean): Promise<void> {
-    this.resolveDescriptor(backendId);
-    setSettings((current) => ({
-      agentMode: {
-        ...current.agentMode,
-        backends: {
-          ...current.agentMode.backends,
-          [backendId]: {
-            ...current.agentMode.backends[backendId as keyof typeof current.agentMode.backends],
-            enabled,
-          },
-        },
-      },
-    }));
-    await this.queueBackendEnablement(backendId, enabled);
-  }
-
   private queueBackendEnablement(backendId: BackendId, enabled: boolean): Promise<void> {
     const prior = this.backendEnablementWork.get(backendId);
     if (prior?.enabled === enabled) return prior.work;
@@ -439,12 +415,7 @@ export class AgentSessionManager {
           const selection = this.getSeedSelection(backendId, session.getState()?.model?.current);
           if (!selection) continue;
           const backend = await this.ensureBackend(backendId, descriptor);
-          const mcpServers = await this.connectScribeMcpServer(
-            session.internalId,
-            descriptor,
-            session.cwd ?? this.resolveSessionCwd(session.projectId)
-          );
-          await session.resumeBackend(backend, selection, mcpServers);
+          await session.resumeBackend(backend, selection);
         }
         this.notify();
       });
@@ -488,7 +459,6 @@ export class AgentSessionManager {
         return;
       for (const session of affected) {
         session.suspendBackend();
-        this.opts.scribeMcpServer?.disconnect(session.internalId);
       }
       const proc = this.backends.get(backendId);
       this.backends.delete(backendId);
@@ -604,7 +574,7 @@ export class AgentSessionManager {
       await this.refreshNativeSessionsFromBackends();
       const scopedNative = (await index.getEntries()).filter((e) => e.projectId === scope);
       const merged = mergeChatHistoryItems(scopedMarkdown, scopedNative);
-      return merged.length === 0 ? EMPTY_HISTORY_ITEMS : merged;
+      return merged.length === 0 ? EMPTY_HISTORY_ITEMS : this.applyPinOverrides(merged);
     }
 
     markdownEntries = await this.dropNonLocalMarkdownEntries(markdownEntries);
@@ -612,7 +582,7 @@ export class AgentSessionManager {
 
     await this.refreshNativeSessionsFromBackends();
     const nativeEntries = await index.getEntries();
-    return mergeChatHistoryItems(markdownEntries, nativeEntries);
+    return this.applyPinOverrides(mergeChatHistoryItems(markdownEntries, nativeEntries));
   }
 
   private collectLiveAttentionPaths(): Set<string> {
@@ -727,36 +697,44 @@ export class AgentSessionManager {
     await persistence.updateTopic(fileId, newTitle);
   }
 
+  getSessionHistoryId(internalId: string): string {
+    const session = this.sessions.get(internalId);
+    const source = this.getSessionSourcePath(internalId);
+    const sessionId = session?.getBackendSessionId();
+    return source || (sessionId ? buildNativeChatId(session!.backendId, sessionId) : "");
+  }
+
+  async getChatLinkId(id: string): Promise<string | null> {
+    // 原生聊天直接使用会话身份，复制链接不再创建笔记。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (parseNativeChatId(id)) return id;
+    return getSavedChatDeepLinkId(this.app, id);
+  }
+
+  private async getPinIdentity(id: string): Promise<string> {
+    const native = parseNativeChatId(id) ?? (await this.readSessionRefFromFile(id));
+    // 旧笔记和原生记录共用同一个置顶身份。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (native) return buildNativeChatId(native.backendId, native.sessionId);
+    return (await getSavedChatDeepLinkId(this.app, id)) ?? id;
+  }
+
   async setChatPinned(id: string, pinned: boolean): Promise<PinnedChat> {
-    const persistence = this.opts.persistenceManager;
-    if (!persistence) throw new Error("Agent chat persistence is not configured.");
-    const path = await this.ensureChatNote(id);
+    const index = this.opts.sessionIndex;
+    if (!index) throw new Error("Agent session index is not configured.");
     const pinnedAt = pinned ? Date.now() : null;
-    await persistence.setPinnedAt(path, pinnedAt);
-    return { id: path, pinnedAt: pinnedAt ?? undefined };
+    await index.setPinOverride(await this.getPinIdentity(id), pinnedAt);
+    return { id, pinnedAt: pinnedAt ?? undefined };
   }
 
-  async ensureChatNote(id: string): Promise<string> {
-    const native = parseNativeChatId(id);
-    return native ? this.saveNativeChatAsNote(native.backendId, native.sessionId) : id;
-  }
-
-  private async saveNativeChatAsNote(backendId: BackendId, sessionId: string): Promise<string> {
-    const live = this.findLiveSession(backendId, sessionId);
-    if (live) return this.saveAsNote(live, sessionId);
-    const { entry, projectId } = await this.readNativeChatEntry(backendId, sessionId);
-    const session = await this.resumeNativeChat(backendId, sessionId, entry, projectId);
-    try {
-      return await this.saveAsNote(session, sessionId);
-    } finally {
-      if (this.activeSessionId !== session.internalId) await this.closeSession(session.internalId);
-    }
-  }
-
-  private async saveAsNote(session: AgentSession, sessionId: string): Promise<string> {
-    const saved = await this.saveSessionNow(session);
-    if (!saved) throw new Error(`Could not save chat ${sessionId} as a note.`);
-    return saved.path;
+  private async applyPinOverrides(items: ChatHistoryItem[]): Promise<ChatHistoryItem[]> {
+    const index = this.opts.sessionIndex;
+    if (!index) return items;
+    return Promise.all(
+      items.map(async (item) => {
+        const pinnedAt = await index.getPinOverride(await this.getPinIdentity(item.id));
+        // null 会压住旧笔记中的置顶值，避免重扫时恢复用户已取消的置顶。https://github.com/ItsDalk-Lane/Scribe/issues/31
+        return pinnedAt === undefined ? item : { ...item, pinnedAt: pinnedAt ?? undefined };
+      })
+    );
   }
 
   async deleteChatHistory(fileId: string): Promise<void> {
@@ -766,6 +744,7 @@ export class AgentSessionManager {
     if (native && !index) throw new Error("Agent session index is not configured.");
     if (!native && !persistence) throw new Error("Agent chat persistence is not configured.");
 
+    const pinIdentity = await this.getPinIdentity(fileId);
     const ref = native ?? (await this.readSessionRefFromFile(fileId));
     const snapshot = ref ? await this.readSessionSnapshot(ref.backendId, ref.sessionId) : null;
     const snapshotIds = [
@@ -799,6 +778,16 @@ export class AgentSessionManager {
     if (ref)
       for (const snapshotId of snapshotIds)
         await this.opts.sessionSnapshots?.remove(ref.backendId, snapshotId);
+    // 历史删除成功后清除覆盖值，避免已删聊天留下无用的置顶元数据。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (index) {
+      await index.setPinOverride(pinIdentity, undefined);
+      if (ref) {
+        for (const alias of snapshotIds) {
+          await index.setPinOverride(buildNativeChatId(ref.backendId, alias), undefined);
+        }
+      }
+      await index.flushOrThrow();
+    }
   }
 
   private async closeOpenChatForDelete(historyId: string): Promise<string[]> {
@@ -991,11 +980,11 @@ export class AgentSessionManager {
     if (!this.isBackendEnabled(resolvedId)) {
       // 运行时错误也要走翻译：真实桌面验证发现中文界面出现整句英文。
       // https://github.com/ItsDalk-Lane/Scribe/issues/28
-      throw new Error(t("This agent is disabled. Enable it in Agent settings to continue."));
+      throw new Error(t("This agent is unavailable. Check its model configuration in Models."));
     }
     const resolvedSeed = this.getSeedSelection(resolvedId, seedSelection) ?? undefined;
     if (!resolvedSeed && (descriptor.usesConfiguredModels || descriptor.getEnabledModelEntries)) {
-      const message = t("Enable a model for {p0} in Scribe's model settings to start a chat.", {
+      const message = t("Configure a runnable model for {p0} in Models to start a chat.", {
         p0: descriptor.displayName,
       });
       this.setLastError(message);
@@ -1028,11 +1017,9 @@ export class AgentSessionManager {
     }
 
     const internalId = uuidv4();
-    const mcpServers = await this.connectScribeMcpServer(internalId, descriptor, cwd);
 
     if (this.disposed || !this.isBackendEnabled(resolvedId)) {
       this.finishPendingCreate();
-      this.opts.scribeMcpServer?.disconnect(internalId);
       throw new Error("Agent is unavailable during session creation");
     }
 
@@ -1049,7 +1036,6 @@ export class AgentSessionManager {
       getDescriptor: () => this.opts.resolveDescriptor(resolvedId),
       getDisplayName: (backendId) => this.resolveDescriptor(backendId).displayName,
       getApp: () => this.app,
-      mcpServers,
       beforePrompt: () => this.prepareNextPrompt(internalId),
       ...(projectId !== GLOBAL_SCOPE
         ? {
@@ -1432,15 +1418,15 @@ export class AgentSessionManager {
   }
 
   getDefaultSelection(backendId: BackendId): ModelSelection | null {
-    const offered = this.opts.resolveDescriptor(backendId)?.getEnabledModelEntries?.(getSettings());
-    if (offered) {
-      const first = offered.find((entry) => entry.credentialState === "ok");
-      return first ? { baseModelId: first.baseModelId, effort: null } : null;
-    }
     const backends = getSettings().agentMode?.backends as
       | Record<string, { defaultModel?: ModelSelection | null } | undefined>
       | undefined;
-    return backends?.[backendId]?.defaultModel ?? null;
+    const saved = backends?.[backendId]?.defaultModel;
+    // 旧默认值沿用为上次选择，无记录时才使用第一个可运行模型。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (saved) return saved;
+    const offered = this.opts.resolveDescriptor(backendId)?.getEnabledModelEntries?.(getSettings());
+    const first = offered?.find((entry) => entry.credentialState === "ok");
+    return first ? { baseModelId: first.baseModelId, effort: null } : null;
   }
 
   getSeedSelection(backendId: BackendId, preferred?: ModelSelection | null): ModelSelection | null {
@@ -1481,7 +1467,7 @@ export class AgentSessionManager {
     new Notice(
       replacementName
         ? `${agent} couldn't use ${model}. Using ${replacementName} instead.`
-        : `${agent} couldn't use ${model}. Enable a model ${agent} can run.`
+        : `${agent} couldn't use ${model}. Configure a runnable model in Models.`
     );
   }
 
@@ -1500,6 +1486,22 @@ export class AgentSessionManager {
       effort: patch.effort !== undefined ? patch.effort : current.effort,
     };
     await descriptor.applySelection(session, resolved);
+    this.persistDefaultSelection(session.backendId, resolved);
+  }
+
+  persistDefaultSelection(backendId: BackendId, selection: ModelSelection): void {
+    setSettings((current) => ({
+      agentMode: {
+        ...current.agentMode,
+        backends: {
+          ...current.agentMode.backends,
+          [backendId]: {
+            ...current.agentMode.backends[backendId as keyof typeof current.agentMode.backends],
+            defaultModel: selection,
+          },
+        },
+      },
+    }));
   }
 
   async applyMode(backendId: BackendId, mode: ScribeMode, spec: ModeApplySpec): Promise<void> {
@@ -1519,7 +1521,8 @@ export class AgentSessionManager {
     const backends = getSettings().agentMode?.backends as
       | Record<string, { defaultMode?: ScribeMode | null } | undefined>
       | undefined;
-    return backends?.[backendId]?.defaultMode ?? null;
+    // 未选择过模式的新聊天直接使用自动模式，保留已有选择。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    return backends?.[backendId]?.defaultMode ?? (backendId === "native" ? "auto" : null);
   }
 
   async persistDefaultMode(backendId: BackendId, mode: ScribeMode | null): Promise<void> {
@@ -1727,7 +1730,6 @@ export class AgentSessionManager {
       logWarn(`[AgentMode] dispose during closeSession failed`, e);
     }
     this.detachAutoSave(id);
-    this.opts.scribeMcpServer?.disconnect(id);
     this.sessions.delete(id);
     this.dirtyExtensionSessions.delete(id);
     this.chatUIStates.delete(id);
@@ -1905,41 +1907,6 @@ export class AgentSessionManager {
     }
   }
 
-  private async connectScribeMcpServer(
-    internalId: string,
-    descriptor: BackendDescriptor,
-    cwd: string
-  ): Promise<ReadonlyArray<AgentMcpServer>> {
-    const server = this.opts.scribeMcpServer;
-    if (!server) return EMPTY_MCP_SERVERS;
-    const shared = descriptor.sharesMcpServersAcrossSessions === true;
-    const offer: FeedbackOfferHandler = shared
-      ? (draft, callerSessionId) =>
-          this.findFolderSession(descriptor.id, cwd, callerSessionId)?.offerFeedback(draft) ??
-          "unattributed"
-      : (draft) => this.sessions.get(internalId)?.offerFeedback(draft) ?? "turned_off";
-    try {
-      return [await server.connect(shared ? `${descriptor.id}:${cwd}` : internalId, offer)];
-    } catch (err) {
-      logWarn("[AgentMode] Scribe MCP server unavailable; continuing without it", err);
-      return EMPTY_MCP_SERVERS;
-    }
-  }
-
-  private findFolderSession(
-    backendId: BackendId,
-    cwd: string,
-    backendSessionId: string | null
-  ): AgentSession | undefined {
-    if (!backendSessionId) return undefined;
-    return Array.from(this.sessions.values()).find(
-      (session) =>
-        session.backendId === backendId &&
-        session.cwd === cwd &&
-        session.getBackendSessionId() === backendSessionId
-    );
-  }
-
   async shutdown(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
@@ -1971,7 +1938,6 @@ export class AgentSessionManager {
         }
       })
     );
-    this.opts.scribeMcpServer?.dispose();
     this.sessions.clear();
     this.dirtyExtensionSessions.clear();
     this.chatUIStates.clear();
@@ -2206,9 +2172,11 @@ export class AgentSessionManager {
 
     const saved = await this.readSessionSnapshot(backendId, sessionId);
     const snapshot = saved?.projectId === projectId ? saved : null;
-    seedSelection =
-      this.getSeedSelection(backendId, seedSelection ?? snapshot?.selection) ?? undefined;
-    if (!seedSelection && descriptor.getEnabledModelEntries) return null;
+    const savedSelection = seedSelection ?? snapshot?.selection;
+    const resolvedSelection = this.getSeedSelection(backendId, savedSelection) ?? undefined;
+    if (!resolvedSelection && descriptor.getEnabledModelEntries) return null;
+    // 没有界面快照的原生历史仍有自己的模型记录，不能被新聊天偏好覆盖。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    seedSelection = backendId === "native" && !savedSelection ? undefined : resolvedSelection;
 
     this.pendingCreates++;
     this.startingBackendId = backendId;
@@ -2229,10 +2197,8 @@ export class AgentSessionManager {
     }
 
     const internalId = uuidv4();
-    const mcpServers = await this.connectScribeMcpServer(internalId, descriptor, cwd);
     if (this.disposed || !this.isBackendEnabled(backendId)) {
       this.finishPendingCreate();
-      this.opts.scribeMcpServer?.disconnect(internalId);
       return null;
     }
     const session = new AgentSession({
@@ -2244,7 +2210,7 @@ export class AgentSessionManager {
       backendId,
       projectId,
       defaultModelSelection: seedSelection,
-      defaultMode: this.getDefaultMode(backendId),
+      defaultMode: backendId === "native" ? null : this.getDefaultMode(backendId),
       cwd,
       getDescriptor: () => this.opts.resolveDescriptor(backendId),
       getDisplayName: (id) => this.resolveDescriptor(id).displayName,
@@ -2258,7 +2224,7 @@ export class AgentSessionManager {
         : {}),
     });
 
-    const openInput = { sessionId, cwd, projectId, mcpServers };
+    const openInput = { sessionId, cwd, projectId };
     let resumeResult: LoadSessionOutput | null = null;
     try {
       resumeResult = await backend.loadSession(openInput);
@@ -2266,7 +2232,6 @@ export class AgentSessionManager {
       if (!(err instanceof MethodUnsupportedError)) {
         logWarn(`[AgentMode] loadSession failed for ${sessionId}`, err);
         await session.dispose();
-        this.opts.scribeMcpServer?.disconnect(internalId);
         this.finishPendingCreate();
         return null;
       }
@@ -2282,7 +2247,6 @@ export class AgentSessionManager {
           logWarn(`[AgentMode] resumeSession failed for ${sessionId}`, err);
         }
         await session.dispose();
-        this.opts.scribeMcpServer?.disconnect(internalId);
         this.finishPendingCreate();
         return null;
       }
@@ -2308,7 +2272,8 @@ export class AgentSessionManager {
         );
       }
     }
-    await replayPersistedMode(session, this.getDefaultMode(backendId));
+    // 恢复原生历史保留其权限，避免新聊天的自动模式越过旧聊天选择。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (backendId !== "native") await replayPersistedMode(session, this.getDefaultMode(backendId));
     if (this.disposed) {
       await session.dispose();
       this.finishPendingCreate();
@@ -2337,7 +2302,6 @@ export class AgentSessionManager {
     if (!persistence && !index && !this.opts.sessionSnapshots) return;
 
     const trigger = () => {
-      this.scheduleAutoSave(session);
       this.scheduleIndexTouch(session);
       this.scheduleSessionSnapshot(session);
     };
@@ -2447,19 +2411,6 @@ export class AgentSessionManager {
     session.restoreTaskSnapshots(snapshot.tasks);
   }
 
-  private scheduleAutoSave(session: AgentSession): void {
-    const state = this.getSessionState(session.internalId);
-    if (!getSettings().autosaveChat && !state.source) return;
-    state.dirty = true;
-    if (state.timer) window.clearTimeout(state.timer);
-    state.timer = window.setTimeout(() => {
-      state.timer = undefined;
-      this.flushAutoSave(session).catch((e) =>
-        logWarn(`[AgentMode] auto-save failed for ${session.internalId}`, e)
-      );
-    }, AUTOSAVE_DEBOUNCE_MS);
-  }
-
   private scheduleIndexTouch(session: AgentSession): void {
     if (!this.opts.sessionIndex) return;
     const state = this.getSessionState(session.internalId);
@@ -2499,74 +2450,9 @@ export class AgentSessionManager {
     });
   }
 
-  saveActiveSession(): Promise<{ path: string } | null> {
-    const session = this.getActiveSession();
-    return session ? this.saveSessionNow(session) : Promise.resolve(null);
-  }
-
-  private async saveSessionNow(session: AgentSession): Promise<{ path: string } | null> {
-    const state = this.sessionState.get(session.internalId);
-    if (state?.timer) {
-      window.clearTimeout(state.timer);
-      state.timer = undefined;
-    }
-    const result = await this.flushAutoSave(session);
-    this.scheduleAutoSave(session);
-    return result;
-  }
-
   getSessionSourcePath(internalId: string): string {
     const state = this.sessionState.get(internalId);
     return state?.source?.path ?? "";
-  }
-
-  private flushAutoSave(session: AgentSession): Promise<{ path: string } | null> {
-    const state = this.getSessionState(session.internalId);
-    const previous = state.saving;
-    const run = previous
-      ? previous.then(() => this.writeSession(session))
-      : this.writeSession(session);
-    state.saving = run.catch(() => {});
-    return run;
-  }
-
-  private async writeSession(session: AgentSession): Promise<{ path: string } | null> {
-    const persistence = this.opts.persistenceManager;
-    if (!persistence) return null;
-    if (!this.sessions.has(session.internalId)) return null;
-
-    const messages = session.store.getDisplayMessages();
-    if (messages.length === 0) return null;
-
-    const label = session.getLabel();
-    const sessionId = session.getBackendSessionId();
-    const usage = session.getSessionUsage();
-    const last = messages[messages.length - 1];
-    const signature = `${label ?? ""}-${sessionId ?? ""}-${messages.length}-${last?.message ?? ""}-${usage?.updatedAt ?? ""}`;
-    const state = this.getSessionState(session.internalId);
-    if (state.signature === signature) {
-      state.dirty = false;
-      return state.source ?? null;
-    }
-
-    const previousSourcePath = this.getSessionSourcePath(session.internalId);
-    const result = await persistence.saveSession(messages, session.backendId, {
-      label,
-      existingPath: this.getSessionSourcePath(session.internalId) || undefined,
-      sessionId,
-      projectId: session.projectId,
-      usage: usage ?? undefined,
-      ...(session.getBranchState()
-        ? { chatId: session.chatInputId, conversationEpoch: session.getBranchState()!.createdAtMs }
-        : {}),
-    });
-    if (result) {
-      state.source = this.app.vault.getAbstractFileByPath(result.path) ?? result;
-      state.signature = signature;
-      state.dirty = false;
-      if (previousSourcePath !== result.path) this.notify();
-    }
-    return result;
   }
 
   private async drainAutoSave(session: AgentSession): Promise<void> {
@@ -2581,17 +2467,6 @@ export class AgentSessionManager {
         logWarn(`[AgentMode] drain session-index update failed for ${session.internalId}`, e);
       }
     }
-    await state?.saving;
-    if (!state || (!state.timer && !state.dirty)) return;
-    if (state.timer) {
-      window.clearTimeout(state.timer);
-      state.timer = undefined;
-    }
-    try {
-      await this.flushAutoSave(session);
-    } catch (e) {
-      logWarn(`[AgentMode] drain auto-save failed for ${session.internalId}`, e);
-    }
   }
 
   private detachAutoSave(internalId: string): void {
@@ -2603,15 +2478,10 @@ export class AgentSessionManager {
   }
 
   private stopAutoSave(state: {
-    timer?: number;
     indexTimer?: number;
     snapshotTimer?: number;
     unsub?: () => void;
-    dirty?: boolean;
   }): void {
-    window.clearTimeout(state.timer);
-    state.timer = undefined;
-    state.dirty = false;
     window.clearTimeout(state.indexTimer);
     state.indexTimer = undefined;
     window.clearTimeout(state.snapshotTimer);
@@ -2763,7 +2633,6 @@ export class AgentSessionManager {
       if (dead.length === 0) return;
       for (const s of dead) {
         this.detachAutoSave(s.internalId);
-        this.opts.scribeMcpServer?.disconnect(s.internalId);
         this.sessions.delete(s.internalId);
         this.chatUIStates.delete(s.internalId);
         this.landingCaptureSignatures.delete(s.internalId);

@@ -1,8 +1,9 @@
 import {
   chatBackendPickerAtom,
-  providerRequiresApiKey,
+  providerNeedsResolvedApiKey,
   resolveChatModelSelectionId,
 } from "@/modelManagement";
+import { KeychainService } from "@/services/keychainService";
 import { settingsStore } from "@/settings/model";
 import { useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
@@ -23,7 +24,16 @@ export function useChatBackendModelOptions(fallbackToFirst = true): ChatBackendM
     const result: ChatBackendModelOption[] = [];
     for (const entry of entries) {
       if (entry.state !== "ok") continue;
-      if (providerRequiresApiKey(entry.provider) && !entry.provider.apiKeyKeychainId) continue;
+      // 上次配置留下的密钥引用可能在本机没有实际凭据，默认选择必须跳过它。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      if (providerNeedsResolvedApiKey(entry.provider)) {
+        if (!entry.provider.apiKeyKeychainId) continue;
+        try {
+          if (!KeychainService.getInstance().getSecretById(entry.provider.apiKeyKeychainId)?.trim())
+            continue;
+        } catch {
+          continue;
+        }
+      }
       result.push({
         label: entry.configuredModel.info.displayName || entry.configuredModel.info.id,
         value: entry.configuredModelId,

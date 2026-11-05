@@ -42,8 +42,10 @@ jest.mock("@/modelManagement", () => ({
     "@/modelManagement/chatModel/chatModelSelection"
   ),
   chatBackendPickerAtom: "chat",
-  providerRequiresApiKey: (provider: { requiresApiKey?: boolean }) =>
-    provider.requiresApiKey ?? true,
+  providerNeedsResolvedApiKey: (provider: {
+    requiresApiKey?: boolean;
+    apiKeyKeychainId?: string;
+  }) => (provider.requiresApiKey ?? true) || !!provider.apiKeyKeychainId,
   configuredModelToCustomModel: ({
     configuredModel,
   }: {
@@ -54,10 +56,33 @@ jest.mock("@/modelManagement", () => ({
   }),
 }));
 jest.mock("@/settings/model", () => ({ settingsStore: {} }));
-jest.mock("@/services/keychainService", () => ({ KeychainService: { getInstance: jest.fn() } }));
+const mockSecret = jest.fn();
+jest.mock("@/services/keychainService", () => ({
+  KeychainService: { getInstance: () => ({ getSecretById: mockSecret }) },
+}));
 
 describe("useChatBackendModelOptions", () => {
   describe("useChatBackendModelOptions", () => {
+    it("omits a saved key reference whose credential is unavailable on this device https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      const provider = mockEntries[1].provider as (typeof mockEntries)[1]["provider"] & {
+        apiKeyKeychainId?: string;
+      };
+      provider.apiKeyKeychainId = "missing-on-device";
+      mockSecret.mockReturnValue(undefined);
+      try {
+        const { result } = renderHook(() => useChatBackendModelOptions());
+        expect(result.current.options.map((option) => option.value)).toEqual(["model-a"]);
+        mockSecret.mockReturnValue("usable-key");
+        const available = renderHook(() => useChatBackendModelOptions());
+        expect(available.result.current.options.map((option) => option.value)).toEqual([
+          "model-a",
+          "model-keyless",
+        ]);
+      } finally {
+        delete provider.apiKeyKeychainId;
+      }
+    });
+
     it("lists enabled models whose provider can authenticate and resolves a legacy selection", () => {
       const { result } = renderHook(() => useChatBackendModelOptions(false));
       expect(result.current.options).toEqual([{ label: "GPT-4o", value: "model-a" }]);

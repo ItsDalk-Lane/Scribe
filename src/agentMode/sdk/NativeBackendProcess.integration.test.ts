@@ -520,7 +520,6 @@ describe("NativeBackendProcess integration", () => {
                   pendingAskUserQuestions: [],
                   chatBackend: {} as AgentChatBackend,
                   isLoading: false,
-                  feedbackOffer: null,
                 })
               )
             )
@@ -648,7 +647,6 @@ describe("NativeBackendProcess integration", () => {
                 pendingAskUserQuestions: [],
                 chatBackend: {} as AgentChatBackend,
                 isLoading: false,
-                feedbackOffer: null,
               })
             )
           )
@@ -940,6 +938,59 @@ describe("NativeBackendProcess integration", () => {
         }
       );
 
+      it("returns a limited child's actual closing summary and reason to its parent (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        await writeFile(join(root, "child-summary.md"), "Actual child note");
+        const f = fixture(
+          (context) => {
+            if (userText(context) === "Limited child") {
+              return results(context).length > 0
+                ? response("Read child-summary.md; remaining notes were not checked.")
+                : response("", [
+                    {
+                      id: "limited-read",
+                      name: "read_note",
+                      arguments: { path: "child-summary.md" },
+                    },
+                  ]);
+            }
+            return results(context).length > 0
+              ? response("The child checked one note and reached its limit.")
+              : response("", [
+                  {
+                    id: "delegate-summary",
+                    name: "delegate_task",
+                    arguments: { prompt: "Limited child", description: "Inspect notes" },
+                  },
+                ]);
+          },
+          undefined,
+          1
+        );
+        const id = await f.open();
+        await f.send(id, "Parent task");
+        const ended = f.events
+          .map((event) => event.update)
+          .find((update) => update.sessionUpdate === "task_ended");
+        expect(ended).toMatchObject({
+          stopReason: "max_turn_requests",
+          summary: expect.stringContaining(
+            "Read child-summary.md; remaining notes were not checked."
+          ),
+        });
+        const record = await new NodeNativeSessionStorage(join(data, "sessions")).load(id);
+        expect(record?.messages).toContainEqual(
+          expect.objectContaining({
+            role: "toolResult",
+            content: [
+              expect.objectContaining({ text: expect.stringContaining("Read child-summary.md") }),
+            ],
+          })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
+        );
+      });
+
       it("reports a child that reaches its step limit as failed instead of a completed empty result", async () => {
         await writeFile(join(root, "limit.md"), "Read but not a final child answer");
         const f = fixture(
@@ -965,6 +1016,7 @@ describe("NativeBackendProcess integration", () => {
         );
         expect(ended).toHaveLength(1);
         expect(ended[0].status).toBe("failed");
+        expect(ended[0].stopReason).toBe("max_turn_requests");
         const saved = await new NodeNativeSessionStorage(join(data, "sessions")).load(id);
         expect(saved?.messages).toContainEqual(
           expect.objectContaining({

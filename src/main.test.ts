@@ -133,8 +133,48 @@ async function flushTeardown(): Promise<void> {
 
 describe("main", () => {
   describe("ScribePlugin", () => {
+    describe("loadChatById()", () => {
+      it("opens a legacy note with no native session as a readable note https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const plugin = createPluginUnderTest([]);
+        const file = new (TFile as unknown as new (path: string) => TFile)("scribe/old-chat.md");
+        const openFile = jest.fn(async () => undefined);
+        Object.assign(plugin, {
+          app: {
+            vault: {
+              getAbstractFileByPath: () => file,
+              adapter: {
+                read: async () =>
+                  "---\nmode: agent\nbackendId: native\n---\n\n**user**: Old message",
+              },
+            },
+            metadataCache: { getFileCache: () => ({ frontmatter: { mode: "agent" } }) },
+            workspace: { getLeaf: () => ({ openFile }) },
+          },
+        });
+        await plugin.loadChatById(file.path);
+        expect(openFile).toHaveBeenCalledWith(file);
+      });
+    });
+
     describe("copyChatLink", () => {
       beforeEach(() => jest.clearAllMocks());
+
+      it("copies a native chat link without saving a note https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const plugin = createPluginUnderTest([]);
+        const id = "scribe-agent-session://native/s1";
+        const create = jest.fn();
+        Object.assign(plugin, {
+          app: { vault: { getName: () => "Notes", getAbstractFileByPath: () => null, create } },
+          agentSessionManager: { getChatHistoryItems: async () => [{ id, title: "Native chat" }] },
+        });
+        const writeText = jest.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+        await plugin.copyChatLink(async () => id);
+        expect(writeText).toHaveBeenCalledWith(
+          `[Native chat](obsidian://scribe-chat?vault=Notes&id=${encodeURIComponent(id)})`
+        );
+        expect(create).not.toHaveBeenCalled();
+      });
 
       it("copies a markdown link titled by the chat topic that targets the note's epoch", async () => {
         const plugin = createPluginUnderTest([]);

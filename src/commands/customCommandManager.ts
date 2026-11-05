@@ -8,6 +8,7 @@ import {
 import { CustomCommand } from "@/commands/type";
 import {
   SCRIBE_COMMAND_ENABLED,
+  SCRIBE_COMMAND_ENABLE_TEMPLATING,
   SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
   SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
   SCRIBE_COMMAND_LAST_USED,
@@ -27,6 +28,7 @@ import { trashFile } from "@/utils/vaultAdapterUtils";
 
 const METADATA_FIELDS = {
   enabled: SCRIBE_COMMAND_ENABLED,
+  enableTemplating: SCRIBE_COMMAND_ENABLE_TEMPLATING,
   showInContextMenu: SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
   showInSlashMenu: SCRIBE_COMMAND_SLASH_ENABLED,
   order: SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
@@ -35,6 +37,7 @@ const METADATA_FIELDS = {
 } as const;
 const EDITABLE_FIELDS = [
   "enabled",
+  "enableTemplating",
   "content",
   "showInContextMenu",
   "showInSlashMenu",

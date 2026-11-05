@@ -94,6 +94,21 @@ describe("taskDisplay", () => {
   });
 
   describe("taskDisplayStatus", () => {
+    it.each([
+      ["max_turn_requests", "Step limit reached"],
+      ["quota_exhausted", "Service quota exhausted"],
+      ["authentication_error", "Authentication failed"],
+      ["context_limit", "Context limit reached"],
+      ["request_error", "Model request failed"],
+    ] as const)(
+      "identifies %s on ended child tasks (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+      (stopReason, label) => {
+        expect(taskDisplayStatus(makeTask({ status: "failed", stopReason }), [])).toBe(stopReason);
+        expect(taskStatusLabel(stopReason)).toBe(label);
+        expect(taskBadgeStatus(stopReason)).toBe("failed");
+      }
+    );
+
     it("labels an unreconnected task as interrupted instead of successfully completed", () => {
       expect(taskDisplayStatus(makeTask({ status: "stopped", interrupted: true }), [])).toBe(
         "interrupted"

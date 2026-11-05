@@ -2,10 +2,8 @@ import type { App } from "obsidian";
 import type ScribePlugin from "@/main";
 import type { ScribeSettings } from "@/settings/model";
 import type { InstallState } from "./session/types";
-import type { BuiltinSkillRuntime } from "./skills/SkillManager";
 import { createAgentSessionManager } from "./index";
 import { AgentSessionManager } from "./session/AgentSessionManager";
-import { reconcileBuiltinSkills } from "./skills/builtin/reconcileBuiltinSkills";
 import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
 
 jest.mock("@/constants", () => ({}));
@@ -21,7 +19,6 @@ jest.mock("@/settings/model", () => ({
 jest.mock("@/settings/scribeFolder", () => ({
   deriveSkillsFolder: (settings: ScribeSettings) => `${settings.scribeFolder}/skills`,
 }));
-jest.mock("@/settings/builtinSkillPreferences", () => ({ saveBuiltinPreferences: jest.fn() }));
 jest.mock("@/utils/appPaths", () => ({
   scribeAppDataDir: () => "/tmp/scribe",
   getVaultId: () => "test-vault",
@@ -44,17 +41,9 @@ jest.mock("./session/AgentSessionManager", () => ({
 }));
 jest.mock("./skills", () => ({
   SkillManager: {
-    initialize: (_app: App, _dirs: unknown, runtime: BuiltinSkillRuntime) => {
-      mockRuntime = runtime;
-      return { refresh: mockRefresh };
-    },
+    initialize: (...args: unknown[]) => mockInitialize(...args),
   },
 }));
-jest.mock("./skills/builtin/reconcileBuiltinSkills", () => ({
-  ...jest.requireActual("./skills/builtin/reconcileBuiltinSkills"),
-  reconcileBuiltinSkills: jest.fn(),
-}));
-jest.mock("./skills/builtin/buildBuiltinSeedFs", () => ({ buildBuiltinSeedFs: jest.fn() }));
 jest.mock("@/services/obsidianCli/ObsidianCliClient", () => ({
   isObsidianCliEnabled: jest.fn(),
 }));
@@ -65,9 +54,7 @@ jest.mock("./ui/permissionPrompter", () => ({
 jest.mock("./ui/ScribeAgentView", () => ({}));
 jest.mock("./ui/AgentExtensionsSettings", () => ({}));
 jest.mock("./ui/useBackendDescriptor", () => ({}));
-jest.mock("@/components/ui/ModelEnableList", () => ({}));
 jest.mock("./ui/PlanPreviewView", () => ({}));
-jest.mock("./ui/ReportIssueModal", () => ({}));
 jest.mock("./session/debugSink", () => ({}));
 jest.mock("./session/useBackendAuthState", () => ({}));
 
@@ -75,7 +62,6 @@ const RELOAD_ISSUE = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 type SettingsSubscriber = (prev: ScribeSettings, next: ScribeSettings) => void;
 const mockSettingsSubscribers: SettingsSubscriber[] = [];
 let mockSettings: ScribeSettings;
-let mockRuntime: BuiltinSkillRuntime;
 let mockState: InstallState;
 let mockInstallListener: () => void;
 const mockDescriptor = {
@@ -96,7 +82,7 @@ const mockManager = {
   onInstallStateChanged: jest.fn(async (_id: string) => {}),
 };
 let plugin: ScribePlugin;
-const reconcile = jest.mocked(reconcileBuiltinSkills);
+const mockInitialize = jest.fn((..._args: unknown[]) => ({ refresh: mockRefresh }));
 
 function emitSettingsChange(next: ScribeSettings): void {
   const prev = mockSettings;
@@ -123,9 +109,8 @@ describe("agentMode", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       mockState = { kind: "ready", source: "custom" };
-      reconcile.mockResolvedValue(undefined);
       jest.mocked(isObsidianCliEnabled).mockReturnValue(false);
-      mockRefresh.mockImplementation(() => mockRuntime.prepare("scribe/skills"));
+      mockRefresh.mockResolvedValue(undefined);
       mockSettingsSubscribers.length = 0;
       mockSettings = {
         scribeFolder: "scribe",
@@ -141,20 +126,19 @@ describe("agentMode", () => {
       await Promise.all(mockManager.registerPreload.mock.calls.map(([, ready]) => ready));
     });
 
-    it("skips startup model preloading when the agent is disabled", () => {
+    it("preloads native models despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       mockSettings.agentMode.backends.native = { enabled: false };
       createAgentSessionManager({} as App, plugin);
-      expect(mockManager.registerPreload).not.toHaveBeenCalled();
-      expect(mockManager.preloadModels).not.toHaveBeenCalled();
+      await Promise.all(mockManager.registerPreload.mock.calls.map(([, ready]) => ready));
+      expect(mockManager.registerPreload).toHaveBeenCalled();
+      expect(mockManager.preloadModels).toHaveBeenCalled();
     });
 
     it(`waits for initial skill reconciliation before preloading Scribe`, async () => {
       const gate = deferred();
-      reconcile.mockReturnValue(gate.promise);
+      mockRefresh.mockReturnValue(gate.promise);
       expect(createAgentSessionManager({} as App, plugin)).toBe(mockManager);
-      expect(reconcile).toHaveBeenCalledWith(
-        expect.objectContaining({ availableAgents: ["native"], registeredAgents: ["native"] })
-      );
+      expect(mockRefresh).toHaveBeenCalledWith(true);
       expect(mockManager.preloadModels).not.toHaveBeenCalled();
       gate.resolve();
       await mockManager.registerPreload.mock.calls[0][1];
@@ -205,27 +189,17 @@ describe("agentMode", () => {
       mockState = { kind: "absent" };
       await startManager();
       expect(mockManager.preloadModels).not.toHaveBeenCalled();
-      expect(reconcile).toHaveBeenCalledWith(expect.objectContaining({ availableAgents: [] }));
     });
 
-    it("refreshes skills before Scribe starts when Obsidian's command line interface toggle changes, and still starts if the refresh fails", async () => {
+    it("does not reinstall or refresh skills when Obsidian's CLI switch changes https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
       await startManager();
       const { beforeBackendStart } = jest.mocked(AgentSessionManager).mock.calls[0][2];
-      const passes = reconcile.mock.calls.length;
-
-      await beforeBackendStart!("native");
-      expect(reconcile).toHaveBeenCalledTimes(passes);
-
+      const refreshCount = mockRefresh.mock.calls.length;
       jest.mocked(isObsidianCliEnabled).mockReturnValue(true);
       await beforeBackendStart!("native");
-      expect(reconcile).toHaveBeenCalledTimes(passes + 1);
-
-      await beforeBackendStart!("native");
-      expect(reconcile).toHaveBeenCalledTimes(passes + 1);
-
-      mockRefresh.mockRejectedValueOnce(new Error("Disk unavailable"));
-      jest.mocked(isObsidianCliEnabled).mockReturnValue(false);
-      await expect(beforeBackendStart!("native")).resolves.toBeUndefined();
+      expect(mockRefresh).toHaveBeenCalledTimes(refreshCount);
+      expect(isObsidianCliEnabled).not.toHaveBeenCalled();
+      expect(mockInitialize.mock.calls[0]).toHaveLength(2);
     });
 
     it(`settles skills before refreshing a newly available Scribe installation`, async () => {
@@ -233,38 +207,15 @@ describe("agentMode", () => {
       await startManager();
       const gate = deferred();
       const handled = deferred();
-      reconcile.mockReturnValueOnce(gate.promise);
+      mockRefresh.mockReturnValueOnce(gate.promise);
       mockManager.onInstallStateChanged.mockImplementationOnce(async () => handled.resolve());
       mockState = { kind: "ready", source: "custom" };
       mockInstallListener();
-      expect(reconcile).toHaveBeenLastCalledWith(
-        expect.objectContaining({ availableAgents: ["native"] })
-      );
+      expect(mockRefresh).toHaveBeenLastCalledWith(true);
       expect(mockManager.onInstallStateChanged).not.toHaveBeenCalled();
       gate.resolve();
       await handled.promise;
       expect(mockManager.onInstallStateChanged).toHaveBeenCalledWith("native");
-    });
-
-    it(`refreshes built-in skills after their preferences change without restarting Scribe ${RELOAD_ISSUE}`, async () => {
-      await startManager();
-      const refreshed = deferred();
-      mockRefresh.mockImplementationOnce(async () => refreshed.resolve());
-
-      emitSettingsChange({
-        ...mockSettings,
-        agentMode: {
-          ...mockSettings.agentMode,
-          skills: {
-            ...mockSettings.agentMode.skills,
-            builtinPreferences: { "obsidian-cli": { disabled: true } },
-          },
-        },
-      });
-
-      await refreshed.promise;
-      expect(mockRefresh).toHaveBeenCalledTimes(2);
-      expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
     });
 
     it(`refreshes skills after the shared folder changes without restarting Scribe ${RELOAD_ISSUE}`, async () => {
@@ -279,28 +230,25 @@ describe("agentMode", () => {
       expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
     });
 
-    it(`does not restart Scribe for model lists or feedback-card preferences ${RELOAD_ISSUE}`, async () => {
+    it(`does not restart Scribe for model lists ${RELOAD_ISSUE}`, async () => {
       await startManager();
 
       emitSettingsChange({
         ...mockSettings,
-        agentMode: { ...mockSettings.agentMode, offerFeedbackCards: true },
         backends: { ...mockSettings.backends, native: { enabledModels: [] } },
       });
 
       expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
     });
 
-    it(`retains Scribe's available skills while rechecking a previously ready installation`, async () => {
+    it(`refreshes ordinary skills while rechecking a previously ready installation`, async () => {
       await startManager();
       mockState = { kind: "checking", source: "custom" };
       const handled = deferred();
       mockManager.onInstallStateChanged.mockImplementationOnce(async () => handled.resolve());
       mockInstallListener();
       await handled.promise;
-      expect(reconcile).toHaveBeenLastCalledWith(
-        expect.objectContaining({ availableAgents: ["native"] })
-      );
+      expect(mockRefresh).toHaveBeenLastCalledWith(true);
     });
   });
 });

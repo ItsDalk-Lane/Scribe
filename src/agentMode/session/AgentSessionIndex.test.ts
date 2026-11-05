@@ -245,4 +245,41 @@ describe("AgentSessionIndex", () => {
       expect(await index.isTombstoned("other-backend", "z")).toBe(false);
     });
   });
+  describe("getPinOverride()", () => {
+    it("keeps legacy indexes readable without pin overrides https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      const storage = makeStorage({
+        [INDEX_PATH]: JSON.stringify({ version: 1, entries: [entry()], tombstones: {} }),
+      });
+      const index = new AgentSessionIndex(storage, INDEX_PATH);
+      expect(await index.getPinOverride("epoch:1000")).toBeUndefined();
+      expect(await index.getEntries()).toHaveLength(1);
+    });
+  });
+
+  describe("setPinOverride()", () => {
+    it("removes an obsolete override from the saved index https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      const storage = makeStorage();
+      const index = new AgentSessionIndex(storage, INDEX_PATH);
+      await index.setPinOverride("epoch:1000", 5000);
+      await index.setPinOverride("epoch:1000", undefined);
+      await index.flush();
+      expect(JSON.parse(storage.files.get(INDEX_PATH)!)).not.toHaveProperty("pinOverrides");
+      expect(
+        await new AgentSessionIndex(storage, INDEX_PATH).getPinOverride("epoch:1000")
+      ).toBeUndefined();
+    });
+
+    it("remembers pins and explicit unpins without creating a session or changing a note https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      const storage = makeStorage();
+      const index = new AgentSessionIndex(storage, INDEX_PATH);
+      await index.setPinOverride("epoch:1000", 5000);
+      await index.setPinOverride("scribe-agent-session://native/s1", null);
+      await index.flush();
+      const reloaded = new AgentSessionIndex(storage, INDEX_PATH);
+      expect(await reloaded.getPinOverride("epoch:1000")).toBe(5000);
+      expect(await reloaded.getPinOverride("scribe-agent-session://native/s1")).toBeNull();
+      expect(await reloaded.getEntries()).toEqual([]);
+      expect([...storage.files.keys()]).toEqual([INDEX_PATH]);
+    });
+  });
 });

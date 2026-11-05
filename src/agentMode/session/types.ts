@@ -164,7 +164,16 @@ export type PromptContent =
   | { type: "image"; mimeType: string; data: string }
   | { type: "resource_link"; uri: string; name?: string };
 
-export type StopReason = "end_turn" | "cancelled" | "refusal" | "max_tokens" | "max_turn_requests";
+export type StopReason =
+  | "end_turn"
+  | "cancelled"
+  | "refusal"
+  | "max_tokens"
+  | "max_turn_requests"
+  | "quota_exhausted"
+  | "authentication_error"
+  | "context_limit"
+  | "request_error";
 
 export type AgentToolKind =
   | "read"
@@ -300,6 +309,7 @@ export interface TaskStart {
 }
 
 export interface TaskEnd {
+  stopReason?: StopReason;
   taskId: string;
   status: TaskEndStatus;
   summary?: string;

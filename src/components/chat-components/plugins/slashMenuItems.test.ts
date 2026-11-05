@@ -1,5 +1,4 @@
 import type { Skill } from "@/agentMode";
-import type { CustomCommand } from "@/commands/type";
 import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "lexical";
 import {
   $slashStartsPrompt,
@@ -20,18 +19,6 @@ function makeSkill(overrides: Partial<Skill> & { name: string }): Skill {
   };
 }
 
-function makeCommand(overrides: Partial<CustomCommand> & { title: string }): CustomCommand {
-  return {
-    content: `# ${overrides.title}\n\nbody`,
-    showInContextMenu: false,
-    showInSlashMenu: true,
-    order: 0,
-    modelKey: "",
-    lastUsedMs: 0,
-    ...overrides,
-  };
-}
-
 describe("slashMenuItems", () => {
   describe("composeSlashMenuItems", () => {
     it("filters skills by active backend when one is provided", () => {
@@ -40,7 +27,7 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "only-codex", enabledAgents: ["codex"] }),
         makeSkill({ name: "both", enabledAgents: ["claude", "codex"] }),
       ];
-      const items = composeSlashMenuItems(skills, [], "claude");
+      const items = composeSlashMenuItems(skills, "claude");
       const names = items.map((i) => i.name);
       expect(names).toEqual(["summarize", "both"]);
       expect(items.every((i) => i.kind === "skill")).toBe(true);
@@ -52,7 +39,7 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "summarize", enabledAgents: ["claude"], userInvocable: true }),
         makeSkill({ name: "default-invocable", enabledAgents: ["claude"] }),
       ];
-      const items = composeSlashMenuItems(skills, [], "claude");
+      const items = composeSlashMenuItems(skills, "claude");
       expect(items.map((i) => i.name)).toEqual(["summarize", "default-invocable"]);
     });
 
@@ -62,97 +49,56 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "untoggled", enabledAgents: [] }),
         makeSkill({ name: "hidden", enabledAgents: [], userInvocable: false }),
       ];
-      const commands = [makeCommand({ title: "old-cmd" })];
-      const items = composeSlashMenuItems(skills, commands, null);
-      const names = items.map((i) => i.name);
-      expect(names).toEqual(["summarize", "untoggled", "old-cmd"]);
+      const items = composeSlashMenuItems(skills, null);
+      expect(items.map((i) => i.name)).toEqual(["summarize", "untoggled"]);
     });
 
-    it("name collision: managed skill wins and the command is shadowed", () => {
-      const skills = [
-        makeSkill({ name: "dup", enabledAgents: ["claude"] }),
-        makeSkill({ name: "summarize", enabledAgents: ["claude"] }),
-      ];
-      const commands = [makeCommand({ title: "dup" }), makeCommand({ title: "unique-cmd" })];
-      const items = composeSlashMenuItems(skills, commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["dup", "summarize", "unique-cmd"]);
-      expect(items.find((i) => i.name === "dup")?.kind).toBe("skill");
-    });
-
-    it("collision detection is case-insensitive", () => {
+    it("offers only skills and the built-in compact item, so saved commands never reach the menu", () => {
       const skills = [makeSkill({ name: "summarize", enabledAgents: ["claude"] })];
-      const commands = [makeCommand({ title: "Summarize" })];
-      const items = composeSlashMenuItems(skills, commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["summarize"]);
+      const kinds = new Set(composeSlashMenuItems(skills, "claude", true).map((i) => i.kind));
+      expect([...kinds].sort()).toEqual(["builtin", "skill"]);
     });
 
-    it("omits disabled commands even when their slash-menu preference is on", () => {
-      const commands = [
-        makeCommand({ title: "Disabled", enabled: false, showInSlashMenu: true }),
-        makeCommand({ title: "Enabled" }),
-      ];
-      expect(composeSlashMenuItems([], commands, "claude").map((item) => item.name)).toEqual([
-        "Enabled",
-      ]);
-    });
-
-    it("respects showInSlashMenu on commands", () => {
-      const commands = [
-        makeCommand({ title: "visible" }),
-        makeCommand({ title: "hidden", showInSlashMenu: false }),
-      ];
-      const items = composeSlashMenuItems([], commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["visible"]);
-    });
-
-    it("preserves caller-supplied order within each group", () => {
+    it("preserves caller-supplied skill order", () => {
       const skills = [
         makeSkill({ name: "b-skill", enabledAgents: ["claude"] }),
         makeSkill({ name: "a-skill", enabledAgents: ["claude"] }),
       ];
-      const commands = [makeCommand({ title: "z-cmd" }), makeCommand({ title: "m-cmd" })];
-      const items = composeSlashMenuItems(skills, commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["b-skill", "a-skill", "z-cmd", "m-cmd"]);
+      expect(composeSlashMenuItems(skills, "claude").map((i) => i.name)).toEqual([
+        "b-skill",
+        "a-skill",
+      ]);
     });
 
     it("lists the built-in compact item first in agent mode", () => {
       const skills = [makeSkill({ name: "summarize", enabledAgents: ["claude"] })];
-      const commands = [makeCommand({ title: "polish" })];
-      const items = composeSlashMenuItems(skills, commands, "claude", true);
+      const items = composeSlashMenuItems(skills, "claude", true);
       expect(items.map((i) => [i.kind, i.name])).toEqual([
         ["builtin", "compact"],
         ["skill", "summarize"],
-        ["command", "polish"],
       ]);
     });
 
     it("lists compact in agent mode before the backend is known", () => {
-      const items = composeSlashMenuItems([], [], null, true);
+      const items = composeSlashMenuItems([], null, true);
       expect(items.map((i) => i.name)).toEqual(["compact"]);
     });
 
     it("omits the built-in compact item outside agent mode", () => {
       const skills = [makeSkill({ name: "compact", enabledAgents: ["claude"] })];
-      const commands = [makeCommand({ title: "polish" })];
-      const items = composeSlashMenuItems(skills, commands, null, false);
-      expect(items.map((i) => [i.kind, i.name])).toEqual([
-        ["skill", "compact"],
-        ["command", "polish"],
-      ]);
+      const items = composeSlashMenuItems(skills, null, false);
+      expect(items.map((i) => [i.kind, i.name])).toEqual([["skill", "compact"]]);
     });
 
-    it("shadows a skill or command named exactly compact with the built-in in agent mode, leaving other casings listed because /Compact still expands them", () => {
-      const skills = [makeSkill({ name: "compact", enabledAgents: ["claude"] })];
-      const commands = [
-        makeCommand({ title: "compact" }),
-        makeCommand({ title: "Compact" }),
-        makeCommand({ title: "polish" }),
+    it("shadows a skill named exactly compact with the built-in in agent mode, leaving other casings listed because /Compact still expands them", () => {
+      const skills = [
+        makeSkill({ name: "compact", enabledAgents: ["claude"] }),
+        makeSkill({ name: "Compact", enabledAgents: ["claude"] }),
       ];
-      const items = composeSlashMenuItems(skills, commands, "claude", true);
+      const items = composeSlashMenuItems(skills, "claude", true);
       expect(items.map((i) => [i.kind, i.name])).toEqual([
         ["builtin", "compact"],
-        ["command", "Compact"],
-        ["command", "polish"],
+        ["skill", "Compact"],
       ]);
     });
   });
@@ -180,8 +126,7 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "compactor", enabledAgents: ["claude"] }),
         makeSkill({ name: "compact-notes", enabledAgents: ["claude"] }),
       ];
-      const commands = [makeCommand({ title: "a-compact" }), makeCommand({ title: "compact" })];
-      const options = composeSlashMenuItems(skills, commands, "claude", true).map((item) => ({
+      const options = composeSlashMenuItems(skills, "claude", true).map((item) => ({
         title: item.name,
         content: item.body,
         item,
@@ -190,12 +135,7 @@ describe("slashMenuItems", () => {
       const ranked = filterSlashMenuOptions(options, "compact");
 
       expect(ranked[0].item.kind).toBe("builtin");
-      expect(ranked.map((o) => o.title)).toEqual([
-        "compact",
-        "compactor",
-        "a-compact",
-        "compact-notes",
-      ]);
+      expect(ranked.map((o) => o.title)).toEqual(["compact", "compactor", "compact-notes"]);
     });
   });
 

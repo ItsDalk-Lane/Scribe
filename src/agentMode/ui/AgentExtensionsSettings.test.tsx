@@ -83,7 +83,7 @@ const mockPlugin = {
 const mockSettings = {};
 let mockPending = false;
 const mockManagerListeners = new Set<() => void>();
-const mockManagedSkills: Array<{ name: string; filePath: string; builtin?: boolean }> = [];
+const mockManagedSkills: Array<{ name: string; filePath: string }> = [];
 const mockOpenNewSkill = jest.fn();
 const mockModalContent = jest.fn<void, [React.ReactElement]>();
 jest.mock("@/agentMode/backends/registry", () => ({ backendDisplayOrder: () => [mockDescriptor] }));
@@ -110,7 +110,6 @@ jest.mock("@/agentMode/skills/ui/SkillsSettings", () => ({
 jest.mock("@/settings/v2/components/CommandSettings", () => ({
   CommandSettings: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-jest.mock("@/builtinSkills/builtinSkills", () => ({ BUILTIN_SKILLS: [] }));
 jest.mock("@/logger", () => ({ logError: jest.fn() }));
 jest.mock("@/agentMode/ui/ExtensionDialogs", () => ({
   ExtensionModal: class {
@@ -486,6 +485,45 @@ describe("AgentExtensionsSettings", () => {
       );
       expect(screen.getByRole("article", { name: "linked-skill" })).toBeTruthy();
     });
+
+    it.each([
+      {
+        condition: "keeps a former built-in name when no managed file exists",
+        managed: false,
+        visible: 1,
+      },
+      {
+        condition: "hides a runtime duplicate only when its managed file exists",
+        managed: true,
+        visible: 0,
+      },
+    ])(
+      "$condition https://github.com/ItsDalk-Lane/Scribe/issues/32",
+      async ({ managed, visible }) => {
+        const skill: AgentExtensionItem = {
+          ...mockItem,
+          kind: "skill",
+          id: "runtime:obsidian-markdown",
+          name: "obsidian-markdown",
+          source: "runtime",
+          target: undefined,
+        };
+        if (managed) {
+          mockManagedSkills.push({
+            name: skill.name,
+            filePath: "/vault/scribe/skills/obsidian-markdown/SKILL.md",
+          });
+        }
+        mockList.mockResolvedValue([skill]);
+        mockRead.mockResolvedValue([
+          { kind: "skill", status: "partial", warnings: [], items: [skill] },
+        ]);
+        render(<AgentExtensionsSettings kind="skill" />);
+        await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
+        if (visible) await expandAllSections();
+        expect(screen.queryAllByRole("article", { name: skill.name })).toHaveLength(visible);
+      }
+    );
 
     it("hides only skills already shown by the managed list, preserving another file with the same name", async () => {
       const managedPath = "/vault/scribe/skills/review/SKILL.md";

@@ -2,8 +2,6 @@ import { t } from "@/lib/i18n";
 import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
 import { AgentChatControls } from "@/agentMode/ui/AgentChatControls";
 import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
-import { openReportIssueModal } from "@/agentMode/ui/ReportIssueModal";
-import { formatChatReportNote } from "@/agentMode/session/feedback/feedbackOffer";
 import AgentContextMeter from "@/agentMode/ui/AgentContextMeter";
 import AgentContextSection, { buildContextSummary } from "@/agentMode/ui/AgentContextSection";
 import { AgentLandingStack } from "@/agentMode/ui/AgentLandingStack";
@@ -70,7 +68,6 @@ interface AgentHomeProps {
   chatInputId: string;
   manager: AgentSessionManager;
   plugin: ScribePlugin;
-  onSaveChat: (saveAsNote: () => Promise<void>) => void;
   updateUserMessageHistory: (newMessage: string) => void;
 }
 
@@ -82,7 +79,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   chatInputId,
   manager,
   plugin,
-  onSaveChat,
   updateUserMessageHistory,
 }) => {
   const appContext = useContext(AppContext);
@@ -101,7 +97,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     currentTodoList,
     pendingToolPermissions,
     pendingAskUserQuestions,
-    feedbackOffer,
     queuedPrompts,
     tasks,
     isReplyRunning,
@@ -130,26 +125,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     [backend]
   );
   const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    onSaveChat(async () => {
-      await manager.saveActiveSession();
-    });
-  }, [onSaveChat, manager]);
-
-  const handleSaveAsNote = useCallback(async () => {
-    try {
-      const result = await manager.saveActiveSession();
-      if (result) {
-        new Notice(t("Chat saved as note."));
-      } else {
-        new Notice(t("Nothing to save yet."));
-      }
-    } catch (error) {
-      logError("[AgentMode] manual save failed", error);
-      new Notice(t("Failed to save chat as note. Check the Scribe log for details."));
-    }
-  }, [manager]);
 
   const handleNewChat = useCallback(() => {
     if (manager.getIsStarting()) return;
@@ -208,7 +183,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     updateChatTitle: handleUpdateChatTitle,
     deleteChat: handleDeleteChat,
     setChatPinned: handleSetChatPinned,
-    openSourceFile: handleOpenSourceFile,
     copyChatLink: handleCopyHistoryChatLink,
     getChatBookmarkState,
     setChatBookmarked: handleSetChatBookmarked,
@@ -410,7 +384,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
             onDeleteChat={handleDeleteChat}
             onCloseSession={handleCloseSession}
             openChatIds={openChatIds}
-            onOpenSourceFile={handleOpenSourceFile}
             onCopyChatLink={handleCopyHistoryChatLink}
             onSetChatPinned={handleSetChatPinned}
             getChatBookmarkState={getChatBookmarkState}
@@ -453,7 +426,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       handleUpdateChatTitle,
       handleDeleteChat,
       handleSetChatPinned,
-      handleOpenSourceFile,
       handleCopyHistoryChatLink,
       getChatBookmarkState,
       handleSetChatBookmarked,
@@ -483,7 +455,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
             onDeleteChat={handleDeleteChat}
             onCloseSession={handleCloseSession}
             openChatIds={openChatIds}
-            onOpenSourceFile={handleOpenSourceFile}
             onCopyChatLink={handleCopyHistoryChatLink}
             onSetChatPinned={handleSetChatPinned}
             getChatBookmarkState={getChatBookmarkState}
@@ -515,7 +486,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       handleUpdateChatTitle,
       handleDeleteChat,
       handleSetChatPinned,
-      handleOpenSourceFile,
       handleCopyHistoryChatLink,
       getChatBookmarkState,
       handleSetChatBookmarked,
@@ -598,23 +568,13 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   );
 
   const activeSession = manager.getSession(sessionId);
+  const handleCopyChatLink = () =>
+    handleCopyHistoryChatLink(manager.getSessionHistoryId(sessionId));
+
   const getActiveChatBookmarkState = useCallback(
-    () => getChatBookmarkState(manager.getSessionSourcePath(sessionId)),
+    () => getChatBookmarkState(manager.getSessionHistoryId(sessionId)),
     [getChatBookmarkState, manager, sessionId]
   );
-  const handleCopyChatLink = () =>
-    plugin.copyChatLink(async () => {
-      return (await manager.saveActiveSession())?.path ?? "";
-    });
-
-  const handleReportError = () => {
-    const evidence = activeSession?.getReportEvidence();
-    openReportIssueModal(plugin, {
-      activeBackend: evidence?.backendId ?? settings.agentMode.activeBackend,
-      initialNote: evidence ? formatChatReportNote(evidence) : undefined,
-      preselectAllSources: true,
-    });
-  };
 
   return (
     <div ref={setRootEl} className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden">
@@ -731,7 +691,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                         chatBackend={backend}
                         onForkMessage={handleForkMessage}
                         isLoading={isLoading}
-                        feedbackOffer={feedbackOffer}
                       />
                       {queuedMessagesNode}
                       <AgentChatControls
@@ -744,9 +703,7 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                             : undefined
                         }
                         onSetChatBookmarked={handleSetActiveChatBookmarked}
-                        onReportError={handleReportError}
                         onNewChat={handleNewChat}
-                        onSaveAsNote={handleSaveAsNote}
                         chatHistoryItems={chatHistoryItems}
                         onLoadHistory={handleLoadChatHistory}
                         onLoadChat={handleLoadChat}
@@ -755,7 +712,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                         onCloseSession={handleCloseSession}
                         openChatIds={openChatIds}
                         runningChatIds={runningChatIds}
-                        onOpenSourceFile={handleOpenSourceFile}
                         usageMeter={<AgentContextMeter backend={backend} />}
                         tasksIndicator={
                           <RunningTasksIndicator

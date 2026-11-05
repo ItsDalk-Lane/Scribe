@@ -31,6 +31,21 @@ describe("CommandEditorForm", () => {
         showInSlashMenu: false,
       });
     });
+    it("turns variable templating off for this command only", () => {
+      const onConfirm = jest.fn();
+      render(
+        <CommandEditorForm
+          {...props}
+          command={{ ...props.command, enableTemplating: true }}
+          onConfirm={onConfirm}
+        />
+      );
+      fireEvent.click(screen.getByRole("checkbox", { name: "Command templating" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ enableTemplating: false, title: "Review" })
+      );
+    });
     it("keeps invalid content in the editor and reports validation failures", () => {
       const onConfirm = jest.fn();
       render(

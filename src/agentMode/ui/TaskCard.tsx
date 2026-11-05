@@ -22,7 +22,13 @@ export const TaskStatusMark: React.FC<{ status: TaskDisplayStatus; className?: s
   className,
 }) => (
   <span className={cn("tw-flex tw-shrink-0 tw-items-center tw-gap-1 tw-text-xs", className)}>
-    {status === "needs_approval" || status === "interrupted" ? (
+    {status === "needs_approval" ||
+    status === "interrupted" ||
+    status === "max_turn_requests" ||
+    status === "quota_exhausted" ||
+    status === "authentication_error" ||
+    status === "context_limit" ||
+    status === "request_error" ? (
       taskStatusLabel(status)
     ) : (
       <span className="tw-sr-only">{taskStatusLabel(status)}</span>

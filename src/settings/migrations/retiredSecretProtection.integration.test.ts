@@ -43,25 +43,19 @@ describe("settingsMigrations", () => {
       expect(entries).toEqual(original);
     });
 
-    it("retains existing builtin skill choices while settings advance from version 17", async () => {
-      const preferences = {
-        "obsidian-markdown": { disabled: true },
-        "obsidian-bases": { disabled: true },
-      };
+    it("retains ordinary skill settings while upgrading an existing installation (https://github.com/ItsDalk-Lane/Scribe/issues/32)", async () => {
       settingsStore.set(settingsAtom, {
         ...DEFAULT_SETTINGS,
         settingsVersion: 17,
         agentMode: {
           ...DEFAULT_SETTINGS.agentMode,
-          skills: { ...DEFAULT_SETTINGS.agentMode.skills, builtinPreferences: preferences },
+          skills: { ...DEFAULT_SETTINGS.agentMode.skills, suppressMigrationConfirm: true },
         },
       });
 
       await runSettingsMigrations({} as ModelManagementApi);
 
-      expect(settingsStore.get(settingsAtom).agentMode.skills.builtinPreferences).toEqual(
-        preferences
-      );
+      expect(settingsStore.get(settingsAtom).agentMode.skills.suppressMigrationConfirm).toBe(true);
       expect(settingsStore.get(settingsAtom).settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
     });
   });

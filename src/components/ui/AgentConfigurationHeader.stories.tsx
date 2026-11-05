@@ -15,8 +15,8 @@ const meta = {
 export default meta;
 export const Skills: StoryObj<AgentConfigurationHeaderProps> = {
   args: {
-    agents: [{ id: "claude", label: "Claude Code" }],
-    selectedAgent: "claude",
+    agents: [{ id: "native", label: "Scribe" }],
+    selectedAgent: "native",
     query: "",
     onQueryChange: () => {},
     searchPlaceholder: "搜索技能…",
@@ -24,8 +24,8 @@ export const Skills: StoryObj<AgentConfigurationHeaderProps> = {
     count: 12,
   },
 };
-export const AgentOnly: StoryObj<AgentConfigurationHeaderProps> = {
-  args: { agents: [{ id: "claude", label: "Claude Code" }], selectedAgent: "claude" },
+export const WithoutExtraTabs: StoryObj<AgentConfigurationHeaderProps> = {
+  args: { agents: [{ id: "native", label: "Scribe" }], selectedAgent: "native" },
 };
 
 export const ConfigurationActions: StoryObj<AgentConfigurationHeaderProps> = {

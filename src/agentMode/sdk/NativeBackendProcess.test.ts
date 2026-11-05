@@ -1,6 +1,7 @@
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AssistantMessageEventStream, Context, JsonObject } from "@earendil-works/pi-ai";
+import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import {
   NativeBackendProcess,
@@ -443,7 +444,73 @@ describe("NativeBackendProcess", () => {
         );
       });
 
-      it("ends a tool loop at the configured step limit before another model request", async () => {
+      it("summarizes the final tool result without tools when its explicit budget is spent (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const contexts: Context[] = [];
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "changed actual note" }],
+          details: undefined,
+        }));
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            return contexts.length === 1
+              ? response("", [{ id: "edit", name: "write_note", arguments: {} }])
+              : response("Completed the note edit; more work remains.");
+          },
+          [
+            {
+              name: "write_note",
+              label: "Edit",
+              description: "Edit",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          { maxSteps: 1 }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(contexts).toHaveLength(2);
+        expect(JSON.stringify(contexts[1])).toContain("changed actual note");
+        expect(getCurrentTools(contexts[1].messages)).toEqual([]);
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(f.events.map((e) => e.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
+        );
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Completed the note edit");
+      });
+
+      it("continues past fifty tool rounds when no limit was saved (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let requests = 0;
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "read" }],
+          details: undefined,
+        }));
+        const f = fixture(
+          () =>
+            ++requests <= 51
+              ? response("", [{ id: `read-${requests}`, name: "read_note", arguments: {} }])
+              : response("All notes checked"),
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ]
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(requests).toBe(52);
+        expect(execute).toHaveBeenCalledTimes(51);
+        expect(f.events.map((e) => e.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "end_turn" })
+        );
+      });
+
+      it("ends after the closing request even if it returns another tool call (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         const request = jest.fn(() =>
           response("", [{ id: "step-1", name: "inspect", arguments: {} }])
         );
@@ -465,10 +532,362 @@ describe("NativeBackendProcess", () => {
         );
         const id = await f.open();
         await f.send(id);
-        expect(request).toHaveBeenCalledTimes(1);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(
+          f.records.get(id)?.messages.filter((m) => m.role === "toolResult" && !m.isError)
+        ).toHaveLength(1);
         expect(f.events.map((e) => e.update)).toContainEqual(
           expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
         );
+      });
+
+      it("gives a user message read mid-run its own step budget (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let ready!: () => void;
+        const started = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        let requests = 0;
+        let executions = 0;
+        const f = fixture(
+          () =>
+            ++requests <= 3
+              ? response("", [{ id: `read-${requests}`, name: "read_note", arguments: {} }])
+              : response("Closing summary"),
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                if (++executions === 1) {
+                  ready();
+                  await gate;
+                }
+                return { content: [{ type: "text", text: "result" }], details: undefined };
+              },
+            },
+          ],
+          { maxSteps: 2 }
+        );
+        const id = await f.open();
+        const run = f.send(id, "first", "First request");
+        await started;
+        await f.send(id, "new-request", "A new request during the task");
+        release();
+        await run;
+        expect(requests).toBe(4);
+        expect(executions).toBe(3);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "message_delivered", promptId: "new-request" })
+        );
+      });
+
+      it("returns queued text unread after instruction preparation fails (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let reject!: (failure: Error) => void;
+        const loading = new Promise<string>((_resolve, fail) => {
+          reject = fail;
+        });
+        let loads = 0;
+        const request = jest.fn(() => response("Unexpected next request"));
+        const f = fixture(request, [], {
+          getSystemPrompt: async () => {
+            if (++loads === 2) {
+              started();
+              return loading;
+            }
+            return "Initial instructions";
+          },
+        });
+        const id = await f.open();
+        const run = f.send(id, "first");
+        await ready;
+        await f.send(id, "next", "Keep this unsent");
+        reject(new Error("Cannot load instructions"));
+        await run;
+        expect(request).not.toHaveBeenCalled();
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "request_error" })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "messages_withdrawn", promptIds: ["next"] })
+        );
+      });
+
+      it("returns new messages unread when they arrive during the closing request (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let ready!: () => void;
+        const started = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        let complete!: () => void;
+        let requests = 0;
+        const f = fixture(
+          () => {
+            if (++requests === 1)
+              return response("", [{ id: "read", name: "read_note", arguments: {} }]);
+            const stream = createAssistantMessageEventStream();
+            complete = () => {
+              const message = {
+                ...createAssistantMessage(model),
+                content: [{ type: "text" as const, text: "Closing summary" }],
+                stopReason: "stop" as const,
+              };
+              stream.push({ type: "done", reason: "stop", message });
+            };
+            ready();
+            return stream;
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => ({
+                content: [{ type: "text", text: "result" }],
+                details: undefined,
+              }),
+            },
+          ],
+          { maxSteps: 1 }
+        );
+        const id = await f.open();
+        const run = f.send(id, "first");
+        await started;
+        await f.send(id, "new-request", "Do this next");
+        complete();
+        await run;
+        expect(requests).toBe(2);
+        expect(f.events.map((event) => event.update)).not.toContainEqual(
+          expect.objectContaining({ sessionUpdate: "message_delivered", promptId: "new-request" })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "messages_withdrawn",
+            promptIds: ["new-request"],
+          })
+        );
+      });
+
+      it("restores tools and a fresh budget after a closing turn (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            return contexts.length % 2 === 1
+              ? response("", [{ id: "read", name: "read_note", arguments: {} }])
+              : response("Read completed");
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => ({
+                content: [{ type: "text", text: "note" }],
+                details: undefined,
+              }),
+            },
+          ],
+          { maxSteps: 1 }
+        );
+        const id = await f.open();
+        await f.send(id, "first");
+        await f.send(id, "next");
+        expect(contexts).toHaveLength(4);
+        expect(getCurrentTools(contexts[2].messages).map((tool) => tool.name)).toEqual([
+          "read_note",
+        ]);
+        expect(JSON.stringify(contexts[2])).not.toContain(
+          "The configured step limit has been reached."
+        );
+      });
+
+      it.each([
+        ["quota", "quota_exhausted"],
+        ["auth", "authentication_error"],
+        ["context", "context_limit"],
+        ["request", "request_error"],
+      ] as const)(
+        "reports structured %s failures as %s without a raw provider error (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+        async (kind, stopReason) => {
+          const f = fixture((_model, _context, options) => {
+            options?.onFailure?.({ kind });
+            const stream = createAssistantMessageEventStream();
+            const error = {
+              ...createAssistantMessage(model),
+              stopReason: "error" as const,
+              errorMessage: "opaque provider detail",
+            };
+            stream.push({ type: "error", reason: "error", error });
+            return stream;
+          });
+          const id = await f.open();
+          await f.send(id);
+          const end = f.events
+            .map((event) => event.update)
+            .find((event) => event.sessionUpdate === "turn_ended");
+          expect(end).toEqual(expect.objectContaining({ stopReason }));
+          expect(end).not.toHaveProperty("error");
+        }
+      );
+
+      it("stops the parent without another request when a child exhausts quota (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const request = jest.fn((_model, context: Context, options?: AgentStreamOptions) => {
+          if (
+            JSON.stringify(
+              context.messages.findLast((message) => message.role === "user")?.content
+            ).includes("Child quota")
+          ) {
+            options?.onFailure?.({ kind: "quota", code: "insufficient_quota" });
+            const stream = createAssistantMessageEventStream();
+            stream.push({
+              type: "error",
+              reason: "error",
+              error: {
+                ...createAssistantMessage(model),
+                stopReason: "error",
+                errorMessage: "account exhausted",
+              },
+            });
+            return stream;
+          }
+          return response("", [
+            {
+              id: "delegate",
+              name: "delegate_task",
+              arguments: { prompt: "Child quota", description: "Check notes" },
+            },
+          ]);
+        });
+        const f = fixture(request, [], {
+          createTools: (context) => ({
+            tools: [
+              {
+                name: "delegate_task",
+                label: "Delegate",
+                description: "Delegate",
+                parameters: { type: "object", properties: {} },
+                execute: (id, input, signal) =>
+                  context.executeSubagent!(
+                    id,
+                    input as { prompt: string; description: string },
+                    signal
+                  ),
+              },
+            ],
+          }),
+        });
+        const id = await f.open();
+        await f.send(id);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "quota_exhausted" })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "task_ended", stopReason: "quota_exhausted" })
+        );
+      });
+
+      it("compacts within one prompt while preserving the latest complete tool batch and user request (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const contexts: Context[] = [];
+        let normal = 0;
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            if (JSON.stringify(context).includes("Summarize this recorded Obsidian conversation"))
+              return response("Earlier work summary");
+            normal++;
+            if (normal > 3) return response("Finished");
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(model);
+            message.content = [
+              { type: "toolCall", id: `read-${normal}`, name: "read_note", arguments: {} },
+            ];
+            message.stopReason = "toolUse";
+            message.usage.totalTokens = normal === 2 ? 7900 : 100;
+            stream.push({ type: "done", reason: "toolUse", message });
+            return stream;
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async (id) => ({
+                content: [{ type: "text", text: `${id}:` + "a".repeat(1000) }],
+                details: undefined,
+              }),
+            },
+          ]
+        );
+        const id = await f.open();
+        await f.send(id, "long", "Exact current task");
+        expect(contexts).toHaveLength(5);
+        expect(JSON.stringify(contexts[2])).toContain("read-1");
+        expect(JSON.stringify(contexts[2])).not.toContain("Exact current task");
+        expect(JSON.stringify(contexts[3])).toContain("Exact current task");
+        expect(JSON.stringify(contexts[3])).toContain("Earlier work summary");
+        expect(contexts[3].messages).toContainEqual(
+          expect.objectContaining({ role: "toolResult", toolCallId: "read-2" })
+        );
+        expect(
+          contexts[4].messages.filter(
+            (message) => message.role === "toolResult" && message.toolCallId === "read-3"
+          )
+        ).toHaveLength(1);
+        expect(
+          f.records
+            .get(id)
+            ?.messages.filter(
+              (message) =>
+                message.role === "assistant" &&
+                message.content.some((part) => part.type === "text" && part.text === "Finished")
+            )
+        ).toHaveLength(1);
+        expect(JSON.stringify(f.records.get(id)?.messages)).not.toContain('"toolCallId":"read-1"');
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "compaction",
+            status: "completed",
+            trigger: "auto",
+          })
+        );
+      });
+
+      it("stops with a context reason when the newest tool result alone cannot fit (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const request = jest.fn(() =>
+          response("", [{ id: "huge", name: "read_note", arguments: {} }])
+        );
+        const f = fixture(request, [
+          {
+            name: "read_note",
+            label: "Read",
+            description: "Read",
+            parameters: { type: "object", properties: {} },
+            execute: async () => ({
+              content: [{ type: "text", text: "a".repeat(40000) }],
+              details: undefined,
+            }),
+          },
+        ]);
+        const id = await f.open();
+        await f.send(id);
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "context_limit" })
+        );
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("a".repeat(40000));
       });
 
       it("keeps a normal final reply successful when it finishes on the step limit", async () => {
@@ -796,7 +1215,7 @@ describe("NativeBackendProcess", () => {
           f.events.filter((e) => e.update.sessionUpdate === "agent_message_chunk")
         ).toHaveLength(0);
       });
-      it("sends the unread queued message on its own after Send now cancels the running reply", async () => {
+      it("sends unread text after Send now even when the provider reports structured cancellation (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         let started!: () => void;
         const ready = new Promise<void>((resolve) => {
           started = resolve;
@@ -810,6 +1229,7 @@ describe("NativeBackendProcess", () => {
             options?.signal?.addEventListener(
               "abort",
               () => {
+                options?.onFailure?.({ kind: "cancelled" });
                 const message = createAssistantMessage(model);
                 message.stopReason = "aborted";
                 stream.push({ type: "error", reason: "aborted", error: message });

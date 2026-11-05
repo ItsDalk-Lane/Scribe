@@ -23,7 +23,7 @@ const EMPTY_ENTRY: ModelSelectorEntry = {
   name: "__chat_no_models__",
   provider: "",
   get displayName() {
-    return t("No models — enable in Quick actions → Tool configuration");
+    return t("No models — configure one in Models");
   },
   enabled: true,
   get _disabledReason() {

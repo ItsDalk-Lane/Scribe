@@ -31,6 +31,16 @@ describe("TaskCard", () => {
     }
   );
 
+  it("shows the child's step-limit reason beside its title (https://github.com/ItsDalk-Lane/Scribe/issues/31)", () => {
+    render(
+      <TaskCard
+        task={makeTask({ status: "failed", stopReason: "max_turn_requests" })}
+        onOpen={jest.fn()}
+      />
+    );
+    expect(screen.getByText("Step limit reached").classList.contains("tw-sr-only")).toBe(false);
+  });
+
   it(`opens the task's view when clicked, whether running or finished`, () => {
     const onOpen = jest.fn();
     render(<TaskCard task={makeTask({ status: "completed" })} onOpen={onOpen} />);

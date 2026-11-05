@@ -1375,7 +1375,7 @@ describe("AgentSession", () => {
             await jest.advanceTimersByTimeAsync(10_000);
 
             expect(await startup).toBe(
-              "None of the models enabled for Scribe are available. Check them in Scribe's model settings."
+              "No configured model for Scribe is available. Check the model and its credentials in Models."
             );
             expect(session.getStatus()).toBe("error");
             expect(session.getState()?.model?.current.baseModelId).toBe(FLEDGE);
@@ -1492,15 +1492,19 @@ describe("AgentSession", () => {
         expect(order).toEqual(["prepare", "prompt"]);
       });
 
-      it("refuses a disabled agent before recording or sending a new message", () => {
+      it("sends a native message despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
         const mock = makeMockBackend();
         const session = makeSession(mock);
         (getSettings as jest.Mock).mockReturnValueOnce({
           agentMode: { backends: { native: { enabled: false } } },
         });
-        expect(() => session.sendPrompt("do not send")).toThrow("disabled");
-        expect(session.store.getDisplayMessages()).toHaveLength(0);
-        expect(mock.prompt).not.toHaveBeenCalled();
+        await session.sendPrompt("continue working").turn;
+        expect(
+          session.store
+            .getDisplayMessages()
+            .some((message) => message.message === "continue working")
+        ).toBe(true);
+        expect(mock.prompt).toHaveBeenCalled();
       });
 
       it("refuses a suspended backend while preserving the existing conversation", () => {
@@ -1508,7 +1512,7 @@ describe("AgentSession", () => {
         const session = makeSession(mock);
         session.suspendBackend();
         expect(session.isBackendSuspended()).toBe(true);
-        expect(() => session.sendPrompt("do not send")).toThrow("disabled");
+        expect(() => session.sendPrompt("do not send")).toThrow("unavailable");
         expect(mock.prompt).not.toHaveBeenCalled();
       });
       it("sends only earlier messages as inherited history and includes the new input once", async () => {
@@ -1682,7 +1686,7 @@ describe("AgentSession", () => {
 
           const queued = session.sendPrompt("keep this input");
 
-          await expect(queued.turn).rejects.toThrow("enabled");
+          await expect(queued.turn).rejects.toThrow("No configured model");
           expect(disabledSend).not.toHaveBeenCalled();
           expect(session.takeWithdrawnPrompts().map((prompt) => prompt.text)).toEqual([
             "keep this input",
@@ -1707,7 +1711,7 @@ describe("AgentSession", () => {
         expect(stopReason).toBe("refusal");
         expect(mock.prompt).not.toHaveBeenCalled();
         expect(aiMessage(session)?.message).toBe(
-          "**Error:** This chat's model isn't enabled for native. Pick an enabled model to continue."
+          "**Error:** This chat's model is unavailable for native. Pick a configured model to continue."
         );
       });
 
@@ -6184,205 +6188,6 @@ describe("AgentSession", () => {
 
         finishPrompt();
         await turn;
-      });
-    });
-
-    describe("getReportEvidence", () => {
-      it("describes the chat for a bug report by backend, current model, backend session and time", () => {
-        const session = makeSession(makeMockBackend(), {
-          backendId: "native",
-          initialState: sonnetAndGpt5State(),
-        });
-
-        expect(session.getReportEvidence()).toEqual({
-          backendId: "native",
-          model: "anthropic/sonnet",
-          sessionId: "session-1",
-          raisedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-        });
-      });
-    });
-
-    describe("getFeedbackOffer", () => {
-      it("starts with no feedback card", () => {
-        expect(makeSession(makeMockBackend()).getFeedbackOffer()).toBeNull();
-      });
-
-      describe("after a failed reply", () => {
-        const failedSession = (offerFeedbackCards: boolean) => {
-          jest.mocked(getSettings).mockReturnValue({ agentMode: { offerFeedbackCards } } as never);
-          const mock = makeMockBackend();
-          mock.prompt.mockRejectedValue(new Error("model not supported: gemini-4"));
-          return makeSession(mock, { backendId: "native" });
-        };
-
-        afterEach(() => {
-          jest.mocked(getSettings).mockReturnValue({ agentMode: {} } as never);
-        });
-
-        it("opens a card with the error, anchored to the message whose reply failed", async () => {
-          const session = failedSession(true);
-
-          await expect(session.sendPrompt("hi").turn).rejects.toThrow("model not supported");
-
-          const userMessageId = session.store
-            .getDisplayMessages()
-            .find((message) => message.sender === USER_SENDER)?.id;
-          expect(session.getFeedbackOffer()).toEqual({
-            trigger: "turn_error",
-            draft: {
-              title: "Agent Chat reply failed on native",
-              whatHappened: "model not supported: gemini-4",
-              userSaid: "",
-              repro: "",
-            },
-            evidence: expect.objectContaining({ backendId: "native", sessionId: "session-1" }),
-            afterUserMessageId: userMessageId,
-            status: "open",
-          });
-        });
-
-        it("shows no card when feedback reports are turned off", async () => {
-          const session = failedSession(false);
-
-          await expect(session.sendPrompt("hi").turn).rejects.toThrow("model not supported");
-
-          expect(session.getFeedbackOffer()).toBeNull();
-        });
-
-        it("keeps the session's one card when a later reply fails", async () => {
-          const session = failedSession(true);
-          await expect(session.sendPrompt("hi").turn).rejects.toThrow("model not supported");
-          session.dismissFeedbackOffer();
-          const first = session.getFeedbackOffer();
-
-          await expect(session.sendPrompt("again").turn).rejects.toThrow("model not supported");
-
-          expect(session.getFeedbackOffer()).toBe(first);
-        });
-      });
-    });
-
-    describe("offerFeedback", () => {
-      const DRAFT = {
-        title: "Replied in Swedish to an English request",
-        whatHappened: "The agent answered 'hej'.",
-        userSaid: "Why do you switch to a different language?",
-        repro: "1. Ask in English.",
-      };
-
-      const sessionWithTranscript = () => {
-        const session = makeSession(makeMockBackend(), {
-          backendId: "native",
-          initialState: sonnetAndGpt5State(),
-        });
-        session.loadDisplayMessages([
-          { id: "u1", sender: USER_SENDER, message: "hej", isVisible: true, timestamp: null },
-          { id: "a1", sender: AI_SENDER, message: "hej", isVisible: true, timestamp: null },
-          { id: "u2", sender: USER_SENDER, message: "why?", isVisible: true, timestamp: null },
-        ]);
-        return session;
-      };
-
-      it("opens a card with the draft, session evidence and the latest user message as its anchor", () => {
-        const session = sessionWithTranscript();
-        const onMessagesChanged = jest.fn();
-        subscribeTo(session, { onMessagesChanged });
-
-        expect(session.offerFeedback(DRAFT)).toBe("shown");
-
-        expect(onMessagesChanged).toHaveBeenCalled();
-        expect(session.getFeedbackOffer()).toEqual({
-          trigger: "agent",
-          draft: DRAFT,
-          evidence: {
-            backendId: "native",
-            model: "anthropic/sonnet",
-            sessionId: "session-1",
-            raisedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-          },
-          afterUserMessageId: "u2",
-          status: "open",
-        });
-      });
-
-      it("refuses a second card in the same session whether the first is open, dismissed or sent", () => {
-        const session = sessionWithTranscript();
-        session.offerFeedback(DRAFT);
-        const first = session.getFeedbackOffer();
-
-        expect(session.offerFeedback({ ...DRAFT, title: "Another problem" })).toBe(
-          "already_offered"
-        );
-        session.dismissFeedbackOffer();
-        expect(session.offerFeedback(DRAFT)).toBe("already_offered");
-        expect(session.getFeedbackOffer()?.draft).toBe(first?.draft);
-      });
-
-      it("anchors to nothing when the session has no user message yet", () => {
-        const session = makeSession(makeMockBackend());
-        session.offerFeedback(DRAFT);
-        expect(session.getFeedbackOffer()?.afterUserMessageId).toBeNull();
-      });
-    });
-
-    describe("dismissFeedbackOffer", () => {
-      const DRAFT = { title: "t", whatHappened: "w", userSaid: "", repro: "r" };
-
-      it("marks an open card dismissed and notifies, without any other effect", () => {
-        const mock = makeMockBackend();
-        const session = makeSession(mock);
-        session.offerFeedback(DRAFT);
-        const onMessagesChanged = jest.fn();
-        subscribeTo(session, { onMessagesChanged });
-
-        session.dismissFeedbackOffer();
-
-        expect(session.getFeedbackOffer()?.status).toBe("dismissed");
-        expect(onMessagesChanged).toHaveBeenCalledTimes(1);
-        expect(mock.prompt).not.toHaveBeenCalled();
-      });
-
-      it("leaves a sent card and a missing card unchanged", () => {
-        const session = makeSession(makeMockBackend());
-        session.dismissFeedbackOffer();
-        expect(session.getFeedbackOffer()).toBeNull();
-
-        session.offerFeedback(DRAFT);
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-        session.dismissFeedbackOffer();
-        expect(session.getFeedbackOffer()?.status).toBe("reported");
-      });
-    });
-
-    describe("markFeedbackReported", () => {
-      it("records the report ID and issue link on the card", () => {
-        const session = makeSession(makeMockBackend());
-        session.offerFeedback({ title: "t", whatHappened: "w", userSaid: "", repro: "r" });
-
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-
-        expect(session.getFeedbackOffer()).toMatchObject({
-          status: "reported",
-          report: { reportId: "r1", issueUrl: "https://example.com" },
-        });
-      });
-
-      it("ignores a report when no card was offered", () => {
-        const session = makeSession(makeMockBackend());
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-        expect(session.getFeedbackOffer()).toBeNull();
-      });
-
-      it("keeps a dismissed card dismissed when its upload lands afterwards", () => {
-        const session = makeSession(makeMockBackend());
-        session.offerFeedback({ title: "t", whatHappened: "w", userSaid: "", repro: "r" });
-        session.dismissFeedbackOffer();
-
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-
-        expect(session.getFeedbackOffer()).toMatchObject({ status: "dismissed" });
-        expect(session.getFeedbackOffer()?.report).toBeUndefined();
       });
     });
 

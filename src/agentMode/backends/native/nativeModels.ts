@@ -10,7 +10,6 @@ import {
   capabilitiesFromConfiguredInfo,
   configuredModelToCustomModel,
   isChatModelInfo,
-  isChatModelSelectionForEntry,
   providerNeedsResolvedApiKey,
   type ConfiguredModel,
   type Provider,
@@ -37,47 +36,22 @@ const THINKING_LEVELS: readonly string[] = [
   "max",
 ];
 
-const EMPTY_MODEL_IDS: readonly string[] = Object.freeze([]);
-
-function configuredModels(
-  settings: ScribeSettings,
-  enabledIds: readonly string[] = settings.backends.native?.enabledModels ??
-    settings.backends.chat?.enabledModels ??
-    EMPTY_MODEL_IDS
-): ConfiguredModel[] {
-  const byId = new Map(settings.configuredModels.map((model) => [model.configuredModelId, model]));
-  const models = [...new Set(enabledIds)].flatMap((id) => {
-    const model = byId.get(id);
-    return model &&
-      settings.providers[model.providerId]?.origin.kind === "byok" &&
-      isChatModelInfo(model.info)
-      ? [model]
-      : EMPTY_MODELS;
-  });
+function configuredModels(settings: ScribeSettings): ConfiguredModel[] {
+  // 模型一次配置后直接供聊天使用，历史启用清单只保留兼容加载。https://github.com/ItsDalk-Lane/Scribe/issues/31
+  const models = settings.configuredModels.filter(
+    (model) =>
+      settings.providers[model.providerId]?.origin.kind === "byok" && isChatModelInfo(model.info)
+  );
   return models.length ? models : EMPTY_MODELS;
 }
 
 export function getNativeDefaultModelId(settings: ScribeSettings): string | undefined {
-  const explicit = settings.agentMode.backends.native?.defaultModel?.baseModelId;
-  if (explicit) return explicit;
-  const models = configuredModels(
-    settings,
-    settings.backends.chat?.enabledModels ?? EMPTY_MODEL_IDS
+  const models = getNativeEnabledModelEntries(settings).filter(
+    (model) => model.credentialState === "ok"
   );
+  const previous = settings.agentMode.backends.native?.defaultModel?.baseModelId;
   return (
-    models.find((model) =>
-      isChatModelSelectionForEntry(
-        {
-          configuredModelId: model.configuredModelId,
-          state: "ok",
-          configuredModel: model,
-          provider: settings.providers[model.providerId],
-        },
-        settings.defaultModelKey
-      )
-    )?.configuredModelId ??
-    models[0]?.configuredModelId ??
-    configuredModels(settings)[0]?.configuredModelId
+    models.find((model) => model.baseModelId === previous)?.baseModelId ?? models[0]?.baseModelId
   );
 }
 
@@ -127,22 +101,16 @@ export function getNativeModelReadiness(
 export function getNativeEnabledModelEntries(settings: ScribeSettings): EnabledModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_ENABLED_ENTRIES;
-  const preferred = getNativeDefaultModelId(settings);
-  return models
-    .map((model): EnabledModelEntry => {
-      const provider = settings.providers[model.providerId];
-      return {
-        baseModelId: model.configuredModelId,
-        name: model.info.displayName || model.info.id,
-        description: model.info.description,
-        credentialState: credentialState(provider),
-        capabilities: capabilitiesFromConfiguredInfo(model.info),
-      };
-    })
-    .sort(
-      (left, right) =>
-        Number(right.baseModelId === preferred) - Number(left.baseModelId === preferred)
-    );
+  return models.map((model): EnabledModelEntry => {
+    const provider = settings.providers[model.providerId];
+    return {
+      baseModelId: model.configuredModelId,
+      name: model.info.displayName || model.info.id,
+      description: model.info.description,
+      credentialState: credentialState(provider),
+      capabilities: capabilitiesFromConfiguredInfo(model.info),
+    };
+  });
 }
 
 export async function createNativeModel(app: App, modelId: string): Promise<ProviderChatModel> {

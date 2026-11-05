@@ -7,11 +7,14 @@ describe("agentEnablement", () => {
       expect(isAgentBackendEnabled({ agentMode: {} } as ScribeSettings, "native")).toBe(true);
     });
 
-    it.each([true, false])("returns the saved enabled choice %s", (enabled) => {
-      const settings = {
-        agentMode: { backends: { native: { enabled } } },
-      } as ScribeSettings;
-      expect(isAgentBackendEnabled(settings, "native")).toBe(enabled);
-    });
+    it.each([true, false])(
+      "keeps native available despite legacy enabled choice %s https://github.com/ItsDalk-Lane/Scribe/issues/31",
+      (enabled) => {
+        const settings = {
+          agentMode: { backends: { native: { enabled } } },
+        } as ScribeSettings;
+        expect(isAgentBackendEnabled(settings, "native")).toBe(true);
+      }
+    );
   });
 });

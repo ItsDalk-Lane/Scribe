@@ -731,6 +731,12 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
       }
     }
     if (mode === AGENT_CHAT_MODE) {
+      // 没有原生会话身份的旧笔记仍可查看，不能假装恢复为可续聊会话。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      const identity = await readFrontmatterViaAdapter(this.app, file.path);
+      if (typeof identity?.sessionId !== "string" || !identity.sessionId.trim()) {
+        await this.app.workspace.getLeaf(true).openFile(file);
+        return;
+      }
       await this.loadAgentChatHistory(file);
       return;
     }
@@ -739,14 +745,18 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
 
   async copyChatLink(resolveNotePath: () => Promise<string>): Promise<void> {
     try {
-      const path = await resolveNotePath();
-      const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
-      const id = file instanceof TFile ? await getSavedChatDeepLinkId(this.app, file.path) : null;
-      if (!(file instanceof TFile) || !id) throw new Error(`No saved chat note to link: "${path}"`);
+      const chatId = await resolveNotePath();
+      const id = isNativeChatId(chatId) ? chatId : await getSavedChatDeepLinkId(this.app, chatId);
+      if (!id) throw new Error(`No chat identity to link: "${chatId}"`);
+      const file = this.app.vault.getAbstractFileByPath(chatId);
+      const title =
+        file instanceof TFile
+          ? extractChatTitle(this.app, file)
+          : ((await this.agentSessionManager?.getChatHistoryItems())?.find(
+              (item) => item.id === chatId
+            )?.title ?? t("Chat"));
       const url = buildChatDeepLink(this.app.vault.getName(), id);
-      await navigator.clipboard.writeText(
-        buildChatMarkdownLink(extractChatTitle(this.app, file), url)
-      );
+      await navigator.clipboard.writeText(buildChatMarkdownLink(title, url));
       new Notice(t("Chat link copied."));
     } catch (error) {
       logError("Failed to copy chat link", error);
@@ -795,23 +805,6 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
 
     if (this.isScribeAgentView(leaf.view)) {
       leaf.view.updateView();
-    }
-  }
-
-  async openChatSourceFile(fileId: string): Promise<void> {
-    if (isNativeChatId(fileId)) {
-      new Notice(
-        t(
-          "This chat has no saved note. Turn on Autosave chats as Markdown to save chats as notes in your vault."
-        )
-      );
-      return;
-    }
-    const file = this.app.vault.getAbstractFileByPath(fileId);
-    if (file instanceof TFile) {
-      await this.app.workspace.getLeaf(true).openFile(file);
-    } else {
-      throw new Error("Chat file not found.");
     }
   }
 

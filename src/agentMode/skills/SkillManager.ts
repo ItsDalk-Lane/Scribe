@@ -1,8 +1,3 @@
-import type { BuiltinPreferences } from "./builtin/reconcileBuiltinSkills";
-import {
-  builtinSkillUnavailableReason,
-  isBuiltinSkillEnabledFor,
-} from "@/builtinSkills/builtinSkills";
 import { logError, logInfo, logWarn } from "@/logger";
 import { getSettings, updateSetting } from "@/settings/model";
 import { getEffectiveSkillsFolder } from "@/settings/scribeFolder";
@@ -40,13 +35,6 @@ import {
   matchExpectation,
   type Expectation,
 } from "./vaultEventExpectations";
-
-export interface BuiltinSkillRuntime {
-  prepare(folder: string): Promise<void>;
-  savePreferences(
-    update: (current: BuiltinPreferences) => BuiltinPreferences
-  ): Promise<BuiltinPreferences>;
-}
 
 const RECONCILE_DEBOUNCE_MS = 250;
 const EXPECTATION_TIMEOUT_MS = 10_000;
@@ -108,19 +96,17 @@ export class SkillManager {
 
   private constructor(
     private readonly app: App,
-    private readonly agentDirsProjectRel: Readonly<Record<BackendId, string>>,
-    private readonly builtinRuntime?: BuiltinSkillRuntime
+    private readonly agentDirsProjectRel: Readonly<Record<BackendId, string>>
   ) {
     this.normalizedAgentDirs = Object.values(agentDirsProjectRel).map(normalizeRelPath);
   }
 
   static initialize(
     app: App,
-    agentDirsProjectRel: Readonly<Record<BackendId, string>>,
-    builtinRuntime?: BuiltinSkillRuntime
+    agentDirsProjectRel: Readonly<Record<BackendId, string>>
   ): SkillManager {
     if (SkillManager.instance === null) {
-      SkillManager.instance = new SkillManager(app, agentDirsProjectRel, builtinRuntime);
+      SkillManager.instance = new SkillManager(app, agentDirsProjectRel);
       SkillManager.instance.subscribeToVaultEvents();
     }
     return SkillManager.instance;
@@ -219,13 +205,6 @@ export class SkillManager {
     const vaultRoot = resolveVaultRootAbs(this.app);
 
     try {
-      let builtinError: string | undefined;
-      try {
-        if (this.builtinRuntime)
-          await this.runInternalMutation(() => this.builtinRuntime!.prepare(folder));
-      } catch (error) {
-        builtinError = error instanceof Error ? error.message : String(error);
-      }
       const canonicalDiscovery = await discoverManagedSkills({
         skillsFolderRelPath: folder,
         skillsFolderAbsPath: absRoot,
@@ -250,19 +229,7 @@ export class SkillManager {
         }
       }
 
-      const settings = getSettings();
-      const skills = mergeDiscovery(canonicalDiscovery.accepted, projectCandidates).map((skill) => {
-        if (!skill.builtin || !this.builtinRuntime) return skill;
-        return {
-          ...skill,
-          enabledAgents: builtinSkillUnavailableReason(skill.name)
-            ? []
-            : // 模型停用不代表用户关闭技能，不能据此删除链接。https://github.com/ItsDalk-Lane/Scribe/issues/21
-              Object.keys(this.agentDirsProjectRel).filter((agent) =>
-                isBuiltinSkillEnabledFor(settings, skill.name, agent)
-              ),
-        };
-      });
+      const skills = mergeDiscovery(canonicalDiscovery.accepted, projectCandidates);
       const rejectedSkills =
         canonicalDiscovery.rejected.length === 0 && rejectedProjectSkills.length === 0
           ? EMPTY_REJECTED_SKILLS
@@ -270,8 +237,8 @@ export class SkillManager {
               .concat(rejectedProjectSkills)
               .sort((a, b) => a.dirPath.localeCompare(b.dirPath));
 
-      let reconcileErrorCount = builtinError ? 1 : 0;
-      let reconcileError: string | undefined = builtinError;
+      let reconcileErrorCount = 0;
+      let reconcileError: string | undefined;
       if (vaultRoot !== null && absRoot !== null) {
         try {
           const canonicalForReconcile = skills.filter((s) => s.location.kind === "canonical");
@@ -356,7 +323,6 @@ export class SkillManager {
   }
 
   async saveContent(skill: Skill, content: string): Promise<SavePropertiesResult> {
-    if (skill.builtin) return fsFailure("Built-in skills are always enabled and read-only.");
     try {
       const parsed = parseSkillFile(content, skill.name);
       const saved =
@@ -389,46 +355,7 @@ export class SkillManager {
         };
   }
 
-  async setBuiltinSkillEnabled(
-    name: string,
-    enabled: boolean
-  ): Promise<SkillOperationResult<"fs-error">> {
-    return this.saveBuiltinPreference((current) => ({
-      ...current,
-      [name]: enabled
-        ? { ...current[name], disabled: false, disabledAgents: [] }
-        : { ...current[name], disabled: true },
-    }));
-  }
-
-  async setBuiltinAgentEnabled(
-    name: string,
-    agent: string,
-    enabled: boolean
-  ): Promise<SkillOperationResult<"fs-error">> {
-    return this.saveBuiltinPreference((current) => {
-      const disabledAgents = new Set(current[name]?.disabledAgents ?? []);
-      if (enabled) disabledAgents.delete(agent);
-      else disabledAgents.add(agent);
-      return { ...current, [name]: { ...current[name], disabledAgents: [...disabledAgents] } };
-    });
-  }
-
-  private async saveBuiltinPreference(
-    update: (current: BuiltinPreferences) => BuiltinPreferences
-  ): Promise<SkillOperationResult<"fs-error">> {
-    if (!this.builtinRuntime) return fsFailure("Built-in skills cannot be changed on this device.");
-    try {
-      await this.builtinRuntime.savePreferences(update);
-      await this.refreshAfterSave();
-      return { ok: true };
-    } catch (error) {
-      return fsFailure(error instanceof Error ? error.message : String(error));
-    }
-  }
-
   async toggleAgent(skill: Skill, agent: BackendId, enabled: boolean): Promise<ToggleAgentResult> {
-    if (skill.builtin) return this.setBuiltinAgentEnabled(skill.name, agent, enabled);
     const vaultRoot = resolveVaultRootAbs(this.app);
     if (vaultRoot === null) {
       return noVaultPathFailure();
@@ -472,7 +399,6 @@ export class SkillManager {
   }
 
   async deleteSkill(skill: Skill): Promise<DeleteSkillResult> {
-    if (skill.builtin) return fsFailure("Built-in skills are always enabled and read-only.");
     const vaultRoot = resolveVaultRootAbs(this.app);
     if (vaultRoot === null) {
       return noVaultPathFailure();
@@ -501,7 +427,6 @@ export class SkillManager {
       patch: Omit<SkillFrontmatterPatch, "name" | "enabledAgents">;
     }
   ): Promise<SavePropertiesResult> {
-    if (skill.builtin) return fsFailure("Built-in skills are always enabled and read-only.");
     const fs = createNodeReconcileFs();
     const newName =
       req.newName !== undefined && req.newName !== skill.name ? req.newName : undefined;
@@ -611,8 +536,6 @@ export class SkillManager {
     targetAgent: BackendId | null,
     action: "expandToNewAgent" | "disableLastAgent" | "consolidate"
   ): Promise<MigrateSkillResult> {
-    if (skill.builtin)
-      return { ok: false, reason: "Built-in skills are always enabled and read-only." };
     if (skill.location.kind !== "project") {
       return { ok: false, reason: "Skill is not project-managed." };
     }
@@ -677,8 +600,6 @@ export class SkillManager {
     skill: Skill,
     suppressFuture: boolean
   ): Promise<MigrateSkillResult> {
-    if (skill.builtin)
-      return { ok: false, reason: "Built-in skills are always enabled and read-only." };
     if (suppressFuture) this.setSuppressMigrationConfirm(true);
     return this.migrateProjectSkillForToggle(skill, null, "consolidate");
   }
@@ -687,7 +608,6 @@ export class SkillManager {
     skill: Skill,
     agent: BackendId
   ): Promise<SkillOperationResult<"no-vault-path" | "unknown-agent" | "fs-error">> {
-    if (skill.builtin) return fsFailure("Built-in skills are always enabled and read-only.");
     if (skill.location.kind !== "project") {
       return { ok: false, code: "fs-error", message: "Skill is not project-managed." };
     }

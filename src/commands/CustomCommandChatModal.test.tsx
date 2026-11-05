@@ -7,6 +7,7 @@ import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { updateSetting } from "@/settings/model";
 import { openScribeSettings } from "@/settings/openSettings";
 
+let mockFirstModel: string | undefined = "quick";
 const mockSettings = { quickCommandModelKey: "quick", quickCommandIncludeNoteContext: false };
 const mockApp = { workspace: { getActiveFile: () => null } };
 const mockModels = {
@@ -32,6 +33,11 @@ jest.mock("@/components/chat-components/useChatModelPicker", () => ({
   useChatModelPicker: (params: { value: string; onChange: (value: string) => void }) => ({
     ...params,
     models: [],
+  }),
+}));
+jest.mock("@/hooks/useChatBackendModelOptions", () => ({
+  useChatBackendModelOptions: () => ({
+    options: mockFirstModel ? [{ label: mockFirstModel, value: mockFirstModel }] : [],
   }),
 }));
 jest.mock("@/hooks/useResolvedChatBackendModel", () => ({
@@ -138,7 +144,8 @@ describe("CustomCommandChatModal", () => {
     beforeEach(() => {
       mockTurns.length = 0;
       jest.clearAllMocks();
-      mockSettings.quickCommandModelKey = "quick";
+      mockFirstModel = "quick";
+      mockSettings.quickCommandModelKey = "explicit";
     });
     it("runs the saved command with its explicit model", async () => {
       renderCommand("explicit");
@@ -147,7 +154,7 @@ describe("CustomCommandChatModal", () => {
         { model: "explicit", prompt: "Rewrite clearly: Selected sentence" },
       ]);
     });
-    it("uses the shared default for a saved command without a model", async () => {
+    it("uses the first configured model instead of the retired quick-tool default https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       renderCommand("");
       await screen.findByText("Answer from quick");
       expect(mockTurns[0].model).toBe("quick");
@@ -155,16 +162,13 @@ describe("CustomCommandChatModal", () => {
     it.each([
       [
         "removed",
-        "This command's model is unavailable. Edit the command in Settings → Scribe → Quick actions → Tool configuration to choose another, then rerun.",
+        "This command's model is unavailable. Edit it in Settings → Scribe → My commands to choose another model, then rerun.",
       ],
-      [
-        "",
-        "Configure a model in Settings → Scribe → Quick actions → Tool configuration, then rerun the command.",
-      ],
+      ["", "Configure a model in Settings → Scribe → Models, then rerun the command."],
     ])(
       "with unavailable selection %p, shows %p and does not resume after a popup choice",
       async (modelKey, notice) => {
-        mockSettings.quickCommandModelKey = "";
+        mockFirstModel = "";
         renderCommand(modelKey);
         await waitFor(() => expect(Notice).toHaveBeenCalledWith(notice));
         expect(screen.getByText("idle")).not.toBeNull();
@@ -177,7 +181,7 @@ describe("CustomCommandChatModal", () => {
       }
     );
     it("preserves a quick-command draft until a model is selected and keeps that choice local", async () => {
-      mockSettings.quickCommandModelKey = "";
+      mockFirstModel = "";
       renderCommand("", false);
       fireEvent.change(screen.getByLabelText("Instruction"), { target: { value: "Make concise" } });
       fireEvent.click(screen.getByText("Submit"));
@@ -190,21 +194,21 @@ describe("CustomCommandChatModal", () => {
       );
       expect(updateSetting).not.toHaveBeenCalled();
     });
-    it("flags a missing model and opens General / Quick tools to set the default", async () => {
-      mockSettings.quickCommandModelKey = "";
+    it("flags a missing model and opens Models to configure one https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      mockFirstModel = "";
       renderCommand("");
       fireEvent.click(await screen.findByText("Model missing"));
-      expect(openScribeSettings).toHaveBeenCalledWith(mockApp, window, "basic");
+      expect(openScribeSettings).toHaveBeenCalledWith(mockApp, window, "quickActions");
     });
     it("follows a default set in settings until the user picks a model in the dialog", async () => {
-      mockSettings.quickCommandModelKey = "";
+      mockFirstModel = "";
       const view = renderCommand("", false);
       expect(screen.getByText("Model missing")).not.toBeNull();
-      mockSettings.quickCommandModelKey = "quick";
+      mockFirstModel = "quick";
       view.rerender(commandModal("", false));
       expect(screen.getByText("Configure default")).not.toBeNull();
       fireEvent.click(screen.getByText("Choose model"));
-      mockSettings.quickCommandModelKey = "explicit";
+      mockFirstModel = "explicit";
       view.rerender(commandModal("", false));
       fireEvent.change(screen.getByLabelText("Instruction"), { target: { value: "Summarize" } });
       fireEvent.click(screen.getByText("Submit"));

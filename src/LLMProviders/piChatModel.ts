@@ -13,6 +13,13 @@ import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/e
 import { thinkingBudgetForLevel } from "@earendil-works/pi-ai/api/simple-options";
 import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+  waitForProviderRetry,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { isRecord } from "@/utils/obsidianInternals";
 
 export interface ChatStreamOptions {
@@ -23,6 +30,7 @@ export interface ChatStreamOptions {
 
 export interface AgentStreamOptions extends SimpleStreamOptions {
   disableReasoning?: boolean;
+  onFailure?: (failure: ProviderRequestFailure) => void;
 }
 
 export interface ProviderChatModel {
@@ -36,13 +44,13 @@ export interface PiRequest {
   options: StreamOptions;
 }
 
-class PiStreamError extends Error {
+class PiStreamError extends ProviderRequestError {
   constructor(
-    readonly assistantMessage: AssistantMessage,
-    readonly status: number | undefined,
-    source: Error
+    readonly assistantMessage: AssistantMessage | undefined,
+    source: Error,
+    failure: ProviderRequestFailure
   ) {
-    super(source.message);
+    super(source.message, failure);
     this.name = source.name;
   }
 }
@@ -97,12 +105,14 @@ export function createPiChatModel(
   model: Model<Api>,
   resolveRequest: (options: SimpleStreamOptions) => Promise<PiRequest>
 ): ProviderChatModel {
-  let errorSecrets: string[] = [];
-  let failureStatus: number | undefined;
-  async function* run(
+  async function* attempt(
     context: Context,
-    options: AgentStreamOptions = {}
+    options: AgentStreamOptions,
+    setRetryBudget: (budget: number) => void
   ): AsyncGenerator<AssistantMessageEvent> {
+    let errorSecrets: string[] = [];
+    let failureStatus: number | undefined;
+    let capturedFailure: ProviderRequestFailure | undefined;
     const controller = new AbortController();
     const abort = () => controller.abort(options.signal?.reason);
     options.signal?.addEventListener("abort", abort, { once: true });
@@ -121,6 +131,7 @@ export function createPiChatModel(
         failureStatus = data?.status ?? data?.statusCode;
         throw error;
       }
+      setRetryBudget(options.maxRetries ?? request.options.maxRetries ?? 0);
       errorSecrets = [
         ...(typeof request.options.apiKey === "string" ? [request.options.apiKey] : []),
         ...Object.values(request.options.headers ?? {}).filter(
@@ -134,10 +145,16 @@ export function createPiChatModel(
           const response = await raceWithAbortSignal(transport(input, init), controller.signal);
           failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
-          return response;
+          return await observeProviderResponse(
+            response,
+            (failure) => {
+              capturedFailure = failure;
+            },
+            controller.signal
+          );
         } catch (error) {
           const data = error as { status?: number; statusCode?: number } | null;
-          failureStatus = data?.status ?? data?.statusCode;
+          failureStatus = data?.status ?? data?.statusCode ?? failureStatus;
           transportError = error;
           throw error;
         }
@@ -161,7 +178,7 @@ export function createPiChatModel(
         transport: request.options.transport,
         cacheRetention: request.options.cacheRetention,
         maxTokens: options.maxTokens ?? request.options.maxTokens,
-        maxRetries: options.maxRetries ?? request.options.maxRetries,
+        maxRetries: 0,
         onPayload: async (payload, selectedModel) => {
           const replacement: unknown = await request.options.onPayload?.(payload, selectedModel);
           const body = replacement === undefined ? payload : replacement;
@@ -218,6 +235,11 @@ export function createPiChatModel(
         signal: controller.signal,
         fetch: requestFetch,
         onProviderStreamEvent: (data, descriptor) => {
+          if (
+            isRecord(data) &&
+            (data.error !== undefined || data.type === "response.failed" || data.type === "error")
+          )
+            capturedFailure = classifyProviderFailure({ payload: data });
           if (isRecord(data) && data.type === "response.refusal.delta") structuredRefusal = true;
           if (
             isRecord(data) &&
@@ -243,7 +265,11 @@ export function createPiChatModel(
                 ? transportError
                 : new Error(event.error.errorMessage || "The model request failed.");
             if (event.reason === "aborted") error.name = "AbortError";
-            throw new PiStreamError(textSnapshot(event.error), failureStatus, error);
+            throw new PiStreamError(
+              textSnapshot(event.error),
+              error,
+              capturedFailure ?? classifyProviderFailure({ status: failureStatus, cause: error })
+            );
           }
           if (event.type === "text_start") {
             const text = initialText.shift() ?? "";
@@ -280,9 +306,72 @@ export function createPiChatModel(
         source.end();
         await iterator.return?.();
       }
+    } catch (error) {
+      const failure =
+        controller.signal.aborted && options.signal?.aborted
+          ? { kind: "cancelled" as const }
+          : (capturedFailure ?? classifyProviderFailure({ status: failureStatus, cause: error }));
+      const safe = new Error(
+        safeModelErrorDetail(
+          error instanceof Error ? error.message : String(error),
+          errorSecrets,
+          undefined
+        )
+      );
+      safe.name =
+        failure.kind === "cancelled" ? "AbortError" : error instanceof Error ? error.name : "Error";
+      throw new PiStreamError(
+        error instanceof PiStreamError ? error.assistantMessage : undefined,
+        safe,
+        failure
+      );
     } finally {
       options.signal?.removeEventListener("abort", abort);
       controller.abort();
+    }
+  }
+  async function* run(
+    context: Context,
+    options: AgentStreamOptions = {}
+  ): AsyncGenerator<AssistantMessageEvent> {
+    let retryBudget = options.maxRetries ?? 3;
+    let producedContent = false;
+    for (let retries = 0; ; retries++) {
+      try {
+        for await (const event of attempt(context, options, (budget) => {
+          retryBudget = budget;
+        })) {
+          if (
+            event.type === "toolcall_start" ||
+            event.type === "toolcall_delta" ||
+            (event.type === "text_delta" && event.delta.length > 0) ||
+            (event.type === "thinking_delta" && event.delta.length > 0)
+          )
+            producedContent = true;
+          yield event;
+        }
+        return;
+      } catch (error) {
+        const failure = classifyProviderFailure({ cause: error });
+        const delay = failure.retryAfterMs ?? Math.min(500 * 2 ** retries, 8000);
+        const maxDelay = options.maxRetryDelayMs ?? 60000;
+        if (
+          failure.kind === "transient" &&
+          !producedContent &&
+          retries < retryBudget &&
+          (maxDelay <= 0 || delay <= maxDelay)
+        ) {
+          await waitForProviderRetry(delay, options.signal);
+          continue;
+        }
+        if (
+          !(error instanceof PiStreamError) ||
+          (error.assistantMessage?.rawStopReason !== "refusal" &&
+            error.assistantMessage?.rawStopReason !== "content_filter")
+        )
+          options.onFailure?.(failure);
+        throw error;
+      }
     }
   }
   return {
@@ -308,13 +397,11 @@ export function createPiChatModel(
               ? "aborted"
               : "error";
           const message: AssistantMessage = {
-            ...(error instanceof PiStreamError ? error.assistantMessage : partial),
+            ...(error instanceof PiStreamError && error.assistantMessage
+              ? error.assistantMessage
+              : partial),
             stopReason: reason,
-            errorMessage: `${model.id} (${model.api}), model stream: ${safeModelErrorDetail(
-              error instanceof Error ? error.message : String(error),
-              errorSecrets,
-              failureStatus
-            )}`,
+            errorMessage: `${model.id} (${model.api}), model stream: ${safeModelErrorDetail(error instanceof Error ? error.message : String(error), [], error instanceof ProviderRequestError ? error.failure.status : undefined)}`,
           };
           events.push({ type: "error", reason, error: message });
         } finally {

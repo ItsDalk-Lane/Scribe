@@ -85,7 +85,7 @@ describe("settingsMigrations", () => {
   });
 
   describe("runSettingsMigrations", () => {
-    it("preserves builtin opt-outs and the native model and permission configuration", async () => {
+    it("preserves ordinary skill settings and native model permissions after removing bundled skills (https://github.com/ItsDalk-Lane/Scribe/issues/32)", async () => {
       const settings = seedVault({
         settingsVersion: 17,
         agentMode: {
@@ -100,10 +100,7 @@ describe("settingsMigrations", () => {
           },
           skills: {
             ...DEFAULT_SETTINGS.agentMode.skills,
-            builtinPreferences: {
-              "obsidian-markdown": { disabled: true },
-              "obsidian-bases": { disabledAgents: ["claude"] },
-            },
+            suppressMigrationConfirm: true,
           },
         },
       });
@@ -115,10 +112,7 @@ describe("settingsMigrations", () => {
         defaultMode: "plan",
         maxSteps: 75,
       });
-      expect(getSettings().agentMode.skills.builtinPreferences).toEqual({
-        "obsidian-markdown": { disabled: true },
-        "obsidian-bases": { disabledAgents: ["claude"] },
-      });
+      expect(getSettings().agentMode.skills.suppressMigrationConfirm).toBe(true);
       expect(getSettings().configuredModels).toEqual(settings.configuredModels);
       expect(getSettings().backends).toEqual(settings.backends);
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);

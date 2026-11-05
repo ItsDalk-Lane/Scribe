@@ -10,8 +10,6 @@ export const componentTranslations: Record<string, string> = {
   Projects: "项目",
   "Custom commands": "自定义指令",
   "Failed to send message. Please try again.": "发送消息失败，请重试。",
-  "Failed to save chat as note. Check the Scribe log for details.":
-    "将聊天保存为笔记失败，请查看 Scribe 日志。",
   "Cannot regenerate the first message.": "无法重新生成第一条消息。",
   "Message not found.": "未找到消息。",
   "Failed to regenerate message. Please try again.": "重新生成消息失败，请重试。",
@@ -126,7 +124,6 @@ export const componentTranslations: Record<string, string> = {
   "Show more": "展开",
   Chat: "聊天",
   "New chat": "新建聊天",
-  "Save chat as note": "将聊天保存为笔记",
   "Chat history": "聊天历史",
   "Advanced settings": "高级设置",
   "Auto-accept edits": "自动接受修改",
@@ -317,8 +314,8 @@ export const componentTranslations: Record<string, string> = {
   Continue: "继续",
   "Reset Settings": "重置设置",
   "{count} selected": "已选择 {count} 项",
-  'Resetting settings will restore the default values. API keys are not cleared by this action — use "Delete All Keys" in Common → Others → API Key Storage if you also want to remove them. Are you sure you want to continue?':
-    "重置设置将恢复默认值，但不会清除 API 密钥。如需清除密钥，请使用通用 → 其他 → API 密钥存储中的“删除所有密钥”。确定继续吗？",
+  'Resetting settings will restore the default values. API keys are not cleared by this action — use "Delete All Keys" in About → API key storage if you also want to remove them. Are you sure you want to continue?':
+    "重置设置将恢复默认值，但不会清除 API 密钥。如需清除密钥，请使用关于 → API 密钥存储中的“删除所有密钥”。确定继续吗？",
   "Clear Scribe cache": "清除 Scribe 缓存",
   "Count total tokens in your vault": "统计库中的词元总数",
   "Count words and tokens in selection": "统计选中文字的单词和词元数量",

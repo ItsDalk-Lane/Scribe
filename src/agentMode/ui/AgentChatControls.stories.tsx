@@ -35,7 +35,7 @@ function ControlsStory({
   useEffect(() => {
     if (!openMoreActions) return;
     rootRef.current
-      ?.querySelector('button[title="More Actions"]')
+      ?.querySelector('button[title="More actions"]')
       ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
   }, [openMoreActions]);
 
@@ -53,13 +53,11 @@ const meta = {
   component: ControlsStory,
   args: {
     onNewChat: () => undefined,
-    onSaveAsNote: () => undefined,
     chatHistoryItems: CHAT_HISTORY,
     onLoadChat: async () => {},
     onUpdateChatTitle: async () => {},
     onDeleteChat: async () => {},
     onSetChatBookmarked: async () => {},
-    onReportError: () => undefined,
     usageMeter: (
       <UsageMeter
         usage={{ usedTokens: 48_000, contextWindow: 200_000, updatedAt: TIMESTAMP.getTime() }}

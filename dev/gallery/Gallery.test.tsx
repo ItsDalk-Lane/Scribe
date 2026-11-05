@@ -5,7 +5,7 @@ import * as badgeStories from "@/components/ui/badge.stories";
 import * as buttonStories from "@/components/ui/button.stories";
 import * as modePickerStories from "@/components/ui/ModePicker.stories";
 import * as providerListStories from "@/modelManagement/ui/components/ProviderModelTable.stories";
-import * as quickActionStories from "@/settings/v2/components/ui/QuickActionsTabs.stories";
+import * as stepLimitStories from "@/settings/v2/components/ui/AgentStepLimitSetting.stories";
 import { AppContext } from "@/context";
 import { setInterfaceLocale } from "@/lib/i18n";
 import { act, fireEvent, render, type RenderResult, within } from "@testing-library/react";
@@ -810,12 +810,12 @@ describe("Gallery", () => {
       }
     });
 
-    it("renders the model settings name and a remote provider without a key at each preset width", () => {
+    it("renders explicit unlimited settings and a remote keyless provider at each preset width https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const catalog = createGalleryCatalog(
         [
           {
-            componentId: "@/settings/v2/components/ui/QuickActionsTabs",
-            storyModule: quickActionStories,
+            componentId: "@/settings/v2/components/ui/AgentStepLimitSetting",
+            storyModule: stepLimitStories,
           },
           {
             componentId: "@/modelManagement/ui/components/ProviderModelTable",
@@ -825,11 +825,12 @@ describe("Gallery", () => {
         2
       );
       const gallery = render(<GalleryHarness catalog={catalog} />);
-      selectStoryInTree(gallery, "Settings/Quick actions tabs/ModelsAndProviders");
+      selectStoryInTree(gallery, "Settings/Agent step limit/Unlimited");
 
       for (const width of ["300", "340", "400", "600"]) {
         fireEvent.click(gallery.getByRole("button", { name: width }));
-        expect(gallery.getByRole("tab", { name: "Models and providers" })).toBeTruthy();
+        expect(gallery.getByRole("option", { name: "Unlimited" })).toBeTruthy();
+        expect(gallery.queryByText("Step limit")).toBeNull();
       }
 
       selectStoryInTree(gallery, "Settings/Provider List/KeylessRemote");

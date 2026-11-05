@@ -21,16 +21,16 @@ An isolated test found that if an available skill and an enabled command share a
 
 ## Create a command
 
-1. On desktop, open [**Settings → Scribe → 命令**](settings.md#命令). On desktop or mobile, you can also open **Settings → Scribe → 快捷操作 → 我的指令**.
-2. Click **新建代理命令** on **命令**, or **添加指令** on **我的指令**. The first button requires Scribe to be enabled.
+1. On desktop, open [**Settings → Scribe → 命令**](settings.md#命令). On desktop or mobile, you can also open **Settings → Scribe → 我的指令**.
+2. Click **新建代理命令** on **命令**, or **添加指令** on **我的指令**.
 3. Enter a **名称** and the command text, labeled **内容** on **命令** or **提示词** on **我的指令**. The **命令** editor also offers an optional **说明**. Click **保存**.
-4. To adjust the model and menu preferences, use **快捷操作 → 我的指令**.
+4. To adjust the model and menu preferences, use **我的指令**.
 
-Choose **默认模型** to use **快捷指令默认模型** from **Settings → Scribe → 快捷操作 → 工具配置** (also shown under **我的指令**). A command-specific model applies to editor and command-palette runs. A slash run uses the model selected for that Agent Chat.
+Choose **默认模型** to use the first available chat model configured under **Settings → Scribe → 模型**. A command-specific model applies to editor and command-palette runs. A slash run uses the model selected for that Agent Chat.
 
-If a saved command’s selected model or the shared default is unavailable, configure it in **Settings → Scribe → 快捷操作**, then rerun the command. Scribe does not substitute your chat model or another enabled model, and changing the popup picker does not retry the original command. Quick Ask and Quick Command keep your unsent input while you choose a model.
+If a saved command’s explicit model is unavailable, edit it under **Settings → Scribe → 我的指令** or repair its connection under **模型**, then rerun the command. A command with an explicit model does not silently switch to another one. Changing the popup picker does not retry the original saved-command run. Quick Ask and Quick Command keep your unsent input while you choose a model.
 
-**命令** 页列出 Scribe 已注册的命令，支持新建、编辑、启停和删除。**快捷操作 → 我的指令** 继续提供复制、拖动排序、模型选择、变量填充和菜单偏好。模型、变量填充、排序和默认指令生成收在列表下方的“指令选项”中。
+**命令** 页列出 Scribe 已注册的命令，支持新建、编辑、启停和删除。独立的 **我的指令** 页提供复制、拖动排序、单条模型选择、变量填充和菜单偏好。变量填充、排序和默认指令生成直接显示在列表上方，不再有“指令选项”折叠标题。
 
 每条 Scribe 指令都有独立的启用开关。关闭后不能从右键菜单、命令面板、快捷键或聊天 `/` 调用。**在右键菜单中显示** 和 **在斜杠菜单中显示** 的偏好会保留，重新启用时恢复原样；仅隐藏某个菜单并不会停用整条指令。
 
@@ -75,7 +75,7 @@ Editor and command-palette runs open a result panel. You can refine the result, 
 3. Ask your question. Use the model picker if needed, and enable **笔记** (**Note** in English) to include the full active note.
 4. Use **复制到剪贴板**, **在光标处插入**, or **替换选中文字** on the answer. You can continue with follow-up questions in the same panel.
 
-Quick Ask is an inline panel, not an Agent Chat session. It uses an enabled model from **快捷操作 → 工具配置**, not the model selected in Agent Chat. Configure its provider under [模型与供应商](settings.md#模型与供应商). It starts with **快捷指令默认模型**, shared with **运行快捷指令** and saved commands set to **默认模型**. Model changes in either popup apply only to that run; change the shared default in **Settings → Scribe → 快捷操作 → 工具配置**. The **笔记** choice is remembered and shared.
+Quick Ask is an inline panel with its own model choice. Configure providers and chat models under [模型](settings.md#模型). It starts with the first available configured chat model, shared with **运行快捷指令** and saved commands set to **默认模型**. Model changes in either popup apply only to that popup; there is no separate shared default setting. The **笔记** choice is remembered and shared.
 
 Quick Ask is unavailable in Source mode. **替换选中文字** appears only when text was selected and stays available only while Scribe can safely identify the original text in the same note and editor pane.
 
@@ -87,7 +87,7 @@ Quick Command is also unavailable in Source mode.
 
 ## Where commands are stored
 
-Each command is a Markdown file in `<Scribe folder>/scribe-custom-prompts/`. The filename is the command name, and **命令** 页与 **快捷操作 → 我的指令** 共用同一份命令文件. Deleting a command in either place removes it from the shared list and its shortcuts, and sends its file to the location configured by Obsidian for deleted files. Change the root under [**Settings → Scribe → 通用 → 常规 → Scribe folder location**](settings.md#通用).
+Each command is a Markdown file in `<Scribe folder>/scribe-custom-prompts/`. The filename is the command name, and **命令** 页与 **我的指令** 共用同一份命令文件. Deleting a command in either place removes it from the shared list and its shortcuts, and sends its file to the location configured by Obsidian for deleted files. Change the root under [**Settings → Scribe → Agent 配置 → Scribe 文件夹位置**](settings.md#agent-配置).
 
 Isolated tests found that changing a command's enabled state or recording its use can alter high-precision numbers in additional properties in its file. Back up your files first and disable Scribe until this and the other [file safety issues](troubleshooting-and-faq.md) are fixed; pending saves may finish during shutdown.
 

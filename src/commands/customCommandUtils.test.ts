@@ -9,10 +9,7 @@ import {
   getNotesFromTags,
 } from "@/utils";
 import { App, Notice, TFile, Vault } from "obsidian";
-import * as settingsModelModule from "@/settings/model";
-import { PromptSortStrategy } from "@/types";
 import { sortSlashCommands } from "@/commands/customCommandUtils";
-import { DEFAULT_SETTINGS } from "@/constants";
 import { logWarn } from "@/logger";
 import { mockTFile } from "@/__tests__/mockObsidian";
 
@@ -141,6 +138,21 @@ describe("customCommandUtils", () => {
       );
       expect(result.includedFiles).toContain(mockNote1);
       expect(result.includedFiles).toContain(mockNote2);
+    });
+
+    it("sends the prompt unchanged when its command turns templating off", async () => {
+      const result = await processPrompt(
+        mockApp,
+        "Summarize {#tag}",
+        "",
+        mockVault,
+        null,
+        false,
+        false
+      );
+      expect(result.processedPrompt).toBe("Summarize {#tag}\n\n");
+      expect(result.includedFiles).toEqual([]);
+      expect(extractTemplateNoteFiles).not.toHaveBeenCalled();
     });
 
     it("leaves {} as literal text when skipEmptyBraces is true", async () => {
@@ -729,48 +741,16 @@ describe("customCommandUtils", () => {
       jest.clearAllMocks();
     });
 
-    it("sorts by recency (TIMESTAMP)", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: PromptSortStrategy.TIMESTAMP,
-      });
-
+    it("orders commands by the manual order shown in the settings list", () => {
       const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted.map((c: { title: string }) => c.title)).toEqual(["Gamma", "Alpha", "Beta"]);
-    });
-
-    it("sorts alphabetically (ALPHABETICAL)", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: PromptSortStrategy.ALPHABETICAL,
-      });
-
-      const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted.map((c: { title: string }) => c.title)).toEqual(["Alpha", "Beta", "Gamma"]);
-    });
-
-    it("sorts by manual order (MANUAL)", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: PromptSortStrategy.MANUAL,
-      });
-      const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted.map((c: { title: string }) => c.title)).toEqual(["Alpha", "Beta", "Gamma"]);
-    });
-
-    it("returns original order for unknown strategy", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: "UNKNOWN",
-      });
-      const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted).toEqual(sampleCommands);
+      expect(sorted.map((command) => command.title)).toEqual(["Alpha", "Beta", "Gamma"]);
     });
   });
 
   describe("parseCustomCommandFile()", () => {
     interface MockFrontmatter {
       "scribe-command-enabled"?: boolean;
+      "scribe-command-enable-templating"?: boolean;
       "scribe-command-context-menu-enabled"?: boolean;
       "scribe-command-slash-enabled"?: boolean;
       "scribe-command-context-menu-order"?: number;
@@ -831,6 +811,7 @@ describe("customCommandUtils", () => {
       expect(result).toEqual({
         title: "Test Command",
         enabled: true,
+        enableTemplating: true,
         modelKey: "gpt-4",
         content: "Prompt content here.",
         showInContextMenu: true,
@@ -851,6 +832,13 @@ describe("customCommandUtils", () => {
       expect(result.showInSlashMenu).toBe(false);
     });
 
+    it("keeps variable templating off when the command file says so", async () => {
+      mockFrontmatter["scribe-command-enable-templating"] = false;
+      const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
+      const result = await parseCustomCommandFile(window.app, mockFile);
+      expect(result.enableTemplating).toBe(false);
+    });
+
     it("uses EMPTY_COMMAND defaults if frontmatter is missing", async () => {
       (window.app.vault as unknown as { read: jest.Mock }).read.mockResolvedValue(
         "Prompt content only, no frontmatter."
@@ -863,6 +851,7 @@ describe("customCommandUtils", () => {
       expect(result).toEqual({
         title: "Test Command",
         enabled: true,
+        enableTemplating: true,
         modelKey: "",
         content: "Prompt content only, no frontmatter.",
         showInContextMenu: true,

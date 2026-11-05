@@ -501,6 +501,32 @@ describe("AgentTrail", () => {
     expect(screen.getByTestId("agent-md").textContent).toBe("**Error:** stream error");
   });
 
+  it.each([
+    [
+      "quota_exhausted",
+      "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.",
+    ],
+    [
+      "authentication_error",
+      "**Authentication failed.** Check the provider credentials in Models, then send another message to continue.",
+    ],
+    [
+      "context_limit",
+      "**Context limit reached.** Context could not be compacted safely. Your conversation is preserved; shorten the request or choose a model with a larger context window.",
+    ],
+    [
+      "request_error",
+      "**Model request failed.** Check the provider connection and settings, then send another message to retry.",
+    ],
+  ] as const)(
+    "shows the %s termination separately from answer text (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+    (turnStopReason, notice) => {
+      renderTrail({ parts: [text("Work already completed.")], turnStopReason });
+      expect(screen.getByText(notice)).toBeTruthy();
+      expect(screen.getAllByText("Work already completed.")).toHaveLength(1);
+    }
+  );
+
   it("shows a partial reply once followed by its separate failure reason", () => {
     renderTrail({
       parts: [text("Partial answer."), compaction()],
@@ -531,7 +557,7 @@ describe("AgentTrail", () => {
   it("says why the turn stopped at the agent's step limit or a safety stop", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "max_turn_requests" });
     expect(screen.getAllByTestId("agent-md")[1].textContent).toBe(
-      "**Stopped early:** the agent hit its step limit, so its last step may not have run. Send another message to continue."
+      "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue."
     );
 
     rerenderTrail({ turnStopReason: "refusal" });
@@ -540,12 +566,14 @@ describe("AgentTrail", () => {
     );
   });
 
-  it("shows no stop notice for a reply that ended normally or was cancelled", () => {
+  it("shows a distinct notice for user cancellation and none for a normal reply (https://github.com/ItsDalk-Lane/Scribe/issues/31)", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "end_turn" });
     expect(screen.getAllByTestId("agent-md")).toHaveLength(1);
 
     rerenderTrail({ turnStopReason: "cancelled" });
-    expect(screen.getAllByTestId("agent-md")).toHaveLength(1);
+    expect(
+      screen.getByText("**Cancelled by you.** Send another message when you want to continue.")
+    ).toBeTruthy();
   });
 
   it("uses one aligned folding header for reasoning and every tool-card family", () => {

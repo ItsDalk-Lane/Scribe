@@ -104,6 +104,20 @@ export function CommandEditorForm({
           className="tw-min-h-[200px]"
         />
         {errors.content && <div className="tw-text-sm tw-text-error">{errors.content}</div>}
+
+        <div className="tw-flex tw-items-center tw-gap-2">
+          <Checkbox
+            id="enableTemplating"
+            checked={command.enableTemplating !== false}
+            onCheckedChange={(checked) => handleUpdate("enableTemplating", checked)}
+          />
+          <Label htmlFor="enableTemplating">{t("Command templating")}</Label>
+        </div>
+        <p className="tw-m-0 tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
+          {t(
+            "Fill in variables like {activenote}, {foldername}, or {#tag} in commands. Turn off to send commands exactly as written."
+          )}
+        </p>
       </div>
 
       <CommandModelSelect

@@ -3,7 +3,6 @@ import fuzzysort from "fuzzysort";
 import { $getSelection, $isRangeSelection, $isRootNode, type LexicalNode } from "lexical";
 import type { BackendId, Skill } from "@/agentMode";
 import { COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
-import type { CustomCommand } from "@/commands/type";
 
 export type SlashMenuItem =
   | {
@@ -20,14 +19,6 @@ export type SlashMenuItem =
       description: string;
       body: string;
       skill: Skill;
-    }
-  | {
-      kind: "command";
-      key: string;
-      name: string;
-      description: string;
-      body: string;
-      command: CustomCommand;
     };
 
 const COMPACT_ITEM: SlashMenuItem = {
@@ -42,7 +33,6 @@ const COMPACT_ITEM: SlashMenuItem = {
 
 export function composeSlashMenuItems(
   skills: readonly Skill[],
-  commands: CustomCommand[],
   activeBackend: BackendId | null,
   isAgentMode = false
 ): SlashMenuItem[] {
@@ -55,13 +45,6 @@ export function composeSlashMenuItems(
     return skill.enabledAgents.includes(activeBackend);
   });
 
-  const skillNames = new Set(visibleSkills.map((s) => s.name.toLowerCase()));
-
-  const visibleCommands = commands.filter((cmd) => {
-    if (cmd.enabled === false || !cmd.showInSlashMenu) return false;
-    return !skillNames.has(cmd.title.toLowerCase()) && !isBuiltinName(cmd.title);
-  });
-
   return [
     ...(isAgentMode ? [COMPACT_ITEM] : []),
     ...visibleSkills.map<SlashMenuItem>((skill, index) => ({
@@ -71,14 +54,6 @@ export function composeSlashMenuItems(
       description: skill.description,
       body: skill.body,
       skill,
-    })),
-    ...visibleCommands.map<SlashMenuItem>((command, index) => ({
-      kind: "command",
-      key: `command:${command.title}:${index}`,
-      name: command.title,
-      description: "",
-      body: command.content,
-      command,
     })),
   ];
 }

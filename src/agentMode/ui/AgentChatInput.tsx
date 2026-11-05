@@ -2,7 +2,6 @@ import { t } from "@/lib/i18n";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import { filterSkillsForScope } from "@/agentMode/session/scopedSkills";
 import { useManagedSkills } from "@/agentMode/skills/SkillManager";
-import { expandCustomCommandPrefix } from "@/agentMode/session/expandCustomCommandPrefix";
 import { resolveActiveNoteToken } from "@/agentMode/session/resolveActiveNoteToken";
 import type { QueuedAgentMessage } from "@/agentMode/session/AgentInputDraftStore";
 import type { AgentInputDraftControls } from "@/agentMode/ui/hooks/useAgentInputDrafts";
@@ -12,8 +11,6 @@ import {
   dismissSelection,
   useSelectedTextContexts,
 } from "@/selection/selectionStore";
-import { CustomCommandManager } from "@/commands/customCommandManager";
-import { getCachedCustomCommands } from "@/commands/state";
 import ChatInput, {
   type ChatInputHandle,
   type ChatInputProps,
@@ -25,12 +22,7 @@ import { logError, logWarn } from "@/logger";
 import type { PromptContent, QueuedPrompt } from "@/agentMode/session/types";
 import type ScribePlugin from "@/main";
 import { buildWebTabsWithActiveSnapshot } from "@/services/webViewerService/activeWebTabSnapshot";
-import {
-  isNoteSelectedTextContext,
-  type MessageContext,
-  type SelectedTextContext,
-  type WebTabContext,
-} from "@/types/message";
+import type { MessageContext, SelectedTextContext, WebTabContext } from "@/types/message";
 import { getModelKeyFromModel } from "@/settings/model";
 import { modelSupportsVision } from "@/utils";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/utils/base64";
@@ -339,17 +331,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       candidateNotes.push(...contextNotes);
       const notes = dedupeBy(candidateNotes, (n) => n.path);
 
-      const noteSelection = selectedTextContexts.find(isNoteSelectedTextContext);
-      const expanded = await expandCustomCommandPrefix(
-        text,
-        getCachedCustomCommands(),
-        noteSelection?.content ?? "",
-        activeFile
-      );
-      if (expanded.matched) {
-        void CustomCommandManager.getInstance().recordUsage(expanded.matched);
-      }
-      const resolvedText = resolveActiveNoteToken(expanded.text, activeFile);
+      const resolvedText = resolveActiveNoteToken(text, activeFile);
 
       const shouldIncludeActiveWebTab =
         includeActiveWebTab || resolvedText.includes(ACTIVE_WEB_TAB_MARKER);
@@ -456,6 +438,21 @@ export const AgentChatInput = memo(function AgentChatInput({
     ) {
       return;
     }
+    const stopReason = backend
+      .getMessages()
+      .findLast((message) => message.turnStopReason)?.turnStopReason;
+    // 自动停止后保留排队文本供用户确认，不能因空闲状态立即发出下一次请求。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (
+      stopReason === "quota_exhausted" ||
+      stopReason === "authentication_error" ||
+      stopReason === "context_limit" ||
+      stopReason === "request_error" ||
+      stopReason === "max_turn_requests"
+    ) {
+      setQueuedMessages([]);
+      restoreToComposer(queuedMessages);
+      return;
+    }
     const { batch, rest } = takeNextQueuedBatch(queuedMessages);
     const combined = combineQueuedMessages(batch);
     if (
@@ -478,6 +475,8 @@ export const AgentChatInput = memo(function AgentChatInput({
     isStarting,
     queuedPrompts.length,
     queuedMessages,
+    backend,
+    restoreToComposer,
     runSend,
     setQueuedMessages,
     unsupportedImageModelLabel,

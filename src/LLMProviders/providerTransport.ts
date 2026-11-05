@@ -1,5 +1,11 @@
 import { t } from "@/lib/i18n";
 import type { CustomModel } from "@/aiParams";
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { TimeoutError } from "@/error";
 import { safeFetchNoThrow } from "@/utils";
 import { isRecord } from "@/utils/obsidianInternals";
@@ -61,20 +67,31 @@ async function requestProviderToken(
         }
   );
   if (!response.ok) {
-    throw Object.assign(
-      new Error(t("Provider authentication failed (HTTP {status}).", { status: response.status })),
-      {
-        status: response.status,
-      }
+    let failure: ProviderRequestFailure | undefined;
+    await observeProviderResponse(
+      response,
+      (value) => {
+        failure = value;
+      },
+      signal
+    );
+    throw new ProviderRequestError(
+      t("Provider authentication failed (HTTP {status}).", { status: response.status }),
+      failure ?? classifyProviderFailure({ status: response.status })
     );
   }
   let data: unknown;
   try {
     data = await response.json();
   } catch {
-    throw new Error(t("Invalid provider authentication response."));
+    throw new ProviderRequestError(t("Invalid provider authentication response."), {
+      kind: "auth",
+    });
   }
-  if (!isRecord(data)) throw new Error(t("Invalid provider authentication response."));
+  if (!isRecord(data))
+    throw new ProviderRequestError(t("Invalid provider authentication response."), {
+      kind: "auth",
+    });
   const value = isGitHubProvider ? data.token : data.access_token;
   const epoch = isGitHubProvider ? data.expires_at : data.expiration;
   const expiresAt =
@@ -89,7 +106,9 @@ async function requestProviderToken(
     !Number.isFinite(expiresAt) ||
     expiresAt <= Date.now()
   ) {
-    throw new Error(t("Invalid provider authentication response."));
+    throw new ProviderRequestError(t("Invalid provider authentication response."), {
+      kind: "auth",
+    });
   }
   let apiEndpoint: URL | undefined;
   const endpoint = isGitHubProvider && isRecord(data.endpoints) ? data.endpoints.api : undefined;
@@ -168,7 +187,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
   let vertexAuth: Promise<(signal?: AbortSignal) => Promise<string>> | undefined;
 
   async function managedToken(): Promise<ProviderToken> {
-    if (!apiKey) throw new Error(t("Provider credentials are missing."));
+    if (!apiKey)
+      throw new ProviderRequestError(t("Provider credentials are missing."), { kind: "auth" });
     if (catalogId === "github-copilot" && !/^(?:gh[opusr]_|github_pat_)/.test(apiKey)) {
       return { value: apiKey, expiresAt: Infinity };
     }
@@ -195,7 +215,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
   }
 
   async function vertexToken(signal?: AbortSignal): Promise<string> {
-    if (!apiKey) throw new Error(t("Provider credentials are missing."));
+    if (!apiKey)
+      throw new ProviderRequestError(t("Provider credentials are missing."), { kind: "auth" });
     vertexAuth ??= (async () => {
       const { createVertexAccessToken, parseVertexCredentials } =
         await import("./nativeSdk/createVertexAccessToken");
@@ -217,7 +238,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       );
     })();
     const accessToken = await (await vertexAuth)(signal);
-    if (!accessToken) throw new Error(t("Google did not return an access token."));
+    if (!accessToken)
+      throw new ProviderRequestError(t("Google did not return an access token."), { kind: "auth" });
     return accessToken;
   }
 
@@ -267,7 +289,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       }
     }
     if (url.origin === "https://opencode.ai" && url.pathname.startsWith("/inference/")) {
-      if (!apiKey) throw new Error(t("OpenCode credentials are missing."));
+      if (!apiKey)
+        throw new ProviderRequestError(t("OpenCode credentials are missing."), { kind: "auth" });
       headers.set("Authorization", `Bearer ${apiKey}`);
       headers.delete("x-api-key");
       headers.delete("x-goog-api-key");
@@ -339,8 +362,15 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       signal,
     };
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    return model.enableCors === false
-      ? fetch(url.toString(), options)
-      : safeFetchNoThrow(url.toString(), options);
+    try {
+      return await (model.enableCors === false
+        ? fetch(url.toString(), options)
+        : safeFetchNoThrow(url.toString(), options));
+    } catch (error) {
+      // 仅真实网络调用失败可重试；地址和请求配置错误不能反复发送。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      if (error instanceof TypeError)
+        throw new ProviderRequestError(error.message, { kind: "transient" });
+      throw error;
+    }
   };
 }

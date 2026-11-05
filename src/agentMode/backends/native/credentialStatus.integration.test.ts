@@ -94,11 +94,16 @@ describe("nativeCredentialStatus", () => {
       { models: ["cloud-model"], hasKey: true, expected: "ready" },
       { models: ["cloud-model", "optional-model"], hasKey: false, expected: "ready" },
     ])(
-      "reports $expected with enabled models $models and local key $hasKey",
+      "reports $expected from configured models $models and real key $hasKey despite obsolete switches https://github.com/ItsDalk-Lane/Scribe/issues/31",
       ({ models, hasKey, expected }) => {
         const { values, storage } = fixture();
         if (hasKey) values.set(POINTER, SYNTHETIC_SECRET);
-        setSettings({ backends: { native: { enabledModels: models } } });
+        setSettings({
+          configuredModels: getSettings().configuredModels.filter((model) =>
+            models.includes(model.configuredModelId)
+          ),
+          backends: { native: { enabledModels: [] } },
+        });
         expect(getNativeModelReadiness(getSettings())).toBe(expected);
         expect(storage.setSecret).not.toHaveBeenCalled();
         expect(storage.deleteSecret).not.toHaveBeenCalled();
@@ -108,7 +113,7 @@ describe("nativeCredentialStatus", () => {
 
   describe("getNativeEnabledModelEntries()", () => {
     it.each([null, "", "   "])(
-      "marks a saved pointer with actual value %p missing without changing model order or writing secrets",
+      "skips a saved pointer with actual value %p for the default without changing model order or writing secrets https://github.com/ItsDalk-Lane/Scribe/issues/31",
       (value) => {
         const { values, storage } = fixture();
         if (value !== null) values.set(POINTER, value);
@@ -118,7 +123,7 @@ describe("nativeCredentialStatus", () => {
           ["cloud-model", "missing_key"],
           ["optional-model", "ok"],
         ]);
-        expect(getNativeDefaultModelId(settings)).toBe("cloud-model");
+        expect(getNativeDefaultModelId(settings)).toBe("optional-model");
         expect(getSettings()).toBe(settings);
         expect(storage.setSecret).not.toHaveBeenCalled();
         expect(storage.deleteSecret).not.toHaveBeenCalled();
@@ -176,7 +181,12 @@ describe("nativeCredentialStatus", () => {
   describe("getInstallState()", () => {
     it("keeps a provider with a missing local secret unavailable and becomes ready after that same pointer receives a value", () => {
       const { values, storage } = fixture();
-      setSettings({ backends: { native: { enabledModels: ["cloud-model"] } } });
+      setSettings({
+        configuredModels: getSettings().configuredModels.filter(
+          (model) => model.configuredModelId === "cloud-model"
+        ),
+        backends: { native: { enabledModels: ["cloud-model"] } },
+      });
       expect(NativeBackendDescriptor.getInstallState(getSettings())).toMatchObject({
         kind: "error",
         reason: "configuration",
@@ -192,7 +202,12 @@ describe("nativeCredentialStatus", () => {
   describe("subscribeInstallState()", () => {
     it("refreshes after a real same-pointer provider key edit even when settings do not change, and stops after disposal", async () => {
       const { providers, plugin, storage } = fixture();
-      setSettings({ backends: { native: { enabledModels: ["cloud-model"] } } });
+      setSettings({
+        configuredModels: getSettings().configuredModels.filter(
+          (model) => model.configuredModelId === "cloud-model"
+        ),
+        backends: { native: { enabledModels: ["cloud-model"] } },
+      });
       const settings = getSettings();
       const observed: string[] = [];
       const dispose = NativeBackendDescriptor.subscribeInstallState(plugin, () => {

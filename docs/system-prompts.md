@@ -28,7 +28,7 @@ Keep stable conventions in `AGENTS.md`. Use a [Skill](agent-mode-and-tools.md#sk
 
 Vault-wide instructions live in `AGENTS.md` at the root of your vault. Scribe makes them available to native Agent Chats in that vault.
 
-Open [**Settings → Scribe → 通用 → 自定义说明**](settings.md#通用) and edit **库的自定义说明**. Scribe saves the text to the vault-root file as you type. Select **打开 AGENTS.md** to edit the same file as a normal note.
+Open [**Settings → Scribe → Agent 配置 → 自定义说明**](settings.md#自定义说明) and edit **库的自定义说明**. Scribe saves the text to the vault-root file as you type. Select **打开 AGENTS.md** to edit the same file as a normal note.
 
 Good instructions are short and concrete:
 

@@ -1,14 +1,4 @@
 import { t } from "@/lib/i18n";
-import { logError } from "@/logger";
-import { availableBuiltinAgents } from "@/agentMode/skills/builtin/reconcileBuiltinSkills";
-import { useBackendInstallStates } from "@/agentMode/session/useBackendInstallStates";
-import {
-  BUILTIN_SKILLS,
-  builtinSkillUnavailableReason,
-  isBuiltinSkillEnabledFor,
-} from "@/builtinSkills/builtinSkills";
-import { parseSkillFile } from "@/agentMode/skills/skillFormat";
-import { BuiltinSkillsTable } from "./BuiltinSkillsTable";
 import { formatSkillDisplayName } from "@/agentMode/skills/mergeDiscovery";
 import {
   buildSkillRepairPrompt,
@@ -61,12 +51,6 @@ const SYNC_BRANDS: ReadonlyArray<{ substr: string; brand: string }> = [
   { substr: "dropbox", brand: "Dropbox" },
 ];
 
-const BUILTIN_ROWS = BUILTIN_SKILLS.map((skill) => ({
-  name: skill.name,
-  description: parseSkillFile(skill.skillMd, skill.name).frontmatter.description,
-  content: skill.skillMd,
-}));
-
 export function openNewSkillModal(app: App, onCreated?: () => Promise<void>): void {
   new SkillEditorModal(app, {
     onSave: async (name, content) => {
@@ -115,53 +99,6 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
   const [localSearch, setSearchValue] = useState("");
   const searchValue = query ?? localSearch;
   const [refreshError, setRefreshError] = useState<string>();
-  const userSkills = useMemo(() => skills.filter((skill) => !skill.builtin), [skills]);
-  const installStates = useBackendInstallStates(plugin, descriptors);
-  const lastAvailableAgents = useRef<readonly string[]>(
-    skills.filter((skill) => skill.builtin).flatMap((skill) => skill.enabledAgents)
-  );
-  const availableAgents = availableBuiltinAgents(installStates, lastAvailableAgents.current);
-  lastAvailableAgents.current = availableAgents;
-  const unavailableReasons: Record<string, string> = {};
-  for (const skill of BUILTIN_SKILLS) {
-    const collision =
-      userSkills.some(
-        (userSkill) => userSkill.name === skill.name && userSkill.location.kind === "canonical"
-      ) ||
-      rejectedSkills.some(
-        (rejected) =>
-          toVaultRelative(rejected.dirPath, getVaultBase(app)) === `${skillsFolder}/${skill.name}`
-      );
-    const reason = collision
-      ? t("A skill with this name already exists in Your skills. Your file is kept unchanged.")
-      : builtinSkillUnavailableReason(skill.name);
-    if (reason) unavailableReasons[skill.name] = reason;
-  }
-  const builtinRows = BUILTIN_ROWS.filter((skill) =>
-    `${skill.name} ${skill.description}`.toLowerCase().includes(searchValue.trim().toLowerCase())
-  ).map((skill) => ({
-    ...skill,
-    filePath: skills.find((managed) => managed.builtin && managed.name === skill.name)?.filePath,
-  }));
-
-  const builtinEnabledFor = useCallback(
-    (name: string, agent: string) => isBuiltinSkillEnabledFor(settings, name, agent),
-    [settings]
-  );
-
-  const handleBuiltinToggle = useCallback(
-    async (name: string, agent: string, enabled: boolean) => {
-      const result = await SkillManager.getInstance().setBuiltinAgentEnabled(name, agent, enabled);
-      if (!result.ok) {
-        logError("Could not change a built-in skill", result.message);
-        new Notice(result.message);
-        return;
-      }
-      await onChanged?.();
-    },
-    [onChanged]
-  );
-
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [syncBannerDismissed, setSyncBannerDismissed] = useState(false);
@@ -247,10 +184,7 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
     });
   }, [app, handleFixWithAgent, handleRevealSkillFolder, rejectedSkills]);
 
-  const filteredSkills = useMemo(
-    () => filterSkills(userSkills, searchValue),
-    [userSkills, searchValue]
-  );
+  const filteredSkills = useMemo(() => filterSkills(skills, searchValue), [skills, searchValue]);
 
   const displayFolder = skillsFolder;
 
@@ -321,7 +255,7 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
             onQueryChange={setSearchValue}
             searchPlaceholder={t("Search skills…")}
             label={t("Skills")}
-            count={userSkills.length}
+            count={skills.length}
           />
         )}
 
@@ -370,7 +304,7 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
           >
             {t("Personally installed skills")}
           </div>
-          {userSkills.length === 0 ? (
+          {skills.length === 0 ? (
             rejectedSkills.length > 0 ? (
               <AllSkillsNotLoaded />
             ) : (
@@ -406,16 +340,6 @@ export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
           )}
         </div>
       </section>
-      <BuiltinSkillsTable
-        skills={builtinRows}
-        unavailableReasons={unavailableReasons}
-        agents={agents}
-        availableAgents={availableAgents}
-        runtimeItems={runtimeItems}
-        checking={checking}
-        isEnabled={builtinEnabledFor}
-        onToggle={handleBuiltinToggle}
-      />
       {children}
     </div>
   );

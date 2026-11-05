@@ -11,10 +11,15 @@ const mockSend = jest.fn(async () => undefined);
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hooks; names must match the exports */
 jest.mock("@/settings/model", () => ({
   useSettingsValue: () => ({
-    quickCommandModelKey: mockDefaultModel,
+    quickCommandModelKey: "old-setting",
     quickCommandIncludeNoteContext: false,
   }),
   updateSetting: jest.fn(),
+}));
+jest.mock("@/hooks/useChatBackendModelOptions", () => ({
+  useChatBackendModelOptions: () => ({
+    options: mockDefaultModel ? [{ label: mockDefaultModel, value: mockDefaultModel }] : [],
+  }),
 }));
 jest.mock("@/utils", () => ({ cleanMessageForCopy: (text: string) => text }));
 jest.mock("@/hooks/use-draggable", () => ({
@@ -74,7 +79,7 @@ describe("QuickAskPanel", () => {
       }));
     });
 
-    it("sends the question with the configured default and clears the submitted draft", async () => {
+    it("uses the first configured model despite a retired default and clears the submitted draft https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       render(<QuickAskPanel {...props} />);
       expect(screen.getByLabelText<HTMLSelectElement>("Model").value).toBe("gemini");
       fireEvent.change(screen.getByLabelText("Question"), {

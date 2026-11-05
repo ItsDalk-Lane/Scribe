@@ -27,6 +27,24 @@ const model: Model<"google-generative-ai"> = {
 
 describe("httpChatApis", () => {
   describe("postChatRequest", () => {
+    it("does not retry hard quota errors at the direct HTTP entry point (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+      const fetch = jest.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { code: "insufficient_quota" } }), { status: 429 })
+      );
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      try {
+        const pending = postChatRequest(model, "/chat", {}, { fetch, maxRetries: 3 }).catch(
+          (error: unknown) => error
+        );
+        await jest.runAllTimersAsync();
+        expect(await pending).toMatchObject({ failure: { kind: "quota" }, status: 429 });
+        expect(fetch).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("preserves the payload override and per-turn headers", async () => {
       const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
         async () => new Response("OK")

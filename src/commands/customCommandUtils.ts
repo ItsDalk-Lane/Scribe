@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n";
 import {
   SCRIBE_COMMAND_ENABLED,
+  SCRIBE_COMMAND_ENABLE_TEMPLATING,
   SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
   SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
   SCRIBE_COMMAND_LAST_USED,
@@ -12,7 +13,6 @@ import {
 import { CustomCommand } from "@/commands/type";
 import { logWarn } from "@/logger";
 import { App, Notice, TAbstractFile, TFile, Vault } from "obsidian";
-import { getSettings } from "@/settings/model";
 import { getEffectiveCustomPromptsFolder } from "@/settings/scribeFolder";
 import {
   updateCachedCommands,
@@ -20,7 +20,6 @@ import {
   addPendingFileWrite,
   removePendingFileWrite,
 } from "./state";
-import { PromptSortStrategy } from "@/types";
 import {
   extractTemplateNoteFiles,
   getFileContent,
@@ -112,6 +111,7 @@ export async function parseCustomCommandFile(app: App, file: TFile): Promise<Cus
   return {
     title: file.basename,
     enabled: metadata?.frontmatter?.[SCRIBE_COMMAND_ENABLED] !== false,
+    enableTemplating: metadata?.frontmatter?.[SCRIBE_COMMAND_ENABLE_TEMPLATING] !== false,
     modelKey,
     content,
     showInContextMenu,
@@ -141,48 +141,25 @@ export function sortCommandsByOrder(commands: CustomCommand[]): CustomCommand[] 
   });
 }
 
-function sortCommandsByRecency(commands: CustomCommand[]): CustomCommand[] {
-  return sortByStrategy(commands, "recent", {
-    getName: (command) => command.title,
-    getCreatedAtMs: () => 0,
-    getLastUsedAtMs: (command) => command.lastUsedMs,
-  });
-}
-
-function sortCommandsByAlphabetical(commands: CustomCommand[]): CustomCommand[] {
-  return sortByStrategy(commands, "name", {
-    getName: (command) => command.title,
-    getCreatedAtMs: () => 0,
-    getLastUsedAtMs: () => 0,
-  });
-}
-
 export function sortSlashCommands(commands: CustomCommand[]): CustomCommand[] {
-  const sortStrategy: PromptSortStrategy = getSettings().promptSortStrategy as PromptSortStrategy;
-  switch (sortStrategy) {
-    case PromptSortStrategy.TIMESTAMP:
-      return sortCommandsByRecency(commands);
-    case PromptSortStrategy.ALPHABETICAL:
-      return sortCommandsByAlphabetical(commands);
-    case PromptSortStrategy.MANUAL:
-      return sortCommandsByOrder(commands);
-    default:
-      return commands;
-  }
+  return sortCommandsByOrder(commands);
 }
 
 export async function processCommandPrompt(
   app: App,
   prompt: string,
   selectedText: string,
-  skipAppendingSelectedText = false
+  skipAppendingSelectedText = false,
+  enableTemplating = true
 ) {
   const result = await processPrompt(
     app,
     prompt,
     selectedText,
     app.vault,
-    app.workspace.getActiveFile()
+    app.workspace.getActiveFile(),
+    false,
+    enableTemplating
   );
 
   const processedPrompt = result.processedPrompt;
@@ -306,12 +283,12 @@ export async function processPrompt(
   selectedText: string,
   vault: Vault,
   activeNote?: TFile | null,
-  skipEmptyBraces: boolean = false
+  skipEmptyBraces: boolean = false,
+  enableTemplating: boolean = true
 ): Promise<ProcessedPromptResult> {
-  const settings = getSettings();
   const includedFiles = new Set<TFile>();
 
-  if (!settings.enableCustomPromptTemplating) {
+  if (!enableTemplating) {
     if (!skipEmptyBraces && customPrompt.includes("{}") && !selectedText && activeNote) {
       includedFiles.add(activeNote);
     }
@@ -423,6 +400,9 @@ export async function ensureCommandFrontmatter(app: App, file: TFile, command: C
     await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
       if (frontmatter[SCRIBE_COMMAND_ENABLED] == null) {
         frontmatter[SCRIBE_COMMAND_ENABLED] = command.enabled !== false;
+      }
+      if (frontmatter[SCRIBE_COMMAND_ENABLE_TEMPLATING] == null) {
+        frontmatter[SCRIBE_COMMAND_ENABLE_TEMPLATING] = command.enableTemplating !== false;
       }
       if (frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] == null) {
         frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;

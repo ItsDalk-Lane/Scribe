@@ -43,7 +43,6 @@ export interface TurnTrackerDeps {
     turnDiff?: TurnDiff
   ) => Promise<boolean>;
   onTurnCompleted: () => void;
-  onTurnFailed: (errorText: string) => void;
 }
 
 interface PendingPrompt {
@@ -331,7 +330,14 @@ export class TurnTracker {
       this.deps.notifyStatus();
     };
     if (end.error !== undefined) {
+      const replyId = this.placeholderId;
       this.failReply(end.error);
+      if (replyId && end.stopReason !== "end_turn")
+        this.deps.store.markTurnComplete(
+          replyId,
+          end.stopReason,
+          Date.now() - this.replyStartedAtMs
+        );
       return settle();
     }
     if (end.stopReason === "max_tokens" && prompts.some((p) => p.continuesAtOutputLimit)) {
@@ -353,7 +359,6 @@ export class TurnTracker {
     this.placeholderId = null;
     this.currentMessageIds = new Set();
     this.lastTurnFailed = true;
-    this.deps.onTurnFailed(errorText);
     this.deps.notifyMessages();
   }
 
@@ -444,7 +449,7 @@ export class TurnTracker {
         : { placeholderId, messageIds: this.currentMessageIds, turnStartedAtMs };
     this.currentMessageIds = new Set();
     if (
-      stopReason !== "cancelled" &&
+      stopReason === "end_turn" &&
       !this.showedActivityElsewhere &&
       !store.hasAssistantActivity(placeholderId)
     ) {
@@ -471,6 +476,11 @@ export class TurnTracker {
     if (store.markTurnComplete(placeholderId, stopReason, Date.now() - turnStartedAtMs)) {
       this.deps.notifyMessages();
     }
+    this.lastTurnFailed =
+      stopReason === "quota_exhausted" ||
+      stopReason === "authentication_error" ||
+      stopReason === "context_limit" ||
+      stopReason === "request_error";
     if (stopReason === "end_turn") this.deps.onTurnCompleted();
   }
 }

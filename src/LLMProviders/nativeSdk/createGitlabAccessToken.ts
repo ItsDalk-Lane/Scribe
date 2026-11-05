@@ -1,3 +1,9 @@
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { t } from "@/lib/i18n";
 
 interface GitlabToken {
@@ -30,10 +36,20 @@ export function createGitlabAccessToken(
             body: JSON.stringify({ feature_flags: { DuoAgentPlatformNext: true } }),
           }
         );
-        if (!response.ok)
-          throw Object.assign(new Error(`${t("Unexpected response")} (${response.status})`), {
-            statusCode: response.status,
-          });
+        if (!response.ok) {
+          let failure: ProviderRequestFailure | undefined;
+          await observeProviderResponse(
+            response,
+            (value) => {
+              failure = value;
+            },
+            controller.signal
+          );
+          throw new ProviderRequestError(
+            `${t("Unexpected response")} (${response.status})`,
+            failure ?? classifyProviderFailure({ status: response.status })
+          );
+        }
         const value = (await response.json()) as GitlabToken;
         if (
           !value ||
@@ -44,7 +60,7 @@ export function createGitlabAccessToken(
           Array.isArray(value.headers) ||
           Object.values(value.headers).some((header) => typeof header !== "string")
         )
-          throw new Error(t("Unexpected response"));
+          throw new ProviderRequestError(t("Unexpected response"), { kind: "auth" });
         cached = { value, expiresAt: Date.now() + 25 * 60 * 1000 };
         return value;
       } finally {

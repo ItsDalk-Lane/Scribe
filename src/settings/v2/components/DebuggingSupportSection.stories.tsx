@@ -15,9 +15,6 @@ const meta = {
     frameLogPath: FRAME_LOG_PATH,
     onDebugChange: () => {},
     onFrameLogChange: () => {},
-    onReportIssue: () => {},
-    offerFeedbackCards: true,
-    onOfferFeedbackCardsChange: () => {},
     onOpenFrameLog: () => {},
     onClearFrameLog: () => {},
   },
@@ -26,11 +23,7 @@ const meta = {
 export default meta;
 
 export const FreshInstall: StoryObj<DebuggingSupportSectionProps> = {
-  name: "Fresh install and report entry",
-};
-
-export const FeedbackCardsOff: StoryObj<DebuggingSupportSectionProps> = {
-  args: { offerFeedbackCards: false },
+  name: "Fresh install with log controls",
 };
 
 export const ActivityLogOff: StoryObj<DebuggingSupportSectionProps> = {

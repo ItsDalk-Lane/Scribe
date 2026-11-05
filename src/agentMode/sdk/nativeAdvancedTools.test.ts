@@ -73,7 +73,6 @@ describe("nativeAdvancedTools", () => {
             body: "Keep frontmatter and use headings.",
           },
         ],
-        offerFeedback: jest.fn(() => "shown"),
         fetch: jest.fn(
           async () =>
             new Response(
@@ -94,27 +93,20 @@ describe("nativeAdvancedTools", () => {
       return tool.execute(id, args, signal);
     }
 
-    it("loads only an explicitly registered skill and offers an editable feedback draft without a network request", async () => {
+    it("loads only an explicitly registered skill without a network request", async () => {
       expect((await execute("invoke_skill", { name: "note-format" })).content).toEqual([
         { type: "text", text: "Keep frontmatter and use headings." },
       ]);
       await expect(execute("invoke_skill", { name: "unregistered" })).rejects.toThrow(
         "not registered"
       );
-      const feedback = await execute("send_feedback", {
-        title: "Scribe issue",
-        what_happened: "Read failed",
-        repro: "Read a note",
-        user_said: "Please fix it",
-      });
-      expect(options.offerFeedback).toHaveBeenCalledWith({
-        title: "Scribe issue",
-        whatHappened: "Read failed",
-        repro: "Read a note",
-        userSaid: "Please fix it",
-      });
-      expect(feedback.details).toEqual({ status: "shown" });
       expect(options.fetch).not.toHaveBeenCalled();
+    });
+
+    it("does not advertise a feedback tool https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      expect(createNativeAdvancedTools(options).map((tool) => tool.name)).not.toContain(
+        "send_feedback"
+      );
     });
 
     it("rereads registered skills on each invocation instead of retaining a previous project's body", async () => {
@@ -199,14 +191,7 @@ describe("nativeAdvancedTools", () => {
       expect(await readFile(join(root, "drawing.excalidraw.md"), "utf8")).toBe("old drawing");
     });
 
-    it("preserves explicit feedback refusal and unavailable drawing results", async () => {
-      options.offerFeedback = () => "turned_off";
-      const feedback = await execute("send_feedback", {
-        title: "Scribe issue",
-        what_happened: "Read failed",
-        repro: "Read a note",
-      });
-      expect(feedback.details).toEqual({ status: "turned_off" });
+    it("returns an unavailable drawing result without a network request", async () => {
       jest.mocked(getExcalidrawApi).mockReturnValue(null);
       const drawing = await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
       expect(drawing.isError).toBe(true);
@@ -394,14 +379,11 @@ describe("nativeAdvancedTools", () => {
         })
       );
     });
-
-    it("rejects malformed parameters before feedback, requests or drawing side effects", async () => {
-      await expect(execute("send_feedback", { title: 42 })).rejects.toThrow("Invalid arguments");
+    it("rejects malformed parameters before requests or drawing side effects", async () => {
       await expect(
         execute("fetch_url", { url: "https://example.invalid", max_characters: 0 })
       ).rejects.toThrow("Invalid arguments");
       await expect(execute("excalidraw_write", { path: 4 })).rejects.toThrow("Invalid arguments");
-      expect(options.offerFeedback).not.toHaveBeenCalled();
       expect(options.fetch).not.toHaveBeenCalled();
       expect(api.execute).not.toHaveBeenCalled();
     });

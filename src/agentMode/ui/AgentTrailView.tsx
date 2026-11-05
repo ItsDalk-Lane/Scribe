@@ -49,11 +49,24 @@ const noopOpenFileChange = () => {};
 
 const EARLY_STOP_CAUSES: Partial<Record<StopReason, string>> = {
   max_tokens: "the model hit its output limit",
-  max_turn_requests: "the agent hit its step limit",
   refusal: "the model's safety system stopped it",
 };
 
 function stopReasonNotice(stopReason: StopReason | undefined): string | undefined {
+  const notices: Partial<Record<StopReason, string>> = {
+    max_turn_requests:
+      "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue.",
+    quota_exhausted:
+      "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.",
+    authentication_error:
+      "**Authentication failed.** Check the provider credentials in Models, then send another message to continue.",
+    context_limit:
+      "**Context limit reached.** Context could not be compacted safely. Your conversation is preserved; shorten the request or choose a model with a larger context window.",
+    request_error:
+      "**Model request failed.** Check the provider connection and settings, then send another message to retry.",
+    cancelled: "**Cancelled by you.** Send another message when you want to continue.",
+  };
+  if (stopReason && notices[stopReason]) return t(notices[stopReason]);
   const cause = stopReason && EARLY_STOP_CAUSES[stopReason];
   return (
     cause &&

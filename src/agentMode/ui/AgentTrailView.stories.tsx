@@ -204,6 +204,37 @@ export const StoppedAtOutputLimit: StoryObj<AgentTrailProps> = {
   ),
 };
 
+export const StepLimitSummary: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[say("已完成两篇笔记的整理，剩余笔记尚未处理。发送新消息可以继续。")]}
+      stopReason="max_turn_requests"
+    />
+  ),
+};
+
+export const QuotaExhausted: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo parts={[say("已检查现有内容，最后的修改尚未开始。")]} stopReason="quota_exhausted" />
+  ),
+};
+
+export const AuthenticationFailure: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[]} stopReason="authentication_error" />,
+};
+
+export const ContextLimit: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[say("已完成的工作已保留。")]} stopReason="context_limit" />,
+};
+
+export const RequestFailure: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[]} stopReason="request_error" />,
+};
+
+export const CancelledByUser: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[say("已读取两篇笔记。")]} stopReason="cancelled" />,
+};
+
 export const CompletedWithoutDuration: StoryObj<AgentTrailProps> = {
   render: () => <TrailDemo parts={UNIFIED_CARDS} showCompletedDuration={false} />,
 };

@@ -91,12 +91,6 @@ import { SessionHistoryReplay } from "@/agentMode/session/SessionHistoryReplay";
 import { InteractiveRequests } from "@/agentMode/session/InteractiveRequests";
 import { UsageTracker } from "@/agentMode/session/UsageTracker";
 import { replayPersistedMode } from "@/agentMode/session/replayPersistedMode";
-import type { FeedbackDraft, FeedbackOfferResult } from "@/agentMode/session/scribeToolDefinitions";
-import type {
-  FeedbackEvidence,
-  FeedbackOffer,
-  FeedbackOfferTrigger,
-} from "@/agentMode/session/feedback/feedbackOffer";
 import type { SavedAgentTask } from "@/agentMode/session/AgentSessionSnapshots";
 import type { TaskOutputSnapshot } from "@/agentMode/session/taskOutputTail";
 
@@ -126,6 +120,7 @@ export interface AgentBranchState {
 }
 
 export interface AgentTask extends TaskStart {
+  stopReason?: StopReason;
   status: "running" | TaskEndStatus;
   model?: string;
   outputFile?: string;
@@ -277,7 +272,6 @@ export class AgentSession {
   });
   private readonly requests: InteractiveRequests;
   private readonly usageTracker: UsageTracker;
-  private feedbackOffer: FeedbackOffer | null = null;
 
   private needsAttention = false;
   private notifyScheduled = false;
@@ -316,7 +310,6 @@ export class AgentSession {
       captureFileChanges: (files, messageId, turnDiff) =>
         this.finalizeFileChanges(files, this.store, messageId, turnDiff),
       onTurnCompleted: () => void this.pollSessionTitle(),
-      onTurnFailed: (errorText) => this.offerTurnErrorReport(errorText),
     });
     this.planFeedbackDelivery = opts.getDescriptor?.()?.planFeedbackDelivery ?? "permission";
     this.projectId = opts.projectId ?? GLOBAL_SCOPE;
@@ -718,7 +711,7 @@ export class AgentSession {
     promptContent?: PromptContent[]
   ): { userMessageId: string; turn: Promise<StopReason> } {
     if (!isAgentBackendEnabled(getSettings(), this.backendId) || this.backendSuspended) {
-      throw new Error("This agent is disabled. Enable it in Agent settings to continue.");
+      throw new Error("This agent is unavailable. Check its model configuration in Models.");
     }
     const sendsCompact = isCompactCommand(displayText);
     if (sendsCompact) {
@@ -870,7 +863,7 @@ export class AgentSession {
       if (signal.aborted || this.disposed) return { stopReason: "cancelled" };
       if (this.isOnModelNotEnabled()) {
         return this.turns.refuse(
-          `This chat's model isn't enabled for ${this.displayNameFor(this.backendId)}. Pick an enabled model to continue.`
+          `This chat's model is unavailable for ${this.displayNameFor(this.backendId)}. Pick a configured model to continue.`
         );
       }
       const isFirstTurn = !this.firstPromptSent && !sendsCompact;
@@ -1101,62 +1094,6 @@ export class AgentSession {
 
   getTaskMessages(toolCallId: string): readonly AgentChatMessage[] {
     return this.taskContent.get(toolCallId)?.getDisplayMessages() ?? EMPTY_MESSAGES;
-  }
-
-  getReportEvidence(): FeedbackEvidence {
-    return {
-      backendId: this.backendId,
-      model: this.currentState?.model?.current.baseModelId ?? null,
-      sessionId: this.backendSessionId,
-      raisedAt: new Date().toISOString(),
-    };
-  }
-
-  getFeedbackOffer(): FeedbackOffer | null {
-    return this.feedbackOffer;
-  }
-
-  offerFeedback(draft: FeedbackDraft): FeedbackOfferResult {
-    if (getSettings().agentMode.offerFeedbackCards === false) return "turned_off";
-    if (this.feedbackOffer) return "already_offered";
-    this.feedbackOffer = this.openFeedbackOffer("agent", draft);
-    this.notifyMessages();
-    return "shown";
-  }
-
-  private offerTurnErrorReport(errorText: string): void {
-    if (this.feedbackOffer || !getSettings().agentMode.offerFeedbackCards) return;
-    this.feedbackOffer = this.openFeedbackOffer("turn_error", {
-      title: `Agent Chat reply failed on ${this.backendId}`,
-      whatHappened: errorText,
-      userSaid: "",
-      repro: "",
-    });
-  }
-
-  private openFeedbackOffer(trigger: FeedbackOfferTrigger, draft: FeedbackDraft): FeedbackOffer {
-    const userMessages = this.store
-      .getDisplayMessages()
-      .filter((message) => message.sender === USER_SENDER);
-    return {
-      trigger,
-      draft,
-      evidence: this.getReportEvidence(),
-      afterUserMessageId: userMessages[userMessages.length - 1]?.id ?? null,
-      status: "open",
-    };
-  }
-
-  dismissFeedbackOffer(): void {
-    if (this.feedbackOffer?.status !== "open") return;
-    this.feedbackOffer = { ...this.feedbackOffer, status: "dismissed" };
-    this.notifyMessages();
-  }
-
-  markFeedbackReported(report: { reportId: string; issueUrl: string }): void {
-    if (this.feedbackOffer?.status !== "open") return;
-    this.feedbackOffer = { ...this.feedbackOffer, status: "reported", report };
-    this.notifyMessages();
   }
 
   getSessionUsage(): SessionUsage | null {
@@ -1449,7 +1386,7 @@ export class AgentSession {
       this.tasks.set(task.toolCallId, { ...task, model, outputFile });
       return this.publishTasks();
     }
-    this.endTask(task, update.status, update.summary, update.outputFile);
+    this.endTask(task, update.status, update.summary, update.outputFile, update.stopReason);
   }
 
   private startTask(start: TaskStart): void {
@@ -1522,12 +1459,14 @@ export class AgentSession {
     task: AgentTask,
     status: TaskEndStatus,
     summary?: string,
-    outputFile?: string
+    outputFile?: string,
+    stopReason?: StopReason
   ): void {
     this.tasks.set(task.toolCallId, {
       ...task,
       status,
       summary,
+      stopReason,
       outputFile: outputFile ?? task.outputFile,
     });
     this.updateLaunchCard({ toolCallId: task.toolCallId, status: LAUNCH_CARD_STATUS[status] });

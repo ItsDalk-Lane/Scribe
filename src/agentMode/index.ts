@@ -5,7 +5,6 @@ import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { deriveSkillsFolder } from "@/settings/scribeFolder";
 import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
-import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { backendRegistry, listBackendDescriptors } from "./backends/registry";
 import type { BackendId } from "./session/types";
@@ -17,21 +16,10 @@ import { AgentSessionSnapshots } from "./session/AgentSessionSnapshots";
 import { AgentSessionManager } from "./session/AgentSessionManager";
 import { SkillManager } from "./skills";
 import {
-  availableBuiltinAgents,
-  reconcileBuiltinSkills,
-} from "./skills/builtin/reconcileBuiltinSkills";
-import {
-  saveBuiltinPreferences,
-  type BuiltinPreferencesUpdate,
-} from "@/settings/builtinSkillPreferences";
-import { buildBuiltinSeedFs } from "./skills/builtin/buildBuiltinSeedFs";
-import {
   createDefaultAskUserQuestionPrompter,
   createDefaultPermissionPrompter,
 } from "./ui/permissionPrompter";
 
-export { ModelEnableList } from "@/components/ui/ModelEnableList";
-export type { ModelEnableGroup } from "@/components/ui/ModelEnableList";
 export { backendDisplayOrder, listBackendDescriptors } from "./backends/registry";
 export type { AgentSessionManager } from "./session/AgentSessionManager";
 export { frameSink as acpFrameSink, setFrameSinkVaultBasePath } from "./session/debugSink";
@@ -41,7 +29,6 @@ export type { Skill } from "./skills";
 export { default as ScribeAgentView } from "./ui/ScribeAgentView";
 export { PlanPreviewView } from "./ui/PlanPreviewView";
 export { closeAgentDetailModals } from "./ui/AgentDetailModal";
-export { openReportIssueModal } from "./ui/ReportIssueModal";
 export { closeRestoredTurnDiffs, registerTurnDiffCommands } from "./ui/TurnDiffView";
 export { useBackendInstallState, useManagedInstallActionState } from "./ui/useBackendDescriptor";
 function isAgentModeEnabled(): boolean {
@@ -59,40 +46,11 @@ function collectAgentSkillsDirsProjectRel(): Record<string, string> {
 export function createAgentSessionManager(app: App, plugin: ScribePlugin): AgentSessionManager {
   const os = requireNodeModule<typeof import("node:os")>("os");
   const path = requireNodeModule<typeof import("node:path")>("path");
-  let lastAvailableSkillAgents: readonly string[] = [];
-  let seededWithCli = false;
-  const availableSkillAgents = (): readonly string[] => {
-    const states = Object.fromEntries(
-      listBackendDescriptors()
-        .filter((descriptor) => descriptor.skillsProjectDir)
-        .map((descriptor) => [descriptor.id, descriptor.getInstallState(getSettings())])
-    );
-    lastAvailableSkillAgents = availableBuiltinAgents(states, lastAvailableSkillAgents);
-    return lastAvailableSkillAgents;
-  };
-  const saveSkillPreferences = (update: BuiltinPreferencesUpdate) =>
-    saveBuiltinPreferences(update, (data) => plugin.saveData(data));
-  const skillManager = SkillManager.initialize(app, collectAgentSkillsDirsProjectRel(), {
-    savePreferences: saveSkillPreferences,
-    prepare: async (folder) => {
-      await reconcileBuiltinSkills({
-        folder,
-        fs: buildBuiltinSeedFs(app),
-        settings: getSettings(),
-        availableAgents: availableSkillAgents(),
-        registeredAgents: Object.keys(collectAgentSkillsDirsProjectRel()),
-      });
-    },
-  });
+  const skillManager = SkillManager.initialize(app, collectAgentSkillsDirsProjectRel());
   const initializing = new Map<BackendId, Promise<void>>();
   const beforeBackendStart = async (id: BackendId): Promise<void> => {
     await initializing.get(id);
     if (!isAgentBackendEnabled(getSettings(), id)) throw new Error("This agent is disabled.");
-    if (isObsidianCliEnabled() !== seededWithCli) {
-      await seedManagedBuiltins().catch((error) =>
-        logError("[Skills] Refresh after an Obsidian CLI toggle change failed", error)
-      );
-    }
   };
   const preloader = new AgentModelPreloader(
     app,
@@ -135,33 +93,27 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
     sessionIndex,
   });
   managerRef = manager;
-  const seedManagedBuiltins = async (): Promise<void> => {
-    seededWithCli = isObsidianCliEnabled();
+  const refreshManagedSkills = async (): Promise<void> => {
     await skillManager.refresh(true);
   };
   subscribeToSettingsChange((prev, next) => {
     const prevFolder = deriveSkillsFolder(prev);
     const nextFolder = deriveSkillsFolder(next);
-    if (
-      prevFolder !== nextFolder ||
-      prev.agentMode.skills.builtinPreferences !== next.agentMode.skills.builtinPreferences
-    ) {
-      void seedManagedBuiltins().catch((e) =>
-        logError("[Skills] builtin skill re-seeding failed", e)
-      );
+    if (prevFolder !== nextFolder) {
+      void refreshManagedSkills().catch((e) => logError("[Skills] Skill refresh failed", e));
     }
   });
   for (const descriptor of listBackendDescriptors()) {
     descriptor.subscribeInstallState(plugin, () => {
       if (initializing.has(descriptor.id)) return;
-      void seedManagedBuiltins()
+      void refreshManagedSkills()
         .then(() => manager.onInstallStateChanged(descriptor.id))
         .catch((error) =>
           logError(`[AgentMode] install-state refresh failed: ${descriptor.id}`, error)
         );
     });
   }
-  const initialSkillsReady = seedManagedBuiltins().catch((error) => {
+  const initialSkillsReady = refreshManagedSkills().catch((error) => {
     logError("[Skills] Initial discovery pass failed", error);
   });
   for (const descriptor of listBackendDescriptors()) {
@@ -185,8 +137,6 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
 
   return manager;
 }
-
-export { AgentConfigurationCard } from "./backends/shared/ui/AgentConfigurationCard";
 
 export { useBackendAuthState } from "./session/useBackendAuthState";
 

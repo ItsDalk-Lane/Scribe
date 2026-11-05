@@ -309,14 +309,18 @@ function runCrossBackendPick(
   void (async () => {
     try {
       const seedSelection = { baseModelId, effort };
-      if (oldSessionId) {
-        await manager.replaceSessionInPlace(oldSessionId, targetBackendId, {
-          preserveChatInput: true,
-          seedSelection,
-        });
-      } else {
-        await manager.createSession(targetBackendId, undefined, seedSelection);
-      }
+      const created = oldSessionId
+        ? await manager.replaceSessionInPlace(oldSessionId, targetBackendId, {
+            preserveChatInput: true,
+            seedSelection,
+          })
+        : await manager.createSession(targetBackendId, undefined, seedSelection);
+      // 新建聊天中的手动选择也要等启动成功后记住，恢复旧聊天不走此路径。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      await created.ready;
+      manager.persistDefaultSelection(
+        targetBackendId,
+        created.getState()?.model?.current ?? seedSelection
+      );
       manager.setDefaultBackend(targetBackendId);
     } catch (err) {
       logError("[AgentMode] cross-backend pick failed", err);

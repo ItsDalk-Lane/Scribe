@@ -89,32 +89,34 @@ describe("nativeModels", () => {
     jest.clearAllMocks();
   });
   describe("getNativeDefaultModelId()", () => {
-    it("inherits the same first enabled chat model when the enabled list has a different order from registration", () => {
+    it("uses the first configured runnable model regardless of old model switches and chat defaults https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const value = settings();
-      value.defaultModelKey = "";
-      value.backends.chat = { enabledModels: ["reasoning", "manual"] };
-      expect(getNativeDefaultModelId(value)).toBe("reasoning");
+      value.backends = { native: { enabledModels: [] }, chat: { enabledModels: ["reasoning"] } };
+      expect(getNativeDefaultModelId(value)).toBe("manual");
     });
-    it("keeps the selected chat identity when native visibility excludes it so execution can report its unavailability", () => {
-      const value = settings();
-      value.backends.native = { enabledModels: ["manual"] };
-      expect(getNativeDefaultModelId(value)).toBe("reasoning");
-    });
-    it("uses the existing selected chat model when no native default has been saved", () => {
-      expect(getNativeDefaultModelId(settings())).toBe("reasoning");
-    });
-    it("keeps an explicitly selected unavailable model so creation reports the problem instead of changing models", () => {
+    it("preserves a previous available choice and falls back when it was removed https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const value = settings();
       value.agentMode.backends.native = {
-        defaultModel: { baseModelId: "removed-model", effort: null },
+        defaultModel: { baseModelId: "reasoning", effort: "high" },
       };
-      expect(getNativeDefaultModelId(value)).toBe("removed-model");
+      expect(getNativeDefaultModelId(value)).toBe("reasoning");
+      value.agentMode.backends.native.defaultModel = { baseModelId: "removed", effort: null };
+      expect(getNativeDefaultModelId(value)).toBe("manual");
     });
-    it("selects the first enabled chat model only when no saved chat choice resolves", () => {
-      expect(getNativeDefaultModelId({ ...settings(), defaultModelKey: "" })).toBe("manual");
+    it("skips models without usable credentials when choosing the initial model https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      const value = settings();
+      value.configuredModels = [value.configuredModels[2], value.configuredModels[0]];
+      expect(getNativeDefaultModelId(value)).toBe("manual");
     });
   });
   describe("getNativeModelEntries()", () => {
+    it("returns a stable empty list when no chat models are configured", () => {
+      const value = settings();
+      value.configuredModels = [];
+      expect(getNativeModelEntries(value)).toEqual([]);
+      expect(getNativeModelEntries(value)).toBe(getNativeModelEntries(value));
+    });
+
     it("includes manually entered and untagged models and separates the provider default from advertised reasoning levels", () => {
       const models = getNativeModelEntries(settings());
       expect(models.map((entry) => entry.baseModelId)).toEqual(["manual", "reasoning", "untagged"]);
@@ -126,29 +128,32 @@ describe("nativeModels", () => {
         { value: "high", label: "high" },
       ]);
     });
-    it("honors an explicit native enablement list and returns stable empty slices when every native model is disabled", () => {
+    it("makes configured models available despite legacy disabled switches https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const value = settings();
       value.backends.native = { enabledModels: [] };
-      expect(getNativeModelEntries(value)).toEqual([]);
-      expect(getNativeModelEntries(value)).toBe(getNativeModelEntries(value));
+      expect(getNativeModelEntries(value).map((entry) => entry.baseModelId)).toEqual([
+        "manual",
+        "reasoning",
+        "untagged",
+      ]);
     });
   });
   describe("getNativeEnabledModelEntries()", () => {
-    it("puts the selected default first and marks required credentials missing without hiding the model", () => {
+    it("preserves configured order and marks required credentials missing without hiding the model", () => {
       expect(
         getNativeEnabledModelEntries(settings()).map((model) => [
           model.baseModelId,
           model.credentialState,
         ])
       ).toEqual([
-        ["reasoning", "ok"],
         ["manual", "ok"],
+        ["reasoning", "ok"],
         ["untagged", "missing_key"],
       ]);
     });
-    it("returns the same empty reference when there are no enabled models", () => {
+    it("returns the same empty reference when there are no configured models", () => {
       const value = settings();
-      value.backends = {};
+      value.configuredModels = [];
       expect(getNativeEnabledModelEntries(value)).toBe(getNativeEnabledModelEntries(value));
     });
   });
@@ -181,7 +186,7 @@ describe("nativeModels", () => {
         })
       );
     });
-    it("rejects a removed or disabled chosen model before creating any different model", async () => {
+    it("rejects a removed chosen model before creating any different model", async () => {
       setSettings(settings());
       await expect(createNativeModel({} as App, "removed-model")).rejects.toThrow("removed-model");
       expect(mockCreate).not.toHaveBeenCalled();

@@ -4,9 +4,9 @@ Scribe is built around **Agent Chat**, a desktop workspace where Scribe can read
 
 Agent Chat is available in Obsidian on desktop. Scribe Commands, Quick Command, and Quick Ask remain available for shorter tasks and on mobile.
 
-**Current safety notice:** Isolated tests found risks to existing files during startup, changing or resetting settings, skill refresh, cache cleanup, and note writes. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. The setup steps below are for use after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
+**Current safety notice:** Isolated tests found risks to existing files during startup migrations, credential changes, skill edits, cache cleanup, and note writes. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. The setup steps below are for use after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
 
-**当前安全提示：** 隔离测试发现启动、更改或重置设置、刷新技能、清除缓存和写入笔记时存在文件受损风险。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
+**当前安全提示：** 隔离测试发现启动迁移、更改密钥、编辑技能、清除缓存和写入笔记时存在文件受损风险。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
 
 ## Install Scribe
 
@@ -38,14 +38,14 @@ The language choice affects interface text. If Scribe is enabled, reloading it c
 
 ## Set Up Your First Agent Chat
 
-打开 **Settings → Scribe → 快捷操作 → 模型与供应商**（英文为 **Settings → Scribe → Quick actions → Models and providers**），配置供应商或本机模型，再到 **代理 → Scribe**（英文为 **Agents → Scribe**）启用聊天模型。已有连接可能需要重新检查；不同设备的密钥不会自动共享。无需安装或登录外部代理程序。
+打开 **Settings → Scribe → 模型**（英文为 **Settings → Scribe → Models**），配置供应商或本机模型。保存后即可在聊天中选择，无需另行启用。已有连接可能需要重新检查；不同设备的密钥不会自动共享。无需安装或登录外部代理程序。首次新聊天使用配置的第一个可运行模型和自动权限模式，之后记住你最近一次成功的模型、推理强度和权限选择。
 
 ## Start Your First Agent Chat
 
 1. Click the **Agent Chat** ribbon icon, or run **打开 Scribe 代理聊天窗口** (**Open Scribe Agent Chat window** in English) from the command palette.
-2. 文件安全问题修复后，若模型不可用，请分别在 **快捷操作 → 模型与供应商** 检查供应商、模型及本机密钥，并在 **代理 → Scribe** 检查聊天模型开关。状态可能不准确，详见[故障排查](troubleshooting-and-faq.md)。
+2. 文件安全问题修复后，若模型不可用，请在 **模型** 检查供应商、模型及本机密钥，详见[故障排查](troubleshooting-and-faq.md)。
 
-   After the file-safety issues are fixed, if a model is unavailable, check the provider, model, and key under **Quick actions → Models and providers**, and the chat model switches under **Agents → Scribe**. Status can be inaccurate; see [Troubleshooting](troubleshooting-and-faq.md).
+   After the file-safety issues are fixed, if a model is unavailable, check the provider, model and device key under **Models**. See [Troubleshooting](troubleshooting-and-faq.md).
 
 3. Pick a model and permission setting beside the message box, then describe the outcome you want.
 
@@ -61,15 +61,15 @@ From Agent Chat Home, open **项目** (**Projects** in English) and select **新
 
 在 **Settings → Scribe → 技能** 管理自己的技能，并为 Scribe 启用。输入 `/` 选择允许手动调用的技能；已允许模型调用的技能也可由模型按任务选择。当前版本可能无法自动发现项目目录中的技能。
 
-Scribe 也包含 Obsidian Markdown、Bases、Canvas 等说明技能。更多信息见 [Skills](agent-mode-and-tools.md#skills)。
+Scribe 不附带或自动安装技能。此前已经保存的技能文件会保留，并作为普通技能管理；你可以新建自己的技能或使用已有的项目技能。更多信息见 [Skills](agent-mode-and-tools.md#skills)。
 
 ### Reuse Scribe Commands
 
-Create preset prompts under **Settings → Scribe → 命令** on desktop, or **快捷操作 → 我的指令** on desktop or mobile. Run them from the command palette, the editor's **Scribe** menu, or by typing `/` in Agent Chat. See [Scribe Commands and Quick Ask](custom-commands.md).
+Create preset prompts under **Settings → Scribe → 命令** on desktop, or **我的指令** on desktop or mobile. Run them from the command palette, the editor's **Scribe** menu, or by typing `/` in Agent Chat. See [Scribe Commands and Quick Ask](custom-commands.md).
 
 ### Ask Without Leaving the Editor
 
-Run **快捷提问** from the command palette, or assign it a hotkey under **Obsidian Settings → Hotkeys**. It opens a small prompt beside your cursor or selection for quick rewrites, explanations, and follow-up questions. Quick Ask uses a model enabled under **快捷操作 → 工具配置**, so configure a provider or local model first.
+Run **快捷提问** from the command palette, or assign it a hotkey under **Obsidian Settings → Hotkeys**. It opens a small prompt beside your cursor or selection for quick rewrites, explanations, and follow-up questions. Quick Ask starts with the first available configured chat model. Configure a provider or local model under **模型** first.
 
 ## Next Steps
 

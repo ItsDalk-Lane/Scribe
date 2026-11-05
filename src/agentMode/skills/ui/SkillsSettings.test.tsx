@@ -1,14 +1,13 @@
-import type { AgentBrand, InstallState } from "@/agentMode/session/types";
+import type { AgentBrand } from "@/agentMode/session/types";
 import { AppContext } from "@/context";
 import { PluginProvider } from "@/contexts/PluginContext";
 import { DEFAULT_SETTINGS } from "@/constants";
 import type { RejectedSkill, Skill } from "@/agentMode/skills/types";
 import { settingsAtom, settingsStore, updateSetting } from "@/settings/model";
-import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
 import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
 import { openVaultPath } from "@/utils/openVaultPath";
 import { __resetVaultBaseCache } from "@/utils/vaultPath";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { FileSystemAdapter, TFile, TFolder, type App } from "obsidian";
 import React from "react";
 import { Bot } from "lucide-react";
@@ -16,17 +15,11 @@ import type ScribePlugin from "@/main";
 import type { SkillLoadIssue } from "./SkillLoadIssues";
 import { SkillsSettings, type SkillsSettingsProps } from "./SkillsSettings";
 
-const setBuiltinSkillEnabled = jest.fn().mockResolvedValue({ ok: true });
-const setBuiltinAgentEnabled = jest.fn().mockResolvedValue({ ok: true });
+const mockToggleAgent = jest.fn().mockResolvedValue({ ok: true });
 const refresh = jest.fn().mockResolvedValue({ ok: true, reconcileErrorCount: 0 });
 const getAgentDirsProjectRel = jest.fn().mockReturnValue({});
 let mockManagedSkills: Skill[] = [];
 let mockAgents: AgentBrand[] = [];
-let mockInstallStates: Record<string, InstallState> = {};
-jest.mock("@/agentMode/session/useBackendInstallStates", () => ({
-  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the production hook
-  useBackendInstallStates: () => mockInstallStates,
-}));
 let mockRejectedSkills: RejectedSkill[] = [];
 let mockCapturedLoadIssues: readonly SkillLoadIssue[] = [];
 let mockCapturedFixAll: () => void = () => undefined;
@@ -37,9 +30,8 @@ jest.mock("@/agentMode/skills/SkillManager", () => ({
   SkillManager: {
     getInstance: () => ({
       refresh,
+      toggleAgent: mockToggleAgent,
       getAgentDirsProjectRel,
-      setBuiltinSkillEnabled,
-      setBuiltinAgentEnabled,
     }),
   },
   // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hook; name must match the export
@@ -67,9 +59,6 @@ jest.mock("./SkillLoadIssues", () => {
 });
 
 jest.mock("@/utils/openWithSystemDefault", () => ({ openWithSystemDefault: jest.fn() }));
-jest.mock("@/services/obsidianCli/ObsidianCliClient", () => ({
-  isObsidianCliEnabled: jest.fn(),
-}));
 jest.mock("@/utils/openVaultPath", () => ({ openVaultPath: jest.fn() }));
 
 jest.mock("@/agentMode/backends/registry", () => ({
@@ -104,12 +93,58 @@ describe("SkillsSettings", () => {
       __resetVaultBaseCache();
       mockManagedSkills = [];
       mockAgents = [];
-      mockInstallStates = {};
       mockRejectedSkills = [];
       mockCapturedLoadIssues = [];
       mockCapturedFixAll = () => undefined;
       settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS, scribeFolder: "scribe" });
-      jest.mocked(isObsidianCliEnabled).mockReturnValue(true);
+    });
+
+    it("shows an old built-in marked file as an ordinary personal skill without enabling it https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
+      mockAgents = [{ id: "native", displayName: "Scribe", Icon: Bot }];
+      const legacy = {
+        name: "obsidian-markdown",
+        description: "My existing Markdown rules",
+        body: "Keep my edits",
+        filePath: "/vault/scribe/skills/obsidian-markdown/SKILL.md",
+        dirPath: "/vault/scribe/skills/obsidian-markdown",
+        enabledAgents: [],
+        location: { kind: "canonical" as const },
+        builtin: true,
+      };
+      mockManagedSkills = [legacy];
+      await act(async () => {
+        renderSettings(makeApp(), { runtimeItems: [] });
+      });
+      const personal = within(screen.getByRole("region", { name: "Your skills" }));
+      expect(personal.getByText("obsidian-markdown")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Built-in skills" })).toBeNull();
+      const toggle = personal.getByRole("switch", { name: "Enable obsidian-markdown" });
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
+      expect(toggle.getAttribute("aria-disabled")).toBe("false");
+      expect(mockToggleAgent).not.toHaveBeenCalled();
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: "More actions for obsidian-markdown" }),
+        { button: 0, ctrlKey: false }
+      );
+      for (const name of ["Edit SKILL.md", "Properties…", "Delete…"]) {
+        expect(screen.getByRole("menuitem", { name }).getAttribute("aria-disabled")).not.toBe(
+          "true"
+        );
+      }
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+      await act(async () => {
+        fireEvent.click(toggle);
+      });
+      expect(mockToggleAgent).toHaveBeenCalledWith(legacy, "native", true);
+    });
+
+    it("shows the personal empty state without advertising installed skill names https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
+      await act(async () => {
+        renderSettings();
+      });
+      expect(screen.getByText("No skills yet")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Built-in skills" })).toBeNull();
+      expect(screen.queryByText("obsidian-markdown")).toBeNull();
     });
 
     it("filters current-vault skills with the parent search while hiding the embedded header", async () => {
@@ -145,9 +180,8 @@ describe("SkillsSettings", () => {
       expect(screen.queryByRole("button", { name: "New skill" })).toBeNull();
     });
 
-    it("shares checked availability with the managed and built-in skill lists", async () => {
+    it("shares checked availability with every managed skill including old named files https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
       mockAgents = [{ id: "native", displayName: "Scribe", Icon: Bot }];
-      mockInstallStates = { native: { kind: "ready", source: "custom" } };
       const managed: Skill = {
         name: "review-notes",
         description: "Review notes",
@@ -208,14 +242,12 @@ describe("SkillsSettings", () => {
       refresh.mockResolvedValueOnce({
         ok: true,
         reconcileErrorCount: 1,
-        reconcileError: "Could not remove disabled built-in skill transcript.",
+        reconcileError: "Could not update the skill link.",
       });
       await act(async () => {
         renderSettings();
       });
-      expect(screen.getByRole("alert").textContent).toBe(
-        "Could not remove disabled built-in skill transcript."
-      );
+      expect(screen.getByRole("alert").textContent).toBe("Could not update the skill link.");
       await act(async () => {
         fireEvent.focus(window);
       });

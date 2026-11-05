@@ -17,7 +17,7 @@ export function KeyStorageSection({
   onForget,
 }: KeyStorageSectionProps) {
   return (
-    <SettingSection label={t("Others")}>
+    <SettingSection>
       <SettingItem
         type="custom"
         title={t("API key storage")}

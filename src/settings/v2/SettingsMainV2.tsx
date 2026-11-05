@@ -8,15 +8,11 @@ import { SCRIBE_SETTINGS_TAB_IDS, type ScribeSettingsTabId } from "@/settings/se
 import { useSkillLoadErrorCount } from "@/settings/skillLoadErrorState";
 import React from "react";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
-import { GeneralSettings } from "./components/GeneralSettings";
-import { QuickActionsSettings } from "./components/QuickActionsSettings";
+import { AboutSettingsPanel } from "./components/AboutSettingsPanel";
+import { BasicSettings } from "./components/BasicSettings";
+import { ModelsAndProvidersPanel } from "@/modelManagement";
+import { CommandSettings } from "./components/CommandSettings";
 import { DesktopOnlySettingsPanel } from "./components/DesktopOnlySettingsPanel";
-
-const LazyAgentSettings = React.lazy(() =>
-  import("@/settings/v2/components/AgentSettings").then((module) => ({
-    default: module.AgentSettings,
-  }))
-);
 
 const LazyExtensionsSettings = React.lazy(() =>
   import("@/agentMode").then((module) => ({ default: module.AgentExtensionsSettings }))
@@ -36,33 +32,24 @@ const ExtensionsSettingsPanel: React.FC<ExtensionsSettingsPanelProps> = ({ kind 
   );
 };
 
-const AgentSettingsPanel: React.FC = () => {
-  if (!isDesktopRuntime()) {
-    return <DesktopOnlySettingsPanel message={t("Agent settings are available on desktop.")} />;
-  }
-  return (
-    <React.Suspense fallback={null}>
-      <LazyAgentSettings />
-    </React.Suspense>
-  );
-};
-
 const components: Record<ScribeSettingsTabId, React.FC> = {
-  basic: GeneralSettings,
-  quickActions: QuickActionsSettings,
-  agents: AgentSettingsPanel,
+  basic: BasicSettings,
+  about: AboutSettingsPanel,
+  quickActions: ModelsAndProvidersPanel,
+  myCommands: CommandSettings,
   command: () => <ExtensionsSettingsPanel kind="command" />,
   skills: () => <ExtensionsSettingsPanel kind="skill" />,
   subagents: () => <ExtensionsSettingsPanel kind="subagent" />,
 };
 
 const TAB_LABELS: Record<ScribeSettingsTabId, string> = {
-  basic: "Common",
-  quickActions: "Quick actions",
-  agents: "Agents",
+  basic: "Agent configuration",
+  quickActions: "Models",
+  myCommands: "My commands",
   command: "Commands",
   skills: "Skills",
   subagents: "Subagents",
+  about: "About",
 };
 
 const tabs = SCRIBE_SETTINGS_TAB_IDS.map((id) => ({

@@ -6,11 +6,6 @@ import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
 import { resolveNativeVaultPath, withNativeWriteLock } from "@/agentMode/sdk/nativeVaultPath";
 import {
-  SEND_FEEDBACK_TOOL,
-  type FeedbackDraft,
-  type FeedbackOfferResult,
-} from "@/agentMode/session/scribeToolDefinitions";
-import {
   createExcalidrawTools,
   EXCALIDRAW_READ_TOOL,
   EXCALIDRAW_RENDER_TOOL,
@@ -25,7 +20,6 @@ import { safeFetchNoThrow } from "@/utils";
 export interface NativeAdvancedToolsOptions extends NativeToolContext {
   app: App;
   skills(): readonly { name: string; description: string; body: string }[];
-  offerFeedback(draft: FeedbackDraft): FeedbackOfferResult;
   fetch?: typeof safeFetchNoThrow;
   searchUrlTemplate?: string;
 }
@@ -79,31 +73,6 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
         const skill = options.skills().find((entry) => entry.name === args.name);
         if (!skill) throw new Error(`The skill is not registered in this session: ${args.name}`);
         return { content: [{ type: "text", text: skill.body }], details: { name: skill.name } };
-      }
-    ),
-    defineNativeTool(
-      SEND_FEEDBACK_TOOL.name,
-      "Draft feedback",
-      SEND_FEEDBACK_TOOL.description,
-      SEND_FEEDBACK_TOOL.inputSchema,
-      async (_id, args) => {
-        if (
-          !isRecord(args) ||
-          typeof args.title !== "string" ||
-          typeof args.what_happened !== "string" ||
-          typeof args.repro !== "string"
-        )
-          throw new Error("Invalid feedback draft.");
-        const status = options.offerFeedback({
-          title: args.title,
-          whatHappened: args.what_happened,
-          userSaid: typeof args.user_said === "string" ? args.user_said : "",
-          repro: args.repro,
-        });
-        return {
-          content: [{ type: "text", text: `Feedback draft: ${status}.` }],
-          details: { status },
-        };
       }
     ),
     defineNativeTool(

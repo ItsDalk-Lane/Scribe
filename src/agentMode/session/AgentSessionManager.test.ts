@@ -232,7 +232,7 @@ function makeMockSession(overrides: {
     isReplyRunning: () => status === "running",
     restoreBranchState: jest.fn(),
     getBranchState: () => null,
-    store: { getDisplayMessages: () => displayMessages },
+    store: { getDisplayMessages: () => displayMessages, fillMissingTimestamps: jest.fn() },
     cancel: mockSessionCancel,
     backend: overrides.backend,
     backendSessionId: sessionId,
@@ -254,7 +254,6 @@ function makeMockSession(overrides: {
     }),
     seedSessionUsage: jest.fn(),
     resendSavedHistoryOnNextTurn: jest.fn(),
-    offerFeedback: jest.fn(() => "shown"),
     getSessionUsage: () => null,
     subscribe: (l: Parameters<typeof listeners.add>[0]) => {
       listeners.add(l);
@@ -445,7 +444,6 @@ interface ManagerOptions {
   sessionSnapshots?: AgentSessionSnapshots;
   taskOutputReader?: ManagerDeps["taskOutputReader"];
   beforeBackendStart?: ManagerDeps["beforeBackendStart"];
-  scribeMcpServer?: ManagerDeps["scribeMcpServer"];
 }
 
 const builtManagers: AgentSessionManager[] = [];
@@ -478,30 +476,11 @@ function buildManager(options: ManagerOptions = {}): AgentSessionManager {
       sessionSnapshots: options.sessionSnapshots,
       taskOutputReader: options.taskOutputReader,
       beforeBackendStart: options.beforeBackendStart,
-      scribeMcpServer: options.scribeMcpServer,
     }
   );
   builtManagers.push(manager);
   return manager;
 }
-
-const FEEDBACK_CHANNEL = Object.freeze({
-  name: "obsidian-scribe",
-  url: "http://127.0.0.1:4100/mcp",
-  headers: Object.freeze({ Authorization: "Bearer t0k3n" }),
-});
-
-function buildScribeMcpServer({
-  connect = jest.fn(async () => FEEDBACK_CHANNEL),
-}: { connect?: jest.Mock } = {}) {
-  return {
-    connect,
-    disconnect: jest.fn(),
-    dispose: jest.fn(),
-  };
-}
-
-const FEEDBACK_DRAFT = { title: "t", whatHappened: "w", userSaid: "u", repro: "r" };
 
 function seedProjects(...ids: string[]): void {
   projectsState.updateCachedProjectRecords(
@@ -661,8 +640,7 @@ function senderAndText(session: AgentSession): [string, string][] {
 
 function buildManagerWithReplay(
   backendOverrides: Record<string, unknown> = {},
-  descriptorOverrides: Partial<BackendDescriptor> = {},
-  scribeMcpServer?: ManagerDeps["scribeMcpServer"]
+  descriptorOverrides: Partial<BackendDescriptor> = {}
 ): AgentSessionManager {
   const backend = {
     ...makeMockBackendProcess(),
@@ -674,7 +652,6 @@ function buildManagerWithReplay(
   };
   return buildManager({
     descriptor: buildDescriptor({ createBackendProcess: () => backend, ...descriptorOverrides }),
-    scribeMcpServer,
   });
 }
 
@@ -695,9 +672,9 @@ function readPersistedDefault(
   return backends[backendId]?.defaultModel;
 }
 
-function savedNoteFixture(autosave = false) {
+function savedNoteFixture() {
   jest.useFakeTimers();
-  getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: autosave });
+  getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: true });
   const saveSession = jest.fn(
     async (): Promise<{ path: string } | null> => ({
       path: "chats/saved.md",
@@ -809,6 +786,8 @@ function buildHistoryHarness(opts?: {
       offref: jest.fn(),
     },
     metadataCache: {
+      getCache: (path: string) =>
+        frontmatterByPath[path] ? { frontmatter: frontmatterByPath[path] } : null,
       getFileCache: (file: { path: string }) => {
         const fm = frontmatterByPath[file.path];
         return fm ? { frontmatter: fm } : null;
@@ -1277,107 +1256,58 @@ describe("AgentSessionManager", () => {
       });
     });
 
-    describe("setBackendEnabled", () => {
-      function keepEnablementSettings(): void {
-        let current = {
-          ...mockDefaultSettings(),
-          backends: {},
-          agentMode: {
-            ...mockDefaultSettings().agentMode,
-            backends: { native: { enabled: true } },
-          },
-        };
-        getSettingsMock.mockImplementation(() => current);
-        setSettingsMock.mockImplementation((update) => {
-          const before = current;
-          const patch = typeof update === "function" ? update(current) : update;
-          current = { ...current, ...patch };
-          emitSettingsChange(before, current);
-        });
-      }
-
-      function enabledDescriptor(): BackendDescriptor {
-        return buildDescriptor({
-          getEnabledModelEntries: () => [
-            { baseModelId: "sonnet", name: "Sonnet", credentialState: "ok" },
-          ],
-        });
-      }
-
-      function untilDisabled(manager: AgentSessionManager): Promise<void> {
-        return new Promise((resolve) => {
-          const unsubscribe = manager.subscribe(() => {
-            if (manager.isBackendDisablePending("native")) return;
-            unsubscribe();
-            resolve();
-          });
-        });
-      }
-
-      it("suspends an idle agent while retaining the same chat, messages and input draft, then resumes it", async () => {
-        keepEnablementSettings();
-        const manager = buildManager({ descriptor: enabledDescriptor() });
-        const session = await manager.createSession();
-        await session.ready;
-        getSessionTestHandle(session).setMessages([{ message: "saved reply" }]);
-        manager.drafts.update(session.chatInputId, (draft) => ({
-          ...draft,
-          input: "unsent input",
-        }));
-        await manager.setBackendEnabled("native", false);
-        expect(manager.isBackendEnabled("native")).toBe(false);
-        expect(manager.isBackendDisablePending("native")).toBe(false);
-        expect(session.isBackendSuspended()).toBe(true);
-        expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-        for (const exit of mockBackendExitListeners) exit();
-        expect(manager.getActiveSession()).toBe(session);
-        expect(session.store.getDisplayMessages()).toEqual([{ message: "saved reply" }]);
-        expect(manager.drafts.get(session.chatInputId)?.input).toBe("unsent input");
-        await manager.setBackendEnabled("native", true);
-        expect(session.resumeBackend).toHaveBeenCalled();
-        expect(session.isBackendSuspended()).toBe(false);
-        expect(manager.getActiveSession()).toBe(session);
-        expect(manager.drafts.get(session.chatInputId)?.input).toBe("unsent input");
-      });
-
-      it("blocks new sessions immediately but lets a running reply finish before stopping", async () => {
-        keepEnablementSettings();
-        const manager = buildManager({ descriptor: enabledDescriptor() });
-        const session = await manager.createSession();
-        await session.ready;
-        const handle = getSessionTestHandle(session);
-        handle.setStatus("running");
-        await manager.setBackendEnabled("native", false);
-        expect(manager.isBackendDisablePending("native")).toBe(true);
-        expect(mockBackendShutdown).not.toHaveBeenCalled();
-        expect(mockSessionCancel).not.toHaveBeenCalled();
-        await expect(manager.createSession()).rejects.toThrow("disabled");
-        const disabled = untilDisabled(manager);
-        handle.setStatus("idle");
-        await disabled;
-        expect(session.isBackendSuspended()).toBe(true);
-        expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-        expect(manager.getSessions()).toEqual([session]);
-      });
-
-      it("waits for an idle chat's running background task before stopping", async () => {
-        keepEnablementSettings();
-        const manager = buildManager({ descriptor: enabledDescriptor() });
-        const session = await manager.createSession();
-        await session.ready;
-        const handle = getSessionTestHandle(session);
-        handle.setTaskStatuses(["running"]);
-        await manager.setBackendEnabled("native", false);
-        expect(mockBackendShutdown).not.toHaveBeenCalled();
-        const disabled = untilDisabled(manager);
-        handle.setTaskStatuses(["completed"]);
-        await disabled;
-        expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-        expect(manager.getActiveSession()).toBe(session);
-      });
-    });
-
     describe("createSession", () => {
+      it("starts native chats with the first runnable model and auto mode despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        getSettingsMock.mockReturnValue({
+          agentMode: { activeBackend: "native", backends: { native: { enabled: false } } },
+        });
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            getEnabledModelEntries: () => [
+              { baseModelId: "missing-key", name: "Missing key", credentialState: "missing_key" },
+              { baseModelId: "first", name: "First", credentialState: "ok" },
+            ],
+          }),
+        });
+        const session = await manager.createSession("native");
+        await session.ready;
+        expect(manager.isBackendEnabled("native")).toBe(true);
+        expect(sessionCreateSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            defaultModelSelection: { baseModelId: "first", effort: null },
+            defaultMode: "auto",
+          })
+        );
+      });
+      it("restores the previous model, effort and mode from existing saved settings https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        getSettingsMock.mockReturnValue({
+          agentMode: {
+            activeBackend: "native",
+            backends: {
+              native: {
+                defaultModel: { baseModelId: "second", effort: "high" },
+                defaultMode: "plan",
+              },
+            },
+          },
+        });
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            getEnabledModelEntries: () => [
+              { baseModelId: "first", name: "First", credentialState: "ok" },
+              { baseModelId: "second", name: "Second", credentialState: "ok" },
+            ],
+          }),
+        });
+        await manager.createSession("native");
+        expect(sessionCreateSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            defaultModelSelection: { baseModelId: "second", effort: "high" },
+            defaultMode: "plan",
+          })
+        );
+      });
+
       it("uses the first enabled complete-list model with default reasoning for a new Claude chat", async () => {
         getSettingsMock.mockReturnValue({
           agentMode: {
@@ -1410,7 +1340,7 @@ describe("AgentSessionManager", () => {
           });
           const manager = buildManager({ descriptor });
           await expect(manager.createSession(undefined, GLOBAL_SCOPE, seed)).rejects.toThrow(
-            "Enable a model"
+            "Configure a runnable model"
           );
           expect(descriptor.createBackendProcess).not.toHaveBeenCalled();
         }
@@ -1446,92 +1376,6 @@ describe("AgentSessionManager", () => {
         }
       );
 
-      it("attaches the Scribe MCP server to a new session and routes its cards to that session", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({ scribeMcpServer });
-
-        const session = await mgr.createSession();
-
-        expect(scribeMcpServer.connect).toHaveBeenCalledWith(
-          session.internalId,
-          expect.any(Function)
-        );
-        expect(sessionCreateSpy).toHaveBeenLastCalledWith(
-          expect.objectContaining({ mcpServers: [FEEDBACK_CHANNEL] })
-        );
-        const onOffer = scribeMcpServer.connect.mock.calls[0][1] as (draft: unknown) => string;
-        expect(onOffer(FEEDBACK_DRAFT)).toBe("shown");
-        expect(session.offerFeedback).toHaveBeenCalledWith(FEEDBACK_DRAFT);
-      });
-
-      it("gives a folder's chats one feedback key when the agent shares MCP servers across sessions", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({
-          scribeMcpServer,
-          descriptor: buildDescriptor({ sharesMcpServersAcrossSessions: true }),
-        });
-
-        const a = await mgr.createSession();
-        const b = await mgr.createSession();
-
-        const keys = scribeMcpServer.connect.mock.calls.map(([key]) => key);
-        expect(keys).toEqual([`native:${a.cwd}`, `native:${b.cwd}`]);
-        expect(keys[0]).toBe(keys[1]);
-      });
-
-      it("shows a shared connection's card in the chat whose backend session the agent stamped on the call", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({
-          scribeMcpServer,
-          descriptor: buildDescriptor({ sharesMcpServersAcrossSessions: true }),
-        });
-        const caller = await mgr.createSession();
-        const newest = await mgr.createSession();
-        const onOffer = scribeMcpServer.connect.mock.calls[1][1] as (
-          draft: unknown,
-          callerSessionId: string | null
-        ) => string;
-
-        expect(onOffer(FEEDBACK_DRAFT, caller.getBackendSessionId())).toBe("shown");
-        expect(caller.offerFeedback).toHaveBeenCalledWith(FEEDBACK_DRAFT);
-        expect(newest.offerFeedback).not.toHaveBeenCalled();
-      });
-
-      it.each([
-        ["carries no caller session", null],
-        ["names a session outside the folder's chats", "backend-elsewhere"],
-      ])("shows no card when a shared connection's call %s", async (_label, callerSessionId) => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({
-          scribeMcpServer,
-          descriptor: buildDescriptor({ sharesMcpServersAcrossSessions: true }),
-        });
-        const session = await mgr.createSession();
-        const onOffer = scribeMcpServer.connect.mock.calls[0][1] as (
-          draft: unknown,
-          callerSessionId: string | null
-        ) => string;
-
-        expect(onOffer(FEEDBACK_DRAFT, callerSessionId)).toBe("unattributed");
-        expect(session.offerFeedback).not.toHaveBeenCalled();
-      });
-
-      it("still starts the chat when the feedback server cannot start", async () => {
-        const scribeMcpServer = buildScribeMcpServer({
-          connect: jest.fn(async () => {
-            throw new Error("EADDRINUSE");
-          }),
-        });
-        const mgr = buildManager({ scribeMcpServer });
-
-        const session = await mgr.createSession();
-
-        expect(mgr.getActiveSession()).toBe(session);
-        expect(sessionCreateSpy).toHaveBeenLastCalledWith(
-          expect.objectContaining({ mcpServers: [] })
-        );
-      });
-
       it("refuses to start a chat, and asks for an enabled model, when a backend that may only run enabled models has none", async () => {
         mockSavedDefault(null);
         const mgr = buildManager({
@@ -1542,10 +1386,10 @@ describe("AgentSessionManager", () => {
         });
 
         await expect(mgr.createSession()).rejects.toThrow(
-          "Enable a model for native in Scribe's model settings to start a chat."
+          "Configure a runnable model for native in Models to start a chat."
         );
         expect(mgr.getLastError()).toBe(
-          "Enable a model for native in Scribe's model settings to start a chat."
+          "Configure a runnable model for native in Models to start a chat."
         );
         expect(mockBackendStart).not.toHaveBeenCalled();
         expect(mgr.getIsStarting()).toBe(false);
@@ -1878,37 +1722,6 @@ describe("AgentSessionManager", () => {
         expect(playNotificationSound).not.toHaveBeenCalled();
         expect(background.getNeedsAttention()).toBe(false);
       });
-
-      it("autosaves a new chat's turn as a note when autosave is on", async () => {
-        const { mgr, saveSession } = savedNoteFixture(true);
-        const session = await mgr.createSession();
-        const messages = [{ message: "Automatically saved turn" }];
-        getSessionTestHandle(session).setMessages(messages, true);
-        await jest.advanceTimersByTimeAsync(2000);
-        expect(saveSession).toHaveBeenCalledTimes(1);
-        expect(saveSession).toHaveBeenCalledWith(
-          messages,
-          session.backendId,
-          expect.objectContaining({ existingPath: undefined })
-        );
-        await mgr.shutdown();
-      });
-
-      it("retries a failed autosave when the chat closes", async () => {
-        const { mgr, saveSession } = savedNoteFixture(true);
-        const session = await mgr.createSession();
-        const messages = [{ message: "Last turn" }];
-        getSessionTestHandle(session).setMessages(messages, true);
-        saveSession.mockResolvedValueOnce(null);
-
-        await jest.advanceTimersByTimeAsync(2000);
-        expect(saveSession).toHaveBeenCalledTimes(1);
-
-        await mgr.replaceSessionInPlace(session.internalId);
-        await jest.advanceTimersByTimeAsync(0);
-        expect(saveSession).toHaveBeenCalledTimes(2);
-        await mgr.shutdown();
-      });
     });
 
     describe("forkSessionAtMessage", () => {
@@ -2177,16 +1990,6 @@ describe("AgentSessionManager", () => {
         expect(mockSessionDispose).toHaveBeenCalled();
       });
 
-      it("revokes the closed session's feedback server token", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({ scribeMcpServer });
-        const a = await mgr.createSession();
-
-        await mgr.closeSession(a.internalId);
-
-        expect(scribeMcpServer.disconnect).toHaveBeenCalledWith(a.internalId);
-      });
-
       it("releases the dropped chat's backend session, so reopening it from history starts one with a live feedback token", async () => {
         const mgr = buildManager();
         const a = await mgr.createSession();
@@ -2228,22 +2031,6 @@ describe("AgentSessionManager", () => {
 
         expect(mgr.getSessions()).toEqual([]);
         expect(mockSessionDispose).toHaveBeenCalled();
-      });
-
-      it("keeps a folder's shared feedback key when one of its chats closes", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({
-          scribeMcpServer,
-          descriptor: buildDescriptor({ sharesMcpServersAcrossSessions: true }),
-        });
-        await mgr.createSession();
-        const newest = await mgr.createSession();
-
-        await mgr.closeSession(newest.internalId);
-
-        expect(scribeMcpServer.disconnect).not.toHaveBeenCalledWith(
-          scribeMcpServer.connect.mock.calls[0][0]
-        );
       });
 
       it("when the active session is closed, picks the right neighbor as active", async () => {
@@ -2293,7 +2080,7 @@ describe("AgentSessionManager", () => {
         expect(mgr.getActiveSession()).not.toBe(old);
       });
 
-      it("never writes an unsaved chat with autosave off", async () => {
+      it("never writes a chat note after a turn or when closing https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
         const { mgr, saveSession } = savedNoteFixture();
         const session = await mgr.createSession();
         getSessionTestHandle(session).setMessages([{ message: "Unsaved turn" }], true);
@@ -2420,38 +2207,6 @@ describe("AgentSessionManager", () => {
         );
         expect(mgr.getSessions()).toEqual([thirdReplacement]);
       });
-
-      it("updates the manually saved file and drains later turns on New chat with autosave off", async () => {
-        const { mgr, saveSession } = savedNoteFixture();
-        const session = await mgr.createSession();
-        const handle = getSessionTestHandle(session);
-        const first = [
-          { message: "Image question\n\n![](/image.png)" },
-          { message: "Image answer" },
-        ];
-        handle.setMessages(first, true);
-        await mgr.saveActiveSession();
-        const later = [...first, { message: "Later question" }, { message: "Later answer" }];
-        handle.setMessages(later, true);
-        await jest.advanceTimersByTimeAsync(2000);
-        expect(saveSession).toHaveBeenCalledTimes(2);
-        expect(saveSession).toHaveBeenLastCalledWith(
-          later,
-          session.backendId,
-          expect.objectContaining({ existingPath: "chats/saved.md" })
-        );
-        const final = [...later, { message: "Final question" }, { message: "Final answer" }];
-        handle.setMessages(final, true);
-        await mgr.replaceSessionInPlace(session.internalId);
-        await jest.advanceTimersByTimeAsync(0);
-        expect(saveSession).toHaveBeenCalledTimes(3);
-        expect(saveSession).toHaveBeenLastCalledWith(
-          final,
-          session.backendId,
-          expect.objectContaining({ existingPath: "chats/saved.md" })
-        );
-        await mgr.shutdown();
-      });
     });
 
     describe("subscribe", () => {
@@ -2482,15 +2237,6 @@ describe("AgentSessionManager", () => {
         expect(mockSessionCancel).toHaveBeenCalledTimes(2);
         expect(mockSessionDispose).toHaveBeenCalledTimes(2);
         expect(mockBackendShutdown).toHaveBeenCalledTimes(1);
-      });
-
-      it("closes the feedback server", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManager({ scribeMcpServer });
-
-        await mgr.shutdown();
-
-        expect(scribeMcpServer.dispose).toHaveBeenCalledTimes(1);
       });
     });
 
@@ -2660,29 +2406,6 @@ describe("AgentSessionManager", () => {
     });
 
     describe("closeChatSession", () => {
-      it.each([
-        ["saved note path", false],
-        ["stale native id", true],
-      ])("closes by %s and retains the saved transcript", async (_label, useNativeId) => {
-        const saved = new Map<string, unknown>();
-        const saveSession = jest.fn(async (messages: unknown) => {
-          saved.set("chats/research.md", messages);
-          return { path: "chats/research.md" };
-        });
-        const mgr = buildManager({ persistence: { saveSession } });
-        const session = await mgr.createSession();
-        getSessionTestHandle(session).setMessages([{ message: "Initial answer" }]);
-        await mgr.saveActiveSession();
-        const nativeId = nativeIdOf(session);
-        expect(mgr.getOpenChatIds()).toEqual(new Set([nativeId, "chats/research.md"]));
-
-        await mgr.closeChatSession(useNativeId ? nativeId : "chats/research.md");
-
-        expect(saved.get("chats/research.md")).toEqual([{ message: "Initial answer" }]);
-        expect(mgr.getOpenChatIds().size).toBe(0);
-        expect(mgr.getSessions()).toEqual([]);
-      });
-
       it("releases only the selected backend session while preserving another active chat", async () => {
         const mgr = buildManager();
         const selected = await mgr.createSession();
@@ -2717,36 +2440,6 @@ describe("AgentSessionManager", () => {
         const a = await mgr.createSession();
         getSessionTestHandle(a).setStatus("running");
         expect(mgr.getRunningChatIds().has(nativeIdOf(a))).toBe(true);
-      });
-
-      it("keys a running saved session by its markdown path", async () => {
-        const mgr = buildManager({
-          persistence: { saveSession: jest.fn(async () => ({ path: "chats/agent__saved.md" })) },
-        });
-        const a = await mgr.createSession();
-        getSessionTestHandle(a).setMessages([{ message: "hi" }]);
-        await mgr.saveActiveSession();
-        getSessionTestHandle(a).setStatus("running");
-        expect(mgr.getRunningChatIds().has("chats/agent__saved.md")).toBe(true);
-      });
-
-      it("keeps both ids when a running session's first save re-keys it", async () => {
-        const mgr = buildManager({
-          persistence: { saveSession: jest.fn(async () => ({ path: "chats/agent__saved.md" })) },
-        });
-        const a = await mgr.createSession();
-        getSessionTestHandle(a).setMessages([{ message: "hi" }]);
-        getSessionTestHandle(a).setStatus("running");
-        expect(mgr.getRunningChatIds().has(nativeIdOf(a))).toBe(true);
-
-        const listener = jest.fn();
-        mgr.subscribe(listener);
-        await mgr.saveActiveSession();
-
-        expect(listener).toHaveBeenCalledTimes(1);
-        const ids = mgr.getRunningChatIds();
-        expect(ids.has("chats/agent__saved.md")).toBe(true);
-        expect(ids.has(nativeIdOf(a))).toBe(true);
       });
 
       it("excludes a starting session while including a running one", async () => {
@@ -3194,40 +2887,6 @@ describe("AgentSessionManager", () => {
         expect(mgr.getSessions()).toHaveLength(1);
       });
 
-      it("re-attaches the Scribe MCP server when it reloads the replaced tab", async () => {
-        const loadSession = jest.fn(async ({ sessionId }: { sessionId: string }) => ({
-          sessionId,
-          state: { model: null, mode: null },
-        }));
-        const mgr = buildManagerWithReplay({ loadSession }, {}, buildScribeMcpServer());
-        await mgr.createSession();
-
-        await mgr.restartBackend("native", "managed skills changed");
-
-        expect(loadSession).toHaveBeenCalledWith(
-          expect.objectContaining({ mcpServers: [FEEDBACK_CHANNEL] })
-        );
-      });
-
-      it("revokes the feedback token it handed a replaced tab that fails to reload", async () => {
-        const scribeMcpServer = buildScribeMcpServer();
-        const mgr = buildManagerWithReplay(
-          {
-            loadSession: jest.fn(async () => {
-              throw new Error("load blew up");
-            }),
-          },
-          {},
-          scribeMcpServer
-        );
-        await mgr.createSession();
-
-        await mgr.restartBackend("native", "managed skills changed");
-
-        const reloadKey = scribeMcpServer.connect.mock.calls[1][0];
-        expect(scribeMcpServer.disconnect).toHaveBeenCalledWith(reloadKey);
-      });
-
       it("rebuilds the replaced tab with the tool calls its backend replays during load", async () => {
         const replay = buildReplayingBackend({
           onLoad: (emit) => {
@@ -3271,7 +2930,6 @@ describe("AgentSessionManager", () => {
           opts: { onScreen?: AgentChatMessage[]; failed?: boolean; saveFirst?: boolean } = {}
         ) {
           jest.useFakeTimers();
-          getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: true });
           const note = mockTFile({ path: "chats/agent__list_the_notes@20261012_214533.md" });
           const app = buildApp();
           jest
@@ -3294,47 +2952,11 @@ describe("AgentSessionManager", () => {
           const first = await mgr.createSession();
           getSessionTestHandle(first).setMessages(opts.onScreen ?? noteTurns, true);
           if (opts.failed) getSessionTestHandle(first).setStatus("error");
-          if (opts.saveFirst ?? true) await jest.advanceTimersByTimeAsync(2000);
+          if (opts.saveFirst ?? true) await mgr.loadSessionFromHistory(note);
 
           await mgr.restartBackend("native", "managed skills changed");
           return { mgr, first, note, saveSession, rebuilt: mgr.getActiveSession()! };
         }
-
-        it("reopens the chat from its note, so the next autosave rewrites that note with the note's timestamps instead of writing a duplicate", async () => {
-          const replay = buildReplayingBackend({
-            onLoad: (emit) => {
-              emit(replayChunk("user_message_chunk", "list the notes", "u1"));
-              emit(replayChunk("agent_message_chunk", "Two notes.", "a1"));
-            },
-          });
-          const { mgr, first, note, saveSession } = await restartSavedChat(replay);
-
-          replay.emit(
-            first.getBackendSessionId()!,
-            replayChunk("agent_message_chunk", " Both are drafts.", "a1")
-          );
-          await jest.advanceTimersByTimeAsync(2000);
-
-          const [messages, , options] = saveSession.mock.calls.at(-1)! as unknown as [
-            AgentChatMessage[],
-            string,
-            { existingPath?: string },
-          ];
-          expect(options.existingPath).toBe(note.path);
-          expect(messages.map((m) => m.timestamp)).toEqual([asked, answered]);
-          await mgr.shutdown();
-        });
-
-        it("keeps saving to the note that a pending autosave creates when the restart runs right after the chat's first reply", async () => {
-          const { mgr, note, rebuilt, saveSession } = await restartSavedChat(
-            buildReplayingBackend(),
-            { saveFirst: false }
-          );
-
-          expect(saveSession).toHaveBeenCalledTimes(1);
-          expect(mgr.getSessionSourcePath(rebuilt.internalId)).toBe(note.path);
-          await mgr.shutdown();
-        });
 
         it("still shows a failed turn and its error after the restart while keeping the note", async () => {
           const failedTurn = [
@@ -3398,55 +3020,6 @@ describe("AgentSessionManager", () => {
           expect(rebuilt.loadDisplayMessages).not.toHaveBeenCalled();
           expect(rebuilt.resendSavedHistoryOnNextTurn).not.toHaveBeenCalled();
           expect(mgr.getSessionSourcePath(rebuilt.internalId)).toBe("");
-          await mgr.shutdown();
-        });
-
-        it("rebuilds every tab when one chat's note cannot be read, leaving that chat unbound from its note", async () => {
-          jest.useFakeTimers();
-          getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: true });
-          const broken = mockTFile({ path: "chats/agent__broken@20261012_214533.md" });
-          const healthy = mockTFile({ path: "chats/agent__healthy@20261012_214540.md" });
-          const app = buildApp();
-          jest
-            .mocked(app.vault.getAbstractFileByPath)
-            .mockImplementation((path) => [broken, healthy].find((f) => f.path === path) ?? null);
-          const mgr = buildManager({
-            app,
-            persistence: {
-              saveSession: jest.fn(async (messages: AgentChatMessage[]) => ({
-                path: messages[0].message === "broken" ? broken.path : healthy.path,
-              })),
-              loadFile: jest.fn(async (file: TFile) => {
-                if (file === broken) throw new Error("Missing backendId in agent chat frontmatter");
-                return {
-                  backendId: "native",
-                  sessionId: undefined,
-                  projectId: GLOBAL_SCOPE,
-                  messages: noteTurns,
-                };
-              }),
-            },
-            descriptor: buildDescriptor({
-              createBackendProcess: () => buildReplayingBackend().backend,
-            }),
-          });
-          for (const text of ["broken", "healthy"]) {
-            const chat = await mgr.createSession();
-            getSessionTestHandle(chat).setMessages(
-              [
-                { sender: USER_SENDER, message: text, isVisible: true, timestamp: asked },
-              ] as AgentChatMessage[],
-              true
-            );
-          }
-          await jest.advanceTimersByTimeAsync(2000);
-
-          await mgr.restartBackend("native", "managed skills changed");
-
-          const [first, second] = mgr.getSessions();
-          expect(mgr.getSessions()).toHaveLength(2);
-          expect(mgr.getSessionSourcePath(first.internalId)).toBe("");
-          expect(mgr.getSessionSourcePath(second.internalId)).toBe(healthy.path);
           await mgr.shutdown();
         });
       });
@@ -3952,7 +3525,49 @@ describe("AgentSessionManager", () => {
       });
     });
 
+    describe("persistDefaultSelection()", () => {
+      it("reuses the saved model field while preserving mode and step preferences https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+        const manager = buildManager();
+        setSettingsMock.mockClear();
+        const selection = { baseModelId: "chosen", effort: "high" };
+        manager.persistDefaultSelection("native", selection);
+        const update = setSettingsMock.mock.calls[0][0];
+        const result = update({
+          agentMode: {
+            notificationSound: true,
+            backends: { native: { defaultMode: "plan", maxSteps: 50 } },
+          },
+        });
+        expect(result.agentMode).toEqual({
+          notificationSound: true,
+          backends: { native: { defaultMode: "plan", maxSteps: 50, defaultModel: selection } },
+        });
+      });
+    });
+
     describe("applySelection", () => {
+      it("does not replace the remembered model when switching fails https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const applySelection = jest.fn().mockRejectedValue(new Error("switch failed"));
+        const manager = buildManager({ descriptor: buildApplySelectionDescriptor(applySelection) });
+        sessionCreateSpy.mockImplementationOnce((opts) => {
+          const session = makeMockSession({
+            internalId: opts.internalId,
+            backendId: opts.backendId,
+          });
+          (session as unknown as { getState: () => unknown }).getState = () => ({
+            model: { current: { baseModelId: "previous", effort: "low" }, availableModels: [] },
+            mode: null,
+          });
+          return session;
+        });
+        await manager.createSession();
+        setSettingsMock.mockClear();
+        await expect(manager.applySelection({ baseModelId: "unavailable" })).rejects.toThrow(
+          "switch failed"
+        );
+        expect(setSettingsMock).not.toHaveBeenCalled();
+      });
+
       it("no-ops when no session is active", async () => {
         const mgr = buildManager();
         await expect(
@@ -3968,7 +3583,7 @@ describe("AgentSessionManager", () => {
         ).resolves.toBeUndefined();
       });
 
-      it("delegates dispatch to descriptor.applySelection with the resolved selection", async () => {
+      it("persists a successful model and effort selection for later chats https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
         const applySelection = jest.fn(async () => {});
         const mgr = buildManager({ descriptor: buildApplySelectionDescriptor(applySelection) });
         const entry = {
@@ -3999,7 +3614,10 @@ describe("AgentSessionManager", () => {
           baseModelId: "anthropic/sonnet",
           effort: "high",
         });
-        expect(readPersistedDefault(setSettingsMock, "native")).toBeUndefined();
+        expect(readPersistedDefault(setSettingsMock, "native")).toEqual({
+          baseModelId: "anthropic/sonnet",
+          effort: "high",
+        });
 
         applySelection.mockClear();
         setSettingsMock.mockClear();
@@ -4008,7 +3626,10 @@ describe("AgentSessionManager", () => {
           baseModelId: "anthropic/opus",
           effort: null,
         });
-        expect(readPersistedDefault(setSettingsMock, "native")).toBeUndefined();
+        expect(readPersistedDefault(setSettingsMock, "native")).toEqual({
+          baseModelId: "anthropic/opus",
+          effort: null,
+        });
       });
     });
 
@@ -4114,80 +3735,7 @@ describe("AgentSessionManager", () => {
       });
     });
 
-    describe("saveActiveSession", () => {
-      it("persists the active chat's messages and returns the saved note path", async () => {
-        const { mgr, saveSession } = savedNoteFixture();
-        const session = await mgr.createSession();
-        const messages = [{ message: "Question" }, { message: "Answer" }];
-        getSessionTestHandle(session).setMessages(messages);
-
-        await expect(mgr.saveActiveSession()).resolves.toEqual({ path: "chats/saved.md" });
-
-        expect(saveSession).toHaveBeenCalledWith(messages, session.backendId, expect.anything());
-      });
-
-      it("persists changes during the first manual save", async () => {
-        const { mgr, saveSession } = savedNoteFixture();
-        let finishSave!: (result: { path: string }) => void;
-        saveSession.mockImplementationOnce(
-          () =>
-            new Promise((resolve) => {
-              finishSave = resolve;
-            })
-        );
-        const session = await mgr.createSession();
-        const handle = getSessionTestHandle(session);
-        handle.setMessages([{ message: "Question" }, { message: "Partial answer" }], true);
-        const saving = mgr.saveActiveSession();
-        await jest.advanceTimersByTimeAsync(0);
-        expect(saveSession).toHaveBeenCalledTimes(1);
-        const completed = [{ message: "Question" }, { message: "Completed answer" }];
-        handle.setMessages(completed, true);
-        finishSave({ path: "chats/saved.md" });
-        await saving;
-        await jest.advanceTimersByTimeAsync(2000);
-        expect(saveSession).toHaveBeenCalledTimes(2);
-        expect(saveSession).toHaveBeenLastCalledWith(
-          completed,
-          session.backendId,
-          expect.objectContaining({ existingPath: "chats/saved.md" })
-        );
-        await mgr.shutdown();
-      });
-    });
-
     describe("getSessionSourcePath", () => {
-      it("keeps unsaved sessions independent of a saved session and follows its file rename", async () => {
-        const file = mockTFile({ path: "chat/Conversation.md" });
-        const app = buildApp();
-        jest.mocked(app.vault.getAbstractFileByPath).mockReturnValue(file);
-        const saveSession = jest.fn().mockResolvedValue({ path: file.path });
-        const mgr = buildManager({ app, persistence: { saveSession } });
-        const first = await mgr.createSession();
-        expect(mgr.getSessionSourcePath(first.internalId)).toBe("");
-        getSessionTestHandle(first).setMessages([{ message: "Hello" }]);
-        const listener = jest.fn();
-        mgr.subscribe(listener);
-        await mgr.saveActiveSession();
-        expect(listener).toHaveBeenCalledTimes(1);
-        expect(mgr.getSessionSourcePath(first.internalId)).toBe(file.path);
-        file.path = "archive/Conversation.md";
-        expect(mgr.getSessionSourcePath(first.internalId)).toBe(file.path);
-        expect(await mgr.saveActiveSession()).toEqual({ path: file.path });
-        const second = await mgr.createSession();
-        expect(mgr.getSessionSourcePath(second.internalId)).toBe("");
-        mgr.setActiveSession(first.internalId);
-        getSessionTestHandle(first).setMessages([{ message: "Changed" }]);
-        saveSession.mockResolvedValue(null);
-        await mgr.saveActiveSession();
-        expect(mgr.getSessionSourcePath(first.internalId)).toBe(file.path);
-        expect(saveSession).toHaveBeenLastCalledWith(
-          expect.anything(),
-          first.backendId,
-          expect.objectContaining({ existingPath: file.path })
-        );
-      });
-
       it("uses the loaded conversation file before any save", async () => {
         const file = mockTFile({ path: "chat/Loaded.md" });
         const loadFile = jest.fn().mockResolvedValue({
@@ -4513,6 +4061,26 @@ describe("AgentSessionManager", () => {
     });
 
     describe("deleteChatHistory", () => {
+      it.each([
+        [buildNativeChatId("native", "to-delete"), buildNativeChatId("native", "to-delete")],
+        ["chats/agent__old.md", "epoch:1000"],
+      ])(
+        "removes the pin override when deleting %s https://github.com/ItsDalk-Lane/Scribe/issues/31",
+        async (id, identity) => {
+          const indexStorage = makeIndexStorage();
+          const { manager, index } = buildHistoryHarness({
+            indexStorage,
+            files: { "chats/agent__old.md": { epoch: 1000, backendId: "native" } },
+          });
+          await manager.setChatPinned(id, true);
+          await manager.deleteChatHistory(id);
+          await index.flush();
+          expect(await index.getPinOverride(identity)).toBeUndefined();
+          const reloaded = new AgentSessionIndex(indexStorage, "plugins/scribe/index.json");
+          expect(await reloaded.getPinOverride(identity)).toBeUndefined();
+        }
+      );
+
       it("removes the backend's stored native transcript before removing its saved note", async () => {
         const deleted: string[] = [];
         const deleteSession = jest.fn(async ({ sessionId }: { sessionId: string }) => {
@@ -4708,75 +4276,8 @@ describe("AgentSessionManager", () => {
           expect(await index.isTombstoned("native", sessionId)).toBe(true);
         });
 
-        it.each(["a held autosave", "a held earlier autosave", "a held manual save"])(
-          `${issue} deletes the note %s writes after delete starts`,
-          async (scenario) => {
-            const { setImmediate: nextLoopTurn } =
-              jest.requireActual<typeof import("timers")>("timers");
-            jest.useFakeTimers();
-            getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: true });
-            const { manager, persistence, session, chatId } = await openChat();
-            let finishSave!: (saved: { path: string }) => void;
-            let heldSaveDone = false;
-            persistence.saveSession.mockImplementationOnce(
-              () => new Promise((resolve) => (finishSave = resolve))
-            );
-            getSessionTestHandle(session).setMessages([{ message: "First turn" }], true);
-            let manualSave: Promise<unknown> | undefined;
-            if (scenario === "a held manual save") {
-              manualSave = manager.saveActiveSession();
-            } else {
-              await jest.advanceTimersByTimeAsync(2000);
-              if (scenario === "a held earlier autosave") {
-                persistence.saveSession.mockResolvedValueOnce({ path: "chats/new.md" });
-                getSessionTestHandle(session).setMessages([{ message: "Second turn" }], true);
-                await jest.advanceTimersByTimeAsync(2000);
-              }
-            }
-            let heldSaveDoneAtDelete: boolean | undefined;
-            persistence.deleteFile.mockImplementationOnce(async () => {
-              heldSaveDoneAtDelete = heldSaveDone;
-            });
-
-            const deleting = manager.deleteChatHistory(chatId);
-            nextLoopTurn(() => {
-              heldSaveDone = true;
-              finishSave({ path: "chats/new.md" });
-            });
-            await deleting;
-            await manualSave;
-
-            expect(persistence.deleteFile).toHaveBeenCalledWith("chats/new.md");
-            expect(heldSaveDoneAtDelete).toBe(true);
-          }
-        );
-
-        it(`${issue} leaves an open chat alone when another note shares its session`, async () => {
-          const sharedSessionId = `backend-${nextBackendSessionId}`;
-          const { manager, persistence } = buildHistoryHarness({
-            files: {
-              "chats/duplicate.md": {
-                epoch: 1_000,
-                backendId: "native",
-                sessionId: sharedSessionId,
-              },
-            },
-          });
-          const session = await manager.createSession("native");
-          expect(session.getBackendSessionId()).toBe(sharedSessionId);
-          getSessionTestHandle(session).setMessages([{ message: "First turn" }], true);
-          await manager.saveActiveSession();
-
-          await manager.deleteChatHistory("chats/duplicate.md");
-
-          expect(manager.getSessions()).toEqual([session]);
-          expect(persistence.deleteFile).toHaveBeenCalledTimes(1);
-          expect(persistence.deleteFile).toHaveBeenCalledWith("chats/duplicate.md");
-        });
-
         it(`${issue} never saves a pending autosave while it deletes the chat`, async () => {
           jest.useFakeTimers();
-          getSettingsMock.mockReturnValue({ ...getSettingsMock(), autosaveChat: true });
           const { manager, persistence, session, chatId } = await openChat();
           getSessionTestHandle(session).setMessages([{ message: "First turn" }], true);
 
@@ -4785,6 +4286,53 @@ describe("AgentSessionManager", () => {
           expect(persistence.saveSession).not.toHaveBeenCalled();
           expect(persistence.deleteFile).not.toHaveBeenCalled();
         });
+      });
+    });
+
+    describe("getSessionHistoryId()", () => {
+      it("uses the existing native session identity without saving a note https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const manager = buildManager();
+        const session = await manager.createSession();
+        expect(manager.getSessionHistoryId(session.internalId)).toBe(nativeIdOf(session));
+        expect(manager.getSessionHistoryId("missing")).toBe("");
+      });
+    });
+
+    describe("getChatLinkId()", () => {
+      it("keeps native links independent of notes and preserves legacy epoch links https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const { manager } = buildHistoryHarness({
+          files: { "chats/agent__old.md": { epoch: 1000, backendId: "native" } },
+        });
+        const native = buildNativeChatId("native", "s1");
+        expect(await manager.getChatLinkId(native)).toBe(native);
+        expect(await manager.getChatLinkId("chats/agent__old.md")).toBe("epoch:1000");
+        expect(await manager.getChatLinkId("missing.md")).toBeNull();
+      });
+    });
+
+    describe("setChatPinned()", () => {
+      it("pins native chats in the internal index without creating notes https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const { manager, index, persistence } = buildHistoryHarness();
+        const native = buildNativeChatId("native", "s1");
+        const pinned = await manager.setChatPinned(native, true);
+        expect(pinned.id).toBe(native);
+        expect(pinned.pinnedAt).toEqual(expect.any(Number));
+        expect(await index.getPinOverride(native)).toBe(pinned.pinnedAt);
+        expect(persistence.saveSession).not.toHaveBeenCalled();
+        expect(persistence.setPinnedAt).not.toHaveBeenCalled();
+      });
+      it("keeps an explicit unpin over a legacy note's stored pin after reloading the index https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const indexStorage = makeIndexStorage();
+        const files = {
+          "chats/agent__old.md": { epoch: 1000, backendId: "native", pinnedAt: 4000 },
+        };
+        const first = buildHistoryHarness({ files, indexStorage });
+        expect((await first.manager.getChatHistoryItems())[0].pinnedAt).toBe(4000);
+        await first.manager.setChatPinned("chats/agent__old.md", false);
+        await first.index.flush();
+        const next = buildHistoryHarness({ files, indexStorage });
+        expect((await next.manager.getChatHistoryItems())[0].pinnedAt).toBeUndefined();
+        expect(next.persistence.setPinnedAt).not.toHaveBeenCalled();
       });
     });
 
@@ -4817,189 +4365,6 @@ describe("AgentSessionManager", () => {
         await manager.updateChatTitle(buildNativeChatId("codex", liveId), "Codex renamed");
         expect((await index.getEntry("codex", liveId))?.title).toBe("Codex renamed");
         expect(live.setLabel).not.toHaveBeenCalled();
-      });
-    });
-
-    describe("ensureChatNote", () => {
-      it("returns the note path of a saved chat without saving it again", async () => {
-        const { manager, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native" } },
-        });
-
-        await expect(manager.ensureChatNote("chats/agent__a.md")).resolves.toBe(
-          "chats/agent__a.md"
-        );
-        expect(persistence.saveSession).not.toHaveBeenCalled();
-      });
-
-      it("saves a live chat that has no note yet and returns the new note's path", async () => {
-        const { mgr, saveSession } = savedNoteFixture(false);
-        const session = await mgr.createSession();
-        getSessionTestHandle(session).setMessages([{ message: "Unsaved question" }]);
-
-        await expect(mgr.ensureChatNote(nativeIdOf(session))).resolves.toBe("chats/saved.md");
-        expect(saveSession).toHaveBeenCalledWith(
-          [{ message: "Unsaved question" }],
-          session.backendId,
-          expect.anything()
-        );
-      });
-
-      it("saves a closed chat that has no note without opening it or leaving it open", async () => {
-        const replay = buildReplayingBackend({
-          onLoad: (emit) => {
-            emit(replayChunk("user_message_chunk", "closed question", "u1"));
-          },
-        });
-        const { manager, persistence } = buildHistoryHarness({
-          createBackendProcess: jest.fn(() => replay.backend),
-        });
-
-        await expect(manager.ensureChatNote(buildNativeChatId("native", "closed"))).resolves.toBe(
-          "chats/agent__saved.md"
-        );
-
-        expect(persistence.saveSession).toHaveBeenCalledWith(
-          [expect.objectContaining({ sender: USER_SENDER, message: "closed question" })],
-          "native",
-          expect.objectContaining({ sessionId: "closed" })
-        );
-        expect(manager.getActiveSession()).toBeNull();
-        expect(manager.getSessions()).toEqual([]);
-      });
-
-      it("keeps a closed chat open when the user opens it while it is being saved", async () => {
-        const replay = buildReplayingBackend({
-          onLoad: (emit) => {
-            emit(replayChunk("user_message_chunk", "closed question", "u1"));
-          },
-        });
-        const { manager, persistence } = buildHistoryHarness({
-          createBackendProcess: jest.fn(() => replay.backend),
-        });
-        const saveGate = deferred<{ path: string }>();
-        persistence.saveSession.mockImplementationOnce(() => saveGate.promise);
-
-        const saving = manager.ensureChatNote(buildNativeChatId("native", "closed"));
-        const opened = await manager.loadNativeSessionFromHistory("native", "closed");
-        saveGate.resolve({ path: "chats/agent__saved.md" });
-
-        await expect(saving).resolves.toBe("chats/agent__saved.md");
-        expect(manager.getActiveSession()).toBe(opened);
-        expect(manager.getSessions()).toEqual([opened]);
-      });
-
-      it("rejects without saving when a chat with no note cannot be loaded from its backend", async () => {
-        const replay = buildReplayingBackend({
-          loadSession: jest.fn(async () => {
-            throw new Error("backend is not installed");
-          }),
-        });
-        const { manager, persistence } = buildHistoryHarness({
-          createBackendProcess: jest.fn(() => replay.backend),
-        });
-
-        await expect(
-          manager.ensureChatNote(buildNativeChatId("native", "unreachable"))
-        ).rejects.toThrow();
-        expect(persistence.saveSession).not.toHaveBeenCalled();
-      });
-    });
-
-    describe("setChatPinned", () => {
-      const PINNED_AT = 1_760_000_000_000;
-      let nowSpy: jest.SpyInstance | undefined;
-      const freezeNow = () => {
-        nowSpy = jest.spyOn(Date, "now").mockReturnValue(PINNED_AT);
-      };
-
-      afterEach(() => {
-        nowSpy?.mockRestore();
-        nowSpy = undefined;
-      });
-
-      it("pins a saved chat by writing the current time to its note and returns the pinned row", async () => {
-        const { manager, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native" } },
-        });
-        freezeNow();
-
-        const pinned = await manager.setChatPinned("chats/agent__a.md", true);
-
-        expect(pinned).toEqual({ id: "chats/agent__a.md", pinnedAt: PINNED_AT });
-        expect(persistence.setPinnedAt).toHaveBeenCalledWith("chats/agent__a.md", PINNED_AT);
-      });
-
-      it("unpins a saved chat by clearing the pin from its note", async () => {
-        const { manager, persistence } = buildHistoryHarness({
-          files: { "chats/agent__a.md": { epoch: 1_000, backendId: "native", pinnedAt: 4_000 } },
-        });
-
-        const unpinned = await manager.setChatPinned("chats/agent__a.md", false);
-
-        expect(unpinned).toEqual({ id: "chats/agent__a.md", pinnedAt: undefined });
-        expect(persistence.setPinnedAt).toHaveBeenCalledWith("chats/agent__a.md", null);
-      });
-
-      it("saves a live chat that has no note yet and pins the new note instead of the unsaved chat", async () => {
-        const { mgr, saveSession, setPinnedAt } = savedNoteFixture(false);
-        freezeNow();
-        const session = await mgr.createSession();
-        getSessionTestHandle(session).setMessages([{ message: "Unsaved question" }]);
-
-        const pinned = await mgr.setChatPinned(nativeIdOf(session), true);
-
-        expect(saveSession).toHaveBeenCalledWith(
-          [{ message: "Unsaved question" }],
-          session.backendId,
-          expect.anything()
-        );
-        expect(setPinnedAt).toHaveBeenCalledWith("chats/saved.md", PINNED_AT);
-        expect(pinned).toEqual({ id: "chats/saved.md", pinnedAt: PINNED_AT });
-      });
-
-      it("loads a closed chat that has no note through its backend and saves it before pinning the note", async () => {
-        const replay = buildReplayingBackend({
-          onLoad: (emit) => {
-            emit(replayChunk("user_message_chunk", "closed question", "u1"));
-            emit(replayChunk("agent_message_chunk", "closed answer", "a1"));
-          },
-        });
-        const { manager, persistence } = buildHistoryHarness({
-          createBackendProcess: jest.fn(() => replay.backend),
-        });
-        freezeNow();
-
-        const pinned = await manager.setChatPinned(buildNativeChatId("native", "closed"), true);
-
-        expect(persistence.saveSession).toHaveBeenCalledWith(
-          [
-            expect.objectContaining({ sender: USER_SENDER, message: "closed question" }),
-            expect.objectContaining({ sender: AI_SENDER, message: "closed answer" }),
-          ],
-          "native",
-          expect.objectContaining({ sessionId: "closed" })
-        );
-        expect(persistence.setPinnedAt).toHaveBeenCalledWith("chats/agent__saved.md", PINNED_AT);
-        expect(pinned).toEqual({ id: "chats/agent__saved.md", pinnedAt: PINNED_AT });
-      });
-
-      it("pins nothing and rejects when a chat with no note cannot be loaded from its backend", async () => {
-        const replay = buildReplayingBackend({
-          loadSession: jest.fn(async () => {
-            throw new Error("backend is not installed");
-          }),
-        });
-        const { manager, persistence } = buildHistoryHarness({
-          createBackendProcess: jest.fn(() => replay.backend),
-        });
-
-        await expect(
-          manager.setChatPinned(buildNativeChatId("native", "unreachable"), true)
-        ).rejects.toThrow();
-
-        expect(persistence.saveSession).not.toHaveBeenCalled();
-        expect(persistence.setPinnedAt).not.toHaveBeenCalled();
       });
     });
 
@@ -5609,6 +4974,65 @@ describe("AgentSessionManager", () => {
         expect(createBackendProcess).not.toHaveBeenCalled();
         expect(manager.getActiveSession()).toBeNull();
         expect(manager.getLastError()).toContain("Update required");
+      });
+
+      it("keeps the native history model and mode instead of applying the new-chat defaults https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const state: BackendState = {
+          model: {
+            current: { baseModelId: "history-model", effort: "low" },
+            availableModels: [
+              { baseModelId: "history-model", name: "History", provider: null, effortOptions: [] },
+              {
+                baseModelId: "new-chat-model",
+                name: "New chat",
+                provider: null,
+                effortOptions: [],
+              },
+            ],
+            apply: { kind: "setModel" },
+          },
+          mode: {
+            current: "plan",
+            options: [
+              { value: "plan", label: "Plan" },
+              { value: "auto", label: "Auto" },
+            ],
+            apply: {
+              plan: { kind: "setMode", nativeId: "plan" },
+              auto: { kind: "setMode", nativeId: "auto" },
+            },
+          },
+        };
+        const setSessionModel = jest.fn(async () => state);
+        const setSessionMode = jest.fn(async () => state);
+        const backend = buildResumeOnlyBackend({
+          resumeSession: jest.fn(async ({ sessionId }: { sessionId: string }) => ({
+            sessionId,
+            state,
+          })),
+          setSessionModel,
+          setSessionMode,
+        });
+        const { manager } = buildHistoryHarness({ createBackendProcess: jest.fn(() => backend) });
+        getSettingsMock.mockReturnValue({
+          agentMode: {
+            activeBackend: "native",
+            backends: {
+              native: {
+                defaultModel: { baseModelId: "new-chat-model", effort: "high" },
+                defaultMode: "auto",
+              },
+            },
+          },
+        });
+        const session = await manager.loadNativeSessionFromHistory("native", "saved-chat");
+        expect(session.getState()?.model?.current).toEqual({
+          baseModelId: "history-model",
+          effort: "low",
+        });
+        expect(session.getState()?.mode?.current).toBe("plan");
+        expect(setSessionModel).not.toHaveBeenCalled();
+        expect(setSessionMode).not.toHaveBeenCalled();
       });
 
       it("applies persisted backend config and mode before returning a resumed session", async () => {

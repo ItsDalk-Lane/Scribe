@@ -34,6 +34,20 @@ export const Stopped: StoryObj<TaskCardProps> = {
   args: { task: makeCommandTask({ status: "stopped" }) },
 };
 
+export const StepLimitReached: StoryObj<TaskCardProps> = {
+  args: {
+    task: makeTask({
+      status: "failed",
+      stopReason: "max_turn_requests",
+      summary: "已读完部分笔记，达到步数限制后收尾。",
+    }),
+  },
+};
+
+export const QuotaExhausted: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ status: "failed", stopReason: "quota_exhausted" }) },
+};
+
 export const LongTitle: StoryObj<TaskCardProps> = {
   args: {
     task: makeTask({

@@ -6,16 +6,9 @@ import {
 } from "@/agentMode/backends/native/nativeExtensions";
 import { getManagedSkills } from "@/agentMode/skills/SkillManager";
 import type { Skill } from "@/agentMode/skills/types";
-import { CustomCommandManager } from "@/commands/customCommandManager";
-import { EMPTY_COMMAND } from "@/commands/constants";
-import { getCachedCustomCommands } from "@/commands/state";
-import type { CustomCommand } from "@/commands/type";
+import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
 
 jest.mock("@/agentMode/skills/SkillManager", () => ({ getManagedSkills: jest.fn() }));
-jest.mock("@/commands/state", () => ({ getCachedCustomCommands: jest.fn() }));
-jest.mock("@/commands/customCommandManager", () => ({
-  CustomCommandManager: { getInstance: jest.fn() },
-}));
 jest.mock("@/logger");
 
 const shared: Skill = {
@@ -40,19 +33,12 @@ const second: Skill = {
   filePath: "/vault/second/.scribe/skills/second/SKILL.md",
   dirPath: "/vault/second/.scribe/skills/second",
 };
-const command: CustomCommand = {
-  ...EMPTY_COMMAND,
-  title: "Summarize",
-  content: "Summarize this selection",
-  enabled: true,
-};
 const scope = { kind: "project" as const, cwd: "/vault" };
 
 describe("nativeExtensions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(getManagedSkills).mockReturnValue([shared, first, second]);
-    jest.mocked(getCachedCustomCommands).mockReturnValue([command]);
   });
   describe("getNativeScopedSkills()", () => {
     it("follows the current project while retaining shared skills and rereading registration changes", () => {
@@ -69,21 +55,16 @@ describe("nativeExtensions", () => {
     });
   });
   describe("readNativeExtensions()", () => {
-    it("lists only registered native skill, command and genuine delegation entries without scanning files", () => {
+    it("lists registered native skills and genuine delegation entries while leaving saved commands to their own tab", () => {
       const groups = readNativeExtensions({ cwd: "/vault/first" });
       expect(groups.map((group) => group.kind)).toEqual(["skill", "command", "subagent"]);
       expect(groups[0].items.map((item) => item.name)).toEqual(["shared", "first"]);
-      expect(groups[1].items[0]).toMatchObject({
-        name: "Summarize",
-        availability: "loaded",
-        capabilities: { edit: true, delete: true, toggle: true },
-      });
+      expect(groups[1].items).toEqual([]);
       expect(groups[2].items[0]).toMatchObject({
         name: "delegate_task",
         availability: "loaded",
         readOnly: true,
       });
-      expect(CustomCommandManager.getInstance).not.toHaveBeenCalled();
     });
   });
   describe("readNativeExtensionRuntime()", () => {
@@ -96,34 +77,20 @@ describe("nativeExtensions", () => {
           { ...shared, name: "disabled", enabledAgents: [] },
           { ...shared, name: "inaccessible", disableModelInvocation: true, userInvocable: false },
         ]);
-      jest
-        .mocked(getCachedCustomCommands)
-        .mockReturnValue([command, { ...command, title: "Disabled", enabled: false }]);
       expect(readNativeExtensionRuntime("/vault/first")).toMatchObject({
         skills: ["shared", "first"],
         manualSkills: ["first"],
         disabledSkills: ["disabled"],
-        commands: ["Summarize"],
+        commands: [],
         builtinCommands: ["compact"],
         subagents: [{ name: "delegate_task" }],
         hooks: [],
         plugins: [],
         mcpServers: [],
       });
-      expect(CustomCommandManager.getInstance).not.toHaveBeenCalled();
     });
   });
   describe("createNativeExtensionManager()", () => {
-    const writes = {
-      createCommand: jest.fn().mockResolvedValue(undefined),
-      updateCommand: jest.fn().mockResolvedValue(undefined),
-      deleteCommand: jest.fn().mockResolvedValue(undefined),
-    };
-    beforeEach(() => {
-      jest
-        .mocked(CustomCommandManager.getInstance)
-        .mockReturnValue(writes as unknown as CustomCommandManager);
-    });
     it("lists scope-owned registrations once and opens their current content", async () => {
       const manager = createNativeExtensionManager({ cwd: "/vault" });
       expect(await manager.list("command", { kind: "user" })).toEqual([]);
@@ -133,12 +100,6 @@ describe("nativeExtensions", () => {
           (item) => item.name
         )
       ).toEqual(["first"]);
-      const [item] = await manager.list("command", scope);
-      expect(await manager.details(item)).toMatchObject({
-        content: command.content,
-        config: command,
-        revision: expect.any(String),
-      });
       const [skill] = await manager.list("skill", scope);
       expect(await manager.details(skill)).toMatchObject({ content: shared.body });
       const [agent] = await manager.list("subagent", scope);
@@ -146,55 +107,25 @@ describe("nativeExtensions", () => {
         content: expect.stringContaining("independent Scribe"),
       });
     });
-    it("reuses native command editing, enablement and deletion while preserving existing command metadata", async () => {
+    it("leaves saved commands out of the agent tab and refuses to configure them there", async () => {
       const manager = createNativeExtensionManager({ cwd: "/vault" });
-      const [item] = await manager.list("command", scope);
-      const original = await manager.details(item);
-      await manager.save({
-        kind: "command",
-        scope,
+      expect(await manager.list("command", scope)).toEqual([]);
+      const item: AgentExtensionItem = {
+        id: "command:Summarize",
         name: "Summarize",
-        content: "New instruction",
-        original,
-      });
-      expect(writes.updateCommand).toHaveBeenCalledWith(
-        { ...command, content: "New instruction" },
-        "Summarize",
-        false,
-        command
-      );
-      await manager.toggle(original, false);
-      expect(writes.updateCommand).toHaveBeenCalledWith(
-        { ...command, enabled: false },
-        "Summarize",
-        false,
-        command
-      );
-      await manager.delete(original);
-      expect(writes.deleteCommand).toHaveBeenCalledWith(command);
-      await manager.save({ kind: "command", scope, name: "Rewrite", content: "Rewrite this" });
-      expect(writes.createCommand).toHaveBeenCalledWith({
-        ...EMPTY_COMMAND,
-        title: "Rewrite",
-        content: "Rewrite this",
-      });
-    });
-    it("rejects stale edits, invalid names and unsupported old configuration actions before touching storage", async () => {
-      const manager = createNativeExtensionManager({ cwd: "/vault" });
-      const [item] = await manager.list("command", scope);
-      const original = await manager.details(item);
-      jest
-        .mocked(getCachedCustomCommands)
-        .mockReturnValue([{ ...command, content: "User changed it" }]);
+        kind: "command",
+        source: "project",
+        availability: "loaded",
+      };
+      const details = { item, revision: "any" };
       await expect(
-        manager.save({ kind: "command", scope, name: "Summarize", content: "Overwrite", original })
-      ).rejects.toThrow("changed");
-      await expect(
-        manager.save({ kind: "command", scope, name: "../outside", content: "Overwrite" })
-      ).rejects.toThrow("invalid characters");
-      await expect(
-        manager.save({ kind: "command", scope: { kind: "user" }, name: "New", content: "Body" })
+        manager.save({ kind: "command", scope, name: "Summarize", content: "Overwrite" })
       ).rejects.toThrow("not supported");
+      await expect(manager.toggle(details, false)).rejects.toThrow("not supported");
+      await expect(manager.delete(details)).rejects.toThrow("not supported");
+    });
+    it("rejects unsupported configuration actions before touching storage", async () => {
+      const manager = createNativeExtensionManager({ cwd: "/vault" });
       await expect(manager.import({ kind: "plugin", scope, content: "{}" })).rejects.toThrow(
         "not supported"
       );
@@ -205,9 +136,6 @@ describe("nativeExtensions", () => {
       await expect(manager.testConnection({ kind: "mcp", scope, name: "server" })).rejects.toThrow(
         "not supported"
       );
-      expect(writes.createCommand).not.toHaveBeenCalled();
-      expect(writes.updateCommand).not.toHaveBeenCalled();
-      expect(writes.deleteCommand).not.toHaveBeenCalled();
     });
   });
 });

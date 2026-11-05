@@ -25,12 +25,12 @@ describe("TabContext", () => {
 
     it("selects the requested initial tab for a direct handoff", () => {
       render(
-        <TabProvider initialTab="agents">
+        <TabProvider initialTab="myCommands">
           <TabProbe />
         </TabProvider>
       );
 
-      expect(screen.getByText("agents")).toBeTruthy();
+      expect(screen.getByText("myCommands")).toBeTruthy();
     });
   });
 

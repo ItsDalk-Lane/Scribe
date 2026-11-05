@@ -8,7 +8,6 @@ import { createNativeAdvancedTools } from "@/agentMode/sdk/nativeAdvancedTools";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import type { BackendDescriptor, InstallState } from "@/agentMode/session/types";
-import { NativeSettingsPanel } from "@/agentMode/backends/native/NativeSettingsPanel";
 import {
   createNativeModel,
   getNativeDefaultModelId,
@@ -29,8 +28,8 @@ import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { openScribeSettings } from "@/settings/openSettings";
 import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
 import { requireNodeModule } from "@/utils/desktopRuntime";
-import { isChatModelInfo, providerDestination } from "@/modelManagement";
-import { buildBuiltinSkillEnv } from "@/agentMode/backends/shared/builtinSkillEnv";
+import { providerDestination } from "@/modelManagement";
+import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
 
 const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
 
@@ -40,7 +39,7 @@ function noModelsState(): InstallState {
   return {
     kind: "error",
     reason: "configuration",
-    message: t("Configure and enable a chat model in your model settings first."),
+    message: t("Configure a chat model in Models first."),
   };
 }
 
@@ -100,13 +99,18 @@ export const NativeBackendDescriptor: BackendDescriptor = {
     return {
       kind: "error",
       reason: "configuration",
-      message: t(
-        "No enabled chat model has usable credentials on this device. Check Models and providers."
-      ),
+      message: t("No configured chat model has usable credentials on this device. Check Models."),
     };
   },
   subscribeInstallState: (plugin, listener) => {
-    const settings = subscribeToSettingsChange(() => listener());
+    const settings = subscribeToSettingsChange((previous, current) => {
+      // 偏好与历史开关变化不能被误当作安装改变，否则记住模型会重建正在使用的聊天。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      if (
+        previous.providers !== current.providers ||
+        previous.configuredModels !== current.configuredModels
+      )
+        listener();
+    });
     const providers = plugin.modelManagement?.providerRegistry.subscribe(listener);
     return () => {
       settings();
@@ -114,23 +118,13 @@ export const NativeBackendDescriptor: BackendDescriptor = {
     };
   },
   openInstallUI: (plugin) => {
-    const settings = getSettings();
     openScribeSettings(
       plugin.app,
       plugin.app.workspace.getMostRecentLeaf()?.view.containerEl.ownerDocument.defaultView ??
         window,
-      // 已保存但全停用时直接提供模型开关入口。https://github.com/ItsDalk-Lane/Scribe/issues/21
-      getNativeModelReadiness(settings) === "no_models" &&
-        settings.configuredModels.some(
-          (model) =>
-            settings.providers[model.providerId]?.origin.kind === "byok" &&
-            isChatModelInfo(model.info)
-        )
-        ? "agents"
-        : "quickActions"
+      "quickActions"
     );
   },
-  SettingsPanel: NativeSettingsPanel,
   dataDestination(settings) {
     const id = getNativeDefaultModelId(settings);
     const model = settings.configuredModels.find((candidate) => candidate.configuredModelId === id);
@@ -161,7 +155,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
           cwd: context.cwd,
           sessionId: context.sessionId,
           emit: (update) => context.emit(update),
-          getEnv: buildBuiltinSkillEnv,
+          getEnv: buildObsidianCommandEnv,
           outputDirectory: path.join(directory, "tasks"),
         });
         const advanced = createNativeAdvancedTools({
@@ -171,10 +165,6 @@ export const NativeBackendDescriptor: BackendDescriptor = {
             getNativeScopedSkills(context.cwd).filter(
               (skill) => skill.enabledAgents.includes("native") && !skill.disableModelInvocation
             ),
-          offerFeedback: (draft) =>
-            plugin.agentSessionManager
-              ?.getSessionByBackendId(context.sessionId)
-              ?.offerFeedback(draft) ?? "unattributed",
         }).filter(
           (tool) => !EXCALIDRAW_TOOL_NAMES.has(tool.name) || getExcalidrawApi(app) !== null
         );

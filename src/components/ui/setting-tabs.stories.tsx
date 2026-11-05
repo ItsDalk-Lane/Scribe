@@ -92,6 +92,6 @@ export const LongLabels: StoryObj<TabItemProps> = {
 
 export const TextOnlySettings: StoryObj<TabItemProps> = {
   render: () => (
-    <Strip variant="page" labels={["通用", "快捷操作", "代理", "技能", "命令", "子Agent"]} />
+    <Strip variant="page" labels={["通用", "模型", "我的指令", "技能", "命令", "子代理"]} />
   ),
 };

@@ -12,7 +12,6 @@ import * as React from "react";
 
 export default class ScribeAgentView extends ItemView {
   private viewRoot: PluginViewRootHandle | null = null;
-  private handleSaveAsNote: (() => Promise<void>) | null = null;
   private disposeLayoutObservers: (() => void) | null = null;
   eventTarget: ChatViewEventTarget;
 
@@ -63,20 +62,11 @@ export default class ScribeAgentView extends ItemView {
         <Tooltip.Provider delayDuration={0}>
           <AgentModeChat
             plugin={this.plugin}
-            onSaveChat={(fn) => {
-              this.handleSaveAsNote = fn;
-            }}
             updateUserMessageHistory={(msg) => this.plugin.updateUserMessageHistory(msg)}
           />
         </Tooltip.Provider>
       </EventTargetContext.Provider>
     );
-  }
-
-  async saveChat(): Promise<void> {
-    if (this.handleSaveAsNote) {
-      await this.handleSaveAsNote();
-    }
   }
 
   updateView(): void {

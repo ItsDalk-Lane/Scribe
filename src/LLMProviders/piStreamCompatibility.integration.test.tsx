@@ -201,13 +201,16 @@ async function readAnswer(events: AsyncIterable<AssistantMessageEvent>) {
 
 function controlledResponse() {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const cancelled = jest.fn();
   const body = new ReadableStream<Uint8Array>({
     start(value) {
       controller = value;
     },
+    cancel: cancelled,
   });
   return {
     response: new Response(body, { headers: { "content-type": "text/event-stream" } }),
+    cancelled,
     send(events: unknown[]) {
       controller.enqueue(new TextEncoder().encode(sse(events)));
     },
@@ -407,7 +410,7 @@ describe("piChatModel stream compatibility", () => {
           );
           expect(onNonAbortError).toHaveBeenCalledTimes(outcome === "stop" ? 0 : 1);
         } finally {
-          if (outcome === "stop") reply.close();
+          if (outcome === "stop") expect(reply.cancelled).toHaveBeenCalled();
           unmount();
         }
       }

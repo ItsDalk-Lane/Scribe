@@ -1,3 +1,4 @@
+import { useChatBackendModelOptions } from "@/hooks/useChatBackendModelOptions";
 import { t } from "@/lib/i18n";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Notice } from "obsidian";
@@ -36,7 +37,9 @@ export function QuickAskPanel({
   const filePathSnapshot = filePathSnapshotRef.current;
 
   const settings = useSettingsValue();
-  const [selectedModelKey, setSelectedModelKey] = useState(settings.quickCommandModelKey);
+  const { options: modelOptions } = useChatBackendModelOptions();
+  const [pickedModelKey, setSelectedModelKey] = useState<string>();
+  const selectedModelKey = pickedModelKey ?? modelOptions[0]?.value;
   const [includeNoteContext, setIncludeNoteContext] = useState(
     () => settings.quickCommandIncludeNoteContext
   );

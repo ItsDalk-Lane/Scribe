@@ -1,3 +1,7 @@
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+} from "@/LLMProviders/providerRequestFailure";
 import { t } from "@/lib/i18n";
 const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9._~+/-]+=*$/;
 
@@ -73,9 +77,16 @@ export function createVertexAccessToken(
           !Number.isFinite(result.expires_in) ||
           result.expires_in <= 0
         )
-          throw Object.assign(new Error(t("Google did not return an access token.")), {
-            statusCode: response.status,
-          });
+          throw new ProviderRequestError(
+            t("Google did not return an access token."),
+            response.ok
+              ? { kind: "auth", status: response.status }
+              : classifyProviderFailure({
+                  status: response.status,
+                  payload: result,
+                  headers: response.headers,
+                })
+          );
         cached = {
           value: result.access_token,
           expiresAt: Date.now() + Math.max(0, result.expires_in * 1000 - 30000),

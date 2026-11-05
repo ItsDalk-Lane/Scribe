@@ -11,9 +11,6 @@ export interface DebuggingSupportSectionProps {
   frameLogEnabled: boolean;
   onFrameLogChange: (checked: boolean) => void;
   frameLogPath: string;
-  onReportIssue: () => void;
-  offerFeedbackCards: boolean;
-  onOfferFeedbackCardsChange: (checked: boolean) => void;
   onOpenFrameLog: React.MouseEventHandler<HTMLButtonElement>;
   onClearFrameLog: React.MouseEventHandler<HTMLButtonElement>;
 }
@@ -24,40 +21,15 @@ export const DebuggingSupportSection: React.FC<DebuggingSupportSectionProps> = (
   frameLogEnabled,
   onFrameLogChange,
   frameLogPath,
-  onReportIssue,
-  offerFeedbackCards,
-  onOfferFeedbackCardsChange,
   onOpenFrameLog,
   onClearFrameLog,
 }) => (
   <SettingSection label={t("Debugging & support")}>
     <SettingItem
-      type="custom"
-      title={t("Report an issue")}
-      description={t(
-        "Prepare a zip from your description and selected attachments for review. You can choose whether to upload it; a GitHub issue draft may open afterward."
-      )}
-    >
-      <Button variant="default" size="sm" onClick={onReportIssue}>
-        {t("Report an issue")}
-      </Button>
-    </SettingItem>
-
-    <SettingItem
-      type="switch"
-      title={t("Offer feedback reports in Agent Chat")}
-      description={t(
-        "Feedback cards may appear after a problem or a failed reply. Turning this off prevents new feedback cards from failed replies and the agent. You can still choose Report an issue. Nothing is sent unless you choose to upload a report."
-      )}
-      checked={offerFeedbackCards}
-      onCheckedChange={onOfferFeedbackCardsChange}
-    />
-
-    <SettingItem
       type="switch"
       title={t("Debug mode")}
       description={t(
-        "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools), and pre-selects the chat log when you report an issue."
+        "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools)."
       )}
       checked={debug}
       onCheckedChange={onDebugChange}

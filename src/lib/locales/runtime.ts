@@ -62,8 +62,6 @@ export const runtimeTranslations: Record<string, string> = {
   Done: "完成",
   "No messages to save.": "没有可保存的消息。",
   "Existing chat note found - updating it now.": "已找到此聊天的笔记，正在更新。",
-  "Failed to save chat as note. Check the Scribe log for details.":
-    "将聊天保存为笔记失败，请查看 Scribe 日志。",
   "Failed to load chat history. Check the Scribe log for details.":
     "加载聊天记录失败，请查看 Scribe 日志了解详情。",
   "Failed to remove API keys from data.json. Obsidian Keychain was NOT cleared. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.":

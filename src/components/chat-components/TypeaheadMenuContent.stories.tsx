@@ -14,17 +14,6 @@ const agentSlashOptions = composeSlashMenuItems(
       location: { kind: "canonical" },
     },
   ],
-  [
-    {
-      title: "polish",
-      content: "Tighten the prose of {activeNote} without changing its meaning.",
-      showInContextMenu: false,
-      showInSlashMenu: true,
-      order: 0,
-      modelKey: "",
-      lastUsedMs: 0,
-    },
-  ],
   "claude",
   true
 ).map((item) => ({

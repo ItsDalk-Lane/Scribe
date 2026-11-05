@@ -66,10 +66,7 @@ export class SessionHistoryReplay {
           this.turnStartedAt !== undefined && occurredAt !== undefined
             ? Math.max(0, occurredAt - this.turnStartedAt)
             : undefined;
-        if (update.stopReason === "cancelled") {
-          if (this.aiId && this.deps.store.markTurnComplete(this.aiId, "cancelled", elapsed))
-            this.deps.scheduleNotifyMessages();
-        } else if (update.error !== undefined) {
+        if (update.error !== undefined && update.stopReason !== "cancelled") {
           if (
             this.deps.store.markMessageError(
               this.aiBubbleId(occurredAt),
@@ -78,6 +75,13 @@ export class SessionHistoryReplay {
             )
           )
             this.deps.scheduleNotifyMessages();
+        }
+        // 后台记录可能是唯一恢复来源，未产生正文的停止也必须恢复其可见原因。https://github.com/ItsDalk-Lane/Scribe/issues/31
+        if (
+          update.stopReason !== "end_turn" &&
+          this.deps.store.markTurnComplete(this.aiBubbleId(occurredAt), update.stopReason, elapsed)
+        ) {
+          this.deps.scheduleNotifyMessages();
         }
         this.closeTurn();
         this.turnStartedAt = occurredAt;

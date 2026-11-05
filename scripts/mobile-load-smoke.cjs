@@ -14,9 +14,9 @@ const loadCriticalFiles = [
   "src/settings/v2/SettingsMainV2.tsx",
   "src/settings/v2/components/AdvancedSettings.tsx",
   "src/settings/v2/components/BasicSettings.tsx",
-  "src/settings/v2/components/QuickToolsPanel.tsx",
-  "src/settings/v2/components/ChatModelEnableList.tsx",
-  "src/settings/v2/components/configuredModelGrouping.ts",
+  "src/settings/v2/components/GeneralSettings.tsx",
+  "src/settings/v2/components/ui/AgentStepLimitSetting.tsx",
+  "src/modelManagement/ui/tabs/ModelsAndProvidersPanel.tsx",
   "src/components/chat-components/plugins/SlashCommandPlugin.tsx",
   "src/components/chat-components/plugins/slashMenuItems.ts",
 ];

@@ -75,17 +75,15 @@ describe("AdvancedSettings", () => {
   });
 
   describe("AdvancedSettings()", () => {
-    it("keeps key storage in Others and support controls in Debugging and support", () => {
+    it("shows key storage together with the debugging controls in one panel", () => {
       const { app } = makeApp(false);
       jest.mocked(useApp).mockReturnValue(app);
       KeychainService.getInstance(app);
-      const view = render(<AdvancedSettings section="others" />);
-      expect(screen.getByText("API key storage")).toBeTruthy();
-      expect(screen.queryByText("Debug mode")).toBeNull();
 
-      view.rerender(<AdvancedSettings section="debug" />);
+      render(<AdvancedSettings />);
+
+      expect(screen.getByText("API key storage")).toBeTruthy();
       expect(screen.getByText("Debug mode")).toBeTruthy();
-      expect(screen.queryByText("API key storage")).toBeNull();
     });
 
     it("explains key storage without claiming an empty keychain on a fresh installation", () => {
@@ -93,7 +91,7 @@ describe("AdvancedSettings", () => {
       jest.mocked(useApp).mockReturnValue(app);
       KeychainService.getInstance(app);
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(screen.getByText(STORAGE_DESCRIPTION)).toBeTruthy();
       expect(screen.getByRole("button", { name: "Delete All Keys" }).hasAttribute("disabled")).toBe(
@@ -114,7 +112,7 @@ describe("AdvancedSettings", () => {
       await providers.setApiKey(providerId, "synthetic-provider-secret");
       expect(await providers.getApiKey(providerId)).toBe("synthetic-provider-secret");
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(screen.getByText(STORAGE_DESCRIPTION)).toBeTruthy();
       expect(screen.queryByText(/No API keys found/)).toBeNull();
@@ -150,7 +148,7 @@ describe("AdvancedSettings", () => {
       expect(await providers.getApiKey(missing)).toBeNull();
       expect(await providers.getApiKey(keyless)).toBeNull();
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(screen.getByText(STORAGE_DESCRIPTION)).toBeTruthy();
       expect(screen.queryByText(/No API keys found/)).toBeNull();
@@ -163,7 +161,7 @@ describe("AdvancedSettings", () => {
       KeychainService.getInstance(app);
       setSettings({ openAIApiKey: "synthetic-previously-loaded" });
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(screen.getByText(STORAGE_DESCRIPTION)).toBeTruthy();
       expect(screen.queryByText(/API keys are stored in this device/)).toBeNull();
@@ -178,7 +176,7 @@ describe("AdvancedSettings", () => {
       jest.mocked(useApp).mockReturnValue(app);
       KeychainService.getInstance(app);
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(screen.getByText(STORAGE_DESCRIPTION)).toBeTruthy();
       expect(screen.queryByText(/No API keys found/)).toBeNull();
@@ -190,7 +188,7 @@ describe("AdvancedSettings", () => {
       jest.mocked(useApp).mockReturnValue(app);
       KeychainService.getInstance(app);
 
-      const { container } = render(<AdvancedSettings section="others" />);
+      const { container } = render(<AdvancedSettings />);
 
       expect(container.querySelector(".lucide-shield-check")).toBeNull();
       expect(screen.getByText("Obsidian Keychain").closest("div")?.className).not.toContain(
@@ -204,7 +202,7 @@ describe("AdvancedSettings", () => {
       KeychainService.getInstance(app);
       setInterfaceLocale("zh-CN");
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(
         screen.getByText(
@@ -218,7 +216,7 @@ describe("AdvancedSettings", () => {
       jest.mocked(useApp).mockReturnValue(app);
       KeychainService.getInstance(app);
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(
         screen.getByText(
@@ -236,7 +234,7 @@ describe("AdvancedSettings", () => {
       KeychainService.getInstance(app);
       setInterfaceLocale("zh-CN");
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
 
       expect(
         screen.getByText(
@@ -254,7 +252,7 @@ describe("AdvancedSettings", () => {
       KeychainService.getInstance(app);
       setInterfaceLocale("zh-CN");
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
       fireEvent.click(screen.getByRole("button", { name: "删除所有密钥" }));
 
       expect(await screen.findByText(/已有的凭据备份可能仍然保留/)).toBeTruthy();
@@ -301,7 +299,7 @@ describe("AdvancedSettings", () => {
           secretStorage.deleteSecret.mockImplementation(() => {
             throw new Error("locked");
           });
-          render(<AdvancedSettings section="others" />);
+          render(<AdvancedSettings />);
           fireEvent.click(screen.getByRole("button", { name: open }));
           const confirmButton = await screen.findByRole("button", { name: confirm });
           await act(async () => {
@@ -329,7 +327,7 @@ describe("AdvancedSettings", () => {
       await providers.setApiKey(providerId, "synthetic-provider-secret");
       secrets.set("scribe-settings-backup-test", "synthetic-backup");
 
-      render(<AdvancedSettings section="others" />);
+      render(<AdvancedSettings />);
       fireEvent.click(screen.getByRole("button", { name: "Delete All Keys" }));
       expect(await screen.findByText(/Existing credential backups may remain/)).toBeTruthy();
       fireEvent.click(await screen.findByRole("button", { name: "Remove" }));

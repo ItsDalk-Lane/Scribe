@@ -1,4 +1,5 @@
 import { isCustomCommandEnabled } from "@/commands/state";
+import { useChatBackendModelOptions } from "@/hooks/useChatBackendModelOptions";
 import { t } from "@/lib/i18n";
 import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { MenuCommandModal, type ContentState } from "@/components/command-ui";
@@ -122,9 +123,9 @@ export function CustomCommandChatModalContent({
   const [followUpValue, setFollowUpValue] = useState("");
 
   const settings = useSettingsValue();
+  const { options: modelOptions } = useChatBackendModelOptions();
   const [pickedModelKey, setPickedModelKey] = useState<string>();
-  const userSelectedModelKey =
-    pickedModelKey ?? (command.modelKey || settings.quickCommandModelKey);
+  const userSelectedModelKey = pickedModelKey ?? (command.modelKey || modelOptions[0]?.value);
 
   const [includeNoteContext, setIncludeNoteContext] = useState(
     () => settings.quickCommandIncludeNoteContext
@@ -158,11 +159,9 @@ export function CustomCommandChatModalContent({
       new Notice(
         command.modelKey
           ? t(
-              "This command's model is unavailable. Edit the command in Settings → Scribe → Quick actions → Tool configuration to choose another, then rerun."
+              "This command's model is unavailable. Edit it in Settings → Scribe → My commands to choose another model, then rerun."
             )
-          : t(
-              "Configure a model in Settings → Scribe → Quick actions → Tool configuration, then rerun the command."
-            )
+          : t("Configure a model in Settings → Scribe → Models, then rerun the command.")
       );
       setIsLoading(false);
     },
@@ -234,13 +233,16 @@ export function CustomCommandChatModalContent({
     [command, runTurn]
   );
 
+  const enableTemplating = command.enableTemplating !== false;
   const buildFirstPrompt = (instruction: string) =>
     processCommandPrompt(
       app,
       behavior.firstSubmitTransform
         ? behavior.firstSubmitTransform(instruction, includeNoteContext)
         : instruction,
-      originalText
+      originalText,
+      false,
+      enableTemplating
     );
 
   const didAutoExecuteRef = useRef(false);
@@ -250,8 +252,10 @@ export function CustomCommandChatModalContent({
     if (didAutoExecuteRef.current) return;
     didAutoExecuteRef.current = true;
 
-    void runPrompt(() => processCommandPrompt(app, command.content, originalText));
-  }, [app, behavior.autoExecuteOnOpen, command.content, originalText, runPrompt]);
+    void runPrompt(() =>
+      processCommandPrompt(app, command.content, originalText, false, enableTemplating)
+    );
+  }, [app, behavior.autoExecuteOnOpen, command.content, originalText, runPrompt, enableTemplating]);
 
   const handleFollowUpSubmit = async () => {
     if (!followUpValue.trim()) return;
@@ -270,7 +274,8 @@ export function CustomCommandChatModalContent({
 
     try {
       await runPrompt(async (ctx) => {
-        if (!ctx.isFirstTurn) return processCommandPrompt(app, inputValue, originalText, true);
+        if (!ctx.isFirstTurn)
+          return processCommandPrompt(app, inputValue, originalText, true, enableTemplating);
         setFirstInstruction(inputValue);
         return buildFirstPrompt(inputValue);
       });
@@ -338,7 +343,7 @@ export function CustomCommandChatModalContent({
       onSelectModel={chatPicker.onChange}
       models={chatPicker.models}
       needsModel={!resolvedModel}
-      onOpenModelSettings={(ownerWindow) => openScribeSettings(app, ownerWindow, "basic")}
+      onOpenModelSettings={(ownerWindow) => openScribeSettings(app, ownerWindow, "quickActions")}
       onStop={handleStop}
       onRunAgain={handleRunAgain}
       onCopy={safeAsyncHandler(handleCopy)}

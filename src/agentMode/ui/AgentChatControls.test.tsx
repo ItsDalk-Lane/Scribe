@@ -1,16 +1,9 @@
 import { AgentChatControls } from "@/agentMode/ui/AgentChatControls";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppContext } from "@/context";
-import { useSettingsValue } from "@/settings/model";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { App } from "obsidian";
 import * as React from "react";
-
-jest.mock("@/settings/model", () => ({
-  useSettingsValue: jest.fn().mockReturnValue({ autosaveChat: true }),
-}));
-
-const mockUseSettingsValue = useSettingsValue as jest.Mock;
 
 function renderSessionControls(
   props: Partial<React.ComponentProps<typeof AgentChatControls>> = {}
@@ -49,7 +42,6 @@ describe("AgentChatControls", () => {
   describe("AgentChatControls", () => {
     beforeEach(() => {
       jest.clearAllMocks();
-      mockUseSettingsValue.mockReturnValue({ autosaveChat: true });
     });
 
     it("does not show a lone link control before a session exists", () => {
@@ -59,25 +51,6 @@ describe("AgentChatControls", () => {
         </TooltipProvider>
       );
       expect(screen.queryByTitle("More actions")).toBeNull();
-    });
-
-    it("keeps the bar to the usage meter, New chat, Save chat as note, Chat history, and More actions", () => {
-      mockUseSettingsValue.mockReturnValue({ autosaveChat: false });
-      renderSessionControls({
-        usageMeter: <span title="Context usage" />,
-        onSaveAsNote: () => {},
-      });
-
-      const titles = Array.from(document.querySelectorAll("[title]")).map((el) =>
-        el.getAttribute("title")
-      );
-      expect(titles).toEqual([
-        "Context usage",
-        "New chat",
-        "Save chat as note",
-        "Chat history",
-        "More actions",
-      ]);
     });
 
     it("shows the running-tasks count alone at the start of the bar", () => {
@@ -139,31 +112,6 @@ describe("AgentChatControls", () => {
       }
 
       expect(otherWindowDocument.querySelector('[role="menu"]')).toBeNull();
-    });
-
-    it("reports an error about the open chat from the More actions menu", () => {
-      const onReportError = jest.fn();
-      renderSessionControls({ onReportError });
-
-      const item = within(openMoreActions()).getByRole("menuitem", { name: "Report an issue" });
-      expect(item.getAttribute("aria-disabled")).toBeNull();
-      fireEvent.click(item);
-
-      expect(onReportError).toHaveBeenCalledTimes(1);
-    });
-
-    it("offers a Save chat as note button in the bar only when autosave is off", () => {
-      const onSaveAsNote = jest.fn();
-      mockUseSettingsValue.mockReturnValue({ autosaveChat: true });
-      const { unmount } = renderSessionControls({ onSaveAsNote });
-      expect(screen.queryByTitle("Save chat as note")).toBeNull();
-      unmount();
-
-      mockUseSettingsValue.mockReturnValue({ autosaveChat: false });
-      renderSessionControls({ onSaveAsNote });
-      fireEvent.click(screen.getByTitle("Save chat as note"));
-
-      expect(onSaveAsNote).toHaveBeenCalledTimes(1);
     });
   });
 });

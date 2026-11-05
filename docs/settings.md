@@ -2,22 +2,13 @@
 
 Open **Settings → Scribe** to configure Scribe. Settings normally save as soon as you change them. Controls labeled **应用** or **保存** are the exceptions.
 
-Scribe includes [Agent Chat](agent-mode-and-tools.md). Quick Ask and Quick Command remain available for inline questions and edits on desktop and mobile. Agent Chat, its 代理 settings, and Skills require desktop Obsidian. The **命令** tab is also desktop-only; on mobile, use **快捷操作 → 我的指令** for the shared command settings.
+Scribe includes [Agent Chat](agent-mode-and-tools.md). Quick Ask and Quick Command remain available for inline questions and edits on desktop and mobile. Agent Chat, Skills, Commands and Subagents require desktop Obsidian. **模型** and **我的指令** are also available on mobile.
 
 > **Choose your data route deliberately.** Your selected model provider receives the context needed for a request; enabled network tools can contact their target services. Use local models and local tools when that work should stay on your computer, and review the agent's available network tools.
 
-The **通用 → 关于** section has two controls. Isolated tests found that changing or resetting Scribe settings can trigger a skill refresh that overwrites or deletes user files when a built-in skill is missing a file. Back up your files first and disable Scribe until this issue is fixed; pending saves may finish during shutdown. Do not change or reset Scribe settings before the fix.
+## Agent 配置
 
-隔离测试发现，更改或重置 Scribe 设置可能触发技能刷新；内置技能缺少文件时，刷新可能覆盖或删除用户文件。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。修复前不要更改或重置 Scribe 设置。
-
-| Control      | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **插件版本** | Shows the installed Scribe version.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **重置设置** | Restores non-credential preferences to their defaults after confirmation. It keeps API keys, credential-bearing provider rows and their models, and the history of Scribe folders. Keyless provider rows, including local ones, and their models are reset. The 代理 page's model enablement is also reset, so you may need to enable models again there. See the safety notice above before using this control. To erase credentials, use **通用 → 其他 → API 密钥存储 → 删除所有密钥**. |
-
-## 通用
-
-**通用** 合并原来的基本设置与高级设置，包含 **常规、自定义说明、聊天保存、其他、调试与支持、关于** 六个子标签。切换子标签不会更改已保存的配置。Scribe 代理的模型启用、默认选择与权限设置位于独立的 **代理** 页。
+**Agent 配置** 是独立设置标签页，包含 **常规** 和 **自定义说明** 两部分，两者一起显示，不再设子标签。Scribe 的其余设置分布在 **关于**、**模型**、**我的指令**、**命令**、**技能** 和 **子代理** 标签页。
 
 ### 常规
 
@@ -27,6 +18,7 @@ The **通用 → 关于** section has two controls. Isolated tests found that ch
 | **发送快捷键**        | **Enter**  | Chooses **Enter** or **Shift + Enter** to send. If the shortcut does not work, check **Obsidian → Hotkeys** for a conflict.                                                                                                                                                                                                                                                          |
 | **自动附加当前笔记**  | On         | Attaches the active note to each new Agent Chat. Turn it off to add the **当前笔记** yourself from **添加参考内容** or with `@`.                                                                                                                                                                                                                                                     |
 | **Scribe 文件夹位置** | `scribe`   | Sets the root for conversations, custom prompts, skills, and projects. Press Enter or select **应用** to validate and confirm the change. Folder names can't start with a dot, because Obsidian hides those folders. A previously selected hidden folder is changed to a visible name in settings; its files are not moved automatically. The folder button reveals the active root. |
+| **每轮最多执行步数**  | **无限制** | 默认不限制步数。选择 **限制步数** 后填写正整数，达到上限会停止工具操作，并由模型总结已完成的工作。旧设置中明确保存的数值（包括 50）继续生效；切换到 **无限制** 才移除上限。                                                                                                                                                                                                          |
 
 Changing the Scribe folder does not move existing files. The old root remains treated as Scribe data, and a new root that already contains notes becomes excluded from Scribe search. Move files yourself after the change. Scribe applies the new root to its own search results immediately.
 
@@ -40,20 +32,24 @@ Empty instruction fields show a fixed example until you type.
 
 See [`AGENTS.md` examples](agents-md-examples.md) and [Projects](projects.md) for project-specific instructions.
 
-### 聊天保存
+## 关于
 
-| Control                       | Default                    | What it does                                                                                                                                                                                                                                                                                                                          |
-| ----------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **自动将聊天保存为 Markdown** | On                         | Writes a Markdown conversation note after messages under `<Scribe folder>/scribe-conversations/`. With this off, a chat without an associated note does not automatically create one; an already associated note can still be updated. Agent Chat sessions still appear in **最近聊天**.                                              |
-| **聊天笔记名称模板**          | `{$topic}@{$date}_{$time}` | Expand the disclosure, edit the template, then select **应用**. It controls automatic and manual conversation-note names. The template must contain `{$topic}`, `{$date}`, and `{$time}` and cannot add backslashes, slashes, colons, asterisks, question marks, quotes, angle brackets, or vertical bars outside those placeholders. |
+**关于** 是独立设置标签页，包含版本信息、重置设置、通知、API 密钥存储与调试与支持。
 
-With autosave off, a chat already saved or linked to a note can continue updating that note as messages arrive. Manual saving, copying a chat link, and other actions can associate a note. Internal session history can still be stored.
+| Control      | What it does                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **插件版本** | Shows the installed Scribe version.                                                                                                                                                                                                                                                                                                                                                                           |
+| **重置设置** | Restores non-credential preferences to their defaults after confirmation. It keeps API keys, credential-bearing provider rows and their models, and the history of Scribe folders. Keyless provider rows, including local ones, and their models are reset. Configured chat models are available directly without separate enable switches. To erase credentials, use **关于 → API 密钥存储 → 删除所有密钥**. |
 
-关闭自动保存后，已经保存或关联笔记的聊天仍可能在后续消息到来时更新该笔记。手动保存、复制聊天链接等操作可能建立关联；内部会话记录仍可能保存。
+### 通知
 
-### 其他
+**关于 → 通知** 管理聊天结束时的提示声音。开关与声音选择沿用原有保存结果；开启后可选择声音并试听。
 
-在 **通用 → 其他** 中查看和管理密钥存储。
+聊天历史自动保留。设置中不再提供将聊天保存成笔记的选项，聊天和历史列表也不再提供该按钮；此前生成的笔记会保留。
+
+### API 密钥存储
+
+在 **关于 → API 密钥存储** 中查看和管理密钥存储。
 
 | Control          | Default             | What it does                                                                                                                                                                                                                                     |
 | ---------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -66,39 +62,28 @@ When two vaults on one device share a Scribe key-storage identifier, an isolated
 
 ### 调试与支持
 
-在 **通用 → 调试与支持** 中查看诊断与反馈选项。
+在 **关于 → 调试与支持** 中管理调试模式和代理活动日志。调试模式记录快捷工具运行信息；代理活动日志提供本机日志的打开与清空操作。日志可能含笔记内容和工具输入输出，分享前请检查。
 
-One place to report a problem, plus the switches for the two logs a report can carry.
-
-| Control                      | Default        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **反馈问题**                 | Not applicable | Desktop-only, in two pages. Describe the problem and choose attachments, then review the zip before uploading it to Brevilabs. Opening the GitHub issue sends a draft that can include the report ID, description, app details and attachment names. Review it before submitting; the zip is not attached automatically.                                                                                                                                                                                                                                                                                                                                                             |
-| **在代理聊天中提供反馈报告** | On             | When Scribe itself fails in Agent Chat, such as a Scribe tool erroring or a needed tool missing, the agent can draft a bug report as a card in the chat. Reports are intended for Scribe problems; review the draft because its contents can vary. A reply that fails with an error may get the same card when feedback reports are enabled and the chat has not already offered a card. **查看并反馈** opens **反馈问题** with the draft filled in; nothing is sent unless you upload it. Turning this off prevents new feedback cards both after failed replies and when the agent calls its feedback tool. You can still open **反馈问题** manually and choose whether to upload. |
-| **调试模式**                 | Off            | Logs Quick tools activity to **View → Toggle Developer Tools**. Turn it on and reproduce the problem before you report an issue, so the Scribe log a report collects actually contains it. It does not control the Agent activity log below.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **代理活动日志**             | On             | Enables the activity-log attachment when a log is available; it does not guarantee the current native agent writes recent activity to that log. An existing log may contain prompts, note contents, and tool inputs or outputs. It is plain text on this device outside the vault. **打开** shows the log file and **清空** deletes it; both are desktop-only. Review any log before sharing it.                                                                                                                                                                                                                                                                                     |
-
-关闭反馈选项后，回复失败和代理反馈工具都不会再提供新的反馈卡；你仍可手动打开 **反馈问题**，只有选择上传后才会发送报告。
+内置反馈入口、聊天反馈卡和报告上传功能已移除。
 
 The Scribe log can still be saved by hand whenever you want it: run **打开 Scribe 日志文件** from the command palette to write it into your vault as a note and open it.
 
 See [Troubleshooting and FAQ](troubleshooting-and-faq.md) before sharing logs or filing an issue.
 
-## 快捷操作
+## 模型
 
-**快捷操作** 把日常最常用的配置集中在一个标签页，包含 **模型与供应商、工具配置、我的指令** 三个子标签。
+**模型** 是独立设置标签页，直接管理云端供应商、兼容网关和本机模型服务，不再设子标签页。需要密钥的服务使用你自己的密钥；Ollama、LM Studio 等本机服务可能无需密钥。云端费用及数据处理由对应供应商负责。
 
-### 模型与供应商
+模型配置保存后，直接供聊天与快捷工具选择，不再分别启用。新聊天沿用最近一次成功选择的模型、推理强度和权限模式；首次使用时采用配置顺序中第一个凭据可用的聊天模型，权限为 **自动模式**。原有选择继续保留。历史聊天仍使用其自己的选择。
 
-<a id="模型"></a>
-
-**模型与供应商** 子标签管理云端供应商、兼容网关和本机模型服务的连接。需要 API 密钥的供应商可使用你自己的密钥（BYOK）；Ollama、LM Studio 和其他兼容服务可能不需要密钥。云端服务的费用和数据处理由对应供应商负责。
+Quick Ask、Quick Command 及未指定模型的编辑器指令，默认使用配置顺序中第一个可用聊天模型。弹窗中的临时选择仅对当前弹窗生效，单条指令指定的模型继续优先生效。
 
 #### Add a provider
 
 1. Select **添加供应商**.
 2. Search or choose from **推荐** providers, **Self-host** templates for Ollama and LM Studio, the dynamic **更多供应商** catalog, or **添加自定义供应商**.
 3. Complete the configuration and select at least one model.
-4. Select **保存**. New chat models are enabled for Quick tools automatically; curate the list later under **快捷操作 → 工具配置**.
+4. Select **保存**. Configured chat models are immediately available to Agent Chat and Quick tools.
 
 The configuration dialog contains:
 
@@ -123,40 +108,15 @@ The configuration dialog contains:
 | **More actions → Remove**   | Removes the provider and all of its models from every model picker after confirmation.                                                                                               |
 | **移除模型**                | The remove button on an expanded model row removes that model from the provider and all model pickers after confirmation.                                                            |
 
-### 工具配置
+## 我的指令
 
-**工具配置** 子标签是原 **快捷工具** 移入并更名后的页面，管理 Quick Ask、Quick Command 和已保存编辑器指令使用的模型。
+**我的指令** 是独立设置标签页，管理保存在当前资料库的自定义指令。指令变量、排序等选项直接显示，不再通过 **指令选项** 折叠。指令与 **命令** 页共享同一份列表，提供新建、编辑、复制、排序、启停和删除。
 
-| Control                                         | Default                                                  | What it does                                                                                                                                                  |
-| ----------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **快捷指令默认模型**                            | **选择模型** until an enabled, usable model is available | Shared by Quick Ask, Quick Command, and saved commands set to **默认模型**.                                                                                   |
-| **Search quick-tool models and model switches** | New chat models are enabled automatically                | Controls the models available to Quick Ask, Quick Command, and saved editor commands. Add or remove providers in **模型与供应商**, then curate the list here. |
-
-The same default is also available under **快捷操作 → 我的指令**. Popup model changes apply only to that run. See [Quick Ask and Quick Command](custom-commands.md#quick-ask).
-
-### 我的指令
-
-**我的指令** 子标签管理保存在当前资料库的自定义指令，与 **命令** 页共享同一份列表。原这些配置位于 **快捷工具** 中，现已独立成子标签。新建、编辑、复制、排序、默认模型和删除等操作的完整说明见下文 [命令](#命令)。
-
-## 代理
-
-在 **代理 → Scribe** 配置原生聊天模型、权限模式、每轮最多执行步数及任务提示声音。支持时，推理强度可在聊天输入框旁调整。Agent Chat 沿用你已有的供应商、密钥和连接地址；没有外部代理安装、登录或订阅设置。
-
-在聊天输入框旁手动切换权限模式，也会更新之后打开聊天时使用的默认模式。批准计划后的自动切换只改变当前聊天，不更改已保存的默认值。
-
-代理开关控制能否开始新任务。关闭不会删除笔记、模型设置或历史记录。模型清单可分别决定 Agent Chat 和快捷工具中显示哪些模型。
-
-隔离测试发现，即使代理模型全部停用，状态仍可能显示就绪；设置引用的密钥在本机缺失时，也可能显示可用但启动失败。上述文件安全问题修复后，请分别检查这里的模型开关和 **快捷操作 → 模型与供应商** 中的密钥。测试未使用真实桌面或设备密钥。
-
-Isolated tests found that the agent can appear ready with all its models disabled, or appear available but fail to start when its saved key reference has no key on this device. After the file-safety issues above are fixed, check the model switches here and the key under **快捷操作 → 模型与供应商**. The tests did not use a real desktop or device credentials.
-
-隔离测试发现，停用代理最后一个可用模型时，当前聊天可能结束，未发送的草稿也会丢失。更改模型前请先另存草稿；测试未验证真实桌面上的全部恢复情况。
-
-Isolated tests found that disabling the agent's last enabled model can close the current chat and discard its unsent draft. Save the draft elsewhere before changing models; recovery on a real desktop has not been fully verified.
+每条指令可指定自己的模型；选择 **默认模型** 时使用配置的第一个可用模型。这里不再提供全局默认模型设置。完整操作说明见 [命令](#命令)。
 
 ## 技能
 
-**技能** 页管理 Scribe 自己的技能，保留新建、编辑、启停、属性、查看和删除入口。原生代理只使用已为 Scribe 启用的条目。
+**技能** 页管理你的个人和项目技能，保留新建、编辑、启停、属性、查看和删除入口。原生代理只使用已为 Scribe 启用的条目。技能、命令和子代理页直接显示内容，不再设 Scribe 子标签。
 
 隔离测试发现，保存技能描述或启用状态时，文件中额外属性的高精度数字可能被改写；真实技能设置界面尚未核验。请先备份现有文件，再暂时停用 Scribe，直到文件安全问题修复；关闭时程序可能完成之前排队的保存。
 
@@ -166,7 +126,7 @@ Isolated tests found that saving a skill's description or enabled state can alte
 - 允许模型调用的技能可由模型选择；仅手动调用的技能需要你从 `/` 菜单选择。
 - 不允许手动调用的技能不会出现在 `/` 菜单；模型调用是否允许另行判断。
 - 读取或保存失败会保留具体原因。**让代理修复** 只准备聊天草稿，由你决定是否发送。
-- 内置 Obsidian 技能和普通技能沿用原有管理界面；依赖其他 Obsidian 功能的技能会显示实际条件。
+- Scribe 不再随插件附带、自动安装或更新技能。此前已经保存在磁盘上的技能及其附加文件会保留，和其他个人或项目技能一样管理。
 
 隔离测试发现，可用技能和已启用指令同名时，菜单显示技能，但发送后可能展开指令。修复前请不要在代理聊天中调用名称重复的技能或指令；详见[指令说明](custom-commands.md#commands-or-skills)。
 
@@ -184,35 +144,34 @@ An isolated test found that a same-named enabled command may be expanded when a 
 
 ## 命令
 
-**命令** 页使用 Scribe 现有的命令存储，支持新建、编辑、启停和删除。命令保存在当前资料库，供原输入区的 `/` 菜单和已支持的快捷入口使用。**快捷操作 → 我的指令** 保留原有的复制、排序、模型选择、变量及菜单显示选项。
+**命令** 页使用 Scribe 现有的命令存储，支持新建、编辑、启停和删除。命令保存在当前资料库，供原输入区的 `/` 菜单和已支持的快捷入口使用。**我的指令** 保留原有的复制、排序、单条模型选择、变量及菜单显示选项。
 
 ### Command-wide controls
 
-| Control              | Default        | What it does                                                                                                                                                                                                                       |
-| -------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **快捷指令默认模型** | **选择模型**   | Shared by Quick Ask, Quick Command, and saved commands set to **默认模型**. Choose from enabled Quick tools models. If a saved command has no usable model, configure it here and rerun the command.                               |
-| **指令变量替换**     | On             | Controls note-variable expansion for editor and command-palette runs. In Agent Chat, command variables still become selected text or references when this is off; see [Commands](custom-commands.md#add-note-context-to-a-prompt). |
-| **指令排序**         | **最近使用**   | **最近使用** sorts by last use, **按名称** sorts by name, and **手动排序** uses the saved drag order.                                                                                                                              |
-| **生成默认指令**     | Not applicable | After confirmation, adds Scribe's starter command files to the custom-prompts folder. It does not replace the folder setting because that folder derives from the Scribe root.                                                     |
-| **新建代理命令**     | Not applicable | Opens the command editor from **命令** when Scribe is enabled.                                                                                                                                                                     |
-| **添加指令**         | Not applicable | Opens the command editor from **快捷操作 → 我的指令**.                                                                                                                                                                             |
+| Control          | Default        | What it does                                                                                                                                                                                                                       |
+| ---------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **指令变量替换** | On             | Controls note-variable expansion for editor and command-palette runs. In Agent Chat, command variables still become selected text or references when this is off; see [Commands](custom-commands.md#add-note-context-to-a-prompt). |
+| **指令排序**     | **最近使用**   | **最近使用** sorts by last use, **按名称** sorts by name, and **手动排序** uses the saved drag order.                                                                                                                              |
+| **生成默认指令** | Not applicable | After confirmation, adds Scribe's starter command files to the custom-prompts folder. It does not replace the folder setting because that folder derives from the Scribe root.                                                     |
+| **新建代理命令** | Not applicable | Opens the command editor from **命令** for the current vault.                                                                                                                                                                      |
+| **添加指令**     | Not applicable | Opens the command editor from **我的指令**.                                                                                                                                                                                        |
 
 ### Command list and editor
 
-| Control                         | Default                 | What it does                                                                                                                                               |
-| ------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已启用**                      | On                      | 控制整条指令是否可调用。关闭后不能从右键、命令面板、快捷键或聊天 `/` 调用；两个菜单显示偏好仍保留，重新开启后恢复原样。                                    |
-| **Drag handle**                 | Saved order             | Reorders commands. Choose **手动排序** if you want drag order to control the slash menu.                                                                   |
-| **Right-click**                 | On for a new command    | Shows the command in the editor right-click menu.                                                                                                          |
-| **斜杠菜单**                    | On for a new command    | Shows the command after `/` in Agent Chat. Sending resolves the command name to its saved prompt.                                                          |
-| **编辑**                        | Not applicable          | Opens the command editor.                                                                                                                                  |
-| **创建副本**                    | Not applicable          | Creates a uniquely named copy beside the original.                                                                                                         |
-| **删除**                        | Not applicable          | After confirmation, moves the shared command file to Obsidian's configured trash location. It disappears from the shared list and its shortcut entries.    |
-| **名称**                        | Blank for a new command | Required unique command name.                                                                                                                              |
-| **内容** / **提示词**           | Blank for a new command | Required command text, labeled **内容** under **命令** and **提示词** under **快捷操作 → 我的指令**. The latter editor shows the supported note variables. |
-| **模型（可选）**                | **默认模型**            | Selects an enabled quick-tool model for editor and command-palette runs. An Agent Chat slash run uses the current Agent Chat model.                        |
-| **在右键菜单中显示**            | On                      | Same setting as **Right-click** in the list.                                                                                                               |
-| **在斜杠菜单中显示**            | On                      | Same setting as **斜杠菜单** in the list.                                                                                                                  |
-| **保存 / 取消** (Save / Cancel) | Not applicable          | Save validates and writes the command file.                                                                                                                |
+| Control                         | Default                 | What it does                                                                                                                                            |
+| ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已启用**                      | On                      | 控制整条指令是否可调用。关闭后不能从右键、命令面板、快捷键或聊天 `/` 调用；两个菜单显示偏好仍保留，重新开启后恢复原样。                                 |
+| **Drag handle**                 | Saved order             | Reorders commands. Choose **手动排序** if you want drag order to control the slash menu.                                                                |
+| **Right-click**                 | On for a new command    | Shows the command in the editor right-click menu.                                                                                                       |
+| **斜杠菜单**                    | On for a new command    | Shows the command after `/` in Agent Chat. Sending resolves the command name to its saved prompt.                                                       |
+| **编辑**                        | Not applicable          | Opens the command editor.                                                                                                                               |
+| **创建副本**                    | Not applicable          | Creates a uniquely named copy beside the original.                                                                                                      |
+| **删除**                        | Not applicable          | After confirmation, moves the shared command file to Obsidian's configured trash location. It disappears from the shared list and its shortcut entries. |
+| **名称**                        | Blank for a new command | Required unique command name.                                                                                                                           |
+| **内容** / **提示词**           | Blank for a new command | Required command text, labeled **内容** under **命令** and **提示词** under **我的指令**. The latter editor shows the supported note variables.         |
+| **模型（可选）**                | **默认模型**            | Selects a configured chat model for editor and command-palette runs. An Agent Chat slash run uses the current Agent Chat model.                         |
+| **在右键菜单中显示**            | On                      | Same setting as **Right-click** in the list.                                                                                                            |
+| **在斜杠菜单中显示**            | On                      | Same setting as **斜杠菜单** in the list.                                                                                                               |
+| **保存 / 取消** (Save / Cancel) | Not applicable          | Save validates and writes the command file.                                                                                                             |
 
 See [Scribe Commands and Quick Ask](custom-commands.md) for prompt variables, invocation, and Quick Ask.

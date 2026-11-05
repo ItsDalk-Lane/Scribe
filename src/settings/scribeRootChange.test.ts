@@ -161,14 +161,14 @@ describe("scribeRootChange", () => {
         .mockImplementationOnce(() => {
           settingsStore.set(settingsAtom, {
             ...getSettings(),
-            userSystemPromptsFolder: "edit-A",
+            customPromptsFolder: "edit-A",
           });
           return Promise.resolve();
         })
         .mockImplementationOnce(() => {
           settingsStore.set(settingsAtom, {
             ...getSettings(),
-            defaultSaveFolder: "edit-B",
+            memoryFolderName: "edit-B",
           });
           return Promise.resolve();
         });
@@ -177,8 +177,8 @@ describe("scribeRootChange", () => {
 
       const after = getSettings();
       expect(after.scribeFolder).toBe("ai");
-      expect(after.userSystemPromptsFolder).toBe("edit-A");
-      expect(after.defaultSaveFolder).toBe("edit-B");
+      expect(after.customPromptsFolder).toBe("edit-A");
+      expect(after.memoryFolderName).toBe("edit-B");
     });
 
     it("completes the root change even when the reconcile save fails", async () => {
@@ -187,7 +187,7 @@ describe("scribeRootChange", () => {
         .mockImplementationOnce(() => {
           settingsStore.set(settingsAtom, {
             ...getSettings(),
-            userSystemPromptsFolder: "edit-A",
+            customPromptsFolder: "edit-A",
           });
           return Promise.resolve();
         })
@@ -196,7 +196,7 @@ describe("scribeRootChange", () => {
       await expect(applyScribeRootChange(app, "ai")).resolves.toBeUndefined();
 
       expect(getSettings().scribeFolder).toBe("ai");
-      expect(getSettings().userSystemPromptsFolder).toBe("edit-A");
+      expect(getSettings().customPromptsFolder).toBe("edit-A");
     });
 
     it("keeps the old root when the durable save fails", async () => {

@@ -70,64 +70,13 @@ describe("BasicSettings", () => {
 
     afterEach(() => setInterfaceLocale("en"));
 
-    it("shows only the selected section and retains an unapplied folder draft while switching sections", () => {
-      const view = render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), {
-        target: { value: "draft-folder" },
-      });
-      expect(screen.queryByText("Custom instructions")).toBeNull();
+    it("shows the general settings and the vault instructions in one panel", () => {
+      render(<BasicSettings />);
+
+      expect(screen.getByLabelText("Scribe folder")).toBeTruthy();
+      expect(screen.getByText("Custom instructions")).toBeTruthy();
       expect(screen.queryByText("Autosave chats as Markdown")).toBeNull();
-      view.rerender(<BasicSettings section="saving" />);
-      expect(screen.getByText("Autosave chats as Markdown")).toBeTruthy();
-      expect(screen.queryByLabelText("Scribe folder")).toBeNull();
-      view.rerender(<BasicSettings />);
-      expect(screen.getByLabelText<HTMLInputElement>("Scribe folder").value).toBe("draft-folder");
     });
-
-    it("hides the filename template behind a collapsed Advanced disclosure", () => {
-      render(<BasicSettings section="saving" />);
-      expect(screen.getByRole("button", { name: "Advanced" })).not.toBeNull();
-      expect(screen.queryByText("Chat note name template")).toBeNull();
-
-      fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-      expect(screen.getByText("Chat note name template")).not.toBeNull();
-    });
-
-    it("keeps the template reachable when autosave is off", () => {
-      settingsStore.set(settingsAtom, {
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "scribe",
-        autosaveChat: false,
-      });
-      render(<BasicSettings section="saving" />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-      expect(screen.getByText("Chat note name template")).not.toBeNull();
-    });
-
-    it.each([
-      [
-        "en",
-        "Automatically saves chats as notes in your vault. When off, no new automatic saves are scheduled for chats without a linked note; linked chats and already scheduled saves may still be saved. Agent chats still appear in Recent chats.",
-      ],
-      [
-        "zh-CN",
-        "自动将聊天保存为资料库笔记。关闭后，尚未关联笔记的聊天不会再安排自动保存；已关联的聊天和之前排队的保存仍可能写入。代理聊天仍会出现在“最近聊天”中。",
-      ],
-    ] as const)(
-      "explains existing note updates when autosave is off in %s",
-      (locale, description) => {
-        setInterfaceLocale(locale);
-        settingsStore.set(settingsAtom, {
-          ...DEFAULT_SETTINGS,
-          scribeFolder: "scribe",
-          autosaveChat: false,
-        });
-        render(<BasicSettings section="saving" />);
-
-        expect(screen.getByText(description)).toBeTruthy();
-      }
-    );
 
     it("turns off active-note auto-attach from its switch", () => {
       render(<BasicSettings />);
@@ -225,7 +174,7 @@ describe("BasicSettings", () => {
 
     it("keeps the draft open after a failed save and retries it before opening the file", async () => {
       writeAgentsFile.mockRejectedValueOnce(new Error("disk unavailable"));
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
       fireEvent.change(editor, { target: { value: "Unsaved rules" } });
       fireEvent.click(screen.getByRole("button", { name: /Open AGENTS.md/ }));
@@ -240,14 +189,14 @@ describe("BasicSettings", () => {
     });
 
     it("opens a blank vault AGENTS.md, never seeded from a Chat prompt", async () => {
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       fireEvent.click(await screen.findByRole("button", { name: /Open AGENTS.md/ }));
       await waitFor(() => expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), ""));
       expect(writeAgentsFile).not.toHaveBeenCalled();
     });
 
     it("lands a pending edit before opening the file, so the open cannot race the save", async () => {
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
       fireEvent.change(editor, { target: { value: "Always cite." } });
 
@@ -262,7 +211,7 @@ describe("BasicSettings", () => {
 
     it("shows what the vault AGENTS.md already says, so editing starts from the real file", async () => {
       readAgentsFile.mockResolvedValue("Cite every source.");
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       const editor = await screen.findByRole<HTMLTextAreaElement>("textbox", {
         name: "Custom vault instructions",
       });
@@ -273,7 +222,7 @@ describe("BasicSettings", () => {
     it("saves an edit back to the vault AGENTS.md once typing settles", async () => {
       jest.useFakeTimers();
       try {
-        render(<BasicSettings section="instructions" />);
+        render(<BasicSettings />);
         const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
         fireEvent.change(editor, { target: { value: "Always cite." } });
 
@@ -298,7 +247,7 @@ describe("BasicSettings", () => {
               settleFirst = resolve;
             })
         );
-        render(<BasicSettings section="instructions" />);
+        render(<BasicSettings />);
         const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
 
         fireEvent.change(editor, { target: { value: "First" } });
@@ -328,7 +277,7 @@ describe("BasicSettings", () => {
     it("does not lose a pending edit when the tab closes mid-sentence", async () => {
       jest.useFakeTimers();
       try {
-        const { unmount } = render(<BasicSettings section="instructions" />);
+        const { unmount } = render(<BasicSettings />);
         const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
         fireEvent.change(editor, { target: { value: "Half a thou" } });
         unmount();
@@ -343,7 +292,7 @@ describe("BasicSettings", () => {
     });
 
     it("keeps vault instructions without showing the retired chat-prompt notice", async () => {
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       expect(await screen.findByRole("button", { name: /Open AGENTS.md/ })).toBeTruthy();
       expect(screen.queryByText(/saved system prompt/)).toBeNull();
     });

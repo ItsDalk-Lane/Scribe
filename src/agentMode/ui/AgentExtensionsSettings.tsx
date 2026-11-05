@@ -21,7 +21,6 @@ import {
 } from "@/agentMode/session/extensionCheckCache";
 import { resolveScopeCwd } from "@/agentMode/session/sessionScope";
 import { useManagedSkills } from "@/agentMode/skills/SkillManager";
-import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { openNewSkillModal, SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
 import { AgentExtensionsPanel, EXTENSION_LABELS } from "@/agentMode/ui/AgentExtensionsPanel";
 import { ExtensionEditor } from "@/agentMode/ui/ExtensionEditor";
@@ -444,10 +443,8 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           runtimeState: "not_started" as const,
         });
   const managedFiles = new Set(managedSkills.map((item) => normalizeAbsPath(item.filePath)));
-  const managedNames = new Set([
-    ...managedSkills.map((item) => item.name),
-    ...BUILTIN_SKILLS.map((item) => item.name),
-  ]);
+  // 旧内置名称不再保留，只排除当前个人列表里实际显示的技能。https://github.com/ItsDalk-Lane/Scribe/issues/32
+  const managedNames = new Set(managedSkills.map((item) => item.name));
   const groups =
     currentState.groups
       ?.filter((group) => group.kind === kind)
@@ -524,11 +521,6 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
               >
                 <Plus className="tw-size-4" />
                 {t("New skill")}
-              </Button>
-            ) : kind === "command" ? (
-              <Button disabled={busy || pending || !enabled} onClick={() => openEditor()}>
-                <Plus className="tw-size-4" />
-                {t("New agent command")}
               </Button>
             ) : null}
           </>

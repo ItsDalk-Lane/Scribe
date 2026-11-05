@@ -8,6 +8,11 @@ import {
 } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai/utils/transcript";
+import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
+import {
+  classifyProviderFailure,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { isCompactCommand } from "@/commands/compactCommand";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
@@ -125,6 +130,7 @@ interface NativeSessionContext {
   closed: boolean;
   lastAssistant?: AssistantMessage;
   stepLimit: boolean;
+  failure?: ProviderRequestFailure;
   runId: string;
   compaction?: AbortController;
   refreshTools: boolean;
@@ -160,6 +166,31 @@ const NO_ANSWERS: AgentQuestionAnswers = Object.freeze({});
 const AUTO_ALLOWED: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "selected", optionId: "allow_once" }),
 });
+
+interface NativeAgentRunState {
+  steps: number;
+  closing: boolean;
+  stopReason?: StopReason;
+  failure?: ProviderRequestFailure;
+}
+
+const STEP_LIMIT_CLOSING_PROMPT =
+  "The configured step limit has been reached. Do not call any tools. Read the completed tool results and summarize what was actually completed, what remains unfinished, and how the user can continue. Do not claim unperformed work is complete.";
+
+function failureStopReason(failure: ProviderRequestFailure): StopReason {
+  switch (failure.kind) {
+    case "quota":
+      return "quota_exhausted";
+    case "auth":
+      return "authentication_error";
+    case "context":
+      return "context_limit";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "request_error";
+  }
+}
 
 export const OBSIDIAN_DEFAULT_CONFIG_DIR = [".", "obsidian"].join("");
 
@@ -220,6 +251,7 @@ export class NativeBackendProcess implements BackendProcess {
   private permission?: (prompt: PermissionPrompt) => Promise<PermissionDecision>;
   private question?: (prompt: AskUserQuestionPrompt) => Promise<AgentQuestionAnswers>;
   private timestamp = 0;
+  private agentRuns = new WeakMap<Agent, NativeAgentRunState>();
 
   constructor(private readonly options: NativeBackendProcessOptions) {}
 
@@ -414,7 +446,19 @@ export class NativeBackendProcess implements BackendProcess {
         : (id, input, signal) => this.delegate(session, id, input, signal),
     });
     session.tools.add(tools);
-    let steps = 0;
+    const run: NativeAgentRunState = { steps: 0, closing: false };
+    const onFailure = (failure: ProviderRequestFailure): void => {
+      run.failure = failure;
+      run.stopReason = failureStopReason(failure);
+      if (failure.kind === "cancelled") return;
+      if (!child || failure.kind === "quota") session.failure = failure;
+      // 子任务额度耗尽后必须停止父任务的新请求，避免继续消耗同一账户。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      if (child && failure.kind === "quota") {
+        this.sessions.get(session.record.sessionId)?.agent.abort();
+        session.runController?.abort();
+        for (const entry of session.children.values()) entry.agent.abort();
+      }
+    };
     const childProvider = child ? session.provider : undefined;
     const childEffort = child ? session.record.effort : undefined;
     const agent = new Agent({
@@ -430,12 +474,14 @@ export class NativeBackendProcess implements BackendProcess {
       streamFn: (_model, context, options) =>
         (childProvider ?? session.provider).agentStream(context, {
           ...options,
+          onFailure,
           disableReasoning: (child ? childEffort : session.record.effort) === "off",
         }),
       sessionId: child?.taskId ?? session.record.sessionId,
       toolExecution: "parallel",
       beforeToolCall: async ({ assistantMessage, toolCall }, signal) => {
         signal?.throwIfAborted();
+        if (run.closing) return { block: true, reason: STEP_LIMIT_CLOSING_PROMPT };
         const proposesPlan = assistantMessage.content.some(
           (part) =>
             part.type === "toolCall" &&
@@ -455,25 +501,69 @@ export class NativeBackendProcess implements BackendProcess {
             reason: "Plan approval is required before changing files or running commands.",
           };
       },
+      prepareRequest: async ({ context }, signal) => {
+        if (session.failure?.kind === "quota") throw new Error("Provider quota exhausted.");
+        const provider = childProvider ?? session.provider;
+        const messages = await this.prepareContext(
+          session,
+          context.messages,
+          provider,
+          signal,
+          onFailure
+        );
+        if (messages !== context.messages) {
+          agent.state.messages = messages;
+          if (!child) await this.saveTranscript(session, agent);
+          return { context: { ...context, messages } };
+        }
+      },
+      prepareNextTurnWithContext: ({ context }) => {
+        if (!run.closing) return;
+        return {
+          context: { ...context, tools: [] },
+          messages: [{ role: "system", content: STEP_LIMIT_CLOSING_PROMPT, timestamp: Date.now() }],
+        };
+      },
       finishTurn: ({ message }) => {
-        steps++;
+        if (run.failure || session.failure?.kind === "quota") return { action: "end" };
+        if (run.closing) {
+          run.stopReason = "max_turn_requests";
+          if (!child) session.stepLimit = true;
+          return { action: "end" };
+        }
+        run.steps++;
         const maxSteps =
           typeof this.options.maxSteps === "function"
             ? this.options.maxSteps()
             : this.options.maxSteps;
         if (
-          steps >= (maxSteps ?? 50) &&
-          message.role === "assistant" &&
+          Number.isSafeInteger(maxSteps) &&
+          maxSteps! > 0 &&
+          run.steps >= maxSteps! &&
           message.stopReason === "toolUse"
         ) {
-          if (!child) session.stepLimit = true;
-          return { action: "end" };
+          run.closing = true;
+          agent.clearSteeringQueue();
+          return { action: "continue" };
         }
       },
     });
+    this.agentRuns.set(agent, run);
     agent.subscribe(async (event) => {
       if (session.closed) return;
-      if (event.type === "agent_start") steps = 0;
+      if (event.type === "agent_start") {
+        run.steps = 0;
+        run.closing = false;
+        run.stopReason = undefined;
+        run.failure = undefined;
+      }
+      if (
+        event.type === "message_start" &&
+        event.message.role === "user" &&
+        session.messageIds.has(event.message) &&
+        !run.closing
+      )
+        run.steps = 0;
       if (child || !session.cancelled)
         this.translate(session, event, emit, child !== undefined, viewId);
       if (!child && event.type === "message_end") await this.saveTranscript(session, agent);
@@ -494,7 +584,7 @@ export class NativeBackendProcess implements BackendProcess {
         if (!session.pending.has(input.promptId)) return;
         continue;
       }
-      session.agent.steer(message);
+      if (!this.agentRuns.get(session.agent)?.closing) session.agent.steer(message);
       return;
     }
     await this.driveQueue(session, { promptId: input.promptId, message });
@@ -506,7 +596,21 @@ export class NativeBackendProcess implements BackendProcess {
   ): Promise<void> {
     let current: { promptId: string; message: UserMessage } | undefined = first;
     while (current && !session.closed) {
-      await this.executeTurn(session, current.promptId, current.message);
+      const reason = await this.executeTurn(session, current.promptId, current.message);
+      // 前置准备失败同样属于自动停止，不能绕过请求层直接续发排队消息。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      if (
+        reason === "quota_exhausted" ||
+        reason === "authentication_error" ||
+        reason === "context_limit" ||
+        reason === "request_error" ||
+        reason === "max_turn_requests"
+      ) {
+        const ids = [...session.pending.keys()];
+        session.pending.clear();
+        session.agent.clearAllQueues();
+        if (ids.length) this.emit(session, { sessionUpdate: "messages_withdrawn", promptIds: ids });
+        break;
+      }
       const next = [...session.pending.entries()].find(
         ([promptId]) => !session.inFlight.has(promptId)
       );
@@ -518,13 +622,14 @@ export class NativeBackendProcess implements BackendProcess {
     session: NativeSession,
     promptId: string,
     message: UserMessage
-  ): Promise<void> {
+  ): Promise<StopReason> {
     session.inFlight.add(promptId);
     session.cancelled = false;
     session.ending = false;
     session.runController = new AbortController();
     session.runId = promptId;
     session.stepLimit = false;
+    session.failure = undefined;
     session.lastAssistant = undefined;
     let finish!: () => void;
     const run = new Promise<void>((resolve) => {
@@ -535,9 +640,10 @@ export class NativeBackendProcess implements BackendProcess {
     try {
       ended = await this.run(session, message, promptId);
     } catch (failure) {
+      if (!session.cancelled) session.failure ??= { kind: "request" };
       ended = {
         turnId: promptId,
-        stopReason: session.cancelled ? "cancelled" : "end_turn",
+        stopReason: session.cancelled ? "cancelled" : "request_error",
         error: failure instanceof Error ? failure : new Error(String(failure)),
       };
     } finally {
@@ -551,6 +657,7 @@ export class NativeBackendProcess implements BackendProcess {
     this.emit(session, { sessionUpdate: "turn_ended", ...ended });
     await this.save(session);
     session.inFlight.delete(promptId);
+    return ended.stopReason;
   }
 
   refreshSessionConfiguration(sessionId: string): void {
@@ -593,6 +700,9 @@ export class NativeBackendProcess implements BackendProcess {
         for (const pending of session.pending.values()) session.agent.steer(pending);
         session.refreshTools = false;
       }
+      session.agent.state.messages = session.agent.state.messages.filter(
+        (entry) => !(entry.role === "system" && entry.content === STEP_LIMIT_CLOSING_PROMPT)
+      );
       const system = getCurrentSystemMessage(session.agent.state.messages);
       if (system)
         session.agent.state.messages = [
@@ -610,26 +720,14 @@ export class NativeBackendProcess implements BackendProcess {
           session,
           session.agent.state.messages,
           "manual",
-          controller.signal
+          controller.signal,
+          session.provider,
+          (failure) => {
+            session.failure = failure;
+          }
         );
         if (session.pending.size > 0 && !session.cancelled) await session.agent.continue();
       } else {
-        const previous = session.agent.state.messages.findLast(
-          (entry) => entry.role === "assistant"
-        );
-        const window = session.provider.model.contextWindow;
-        if (
-          window > 0 &&
-          previous?.role === "assistant" &&
-          previous.usage.totalTokens >= window * 0.8
-        ) {
-          session.agent.state.messages = await this.compact(
-            session,
-            session.agent.state.messages,
-            "auto",
-            signal
-          );
-        }
         session.agent.clearSteeringQueue();
         await session.agent.prompt(message);
       }
@@ -640,34 +738,90 @@ export class NativeBackendProcess implements BackendProcess {
       )
         error = new Error(session.lastAssistant.errorMessage || "The model request failed.");
     } catch (failure) {
-      if (!session.cancelled)
+      if (!session.cancelled) {
         error = failure instanceof Error ? failure : new Error(String(failure));
+        if (!session.failure) {
+          const classified = classifyProviderFailure({ cause: failure });
+          if (classified.kind !== "request" && classified.kind !== "cancelled")
+            session.failure = classified;
+        }
+      }
     }
     const reason: StopReason = session.cancelled
       ? "cancelled"
-      : session.stepLimit
-        ? "max_turn_requests"
-        : session.lastAssistant?.rawStopReason === "refusal" ||
-            session.lastAssistant?.rawStopReason === "content_filter"
-          ? "refusal"
-          : session.lastAssistant?.stopReason === "length"
-            ? "max_tokens"
-            : "end_turn";
+      : session.failure
+        ? failureStopReason(session.failure)
+        : session.stepLimit
+          ? "max_turn_requests"
+          : session.lastAssistant?.rawStopReason === "refusal" ||
+              session.lastAssistant?.rawStopReason === "content_filter"
+            ? "refusal"
+            : session.lastAssistant?.stopReason === "length"
+              ? "max_tokens"
+              : "end_turn";
     session.compaction = undefined;
     session.ending = true;
     await this.save(session);
     return {
       turnId,
       stopReason: session.cancelled ? "cancelled" : reason,
-      ...(error ? { error } : {}),
+      ...(error && !session.failure && reason === "end_turn"
+        ? { error, stopReason: "request_error" as const }
+        : {}),
     };
+  }
+
+  private async prepareContext(
+    session: NativeSessionContext,
+    messages: AgentMessage[],
+    provider: ProviderChatModel,
+    signal: AbortSignal | undefined,
+    onFailure: (failure: ProviderRequestFailure) => void
+  ): Promise<AgentMessage[]> {
+    const window = provider.model.contextWindow;
+    if (window <= 0) return messages;
+    const budget = Math.min(window * 0.8, window - provider.model.maxTokens);
+    if (estimateContextTokens(messages).tokens < budget) return messages;
+    const userIndex = messages.findLastIndex((message) => message.role === "user");
+    const assistantIndex = messages.findLastIndex((message) => message.role === "assistant");
+    const latestAssistant = messages[assistantIndex];
+    const hasToolBatch =
+      latestAssistant?.role === "assistant" &&
+      latestAssistant.content.some((part) => part.type === "toolCall");
+    const tailIndex = hasToolBatch ? assistantIndex : Math.max(userIndex, assistantIndex);
+    const currentUser = messages[userIndex];
+    const prefix = messages.slice(0, tailIndex).filter((message) => message !== currentUser);
+    const tail = messages.slice(tailIndex);
+    const retained = userIndex >= 0 && userIndex < tailIndex ? [currentUser, ...tail] : tail;
+    // 只替换已确认的历史摘要，当前要求和最近完整工具结果必须仍能被模型读取。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    let summaryRequestFailed = false;
+    try {
+      if (!prefix.some((message) => message.role === "assistant"))
+        throw new Error("The current request and tool results exceed the model context window.");
+      const compacted = await this.compact(session, prefix, "auto", signal, provider, (failure) => {
+        summaryRequestFailed = true;
+        onFailure(failure);
+      });
+      // 摘要替换前缀后旧用量已失效，递增时间标记避免同毫秒误用旧窗口读数。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      compacted[compacted.length - 1].timestamp =
+        Math.max(Date.now(), ...messages.map((message) => message.timestamp)) + 1;
+      const next = [...compacted, ...retained];
+      if (estimateContextTokens(next).tokens >= budget)
+        throw new Error("The compacted context is still too large for this model.");
+      return next;
+    } catch (error) {
+      if (!signal?.aborted && !summaryRequestFailed) onFailure({ kind: "context" });
+      throw error;
+    }
   }
 
   private async compact(
     session: NativeSessionContext,
     messages: AgentMessage[],
     trigger: "manual" | "auto",
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    provider = session.provider,
+    onFailure?: (failure: ProviderRequestFailure) => void
   ): Promise<AgentMessage[]> {
     const id = `native-compact-${uuidv4()}`;
     const emit = (update: SessionUpdate): void => this.emit(session, update);
@@ -682,9 +836,10 @@ export class NativeBackendProcess implements BackendProcess {
       status: "in_progress",
       preTokens: messages.findLast((message) => message.role === "assistant")?.usage.totalTokens,
     });
+    let failureReported = false;
     try {
       signal?.throwIfAborted();
-      const result = await session.provider
+      const result = await provider
         .agentStream(
           {
             messages: [
@@ -697,6 +852,10 @@ export class NativeBackendProcess implements BackendProcess {
           },
           {
             signal,
+            onFailure: (failure) => {
+              failureReported = true;
+              if (failure.kind !== "cancelled") onFailure?.(failure);
+            },
             disableReasoning: session.record.effort === "off",
             ...(session.record.effort && session.record.effort !== "off"
               ? { reasoning: session.record.effort }
@@ -731,6 +890,7 @@ export class NativeBackendProcess implements BackendProcess {
       emit({ sessionUpdate: "compaction", id, trigger, status: "completed" });
       return compacted;
     } catch (error) {
+      if (!signal?.aborted && !failureReported) onFailure?.({ kind: "context" });
       emit({
         sessionUpdate: "compaction",
         id,
@@ -898,12 +1058,14 @@ export class NativeBackendProcess implements BackendProcess {
         await ready;
         if (!stopped) await agent.prompt(input.prompt);
         const message = agent.state.messages.findLast((message) => message.role === "assistant");
+        const stopReason = this.agentRuns.get(agent)?.stopReason;
         const reply =
           message?.role === "assistant"
             ? message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")
             : "";
         const failed =
           stopped ||
+          (stopReason !== undefined && stopReason !== "end_turn") ||
           !message ||
           !reply.trim() ||
           (message.role === "assistant" &&
@@ -911,13 +1073,21 @@ export class NativeBackendProcess implements BackendProcess {
               message.stopReason === "aborted" ||
               message.stopReason === "toolUse" ||
               message.stopReason === "length"));
-        const text = reply.trim()
-          ? reply
-          : message?.role === "assistant" && message.stopReason === "toolUse"
-            ? "The child agent reached its step limit before completing the task."
-            : message?.role === "assistant"
-              ? (message.errorMessage ?? "The child agent did not return a final result.")
-              : "The child agent did not return a final result.";
+        const reasonText =
+          stopReason === "max_turn_requests"
+            ? "The child agent reached its step limit and ended with a summary."
+            : stopReason
+              ? `The child agent stopped: ${stopReason}.`
+              : "";
+        const text = reasonText
+          ? [reasonText, reply].filter(Boolean).join("\n\n")
+          : reply.trim()
+            ? reply
+            : message?.role === "assistant" && message.stopReason === "toolUse"
+              ? "The child agent reached its step limit before completing the task."
+              : message?.role === "assistant"
+                ? (message.errorMessage ?? "The child agent did not return a final result.")
+                : "The child agent did not return a final result.";
         this.emit(session, {
           sessionUpdate: "task_ended",
           taskId,
@@ -929,8 +1099,13 @@ export class NativeBackendProcess implements BackendProcess {
                 : "failed"
               : "completed",
           summary: text,
+          ...(stopReason ? { stopReason } : {}),
         });
-        return { content: [{ type: "text", text }], details: { taskId }, isError: failed };
+        return {
+          content: [{ type: "text", text }],
+          details: { taskId, ...(stopReason ? { stopReason } : {}) },
+          isError: failed,
+        };
       } finally {
         signal?.removeEventListener("abort", abort);
         session.children.delete(taskId);

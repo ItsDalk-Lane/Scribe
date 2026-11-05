@@ -6,7 +6,7 @@ import type ScribePlugin from "@/main";
 import { createAgentSessionManager } from "@/agentMode";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
-import { SkillManager } from "@/agentMode/skills/SkillManager";
+import { SkillManager, getManagedSkills } from "@/agentMode/skills/SkillManager";
 import { getSettings, setSettings } from "@/settings/model";
 import { __resetVaultBaseCache } from "@/utils/vaultPath";
 
@@ -74,38 +74,58 @@ function makeApp(root: string): App {
   } as unknown as App;
 }
 
-async function changeModels(manager: AgentSessionManager, enabledModels: string[]): Promise<void> {
-  const original = manager.onInstallStateChanged.bind(manager);
-  let resolve!: () => void;
-  let reject!: (error: unknown) => void;
-  const completed = new Promise<void>((done, failed) => {
-    resolve = done;
-    reject = failed;
-  });
-  const observation = jest
-    .spyOn(manager, "onInstallStateChanged")
-    .mockImplementationOnce(async (id) => {
-      try {
-        await original(id);
-        resolve();
-      } catch (error) {
-        reject(error);
-        throw error;
-      }
-    });
-  try {
-    setSettings((current) => ({
-      backends: { ...current.backends, native: { ...current.backends.native, enabledModels } },
-    }));
-    await completed;
-  } finally {
-    observation.mockRestore();
-  }
+function changeModels(enabledModels: string[]): void {
+  setSettings((current) => ({
+    backends: { ...current.backends, native: { ...current.backends.native, enabledModels } },
+  }));
 }
 
 describe("agentModeReadiness", () => {
   describe("createAgentSessionManager()", () => {
-    it("retains the chat draft, saved skill preferences and existing skill link when the last model is disabled and enabled again (https://github.com/ItsDalk-Lane/Scribe/issues/21)", async () => {
+    it("does not install or recreate skill files during startup and refresh https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
+      const root = await disk.mkdtemp(join(tmpdir(), "scribe-no-bundled-skills-"));
+      mockAppDataRoot = join(root, "app-data");
+      __resetVaultBaseCache();
+      const app = makeApp(root);
+      setSettings((current) => ({
+        scribeFolder: "scribe",
+        providers: {},
+        configuredModels: [],
+        agentMode: { ...current.agentMode, notificationSound: false },
+      }));
+      const plugin = {
+        app,
+        manifest: { version: "test" },
+        saveData: async () => undefined,
+      } as unknown as ScribePlugin;
+      let manager: AgentSessionManager | undefined;
+      try {
+        manager = createAgentSessionManager(app, plugin);
+        const skills = SkillManager.getInstance();
+        expect(await skills.refresh()).toMatchObject({ ok: true, skillCount: 0 });
+        const skillsRoot = join(root, "scribe", "skills");
+        await expect(disk.access(skillsRoot)).rejects.toMatchObject({ code: "ENOENT" });
+        const file = join(skillsRoot, "formerly-bundled", "SKILL.md");
+        const content =
+          '---\nname: formerly-bundled\ndescription: Existing skill\nmetadata:\n  scribe-builtin-version: "1"\n  scribe-enabled-agents: ""\n---\nUser-edited instructions';
+        await disk.mkdir(join(skillsRoot, "formerly-bundled"), { recursive: true });
+        await disk.writeFile(file, content);
+        expect(await skills.refresh(true)).toMatchObject({ ok: true, skillCount: 1 });
+        expect(await disk.readFile(file, "utf8")).toBe(content);
+        expect(getManagedSkills()[0].enabledAgents).toEqual([]);
+        expect(await disk.readdir(skillsRoot)).toEqual(["formerly-bundled"]);
+        await disk.rm(join(skillsRoot, "formerly-bundled"), { recursive: true });
+        expect(await skills.refresh(true)).toMatchObject({ ok: true, skillCount: 0 });
+        expect(await disk.readdir(skillsRoot)).toEqual([]);
+      } finally {
+        await manager?.shutdown();
+        SkillManager.resetForTesting();
+        __resetVaultBaseCache();
+        await disk.rm(root, { recursive: true, force: true });
+      }
+    });
+
+    it("retains chat availability, draft and skills when obsolete model switches change https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       const root = await disk.mkdtemp(join(tmpdir(), "scribe-readiness-lifecycle-"));
       mockAppDataRoot = join(root, "app-data");
       __resetVaultBaseCache();
@@ -138,12 +158,13 @@ describe("agentModeReadiness", () => {
         agentMode: {
           ...current.agentMode,
           notificationSound: false,
-          skills: {
-            ...current.agentMode.skills,
-            builtinPreferences: { "json-canvas": { disabled: true } },
-          },
         },
       }));
+      const skillDir = join(root, "scribe", "skills", "retained-skill");
+      const skillContent =
+        '---\nname: retained-skill\ndescription: Retained user skill\nmetadata:\n  scribe-builtin-version: "1"\n  scribe-enabled-agents: "native"\n  user-metadata: keep\n---\nExisting user-edited instructions';
+      await disk.mkdir(skillDir, { recursive: true });
+      await disk.writeFile(join(skillDir, "SKILL.md"), skillContent);
       const plugin = {
         app,
         manifest: { version: "test" },
@@ -155,30 +176,32 @@ describe("agentModeReadiness", () => {
         await sessionManager.preloadModels("native");
         const skills = SkillManager.getInstance();
         expect(await skills.refresh()).toMatchObject({ ok: true, reconcileErrorCount: 0 });
-        const link = join(root, ".scribe", "skills", "obsidian-markdown");
-        const skillFile = join(root, "scribe", "skills", "obsidian-markdown", "SKILL.md");
+        const link = join(root, ".scribe", "skills", "retained-skill");
+        const skillFile = join(skillDir, "SKILL.md");
         expect((await disk.lstat(link)).isSymbolicLink()).toBe(true);
         const originalLink = await disk.readlink(link);
         const originalSkill = await disk.readFile(skillFile);
-        const preferences = { "json-canvas": { disabled: true } };
+        expect(await disk.readdir(join(root, "scribe", "skills"))).toEqual(["retained-skill"]);
+        expect(originalSkill.toString()).toBe(skillContent);
+        expect(getManagedSkills()[0].enabledAgents).toEqual(["native"]);
+        expect(getManagedSkills()[0]).not.toHaveProperty("builtin");
         expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
         const chat = await sessionManager.createSession("native");
         await chat.ready;
         const draft = "A test draft that has not been sent";
         sessionManager.drafts.update(chat.chatInputId, (current) => ({ ...current, input: draft }));
 
-        await changeModels(sessionManager, []);
+        changeModels([]);
 
         expect(
           sessionManager.getSessions().some((item) => item.internalId === chat.internalId)
         ).toBe(true);
         expect(sessionManager.drafts.get(chat.chatInputId)?.input).toBe(draft);
-        expect(getSettings().agentMode.skills.builtinPreferences).toEqual(preferences);
         expect(await disk.readlink(link)).toBe(originalLink);
         expect(await disk.readFile(skillFile)).toEqual(originalSkill);
-        expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).not.toBe("ready");
+        expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
 
-        await changeModels(sessionManager, ["one"]);
+        changeModels(["one"]);
 
         expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
         const restoredChats = sessionManager
@@ -188,7 +211,6 @@ describe("agentModeReadiness", () => {
         expect(restoredChats[0].projectId).toBe(chat.projectId);
         expect(sessionManager.getActiveSession()?.chatInputId).toBe(chat.chatInputId);
         expect(sessionManager.drafts.get(chat.chatInputId)?.input).toBe(draft);
-        expect(getSettings().agentMode.skills.builtinPreferences).toEqual(preferences);
         expect(await disk.readlink(link)).toBe(originalLink);
         expect(await disk.readFile(skillFile)).toEqual(originalSkill);
       } finally {

@@ -14,7 +14,13 @@ import {
   getCurrentTools,
 } from "@earendil-works/pi-ai/utils/transcript";
 import { readJsonStream, streamHttpCompletion } from "@/LLMProviders/piHttpStream";
-import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+  waitForProviderRetry,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { t } from "@/lib/i18n";
 
 interface GooglePart {
@@ -82,27 +88,43 @@ export async function postChatRequest(
   if (!options?.fetch) throw new Error("A provider transport is required.");
   const fetch = options.fetch;
   const replacement: unknown = await options.onPayload?.(body, model);
-  return retryProviderRequest(async () => {
-    let response: Response;
+  for (let retries = 0; ; retries++) {
     try {
-      response = await fetch(`${model.baseUrl.replace(/\/+$/, "")}${path}`, {
+      const response = await fetch(`${model.baseUrl.replace(/\/+$/, "")}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...options.headers },
         signal: options.signal,
         body: JSON.stringify(replacement === undefined ? body : replacement),
       });
+      if (!response.ok) {
+        let failure: ProviderRequestFailure | undefined;
+        const observed = await observeProviderResponse(
+          response,
+          (value) => {
+            failure = value;
+          },
+          options.signal
+        );
+        throw new ProviderRequestError(
+          (await observed.text()) || `${t("Unexpected response")} (${response.status})`,
+          failure ?? classifyProviderFailure({ status: response.status })
+        );
+      }
+      return response;
     } catch (error) {
-      if (error instanceof TypeError)
-        throw Object.assign(error, { status: undefined, headers: undefined });
-      throw error;
+      if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      const failure = classifyProviderFailure({ cause: error });
+      const delay = failure.retryAfterMs ?? Math.min(500 * 2 ** retries, 8000);
+      const maxDelay = options.maxRetryDelayMs ?? 60000;
+      if (
+        failure.kind !== "transient" ||
+        retries >= (options.maxRetries ?? 0) ||
+        (maxDelay > 0 && delay > maxDelay)
+      )
+        throw error;
+      await waitForProviderRetry(delay, options.signal);
     }
-    if (!response.ok)
-      throw Object.assign(
-        new Error((await response.text()) || `${t("Unexpected response")} (${response.status})`),
-        { status: response.status, headers: response.headers }
-      );
-    return response;
-  }, options);
+  }
 }
 
 export function textContent(message: Message): string {

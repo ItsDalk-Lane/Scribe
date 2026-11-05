@@ -1,4 +1,3 @@
-import { expandCustomCommandPrefix } from "@/agentMode/session/expandCustomCommandPrefix";
 import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type { Skill } from "@/agentMode/skills/types";
@@ -78,13 +77,6 @@ jest.mock("@/settings/model", () => ({
 }));
 /* eslint-enable @eslint-react/hooks-extra/no-unnecessary-use-prefix */
 
-jest.mock("@/commands/customCommandManager", () => ({
-  CustomCommandManager: { getInstance: () => ({ recordUsage: jest.fn() }) },
-}));
-jest.mock("@/commands/state", () => ({ getCachedCustomCommands: () => [] }));
-jest.mock("@/agentMode/session/expandCustomCommandPrefix", () => ({
-  expandCustomCommandPrefix: jest.fn(async (text: string) => ({ text })),
-}));
 const mockBuildWebTabsWithActiveSnapshot = jest.fn(
   (_app: unknown, _tabs: unknown, _includeActive: boolean): WebTabContext[] => []
 );
@@ -133,6 +125,7 @@ function inputNode(
   draft: AgentInputDraftControls,
   extraProps: Partial<React.ComponentProps<typeof AgentChatInput>> = {}
 ) {
+  if (!backend.getMessages) backend.getMessages = () => [];
   backend.isStarting = () => extraProps.isStarting ?? false;
   backend.isTurnInFlight = () => extraProps.isLoading ?? draft.loading;
   backend.getQueuedPrompts = () => extraProps.queuedPrompts ?? [];
@@ -227,7 +220,6 @@ describe("AgentChatInput", () => {
 
       fireEvent.click(screen.getByText("send"));
 
-      expect(expandCustomCommandPrefix).not.toHaveBeenCalled();
       expect(backend.sendMessage).not.toHaveBeenCalled();
       expect(store.get("input-1")).toMatchObject({
         input: "Keep this draft",
@@ -364,19 +356,6 @@ describe("AgentChatInput", () => {
       });
     });
 
-    it("sends text-only commands that expand to empty without an image-read error", async () => {
-      jest.mocked(expandCustomCommandPrefix).mockResolvedValueOnce({ text: "" });
-      jest.mocked(Notice).mockClear();
-      const backend = {
-        sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
-        takeWithdrawnPrompts: () => [],
-      } as unknown as AgentChatBackend;
-      renderInput(backend, makeDraft({ input: "/empty" }));
-      fireEvent.click(screen.getByText("send"));
-      await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
-      expect(Notice).not.toHaveBeenCalled();
-    });
-
     it.each(["", "   ", "Describe this"])("sends image content with draft %p", async (input) => {
       const backend = {
         sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
@@ -473,6 +452,17 @@ describe("AgentChatInput", () => {
       await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
       expect(jest.mocked(backend.sendMessage).mock.calls[0][0]).toBe("/compact");
       expect(jest.mocked(backend.sendMessage).mock.calls[0][2]).toBeUndefined();
+    });
+
+    it("sends a typed slash title verbatim instead of expanding a saved command", async () => {
+      const backend = {
+        sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      renderInput(backend, makeDraft({ input: "/Summarize shorten this" }));
+      fireEvent.click(screen.getByText("send"));
+      await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][0]).toBe("/Summarize shorten this");
     });
 
     it("preserves a queued image-only follow-up through normal auto-send", async () => {
@@ -708,6 +698,39 @@ describe("AgentChatInput", () => {
       expect(getDraft().loading).toBe(false);
       expect(backend.sendMessage).toHaveBeenCalledTimes(1);
     });
+
+    it.each([
+      "quota_exhausted",
+      "context_limit",
+      "authentication_error",
+      "request_error",
+      "max_turn_requests",
+    ] as const)(
+      "preserves queued text without sending after %s (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+      async (turnStopReason) => {
+        const { backend, getDraft, settleTurn } = setupCancellation();
+        act(() => getDraft().setInput("first turn"));
+        fireEvent.click(screen.getByText("send"));
+        await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
+        act(() => getDraft().setInput("queued follow-up"));
+        fireEvent.click(screen.getByText("send"));
+        await waitFor(() => expect(getDraft().queue).toHaveLength(1));
+        backend.getMessages = () => [
+          {
+            id: "reply",
+            sender: "ai",
+            timestamp: null,
+            isVisible: true,
+            message: "",
+            turnStopReason,
+          },
+        ];
+        await act(async () => settleTurn());
+        expect(backend.sendMessage).toHaveBeenCalledTimes(1);
+        expect(getDraft().queue).toHaveLength(0);
+        expect(getDraft().input).toBe("queued follow-up");
+      }
+    );
 
     it("sends queued follow-ups when the active turn finishes normally", async () => {
       const { backend, getDraft, settleTurn } = setupCancellation();

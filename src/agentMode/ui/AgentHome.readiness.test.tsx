@@ -37,7 +37,6 @@ jest.mock("@/agentMode/ui/hooks/useAgentChatRuntimeState", () => ({
     currentTodoList: null,
     pendingToolPermissions: [],
     pendingAskUserQuestions: [],
-    feedbackOffer: null,
     queuedPrompts: [],
     tasks: [],
     isReplyRunning: false,
@@ -80,7 +79,7 @@ describe("AgentHome", () => {
       mockModelPicker = null;
     });
 
-    it("preserves the draft while all models or the selected model are unavailable, and restores sending when usable (model-disable regression: https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+    it("ignores obsolete enable switches and preserves the draft when configured models or the selected model are unavailable https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       resetSettings();
       setSettings({
         providers: {
@@ -138,7 +137,6 @@ describe("AgentHome", () => {
           chatInputId="input"
           manager={manager}
           plugin={{ app } as ScribePlugin}
-          onSaveChat={() => undefined}
           updateUserMessageHistory={() => undefined}
         />
       );
@@ -148,11 +146,15 @@ describe("AgentHome", () => {
 
       act(() => setSettings({ backends: { native: { enabledModels: [] } } }));
 
+      expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
+      expect(send.hasAttribute("disabled")).toBe(false);
+      const configured = getSettings().configuredModels;
+      act(() => setSettings({ configuredModels: [] }));
       expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("error");
       expect(send.hasAttribute("disabled")).toBe(true);
       expect(drafts.get("input")?.input).toBe("A draft to keep");
 
-      act(() => setSettings({ backends: { native: { enabledModels: ["one"] } } }));
+      act(() => setSettings({ configuredModels: configured }));
 
       expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
       expect(send.hasAttribute("disabled")).toBe(false);

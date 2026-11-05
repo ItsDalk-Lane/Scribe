@@ -12,15 +12,22 @@ export const settingsTranslations: Record<string, string> = {
     "核对 Scribe 已注册的技能、命令和子代理，不发送聊天消息。",
   "Scribe uses its own registered tools and extensions. External agent plugins, hooks, and MCP services are not loaded.":
     "Scribe 使用自己注册的工具和扩展，不加载外部代理的插件、钩子或 MCP 服务。",
-  "Unavailable model: {id}": "模型不可用：{id}",
-  "Use the chat default model": "沿用聊天默认模型",
-  "Default permission mode": "默认权限模式",
-  "Ask before acting": "询问后执行",
-  "Plan first": "先制定计划",
-  "Automatically allow note edits": "自动允许笔记编辑",
+  Unlimited: "无限制",
+  "Set a step limit": "限制步数",
+  "Step limit": "步数上限",
+  "A limited turn ends with a summary of completed work. Unlimited is the default.":
+    "默认无限制。设置上限后，达到上限会总结已完成的工作。",
+  "Enter a positive whole number. Clearing this field does not select Unlimited.":
+    "请输入正整数。清空输入不会切换到“无限制”。",
+  "Configure a chat model in Models first.": "请先在“模型”中配置聊天模型。",
+  "No configured chat model has usable credentials on this device. Check Models.":
+    "本机没有凭据可用的聊天模型，请检查“模型”中的配置。",
+  "No models — configure one in Models": "暂无模型，请到“模型”中配置",
+  "This command's model is unavailable. Edit it in Settings → Scribe → My commands to choose another model, then rerun.":
+    "此指令使用的模型不可用。请检查“设置 → Scribe → 模型”，或编辑指令选择其他模型后重新运行。",
+  "Configure a model in Settings → Scribe → Models, then rerun the command.":
+    "请先在“设置 → Scribe → 模型”中配置模型，然后重新运行指令。",
   "Maximum steps per turn": "每轮最多执行步数",
-  "Choose 1–1000 steps. Send another message to continue after the limit.":
-    "可设置为 1–1000。达到上限后停止，可发送新消息继续。",
 
   "Skill saved, but syncing with the agent failed: {reason}. Reopen Skills after fixing the problem to retry.":
     "技能已保存，但同步到代理失败：{reason}。修复后重新打开技能页即可重试，无需再次新建。",
@@ -40,7 +47,6 @@ export const settingsTranslations: Record<string, string> = {
   "No matching commands.": "没有匹配的指令。",
   "Configuration saved; refresh the skill list to see its latest state.":
     "配置已保存，请刷新技能列表以查看最新状态。",
-  "Scribe built-in skills are always enabled and read-only.": "Scribe 内置技能始终启用，只能查看。",
   "Always enabled": "始终启用",
   "View {p0} (read-only)": "查看 {p0}（只读）",
   "Loading…": "正在读取…",
@@ -50,7 +56,6 @@ export const settingsTranslations: Record<string, string> = {
   "This command is disabled.": "此指令已停用。",
   "Enable {title}": "启用 {title}",
   Enabled: "已启用",
-  "Search commands…": "搜索命令…",
   "My commands": "我的指令",
   "These commands are saved in the current vault.": "这些自定义指令保存在当前库中。",
   "Visible models": "可见模型",
@@ -82,7 +87,6 @@ export const settingsTranslations: Record<string, string> = {
   "Search {name}…": "搜索{name}…",
   "Refresh and check": "刷新并检查",
   "Browse plugin marketplace": "浏览插件市场",
-  "New agent command": "新建代理命令",
   New: "新建",
   "This agent is disabled. Configuration is kept; enable it on the Agent page to use it.":
     "此代理已停用，配置已保留。请在“代理”页面开启后使用。",
@@ -128,7 +132,6 @@ export const settingsTranslations: Record<string, string> = {
   "This entry is managed by its source and cannot be edited or deleted independently.":
     "此项由所属来源管理，不能单独编辑或删除。",
   "Update plugin": "更新插件",
-  "Could not change agent enablement.": "更改代理启用状态失败。",
   User: "用户",
   "Agent extensions": "代理扩展",
   "Agent extensions are available on desktop.": "代理扩展仅可在桌面端查看。",
@@ -141,8 +144,7 @@ export const settingsTranslations: Record<string, string> = {
   "Could not read agent extensions. Refresh to try again.": "无法读取代理扩展，请刷新重试。",
   "MCP servers": "MCP服务器",
   Subagents: "子代理",
-  Common: "通用",
-  "General settings": "通用设置",
+  "Agent configuration": "Agent 配置",
   Plugins: "插件",
   Hooks: "钩子",
   "This agent does not expose a complete list for this category.": "此代理未提供这一类的完整清单。",
@@ -167,14 +169,10 @@ export const settingsTranslations: Record<string, string> = {
   "Project instructions": "项目说明",
   "Project and vault instructions are provided to the agent in this project. If they conflict, no priority is guaranteed. Saved to AGENTS.md in the project folder, which you can also edit as a note.":
     "项目说明和资料库说明都会提供给代理；发生冲突时，不能保证哪一项优先。保存在项目文件夹中的 AGENTS.md 内，也可以像普通笔记一样编辑。",
-  "No matching chat models. Check your search or add one under ":
-    "没有匹配的聊天模型。请检查搜索内容，或在",
   "Move this skill to the shared folder before changing its availability.":
     "请先将此技能迁移到共享文件夹，再切换可用性。",
   "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":
     "打开页面会自动检查可用性；已有聊天将在当前任务结束后应用更改。",
-  " to use it in Quick tools.": "中添加聊天模型后用于快捷工具。",
-  "Search quick-tool models…": "搜索快捷工具模型…",
   Edit: "编辑",
   Duplicate: "创建副本",
   Delete: "删除",
@@ -202,11 +200,6 @@ export const settingsTranslations: Record<string, string> = {
   "Command templating": "指令变量替换",
   "Fill in variables like {activenote}, {foldername}, or {#tag} in commands. Turn off to send commands exactly as written.":
     "自动填入指令中的 {activenote}、{foldername} 或 {#tag} 等变量。关闭后会原样发送指令。",
-  "Command sort order": "指令排序",
-  "How commands are ordered in the slash menu.": "斜杠菜单中指令的排列方式。",
-  Recency: "最近使用",
-  Alphabetical: "按名称",
-  Manual: "手动排序",
   "This will add default commands to your custom prompts folder. Do you want to continue?":
     "这会将默认指令添加到自定义提示词文件夹。是否继续？",
   "Generate default commands": "生成默认指令",
@@ -235,10 +228,6 @@ export const settingsTranslations: Record<string, string> = {
     "无法更改 Scribe 文件夹，请查看 Scribe 日志。",
   "Use folder": "使用此文件夹",
   "Change folder": "更改文件夹",
-  "Error: Missing required variables: {value0}": "错误：缺少必填变量：{value0}",
-  'Error: Format contains illegal characters (\\/:*?"<>|)': '错误：格式包含非法字符（\\/:*?"<>|）',
-  "Format applied successfully! Example: {customFileName}": "格式已应用！示例：{customFileName}",
-  "Error applying format: {value0}": "无法应用格式：{value0}",
   General: "常规",
   "Open plugin in": "插件打开位置",
   "Choose where to open the plugin.": "选择插件的打开位置。",
@@ -261,22 +250,6 @@ export const settingsTranslations: Record<string, string> = {
   Apply: "应用",
   "Open Scribe folder": "打开 Scribe 文件夹",
   "Custom instructions": "自定义说明",
-  "Saving chats": "聊天保存",
-  "Autosave chats as Markdown": "自动将聊天保存为 Markdown",
-  "Automatically saves chats as notes in your vault. When off, no new automatic saves are scheduled for chats without a linked note; linked chats and already scheduled saves may still be saved. Agent chats still appear in Recent chats.":
-    "自动将聊天保存为资料库笔记。关闭后，尚未关联笔记的聊天不会再安排自动保存；已关联的聊天和之前排队的保存仍可能写入。代理聊天仍会出现在“最近聊天”中。",
-  "Chat note name template": "聊天笔记名称模板",
-  "Customize the names of saved chat notes.": "自定义已保存聊天笔记的名称。",
-  "Note: All the following variables must be included in the template.":
-    "注意：模板必须包含以下所有变量。",
-  "Available variables:": "可用变量：",
-  ": Date in YYYYMMDD format": "：日期，格式为 YYYYMMDD",
-  ": Time in HHMMSS format": "：时间，格式为 HHMMSS",
-  ": Chat topic": "：聊天主题",
-  "Example: ": "示例：",
-  " → 20250114_153232__polish_this_article_[[Readme]]":
-    " → 20250114_153232__polish_this_article_[[Readme]]",
-  "Reporting an issue is available on desktop only.": "问题反馈仅支持桌面端。",
   "The agent activity log is available on desktop only.": "代理活动日志仅支持桌面端。",
   "Failed to open the agent activity log.": "无法打开代理活动日志。",
   "Agent activity log cleared.": "已清空代理活动日志。",
@@ -285,7 +258,6 @@ export const settingsTranslations: Record<string, string> = {
   Remove: "移除",
   "Failed to remove API keys. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.":
     "无法移除 API 密钥。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
-  Others: "其他",
   "API key storage": "API 密钥存储",
   "Obsidian Keychain": "Obsidian 钥匙串",
   "Scribe uses this device’s Obsidian Keychain for API keys. Each device has its own Keychain. To check or change a key, open the relevant provider in Models and providers.":
@@ -299,8 +271,6 @@ export const settingsTranslations: Record<string, string> = {
   "Delete All Keys": "删除所有密钥",
   "Quick tools": "快捷工具",
   "Quick actions": "快捷操作",
-  "Quick actions settings": "快捷操作设置",
-  "Tool configuration": "工具配置",
   About: "关于",
   "Plugin version": "插件版本",
   Agents: "代理",
@@ -308,15 +278,14 @@ export const settingsTranslations: Record<string, string> = {
   "The agent new chats start with. Picking another agent's model in a chat also changes this.":
     "新聊天默认使用的代理。在聊天中选择其他代理的模型时，也会更新此设置。",
   "Debugging & support": "调试与支持",
-  "Report an issue": "反馈问题",
   "Prepare a zip from your description and selected attachments for review. You can choose whether to upload it; a GitHub issue draft may open afterward.":
     "根据您的描述和所选附件准备压缩包供检查。您可以选择是否上传，之后可能打开 GitHub 问题草稿。",
   "Offer feedback reports in Agent Chat": "在代理聊天中提供反馈报告",
   "Feedback cards may appear after a problem or a failed reply. Turning this off prevents new feedback cards from failed replies and the agent. You can still choose Report an issue. Nothing is sent unless you choose to upload a report.":
     "出现问题或回复失败时可能显示反馈卡。关闭后，回复失败和代理都不会再提供新的反馈卡。你仍可手动选择“反馈问题”。只有你选择上传报告时才会发送。",
   "Debug mode": "调试模式",
-  "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools), and pre-selects the chat log when you report an issue.":
-    "将 Scribe 聊天活动记录到开发者控制台（视图 → 切换开发者工具），并在反馈问题时默认选中聊天日志。",
+  "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools).":
+    "将 Scribe 聊天活动记录到开发者控制台（视图 → 切换开发者工具）。",
   "Agent activity log": "代理活动日志",
   "Holds the behind-the-scenes activity that earlier Scribe versions recorded. Current native chats are not recorded. Stored on this device only, outside your vault ({frameLogPath}), and can include your prompts and note contents in plain text.":
     "保存较早版本 Scribe 记录的后台活动。当前原生聊天不会写入记录。仅保存在此设备上、库外的位置（{frameLogPath}），可能包含明文的提示词和笔记内容。",
@@ -334,9 +303,6 @@ export const settingsTranslations: Record<string, string> = {
   "Default model": "默认模型",
   "Select model": "选择模型",
   Model: "模型",
-  "Default quick command model": "快捷指令默认模型",
-  "Used by Quick Ask, Quick Command, and saved commands set to Default model.":
-    "用于快捷提问、快捷指令以及选择“默认模型”的已保存指令。",
   ", or start a chat with it, to see its models.": "，或使用它开始聊天，即可查看可用模型。",
   "Search {displayName} models…": "搜索 {displayName} 模型…",
   "Skills are available on desktop.": "技能仅支持桌面端。",

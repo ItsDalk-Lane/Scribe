@@ -5,7 +5,6 @@ export type { BackendId };
 export type SkillLocation = { kind: "canonical" } | { kind: "project"; agentDirs: BackendId[] };
 
 export interface Skill {
-  builtin?: boolean;
   name: string;
   description: string;
   filePath: string;

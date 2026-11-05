@@ -1,6 +1,5 @@
 import { t } from "@/lib/i18n";
 import { CustomModel, ProjectConfig } from "@/aiParams";
-import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { atom, createStore, useAtomValue } from "jotai";
 
 import type { ScribeMode, ModelSelection } from "@/agentMode";
@@ -45,9 +44,6 @@ export interface ScribeSettings {
   openAIProxyBaseUrl: string;
   scribeFolder: string;
   scribeRootHistory: string[];
-  defaultSaveFolder: string;
-  defaultConversationTag: string;
-  autosaveChat: boolean;
   autoAttachActiveNote: boolean;
   customPromptsFolder: string;
   debug: boolean;
@@ -57,19 +53,15 @@ export interface ScribeSettings {
   groqApiKey: string;
   activeModels: Array<CustomModel>;
   promptUsageTimestamps: Record<string, number>;
-  promptSortStrategy: string;
   chatHistorySortStrategy: SortStrategy;
   projectsFolder: string;
   defaultOpenArea: DEFAULT_OPEN_AREA;
   defaultSendShortcut: SEND_SHORTCUT;
-  defaultConversationNoteName: string;
   inlineEditCommands: LegacyCommandSettings[] | undefined;
   projectList: Array<ProjectConfig>;
-  enableCustomPromptTemplating: boolean;
   memoryFolderName: string;
   quickCommandModelKey: string | undefined;
   quickCommandIncludeNoteContext: boolean;
-  userSystemPromptsFolder: string;
   defaultSystemPromptTitle: string;
   _keychainVaultId?: string;
   _pendingCredentialRecovery?: { deviceId: string; path: string; encrypted: boolean };
@@ -81,14 +73,12 @@ export interface ScribeSettings {
       native?: NativeBackendSettings;
     };
     debugFullFrames: boolean;
-    offerFeedbackCards: boolean;
     notificationSound: boolean;
     notificationSoundId: NotificationSoundId;
     welcomeDismissed: boolean;
     skills: {
       folder: string;
       suppressMigrationConfirm?: boolean;
-      builtinPreferences?: Record<string, { disabled?: boolean; disabledAgents?: string[] }>;
     };
   };
   providers: Record<string, Provider>;
@@ -301,19 +291,11 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
     sanitizedSettings.enableInlineCitations = DEFAULT_SETTINGS.enableInlineCitations;
   }
 
-  if (typeof sanitizedSettings.enableCustomPromptTemplating !== "boolean") {
-    sanitizedSettings.enableCustomPromptTemplating = DEFAULT_SETTINGS.enableCustomPromptTemplating;
-  }
-
   if (
     !sanitizedSettings.memoryFolderName ||
     typeof sanitizedSettings.memoryFolderName !== "string"
   ) {
     sanitizedSettings.memoryFolderName = DEFAULT_SETTINGS.memoryFolderName;
-  }
-
-  if (typeof sanitizedSettings.autosaveChat !== "boolean") {
-    sanitizedSettings.autosaveChat = DEFAULT_SETTINGS.autosaveChat;
   }
 
   if (typeof sanitizedSettings.autoAttachActiveNote !== "boolean") {
@@ -353,10 +335,6 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
     sanitizedSettings.scribeFolder,
   ]);
 
-  const saveFolder = (settingsToSanitize.defaultSaveFolder || "").trim();
-  sanitizedSettings.defaultSaveFolder =
-    saveFolder.length > 0 ? saveFolder : DEFAULT_SETTINGS.defaultSaveFolder;
-
   const promptsFolder = (settingsToSanitize.customPromptsFolder || "").trim();
   sanitizedSettings.customPromptsFolder =
     promptsFolder.length > 0 ? promptsFolder : DEFAULT_SETTINGS.customPromptsFolder;
@@ -375,12 +353,6 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
   ) {
     sanitizedSettings.chatHistorySortStrategy = DEFAULT_SETTINGS.chatHistorySortStrategy;
   }
-
-  const userSystemPromptsFolder = (settingsToSanitize.userSystemPromptsFolder || "").trim();
-  sanitizedSettings.userSystemPromptsFolder =
-    userSystemPromptsFolder.length > 0
-      ? userSystemPromptsFolder
-      : DEFAULT_SETTINGS.userSystemPromptsFolder;
 
   sanitizedSettings.qaExclusions = sanitizeQaExclusions(settingsToSanitize.qaExclusions);
 
@@ -469,11 +441,6 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
       ? r.debugFullFrames
       : DEFAULT_SETTINGS.agentMode.debugFullFrames;
 
-  const offerFeedbackCards =
-    typeof r.offerFeedbackCards === "boolean"
-      ? r.offerFeedbackCards
-      : DEFAULT_SETTINGS.agentMode.offerFeedbackCards;
-
   const notificationSound =
     typeof r.notificationSound === "boolean"
       ? r.notificationSound
@@ -501,9 +468,6 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
       ? skillsValidation.folder
       : DEFAULT_SETTINGS.agentMode.skills.folder,
     ...(suppressMigrationConfirm !== undefined ? { suppressMigrationConfirm } : {}),
-    ...(skillsRaw?.builtinPreferences !== undefined
-      ? { builtinPreferences: sanitizeBuiltinPreferences(skillsRaw.builtinPreferences) }
-      : {}),
   };
 
   return {
@@ -511,37 +475,11 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     activeBackend,
     backends,
     debugFullFrames,
-    offerFeedbackCards,
     notificationSound,
     notificationSoundId,
     welcomeDismissed,
     skills,
   };
-}
-
-type BuiltinPreferences = NonNullable<ScribeSettings["agentMode"]["skills"]["builtinPreferences"]>;
-const EMPTY_BUILTIN_PREFERENCES: BuiltinPreferences = Object.freeze({});
-
-export function sanitizeBuiltinPreferences(raw: unknown): BuiltinPreferences {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return EMPTY_BUILTIN_PREFERENCES;
-  }
-  const preferences: BuiltinPreferences = {};
-  for (const { name } of BUILTIN_SKILLS) {
-    const value = (raw as Record<string, unknown>)[name];
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    const pref = value as Record<string, unknown>;
-    const disabledAgents = Array.isArray(pref.disabledAgents)
-      ? pref.disabledAgents.filter((agent): agent is string => typeof agent === "string")
-      : [];
-    if (pref.disabled === true || disabledAgents.length > 0) {
-      preferences[name] = {
-        ...(pref.disabled === true ? { disabled: true } : {}),
-        ...(disabledAgents.length > 0 ? { disabledAgents } : {}),
-      };
-    }
-  }
-  return Object.keys(preferences).length > 0 ? preferences : EMPTY_BUILTIN_PREFERENCES;
 }
 
 const WINDOWS_RESERVED_NAME_RE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
@@ -685,9 +623,8 @@ function sanitizeNativeBackendSettings(raw: unknown): NativeBackendSettings {
     defaultMode: sanitizeDefaultMode(value.defaultMode),
     maxSteps:
       typeof value.maxSteps === "number" &&
-      Number.isInteger(value.maxSteps) &&
-      value.maxSteps >= 1 &&
-      value.maxSteps <= 1000
+      Number.isSafeInteger(value.maxSteps) &&
+      value.maxSteps >= 1
         ? value.maxSteps
         : undefined,
   };

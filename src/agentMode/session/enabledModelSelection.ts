@@ -26,6 +26,6 @@ export function pickEnabledModel(
 
 export function noEnabledModelError(displayName: string): Error {
   return new Error(
-    `None of the models enabled for ${displayName} are available. Check them in Scribe's model settings.`
+    `No configured model for ${displayName} is available. Check the model and its credentials in Models.`
   );
 }

@@ -7,7 +7,6 @@ import {
 import {
   normalizeRootFolders,
   resetSettings,
-  sanitizeBuiltinPreferences,
   sanitizeQaExclusions,
   sanitizeSettings,
   settingsAtom,
@@ -61,6 +60,16 @@ describe("model", () => {
   });
 
   describe("sanitizeSettings", () => {
+    it("keeps missing limits unlimited, preserves an explicit 50 and accepts limits above 1000 https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      for (const maxSteps of [undefined, 50, 1001]) {
+        const sanitized = sanitizeSettings({
+          ...DEFAULT_SETTINGS,
+          agentMode: { ...DEFAULT_SETTINGS.agentMode, backends: { native: { maxSteps } } },
+        });
+        expect(sanitized.agentMode.backends.native?.maxSteps).toBe(maxSteps);
+      }
+    });
+
     it("preserves the native agent model, permission mode and step limit without changing BYOK connections", () => {
       const result = sanitizeSettings({
         ...DEFAULT_SETTINGS,
@@ -262,13 +271,11 @@ describe("model", () => {
         activeBackend: "native",
         backends: {},
         debugFullFrames: true,
-        offerFeedbackCards: true,
         notificationSound: true,
         notificationSoundId: "piano",
         welcomeDismissed: false,
         skills: {
           folder: "scribe/skills",
-          builtinPreferences: {},
         },
       });
     });
@@ -337,21 +344,6 @@ describe("model", () => {
       expect(sanitized.agentMode.debugFullFrames).toBe(false);
     });
 
-    it("offers feedback cards to an install that never saved the setting, and keeps an explicit opt-out", () => {
-      const base = { byok: {}, activeBackend: "native", backends: {} };
-      const fresh = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        agentMode: base,
-      } as unknown as ScribeSettings);
-      const optedOut = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        agentMode: { ...base, offerFeedbackCards: false },
-      } as unknown as ScribeSettings);
-
-      expect(fresh.agentMode.offerFeedbackCards).toBe(true);
-      expect(optedOut.agentMode.offerFeedbackCards).toBe(false);
-    });
-
     it("falls back to debugFullFrames=true when the persisted value is not a boolean", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
@@ -403,7 +395,7 @@ describe("model", () => {
       expect(sanitized.agentMode.welcomeDismissed).toBe(false);
     });
 
-    it("preserves valid built-in opt-outs and drops malformed preference values", () => {
+    it("loads old built-in preferences without retaining the removed feature and keeps the skill folder (https://github.com/ItsDalk-Lane/Scribe/issues/32)", () => {
       const result = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
@@ -418,9 +410,8 @@ describe("model", () => {
           },
         },
       } as unknown as ScribeSettings);
-      expect(result.agentMode.skills.builtinPreferences).toEqual({
-        "obsidian-markdown": { disabled: true, disabledAgents: ["opencode"] },
-      });
+      expect(result.agentMode.skills).not.toHaveProperty("builtinPreferences");
+      expect(result.agentMode.skills.folder).toBe("scribe/skills");
     });
 
     it("auto-attaches the active note for settings written before the field existed", () => {
@@ -556,34 +547,6 @@ describe("model", () => {
       }
       const kept = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: "team/ai" });
       expect(kept.scribeFolder).toBe("team/ai");
-    });
-  });
-
-  describe("sanitizeBuiltinPreferences", () => {
-    it.each([
-      undefined,
-      null,
-      false,
-      [],
-      {},
-      { "obsidian-markdown": { disabled: false, disabledAgents: [] } },
-    ])("keeps absent, malformed, or default preferences empty: %p", (raw) => {
-      expect(sanitizeBuiltinPreferences(raw)).toBe(sanitizeBuiltinPreferences({}));
-      expect(sanitizeBuiltinPreferences(raw)).toEqual({});
-    });
-
-    it("drops retired names and malformed entries while preserving sparse overrides for known skills and absent agents", () => {
-      expect(
-        sanitizeBuiltinPreferences({
-          "obsidian-markdown": { disabled: true },
-          "obsidian-bases": { disabled: false, disabledAgents: ["uninstalled-agent", 3] },
-          "scribe-read-pdf": null,
-          "retired-skill": { disabled: true },
-        })
-      ).toEqual({
-        "obsidian-markdown": { disabled: true },
-        "obsidian-bases": { disabledAgents: ["uninstalled-agent"] },
-      });
     });
   });
 

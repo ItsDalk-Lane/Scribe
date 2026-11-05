@@ -139,8 +139,12 @@ function makeManager(opts: {
     setDefaultBackend: opts.setDefaultBackend ?? jest.fn(),
     applySelection: opts.applySelection ?? jest.fn().mockResolvedValue(undefined),
     persistDefaultSelection: opts.persistDefaultSelection ?? jest.fn().mockResolvedValue(undefined),
-    createSession: opts.createSession ?? jest.fn().mockResolvedValue(undefined),
-    replaceSessionInPlace: opts.replaceSessionInPlace ?? jest.fn().mockResolvedValue(undefined),
+    createSession:
+      opts.createSession ??
+      jest.fn().mockResolvedValue({ ready: Promise.resolve(), getState: () => null }),
+    replaceSessionInPlace:
+      opts.replaceSessionInPlace ??
+      jest.fn().mockResolvedValue({ ready: Promise.resolve(), getState: () => null }),
     closeSession: opts.closeSession ?? jest.fn().mockResolvedValue(undefined),
   } as unknown as AgentSessionManager;
 }
@@ -770,10 +774,15 @@ describe("agentModelPickerHelpers", () => {
       expect(applySelection).not.toHaveBeenCalled();
     });
 
-    it("cross-backend pick seeds the new session transiently without persisting the default", async () => {
+    it("remembers a model picked while replacing the empty chat after startup succeeds https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       const persistDefaultSelection = jest.fn().mockResolvedValue(undefined);
-      const replaceSessionInPlace = jest.fn().mockResolvedValue(undefined);
+      const replaceSessionInPlace = jest
+        .fn()
+        .mockResolvedValue({ ready: Promise.resolve(), getState: () => null });
       const setDefaultBackend = jest.fn();
+      const selected = new Promise<void>((resolve) =>
+        setDefaultBackend.mockImplementation(() => resolve())
+      );
       const closeSession = jest.fn().mockResolvedValue(undefined);
       const manager = makeManager({
         persistDefaultSelection,
@@ -785,8 +794,11 @@ describe("agentModelPickerHelpers", () => {
       const entries = [pickerEntry("claude", "opus")];
       const onChange = buildModelOnChange(manager, ctxFor("codex"), entries);
       onChange("claude:opus|agent");
-      await new Promise((r) => window.setTimeout(r, 0));
-      expect(persistDefaultSelection).not.toHaveBeenCalled();
+      await selected;
+      expect(persistDefaultSelection).toHaveBeenCalledWith("claude", {
+        baseModelId: "opus",
+        effort: "low",
+      });
       expect(replaceSessionInPlace).toHaveBeenCalledWith("tab-1", "claude", {
         preserveChatInput: true,
         seedSelection: { baseModelId: "opus", effort: "low" },

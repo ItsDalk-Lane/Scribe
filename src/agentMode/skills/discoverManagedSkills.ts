@@ -1,13 +1,10 @@
 import { logWarn } from "@/logger";
 import { basename, joinPosix } from "@/utils/pathUtils";
-import { getBuiltinSkillVersion } from "./builtin/builtinOwnership";
-import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { mapWithConcurrency } from "./concurrency";
 import { parseSkillFile, SkillFormatError } from "./skillFormat";
 import type { RejectedSkill, Skill, SkillDiscoveryResult } from "./types";
 
 const DISCOVERY_CONCURRENCY = 16;
-const BUILTIN_NAMES = new Set(BUILTIN_SKILLS.map((skill) => skill.name));
 
 export interface SkillsFsAdapter {
   exists(relPath: string): Promise<boolean>;
@@ -70,7 +67,6 @@ export async function discoverManagedSkills(
       const fm = parsed.frontmatter;
 
       return {
-        builtin: BUILTIN_NAMES.has(fm.name) && getBuiltinSkillVersion(content) !== null,
         name: fm.name,
         description: fm.description,
         filePath: absFile,

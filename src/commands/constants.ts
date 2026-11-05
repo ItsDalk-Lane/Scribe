@@ -4,6 +4,7 @@ export const LEGACY_SELECTED_TEXT_PLACEHOLDER = "{scribe-selection}";
 export const EMPTY_COMMAND: CustomCommand = {
   title: "",
   enabled: true,
+  enableTemplating: true,
   content: "",
   showInContextMenu: true,
   showInSlashMenu: true,
@@ -13,6 +14,7 @@ export const EMPTY_COMMAND: CustomCommand = {
 };
 
 export const SCRIBE_COMMAND_ENABLED = "scribe-command-enabled";
+export const SCRIBE_COMMAND_ENABLE_TEMPLATING = "scribe-command-enable-templating";
 export const SCRIBE_COMMAND_CONTEXT_MENU_ENABLED = "scribe-command-context-menu-enabled";
 export const SCRIBE_COMMAND_SLASH_ENABLED = "scribe-command-slash-enabled";
 export const SCRIBE_COMMAND_CONTEXT_MENU_ORDER = "scribe-command-context-menu-order";

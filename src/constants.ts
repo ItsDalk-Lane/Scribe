@@ -1,6 +1,4 @@
-import { DEFAULT_BUILTIN_PREFERENCES } from "@/builtinSkills/builtinSkills";
 import { type ScribeSettings } from "@/settings/model";
-import { PromptSortStrategy } from "./types";
 
 export const BREVILABS_API_BASE_URL = "https://api.brevilabs.com/v1";
 export const CHAT_AGENT_VIEWTYPE = "scribe-agent-chat-view";
@@ -27,13 +25,10 @@ export const AI_SENDER = "ai";
 
 export const SCRIBE_FOLDER_ROOT = "scribe";
 export const DEFAULT_SCRIBE_FOLDER = SCRIBE_FOLDER_ROOT;
-const DEFAULT_CHAT_HISTORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-conversations`;
 const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-custom-prompts`;
 const DEFAULT_MEMORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/memory`;
-const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/system-prompts`;
 const DEFAULT_PROJECTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/projects`;
 export const DEFAULT_SKILLS_FOLDER = `${SCRIBE_FOLDER_ROOT}/skills`;
-export const SCRIBE_CONVERSATION_TAG = "scribe-conversation";
 export const DEFAULT_QA_EXCLUSIONS_SETTING = SCRIBE_FOLDER_ROOT;
 export const NOTE_CONTEXT_PROMPT_TAG = "note_context";
 export const SELECTED_TEXT_TAG = "selected_text";
@@ -272,9 +267,6 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
   openAIProxyBaseUrl: "",
   scribeFolder: DEFAULT_SCRIBE_FOLDER,
   scribeRootHistory: [],
-  defaultSaveFolder: DEFAULT_CHAT_HISTORY_FOLDER,
-  defaultConversationTag: "scribe-conversation",
-  autosaveChat: true,
   autoAttachActiveNote: true,
   defaultOpenArea: DEFAULT_OPEN_AREA.VIEW,
   defaultSendShortcut: SEND_SHORTCUT.ENTER,
@@ -286,30 +278,24 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
   groqApiKey: "",
   activeModels: [],
   promptUsageTimestamps: {},
-  promptSortStrategy: PromptSortStrategy.TIMESTAMP,
   chatHistorySortStrategy: "recent",
   projectsFolder: DEFAULT_PROJECTS_FOLDER,
-  defaultConversationNoteName: "{$topic}@{$date}_{$time}",
   inlineEditCommands: [],
   projectList: [],
-  enableCustomPromptTemplating: true,
   memoryFolderName: DEFAULT_MEMORY_FOLDER,
   quickCommandModelKey: undefined,
   quickCommandIncludeNoteContext: true,
-  userSystemPromptsFolder: DEFAULT_SYSTEM_PROMPTS_FOLDER,
   defaultSystemPromptTitle: "",
   agentMode: {
     byok: {},
     activeBackend: "native",
     backends: {},
     debugFullFrames: true,
-    offerFeedbackCards: true,
     notificationSound: true,
     notificationSoundId: "piano",
     welcomeDismissed: false,
     skills: {
       folder: DEFAULT_SKILLS_FOLDER,
-      builtinPreferences: DEFAULT_BUILTIN_PREFERENCES,
     },
   },
   providers: {},

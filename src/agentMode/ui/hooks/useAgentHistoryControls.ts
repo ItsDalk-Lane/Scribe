@@ -5,10 +5,9 @@ import { GLOBAL_SCOPE, type ProjectScopeId } from "@/agentMode/session/scope";
 import type { ChatHistoryItem } from "@/components/chat-components/ChatHistoryPopover";
 import { logError } from "@/logger";
 import type ScribePlugin from "@/main";
-import { buildChatDeepLink, getSavedChatDeepLinkId } from "@/utils/chatDeepLink";
-import { extractChatTitle } from "@/utils/chatHistoryUtils";
+import { buildChatDeepLink } from "@/utils/chatDeepLink";
 import { getUrlBookmarks, isBookmarksPluginDisabled } from "@/utils/obsidianBookmarks";
-import { type App, Notice, TFile } from "obsidian";
+import { Notice } from "obsidian";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const EMPTY_CHAT_HISTORY_ITEMS = Object.freeze([]) as unknown as ChatHistoryItem[];
@@ -21,7 +20,6 @@ export interface AgentHistoryControls {
   updateChatTitle: (id: string, newTitle: string) => Promise<void>;
   deleteChat: (id: string) => Promise<void>;
   setChatPinned: (id: string, pinned: boolean) => Promise<void>;
-  openSourceFile: (id: string) => Promise<void>;
   copyChatLink: (id: string) => Promise<void>;
   getChatBookmarkState: (id: string) => Promise<ChatBookmarkState>;
   setChatBookmarked: (id: string, title: string, bookmarked: boolean) => Promise<void>;
@@ -29,11 +27,6 @@ export interface AgentHistoryControls {
 }
 
 export type ChatBookmarkState = "unavailable" | "off" | "bookmarked" | "not-bookmarked";
-async function getChatLink(app: App, notePath: string): Promise<string | null> {
-  const id = await getSavedChatDeepLinkId(app, notePath);
-  return id && buildChatDeepLink(app.vault.getName(), id);
-}
-
 export function useAgentHistoryControls(
   manager: AgentSessionManager,
   plugin: ScribePlugin,
@@ -121,7 +114,9 @@ export function useAgentHistoryControls(
         await runWithNotice(
           t("delete chat"),
           async () => {
-            const link = await getChatLink(plugin.app, id);
+            const link = await manager
+              .getChatLinkId(id)
+              .then((key) => key && buildChatDeepLink(plugin.app.vault.getName(), key));
             await manager.deleteChatHistory(id);
             new Notice(formatChatDeleteNotice());
             if (link) {
@@ -155,41 +150,21 @@ export function useAgentHistoryControls(
     [manager, runWithNotice]
   );
 
-  const openSourceFile = useCallback(
-    async (id: string) => {
-      await runWithNotice(t("open chat source"), () => plugin.openChatSourceFile(id));
-    },
-    [plugin, runWithNotice]
-  );
-
-  const replaceChatRowId = useCallback((id: string, notePath: string) => {
-    if (notePath === id || !isMountedRef.current) return;
-    setChatHistoryItems((items) =>
-      items.map((item) => (item.id === id ? { ...item, id: notePath } : item))
-    );
-  }, []);
-
-  const copyChatLink = useCallback(
-    (id: string) =>
-      plugin.copyChatLink(async () => {
-        const notePath = await manager.ensureChatNote(id);
-        replaceChatRowId(id, notePath);
-        return notePath;
-      }),
-    [manager, plugin, replaceChatRowId]
-  );
+  const copyChatLink = useCallback((id: string) => plugin.copyChatLink(async () => id), [plugin]);
 
   const getChatBookmarkState = useCallback(
     async (id: string): Promise<ChatBookmarkState> => {
       const state = await runWithNotice(t("read bookmarks"), async () => {
         const bookmarks = getUrlBookmarks(plugin.app);
         if (!bookmarks) return isBookmarksPluginDisabled(plugin.app) ? "off" : "unavailable";
-        const link = await getChatLink(plugin.app, id);
+        const link = await manager
+          .getChatLinkId(id)
+          .then((key) => key && buildChatDeepLink(plugin.app.vault.getName(), key));
         return link && bookmarks.has(link) ? "bookmarked" : "not-bookmarked";
       });
       return state ?? "unavailable";
     },
-    [plugin, runWithNotice]
+    [manager, plugin, runWithNotice]
   );
 
   const setChatBookmarked = useCallback(
@@ -197,9 +172,9 @@ export function useAgentHistoryControls(
       await runWithNotice(bookmarked ? t("bookmark chat") : t("remove bookmark"), async () => {
         const bookmarks = getUrlBookmarks(plugin.app);
         if (!bookmarks) throw new Error(t("The Bookmarks core plugin is not enabled."));
-        const notePath = bookmarked ? await manager.ensureChatNote(id) : id;
-        const link = await getChatLink(plugin.app, notePath);
-        if (!link) throw new Error(t('No chat link for "{p0}".', { p0: notePath }));
+        const key = await manager.getChatLinkId(id);
+        const link = key && buildChatDeepLink(plugin.app.vault.getName(), key);
+        if (!link) throw new Error(t('No chat link for "{p0}".', { p0: id }));
         if (bookmarked) {
           bookmarks.add(link, title);
           new Notice(t("Bookmarked."));
@@ -207,26 +182,24 @@ export function useAgentHistoryControls(
           bookmarks.remove(link);
           new Notice(t("Removed from bookmarks."));
         }
-        replaceChatRowId(id, notePath);
       });
     },
-    [manager, plugin, runWithNotice, replaceChatRowId]
+    [manager, plugin, runWithNotice]
   );
 
   const setActiveChatBookmarked = useCallback(
     async (bookmarked: boolean) => {
       await runWithNotice(bookmarked ? t("bookmark chat") : t("remove bookmark"), async () => {
         const session = manager.getActiveSession();
-        const label = session?.getLabel();
-        const path = bookmarked
-          ? (await manager.saveActiveSession())?.path
-          : session && manager.getSessionSourcePath(session.internalId);
-        const file = path ? plugin.app.vault.getAbstractFileByPath(path) : null;
-        if (!(file instanceof TFile)) throw new Error(t("The active chat has no saved note."));
-        await setChatBookmarked(file.path, label ?? extractChatTitle(plugin.app, file), bookmarked);
+        if (!session) return;
+        await setChatBookmarked(
+          manager.getSessionHistoryId(session.internalId),
+          session.getLabel() ?? t("Chat"),
+          bookmarked
+        );
       });
     },
-    [manager, plugin, runWithNotice, setChatBookmarked]
+    [manager, runWithNotice, setChatBookmarked]
   );
 
   return {
@@ -237,7 +210,6 @@ export function useAgentHistoryControls(
     updateChatTitle,
     deleteChat,
     setChatPinned,
-    openSourceFile,
     copyChatLink,
     getChatBookmarkState,
     setChatBookmarked,

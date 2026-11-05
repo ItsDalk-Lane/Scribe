@@ -47,12 +47,12 @@ function pickerIds(): string[] {
 
 describe("atoms", () => {
   describe("chatBackendPickerAtom", () => {
-    it("lists enabled models in order and marks missing models as broken", () => {
-      expect(pickerIds()).toEqual(["cloud-m", "local-m", "missing"]);
+    it("lists configured chat models in registration order regardless of old switches https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      setSettings({ backends: { chat: { enabledModels: [] } } });
+      expect(pickerIds()).toEqual(["cloud-m", "local-m"]);
       expect(settingsStore.get(chatBackendPickerAtom).map((entry) => entry.state)).toEqual([
         "ok",
         "ok",
-        "broken",
       ]);
     });
 
@@ -90,7 +90,6 @@ describe("atoms", () => {
         ["chat", "ok"],
         ["manual-unknown", "ok"],
         ["orphan-chat", "broken"],
-        ["missing-record", "broken"],
       ]);
       expect(settingsStore.get(configuredModelsAtom)).toEqual(saved);
       expect(settingsStore.get(backendsAtom).chat?.enabledModels).toEqual(enabledModels);
@@ -108,8 +107,8 @@ describe("atoms", () => {
       expect(after).toBe(before);
     });
 
-    it("returns the same empty list on every read when no models are enabled", () => {
-      setSettings({ backends: { chat: { enabledModels: [] } } });
+    it("returns the same empty list on every read when no models are configured", () => {
+      setSettings({ configuredModels: [] });
       const a = settingsStore.get(chatBackendPickerAtom);
       const b = settingsStore.get(chatBackendPickerAtom);
       expect(a).toHaveLength(0);

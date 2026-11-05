@@ -27,10 +27,6 @@ export function deriveConversationsFolder(settings: FolderSettings): string {
   return deriveSubfolder(settings, SCRIBE_SUBFOLDER.conversations);
 }
 
-export function deriveConversationAttachmentsFolder(conversationsFolder: string): string {
-  return normalizePath(`${conversationsFolder}/attachments`);
-}
-
 export function deriveCustomPromptsFolder(settings: FolderSettings): string {
   return deriveSubfolder(settings, SCRIBE_SUBFOLDER.customPrompts);
 }
@@ -84,7 +80,6 @@ export async function ensureScribeSubfolders(
   settings: FolderSettings
 ): Promise<void> {
   const derivers = [
-    deriveConversationsFolder,
     deriveCustomPromptsFolder,
     deriveSystemPromptsFolder,
     deriveSkillsFolder,

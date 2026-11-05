@@ -2,10 +2,6 @@ import { t } from "@/lib/i18n";
 import { AgentTrail } from "@/agentMode/ui/AgentTrailView";
 import { AskUserQuestionCard } from "@/agentMode/ui/AskUserQuestionCard";
 import { PlanProposalCard } from "@/agentMode/ui/PlanProposalCard";
-import { FeedbackCard, findFeedbackCardIndex } from "@/agentMode/ui/FeedbackCard";
-import { openReportIssueModal } from "@/agentMode/ui/ReportIssueModal";
-import { formatFeedbackNote, type FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
-import { setSettings } from "@/settings/model";
 import { ToolPermissionCard } from "@/agentMode/ui/ToolPermissionCard";
 import { useAgentTasks } from "@/agentMode/ui/AgentTasksContext";
 import { permissionRequesterName } from "@/agentMode/ui/taskDisplay";
@@ -36,7 +32,6 @@ interface AgentChatMessagesProps {
   pendingAskUserQuestions: AskUserQuestionPrompt[];
   chatBackend: AgentChatBackend;
   isLoading: boolean;
-  feedbackOffer: FeedbackOffer | null;
   onForkMessage?: (messageId: string) => Promise<void>;
 }
 
@@ -86,7 +81,6 @@ interface AgentMessageRowProps {
   sourcePath: string;
   isLatestAssistant: boolean;
   isStreaming: boolean;
-  trailingCard?: React.ReactNode;
   onForkMessage?: (messageId: string) => void;
   forkDisabled?: boolean;
 }
@@ -97,7 +91,6 @@ const AgentMessageRow = memo(function AgentMessageRow({
   sourcePath,
   isLatestAssistant,
   isStreaming,
-  trailingCard,
   onForkMessage,
   forkDisabled,
 }: AgentMessageRowProps) {
@@ -161,7 +154,6 @@ const AgentMessageRow = memo(function AgentMessageRow({
           {runningTurnDuration ? <div className="tw-px-3">{runningTurnDuration}</div> : null}
         </>
       )}
-      {trailingCard}
     </div>
   );
 });
@@ -176,7 +168,6 @@ const AgentChatMessages = memo(
     pendingAskUserQuestions,
     chatBackend,
     isLoading,
-    feedbackOffer,
     onForkMessage,
   }: AgentChatMessagesProps) => {
     const { app } = plugin;
@@ -235,35 +226,6 @@ const AgentChatMessages = memo(
         ? `permission:${pendingPermission.toolCall.toolCallId}`
         : null;
 
-    const feedbackCardIndex = useMemo(
-      () => findFeedbackCardIndex(visible, feedbackOffer),
-      [visible, feedbackOffer]
-    );
-    const feedbackCard = useMemo(
-      () =>
-        feedbackOffer ? (
-          <FeedbackCard
-            offer={feedbackOffer}
-            onReview={() =>
-              openReportIssueModal(plugin, {
-                activeBackend: feedbackOffer.evidence.backendId,
-                initialNote: formatFeedbackNote(feedbackOffer),
-                preselectAllSources: true,
-                onReported: (report) => chatBackend.markFeedbackReported(report),
-              })
-            }
-            onDismiss={() => chatBackend.dismissFeedbackOffer()}
-            onTurnOff={() => {
-              setSettings((cur) => ({
-                agentMode: { ...cur.agentMode, offerFeedbackCards: false },
-              }));
-              chatBackend.dismissFeedbackOffer();
-            }}
-          />
-        ) : null,
-      [feedbackOffer, plugin, chatBackend]
-    );
-
     const latestAssistant = useMemo(() => lastAssistant(visible), [visible]);
     const streamingMessageId =
       isLoading && !latestAssistant?.turnStopReason ? latestAssistant?.id : undefined;
@@ -290,7 +252,6 @@ const AgentChatMessages = memo(
                   message.sender !== USER_SENDER && message.id === latestAssistant?.id
                 }
                 isStreaming={message.id === streamingMessageId}
-                trailingCard={index === feedbackCardIndex ? feedbackCard : undefined}
               />
             );
           })}
