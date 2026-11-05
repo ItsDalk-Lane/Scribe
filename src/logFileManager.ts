@@ -135,10 +135,16 @@ class LogFileManager {
     if (typeof value === "object" && value.constructor === Object) {
       const result: Record<string, unknown> = {};
       const obj = value as Record<string, unknown>;
+      // 授权凭据也可能放在通用名称和值中，不能写入诊断记录。 https://github.com/ItsDalk-Lane/Scribe/issues/17
+      const authorization = /^(?:proxy[-_]?)?authorization$/i;
+      const sensitivePair =
+        typeof obj.name === "string" && (isSensitiveKey(obj.name) || authorization.test(obj.name));
 
       for (const [key, val] of Object.entries(obj)) {
         if (
           isSensitiveKey(key) ||
+          authorization.test(key) ||
+          (key === "value" && sensitivePair) ||
           /orgId$/i.test(key) ||
           /instanceName$/i.test(key) ||
           /deploymentName$/i.test(key) ||

@@ -34,7 +34,7 @@ describe("legacyCredentialBackup", () => {
   });
 
   describe("backupLegacyCredentials()", () => {
-    it("copies the raw file verbatim when it still holds credentials", async () => {
+    it("backs up the serialized settings object when it holds credentials", async () => {
       const io = makeIO();
       const rawData = {
         openAIApiKey: "sk-legacy",

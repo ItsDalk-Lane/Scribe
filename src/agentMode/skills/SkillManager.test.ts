@@ -111,13 +111,27 @@ describe("SkillManager", () => {
 
   describe("SkillManager", () => {
     describe("refresh", () => {
-      it(`uses one availability snapshot for every built-in row`, async () => {
+      it("uses saved preferences instead of a discovered empty enabled list for built-in skills (https://github.com/ItsDalk-Lane/Scribe/issues/21)", async () => {
+        const f = builtinFixture();
+        mockedDiscoverManagedSkills.mockResolvedValue(
+          discoveryResult([{ ...builtinSkill, enabledAgents: [] }])
+        );
+
+        await f.manager.refresh();
+
+        expect(getManagedSkills()[0].enabledAgents).toEqual(["claude", "opencode"]);
+        expect(mockedReconcile).toHaveBeenCalledWith(
+          expect.objectContaining({
+            skills: [expect.objectContaining({ enabledAgents: ["claude", "opencode"] })],
+          })
+        );
+      });
+      it(`uses the registered agents and saved preferences for every built-in row`, async () => {
         const f = builtinFixture();
         mockedDiscoverManagedSkills.mockResolvedValue(
           discoveryResult([builtinSkill, { ...builtinSkill, name: BUILTIN_SKILLS[1].name }])
         );
         await f.manager.refresh();
-        expect(f.availableAgents).toHaveBeenCalledTimes(1);
         expect(getManagedSkills().map((row) => row.enabledAgents)).toEqual([
           ["claude", "opencode"],
           ["claude", "opencode"],
@@ -886,7 +900,6 @@ const builtinSkill: Skill = makeSkill({
 function builtinFixture() {
   mockedDiscoverManagedSkills.mockResolvedValue(discoveryResult([builtinSkill]));
   const prepare = jest.fn(async () => {});
-  const availableAgents = jest.fn(() => ["claude", "opencode"]);
   const savePreferences = jest.fn(
     async (update: (current: BuiltinPreferences) => BuiltinPreferences) => {
       preferences = sanitizeBuiltinPreferences(update(preferences)) ?? {};
@@ -896,7 +909,7 @@ function builtinFixture() {
   const manager = SkillManager.initialize(
     makeApp(),
     { claude: ".claude/skills", opencode: ".opencode/skills" },
-    { prepare, availableAgents, savePreferences }
+    { prepare, savePreferences }
   );
-  return { manager, prepare, availableAgents, savePreferences };
+  return { manager, prepare, savePreferences };
 }

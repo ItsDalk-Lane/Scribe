@@ -104,7 +104,7 @@ export function AgentConfigurationCard({
           </p>
         )}
         <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
-          <span className="tw-text-ui-small">{t("Model settings")}</span>
+          <span className="tw-text-ui-small">{t("Models and providers")}</span>
           <Button variant="secondary" onClick={onConfigure}>
             {t("Configure")}
           </Button>

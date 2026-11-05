@@ -1,8 +1,13 @@
 import * as agentWelcomeStories from "@/agentMode/ui/AgentWelcomeCard.stories";
+import * as projectSkillStories from "@/agentMode/skills/ui/SkillRowLayout.stories";
 import * as galleryHostStories from "@/components/gallery-hosts.stories";
 import * as badgeStories from "@/components/ui/badge.stories";
 import * as buttonStories from "@/components/ui/button.stories";
+import * as modePickerStories from "@/components/ui/ModePicker.stories";
+import * as providerListStories from "@/modelManagement/ui/components/ProviderModelTable.stories";
+import * as quickActionStories from "@/settings/v2/components/ui/QuickActionsTabs.stories";
 import { AppContext } from "@/context";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { act, fireEvent, render, type RenderResult, within } from "@testing-library/react";
 import type { App } from "obsidian";
 import * as React from "react";
@@ -780,6 +785,77 @@ describe("Gallery", () => {
       )?.[1];
       act(() => closeSettings?.());
       expect(gallery.queryByText("Settings example")).toBeNull();
+    });
+
+    it("renders independent project skill states in the settings gallery at each preset width (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+      const catalog = createGalleryCatalog(
+        [{ componentId: "@/agentMode/skills/ui/SkillRowLayout", storyModule: projectSkillStories }],
+        1
+      );
+      const gallery = render(<GalleryHarness catalog={catalog} />);
+      selectStoryInTree(gallery, "Skills/Custom skill row/ProjectScopes");
+
+      for (const width of ["300", "340", "400", "600"]) {
+        fireEvent.click(gallery.getByRole("button", { name: width }));
+        expect(
+          gallery
+            .getByRole("switch", { name: "Enable review-notes in Alpha" })
+            .getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+          gallery
+            .getByRole("switch", { name: "Enable review-notes in Beta" })
+            .getAttribute("aria-checked")
+        ).toBe("false");
+      }
+    });
+
+    it("renders the model settings name and a remote provider without a key at each preset width", () => {
+      const catalog = createGalleryCatalog(
+        [
+          {
+            componentId: "@/settings/v2/components/ui/QuickActionsTabs",
+            storyModule: quickActionStories,
+          },
+          {
+            componentId: "@/modelManagement/ui/components/ProviderModelTable",
+            storyModule: providerListStories,
+          },
+        ],
+        2
+      );
+      const gallery = render(<GalleryHarness catalog={catalog} />);
+      selectStoryInTree(gallery, "Settings/Quick actions tabs/ModelsAndProviders");
+
+      for (const width of ["300", "340", "400", "600"]) {
+        fireEvent.click(gallery.getByRole("button", { name: width }));
+        expect(gallery.getByRole("tab", { name: "Models and providers" })).toBeTruthy();
+      }
+
+      selectStoryInTree(gallery, "Settings/Provider List/KeylessRemote");
+      for (const width of ["300", "340", "400", "600"]) {
+        fireEvent.click(gallery.getByRole("button", { name: width }));
+        expect(gallery.getByText("No API key required")).toBeTruthy();
+        expect(gallery.getByText("Sends requests to: Public gateway")).toBeTruthy();
+      }
+    });
+
+    it("renders the Chinese plan mode in the gallery at each preset width", () => {
+      setInterfaceLocale("zh-CN");
+      try {
+        const catalog = createGalleryCatalog(
+          [{ componentId: "@/components/ui/ModePicker", storyModule: modePickerStories }],
+          1
+        );
+        const gallery = render(<GalleryHarness catalog={catalog} />);
+        selectStoryInTree(gallery, "UI/Mode Picker/Plan");
+        for (const width of ["300", "340", "400", "600"]) {
+          fireEvent.click(gallery.getByRole("button", { name: width }));
+          expect(gallery.getByRole("button", { name: "计划" })).toBeTruthy();
+        }
+      } finally {
+        setInterfaceLocale("en");
+      }
     });
 
     it("applies a preset width to the canvas and the rendered story", () => {

@@ -53,7 +53,12 @@ import type ScribePlugin from "@/main";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { getProjectLandingCaptureSignature } from "@/projects/projectContextSignature";
 import { getCachedProjectRecordById, useProjects } from "@/projects/state";
-import { getSettings, updateSetting, useSettingsValue } from "@/settings/model";
+import {
+  getModelKeyFromModel,
+  getSettings,
+  updateSetting,
+  useSettingsValue,
+} from "@/settings/model";
 import { Files, Folder, MessageSquare } from "lucide-react";
 import { Notice } from "obsidian";
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -289,6 +294,9 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   }, [isOrphanedProject]);
 
   const modelPickerOverride = useAgentModelPicker(manager, plugin);
+  const selectedModel = modelPickerOverride?.models.find(
+    (model) => getModelKeyFromModel(model) === modelPickerOverride.value
+  );
   const modePickerOverride = useAgentModePicker(manager);
 
   const handleCycleMode = useCallback(() => {
@@ -542,6 +550,11 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       modePickerOverride={modePickerOverride ?? undefined}
       onCycleMode={handleCycleMode}
       disabled={isOrphanedProject}
+      sendDisabled={
+        // 已有聊天也必须遵守当前模型就绪状态，避免发送失败后消耗草稿。https://github.com/ItsDalk-Lane/Scribe/issues/21
+        descriptor.getInstallState(settings).kind !== "ready" ||
+        Boolean(modelPickerOverride && (!selectedModel || selectedModel._disabledReason))
+      }
     />
   );
 

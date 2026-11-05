@@ -12,6 +12,38 @@ const message = (sender: string, text: string, id = text): AgentChatMessage => (
 
 describe("sessionSnapshotMessages", () => {
   describe("mergeSnapshotReplay()", () => {
+    it("preserves an edited saved reply and its unknown data while restoring failure metadata", () => {
+      const saved = [
+        message(USER_SENDER, "Question"),
+        {
+          ...message(AI_SENDER, "Saved user edit"),
+          parts: [{ kind: "text" as const, text: "Saved user edit" }],
+          custom: { nested: ["keep"] },
+        },
+      ];
+      const replay = [
+        message(USER_SENDER, "Question"),
+        {
+          ...message(AI_SENDER, "Original partial reply\n\n**Error:** stream failure"),
+          parts: [{ kind: "text" as const, text: "Original partial reply" }],
+          isErrorMessage: true,
+          errorText: "**Error:** stream failure",
+          futureReplayField: { keep: true },
+        },
+      ];
+      const before = JSON.stringify([saved, replay]);
+      const restored = mergeSnapshotReplay(saved, replay)[1];
+      expect(restored.message).toBe("Saved user edit");
+      expect(restored.parts).toEqual(saved[1].parts);
+      expect(restored).toMatchObject({
+        isErrorMessage: true,
+        errorText: "**Error:** stream failure",
+        custom: { nested: ["keep"] },
+        futureReplayField: { keep: true },
+      });
+      expect(JSON.stringify([saved, replay])).toBe(before);
+    });
+
     it("preserves completed local reply metadata when native replay contains the same conversation", () => {
       const saved = [
         message(USER_SENDER, "Question"),

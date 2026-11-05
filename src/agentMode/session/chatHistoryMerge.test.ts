@@ -24,14 +24,14 @@ function mdItem(overrides: Partial<ChatHistoryItem> = {}): ChatHistoryItem {
     title: "Saved chat",
     createdAt: new Date(1_000),
     lastAccessedAt: new Date(2_000),
-    backendId: "opencode",
+    backendId: "native",
     ...overrides,
   };
 }
 
 function nativeEntry(overrides: Partial<AgentSessionIndexEntry> = {}): AgentSessionIndexEntry {
   return {
-    backendId: "opencode",
+    backendId: "native",
     sessionId: "s1",
     title: "Native chat",
     createdAtMs: 1_500,
@@ -45,7 +45,7 @@ describe("chatHistoryMerge", () => {
     it("a session saved as markdown AND present natively appears exactly once, as the markdown item", () => {
       const item = mdItem();
       const merged = mergeChatHistoryItems(
-        [{ item, backendId: "opencode", sessionId: "s1" }],
+        [{ item, backendId: "native", sessionId: "s1" }],
         [nativeEntry({ sessionId: "s1" })]
       );
       expect(merged).toHaveLength(1);
@@ -56,7 +56,7 @@ describe("chatHistoryMerge", () => {
     it("the merged item takes whichever side was accessed more recently", () => {
       const item = mdItem({ lastAccessedAt: new Date(2_000) });
       const [fresherNative] = mergeChatHistoryItems(
-        [{ item, backendId: "opencode", sessionId: "s1" }],
+        [{ item, backendId: "native", sessionId: "s1" }],
         [nativeEntry({ lastAccessedAtMs: 9_000 })]
       );
       expect(fresherNative?.lastAccessedAt.getTime()).toBe(9_000);
@@ -65,7 +65,7 @@ describe("chatHistoryMerge", () => {
         [
           {
             item: mdItem({ lastAccessedAt: new Date(9_500) }),
-            backendId: "opencode",
+            backendId: "native",
             sessionId: "s1",
           },
         ],
@@ -77,18 +77,18 @@ describe("chatHistoryMerge", () => {
     it("native-only sessions become items with the encoded native id and backend icon hint", () => {
       const merged = mergeChatHistoryItems(
         [],
-        [nativeEntry({ backendId: "codex", projectId: "project-1" })]
+        [nativeEntry({ backendId: "native", projectId: "project-1" })]
       );
       expect(merged).toHaveLength(1);
-      expect(merged[0]?.id).toBe(buildNativeChatId("codex", "s1"));
-      expect(merged[0]?.backendId).toBe("codex");
+      expect(merged[0]?.id).toBe(buildNativeChatId("native", "s1"));
+      expect(merged[0]?.backendId).toBe("native");
       expect(merged[0]?.projectId).toBe("project-1");
       expect(merged[0]?.createdAt.getTime()).toBe(1_500);
     });
 
     it("keeps the pin time of a saved chat that also exists natively", () => {
       const [merged] = mergeChatHistoryItems(
-        [{ item: mdItem({ pinnedAt: 7_000 }), backendId: "opencode", sessionId: "s1" }],
+        [{ item: mdItem({ pinnedAt: 7_000 }), backendId: "native", sessionId: "s1" }],
         [nativeEntry({ sessionId: "s1", lastAccessedAtMs: 9_000 })]
       );
       expect(merged?.pinnedAt).toBe(7_000);
@@ -96,7 +96,7 @@ describe("chatHistoryMerge", () => {
 
     it("fills missing markdown project ownership from its native twin", () => {
       const [merged] = mergeChatHistoryItems(
-        [{ item: mdItem(), backendId: "opencode", sessionId: "s1" }],
+        [{ item: mdItem(), backendId: "native", sessionId: "s1" }],
         [nativeEntry({ projectId: "project-1" })]
       );
 
@@ -110,8 +110,8 @@ describe("chatHistoryMerge", () => {
 
     it("different sessions on different backends never merge, even with the same session id", () => {
       const merged = mergeChatHistoryItems(
-        [{ item: mdItem(), backendId: "opencode", sessionId: "s1" }],
-        [nativeEntry({ backendId: "codex", sessionId: "s1" })]
+        [{ item: mdItem(), backendId: "native", sessionId: "s1" }],
+        [nativeEntry({ backendId: "other-backend", sessionId: "s1" })]
       );
       expect(merged).toHaveLength(2);
     });

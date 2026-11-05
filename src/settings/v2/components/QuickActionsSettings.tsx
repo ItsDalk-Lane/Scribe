@@ -1,4 +1,4 @@
-import { ByokPanel } from "@/modelManagement";
+import { ModelsAndProvidersPanel } from "@/modelManagement";
 import { CommandSettings } from "@/settings/v2/components/CommandSettings";
 import { QuickToolsPanel } from "@/settings/v2/components/QuickToolsPanel";
 import {
@@ -13,7 +13,7 @@ export const QuickActionsSettings: React.FC = () => {
   return (
     <QuickActionsTabs section={section} onSectionChange={setSection}>
       {section === "models" ? (
-        <ByokPanel />
+        <ModelsAndProvidersPanel />
       ) : section === "tools" ? (
         <QuickToolsPanel />
       ) : (

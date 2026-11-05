@@ -1,4 +1,6 @@
 import { t } from "@/lib/i18n";
+import { logWarn } from "@/logger";
+import { safeAsyncHandler } from "@/utils/safeAsyncHandler";
 import { ProjectConfig } from "@/aiParams";
 import { FolderSearchModal } from "@/components/modals/FolderSearchModal";
 import { ProjectFileSelectModal } from "@/components/modals/ProjectFileSelectModal";
@@ -310,7 +312,7 @@ function CategoryItemCard({
 
 interface ContextManageProps {
   initialProject: ProjectConfig;
-  onSave: (project: ProjectConfig) => void;
+  onSave: (project: ProjectConfig) => void | Promise<unknown>;
   onCancel: () => void;
   app: App;
   popoverContainer?: HTMLElement | null;
@@ -348,7 +350,7 @@ function isCategoryItem(item: DisplayItem): item is CategoryItem {
   return "type" in item;
 }
 
-function ContextManage({
+export function ContextManage({
   initialProject,
   onSave,
   onCancel,
@@ -356,6 +358,7 @@ function ContextManage({
   popoverContainer,
 }: ContextManageProps) {
   const isMobile = Platform.isMobile;
+  const [saving, setSaving] = useState(false);
   const contextUrls = useContextUrls(initialProject);
 
   const { inclusions: inclusionPatterns, exclusions: exclusionPatterns } = useMemo(() => {
@@ -1127,19 +1130,28 @@ function ContextManage({
     }
   };
 
-  const handleSave = () => {
-    const include = convertGroupListToInclusions(groupList);
-    const exclude = convertDeletedItemsToExclusions(ignoreItems);
-    onSave({
-      ...initialProject,
-      contextSource: {
-        ...initialProject.contextSource,
-        inclusions: include,
-        exclusions: exclude,
-        webUrls: contextUrls.webUrls,
-        youtubeUrls: contextUrls.youtubeUrls,
-      },
-    });
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const include = convertGroupListToInclusions(groupList);
+      const exclude = convertDeletedItemsToExclusions(ignoreItems);
+      await onSave({
+        ...initialProject,
+        contextSource: {
+          ...initialProject.contextSource,
+          inclusions: include,
+          exclusions: exclude,
+          webUrls: contextUrls.webUrls,
+          youtubeUrls: contextUrls.youtubeUrls,
+        },
+      });
+    } catch (error) {
+      logWarn("[project-context] failed to save context changes", error);
+      new Notice(t("Failed to save project context. Check the result and try again."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1341,10 +1353,12 @@ function ContextManage({
         </ResizablePanel>
       </ResizablePanelGroup>
       <div className="tw-flex tw-justify-end tw-gap-2 tw-border-t tw-p-1">
-        <Button variant="ghost" onClick={onCancel}>
+        <Button variant="ghost" disabled={saving} onClick={onCancel}>
           {t("Cancel")}
         </Button>
-        <Button onClick={handleSave}>{t("Save")}</Button>
+        <Button disabled={saving} onClick={safeAsyncHandler(handleSave)}>
+          {saving ? t("Saving...") : t("Save")}
+        </Button>
       </div>
     </div>
   );
@@ -1355,7 +1369,7 @@ export class ContextManageModal extends Modal {
 
   constructor(
     app: App,
-    private onSave: (project: ProjectConfig) => void,
+    private onSave: (project: ProjectConfig) => void | Promise<unknown>,
     private initialProject: ProjectConfig
   ) {
     super(app);
@@ -1367,8 +1381,8 @@ export class ContextManageModal extends Modal {
 
     modalEl.addClass("tw-min-w-[50vw]");
 
-    const handleSave = (project: ProjectConfig) => {
-      this.onSave(project);
+    const handleSave = async (project: ProjectConfig) => {
+      await this.onSave(project);
       this.close();
     };
 

@@ -1,11 +1,10 @@
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders, DEFAULT_SETTINGS } from "@/constants";
-import { KeychainService } from "@/services/keychainService";
 import { type ScribeSettings, setSettings } from "@/settings/model";
 
 import {
-  executeGitHubCopilotRemoval,
-  planGitHubCopilotRemoval,
+  executeRetiredModelsAndSelectionsRemoval,
+  planRetiredModelsAndSelectionsRemoval,
 } from "./githubCopilotRemovalMigration";
 
 jest.mock("@/logger", () => ({
@@ -19,27 +18,7 @@ jest.mock("@/settings/model", () => {
   return { ...actual, setSettings: jest.fn() };
 });
 
-jest.mock("@/services/keychainService", () => ({
-  KeychainService: { getInstance: jest.fn() },
-}));
-
 const mockSetSettings = setSettings as jest.MockedFunction<typeof setSettings>;
-const mockGetInstance = KeychainService.getInstance as jest.MockedFunction<
-  typeof KeychainService.getInstance
->;
-
-function keychain(overrides: Partial<KeychainService> = {}) {
-  const instance = {
-    isAvailable: jest.fn(() => true),
-    deleteSecret: jest.fn(),
-    ...overrides,
-  } as unknown as KeychainService;
-  mockGetInstance.mockReturnValue(instance);
-  return instance as unknown as {
-    isAvailable: jest.Mock;
-    deleteSecret: jest.Mock;
-  };
-}
 
 function model(overrides: Partial<CustomModel>): CustomModel {
   return {
@@ -59,10 +38,10 @@ describe("githubCopilotRemovalMigration", () => {
     jest.clearAllMocks();
   });
 
-  describe("planGitHubCopilotRemoval", () => {
+  describe("planRetiredModelsAndSelectionsRemoval()", () => {
     it("returns null for a vault that never configured GitHub Copilot", () => {
       expect(
-        planGitHubCopilotRemoval(
+        planRetiredModelsAndSelectionsRemoval(
           settingsWith({
             activeModels: [model({ name: "gpt-4o" })],
             defaultModelKey: "gpt-4o|openai",
@@ -72,7 +51,7 @@ describe("githubCopilotRemovalMigration", () => {
     });
 
     it("drops every GitHub Copilot model and keeps the rest in order", () => {
-      const patch = planGitHubCopilotRemoval(
+      const patch = planRetiredModelsAndSelectionsRemoval(
         settingsWith({
           activeModels: [
             model({ name: "gpt-4o", provider: "github-copilot" }),
@@ -92,20 +71,22 @@ describe("githubCopilotRemovalMigration", () => {
 
     it("clears a default model key that pointed at a GitHub Copilot model", () => {
       expect(
-        planGitHubCopilotRemoval(settingsWith({ defaultModelKey: "gpt-4o|github-copilot" }))
+        planRetiredModelsAndSelectionsRemoval(
+          settingsWith({ defaultModelKey: "gpt-4o|github-copilot" })
+        )
       ).toEqual({ defaultModelKey: "" });
     });
 
     it("clears a backend-prefixed default model key that pointed at a GitHub Copilot model", () => {
       expect(
-        planGitHubCopilotRemoval(
+        planRetiredModelsAndSelectionsRemoval(
           settingsWith({ defaultModelKey: "opencode:gpt-4o|github-copilot" })
         )
       ).toEqual({ defaultModelKey: "" });
     });
 
     it("clears the quick command selection to undefined so quick ask inherits the chat default again", () => {
-      const patch = planGitHubCopilotRemoval(
+      const patch = planRetiredModelsAndSelectionsRemoval(
         settingsWith({ quickCommandModelKey: "gpt-4o|github-copilot" })
       );
 
@@ -115,7 +96,9 @@ describe("githubCopilotRemovalMigration", () => {
 
     it("leaves a quick command selection that points at a surviving model alone", () => {
       expect(
-        planGitHubCopilotRemoval(settingsWith({ quickCommandModelKey: "gpt-4o|openai" }))
+        planRetiredModelsAndSelectionsRemoval(
+          settingsWith({ quickCommandModelKey: "gpt-4o|openai" })
+        )
       ).toBeNull();
     });
 
@@ -123,12 +106,12 @@ describe("githubCopilotRemovalMigration", () => {
       const bare = settingsWith();
       delete (bare as Partial<ScribeSettings>).activeModels;
 
-      expect(planGitHubCopilotRemoval(bare)).toBeNull();
+      expect(planRetiredModelsAndSelectionsRemoval(bare)).toBeNull();
     });
 
     it("does not treat a provider whose name merely contains the removed one as removed", () => {
       expect(
-        planGitHubCopilotRemoval(
+        planRetiredModelsAndSelectionsRemoval(
           settingsWith({
             activeModels: [model({ name: "gpt-4o", provider: "my-github-copilot-proxy" })],
             defaultModelKey: "gpt-4o|my-github-copilot-proxy",
@@ -138,11 +121,9 @@ describe("githubCopilotRemovalMigration", () => {
     });
   });
 
-  describe("executeGitHubCopilotRemoval", () => {
-    it("applies the plan and deletes both OAuth keychain entries", () => {
-      const secrets = keychain();
-
-      executeGitHubCopilotRemoval(
+  describe("executeRetiredModelsAndSelectionsRemoval()", () => {
+    it("applies the removal plan for retired models and selections", () => {
+      executeRetiredModelsAndSelectionsRemoval(
         settingsWith({
           activeModels: [model({ name: "gpt-4o", provider: "github-copilot" })],
           defaultModelKey: "gpt-4o|github-copilot",
@@ -150,50 +131,12 @@ describe("githubCopilotRemovalMigration", () => {
       );
 
       expect(mockSetSettings).toHaveBeenCalledWith({ activeModels: [], defaultModelKey: "" });
-      expect(secrets.deleteSecret.mock.calls).toEqual([
-        ["githubCopilotAccessToken"],
-        ["githubCopilotToken"],
-      ]);
     });
 
-    it("still deletes the keychain entries when no models or selections changed", () => {
-      const secrets = keychain();
-
-      executeGitHubCopilotRemoval(settingsWith());
+    it("does not change settings when no models or selections match", () => {
+      executeRetiredModelsAndSelectionsRemoval(settingsWith());
 
       expect(mockSetSettings).not.toHaveBeenCalled();
-      expect(secrets.deleteSecret).toHaveBeenCalledTimes(2);
-    });
-
-    it("skips keychain deletion when the keychain is unavailable on this build", () => {
-      const secrets = keychain({ isAvailable: jest.fn(() => false) as never });
-
-      executeGitHubCopilotRemoval(settingsWith());
-
-      expect(secrets.deleteSecret).not.toHaveBeenCalled();
-    });
-
-    it("does not fail the migration when the keychain is locked", () => {
-      keychain({
-        deleteSecret: jest.fn(() => {
-          throw new Error("keychain locked");
-        }) as never,
-      });
-
-      expect(() => executeGitHubCopilotRemoval(settingsWith())).not.toThrow();
-    });
-
-    it("does not fail the migration when the keychain service is not initialized", () => {
-      mockGetInstance.mockImplementation(() => {
-        throw new Error("KeychainService must be initialized with app on first call");
-      });
-
-      expect(() =>
-        executeGitHubCopilotRemoval(
-          settingsWith({ activeModels: [model({ provider: "github-copilot" })] })
-        )
-      ).not.toThrow();
-      expect(mockSetSettings).toHaveBeenCalledWith({ activeModels: [] });
     });
   });
 });

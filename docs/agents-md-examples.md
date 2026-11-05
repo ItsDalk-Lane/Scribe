@@ -2,6 +2,10 @@
 
 `AGENTS.md` holds instructions that Agent Chat should keep following. Write shared vault rules once at the vault root. Scribe makes them available to its native agent. A Project can add a second `AGENTS.md` in its folder. Both sets of instructions are provided to the model; avoid conflicting rules because Scribe does not guarantee which one the model will follow.
 
+Isolated tests found that opening or restoring a Project can change existing instructions, and saving another Project detail can overwrite a newer instruction body. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. These examples are for use after the fixes. See [Projects](projects.md).
+
+隔离测试发现，打开或恢复项目可能改写已有说明；保存其他项目详情时也可能覆盖较新的说明。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下示例应在修复后使用，详见[项目](projects.md)。
+
 Start small. A useful file describes how _your_ vault works, not everything an AI might ever need to know.
 
 ## Starter `AGENTS.md` for an Obsidian vault

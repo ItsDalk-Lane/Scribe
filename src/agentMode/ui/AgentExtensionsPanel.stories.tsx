@@ -51,7 +51,7 @@ const groups: readonly AgentExtensionGroup[] = [
   },
 ];
 const args: AgentExtensionsPanelProps = {
-  agentName: "Claude Code",
+  agentName: "Test agent",
   groups,
   loading: false,
   forceExpanded: true,
@@ -185,7 +185,7 @@ export const PluginAvailability: StoryObj<AgentExtensionsPanelProps> = {
       {
         kind: "plugin",
         status: "partial",
-        warnings: [],
+        warnings: ["The agent reported plugin errors; details for each plugin were not provided."],
         items: [
           {
             id: "notes@community",

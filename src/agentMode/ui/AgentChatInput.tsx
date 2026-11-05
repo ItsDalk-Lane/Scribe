@@ -58,6 +58,7 @@ interface AgentChatInputProps {
   modePickerOverride: ChatInputProps["modePickerOverride"];
   onCycleMode: () => void;
   disabled?: boolean;
+  sendDisabled?: boolean;
 }
 
 interface MessagePreparationQueue {
@@ -157,6 +158,7 @@ export const AgentChatInput = memo(function AgentChatInput({
   modePickerOverride,
   onCycleMode,
   disabled = false,
+  sendDisabled = false,
 }: AgentChatInputProps) {
   const eventTarget = useContext(EventTargetContext);
   const managedSkills = useManagedSkills();
@@ -323,7 +325,7 @@ export const AgentChatInput = memo(function AgentChatInput({
 
   const handleSendMessage = useCallback(
     async (webTabs?: WebTabContext[]) => {
-      if (disabled) return;
+      if (disabled || sendDisabled) return;
       const text = inputMessage.trim();
       if (!text && selectedImages.length === 0) return;
       const rawInput = inputMessage;
@@ -435,6 +437,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       sendMidTurn,
       unsupportedImageModelLabel,
       disabled,
+      sendDisabled,
       resetCompose,
       restoreToComposer,
       runSend,
@@ -445,6 +448,7 @@ export const AgentChatInput = memo(function AgentChatInput({
   useEffect(() => {
     if (
       disabled ||
+      sendDisabled ||
       loading ||
       isStarting ||
       queuedPrompts.length > 0 ||
@@ -469,6 +473,7 @@ export const AgentChatInput = memo(function AgentChatInput({
     void runSend(combined);
   }, [
     disabled,
+    sendDisabled,
     loading,
     isStarting,
     queuedPrompts.length,
@@ -505,6 +510,7 @@ export const AgentChatInput = memo(function AgentChatInput({
           setInputMessage={setInputMessage}
           handleSendMessage={safeAsyncHandler((meta) => handleSendMessage(meta?.webTabs))}
           isGenerating={isReplyRunning}
+          sendDisabled={disabled || sendDisabled}
           onStopGenerating={safeAsyncHandler(handleStopGenerating)}
           onEscape={isReplyRunning ? safeAsyncHandler(handleStopGenerating) : undefined}
           onShiftTab={modePickerOverride ? onCycleMode : undefined}

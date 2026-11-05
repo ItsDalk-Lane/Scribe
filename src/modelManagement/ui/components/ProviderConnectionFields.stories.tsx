@@ -83,7 +83,7 @@ export const ChinesePermissionDenied: StoryObj<ProviderParameterFieldsProps> = {
       result={{
         ok: false,
         code: "permission_denied",
-        message: "此账号未开通所选模型，请更换模型或联系服务商开通权限。原配置仍可保存。",
+        message: "此账号未开通所选模型，请更换模型或联系供应商开通权限。原配置仍可保存。",
         checkedAt: 0,
       }}
     />

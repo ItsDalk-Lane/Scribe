@@ -92,7 +92,7 @@ type OriginKind = Provider["origin"]["kind"];
 function originBadgeLabel(kind: OriginKind): string {
   switch (kind) {
     case "byok":
-      return t("BYOK");
+      return t("Models and providers");
     case "agent":
       return t("Agent Provided");
   }

@@ -10,7 +10,7 @@ function offer(userSaid: string): FeedbackOffer {
       repro: "1. Type a garbled 'commit and push'.",
     },
     evidence: {
-      backendId: "claude",
+      backendId: "native",
       model: null,
       sessionId: "ses_42",
       raisedAt: "2026-10-08T22:13:52.669Z",
@@ -33,7 +33,7 @@ describe("feedbackOffer", () => {
           "",
           "Steps to reproduce: 1. Type a garbled 'commit and push'.",
           "",
-          "Evidence: backend claude · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z",
+          "Evidence: backend native · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z",
         ].join("\n")
       );
     });
@@ -49,7 +49,7 @@ describe("feedbackOffer", () => {
         ...offer(""),
         trigger: "turn_error",
         draft: {
-          title: "Agent Chat reply failed on claude",
+          title: "Agent Chat reply failed on native",
           whatHappened: "rate limited",
           userSaid: "",
           repro: "",
@@ -58,11 +58,11 @@ describe("feedbackOffer", () => {
 
       expect(formatFeedbackNote(failed)).toBe(
         [
-          "Agent Chat reply failed on claude",
+          "Agent Chat reply failed on native",
           "",
           "Error: rate limited",
           "",
-          "Evidence: backend claude · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z",
+          "Evidence: backend native · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z",
         ].join("\n")
       );
     });
@@ -71,7 +71,7 @@ describe("feedbackOffer", () => {
   describe("formatChatReportNote", () => {
     it("leaves the first line blank for the user's own description and ends with the chat's evidence line", () => {
       expect(formatChatReportNote(offer("").evidence)).toBe(
-        "\n\nEvidence: backend claude · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z"
+        "\n\nEvidence: backend native · model unknown · session ses_42 · 2026-10-08T22:13:52.669Z"
       );
     });
   });

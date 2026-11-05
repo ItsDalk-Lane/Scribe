@@ -20,7 +20,7 @@ need unit tests; use end-to-end tests when unit tests can't answer the question.
 - For how to structure code so it's unit-testable — dependency injection, pure
   leaf modules, the litmus test — see [`STYLE_GUIDE.md`](./STYLE_GUIDE.md).
 
-### BYOK transport regression checks
+### Provider transport regression checks
 
 The pi-ai provider and session suites run without user credentials or paid calls:
 
@@ -241,7 +241,7 @@ Check that:
 ## 1. Setup once per session
 
 ```bash
-$OBS dev:debug on        # attach Chrome DevTools Protocol (required for dev:console, dev:errors, dev:cdp)
+$OBS vault=$VAULT dev:debug on  # attach Chrome DevTools Protocol (required for dev:console, dev:errors, dev:cdp)
 $OBS vault=$VAULT eval code='app.plugins.loadPlugin("scribe")'  # if not auto-loaded
 ```
 

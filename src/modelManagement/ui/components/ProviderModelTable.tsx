@@ -23,20 +23,20 @@ import { useApp } from "@/context";
 import { logError } from "@/logger";
 import { safeAsyncHandler } from "@/utils/safeAsyncHandler";
 
-export interface ByokTableGroup {
+export interface ProviderModelGroup {
   provider: Provider;
   models: ConfiguredModel[];
   verification?: VerificationResult;
 }
 
-interface ByokGlobalTableProps {
-  groups: readonly ByokTableGroup[];
+interface ProviderModelTableProps {
+  groups: readonly ProviderModelGroup[];
   onConfigure: (providerId: string) => void;
   onRemove: (providerId: string) => void;
   emptyMessage?: React.ReactNode;
 }
 
-export const ByokGlobalTable: React.FC<ByokGlobalTableProps> = ({
+export const ProviderModelTable: React.FC<ProviderModelTableProps> = ({
   groups,
   onConfigure,
   onRemove,
@@ -79,7 +79,7 @@ export const ByokGlobalTable: React.FC<ByokGlobalTableProps> = ({
 };
 
 interface ProviderCardProps {
-  group: ByokTableGroup;
+  group: ProviderModelGroup;
   onConfigure: () => void;
   onRemove: () => void;
   containerRef: React.RefObject<HTMLDivElement>;
@@ -103,7 +103,7 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
         try {
           await api.coordinator.removeConfiguredModel(configuredModelId);
         } catch (err) {
-          logError("[ByokGlobalTable] removeConfiguredModel failed", err);
+          logError("[ProviderModelTable] removeConfiguredModel failed", err);
           new Notice(t("Failed to remove model."));
         }
       },
@@ -120,7 +120,7 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
 
   const getSubLine = (): string => {
     if (!providerRequiresApiKey(provider)) {
-      return t("Local models on your machine");
+      return t("No API key required");
     }
     if (models.length === 0) {
       return t("No models added");

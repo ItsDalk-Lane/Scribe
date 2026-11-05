@@ -42,7 +42,9 @@ describe("AgentModelList", () => {
         <AgentModelList rows={[]} onToggle={jest.fn()} agentName="Scribe" defaultOpen />
       );
       expect(screen.queryByRole("switch")).toBeNull();
-      expect(screen.getByText(/No chat models configured/)).toBeTruthy();
+      expect(
+        screen.getByText("No chat models configured. Add one under Models and providers.")
+      ).toBeTruthy();
       rerender(
         <AgentModelList
           rows={rows.map((row) => ({ ...row, enabled: false }))}

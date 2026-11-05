@@ -1,6 +1,6 @@
 import { logWarn } from "@/logger";
 import { ensureFolderExists } from "@/utils";
-import { hasCaseInsensitiveFilesystem, trashFile } from "@/utils/vaultAdapterUtils";
+import { hasCaseInsensitiveFilesystem } from "@/utils/vaultAdapterUtils";
 import { App, normalizePath, TFile, TFolder } from "obsidian";
 
 export const AGENTS_FILE_NAME = "AGENTS.md";
@@ -51,20 +51,6 @@ export async function writeAgentsFile(
   const file = await ensureAgentsFile(app, folderPath, content);
   if ((await app.vault.read(file)) === content) return;
   await app.vault.modify(file, content);
-}
-
-export async function removeGeneratedInstructionFiles(app: App, folderPath: string): Promise<void> {
-  try {
-    const file = findCachedInstructionFile(app, childPath(folderPath, AGENTS_FILE_NAME));
-    if (!file) return;
-    if (!GENERATED_MIRROR_HEADER.test(await app.vault.read(file))) return;
-    await trashFile(app, file);
-  } catch (error) {
-    logWarn(
-      `[Instructions] Failed to remove the generated ${AGENTS_FILE_NAME} in "${folderPath}"`,
-      error
-    );
-  }
 }
 
 export interface InstructionFilesSnapshot {

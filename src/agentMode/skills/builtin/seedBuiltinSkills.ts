@@ -39,9 +39,9 @@ export async function inspectBuiltinSkill(
   }
 }
 
-const ENABLED_AGENTS_RE = /^([ \t]*(?:scribe|copilot)-enabled-agents:[ \t]*)(.*)$/m;
-const CONTENT_HASH_RE = /^[ \t]*(?:scribe|copilot)-content-hash:[ \t]*.*$\n?/m;
-const BUILTIN_VERSION_RE = /^([ \t]*(?:scribe|copilot)-builtin-version:[ \t]*.*\n)/m;
+const ENABLED_AGENTS_RE = /^([ \t]*scribe-enabled-agents:[ \t]*)(.*)$/m;
+const CONTENT_HASH_RE = /^[ \t]*scribe-content-hash:[ \t]*.*$\n?/m;
+const BUILTIN_VERSION_RE = /^([ \t]*scribe-builtin-version:[ \t]*.*\n)/m;
 
 // 指纹覆盖 SKILL.md 全文但排除两处易变行（启用行、哈希行自身），
 // 使"改启用开关"不算用户编辑，改其余任何内容都算。
@@ -129,12 +129,12 @@ export async function seedBuiltinSkills(
         if (existingContent !== null) {
           const baseline = getBuiltinSkillContentHash(existingContent);
           if (baseline === null) {
-            // 老安装没有基线：先落基线，本次不覆盖，之后的版本升级即可判定。
+            // 缺少可靠基线时跳过版本更新，避免整目录重建。
             // https://github.com/ItsDalk-Lane/Scribe/issues/19
             const withHash = withContentHashLine(existingContent);
             if (withHash !== existingContent) await fs.write(skillMdPath, withHash);
             logWarn(
-              `[Skills] builtin skill ${skill.name} has no content baseline; recorded one and skipped the v${skill.version} update`
+              `[Skills] builtin skill ${skill.name} lacked a verifiable content baseline, so the v${skill.version} update was skipped`
             );
             continue;
           }
@@ -171,23 +171,4 @@ export async function seedBuiltinSkills(
     logInfo(`[Skills] seeded builtin skills: ${seeded.join(", ")}`);
   }
   return { seeded };
-}
-
-export async function removeSeededBuiltin(
-  skillsFolderRelPath: string,
-  name: string,
-  fs: BuiltinSeedFs
-): Promise<"removed" | "absent" | "collision" | "failed"> {
-  const dir = joinPosix(skillsFolderRelPath, name);
-  const skillMdPath = joinPosix(dir, "SKILL.md");
-  try {
-    if (!(await fs.exists(skillMdPath))) return "absent";
-    if (getBuiltinSkillVersion(await fs.read(skillMdPath)) === null) return "collision";
-    await fs.removeDir(dir);
-    logInfo(`[Skills] removed de-gated builtin skill: ${name}`);
-    return "removed";
-  } catch (e) {
-    logError(`[Skills] failed to remove de-gated builtin skill ${name}`, e);
-    return "failed";
-  }
 }

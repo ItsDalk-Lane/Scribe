@@ -3,6 +3,7 @@ import { useApp } from "@/context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AgentMessagePart, StopReason, TurnFileChange } from "@/agentMode/session/types";
 import { AgentTrail } from "@/agentMode/ui/AgentTrailView";
+import { t } from "@/lib/i18n";
 import type { Meta, StoryObj } from "@/lib/story";
 import React, { useState } from "react";
 
@@ -117,12 +118,14 @@ const TrailDemo: React.FC<{
   showCompletedDuration?: boolean;
   fileChanges?: TurnFileChange[];
   stopReason?: StopReason;
+  errorText?: string;
 }> = ({
   parts,
   isStreaming = false,
   showCompletedDuration = true,
   fileChanges,
   stopReason = "end_turn",
+  errorText,
 }) => {
   const app = useApp();
   return (
@@ -136,6 +139,7 @@ const TrailDemo: React.FC<{
         app={app}
         turnStopReason={isStreaming ? undefined : stopReason}
         fileChanges={fileChanges}
+        errorText={errorText}
       />
     </TooltipProvider>
   );
@@ -154,6 +158,24 @@ export const GroupedTurn: StoryObj<AgentTrailProps> = {
 
 export const Streaming: StoryObj<AgentTrailProps> = {
   render: () => <TrailDemo parts={STREAMING} isStreaming />,
+};
+
+export const EmptyReply: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[]}
+      errorText={`**${t("Error:")}** ${t("No response or action was returned. Try again, or switch models if this happens repeatedly.")}`}
+    />
+  ),
+};
+
+export const PartialReplyFailure: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[say("I found the first note but could not finish.")]}
+      errorText={`**${t("Error:")}** ${t("Failed to send message. Please try again.")}`}
+    />
+  ),
 };
 
 export const UnifiedCardStyles: StoryObj<AgentTrailProps> = {

@@ -20,22 +20,22 @@ function backfilledFlag(overrides: Partial<Provider>): boolean | undefined {
 
 describe("requiresApiKeyMigration", () => {
   describe("planRequiresApiKeyBackfill()", () => {
-    it("treats catalog-backed BYOK as key-requiring", () => {
+    it("defaults a catalog provider to requiring a key", () => {
       expect(backfilledFlag({ origin: { kind: "byok", catalogProviderId: "anthropic" } })).toBe(
         true
       );
     });
 
-    it("treats a self-hosted catalog-less BYOK as keyless", () => {
+    it("defaults a self-hosted custom provider to keyless", () => {
       expect(backfilledFlag({ baseUrl: "http://localhost:11434/v1" })).toBe(false);
       expect(backfilledFlag({ baseUrl: "http://192.168.1.9:1234/v1" })).toBe(false);
     });
 
-    it("requires a key for a catalog-less BYOK pointed at a public host", () => {
+    it("requires a key for a custom provider pointed at a public host", () => {
       expect(backfilledFlag({ baseUrl: "https://proxy.example/v1" })).toBe(true);
     });
 
-    it("defaults a catalog-less BYOK with no base URL to key-requiring", () => {
+    it("defaults a custom provider with no base URL to requiring a key", () => {
       expect(backfilledFlag({ baseUrl: undefined })).toBe(true);
     });
 

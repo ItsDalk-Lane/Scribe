@@ -12,6 +12,7 @@ import {
   stripUserMessageWrapper,
 } from "@/agentMode/session/promptEnvelope";
 import type { AgentPlanEntry, CompactionSnapshot, SessionEvent } from "@/agentMode/session/types";
+import { formatPromptFailure } from "@/agentMode/session/promptFailure";
 import { AI_SENDER, USER_SENDER } from "@/constants";
 import { formatDateTime, type FormattedDateTime } from "@/utils";
 
@@ -59,11 +60,29 @@ export class SessionHistoryReplay {
         this.turnStartedAt = occurredAt;
         return true;
       }
-      case "turn_ended":
+      case "turn_ended": {
         this.flushUser();
+        const elapsed =
+          this.turnStartedAt !== undefined && occurredAt !== undefined
+            ? Math.max(0, occurredAt - this.turnStartedAt)
+            : undefined;
+        if (update.stopReason === "cancelled") {
+          if (this.aiId && this.deps.store.markTurnComplete(this.aiId, "cancelled", elapsed))
+            this.deps.scheduleNotifyMessages();
+        } else if (update.error !== undefined) {
+          if (
+            this.deps.store.markMessageError(
+              this.aiBubbleId(occurredAt),
+              formatPromptFailure(update.error),
+              elapsed
+            )
+          )
+            this.deps.scheduleNotifyMessages();
+        }
         this.closeTurn();
         this.turnStartedAt = occurredAt;
         return true;
+      }
       case "agent_message_chunk":
       case "agent_thought_chunk": {
         const text = extractText(update.content);

@@ -213,7 +213,7 @@ describe("AgentSettings", () => {
     });
 
     it("shows a model-configuration error and hides ready-only model controls", () => {
-      const message = "Configure a chat model in the existing BYOK settings.";
+      const message = "Configure and enable a chat model in your model settings first.";
       installStates.native = {
         kind: "error",
         message,
@@ -240,7 +240,7 @@ describe("AgentSettings", () => {
       }
     );
 
-    it("restores model controls when BYOK configuration becomes ready", async () => {
+    it("restores model controls when the configured model becomes ready", async () => {
       installStates.native = { kind: "error", message: "Choose a chat model" };
       render(<AgentSettings />);
       fireEvent.click(screen.getByRole("button", { name: "Agent configuration" }));

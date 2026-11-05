@@ -42,7 +42,7 @@ export function formatStartupMigrationSummary(items: readonly StartupMigrationIt
       ...(item.details ?? []).map((detail) => `• ${detail}`),
     ].join("\n")
   );
-  return [t("Scribe finished updating this vault."), ...sections].join("\n\n");
+  return [t("Scribe startup report."), ...sections].join("\n\n");
 }
 
 export function shouldClearCredentialRecovery(

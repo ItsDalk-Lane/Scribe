@@ -1,4 +1,4 @@
-import { App, Vault } from "obsidian";
+import { App, type TAbstractFile, type TFile, Vault } from "obsidian";
 import { ProjectConfig } from "@/aiParams";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import {
@@ -7,7 +7,22 @@ import {
   updateCachedProjectRecords,
   upsertCachedProjectRecord,
 } from "@/projects/state";
-import { mockTFile } from "@/__tests__/mockObsidian";
+import { mockTFile, mockTFolder } from "@/__tests__/mockObsidian";
+import { loadAllProjects } from "@/projects/projectUtils";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, posix } from "node:path";
 
 jest.mock("@/settings/model", () => ({
   getSettings: jest.fn(() => ({ scribeFolder: "vault-scribe" })),
@@ -75,6 +90,57 @@ function makeTestVault(options: { existingPaths?: string[] } = {}): TestVault {
 
 function resetSingleton() {
   (ProjectFileManager as unknown as Record<string, unknown>)["instance"] = undefined;
+}
+
+function diskVault(root: string) {
+  const trash = join(root, "trash");
+  mkdirSync(trash);
+  const failures = new Set<string>();
+  const trashed: string[] = [];
+  const fileFor = (path: string) => {
+    const name = posix.basename(path);
+    return mockTFile({ path, name, basename: name.replace(/\.[^/.]+$/, ""), extension: "md" });
+  };
+  const find = (path: string): TAbstractFile | null => {
+    const absolute = join(root, path);
+    if (!existsSync(absolute)) return null;
+    if (!statSync(absolute).isDirectory()) return fileFor(path);
+    return mockTFolder({
+      path,
+      name: posix.basename(path),
+      children: readdirSync(absolute).flatMap((name) => {
+        const child = find(posix.join(path, name));
+        return child ? [child] : [];
+      }),
+    });
+  };
+  const app = {
+    vault: {
+      getAbstractFileByPath: find,
+      read: async (file: TFile) => readFileSync(join(root, file.path), "utf8"),
+      create: async (path: string, content: string) => {
+        writeFileSync(join(root, path), content, { flag: "wx" });
+        return fileFor(path);
+      },
+      adapter: { exists: async (path: string) => existsSync(join(root, path)) },
+    },
+    metadataCache: { getFileCache: () => null },
+    fileManager: {
+      processFrontMatter: async (file: TFile, update: (value: Record<string, unknown>) => void) => {
+        const path = join(root, file.path);
+        const body = readFileSync(path, "utf8");
+        const frontmatter: Record<string, unknown> = {};
+        update(frontmatter);
+        writeFileSync(path, `---\n${JSON.stringify(frontmatter)}\n---\n${body}`);
+      },
+      trashFile: async (file: TAbstractFile) => {
+        if (failures.has(file.path)) throw new Error(`Cannot trash ${file.path}`);
+        renameSync(join(root, file.path), join(trash, `${trashed.length}-${file.name}`));
+        trashed.push(file.path);
+      },
+    },
+  } as unknown as App;
+  return { app, failures, trash, trashed };
 }
 
 describe("ProjectFileManager", () => {
@@ -162,6 +228,123 @@ describe("ProjectFileManager", () => {
       expect(vault.create).not.toHaveBeenCalled();
       expect(getCachedProjectRecords()).toEqual([]);
       expect(isPendingFileWrite(filePath)).toBe(false);
+    });
+  });
+
+  describe("deleteProject()", () => {
+    const folder = "vault-scribe/projects/Research";
+    const configPath = `${folder}/project.md`;
+    const marker = "<!-- scribe:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
+    const projectFile = "---\nscribe-project-id: p1\nscribe-project-name: Research\n---\n";
+    let root: string;
+    let vault: ReturnType<typeof diskVault>;
+
+    beforeEach(async () => {
+      root = mkdtempSync(join(tmpdir(), "scribe-project-delete-"));
+      mkdirSync(join(root, folder), { recursive: true });
+      writeFileSync(join(root, configPath), projectFile);
+      writeFileSync(join(root, folder, "notes.md"), "My own notes.\n");
+      writeFileSync(join(root, folder, "CLAUDE.md"), "@AGENTS.md\n");
+      vault = diskVault(root);
+      await loadAllProjects(vault.app);
+      expect(getCachedProjectRecords()).toHaveLength(1);
+    });
+
+    afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+    it.each([
+      [
+        "a user-edited file with a generated marker",
+        `${marker}\n\nChanged by the user.\n`,
+        "# User notes\n\n@AGENTS.md\n",
+      ],
+      [
+        "an unedited file with a generated marker",
+        `${marker}\n\nOriginal instructions.\n`,
+        "@AGENTS.md\n",
+      ],
+      ["a file without a generated marker", "My own project instructions.\n", "My other rules.\n"],
+    ])(
+      "keeps %s and other user files when removing the project",
+      async (_description, content, otherInstructions) => {
+        const instructionsPath = join(root, folder, "AGENTS.md");
+        writeFileSync(instructionsPath, content);
+        writeFileSync(join(root, folder, "CLAUDE.md"), otherInstructions);
+
+        await ProjectFileManager.getInstance(vault.app).deleteProject("p1");
+
+        expect(existsSync(instructionsPath)).toBe(true);
+        expect(readFileSync(instructionsPath)).toEqual(Buffer.from(content));
+        expect(readFileSync(join(root, folder, "notes.md"), "utf8")).toBe("My own notes.\n");
+        expect(readFileSync(join(root, folder, "CLAUDE.md"), "utf8")).toBe(otherInstructions);
+        expect(existsSync(join(root, configPath))).toBe(false);
+        expect(readFileSync(join(vault.trash, "0-project.md"), "utf8")).toBe(projectFile);
+        expect(vault.trashed).toEqual([configPath]);
+        expect(getCachedProjectRecords()).toEqual([]);
+        expect(isPendingFileWrite(configPath)).toBe(false);
+      }
+    );
+
+    it("keeps retained instructions when creating another project with the same name", async () => {
+      const instructionsPath = join(root, folder, "AGENTS.md");
+      const content = `${marker}\n\nUser-edited original.\n`;
+      writeFileSync(instructionsPath, content);
+      const manager = ProjectFileManager.getInstance(vault.app);
+
+      await manager.deleteProject("p1");
+      const created = await manager.createProject(
+        makeConfig({ id: "p2", name: "Research", systemPrompt: "New project instructions." })
+      );
+
+      expect(created.project.id).toBe("p2");
+      expect(readFileSync(instructionsPath)).toEqual(Buffer.from(content));
+      expect(readFileSync(join(root, configPath), "utf8")).toContain("New project instructions.");
+      expect(readFileSync(join(root, folder, "notes.md"), "utf8")).toBe("My own notes.\n");
+    });
+
+    it("removes an empty project folder after moving its configuration to the trash", async () => {
+      unlinkSync(join(root, folder, "notes.md"));
+      unlinkSync(join(root, folder, "CLAUDE.md"));
+
+      await ProjectFileManager.getInstance(vault.app).deleteProject("p1");
+
+      expect(existsSync(join(root, folder))).toBe(false);
+      expect(readFileSync(join(vault.trash, "0-project.md"), "utf8")).toBe(projectFile);
+      expect(vault.trashed).toEqual([configPath, folder]);
+    });
+
+    it("keeps the project and all files when moving its configuration to the trash fails", async () => {
+      const content = `${marker}\n\nUser-edited original.\n`;
+      writeFileSync(join(root, folder, "AGENTS.md"), content);
+      vault.failures.add(configPath);
+
+      await expect(ProjectFileManager.getInstance(vault.app).deleteProject("p1")).rejects.toThrow(
+        `Cannot trash ${configPath}`
+      );
+
+      expect(readFileSync(join(root, configPath), "utf8")).toBe(projectFile);
+      expect(readFileSync(join(root, folder, "AGENTS.md"), "utf8")).toBe(content);
+      expect(readFileSync(join(root, folder, "notes.md"), "utf8")).toBe("My own notes.\n");
+      expect(vault.trashed).toEqual([]);
+      expect(getCachedProjectRecords().map((record) => record.project.id)).toEqual(["p1"]);
+      expect(isPendingFileWrite(configPath)).toBe(false);
+    });
+
+    it("keeps a project removed when its now-empty folder cannot be moved to the trash", async () => {
+      unlinkSync(join(root, folder, "notes.md"));
+      unlinkSync(join(root, folder, "CLAUDE.md"));
+      vault.failures.add(folder);
+
+      await expect(
+        ProjectFileManager.getInstance(vault.app).deleteProject("p1")
+      ).resolves.toBeUndefined();
+
+      expect(existsSync(join(root, folder))).toBe(true);
+      expect(readdirSync(join(root, folder))).toEqual([]);
+      expect(readFileSync(join(vault.trash, "0-project.md"), "utf8")).toBe(projectFile);
+      expect(vault.trashed).toEqual([configPath]);
+      expect(getCachedProjectRecords()).toEqual([]);
+      expect(isPendingFileWrite(configPath)).toBe(false);
     });
   });
 });

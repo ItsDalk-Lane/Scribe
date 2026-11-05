@@ -76,6 +76,46 @@ describe("SessionHistoryReplay", () => {
     });
 
     describe("append", () => {
+      it("restores a persisted failure even when no assistant text arrived, without inventing a duration", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "Question", "u1"), undefined);
+        replay.append(
+          {
+            sessionUpdate: "turn_ended",
+            turnId: "t1",
+            stopReason: "end_turn",
+            error: new Error("connection failed"),
+          },
+          undefined
+        );
+        expect(store.getDisplayMessages()[1]).toMatchObject({
+          isErrorMessage: true,
+          errorText: "**Error:** connection failed",
+          message: "**Error:** connection failed",
+        });
+        expect(store.getDisplayMessages()[1].turnDurationMs).toBeUndefined();
+      });
+      it("restores an explicit stop ahead of an accompanying transport error", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "Question", "u1"), 100);
+        replay.append(replayText("agent_message_chunk", "Partial", "a1"), 120);
+        replay.append(
+          {
+            sessionUpdate: "turn_ended",
+            turnId: "t1",
+            stopReason: "cancelled",
+            error: new Error("request aborted"),
+          },
+          150
+        );
+        expect(store.getDisplayMessages()[1]).toMatchObject({
+          message: "Partial",
+          turnStopReason: "cancelled",
+          turnDurationMs: 50,
+        });
+        expect(store.getDisplayMessages()[1].isErrorMessage).not.toBe(true);
+      });
+
       it("turns replayed user and agent frames into one user bubble and one agent bubble", () => {
         const { store, replay } = startReplay();
 

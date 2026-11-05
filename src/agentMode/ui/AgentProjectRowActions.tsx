@@ -69,9 +69,10 @@ export const AgentProjectRowActions = memo(
             new Notice(t('Failed to delete project "{p0}".', { p0: project.name }));
           }
         },
-        t('Delete project "{p0}"? This removes its configuration; your notes stay in the vault.', {
-          p0: project.name,
-        }),
+        t(
+          'Delete project "{p0}"? This removes the project configuration; project instructions and other notes stay in the vault. If you create another project with the same name, its existing instructions may be changed when it opens. Save a copy of any instructions you want to keep before recreating the project.',
+          { p0: project.name }
+        ),
         t("Delete project"),
         t("Delete"),
         t("Cancel")

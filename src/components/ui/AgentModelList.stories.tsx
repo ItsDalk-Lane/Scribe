@@ -37,6 +37,7 @@ export const FullList: StoryObj<AgentModelListProps> = {
   args: { rows, onToggle: () => {}, agentName: "Scribe", defaultOpen: true },
 };
 export const Empty: StoryObj<AgentModelListProps> = {
+  name: "No configured models",
   args: { rows: [], onToggle: () => {}, agentName: "Scribe", defaultOpen: true },
 };
 export const Disabled: StoryObj<AgentModelListProps> = {

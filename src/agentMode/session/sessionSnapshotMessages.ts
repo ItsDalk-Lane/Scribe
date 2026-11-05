@@ -39,7 +39,10 @@ function mergeParts(
 function mergeMessage(saved: AgentChatMessage, replay: AgentChatMessage): AgentChatMessage {
   const extendsSavedText =
     replay.message.length > saved.message.length && replay.message.startsWith(saved.message);
+  const preserveEditedReply =
+    replay.isErrorMessage === true && !replay.message.startsWith(saved.message);
   const preferReplay =
+    !preserveEditedReply &&
     saved.sender !== USER_SENDER &&
     (extendsSavedText ||
       (saved.turnStopReason === undefined &&
@@ -48,6 +51,8 @@ function mergeMessage(saved: AgentChatMessage, replay: AgentChatMessage): AgentC
     ...replay,
     ...saved,
     message: preferReplay ? replay.message : saved.message,
+    isErrorMessage: replay.isErrorMessage || saved.isErrorMessage,
+    errorText: replay.errorText ?? saved.errorText,
     timestamp: saved.timestamp ?? replay.timestamp,
     context: saved.context ?? replay.context,
     content: saved.content ?? replay.content,

@@ -144,7 +144,11 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     installRendererEventsShim();
     this.initialization = this.initialize().catch((error) => {
       logFatalError("Scribe failed to start.", error);
-      new Notice(t("Scribe failed to start. Check the Scribe log for details."));
+      new Notice(
+        t(
+          "Scribe failed to start. Back up your files, then disable Scribe until file-safety issues are fixed. Check the developer console for details."
+        )
+      );
       this.unload();
     });
     const viewTypes = isDesktopRuntime() ? DESKTOP_VIEW_TYPES : SHARED_VIEW_TYPES;
@@ -180,7 +184,11 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
           await persistSettings(next, (data) => this.saveData(data), prev);
         } catch (error) {
           logError("Failed to persist settings.", error);
-          new Notice(t("Scribe failed to save settings. Check the Scribe log, then try again."));
+          new Notice(
+            t(
+              "Scribe failed to save settings. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+            )
+          );
         }
       })();
     });
@@ -288,7 +296,11 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     this.app.workspace.onLayoutReady(() => {
       void this.runStartupMigrations().catch((error) => {
         logError("Failed to finish startup migrations", error);
-        new Notice(t("Scribe could not finish startup migration. Reload Obsidian to retry."));
+        new Notice(
+          t(
+            "Scribe could not finish startup migration. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+          )
+        );
       });
     });
 
@@ -336,9 +348,11 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         id: "projects",
         title: t("Projects"),
         status: "error",
-        summary: t("Projects could not be loaded or migrated. Reload Obsidian to retry."),
+        summary: t(
+          "Projects could not be loaded or migrated. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+        ),
       },
-      t("Failed to load projects. Check console for details.")
+      t("Failed to load projects. Check available logs.")
     );
     const commandsTask = task(
       this.customCommandRegister
@@ -348,7 +362,9 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         id: "custom-commands",
         title: t("Custom commands"),
         status: "error",
-        summary: t("Custom commands could not be loaded or migrated. Reload Obsidian to retry."),
+        summary: t(
+          "Custom commands could not be loaded or migrated. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+        ),
       }
     );
     const promptsTask = task(
@@ -357,7 +373,9 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         id: "system-prompt",
         title: t("System prompt"),
         status: "error",
-        summary: t("System prompts could not be loaded or migrated. Reload Obsidian to retry."),
+        summary: t(
+          "System prompts could not be loaded or migrated. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+        ),
       }
     );
     await runStartupMigrationSummary({
@@ -368,7 +386,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
           this.app,
           () => {},
           formatStartupMigrationSummary(items),
-          t("Scribe upgrade summary"),
+          t("Scribe startup report"),
           t("Done"),
           ""
         ).open();

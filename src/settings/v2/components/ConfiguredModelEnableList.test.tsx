@@ -19,7 +19,7 @@ const mockModels = [
   {
     configuredModelId: "other",
     providerId: "byok",
-    info: { id: "byok-code", displayName: "BYOK model" },
+    info: { id: "byok-code", displayName: "Configured model" },
   },
   {
     configuredModelId: "second",
@@ -62,14 +62,14 @@ describe("ConfiguredModelEnableList", () => {
       mockBackends = { claude: { enabledModels: ["first"] }, chat: { enabledModels: ["other"] } };
     });
 
-    it("uses existing BYOK chat selections for native visibility and preserves the inherited list when its first switch changes", async () => {
+    it("uses existing chat selections for native visibility and preserves the inherited list when its first switch changes", async () => {
       render(
         <ConfiguredModelEnableList
           descriptor={{ id: "native", displayName: "Scribe" } as BackendDescriptor}
         />
       );
       fireEvent.click(screen.getByRole("button", { name: /Visible models/ }));
-      expect(screen.getByText("BYOK model")).toBeTruthy();
+      expect(screen.getByText("Configured model")).toBeTruthy();
       expect(screen.queryByText("Same model")).toBeNull();
       const toggle = screen.getByRole("switch", { name: /byok-code/ });
       expect(toggle.getAttribute("aria-checked")).toBe("true");
@@ -91,14 +91,14 @@ describe("ConfiguredModelEnableList", () => {
       await waitFor(() => expect(mockSetEnabled).toHaveBeenCalledWith("native", ["other"]));
     });
 
-    it("uses every entry registered for this agent while excluding BYOK models and preserving entry identities", async () => {
+    it("uses every entry registered for this agent while excluding configured-provider models and preserving entry identities", async () => {
       render(
         <ConfiguredModelEnableList
           descriptor={{ id: "claude", displayName: "Claude" } as BackendDescriptor}
         />
       );
       fireEvent.click(screen.getByRole("button", { name: /Visible models/ }));
-      expect(screen.queryByText("BYOK model")).toBeNull();
+      expect(screen.queryByText("Configured model")).toBeNull();
       expect(screen.getAllByText("Same model")).toHaveLength(2);
       expect(screen.getByText("first-code")).toBeTruthy();
       expect(screen.getByText("second-code")).toBeTruthy();

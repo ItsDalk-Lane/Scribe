@@ -1,0 +1,188 @@
+import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
+import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import { AgentInputDraftStore } from "@/agentMode/session/AgentInputDraftStore";
+import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
+import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
+import { AgentHome } from "@/agentMode/ui/AgentHome";
+import type ScribePlugin from "@/main";
+import { getModelKeyFromModel, getSettings, resetSettings, setSettings } from "@/settings/model";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import type { App } from "obsidian";
+import React from "react";
+import type { AgentModelPickerOverride } from "@/agentMode/ui/useAgentModelPicker";
+
+let mockModelPicker: AgentModelPickerOverride | null = null;
+
+jest.mock("@/agentMode/ui/AgentChatInput", () => ({
+  AgentChatInput: ({ disabled, sendDisabled }: { disabled: boolean; sendDisabled: boolean }) => (
+    <button type="button" disabled={disabled || sendDisabled}>
+      Send
+    </button>
+  ),
+}));
+jest.mock("@/agentMode/ui/AgentChatMessages", () => ({ __esModule: true, default: () => null }));
+jest.mock("@/agentMode/ui/AgentChatControls", () => ({ AgentChatControls: () => null }));
+jest.mock("@/agentMode/ui/AgentContextMeter", () => ({ __esModule: true, default: () => null }));
+jest.mock("@/agentMode/ui/AgentModeStatus", () => ({ AgentModeStatus: () => null }));
+jest.mock("@/agentMode/ui/AgentProjectHeader", () => ({ AgentProjectHeader: () => null }));
+jest.mock("@/agentMode/ui/AgentTabStrip", () => ({ AgentTabStrip: () => null }));
+jest.mock("@/agentMode/ui/hooks/useAgentChatRuntimeState", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes the peripheral runtime hook
+  useAgentChatRuntimeState: () => ({
+    messages: [],
+    isStarting: false,
+    isTurnInFlight: false,
+    hasPendingPlanPermission: false,
+    currentPlan: null,
+    currentTodoList: null,
+    pendingToolPermissions: [],
+    pendingAskUserQuestions: [],
+    feedbackOffer: null,
+    queuedPrompts: [],
+    tasks: [],
+    isReplyRunning: false,
+  }),
+}));
+jest.mock("@/agentMode/ui/hooks/useAgentHistoryControls", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes unrelated history loading
+  useAgentHistoryControls: () => ({
+    chatHistoryItems: [],
+    chatHistorySettled: true,
+    loadChatHistory: async () => undefined,
+  }),
+}));
+jest.mock("@/agentMode/ui/useAgentModelPicker", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes unrelated picker rendering
+  useAgentModelPicker: () => mockModelPicker,
+}));
+jest.mock("@/agentMode/ui/useAgentModePicker", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes unrelated permission controls
+  useAgentModePicker: () => null,
+}));
+jest.mock("@/hooks/useChatFileDrop", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes unrelated file dropping
+  useChatFileDrop: () => ({ isDragActive: false }),
+}));
+jest.mock("@/projects/state", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes unrelated project discovery
+  useProjects: () => [],
+  getCachedProjectRecordById: () => null,
+}));
+jest.mock("@/projects/ProjectFileManager", () => ({
+  ProjectFileManager: { getInstance: () => ({ getProjectUsageTimestampsManager: () => ({}) }) },
+}));
+
+describe("AgentHome", () => {
+  describe("AgentHome()", () => {
+    afterEach(() => {
+      cleanup();
+      resetSettings();
+      mockModelPicker = null;
+    });
+
+    it("preserves the draft while all models or the selected model are unavailable, and restores sending when usable (model-disable regression: https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      resetSettings();
+      setSettings({
+        providers: {
+          local: {
+            providerId: "local",
+            displayName: "Local model service",
+            providerType: "openai-compatible",
+            origin: { kind: "byok" },
+            baseUrl: "http://localhost:1234/v1",
+            requiresApiKey: false,
+            addedAt: 1,
+          },
+        },
+        configuredModels: [
+          {
+            configuredModelId: "one",
+            providerId: "local",
+            info: { id: "one", displayName: "One" },
+            configuredAt: 1,
+          },
+        ],
+        backends: { native: { enabledModels: ["one"] } },
+      });
+      const app = { workspace: { getActiveFile: () => null } } as unknown as App;
+      const drafts = new AgentInputDraftStore(app, () => true);
+      drafts.update("input", (draft) => ({ ...draft, input: "A draft to keep" }));
+      const session = {
+        internalId: "chat",
+        backendId: "native",
+        cwd: "/vault",
+        hasUserVisibleMessages: () => true,
+      };
+      const noIds = new Set<string>();
+      const manager = {
+        drafts,
+        subscribe: () => () => {},
+        getStartingBackendId: () => null,
+        getActiveSession: () => session,
+        getSession: () => session,
+        getActiveProjectId: () => GLOBAL_SCOPE,
+        getSessionSourcePath: () => null,
+        getOpenChatIds: () => noIds,
+        getRunningChatIds: () => noIds,
+        getAttentionChatIds: () => noIds,
+      } as unknown as AgentSessionManager;
+      const backend = {
+        acceptsMidTurnMessages: () => false,
+        canStopTasks: () => false,
+      } as unknown as AgentChatBackend;
+
+      const tree = () => (
+        <AgentHome
+          backend={backend}
+          sessionId="chat"
+          chatInputId="input"
+          manager={manager}
+          plugin={{ app } as ScribePlugin}
+          onSaveChat={() => undefined}
+          updateUserMessageHistory={() => undefined}
+        />
+      );
+      const view = render(tree());
+      const send = screen.getByRole("button", { name: "Send" });
+      expect(send.hasAttribute("disabled")).toBe(false);
+
+      act(() => setSettings({ backends: { native: { enabledModels: [] } } }));
+
+      expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("error");
+      expect(send.hasAttribute("disabled")).toBe(true);
+      expect(drafts.get("input")?.input).toBe("A draft to keep");
+
+      act(() => setSettings({ backends: { native: { enabledModels: ["one"] } } }));
+
+      expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
+      expect(send.hasAttribute("disabled")).toBe(false);
+      expect(drafts.get("input")?.input).toBe("A draft to keep");
+
+      const unavailable = {
+        name: "missing-key-model",
+        provider: "agent",
+        enabled: true,
+        _disabledReason: "API key not set",
+      };
+      const usable = { name: "one", provider: "agent", enabled: true };
+      mockModelPicker = {
+        models: [unavailable, usable],
+        value: getModelKeyFromModel(unavailable),
+        onChange: jest.fn(),
+      };
+      view.rerender(tree());
+      expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
+      expect(send.hasAttribute("disabled")).toBe(true);
+      expect(drafts.get("input")?.input).toBe("A draft to keep");
+
+      mockModelPicker = { ...mockModelPicker, value: getModelKeyFromModel(usable) };
+      view.rerender(tree());
+      expect(send.hasAttribute("disabled")).toBe(false);
+
+      mockModelPicker = { ...mockModelPicker, value: "" };
+      view.rerender(tree());
+      expect(send.hasAttribute("disabled")).toBe(true);
+      expect(drafts.get("input")?.input).toBe("A draft to keep");
+    });
+  });
+});

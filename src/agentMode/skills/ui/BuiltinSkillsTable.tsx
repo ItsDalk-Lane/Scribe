@@ -141,7 +141,16 @@ const BuiltinSkillItem = React.memo(function BuiltinSkillItem({
               <ExtensionAvailabilitySwitch
                 key={agent.id}
                 label={t("Enable {name}", { name: skill.name })}
-                state={getExtensionSwitchState(itemFor(agent.id), checking)}
+                state={
+                  // 运行限制不能把保存的启用偏好显示为关闭，仍允许主动关闭。https://github.com/ItsDalk-Lane/Scribe/issues/21
+                  onToggle && reason
+                    ? {
+                        ...getExtensionSwitchState(itemFor(agent.id), checking),
+                        checked: enabledFor(agent.id),
+                        disabled: Boolean(checking) || !enabledFor(agent.id),
+                      }
+                    : getExtensionSwitchState(itemFor(agent.id), checking)
+                }
                 onToggle={
                   onToggle ? (next) => void onToggle(skill.name, agent.id, next) : undefined
                 }

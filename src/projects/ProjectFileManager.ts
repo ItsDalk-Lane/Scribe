@@ -1,5 +1,4 @@
 import { ProjectConfig } from "@/aiParams";
-import { removeGeneratedInstructionFiles } from "@/instructions/agentsFile";
 import { logError, logInfo, logWarn } from "@/logger";
 import { SCRIBE_PROJECT_LAST_USED, PROJECTS_UNSUPPORTED_FOLDER_NAME } from "@/projects/constants";
 import { ProjectFileRecord } from "@/projects/type";
@@ -350,8 +349,6 @@ export class ProjectFileManager {
       if (configFile instanceof TFile) await trashFile(this.app, configFile);
 
       deleteCachedProjectRecordById(normalizedId);
-
-      await removeGeneratedInstructionFiles(this.app, folderPath);
 
       try {
         const folder = this.vault.getAbstractFileByPath(folderPath);

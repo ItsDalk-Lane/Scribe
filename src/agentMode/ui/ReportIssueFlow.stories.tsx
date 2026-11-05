@@ -138,15 +138,15 @@ export const DraftedNote: StoryObj<ReportIssueFlowProps> = {
       {...BASE}
       sources={SOURCES.map((source) => ({ ...source, defaultChecked: true }))}
       initialNote={[
-        "Replied in Swedish to an English request",
+        "Scribe could not save a note",
         "",
-        "What happened: The agent answered 'hej' instead of English.",
+        "What happened: The write_note tool returned a permission error while saving a note.",
         "",
-        'What the user said: "Why do you switch to a different language?"',
+        'What the user said: "Why wasn\'t the note saved?"',
         "",
-        "Steps to reproduce: 1. Type a garbled 'commit and push'. 2. Observe a Swedish reply.",
+        "Steps to reproduce: 1. Ask Scribe to save a note. 2. Observe the write_note error.",
         "",
-        "Evidence: backend claude · model claude-sonnet-4-6 · session ses_8f2a · 2026-10-12T17:42:05Z",
+        "Evidence: backend native · model claude-sonnet-4-6 · session ses_8f2a · 2026-10-12T17:42:05Z",
       ].join("\n")}
     />
   ),

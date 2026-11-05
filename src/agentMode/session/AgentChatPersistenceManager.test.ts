@@ -149,8 +149,8 @@ describe("AgentChatPersistenceManager", () => {
     it("keeps the transcript baseline cache bounded across many chats", async () => {
       for (let i = 0; i < 55; i++) {
         const messages = [makeMessage(USER_SENDER, `hello ${i}`, 1735732800000 + i)];
-        const saved = await manager.saveSession(messages, "claude", {});
-        await manager.saveSession(messages, "claude", { existingPath: saved!.path });
+        const saved = await manager.saveSession(messages, "native", {});
+        await manager.saveSession(messages, "native", { existingPath: saved!.path });
       }
 
       const cache = (manager as unknown as { loadedTranscripts: Map<unknown, string> })
@@ -163,10 +163,10 @@ describe("AgentChatPersistenceManager", () => {
         makeMessage(USER_SENDER, "Review", 1000),
         makeMessage(AI_SENDER, "Reviewed", 2000),
       ];
-      const source = await manager.saveSession(messages, "claude", { sessionId: "source" });
+      const source = await manager.saveSession(messages, "native", { sessionId: "source" });
       const original = app.files.get(source!.path)!.contents;
 
-      const fork = await manager.saveSession(messages, "claude", {
+      const fork = await manager.saveSession(messages, "native", {
         sessionId: "fork",
         chatId: "fork-chat",
         conversationEpoch: 1800000000123,
@@ -183,12 +183,12 @@ describe("AgentChatPersistenceManager", () => {
         ...makeMessage(USER_SENDER, "image"),
         content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AQID" } }],
       };
-      const saved = await manager.saveSession([message], "claude");
+      const saved = await manager.saveSession([message], "native");
       const file = app.files.get(saved!.path)!;
       Object.setPrototypeOf(file, TFile.prototype);
       file.contents = file.contents!.replace(/!\[\]\([^)]+\)/, "![[organized.png]]");
       const resumed = new AgentChatPersistenceManager(app as unknown as App);
-      await resumed.saveSession([JSON.parse(JSON.stringify(message))], "claude", {
+      await resumed.saveSession([JSON.parse(JSON.stringify(message))], "native", {
         existingPath: saved!.path,
       });
       expect(file.contents).toContain("![[organized.png]]");
@@ -197,9 +197,9 @@ describe("AgentChatPersistenceManager", () => {
       expect(loaded.messages[0].message).not.toContain("scribe-image:");
       file.contents = file.contents.replace("organized.png", "renamed.png");
       loaded.messages[0].message = loaded.messages[0].message.replace("image", "edited text");
-      await resumed.saveSession(loaded.messages, "claude", { existingPath: saved!.path });
+      await resumed.saveSession(loaded.messages, "native", { existingPath: saved!.path });
       expect(file.contents).toContain("![[renamed.png]]");
-      await resumed.saveSession(loaded.messages, "claude", { existingPath: saved!.path });
+      await resumed.saveSession(loaded.messages, "native", { existingPath: saved!.path });
       expect(file.contents).toContain("![[renamed.png]]");
       expect(file.contents).toContain("edited text");
       expect(app.vault.createBinary).toHaveBeenCalledTimes(1);
@@ -208,7 +208,7 @@ describe("AgentChatPersistenceManager", () => {
     it("preserves host moves of reopened legacy links while accepting intentional embed edits", async () => {
       const saved = await manager.saveSession(
         [makeMessage(USER_SENDER, "image\n\n![[old.png]]")],
-        "claude"
+        "native"
       );
       const file = app.files.get(saved!.path)!;
       Object.setPrototypeOf(file, TFile.prototype);
@@ -218,14 +218,14 @@ describe("AgentChatPersistenceManager", () => {
       app.files.set(file.path, file);
       saved!.path = file.path;
       file.contents = file.contents!.replace("old.png", "moved.png");
-      await manager.saveSession(loaded.messages, "claude", { existingPath: saved!.path });
+      await manager.saveSession(loaded.messages, "native", { existingPath: saved!.path });
       expect(file.contents).toContain("![[moved.png]]");
       loaded.messages[0].message = loaded.messages[0].message.replace("old.png", "intentional.png");
-      await manager.saveSession(loaded.messages, "claude", { existingPath: saved!.path });
+      await manager.saveSession(loaded.messages, "native", { existingPath: saved!.path });
       expect(file.contents).toContain("![[intentional.png]]");
       file.contents = file.contents.replace("intentional.png", "organized-edit.png");
-      await manager.saveSession(loaded.messages, "claude", { existingPath: saved!.path });
-      await manager.saveSession(loaded.messages, "claude", { existingPath: saved!.path });
+      await manager.saveSession(loaded.messages, "native", { existingPath: saved!.path });
+      await manager.saveSession(loaded.messages, "native", { existingPath: saved!.path });
       expect(file.contents).toContain("![[organized-edit.png]]");
       expect(app.vault.createBinary).not.toHaveBeenCalled();
     });
@@ -241,7 +241,7 @@ describe("AgentChatPersistenceManager", () => {
       });
       const saved = await manager.saveSession(
         [message, makeMessage(AI_SENDER, "An image")],
-        "claude"
+        "native"
       );
       const imagePath = app.vault.createBinary.mock.calls[0][0];
       const file = app.files.get(saved!.path)!;
@@ -259,11 +259,11 @@ describe("AgentChatPersistenceManager", () => {
           ...makeMessage(USER_SENDER, "Same opening"),
           content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AQID" } }],
         };
-        const first = await manager.saveSession([message], "claude", { sessionId: "first" });
+        const first = await manager.saveSession([message], "native", { sessionId: "first" });
         const firstContent = app.files.get(first!.path)!.contents;
         const imagePath = app.vault.createBinary.mock.calls[0][0];
         app.images.delete(imagePath);
-        await manager.saveSession([message], "claude", {
+        await manager.saveSession([message], "native", {
           existingPath: first!.path,
           sessionId: "first",
         });
@@ -272,19 +272,19 @@ describe("AgentChatPersistenceManager", () => {
         if (failUpload) {
           app.vault.createBinary.mockRejectedValueOnce(new Error("disk full"));
           expect(
-            await manager.saveSession([message], "claude", { sessionId: "second" })
+            await manager.saveSession([message], "native", { sessionId: "second" })
           ).toBeNull();
           expect(app.files.size).toBe(1);
           expect(app.files.get(first!.path)!.contents).toBe(firstContent);
         }
-        const second = await manager.saveSession([message], "claude", { sessionId: "second" });
+        const second = await manager.saveSession([message], "native", { sessionId: "second" });
 
         expect(second!.path).not.toBe(first!.path);
         expect(app.images.get(imagePath)).toEqual(new Uint8Array([1, 2, 3]).buffer);
         expect(app.files.get(second!.path)!.contents).toContain(`![](/${imagePath})`);
         expect(app.files.get(first!.path)!.contents).toBe(firstContent);
         const uploads = app.vault.createBinary.mock.calls.length;
-        await manager.saveSession([message], "claude", {
+        await manager.saveSession([message], "native", {
           existingPath: second!.path,
           sessionId: "second",
         });
@@ -294,7 +294,7 @@ describe("AgentChatPersistenceManager", () => {
 
     it("preserves the existing transcript and reports failure when an image write fails", async () => {
       const messages = [makeMessage(USER_SENDER, "Original")];
-      const original = await manager.saveSession(messages, "claude");
+      const original = await manager.saveSession(messages, "native");
       const content = app.files.get(original!.path)!.contents;
       app.vault.createBinary.mockRejectedValueOnce(new Error("disk full"));
       const result = await manager.saveSession(
@@ -305,7 +305,7 @@ describe("AgentChatPersistenceManager", () => {
             content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AQID" } }],
           },
         ],
-        "claude",
+        "native",
         { existingPath: original!.path }
       );
       expect(result).toBeNull();
@@ -316,12 +316,12 @@ describe("AgentChatPersistenceManager", () => {
 
     it("round-trips messages, backendId, and label", async () => {
       const messages = [makeMessage(USER_SENDER, "hello world"), makeMessage(AI_SENDER, "hi back")];
-      const saved = await manager.saveSession(messages, "claude", { label: "My chat" });
+      const saved = await manager.saveSession(messages, "native", { label: "My chat" });
       expect(saved).not.toBeNull();
 
       const file = app.files.get(saved!.path)!;
       const loaded = await manager.loadFile(file as unknown as TFile);
-      expect(loaded.backendId).toBe("claude");
+      expect(loaded.backendId).toBe("native");
       expect(loaded.label).toBe("My chat");
       expect(loaded.messages).toHaveLength(2);
       expect(loaded.messages[0].sender).toBe(USER_SENDER);
@@ -334,7 +334,7 @@ describe("AgentChatPersistenceManager", () => {
       const folderMock = jest.mocked(getEffectiveConversationsFolder);
       folderMock.mockReturnValueOnce("old-folder");
 
-      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {});
+      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {});
 
       expect(saved).not.toBeNull();
       expect(saved!.path.startsWith("old-folder/")).toBe(true);
@@ -347,7 +347,7 @@ describe("AgentChatPersistenceManager", () => {
         defaultConversationTag: "user-custom-tag",
         defaultConversationNoteName: "{$date}_{$time}__{$topic}",
       });
-      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {});
+      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {});
       const contents = app.files.get(saved!.path)!.contents!;
       expect(contents).toContain("tags:\n  - scribe-conversation");
       expect(contents).not.toContain("user-custom-tag");
@@ -382,7 +382,7 @@ describe("AgentChatPersistenceManager", () => {
 
     it("round-trips a real projectId for a project-scoped chat", async () => {
       const messages = [makeMessage(USER_SENDER, "hi")];
-      const saved = await manager.saveSession(messages, "claude", { projectId: "proj-123" });
+      const saved = await manager.saveSession(messages, "native", { projectId: "proj-123" });
       expect(saved).not.toBeNull();
 
       const raw = app.files.get(saved!.path)!.contents!;
@@ -399,7 +399,7 @@ describe("AgentChatPersistenceManager", () => {
     ])(
       "writes no projectId frontmatter and loads as GLOBAL_SCOPE when projectId is %s",
       async (_label, projectId) => {
-        const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
+        const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {
           projectId,
         });
         const raw = app.files.get(saved!.path)!.contents!;
@@ -412,7 +412,7 @@ describe("AgentChatPersistenceManager", () => {
 
     it("normalizes a padded projectId option before writing frontmatter", async () => {
       const messages = [makeMessage(USER_SENDER, "hi")];
-      const saved = await manager.saveSession(messages, "claude", { projectId: " proj-123 " });
+      const saved = await manager.saveSession(messages, "native", { projectId: " proj-123 " });
       const raw = app.files.get(saved!.path)!.contents!;
       expect(raw).toContain('projectId: "proj-123"');
       expect(raw).not.toContain('projectId: " proj-123 "');
@@ -432,7 +432,7 @@ describe("AgentChatPersistenceManager", () => {
         cacheWriteTokens: 300,
         updatedAt: 1_700_000_000_000,
       };
-      const saved = await manager.saveSession(messages, "claude", { usage });
+      const saved = await manager.saveSession(messages, "native", { usage });
       const raw = app.files.get(saved!.path)!.contents!;
       expect(raw).toContain(`usage: '${JSON.stringify(usage)}'`);
 
@@ -443,9 +443,9 @@ describe("AgentChatPersistenceManager", () => {
     it("round-trips the persisted usage when a later save omits it", async () => {
       const messages = [makeMessage(USER_SENDER, "hi")];
       const usage = { usedTokens: 5000, contextWindow: 200_000, updatedAt: 1 };
-      const first = await manager.saveSession(messages, "claude", { usage });
+      const first = await manager.saveSession(messages, "native", { usage });
       Object.setPrototypeOf(app.files.get(first!.path)!, TFile.prototype);
-      const second = await manager.saveSession(messages, "claude", {
+      const second = await manager.saveSession(messages, "native", {
         existingPath: first!.path,
       });
       const loaded = await manager.loadFile(app.files.get(second!.path) as unknown as TFile);
@@ -453,7 +453,7 @@ describe("AgentChatPersistenceManager", () => {
     });
 
     it("leaves usage undefined for a chat saved without it", async () => {
-      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
+      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native");
       const raw = app.files.get(saved!.path)!.contents!;
       expect(raw).not.toContain("usage:");
       const loaded = await manager.loadFile(app.files.get(saved!.path) as unknown as TFile);
@@ -463,14 +463,14 @@ describe("AgentChatPersistenceManager", () => {
     it("keeps an existing note's epoch when a later save's first message carries a different time, so chat links keep working", async () => {
       const first = await manager.saveSession(
         [makeMessage(USER_SENDER, "hi", 1792522547700)],
-        "claude"
+        "native"
       );
       const note = app.files.get(first!.path)!;
       Object.setPrototypeOf(note, TFile.prototype);
 
       await manager.saveSession(
         [makeMessage(USER_SENDER, "hi", 1792522549569), makeMessage(AI_SENDER, "hello")],
-        "claude",
+        "native",
         { existingPath: first!.path }
       );
 
@@ -479,31 +479,31 @@ describe("AgentChatPersistenceManager", () => {
     });
 
     it("keeps frontmatter properties it does not manage when it saves an existing chat again", async () => {
-      const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
+      const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {
         sessionId: "s1",
       });
       const note = app.files.get(first!.path)!;
       Object.setPrototypeOf(note, TFile.prototype);
       note.contents = note.contents!.replace(
-        "backendId: claude\n",
-        'backendId: claude\ntopic: "Renamed"\nstatus: done\n'
+        "backendId: native\n",
+        'backendId: native\ntopic: "Renamed"\nstatus: done\n'
       );
 
       await manager.saveSession(
         [makeMessage(USER_SENDER, "hi"), makeMessage(AI_SENDER, "hello")],
-        "claude",
+        "native",
         { existingPath: first!.path, usage: { usedTokens: 5, updatedAt: 1 } }
       );
 
       expect(note.contents).toContain(
-        'backendId: claude\ntopic: "Renamed"\nstatus: done\nsessionId: "s1"\n'
+        'backendId: native\ntopic: "Renamed"\nstatus: done\nsessionId: "s1"\n'
       );
       expect(note.contents).toContain('usage: \'{"usedTokens":5,"updatedAt":1}\'');
       expect(note.contents).toContain("**ai**: hello");
     });
 
     it("keeps a property written to the note even when the metadata cache still holds its older value", async () => {
-      const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
+      const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native");
       const note = app.files.get(first!.path)!;
       Object.setPrototypeOf(note, TFile.prototype);
       note.contents = note.contents!.replace("tags:", 'topic: "New"\ntags:');
@@ -511,7 +511,7 @@ describe("AgentChatPersistenceManager", () => {
         frontmatter: { topic: "Old" },
       } as never);
 
-      await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
+      await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {
         existingPath: first!.path,
       });
 
@@ -520,11 +520,11 @@ describe("AgentChatPersistenceManager", () => {
     });
 
     it("drops the projectId of a project chat that is saved again as a global chat", async () => {
-      const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
+      const first = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {
         projectId: "proj-123",
       });
 
-      await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
+      await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {
         existingPath: first!.path,
         projectId: GLOBAL_SCOPE,
       });
@@ -534,16 +534,16 @@ describe("AgentChatPersistenceManager", () => {
     it("preserves separate chats when their filenames collide", async () => {
       const first = await manager.saveSession(
         [makeMessage(USER_SENDER, "hi"), makeMessage(AI_SENDER, "First answer")],
-        "claude",
+        "native",
         { sessionId: "old-session", projectId: "first-project" }
       );
       const original = app.files.get(first!.path)!.contents;
       const second = await manager.saveSession(
         [makeMessage(USER_SENDER, "hi"), makeMessage(AI_SENDER, "Second answer")],
-        "claude",
+        "native",
         { sessionId: "new-session", projectId: "second-project" }
       );
-      const third = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude", {
+      const third = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native", {
         sessionId: "third-session",
       });
 
@@ -553,7 +553,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(app.files.get(second!.path)!.contents).toContain('sessionId: "new-session"');
       expect(app.files.get(second!.path)!.contents).not.toContain("first-project");
 
-      await manager.saveSession([makeMessage(USER_SENDER, "updated second")], "claude", {
+      await manager.saveSession([makeMessage(USER_SENDER, "updated second")], "native", {
         sessionId: "new-session",
         existingPath: second!.path,
       });
@@ -565,7 +565,7 @@ describe("AgentChatPersistenceManager", () => {
 
   describe("setPinnedAt", () => {
     it("pins a chat by writing the pin time to its note's frontmatter", async () => {
-      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
+      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native");
 
       await manager.setPinnedAt(saved!.path, 1_760_000_000_000);
 
@@ -573,7 +573,7 @@ describe("AgentChatPersistenceManager", () => {
     });
 
     it("unpins a chat by removing the pinnedAt key from its note's frontmatter", async () => {
-      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
+      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native");
       await manager.setPinnedAt(saved!.path, 1_760_000_000_000);
 
       await manager.setPinnedAt(saved!.path, null);
@@ -589,12 +589,12 @@ describe("AgentChatPersistenceManager", () => {
     });
 
     it("keeps a chat's pin through later autosaves", async () => {
-      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "claude");
+      const saved = await manager.saveSession([makeMessage(USER_SENDER, "hi")], "native");
       await manager.setPinnedAt(saved!.path, 1_760_000_000_000);
 
       await manager.saveSession(
         [makeMessage(USER_SENDER, "hi"), makeMessage(AI_SENDER, "hi again")],
-        "claude",
+        "native",
         { existingPath: saved!.path }
       );
 
@@ -619,7 +619,7 @@ describe("AgentChatPersistenceManager", () => {
         makeMessage(USER_SENDER, "first", 1700000000000),
         makeMessage(AI_SENDER, "second", 1700000000001),
       ];
-      const saved = await manager.saveSession(messages, "claude");
+      const saved = await manager.saveSession(messages, "native");
       const file = app.files.get(saved!.path)!;
 
       const loadedA = await manager.loadFile(file as unknown as TFile);
@@ -635,7 +635,7 @@ describe("AgentChatPersistenceManager", () => {
         makeMessage(AI_SENDER, "ok", 1700000000001),
       ];
 
-      const saved = await manager.saveSession(messages, "claude");
+      const saved = await manager.saveSession(messages, "native");
       const loaded = await manager.loadFile(app.files.get(saved!.path)! as unknown as TFile);
 
       expect(loaded.messages).toHaveLength(2);
@@ -651,7 +651,7 @@ describe("AgentChatPersistenceManager", () => {
           "---",
           "epoch: 1735732800000",
           "mode: agent",
-          "backendId: claude",
+          "backendId: native",
           "---",
           "",
           "**user**: hi",
@@ -669,7 +669,7 @@ describe("AgentChatPersistenceManager", () => {
           "---",
           "epoch: 1789109351267",
           "mode: agent",
-          "backendId: claude",
+          "backendId: native",
           "---",
           "",
           "**user**: hi",
@@ -685,7 +685,7 @@ describe("AgentChatPersistenceManager", () => {
       expect(loaded.messages[0].timestamp?.display).toBe("2026/09/10 23:49:11");
       expect(loaded.messages[1].timestamp?.epoch).toBe(new Date("2026/09/10 23:49:15").getTime());
 
-      const saved = await manager.saveSession(loaded.messages, "claude");
+      const saved = await manager.saveSession(loaded.messages, "native");
       const raw = app.files.get(saved!.path)!.contents!;
       expect(raw).toContain("epoch: 1789109351267\n");
       expect(raw).toContain("[Timestamp: 2026/09/10 23:49:11]");
@@ -704,7 +704,7 @@ describe("AgentChatPersistenceManager", () => {
           "---",
           ...epochLines,
           "mode: agent",
-          "backendId: claude",
+          "backendId: native",
           "---",
           "",
           "**user**: hi",
@@ -716,11 +716,11 @@ describe("AgentChatPersistenceManager", () => {
       const loaded = await manager.loadFile(app.files.get(path) as unknown as TFile);
       expect(loaded.messages[0].timestamp?.epoch).toBe(visibleEpoch);
 
-      const saved = await manager.saveSession(loaded.messages, "claude");
+      const saved = await manager.saveSession(loaded.messages, "native");
       expect(app.files.get(saved!.path)!.contents).toContain(`epoch: ${visibleEpoch}\n`);
     });
 
-    it("ignores malformed usage JSON instead of failing the load", async () => {
+    it("ignores malformed usage JSON in a historical backend record instead of failing the load", async () => {
       const path = "test-folder/agent__badusage.md";
       await app.vault.adapter.write(
         path,

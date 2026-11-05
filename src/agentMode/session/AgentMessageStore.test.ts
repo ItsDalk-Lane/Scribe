@@ -571,6 +571,9 @@ describe("AgentMessageStore", () => {
       expect(msg?.isErrorMessage).toBe(true);
       expect(msg?.message).toContain("partial reply");
       expect(msg?.message).toContain("**Error:** boom");
+      expect(msg?.errorText).toBe("**Error:** boom");
+      store.loadMessages(store.getDisplayMessages());
+      expect(store.getMessage(id)?.errorText).toBe("**Error:** boom");
       expect(msg?.turnDurationMs).toBe(12_345);
     });
   });

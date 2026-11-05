@@ -1,8 +1,6 @@
 import { t } from "@/lib/i18n";
-import { Button } from "@/components/ui/button";
-import { SettingItem } from "@/components/ui/setting-item";
-import { SettingSection } from "@/components/ui/setting-section";
 import { DebuggingSupportSection } from "@/settings/v2/components/DebuggingSupportSection";
+import { KeyStorageSection } from "@/settings/v2/components/KeyStorageSection";
 import { useApp } from "@/context";
 import { usePlugin } from "@/contexts/PluginContext";
 import { getScribeSaveData } from "@/settings/scribeSaveData";
@@ -13,7 +11,6 @@ import {
   runPersistenceTransaction,
   suppressNextPersistOnce,
 } from "@/services/settingsPersistence";
-import { hasPersistedSecrets } from "@/services/settingsSecretTransforms";
 import { logError } from "@/logger";
 import {
   type ScribeSettings,
@@ -21,7 +18,6 @@ import {
   updateSetting,
   useSettingsValue,
 } from "@/settings/model";
-import { Info, ShieldCheck, Trash2 } from "lucide-react";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { Notice } from "obsidian";
 import React, { useCallback, useEffect, useState } from "react";
@@ -57,7 +53,6 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ section }) =
   }, []);
 
   const keychainAvailable = KeychainService.getInstance().isAvailable();
-  const keychainAppearsEmpty = keychainAvailable && !hasPersistedSecrets(settings);
 
   const handleReportIssue = useCallback(() => {
     if (!isDesktopRuntime()) {
@@ -111,7 +106,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ section }) =
         app,
         () => resolve(true),
         t(
-          "This will remove all API keys for this vault from the Obsidian Keychain, data.json, and memory. You will need to re-enter them. Any credential backup files written during the v4 upgrade are left in place — delete those yourself once you no longer need them."
+          "This removes Scribe API keys for this vault from the Obsidian Keychain, data.json, and memory. You may need to enter them again. Existing credential backups may remain; review them separately."
         ),
         t("⚠️ Forget All Secrets"),
         t("Remove"),
@@ -141,7 +136,11 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ section }) =
       );
     } catch (error) {
       logError("Failed to forget secrets.", error);
-      new Notice(t("Failed to remove API keys. Please try again."));
+      new Notice(
+        t(
+          "Failed to remove API keys. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+        )
+      );
     } finally {
       setForgetting(false);
     }
@@ -150,71 +149,11 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ section }) =
   return (
     <div className="tw-space-y-4">
       {section === "others" && (
-        <SettingSection label={t("Others")}>
-          <SettingItem
-            type="custom"
-            title={t("API key storage")}
-            description={
-              !keychainAvailable ? (
-                <>
-                  {t("Update Obsidian to ")}
-                  <code>1.11.4+</code> {t(" to use the")}{" "}
-                  <strong className="tw-font-semibold tw-text-normal">
-                    {t("Obsidian Keychain")}
-                  </strong>
-                  {t(". Keys cannot be loaded or saved in this build.")}
-                </>
-              ) : keychainAppearsEmpty ? (
-                <span className="tw-text-warning">
-                  {t("No API keys found in this device's")}{" "}
-                  <strong className="tw-font-semibold tw-text-normal">
-                    {t("Obsidian Keychain")}
-                  </strong>
-                  {t(
-                    ". Re-enter your API keys in the relevant settings sections — each device has a separate Keychain."
-                  )}
-                </span>
-              ) : (
-                <>
-                  {t("API keys are stored in this device's")}{" "}
-                  <strong className="tw-font-semibold tw-text-normal">
-                    {t("Obsidian Keychain")}
-                  </strong>
-                  .
-                </>
-              )
-            }
-          >
-            <div className="tw-flex tw-flex-col tw-items-start tw-gap-2 sm:tw-items-end">
-              {keychainAvailable ? (
-                <div className="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-md tw-bg-success tw-px-3 tw-py-1 tw-text-smallest tw-font-semibold tw-text-success">
-                  <ShieldCheck className="tw-size-4" />
-                  {t("Obsidian Keychain")}
-                </div>
-              ) : (
-                <div className="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-md tw-border tw-border-border tw-bg-secondary tw-px-3 tw-py-1 tw-text-smallest tw-font-semibold tw-text-muted">
-                  <Info className="tw-size-4" />
-                  {t("Unavailable")}
-                </div>
-              )}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={safeAsyncHandler(handleForgetAllSecrets)}
-                disabled={forgetting || !keychainAvailable}
-                title={
-                  keychainAvailable
-                    ? undefined
-                    : t("Update Obsidian to 1.11.4+ to delete Keychain entries.")
-                }
-                className="tw-gap-1.5"
-              >
-                <Trash2 className="tw-size-4" />
-                {forgetting ? t("Removing...") : t("Delete All Keys")}
-              </Button>
-            </div>
-          </SettingItem>
-        </SettingSection>
+        <KeyStorageSection
+          keychainAvailable={keychainAvailable}
+          forgetting={forgetting}
+          onForget={safeAsyncHandler(handleForgetAllSecrets)}
+        />
       )}
 
       {section === "debug" && (

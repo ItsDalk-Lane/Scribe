@@ -464,6 +464,32 @@ describe("AgentChatMessages", () => {
       expect(screen.getByTestId("agent-trail-timestamp").textContent).toBe(timestamp);
     });
 
+    it("separates an existing failed reply's body from its error without altering the message", () => {
+      const message = assistantMessage("failed-partial", 62_000, {
+        message: "Original body\n\n**Error:** disconnected",
+        isErrorMessage: true,
+        parts: [{ kind: "text", text: "Original body" }],
+      });
+      const original = JSON.stringify(message);
+      renderMessages([message], false);
+      expect(screen.getByTestId("agent-trail-error").textContent).toBe("**Error:** disconnected");
+      expect(JSON.stringify(message)).toBe(original);
+    });
+    it("keeps a separately stored error intact even when it begins with the reply body", () => {
+      renderMessages(
+        [
+          assistantMessage("failed-separate", 62_000, {
+            message: "Body\n\n**Error:** Body\n\nDetail",
+            isErrorMessage: true,
+            errorText: "Body\n\nDetail",
+            parts: [{ kind: "text", text: "Body" }],
+          }),
+        ],
+        false
+      );
+      expect(screen.getByTestId("agent-trail-error").textContent).toBe("Body\n\nDetail");
+    });
+
     it("hands a failed structured turn's error to its trail, which shows no error text for a message without parts", () => {
       renderMessages(
         [

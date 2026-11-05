@@ -1,6 +1,8 @@
 import type { ModelInfo, ProviderType } from "./catalog";
 
-export type AgentType = "claude" | "native";
+type RetiredPersistedAgentType = "claude";
+
+export type AgentType = RetiredPersistedAgentType | "native";
 
 export type BackendType = AgentType | "chat";
 

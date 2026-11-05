@@ -12,7 +12,7 @@ const meta = {
 } satisfies Meta<ProjectInstructionsFieldProps>;
 export default meta;
 
-export const EmptyDraft: StoryObj<ProjectInstructionsFieldProps> = {};
+export const EmptyDraftWithGuidance: StoryObj<ProjectInstructionsFieldProps> = {};
 
 export const LoadedDraft: StoryObj<ProjectInstructionsFieldProps> = {
   args: {

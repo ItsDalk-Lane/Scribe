@@ -1174,7 +1174,7 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("setSessionMode", () => {
-      it("changes the policy seen by tools and only leaves plan mode after the matching approval", async () => {
+      it("changes the policy seen by tools and returns to Default when the plan is approved", async () => {
         const f = fixture();
         const id = await f.open();
         await f.proc.setSessionMode({ sessionId: id, modeId: "plan" });

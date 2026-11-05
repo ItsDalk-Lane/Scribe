@@ -34,6 +34,12 @@ export const Unconfirmed: StoryObj<BuiltinSkillsTableProps> = { args: { runtimeI
 export const NoModelConfiguration: StoryObj<BuiltinSkillsTableProps> = {
   args: { availableAgents: [] },
 };
+export const EnabledPreferenceWithoutModel: StoryObj<BuiltinSkillsTableProps> = {
+  args: { availableAgents: [], isEnabled: () => true, onToggle: async () => undefined },
+};
+export const DisabledPreferenceWithoutModel: StoryObj<BuiltinSkillsTableProps> = {
+  args: { availableAgents: [], isEnabled: () => false, onToggle: async () => undefined },
+};
 export const NameCollision: StoryObj<BuiltinSkillsTableProps> = {
   args: {
     unavailableReasons: {

@@ -33,6 +33,11 @@ describe("AgentConfigurationCard", () => {
       );
       expect(screen.getByText("v2.1.281")).toBeTruthy();
     });
+    it("uses the shared models and providers name beside the configuration action", () => {
+      render(<AgentConfigurationCard {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Agent configuration" }));
+      expect(screen.getByText("Models and providers")).toBeTruthy();
+    });
     it("shows that tasks are finishing while the agent's saved switch is off", () => {
       render(<AgentConfigurationCard {...props} enabled={false} pendingDisable />);
       expect(screen.getByText("Finishing current tasks before disabling.")).toBeTruthy();

@@ -117,7 +117,7 @@ describe("logFileManager", () => {
       });
     });
 
-    describe("openLogFile", () => {
+    describe("openLogFile()", () => {
       it("creates the note with the buffer plus a sanitized settings block", async () => {
         const { app, vault } = fakeApp(false);
         logFileManager.setApp(app);
@@ -129,6 +129,43 @@ describe("logFileManager", () => {
         expect(content).toContain("hello");
         expect(content).toContain("## Settings");
         expect(content).not.toContain("sk-should-never-be-exported");
+      });
+
+      it("omits nested authorization fields from the settings note https://github.com/ItsDalk-Lane/Scribe/issues/17", async () => {
+        const { app, vault } = fakeApp(false);
+        jest.mocked(getSettings).mockReturnValueOnce({
+          custom: { Authorization: "Bearer private-one", Proxy_Authorization: "private-two" },
+          safeName: "visible-setting",
+        } as never);
+        logFileManager.setApp(app);
+
+        await logFileManager.openLogFile();
+
+        const content = vault.create.mock.calls[0][1];
+        expect(content).toContain("visible-setting");
+        expect(content).not.toContain("private-one");
+        expect(content).not.toContain("private-two");
+      });
+
+      it("omits credential values in named header entries while retaining ordinary headers https://github.com/ItsDalk-Lane/Scribe/issues/17", async () => {
+        const { app, vault } = fakeApp(false);
+        jest.mocked(getSettings).mockReturnValueOnce({
+          custom: {
+            headers: [
+              { name: "Authorization", value: "private-three" },
+              { name: "X-Api-Key", value: "private-four" },
+              { name: "Accept", value: "application/json" },
+            ],
+          },
+        } as never);
+        logFileManager.setApp(app);
+
+        await logFileManager.openLogFile();
+
+        const content = vault.create.mock.calls[0][1];
+        expect(content).toContain("application/json");
+        expect(content).not.toContain("private-three");
+        expect(content).not.toContain("private-four");
       });
 
       it("keeps the settings block out of the in-memory buffer", async () => {

@@ -81,6 +81,7 @@ const meta = {
 export default meta;
 
 export const Default: StoryObj<ProjectPickerListProps> = {
+  name: "Project list with deletion and recreation warning",
   render: () => <ProjectPickerDemo projects={projects} />,
 };
 

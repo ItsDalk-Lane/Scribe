@@ -28,7 +28,7 @@ function makeStorage(initial?: Record<string, string>): AgentSessionIndexStorage
 
 function entry(overrides: Partial<Parameters<AgentSessionIndex["recordSession"]>[0]> = {}) {
   return {
-    backendId: "opencode",
+    backendId: "native",
     sessionId: "s1",
     title: "Refactor the daily template",
     createdAtMs: 1_000,
@@ -42,10 +42,12 @@ describe("AgentSessionIndex", () => {
     it("records sessions and lists them", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry());
-      await index.recordSession(entry({ backendId: "codex", sessionId: "s2", title: null }));
+      await index.recordSession(
+        entry({ backendId: "other-backend", sessionId: "s2", title: null })
+      );
       const entries = await index.getEntries();
       expect(entries).toHaveLength(2);
-      expect(await index.getEntry("opencode", "s1")).toMatchObject({
+      expect(await index.getEntry("native", "s1")).toMatchObject({
         title: "Refactor the daily template",
       });
     });
@@ -56,7 +58,7 @@ describe("AgentSessionIndex", () => {
       await index.recordSession(
         entry({ title: null, createdAtMs: 3_000, lastAccessedAtMs: 4_000 })
       );
-      expect(await index.getEntry("opencode", "s1")).toMatchObject({
+      expect(await index.getEntry("native", "s1")).toMatchObject({
         title: "Refactor the daily template",
         createdAtMs: 1_000,
         lastAccessedAtMs: 5_000,
@@ -65,9 +67,9 @@ describe("AgentSessionIndex", () => {
 
     it("clears a tombstone — live activity reflects fresh intent", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
-      await index.deleteSession("opencode", "s1");
+      await index.deleteSession("native", "s1");
       await index.recordSession(entry());
-      expect(await index.isTombstoned("opencode", "s1")).toBe(false);
+      expect(await index.isTombstoned("native", "s1")).toBe(false);
       expect(await index.getEntries()).toHaveLength(1);
     });
 
@@ -75,7 +77,7 @@ describe("AgentSessionIndex", () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry({ title: "Tab rename", titleSource: "user" }));
       await index.mergeDiscoveredSessions([entry({ title: "Agent original" })]);
-      expect((await index.getEntry("opencode", "s1"))?.title).toBe("Tab rename");
+      expect((await index.getEntry("native", "s1"))?.title).toBe("Tab rename");
     });
   });
 
@@ -86,7 +88,7 @@ describe("AgentSessionIndex", () => {
       await index.mergeDiscoveredSessions([
         entry({ title: "Agent generated title", lastAccessedAtMs: 4_000 }),
       ]);
-      expect(await index.getEntry("opencode", "s1")).toMatchObject({
+      expect(await index.getEntry("native", "s1")).toMatchObject({
         title: "Agent generated title",
         lastAccessedAtMs: 9_000,
       });
@@ -95,9 +97,9 @@ describe("AgentSessionIndex", () => {
     it("keeps a user rename across discovered-session merges while agent titles stay refreshable", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry({ title: "Agent title", titleSource: "agent" }));
-      await index.setTitle("opencode", "s1", "My rename");
+      await index.setTitle("native", "s1", "My rename");
       await index.mergeDiscoveredSessions([entry({ title: "Agent title v2" })]);
-      expect(await index.getEntry("opencode", "s1")).toMatchObject({
+      expect(await index.getEntry("native", "s1")).toMatchObject({
         title: "My rename",
         titleSource: "user",
       });
@@ -106,7 +108,7 @@ describe("AgentSessionIndex", () => {
         entry({ sessionId: "s2", title: "Agent title", titleSource: "agent" })
       );
       await index.mergeDiscoveredSessions([entry({ sessionId: "s2", title: "Agent title v2" })]);
-      expect((await index.getEntry("opencode", "s2"))?.title).toBe("Agent title v2");
+      expect((await index.getEntry("native", "s2"))?.title).toBe("Agent title v2");
     });
 
     it("fills a missing project scope from a sweep but never strips a known one", async () => {
@@ -115,12 +117,12 @@ describe("AgentSessionIndex", () => {
       await index.mergeDiscoveredSessions([
         entry({ title: "Sweep title", lastAccessedAtMs: 9_000 }),
       ]);
-      expect((await index.getEntry("opencode", "s1"))?.projectId).toBe("proj-1");
+      expect((await index.getEntry("native", "s1"))?.projectId).toBe("proj-1");
 
       await index.mergeDiscoveredSessions([
         entry({ sessionId: "s2", projectId: "proj-2", lastAccessedAtMs: 9_000 }),
       ]);
-      expect((await index.getEntry("opencode", "s2"))?.projectId).toBe("proj-2");
+      expect((await index.getEntry("native", "s2"))?.projectId).toBe("proj-2");
     });
   });
 
@@ -128,8 +130,8 @@ describe("AgentSessionIndex", () => {
     it("renames an entry", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry());
-      await index.setTitle("opencode", "s1", "Renamed");
-      expect((await index.getEntry("opencode", "s1"))?.title).toBe("Renamed");
+      await index.setTitle("native", "s1", "Renamed");
+      expect((await index.getEntry("native", "s1"))?.title).toBe("Renamed");
     });
   });
 
@@ -137,8 +139,8 @@ describe("AgentSessionIndex", () => {
     it("bumps lastAccessed to the current time", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry({ lastAccessedAtMs: 1 }));
-      await index.touch("opencode", "s1");
-      expect((await index.getEntry("opencode", "s1"))?.lastAccessedAtMs).toBeGreaterThan(1);
+      await index.touch("native", "s1");
+      expect((await index.getEntry("native", "s1"))?.lastAccessedAtMs).toBeGreaterThan(1);
     });
   });
 
@@ -146,9 +148,9 @@ describe("AgentSessionIndex", () => {
     it("tombstones the key so discovered sessions stay suppressed", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry());
-      await index.deleteSession("opencode", "s1");
+      await index.deleteSession("native", "s1");
       expect(await index.getEntries()).toHaveLength(0);
-      expect(await index.isTombstoned("opencode", "s1")).toBe(true);
+      expect(await index.isTombstoned("native", "s1")).toBe(true);
 
       await index.mergeDiscoveredSessions([entry()]);
       expect(await index.getEntries()).toHaveLength(0);
@@ -160,24 +162,24 @@ describe("AgentSessionIndex", () => {
       const storage = makeStorage();
       const first = new AgentSessionIndex(storage, INDEX_PATH);
       await first.recordSession(entry());
-      await first.deleteSession("codex", "gone");
+      await first.deleteSession("other-backend", "gone");
       await first.flush();
       expect(storage.files.get(INDEX_PATH)).toContain("s1");
 
       const second = new AgentSessionIndex(storage, INDEX_PATH);
-      expect(await second.getEntry("opencode", "s1")).toMatchObject({ sessionId: "s1" });
-      expect(await second.isTombstoned("codex", "gone")).toBe(true);
+      expect(await second.getEntry("native", "s1")).toMatchObject({ sessionId: "s1" });
+      expect(await second.isTombstoned("other-backend", "gone")).toBe(true);
     });
 
     it("restores the user title marker after reload so later merges keep the rename", async () => {
       const storage = makeStorage();
       const first = new AgentSessionIndex(storage, INDEX_PATH);
       await first.recordSession(entry());
-      await first.setTitle("opencode", "s1", "My rename");
+      await first.setTitle("native", "s1", "My rename");
       await first.flush();
       const second = new AgentSessionIndex(storage, INDEX_PATH);
       await second.mergeDiscoveredSessions([entry({ title: "Agent original" })]);
-      expect((await second.getEntry("opencode", "s1"))?.title).toBe("My rename");
+      expect((await second.getEntry("native", "s1"))?.title).toBe("My rename");
     });
 
     it("restores project scope after reload and leaves unscoped chats unscoped", async () => {
@@ -187,8 +189,8 @@ describe("AgentSessionIndex", () => {
       await first.recordSession(entry({ sessionId: "global-chat" }));
       await first.flush();
       const second = new AgentSessionIndex(storage, INDEX_PATH);
-      expect((await second.getEntry("opencode", "s1"))?.projectId).toBe("proj-1");
-      expect((await second.getEntry("opencode", "global-chat"))?.projectId).toBeUndefined();
+      expect((await second.getEntry("native", "s1"))?.projectId).toBe("proj-1");
+      expect((await second.getEntry("native", "global-chat"))?.projectId).toBeUndefined();
     });
   });
 
@@ -197,11 +199,11 @@ describe("AgentSessionIndex", () => {
       const storage = makeStorage();
       const index = new AgentSessionIndex(storage, INDEX_PATH);
       await index.recordSession(entry());
-      await index.deleteSession("opencode", "s1");
+      await index.deleteSession("native", "s1");
       await index.flushOrThrow();
       expect(JSON.parse(storage.files.get(INDEX_PATH)!)).toMatchObject({
         entries: [],
-        tombstones: { "opencode:s1": expect.any(Number) },
+        tombstones: { "native:s1": expect.any(Number) },
       });
     });
 
@@ -211,7 +213,7 @@ describe("AgentSessionIndex", () => {
         throw new Error("disk full");
       };
       const index = new AgentSessionIndex(storage, INDEX_PATH);
-      await index.deleteSession("opencode", "s1");
+      await index.deleteSession("native", "s1");
       await expect(index.flushOrThrow()).rejects.toThrow("disk full");
     });
   });
@@ -232,15 +234,15 @@ describe("AgentSessionIndex", () => {
           entries: [
             entry(),
             { backendId: "", sessionId: "x", createdAtMs: 1, lastAccessedAtMs: 1 },
-            { backendId: "codex", sessionId: "y" },
+            { backendId: "other-backend", sessionId: "y" },
             "garbage",
           ],
-          tombstones: { "codex:z": "not-a-number" },
+          tombstones: { "other-backend:z": "not-a-number" },
         }),
       });
       const index = new AgentSessionIndex(storage, INDEX_PATH);
       expect(await index.getEntries()).toHaveLength(1);
-      expect(await index.isTombstoned("codex", "z")).toBe(false);
+      expect(await index.isTombstoned("other-backend", "z")).toBe(false);
     });
   });
 });

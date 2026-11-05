@@ -100,3 +100,57 @@ export const Unconfirmed: StoryObj<SkillRowLayoutProps> = {
     ),
   },
 };
+
+export const ProjectScopes: StoryObj<SkillRowLayoutProps> = {
+  args,
+  render: () => (
+    <div className="tw-space-y-3">
+      <SkillRowLayout
+        {...args}
+        name="review-notes"
+        description="Alpha project"
+        controls={
+          <ExtensionAvailabilitySwitch
+            label="Enable review-notes in Alpha"
+            state={{
+              checked: true,
+              disabled: true,
+              reason: "Move this skill to the shared folder before changing its availability.",
+            }}
+          />
+        }
+      />
+      <SkillRowLayout
+        {...args}
+        name="review-notes"
+        description="Beta project"
+        controls={
+          <ExtensionAvailabilitySwitch
+            label="Enable review-notes in Beta"
+            state={{
+              checked: false,
+              disabled: true,
+              reason: "Move this skill to the shared folder before changing its availability.",
+            }}
+          />
+        }
+      />
+    </div>
+  ),
+};
+
+export const UnconfirmedProjectPreference: StoryObj<SkillRowLayoutProps> = {
+  args: {
+    ...args,
+    controls: (
+      <ExtensionAvailabilitySwitch
+        label="Enable writing-review"
+        state={{
+          checked: true,
+          disabled: true,
+          reason: "Availability could not be confirmed. Check again.",
+        }}
+      />
+    ),
+  },
+};

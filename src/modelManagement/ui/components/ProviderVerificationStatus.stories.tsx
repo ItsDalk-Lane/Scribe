@@ -63,11 +63,11 @@ export const Progress: StoryObj<ProviderVerificationStatusProps> = {
     <div className="tw-relative tw-flex tw-flex-col tw-gap-4 tw-py-4">
       <ProviderVerificationProgress pending={2} />
       <div className="tw-flex tw-items-start tw-justify-between tw-gap-4">
-        <div className="tw-text-xl tw-font-bold">Bring Your Own Key</div>
-        <Button className="tw-shrink-0">Add a provider</Button>
+        <div className="tw-text-xl tw-font-bold">{t("Models and providers")}</div>
+        <Button className="tw-shrink-0">{t("Add a provider")}</Button>
       </div>
       <div className="tw-text-sm tw-text-muted">
-        Set up your own providers and models to use in Scribe.
+        {t("Set up your own providers and models to use in Scribe.")}
       </div>
       <div className="tw-flex tw-items-center tw-justify-between tw-rounded-lg tw-border tw-border-solid tw-p-4">
         OpenAI <ProviderVerificationStatus />

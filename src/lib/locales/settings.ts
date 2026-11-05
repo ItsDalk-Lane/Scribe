@@ -1,8 +1,8 @@
 export const settingsTranslations: Record<string, string> = {
   "Your configured chat models are listed here. Choose the default model below.":
     "这里列出已配置的聊天模型。可在下方选择默认模型。",
-  "No chat models configured. Add one in model settings.":
-    "尚未配置聊天模型，请先在模型设置中添加。",
+  "No chat models configured. Add one under Models and providers.":
+    "尚未配置聊天模型，请先在“模型与供应商”中添加。",
 
   "Configure a chat model to use this skill.": "请先配置聊天模型，再使用此技能。",
   "Skills use this chat's model and permissions.": "技能使用当前聊天的模型与权限。",
@@ -165,15 +165,15 @@ export const settingsTranslations: Record<string, string> = {
   "e.g. Put new notes you create in Inbox/ and link them to a related note.":
     "例如：将新建笔记放入 Inbox/，并链接到相关笔记。",
   "Project instructions": "项目说明",
-  "Your custom instructions for the agent to follow for every interaction in this project. They take precedence over your vault instructions wherever the two conflict. Saved to AGENTS.md in the project folder, which you can also edit as a note.":
-    "代理每次与此项目交互时遵循的自定义说明。与资料库说明冲突时，以项目说明为准。保存在项目文件夹中的 AGENTS.md 内，也可以像普通笔记一样编辑。",
-  "No models yet. Add a provider on the ": "还没有模型。请在",
+  "Project and vault instructions are provided to the agent in this project. If they conflict, no priority is guaranteed. Saved to AGENTS.md in the project folder, which you can also edit as a note.":
+    "项目说明和资料库说明都会提供给代理；发生冲突时，不能保证哪一项优先。保存在项目文件夹中的 AGENTS.md 内，也可以像普通笔记一样编辑。",
+  "No matching chat models. Check your search or add one under ":
+    "没有匹配的聊天模型。请检查搜索内容，或在",
   "Move this skill to the shared folder before changing its availability.":
     "请先将此技能迁移到共享文件夹，再切换可用性。",
   "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":
     "打开页面会自动检查可用性；已有聊天将在当前任务结束后应用更改。",
-  BYOK: "自备模型",
-  " tab to use it in Quick tools.": "页面添加服务商，即可在快捷工具中使用。",
+  " to use it in Quick tools.": "中添加聊天模型后用于快捷工具。",
   "Search quick-tool models…": "搜索快捷工具模型…",
   Edit: "编辑",
   Duplicate: "创建副本",
@@ -252,7 +252,7 @@ export const settingsTranslations: Record<string, string> = {
     "检查是否有其他指令使用了相同的组合键。",
   "Auto-attach active note": "自动附加当前笔记",
   "Attach the note open in the editor to each new chat. With this off, add it from Add context or with @ when you need it.":
-    "每次新建聊天时附加编辑器中打开的笔记。关闭后，可在需要时通过“添加上下文”或 @ 手动添加。",
+    "每次新建聊天时附加编辑器中打开的笔记。关闭后，可在需要时通过“添加参考内容”或 @ 手动添加。",
   "Scribe folder location": "Scribe 文件夹位置",
   "Where Scribe keeps chats, commands, skills, and projects. Its other folders live inside this one.":
     "Scribe 保存聊天、指令、技能和项目的位置。其他数据文件夹均位于此文件夹内。",
@@ -263,8 +263,8 @@ export const settingsTranslations: Record<string, string> = {
   "Custom instructions": "自定义说明",
   "Saving chats": "聊天保存",
   "Autosave chats as Markdown": "自动将聊天保存为 Markdown",
-  "Writes each chat to a Markdown note in your vault after every user message and AI response. With this off, agent chats still appear in Recent chats; only the Markdown note is skipped.":
-    "每次发送消息或收到 AI 回复后，将聊天写入库中的 Markdown 笔记。关闭后，代理聊天仍会出现在“最近聊天”中，只是不再生成 Markdown 笔记。",
+  "Automatically saves chats as notes in your vault. When off, no new automatic saves are scheduled for chats without a linked note; linked chats and already scheduled saves may still be saved. Agent chats still appear in Recent chats.":
+    "自动将聊天保存为资料库笔记。关闭后，尚未关联笔记的聊天不会再安排自动保存；已关联的聊天和之前排队的保存仍可能写入。代理聊天仍会出现在“最近聊天”中。",
   "Chat note name template": "聊天笔记名称模板",
   "Customize the names of saved chat notes.": "自定义已保存聊天笔记的名称。",
   "Note: All the following variables must be included in the template.":
@@ -283,20 +283,18 @@ export const settingsTranslations: Record<string, string> = {
   "Failed to clear the agent activity log.": "无法清空代理活动日志。",
   "⚠️ Forget All Secrets": "⚠️ 删除所有密钥",
   Remove: "移除",
-  "Failed to remove API keys. Please try again.": "无法移除 API 密钥，请重试。",
+  "Failed to remove API keys. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.":
+    "无法移除 API 密钥。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
   Others: "其他",
   "API key storage": "API 密钥存储",
-  "Update Obsidian to ": "请将 Obsidian 更新至 ",
-  " to use the": "，即可使用",
   "Obsidian Keychain": "Obsidian 钥匙串",
-  ". Keys cannot be loaded or saved in this build.": "。当前版本无法读取或保存密钥。",
-  "No API keys found in this device's": "未在此设备的",
-  ". Re-enter your API keys in the relevant settings sections — each device has a separate Keychain.":
-    "中找到 API 密钥。请在对应设置中重新输入；每台设备的钥匙串互相独立。",
-  "API keys are stored in this device's": "API 密钥保存在此设备的",
+  "Scribe uses this device’s Obsidian Keychain for API keys. Each device has its own Keychain. To check or change a key, open the relevant provider in Models and providers.":
+    "Scribe 使用此设备的 Obsidian 钥匙串保存 API 密钥。各设备的钥匙串相互独立；如需检查或修改密钥，请打开“模型与供应商”中的对应供应商。",
+  "Obsidian Keychain is unavailable in this Obsidian session. Check your Obsidian version or use a device where it is available.":
+    "当前 Obsidian 无法使用钥匙串。请检查 Obsidian 版本，或在可以使用钥匙串的设备上重试。",
   Unavailable: "不可用",
-  "Update Obsidian to 1.11.4+ to delete Keychain entries.":
-    "请将 Obsidian 更新至 1.11.4 或更高版本，以删除钥匙串条目。",
+  "Keychain is unavailable. Check your Obsidian version or use another device.":
+    "钥匙串不可用。请检查 Obsidian 版本，或在其他设备上重试。",
   "Removing...": "正在移除…",
   "Delete All Keys": "删除所有密钥",
   "Quick tools": "快捷工具",
@@ -311,11 +309,11 @@ export const settingsTranslations: Record<string, string> = {
     "新聊天默认使用的代理。在聊天中选择其他代理的模型时，也会更新此设置。",
   "Debugging & support": "调试与支持",
   "Report an issue": "反馈问题",
-  "Walks you through collecting a screenshot and recent logs, packs them into a single zip you can review, uploads it privately, and opens a prefilled GitHub issue with the report ID already in it.":
-    "引导你收集截图和最近的日志，打包成可供检查的 ZIP 文件，私密上传后打开已填写报告编号的 GitHub 问题页面。",
+  "Prepare a zip from your description and selected attachments for review. You can choose whether to upload it; a GitHub issue draft may open afterward.":
+    "根据您的描述和所选附件准备压缩包供检查。您可以选择是否上传，之后可能打开 GitHub 问题草稿。",
   "Offer feedback reports in Agent Chat": "在代理聊天中提供反馈报告",
-  "When something goes wrong in Agent Chat, or a reply fails with an error, Scribe drafts a report for you to review. Nothing is sent unless you press Report.":
-    "代理聊天出现问题或回复失败时，Scribe 会生成报告供你检查。只有点击“反馈”后才会发送。",
+  "Feedback cards may appear after a problem or a failed reply. Turning this off prevents new feedback cards from failed replies and the agent. You can still choose Report an issue. Nothing is sent unless you choose to upload a report.":
+    "出现问题或回复失败时可能显示反馈卡。关闭后，回复失败和代理都不会再提供新的反馈卡。你仍可手动选择“反馈问题”。只有你选择上传报告时才会发送。",
   "Debug mode": "调试模式",
   "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools), and pre-selects the chat log when you report an issue.":
     "将 Scribe 聊天活动记录到开发者控制台（视图 → 切换开发者工具），并在反馈问题时默认选中聊天日志。",
@@ -333,14 +331,12 @@ export const settingsTranslations: Record<string, string> = {
   Sound: "提示音",
   "Choose which sound to play.": "选择要播放的提示音。",
   "Quick tools models": "快捷工具模型",
-  "Models for Quick Ask, Quick Command, and saved editor commands. Add providers on the Models tab.":
-    "用于快捷问答、快捷指令和已保存编辑器指令的模型。可在“模型”页面添加服务商。",
   "Default model": "默认模型",
   "Select model": "选择模型",
   Model: "模型",
   "Default quick command model": "快捷指令默认模型",
   "Used by Quick Ask, Quick Command, and saved commands set to Default model.":
-    "用于快捷问答、快捷指令以及选择“默认模型”的已保存指令。",
+    "用于快捷提问、快捷指令以及选择“默认模型”的已保存指令。",
   ", or start a chat with it, to see its models.": "，或使用它开始聊天，即可查看可用模型。",
   "Search {displayName} models…": "搜索 {displayName} 模型…",
   "Skills are available on desktop.": "技能仅支持桌面端。",
@@ -352,36 +348,36 @@ export const settingsTranslations: Record<string, string> = {
   "Scribe settings": "Scribe 设置",
   "Reset settings": "重置设置",
   "An API key is required to verify this Anthropic provider.":
-    "验证此 Anthropic 服务商需要 API 密钥。",
+    "验证此 Anthropic 供应商需要 API 密钥。",
   "Authentication failed — check your API key.": "身份验证失败，请检查 API 密钥。",
   "The check endpoint was not found (HTTP 404). Check the base URL; your API key and model access have not been verified.":
     "检查接口未找到（HTTP 404）。请核对基础地址；密钥和模型是否可用尚未验证。",
   "Rate limited — try again in a moment.": "请求过于频繁，请稍后重试。",
   "Enter a base URL before fetching models.": "获取模型前请先输入基础地址。",
   "A base URL is required to verify this OpenAI-compatible provider.":
-    "验证此兼容 OpenAI 的服务商需要基础地址。",
-  "An API key is required to verify this Google provider.": "验证此 Google 服务商需要 API 密钥。",
+    "验证此兼容 OpenAI 的供应商需要基础地址。",
+  "An API key is required to verify this Google provider.": "验证此 Google 供应商需要 API 密钥。",
   "Endpoint returned an unreadable response.": "服务地址返回了无法读取的响应。",
   "Endpoint did not return a model list.": "服务地址未返回模型列表。",
   "API key is missing. Configure this provider to enter it again.":
-    "缺少 API 密钥，请打开此服务商的设置重新输入。",
-  "Pick a provider to configure.": "选择要配置的服务商。",
-  "Search providers…": "搜索服务商…",
+    "缺少 API 密钥，请打开此供应商的设置重新输入。",
+  "Pick a provider to configure.": "选择要配置的供应商。",
+  "Search providers…": "搜索供应商…",
   Recommended: "推荐",
   "Self-host": "本地或自托管",
-  "More providers": "更多服务商",
-  "No providers match your search.": "没有找到匹配的服务商。",
-  "Add {displayName} provider": "添加 {displayName} 服务商",
-  "Add a custom provider": "添加自定义服务商",
-  "Enter an API key to verify this provider.": "请输入 API 密钥以验证此服务商。",
+  "More providers": "更多供应商",
+  "No providers match your search.": "没有找到匹配的供应商。",
+  "Add {displayName} provider": "添加 {displayName} 供应商",
+  "Add a custom provider": "添加自定义供应商",
+  "Enter an API key to verify this provider.": "请输入 API 密钥以验证此供应商。",
   "Failed to save provider. Check the Scribe log for details.":
-    "无法保存服务商，请查看 Scribe 日志了解详情。",
+    "无法保存供应商，请查看 Scribe 日志了解详情。",
   "Failed to save changes. Check the Scribe log for details.":
     "无法保存更改，请查看 Scribe 日志了解详情。",
-  "Failed to remove provider.": "无法移除服务商。",
+  "Failed to remove provider.": "无法移除供应商。",
   "Remove {displayName}? This also removes all of its models from every model picker.":
     "确定要移除 {displayName} 吗？所有模型选择器中属于它的模型也会被移除。",
-  "Remove provider": "移除服务商",
+  "Remove provider": "移除供应商",
   "Configure ": "配置 ",
   "Enter credentials and choose which models to enable.": "输入凭据并选择要启用的模型。",
   "Display name": "显示名称",
@@ -394,13 +390,14 @@ export const settingsTranslations: Record<string, string> = {
   "Paste your API key": "粘贴 API 密钥",
   Test: "测试",
   "Verification failed": "验证失败",
-  "An API key is required for this provider.": "此服务商需要 API 密钥。",
+  "An API key is required for this provider.": "此供应商需要 API 密钥。",
   "Base URL": "基础地址",
   Models: "模型",
+  "Models and providers": "模型与供应商",
   Save: "保存",
-  "Verifying providers…": "正在验证服务商…",
+  "Verifying providers…": "正在验证供应商…",
   "No providers yet — click + Add a provider to start.":
-    "还没有服务商，点击“+ 添加服务商”开始配置。",
+    "还没有供应商，点击“+ 添加供应商”开始配置。",
   "Failed to remove model.": "无法移除模型。",
   "Remove {modelName} from {displayName}?": "确定要从 {displayName} 中移除 {modelName} 吗？",
   "Remove model": "移除模型",
@@ -420,11 +417,10 @@ export const settingsTranslations: Record<string, string> = {
   "Enable CORS": "启用 CORS",
   "About Quick tools CORS compatibility": "关于快捷工具的 CORS 兼容性",
   "Could not verify this provider. Reopen this tab to retry.":
-    "无法验证此服务商，请重新打开此页面重试。",
-  "Bring your own key": "自备模型",
+    "无法验证此供应商，请重新打开此页面重试。",
   "Set up your own providers and models to use in Scribe.":
-    "配置你自己的服务商和模型，在 Scribe 中使用。",
-  "Add a provider": "添加服务商",
+    "配置你自己的供应商和模型，在 Scribe 中使用。",
+  "Add a provider": "添加供应商",
   "Piano key": "钢琴",
   Marimba: "马林巴琴",
   Bell: "铃声",
@@ -447,8 +443,8 @@ export const settingsTranslations: Record<string, string> = {
   "e.g. gpt-5.5": "例如 gpt-5.5",
   "Custom OpenAI-compatible": "自定义兼容 OpenAI 的服务",
   "(the agent activity log is desktop-only)": "（代理活动日志仅支持桌面端）",
-  "This will remove all API keys for this vault from the Obsidian Keychain, data.json, and memory. You will need to re-enter them. Any credential backup files written during the v4 upgrade are left in place — delete those yourself once you no longer need them.":
-    "这会从 Obsidian 钥匙串、data.json 和内存中移除此库的所有 API 密钥。之后需要重新输入。升级至 v4 时生成的凭据备份文件会保留，请在不再需要后自行删除。",
+  "This removes Scribe API keys for this vault from the Obsidian Keychain, data.json, and memory. You may need to enter them again. Existing credential backups may remain; review them separately.":
+    "这会从 Obsidian 钥匙串、data.json 和内存中移除此库的 Scribe API 密钥。之后可能需要重新输入。已有的凭据备份可能仍然保留，请另行检查。",
   "A server on this computer": "此电脑上的服务",
   "A server on your local network": "局域网中的服务",
   "{message} If your endpoint serves the OpenAI API under /v1, add it to the base URL.":
@@ -466,7 +462,7 @@ export const settingsTranslations: Record<string, string> = {
   "Folder names cannot start with a dot.": "文件夹名称不能以点开头。",
   "Folder names cannot end with a dot or space.": "文件夹名称不能以点或空格结尾。",
   '"{segment}" is a name reserved by Windows.': "“{segment}”是 Windows 保留的名称。",
-  "Local models on your machine": "此设备上的本地模型",
+  "No API key required": "无需 API 密钥",
   "No models added": "尚未添加模型",
   "{count} model": "{count} 个模型",
   "{count} models": "{count} 个模型",

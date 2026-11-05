@@ -150,6 +150,29 @@ describe("ChatInput", () => {
     );
   });
   describe("onSendMessage", () => {
+    it("blocks button and Enter sending while keeping model selection available when sending is unavailable (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      const { node, send } = composer("Keep this draft", [image], {
+        sendDisabled: true,
+        modelPickerOverride: { value: "model", models: [], onChange: jest.fn() },
+      });
+      render(node);
+      const button = screen.getByRole<HTMLButtonElement>("button", { name: "Send" });
+      expect(button.disabled).toBe(true);
+      fireEvent.click(button);
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Message" }), { key: "Enter" });
+      expect(send).not.toHaveBeenCalled();
+      expect(mockModelSelectorProps?.disabled).toBe(false);
+    });
+
+    it("keeps Stop available while sending is unavailable (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      const { node, props } = composer("", [], { isGenerating: true, sendDisabled: true });
+      render(node);
+      const stop = screen.getByRole<HTMLButtonElement>("button", { name: "Stop generating" });
+      expect(stop.disabled).toBe(false);
+      fireEvent.click(stop);
+      expect(props.onStopGenerating).toHaveBeenCalledTimes(1);
+    });
+
     it("sends webpage attachments restored by the chat draft owner", () => {
       const webTab = { url: "https://example.com/retained", title: "Retained page" };
       const { node, send } = composer("continue", [], {

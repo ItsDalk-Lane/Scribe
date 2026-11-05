@@ -59,6 +59,7 @@ export interface ChatInputProps {
     webTabs?: WebTabContext[];
   }) => void;
   isGenerating: boolean;
+  sendDisabled?: boolean;
   onStopGenerating: () => void;
   app: App;
   contextNotes: TFile[];
@@ -121,6 +122,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
     setInputMessage,
     handleSendMessage,
     isGenerating,
+    sendDisabled = false,
     onStopGenerating,
     app,
     contextNotes,
@@ -183,6 +185,8 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
   const showsStop = isGenerating && inputMessage.trim().length === 0 && selectedImages.length === 0;
 
   const onSendMessage = () => {
+    // 发送受限时保留停止与模型选择入口。https://github.com/ItsDalk-Lane/Scribe/issues/21
+    if (sendDisabled) return;
     const webTabsFromEditor = getWebTabsFromEditorSnapshot();
     const allWebTabs = mergeWebTabContexts([...contextWebTabs, ...webTabsFromEditor]);
 
@@ -579,6 +583,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
             <ChatSendButton
               inputMessage={inputMessage}
               imageCount={selectedImages.length}
+              disabled={sendDisabled}
               onSend={() => onSendMessage()}
             />
           )}

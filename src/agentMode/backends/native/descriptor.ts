@@ -14,6 +14,7 @@ import {
   getNativeDefaultModelId,
   getNativeEnabledModelEntries,
   getNativeModelEntries,
+  getNativeModelReadiness,
 } from "@/agentMode/backends/native/nativeModels";
 import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
 import {
@@ -38,6 +39,7 @@ const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
 function noModelsState(): InstallState {
   return {
     kind: "error",
+    reason: "configuration",
     message: t("Configure and enable a chat model in your model settings first."),
   };
 }
@@ -90,27 +92,50 @@ export const NativeBackendDescriptor: BackendDescriptor = {
     getNativeModelEntries(settings).some((model) => model.baseModelId === configuredModelId)
       ? configuredModelId
       : null,
-  getInstallState: (settings) =>
-    settings.configuredModels.some(
-      (model) =>
-        settings.providers[model.providerId]?.origin.kind === "byok" && isChatModelInfo(model.info)
-    )
-      ? READY
-      : noModelsState(),
-  subscribeInstallState: (_plugin, listener) => subscribeToSettingsChange(() => listener()),
-  openInstallUI: (plugin) =>
+  // 就绪条件沿用实际运行的模型启用清单。https://github.com/ItsDalk-Lane/Scribe/issues/21
+  getInstallState: (settings) => {
+    const readiness = getNativeModelReadiness(settings);
+    if (readiness === "no_models") return noModelsState();
+    if (readiness === "ready") return READY;
+    return {
+      kind: "error",
+      reason: "configuration",
+      message: t(
+        "No enabled chat model has usable credentials on this device. Check Models and providers."
+      ),
+    };
+  },
+  subscribeInstallState: (plugin, listener) => {
+    const settings = subscribeToSettingsChange(() => listener());
+    const providers = plugin.modelManagement?.providerRegistry.subscribe(listener);
+    return () => {
+      settings();
+      providers?.();
+    };
+  },
+  openInstallUI: (plugin) => {
+    const settings = getSettings();
     openScribeSettings(
       plugin.app,
       plugin.app.workspace.getMostRecentLeaf()?.view.containerEl.ownerDocument.defaultView ??
         window,
-      "quickActions"
-    ),
+      // 已保存但全停用时直接提供模型开关入口。https://github.com/ItsDalk-Lane/Scribe/issues/21
+      getNativeModelReadiness(settings) === "no_models" &&
+        settings.configuredModels.some(
+          (model) =>
+            settings.providers[model.providerId]?.origin.kind === "byok" &&
+            isChatModelInfo(model.info)
+        )
+        ? "agents"
+        : "quickActions"
+    );
+  },
   SettingsPanel: NativeSettingsPanel,
   dataDestination(settings) {
     const id = getNativeDefaultModelId(settings);
     const model = settings.configuredModels.find((candidate) => candidate.configuredModelId === id);
     const provider = model && settings.providers[model.providerId];
-    return provider ? providerDestination(provider) : { kind: "cloud", label: "BYOK" };
+    return provider ? providerDestination(provider) : { kind: "cloud", label: t("Model provider") };
   },
   async applySelection(session, selection) {
     if (session.getState()?.model?.current.baseModelId !== selection.baseModelId)

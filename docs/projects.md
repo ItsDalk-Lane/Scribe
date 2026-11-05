@@ -4,12 +4,18 @@ Projects are focused workspaces inside Agent Chat. Each Project keeps its own in
 
 A Project works with the Scribe agent. It uses the agent, model, effort, and permission setting selected for the current chat. It does not lock you to a separate model.
 
-On the Agent Chat home screen, open **Projects** to browse your most recently used Projects. Scroll the list to see more, or use **Search projects** to find a Project by name or description. Search includes every Project, even those you have not scrolled to yet.
+Isolated tests found that opening or restoring a Project can change existing instructions, and saving another Project detail can overwrite a newer instruction body. Back up your files first and keep Scribe disabled until these issues are fixed; pending saves may finish during shutdown. See [Troubleshooting](troubleshooting-and-faq.md).
+
+隔离测试发现，打开或恢复项目可能改写已有说明；保存其他项目详情时也可能覆盖较新的说明。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。详见[故障排查](troubleshooting-and-faq.md)。
+
+The guidance below applies after these issues are fixed. 以下操作应在问题修复后执行。
+
+On the Agent Chat home screen, open **项目** (**Projects** in English) to browse your most recently used Projects. Scroll the list to see more, or use **搜索项目…** (**Search projects...** in English) to find a Project by name or description. Search includes every Project, even those you have not scrolled to yet.
 
 ## Create a Project
 
 1. Open **Agent Chat** from the ribbon or command palette.
-2. From the Agent Chat home screen, open **Projects** and select **新建项目**.
+2. From the Agent Chat home screen, open **项目** and select **新建项目**.
 3. Enter a name and select **创建**.
 
 Scribe opens the new Project immediately. Creation asks only for a name. Use **编辑项目** to add a description, instructions, and saved context.
@@ -18,7 +24,7 @@ Each Project has a folder under `<Scribe folder>/projects/`. The default root is
 
 ## Add Project instructions
 
-Open the Project info menu beside the name and select **AGENTS.md**. You can also choose **编辑项目** from the Projects list and edit **Project instructions**. Both open the same Project file.
+Open the Project info menu beside the name and select **AGENTS.md**. You can also choose **编辑项目** from the Projects list and edit **项目说明** (**Project instructions** in English). Both open the same Project file.
 
 Scribe provides both the vault-wide instructions and the Project `AGENTS.md` to the model for chats in that Project. Avoid conflicting rules: Scribe does not enforce a guaranteed winner when the files disagree.
 
@@ -34,13 +40,13 @@ Keep stable rules in `AGENTS.md` and put one-off requests in chat. Save the file
 
 ## Add reusable context
 
-For a new Project, **Context** appears below the composer. After the Project has chats, it appears as a **Context** tab beside **最近聊天**.
+For a new Project, **上下文** (**Context** in English) appears below the composer. After the Project has chats, it appears as a **上下文** tab beside **最近聊天**.
 
 You can:
 
-- drag a vault file or folder into **Context**;
+- drag a vault file or folder into **上下文**;
 - select **URL** to add a web page or YouTube video; or
-- select **管理** or **管理参考内容** to add **Links**, **Tags**, **Properties**, **Folders**, and **Files**, or to manage **忽略文件**.
+- select **管理** or **管理参考内容** to add **链接** (Links), **标签** (Tags), **属性** (Properties), **文件夹** (Folders), and **文件** (Files), or to manage **忽略文件**.
 
 Tags match tags stored in note properties. Properties can target notes by a frontmatter field, such as `Topics: Physics`.
 
@@ -68,7 +74,7 @@ Inside a Project:
 
 From the Projects list, hover over a Project to **在库中显示**, **编辑项目**, or **删除** it. The global **最近聊天** list on the Agent Chat home screen includes conversations from across Projects.
 
-Deleting a Project removes its Scribe Project configuration. It does not delete your ordinary vault notes or conversation notes already saved in the vault.
+Deleting a Project removes its Scribe Project configuration and leaves its instructions and other notes in place. If you later recreate a Project in the same folder and open it, an `AGENTS.md` carrying an older generated marker may be modified or overwritten. Save a copy of any instructions you need before reopening a Project in that folder.
 
 ## When to use a Project
 

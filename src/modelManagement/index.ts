@@ -42,4 +42,4 @@ export {
 
 export { ModelManagementProvider, useModelManagement } from "./ui/ModelManagementContext";
 
-export { ByokPanel } from "./ui/tabs/ByokPanel";
+export { ModelsAndProvidersPanel } from "./ui/tabs/ModelsAndProvidersPanel";

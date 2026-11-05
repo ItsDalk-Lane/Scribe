@@ -3,9 +3,9 @@ import { buildEmptyTurnMessage, formatPromptFailure } from "./promptFailure";
 
 describe("promptFailure", () => {
   describe("buildEmptyTurnMessage()", () => {
-    it("names the agent and stop reason of a turn that returned nothing, and suggests a retry", () => {
-      expect(buildEmptyTurnMessage("opencode", "end_turn")).toBe(
-        "opencode finished the turn without returning any assistant text or tool activity (stop reason: end_turn). Try again, or switch models if this repeats."
+    it("describes an empty turn and suggests retrying or switching models", () => {
+      expect(buildEmptyTurnMessage()).toBe(
+        "No response or action was returned. Try again, or switch models if this happens repeatedly."
       );
     });
   });

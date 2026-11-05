@@ -2,6 +2,7 @@ import { ChatModelEnableList } from "@/settings/v2/components/ChatModelEnableLis
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { logError } from "@/logger";
 import type { BackendConfig, ConfiguredModel, Provider } from "@/modelManagement";
+import { setInterfaceLocale } from "@/lib/i18n";
 import React from "react";
 
 const enableModel = jest.fn().mockResolvedValue(undefined);
@@ -73,6 +74,7 @@ describe("ChatModelEnableList", () => {
       ];
       backends = { chat: { enabledModels: ["a"] } };
     });
+    afterEach(() => setInterfaceLocale("en"));
     it("lists only non-agent models and enables or disables one per switch click without desktop agents", () => {
       render(<ChatModelEnableList />);
       expect(screen.queryByText("Agent model")).toBeNull();
@@ -88,12 +90,26 @@ describe("ChatModelEnableList", () => {
       });
       expect(screen.queryByText("Model A")).toBeNull();
       expect(screen.getByText("Model B")).not.toBeNull();
+      fireEvent.change(screen.getByPlaceholderText("Search quick-tool models…"), {
+        target: { value: "no-such-model" },
+      });
+      expect(screen.getByText(/No matching chat models/)).not.toBeNull();
+      expect(screen.getByText("Models and providers")).not.toBeNull();
     });
     it("explains where to add models when no chat backend is configured", () => {
       models = [];
       backends = {};
       render(<ChatModelEnableList />);
-      expect(screen.getByText(/No models yet/)).not.toBeNull();
+      expect(screen.getByText(/No matching chat models/)).not.toBeNull();
+      expect(screen.getByText("Models and providers")).toBeTruthy();
+    });
+    it("names the same provider settings destination in Chinese", () => {
+      setInterfaceLocale("zh-CN");
+      models = [];
+      backends = {};
+      render(<ChatModelEnableList />);
+      expect(screen.getByText(/没有匹配的聊天模型/)).not.toBeNull();
+      expect(screen.getByText("模型与供应商")).toBeTruthy();
     });
     it("reports failed model changes without an unhandled rejection", async () => {
       const error = new Error("save failed");

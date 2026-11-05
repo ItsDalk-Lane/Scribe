@@ -5,6 +5,9 @@ import {
   type ReportSourceId,
   type UploadOutcome,
 } from "@/agentMode/ui/ReportIssueFlow";
+import { formatFeedbackNote } from "@/agentMode/session/feedback/feedbackOffer";
+import { DraftedNote } from "@/agentMode/ui/ReportIssueFlow.stories";
+import { getInterfaceLocale, setInterfaceLocale } from "@/lib/i18n";
 import type { AttachmentResult } from "@/utils/issueReport";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
@@ -102,19 +105,83 @@ describe("ReportIssueFlow", () => {
         expect(checkedStates()).toEqual(["checked", "checked", "unchecked"]);
         expect(screen.getByText("Newest 2 MB of the log")).toBeTruthy();
         expect(screen.getByText(/screenshots are not automatically redacted/)).toBeTruthy();
-        expect(screen.getByText(/Reports are private and deleted after 60 days/)).toBeTruthy();
+        expect(
+          screen.getByText(
+            /Upstream documentation says reports are private and deleted after 60 days/
+          )
+        ).toBeTruthy();
+        expect(
+          screen.getByText(/Scribe cannot verify privacy, retention or maintainer access/)
+        ).toBeTruthy();
+      });
+
+      it("explains that opening the GitHub issue shares the draft before submission", () => {
+        renderFlow();
+
+        expect(
+          screen.getByText(
+            /The draft may include your description, app details and attachment names/
+          )
+        ).toBeTruthy();
+        expect(screen.getByText(/GitHub receives it when the issue page opens/)).toBeTruthy();
+      });
+
+      it("explains the same GitHub disclosure in Chinese", () => {
+        const previousLocale = getInterfaceLocale();
+        setInterfaceLocale("zh-CN");
+        try {
+          renderFlow();
+
+          expect(screen.getByText(/草稿可能包含您的描述、应用信息和附件名称/)).toBeTruthy();
+          expect(screen.getByText(/打开问题页面时，GitHub 会收到这些内容/)).toBeTruthy();
+          expect(
+            screen.getByText(/Scribe 无法核实报告是否私密、保存期限或维护者能否访问/)
+          ).toBeTruthy();
+        } finally {
+          setInterfaceLocale(previousLocale);
+        }
+      });
+
+      it("shows the gallery draft as a Scribe tool failure with current native evidence", () => {
+        const Story = DraftedNote.render;
+        expect(Story).toBeDefined();
+        if (!Story) throw new Error("DraftedNote story has no renderer");
+        render(<Story />);
+
+        expect((noteField() as HTMLTextAreaElement).value).toBe(
+          formatFeedbackNote({
+            trigger: "agent",
+            draft: {
+              title: "Scribe could not save a note",
+              whatHappened: "The write_note tool returned a permission error while saving a note.",
+              userSaid: "Why wasn't the note saved?",
+              repro: "1. Ask Scribe to save a note. 2. Observe the write_note error.",
+            },
+            evidence: {
+              backendId: "native",
+              model: "claude-sonnet-4-6",
+              sessionId: "ses_8f2a",
+              raisedAt: "2026-10-12T17:42:05Z",
+            },
+            afterUserMessageId: null,
+            status: "open",
+          })
+        );
+        expect(checkedStates()).toEqual(["checked", "checked", "checked"]);
       });
 
       it("starts with a feedback card's draft in the note field, still editable before it is sent", async () => {
-        const { props } = renderFlow({ initialNote: "Replied in Swedish\n\nWhat happened: hej" });
+        const { props } = renderFlow({
+          initialNote: "Note save failed\n\nWhat happened: write_note failed",
+        });
 
         expect((noteField() as HTMLTextAreaElement).value).toBe(
-          "Replied in Swedish\n\nWhat happened: hej"
+          "Note save failed\n\nWhat happened: write_note failed"
         );
-        fireEvent.change(noteField(), { target: { value: "Replied in Swedish, edited" } });
+        fireEvent.change(noteField(), { target: { value: "Note save failed, edited" } });
         submit();
         await awaitPrepared();
-        expect(props.prepare).toHaveBeenCalledWith("Replied in Swedish, edited", expect.any(Set));
+        expect(props.prepare).toHaveBeenCalledWith("Note save failed, edited", expect.any(Set));
       });
 
       it("passes the note and only the checked sources to prepare", async () => {
@@ -307,6 +374,12 @@ describe("ReportIssueFlow", () => {
     });
 
     describe("upload failure", () => {
+      it("warns that a failed upload may already have reached the service before retrying", async () => {
+        await reachFailedUpload();
+
+        expect(screen.getByText(/the earlier attempt may already have arrived/)).toBeTruthy();
+      });
+
       it("offers Retry, Show zip and Open issue anyway for every failure, and keeps the zip", async () => {
         const { props } = await reachFailedUpload();
 

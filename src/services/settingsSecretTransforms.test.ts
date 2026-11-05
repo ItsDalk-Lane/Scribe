@@ -232,7 +232,7 @@ describe("settingsSecretTransforms", () => {
         _diskSecretsCleared: true,
         _keychainOnly: true,
         githubCopilotAccessToken: "gho_access",
-        githubCopilotToken: "tid=copilot",
+        githubCopilotToken: "tid=fixture",
         githubCopilotTokenExpiresAt: 1893456000,
         agentMode: {
           ...DEFAULT_SETTINGS.agentMode,

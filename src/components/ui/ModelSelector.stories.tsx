@@ -57,3 +57,19 @@ export const MissingApiKey: StoryObj<ModelSelectorProps> = {
 };
 
 export const CommandNeedsSelection: StoryObj<ModelSelectorProps> = { args: { value: "" } };
+
+export const UnreadableApiKey: StoryObj<ModelSelectorProps> = {
+  args: {
+    value: "",
+    models: [
+      {
+        name: "configured-cloud-model",
+        provider: "agent",
+        displayName: "Configured chat model",
+        enabled: true,
+        _group: "Scribe",
+        _disabledReason: "Cannot read API key on this device",
+      },
+    ],
+  },
+};

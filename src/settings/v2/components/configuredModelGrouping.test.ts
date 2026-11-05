@@ -48,7 +48,7 @@ describe("configuredModelGrouping", () => {
       model("m-claude", "claude-agent", "sonnet"),
     ];
 
-    it("claude: only this agent's agent-origin rows, no BYOK", () => {
+    it("claude: only this agent's agent-origin rows, no configured-provider models", () => {
       const { byokCandidates, agentOriginCandidates } = partitionCandidates(
         models,
         providers,
@@ -295,7 +295,11 @@ describe("configuredModelGrouping", () => {
       expect(
         groups.map(({ label, badge, destination }) => ({ label, badge, destination }))
       ).toEqual([
-        { label: "Anthropic", badge: "BYOK", destination: { kind: "cloud", label: "Anthropic" } },
+        {
+          label: "Anthropic",
+          badge: "Models and providers",
+          destination: { kind: "cloud", label: "Anthropic" },
+        },
         { label: "claude", badge: "Agent Provided", destination: undefined },
       ]);
     });

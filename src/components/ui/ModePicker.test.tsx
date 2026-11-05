@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { ModePicker } from "./ModePicker";
 
 function renderWithValue(value: "default" | "plan" | "auto") {
@@ -20,6 +21,8 @@ function renderWithValue(value: "default" | "plan" | "auto") {
 
 describe("ModePicker", () => {
   describe("ModePicker()", () => {
+    afterEach(() => setInterfaceLocale("en"));
+
     it.each([
       ["default", "Default"],
       ["plan", "Plan"],
@@ -37,6 +40,14 @@ describe("ModePicker", () => {
       renderWithValue("default");
 
       expect(screen.queryByText(/Safe/)).toBeNull();
+    });
+
+    it("uses the documented Chinese name for the same plan mode", () => {
+      setInterfaceLocale("zh-CN");
+      renderWithValue("plan");
+
+      expect(screen.getByRole("button", { name: "计划" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "规划" })).toBeNull();
     });
   });
 });

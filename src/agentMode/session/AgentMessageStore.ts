@@ -1,4 +1,5 @@
 import { logInfo } from "@/logger";
+import { t } from "@/lib/i18n";
 import {
   AgentChatMessage,
   AgentMessagePart,
@@ -17,6 +18,7 @@ interface StoredAgentMessage {
   timestamp: FormattedDateTime | null;
   isVisible: boolean;
   isErrorMessage?: boolean;
+  errorText?: string;
   parts?: AgentMessagePart[];
   context?: MessageContext;
   content?: unknown[];
@@ -217,6 +219,7 @@ export class AgentMessageStore {
       missingAttachments: message.missingAttachments,
       isVisible: message.isVisible !== false,
       isErrorMessage: message.isErrorMessage,
+      errorText: message.errorText,
       content: message.content,
       parts: message.parts,
       turnStopReason: message.turnStopReason,
@@ -227,13 +230,13 @@ export class AgentMessageStore {
     return id;
   }
 
-  markTurnComplete(id: string, stopReason: StopReason, durationMs: number): boolean {
+  markTurnComplete(id: string, stopReason: StopReason, durationMs?: number): boolean {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg) return false;
     if (msg.turnStopReason !== undefined) return false;
     this.finishTrailingThought(msg);
     msg.turnStopReason = stopReason;
-    msg.turnDurationMs = Math.max(0, durationMs);
+    if (durationMs !== undefined) msg.turnDurationMs = Math.max(0, durationMs);
     this.touch(msg);
     return true;
   }
@@ -384,7 +387,8 @@ export class AgentMessageStore {
     msg.isErrorMessage = true;
     if (durationMs !== undefined) msg.turnDurationMs = Math.max(0, durationMs);
     const suffix = msg.displayText.length > 0 ? "\n\n" : "";
-    msg.displayText += `${suffix}**Error:** ${errorText}`;
+    msg.errorText = `**${t("Error:")}** ${errorText}`;
+    msg.displayText += `${suffix}${msg.errorText}`;
     this.touch(msg);
     return true;
   }
@@ -460,6 +464,7 @@ export class AgentMessageStore {
         fileChanges: msg.fileChanges,
         isVisible: msg.isVisible !== false,
         isErrorMessage: msg.isErrorMessage,
+        errorText: msg.errorText,
         content: msg.content,
         parts: msg.parts,
         turnStopReason: msg.turnStopReason,
@@ -480,6 +485,7 @@ export class AgentMessageStore {
       context: m.context,
       missingAttachments: m.missingAttachments,
       isErrorMessage: m.isErrorMessage,
+      errorText: m.errorText,
       content: m.content,
       parts: m.parts,
       turnStopReason: m.turnStopReason,

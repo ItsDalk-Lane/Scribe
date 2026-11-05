@@ -44,7 +44,7 @@ describe("legacyCaches", () => {
       fs.mkdirSync(path.join(contextCacheDir(), "remotes"), { recursive: true });
       fs.writeFileSync(path.join(contextCacheDir(), "remotes", "web-1.md"), "old snapshot");
 
-      await clearLegacyCaches(app);
+      await expect(clearLegacyCaches(app)).resolves.toBe(true);
 
       expect(adapter.rmdir).toHaveBeenCalledWith(".scribe/pdf-cache", true);
       expect(fs.existsSync(contextCacheDir())).toBe(false);
@@ -52,7 +52,7 @@ describe("legacyCaches", () => {
     });
 
     it("resolves without deleting anything when neither cache folder exists", async () => {
-      await expect(clearLegacyCaches(app)).resolves.toBeUndefined();
+      await expect(clearLegacyCaches(app)).resolves.toBe(false);
       expect(adapter.rmdir).not.toHaveBeenCalled();
     });
 
@@ -61,7 +61,7 @@ describe("legacyCaches", () => {
       vaultFolders.add(".scribe/pdf-cache");
       fs.mkdirSync(contextCacheDir(), { recursive: true });
 
-      await clearLegacyCaches(app);
+      await expect(clearLegacyCaches(app)).resolves.toBe(true);
 
       expect(adapter.rmdir).toHaveBeenCalledWith(".scribe/pdf-cache", true);
       expect(fs.existsSync(contextCacheDir())).toBe(true);

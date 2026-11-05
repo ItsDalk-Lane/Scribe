@@ -25,7 +25,13 @@ const meta = {
 } satisfies Meta<DebuggingSupportSectionProps>;
 export default meta;
 
-export const FreshInstall: StoryObj<DebuggingSupportSectionProps> = {};
+export const FreshInstall: StoryObj<DebuggingSupportSectionProps> = {
+  name: "Fresh install and report entry",
+};
+
+export const FeedbackCardsOff: StoryObj<DebuggingSupportSectionProps> = {
+  args: { offerFeedbackCards: false },
+};
 
 export const ActivityLogOff: StoryObj<DebuggingSupportSectionProps> = {
   args: { frameLogEnabled: false },

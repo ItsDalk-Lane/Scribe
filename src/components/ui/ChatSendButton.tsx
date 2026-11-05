@@ -7,16 +7,22 @@ interface ChatSendButtonProps {
   inputMessage: string;
   imageCount: number;
   onSend: () => void;
+  disabled?: boolean;
 }
 
-export function ChatSendButton({ inputMessage, imageCount, onSend }: ChatSendButtonProps) {
+export function ChatSendButton({
+  inputMessage,
+  imageCount,
+  onSend,
+  disabled,
+}: ChatSendButtonProps) {
   return (
     <Button
       size="icon"
       className="tw-rounded-full tw-bg-interactive-accent tw-text-on-accent hover:tw-bg-interactive-accent-hover"
       aria-label={t("Send")}
       onClick={onSend}
-      disabled={!inputMessage.trim() && imageCount === 0}
+      disabled={disabled || (!inputMessage.trim() && imageCount === 0)}
     >
       <ArrowUp className="tw-size-4" />
     </Button>

@@ -389,7 +389,7 @@ describe("main", () => {
       });
     });
 
-    describe("onload", () => {
+    describe("onload()", () => {
       const pendingTeardown = Symbol.for("obsidian-scribe:pending-teardown");
 
       beforeEach(() => {
@@ -751,21 +751,32 @@ describe("main", () => {
         expect(plugin.openChatDeepLink).not.toHaveBeenCalled();
       });
 
-      it("reports a startup failure even with debug logging off, then unloads what startup registered", async () => {
-        const failure = new Error("settings unreadable");
-        const { plugin, finishStartup } = createLoadingPlugin(async () => {
-          throw failure;
-        });
+      it.each([
+        [
+          "en",
+          "Scribe failed to start. Back up your files, then disable Scribe until file-safety issues are fixed. Check the developer console for details.",
+        ],
+        [
+          "zh",
+          "Scribe 启动失败。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看开发者控制台了解详情。",
+        ],
+      ] as const)(
+        "reports a startup failure in %s even with debug logging off, then unloads what startup registered",
+        async (language, expected) => {
+          jest.mocked(getLanguage).mockReturnValue(language);
+          const failure = new Error("settings unreadable");
+          const { plugin, finishStartup } = createLoadingPlugin(async () => {
+            throw failure;
+          });
 
-        plugin.onload();
+          plugin.onload();
 
-        await finishStartup();
-        expect(logFatalError).toHaveBeenCalledWith("Scribe failed to start.", failure);
-        expect(Notice).toHaveBeenCalledWith(
-          "Scribe failed to start. Check the Scribe log for details."
-        );
-        expect(plugin.unload).toHaveBeenCalledTimes(1);
-      });
+          await finishStartup();
+          expect(logFatalError).toHaveBeenCalledWith("Scribe failed to start.", failure);
+          expect(Notice).toHaveBeenCalledWith(expected);
+          expect(plugin.unload).toHaveBeenCalledTimes(1);
+        }
+      );
 
       it.each([
         ["runs", "stays loaded", true],

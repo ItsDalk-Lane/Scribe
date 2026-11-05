@@ -5,17 +5,12 @@ model selection, and the transient catalog types used during setup.
 
 ## Architecture in one paragraph
 
-`models.dev` (the catalog) is consumed **only during setup**. When the
-user adds a provider via BYOK, when an agent is configured, a `Provider` row
-is created with an
-`origin` discriminator (`byok` / `agent`). Each
-provider has zero or more `ConfiguredModel` rows under it, each
-embedding a `ModelInfo` snapshot copied from the catalog (or
-hand-typed for self-hosted endpoints). The plugin keeps working
-when the catalog is unreachable because every runtime-relevant field
-lives in `ConfiguredModel.info`. The two backends that curate model
-selection — `chat` and `claude` — each persist a
-`BackendConfig` listing `configuredModelId`s they expose in their
-picker. The BYOK settings tab filters `providers` by
-`origin.kind === "byok"`; the chat-model factory dispatches purely on
-`Provider.providerType`.
+`models.dev` supplies catalog information during setup. Providers hold
+connection details, while configured models retain their selected model
+information, including manually entered IDs. The `chat` and `native`
+backend configurations select which configured models are available to
+quick tools and the in-process agent respectively. The `agent` provider
+origin is a persisted type; it does not provide a second active agent
+backend. The model-and-provider settings show providers with
+`origin.kind === "byok"`, and the chat-model factory selects the provider
+protocol from the configured provider.

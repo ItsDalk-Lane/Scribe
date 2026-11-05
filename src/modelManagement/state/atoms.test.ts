@@ -118,7 +118,7 @@ describe("atoms", () => {
   });
 
   describe("visibleByokProvidersAtom", () => {
-    it("preserves the configured order of cloud and local BYOK providers", () => {
+    it("preserves the configured order of cloud and local providers", () => {
       expect(settingsStore.get(visibleByokProvidersAtom).map((p) => p.providerId)).toEqual([
         "cloud",
         "local",
@@ -128,7 +128,7 @@ describe("atoms", () => {
       );
     });
 
-    it("returns the same empty list on every read when no BYOK providers exist", () => {
+    it("returns the same empty list on every read when no configured providers exist", () => {
       setSettings({ providers: {}, configuredModels: [] });
       const a = settingsStore.get(visibleByokProvidersAtom);
       const b = settingsStore.get(visibleByokProvidersAtom);

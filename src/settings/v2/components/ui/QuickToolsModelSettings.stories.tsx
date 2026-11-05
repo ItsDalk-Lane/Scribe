@@ -14,7 +14,6 @@ const GROUPS: ModelEnableGroup[] = [
   {
     key: "byok",
     label: "OpenAI",
-    badge: "BYOK",
     rows: [
       { id: "gpt-4.1", label: "GPT-4.1", enabled: true },
       { id: "gpt-4.1-mini", label: "GPT-4.1 mini", enabled: false },
@@ -38,9 +37,9 @@ function QuickToolsModelSettingsStory({ empty }: QuickToolsModelSettingsStoryPro
         searchPlaceholder={t("Search quick-tool models…")}
         emptyState={
           <span>
-            {t("No models yet. Add a provider on the ")}
-            <span className="tw-font-medium">{t("Models")}</span>{" "}
-            {t(" tab to use it in Quick tools.")}
+            {t("No matching chat models. Check your search or add one under ")}
+            <span className="tw-font-medium">{t("Models and providers")}</span>
+            {t(" to use it in Quick tools.")}
           </span>
         }
       />

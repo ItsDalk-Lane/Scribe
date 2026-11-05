@@ -95,6 +95,53 @@ describe("useModelCandidatePool", () => {
       });
     });
 
+    it("waits for a nonempty required key before automatically listing a new provider", async () => {
+      const initial = args({
+        mode: "new",
+        autoDiscover: true,
+        effectiveBaseUrl: "https://fixture.invalid/v1",
+        requiresApiKey: true,
+        apiKey: "",
+      });
+      const { rerender } = renderHook(
+        (input: UseModelCandidatePoolArgs) => useModelCandidatePool(input),
+        {
+          initialProps: initial,
+        }
+      );
+      expect(listModels).not.toHaveBeenCalled();
+      rerender({ ...initial, apiKey: "synthetic-key" });
+      expect(listModels).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await listModels.mock.results[0].value;
+      });
+      expect(listModels).toHaveBeenCalledWith("openai-compatible", "https://fixture.invalid/v1", {
+        apiKey: "synthetic-key",
+        extras: {},
+      });
+    });
+
+    it("can automatically list an edited provider with a required key left empty", async () => {
+      renderHook(() =>
+        useModelCandidatePool(
+          args({
+            mode: "edit",
+            effectiveBaseUrl: "https://fixture.invalid/v1",
+            requiresApiKey: true,
+            apiKey: "",
+          })
+        )
+      );
+      expect(listModels).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await listModels.mock.results[0].value;
+      });
+      expect(listModels).toHaveBeenCalledWith("openai-compatible", "https://fixture.invalid/v1", {
+        apiKey: null,
+        extras: {},
+      });
+    });
+
     it(`uses the current empty key after clearing credentials (${issue})`, async () => {
       const { result, rerender } = renderHook(
         (input: UseModelCandidatePoolArgs) => useModelCandidatePool(input),

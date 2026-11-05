@@ -203,7 +203,12 @@ export const SkillRow: React.FC<SkillRowProps> = ({
                 state={
                   skill.location.kind === "canonical"
                     ? switchable(state, item, checking, configured)
-                    : state
+                    : // 未确认运行状态时仍保留用户保存的项目启用偏好。https://github.com/ItsDalk-Lane/Scribe/issues/6
+                      !item.availability ||
+                        item.availability === "unconfirmed" ||
+                        item.availability === "not_listed"
+                      ? { ...state, checked: configured }
+                      : state
                 }
                 busy={busy}
                 onToggle={(next) => {

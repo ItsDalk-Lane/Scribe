@@ -25,10 +25,20 @@ import {
   type NativeBackendProcessOptions,
 } from "@/agentMode/sdk/NativeBackendProcess";
 import { AgentSession } from "@/agentMode/session/AgentSession";
+import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
+import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import { AppContext } from "@/context";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import * as React from "react";
+
 import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
 import { createNativeTools } from "@/agentMode/sdk/nativeTools";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
+import { AgentSessionSnapshots } from "@/agentMode/session/AgentSessionSnapshots";
+import { createNodeSnapshotStorage } from "@/agentMode/session/nodeFileStorage";
+import { mergeSnapshotReplay } from "@/agentMode/session/sessionSnapshotMessages";
 import type {
   AgentQuestionAnswers,
   AskUserQuestionPrompt,
@@ -36,6 +46,20 @@ import type {
   PermissionPrompt,
   SessionEvent,
 } from "@/agentMode/session/types";
+
+jest.mock("@/agentMode/ui/AgentMarkdownText", () => ({
+  AgentMarkdownText: ({ text }: { text: string }) => React.createElement("div", null, text),
+}));
+jest.mock("@/hooks/useChatScrolling", () => ({
+  useChatScrolling: () => ({
+    scrollContainerCallbackRef: () => {},
+    contentCallbackRef: () => {},
+    onScroll: () => {},
+    isScrollPaused: false,
+    scrollToEnd: () => {},
+    getMessageKey: (message: { id: string }) => message.id,
+  }),
+}));
 
 const MODEL = {
   id: "fixture-model",
@@ -336,6 +360,304 @@ describe("NativeBackendProcess integration", () => {
         expect(JSON.stringify(session.store.getDisplayMessages())).toContain("Actual answer");
       });
 
+      it.each([false, true])(
+        "shows the real failed partial reply once and copies only its body with reopened=%s",
+        async (reopened) => {
+          const f = fixture(() => {
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(MODEL);
+            message.content = [{ type: "text", text: "Partial reply" }];
+            message.stopReason = "error";
+            message.errorMessage = "Synthetic stream failure";
+            stream.push({ type: "start", partial: message });
+            stream.push({
+              type: "text_delta",
+              contentIndex: 0,
+              delta: "Partial reply",
+              partial: message,
+            });
+            stream.push({ type: "error", reason: "error", error: message });
+            return stream;
+          });
+          const descriptor = {
+            ...NativeBackendDescriptor,
+            getEnabledModelEntries: () => [
+              { baseModelId: MODEL.id, name: MODEL.name, credentialState: "ok" as const },
+            ],
+          };
+          let displayed = AgentSession.start({
+            backend: f.process,
+            cwd: root,
+            internalId: "partial-failure",
+            backendId: "native",
+            projectId: "project-a",
+            defaultModelSelection: { baseModelId: MODEL.id, effort: null },
+            getDescriptor: () => descriptor,
+          });
+          await displayed.ready;
+          await expect(displayed.sendPrompt("Test partial reply").turn).rejects.toThrow(
+            "Synthetic stream failure"
+          );
+          expect(displayed.getStatus()).toBe("error");
+          const expectedBody = reopened ? "Saved user edit" : "Partial reply";
+          if (reopened) {
+            const sessionId = displayed.getBackendSessionId();
+            if (!sessionId) throw new Error("Missing native session");
+            const snapshots = new AgentSessionSnapshots(
+              createNodeSnapshotStorage(),
+              join(data, "ui-snapshots"),
+              () => null
+            );
+            const savedMessages = displayed.store.getDisplayMessages().map((message) =>
+              message.sender === "user"
+                ? message
+                : {
+                    ...message,
+                    message: "Saved user edit",
+                    parts: [{ kind: "text" as const, text: "Saved user edit" }],
+                    isErrorMessage: false,
+                    errorText: undefined,
+                    customSavedField: { retain: "edit" },
+                  }
+            );
+            await snapshots.save({
+              version: 1,
+              chatId: "partial-edit",
+              backendId: "native",
+              sessionId,
+              projectId: "project-a",
+              savedAtMs: 1,
+              label: null,
+              messages: savedMessages,
+              tasks: [],
+              branch: null,
+            });
+            const snapshotFile = join(
+              data,
+              "ui-snapshots",
+              (await readdir(join(data, "ui-snapshots")))[0]
+            );
+            const originalSnapshot = await readFile(snapshotFile, "utf8");
+            await f.process.closeSession({ sessionId });
+            const path = join(data, "sessions", `${sessionId}.json`);
+            const record = JSON.parse(await readFile(path, "utf8"));
+            record.futureData = { nested: ["retain", { untouched: true }] };
+            record.messages.at(-1).futureMessageField = { retain: ["message", 42] };
+            record.events.at(-1).futureEventField = { untouched: "event" };
+            await writeFile(path, JSON.stringify(record));
+            const original = await readFile(path, "utf8");
+            const restored = fixture(() => response("Recovery reply"));
+            displayed = new AgentSession({
+              backend: restored.process,
+              backendSessionId: sessionId,
+              cwd: root,
+              internalId: "partial-failure-reopened",
+              backendId: "native",
+              projectId: "project-a",
+              defaultModelSelection: { baseModelId: MODEL.id, effort: null },
+              getDescriptor: () => descriptor,
+            });
+            const opened = await restored.process.loadSession({
+              sessionId,
+              cwd: root,
+              projectId: "project-a",
+            });
+            expect(await readFile(path, "utf8")).toBe(original);
+            displayed.completeResume(opened.state);
+            await displayed.ready;
+            expect(restored.contexts).toEqual([]);
+            const afterResume = JSON.parse(await readFile(path, "utf8"));
+            expect(afterResume.futureData).toEqual(record.futureData);
+            expect(
+              afterResume.events.find(
+                (event: { futureEventField?: unknown }) => event.futureEventField
+              )?.futureEventField
+            ).toEqual({ untouched: "event" });
+            expect(afterResume.messages).toEqual(record.messages);
+            expect(afterResume.events.slice(0, record.events.length)).toEqual(record.events);
+            const snapshot = await snapshots.load("native", sessionId);
+            if (!snapshot) throw new Error("Missing saved snapshot");
+            const restoredMessages = mergeSnapshotReplay(
+              snapshot.messages,
+              displayed.store.getDisplayMessages()
+            );
+            expect(restoredMessages[1]).toMatchObject({
+              message: "Saved user edit",
+              isErrorMessage: true,
+              errorText: "**Error:** Synthetic stream failure",
+              customSavedField: { retain: "edit" },
+            });
+            displayed.loadDisplayMessages(restoredMessages);
+            expect(await readFile(snapshotFile, "utf8")).toBe(originalSnapshot);
+          }
+          expect(displayed.getStatus()).toBe("error");
+          const reply = displayed.store
+            .getDisplayMessages()
+            .find((message) => message.sender !== "user");
+          expect(reply?.isErrorMessage).toBe(true);
+          if (!reply) throw new Error("Missing displayed reply");
+          const app = {
+            vault: { adapter },
+            workspace: { getActiveFile: () => null },
+          } as unknown as App;
+          const clipboard = jest.fn().mockResolvedValue(undefined);
+          Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText: clipboard },
+          });
+          const view = render(
+            React.createElement(
+              AppContext.Provider,
+              { value: app },
+              React.createElement(
+                TooltipProvider,
+                null,
+                React.createElement(AgentChatMessages, {
+                  messages: [reply],
+                  plugin: { app, manifest: { id: "scribe" } } as never,
+                  currentPlan: null,
+                  pendingToolPermissions: [],
+                  pendingAskUserQuestions: [],
+                  chatBackend: {} as AgentChatBackend,
+                  isLoading: false,
+                  feedbackOffer: null,
+                })
+              )
+            )
+          );
+          await waitFor(() =>
+            expect(view.container.textContent).toContain("Synthetic stream failure")
+          );
+          expect(view.container.textContent?.split(expectedBody).length).toBe(2);
+          if (reopened) expect(view.container.textContent).not.toContain("Partial reply");
+          expect(view.container.textContent?.match(/Synthetic stream failure/g)).toHaveLength(1);
+          await act(async () => {
+            fireEvent.click(view.getByTitle("Copy"));
+            await clipboard.mock.results[0].value;
+          });
+          expect(clipboard.mock.calls).toEqual([[expectedBody]]);
+          view.unmount();
+          if (reopened) {
+            await expect(displayed.sendPrompt("Continue after the error").turn).resolves.toBe(
+              "end_turn"
+            );
+            expect(displayed.getStatus()).toBe("idle");
+          }
+        }
+      );
+
+      it("keeps an actively stopped partial reply cancelled after real disk reopening without inventing an error", async () => {
+        const started = deferred<void>();
+        const f = fixture((_context, options) => {
+          const stream = createAssistantMessageEventStream();
+          const message = createAssistantMessage(MODEL);
+          message.content = [{ type: "text", text: "Stopped partial reply" }];
+          stream.push({ type: "start", partial: message });
+          stream.push({
+            type: "text_delta",
+            contentIndex: 0,
+            delta: "Stopped partial reply",
+            partial: message,
+          });
+          options?.signal?.addEventListener(
+            "abort",
+            () => {
+              message.stopReason = "aborted";
+              stream.push({ type: "error", reason: "aborted", error: message });
+            },
+            { once: true }
+          );
+          started.resolve();
+          return stream;
+        });
+        const descriptor = {
+          ...NativeBackendDescriptor,
+          getEnabledModelEntries: () => [
+            { baseModelId: MODEL.id, name: MODEL.name, credentialState: "ok" as const },
+          ],
+        };
+        const active = AgentSession.start({
+          backend: f.process,
+          cwd: root,
+          internalId: "stopped-partial",
+          backendId: "native",
+          projectId: "project-a",
+          defaultModelSelection: { baseModelId: MODEL.id, effort: null },
+          getDescriptor: () => descriptor,
+        });
+        await active.ready;
+        const sent = active.sendPrompt("Stop this reply");
+        await started.promise;
+        await waitFor(() =>
+          expect(
+            active.store
+              .getDisplayMessages()
+              .some((message) => message.message.includes("Stopped partial reply"))
+          ).toBe(true)
+        );
+        await active.cancel();
+        await expect(sent.turn).resolves.toBe("cancelled");
+        const sessionId = active.getBackendSessionId();
+        if (!sessionId) throw new Error("Missing stopped session");
+        await f.process.closeSession({ sessionId });
+        const restored = fixture(() => response("Must not request another reply"));
+        const displayed = new AgentSession({
+          backend: restored.process,
+          backendSessionId: sessionId,
+          cwd: root,
+          internalId: "stopped-partial-reopened",
+          backendId: "native",
+          projectId: "project-a",
+          defaultModelSelection: { baseModelId: MODEL.id, effort: null },
+          getDescriptor: () => descriptor,
+        });
+        const opened = await restored.process.loadSession({
+          sessionId,
+          cwd: root,
+          projectId: "project-a",
+        });
+        displayed.completeResume(opened.state);
+        await displayed.ready;
+        const reply = displayed.store
+          .getDisplayMessages()
+          .find((message) => message.sender !== "user");
+        expect(reply).toMatchObject({
+          message: "Stopped partial reply",
+          turnStopReason: "cancelled",
+        });
+        expect(reply?.isErrorMessage).not.toBe(true);
+        expect(displayed.getStatus()).toBe("idle");
+        expect(restored.contexts).toEqual([]);
+        if (!reply) throw new Error("Missing stopped reply");
+        const app = {
+          vault: { adapter },
+          workspace: { getActiveFile: () => null },
+        } as unknown as App;
+        const view = render(
+          React.createElement(
+            AppContext.Provider,
+            { value: app },
+            React.createElement(
+              TooltipProvider,
+              null,
+              React.createElement(AgentChatMessages, {
+                messages: [reply],
+                plugin: { app, manifest: { id: "scribe" } } as never,
+                currentPlan: null,
+                pendingToolPermissions: [],
+                pendingAskUserQuestions: [],
+                chatBackend: {} as AgentChatBackend,
+                isLoading: false,
+                feedbackOffer: null,
+              })
+            )
+          )
+        );
+        expect(view.container.textContent?.match(/Stopped partial reply/g)).toHaveLength(1);
+        expect(view.queryByTitle("Copy")).toBeNull();
+        view.unmount();
+      });
+
       it("settles a real session when model preparation fails before a provider request is sent", async () => {
         let prompts = 0;
         const responder = jest.fn(() => response("Not requested"));
@@ -501,6 +823,122 @@ describe("NativeBackendProcess integration", () => {
         );
         expect(record?.decisions).toHaveLength(2);
       });
+
+      it.each([
+        {
+          label: "a final answer",
+          finalText: "  Actual child result\n",
+          stopReason: "stop" as const,
+          status: "completed",
+          isError: false,
+          summary: "  Actual child result\n",
+        },
+        {
+          label: "an empty final answer",
+          finalText: "",
+          stopReason: "stop" as const,
+          status: "failed",
+          isError: true,
+          summary: "The child agent did not return a final result.",
+        },
+        {
+          label: "a whitespace-only final answer",
+          finalText: " \n\t ",
+          stopReason: "stop" as const,
+          status: "failed",
+          isError: true,
+          summary: "The child agent did not return a final result.",
+        },
+        {
+          label: "a failed partial answer",
+          finalText: "Partial child result",
+          stopReason: "error" as const,
+          status: "failed",
+          isError: true,
+          summary: "Partial child result",
+        },
+        {
+          label: "a cancelled partial answer",
+          finalText: "Partial child result",
+          stopReason: "aborted" as const,
+          status: "stopped",
+          isError: true,
+          summary: "Partial child result",
+        },
+        {
+          label: "a truncated partial answer",
+          finalText: "Partial child result",
+          stopReason: "length" as const,
+          status: "failed",
+          isError: true,
+          summary: "Partial child result",
+        },
+      ])(
+        "reports $label with its actual task, tool-result and persisted status",
+        async ({ finalText, stopReason, status, isError, summary }) => {
+          const f = fixture((context) => {
+            if (userText(context) === "Child result task") {
+              const stream = createAssistantMessageEventStream();
+              const message = createAssistantMessage(MODEL);
+              message.content = finalText ? [{ type: "text", text: finalText }] : [];
+              message.stopReason = stopReason;
+              stream.push({ type: "start", partial: message });
+              if (finalText)
+                stream.push({
+                  type: "text_delta",
+                  contentIndex: 0,
+                  delta: finalText,
+                  partial: message,
+                });
+              if (stopReason === "error" || stopReason === "aborted") {
+                message.errorMessage = "Fixture child ended early";
+                stream.push({ type: "error", reason: stopReason, error: message });
+              } else stream.push({ type: "done", reason: stopReason, message });
+              return stream;
+            }
+            return results(context).length === 0
+              ? response("", [
+                  {
+                    id: "child-result-delegate",
+                    name: "delegate_task",
+                    arguments: { prompt: "Child result task", description: "Inspect child result" },
+                  },
+                ])
+              : response("Parent received the child result");
+          });
+          const session = AgentSession.start({
+            backend: f.process,
+            cwd: root,
+            internalId: "native-child-result",
+            backendId: "native",
+            defaultModelSelection: { baseModelId: MODEL.id, effort: null },
+            getDescriptor: () => ({
+              ...NativeBackendDescriptor,
+              getEnabledModelEntries: () => [
+                { baseModelId: MODEL.id, name: MODEL.name, credentialState: "ok" },
+              ],
+            }),
+          });
+          await session.ready;
+          const id = session.getBackendSessionId()!;
+          await f.send(id, "Parent child-result task");
+          expect(session.getTasks()).toEqual([expect.objectContaining({ status, summary })]);
+          const saved = await new NodeNativeSessionStorage(join(data, "sessions")).load(id);
+          expect(saved?.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({ sessionUpdate: "task_ended", status, summary }),
+            })
+          );
+          expect(saved?.messages).toContainEqual(
+            expect.objectContaining({
+              role: "toolResult",
+              toolCallId: "child-result-delegate",
+              isError,
+              content: [{ type: "text", text: summary }],
+            })
+          );
+        }
+      );
 
       it("reports a child that reaches its step limit as failed instead of a completed empty result", async () => {
         await writeFile(join(root, "limit.md"), "Read but not a final child answer");
@@ -831,6 +1269,34 @@ describe("NativeBackendProcess integration", () => {
               event.update.promptId === "queued"
           )
         ).toHaveLength(1);
+      });
+    });
+
+    describe("setSessionMode", () => {
+      it("allows a manual switch from plan to auto before any plan is approved", async () => {
+        const f = fixture((context) =>
+          results(context).length === 0
+            ? response("", [
+                {
+                  id: "manual-switch-write",
+                  name: "write_note",
+                  arguments: { path: "manual-switch.md", content: "Written after mode switch" },
+                },
+              ])
+            : response("Done")
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "reject_once" },
+        }));
+        f.process.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.process.setSessionMode({ sessionId: id, modeId: "plan" });
+        await f.process.setSessionMode({ sessionId: id, modeId: "auto" });
+        await f.send(id);
+        expect(await readFile(join(root, "manual-switch.md"), "utf8")).toBe(
+          "Written after mode switch"
+        );
+        expect(permission).not.toHaveBeenCalled();
       });
     });
 

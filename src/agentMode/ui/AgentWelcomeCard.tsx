@@ -35,7 +35,7 @@ export const AgentWelcomeCard = memo(
 
       <p className="tw-m-0 tw-text-ui-smaller tw-text-muted">
         {t(
-          "Group notes, URLs, PDFs, and folders into a focused context. The agent answers only within those materials, and each project keeps its own chat history."
+          "Save references to notes, URLs, PDFs, and folders in a project. Each project keeps its own chat history."
         )}
       </p>
 

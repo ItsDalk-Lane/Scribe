@@ -46,14 +46,20 @@ describe("extensionCheckCache", () => {
   describe("extensionCheckCacheKey", () => {
     it("separates backends, scopes, and configuration content", () => {
       const base = extensionCheckCacheKey(
-        { backendId: "claude", scopeKind: "user", cwd: null },
+        { backendId: "test-backend-a", scopeKind: "user", cwd: null },
         groups
       );
       expect(
-        extensionCheckCacheKey({ backendId: "opencode", scopeKind: "user", cwd: null }, groups)
+        extensionCheckCacheKey(
+          { backendId: "test-backend-b", scopeKind: "user", cwd: null },
+          groups
+        )
       ).not.toBe(base);
       expect(
-        extensionCheckCacheKey({ backendId: "claude", scopeKind: "project", cwd: "/vault" }, groups)
+        extensionCheckCacheKey(
+          { backendId: "test-backend-a", scopeKind: "project", cwd: "/vault" },
+          groups
+        )
       ).not.toBe(base);
       const changed: readonly AgentExtensionGroup[] = [
         {
@@ -67,7 +73,10 @@ describe("extensionCheckCache", () => {
         },
       ];
       expect(
-        extensionCheckCacheKey({ backendId: "claude", scopeKind: "user", cwd: null }, changed)
+        extensionCheckCacheKey(
+          { backendId: "test-backend-a", scopeKind: "user", cwd: null },
+          changed
+        )
       ).not.toBe(base);
     });
   });
@@ -75,14 +84,14 @@ describe("extensionCheckCache", () => {
   describe("extensionCheckCacheIdentity", () => {
     it(`separates the backend, scope, working directory, and vault a saved answer belongs to`, () => {
       const identity = extensionCheckCacheIdentity({
-        backendId: "claude",
+        backendId: "test-backend-a",
         scopeKind: "user",
         cwd: null,
         vaultBase: "/vault",
       });
       expect(
         extensionCheckCacheIdentity({
-          backendId: "claude",
+          backendId: "test-backend-a",
           scopeKind: "user",
           cwd: null,
           vaultBase: "/vault",
@@ -90,7 +99,7 @@ describe("extensionCheckCache", () => {
       ).toBe(identity);
       expect(
         extensionCheckCacheIdentity({
-          backendId: "claude",
+          backendId: "test-backend-a",
           scopeKind: "project",
           cwd: "/vault",
           vaultBase: "/vault",
@@ -98,7 +107,7 @@ describe("extensionCheckCache", () => {
       ).not.toBe(identity);
       expect(
         extensionCheckCacheIdentity({
-          backendId: "claude",
+          backendId: "test-backend-a",
           scopeKind: "user",
           cwd: null,
           vaultBase: "/other",
@@ -110,7 +119,7 @@ describe("extensionCheckCache", () => {
   describe("storeCachedExtensionCheck", () => {
     it("stores a settled snapshot and answers it under the same key", () => {
       const key = extensionCheckCacheKey(
-        { backendId: "claude", scopeKind: "user", cwd: null },
+        { backendId: "test-backend-a", scopeKind: "user", cwd: null },
         groups
       );
       const runtime = runtimeWith("connected");
@@ -120,7 +129,7 @@ describe("extensionCheckCache", () => {
     });
     it("never caches an in-flight snapshot that still shows a connecting server", () => {
       const key = extensionCheckCacheKey(
-        { backendId: "claude", scopeKind: "user", cwd: null },
+        { backendId: "test-backend-a", scopeKind: "user", cwd: null },
         groups
       );
       storeCachedExtensionCheck(null, key, runtimeWith("pending"));
@@ -128,10 +137,12 @@ describe("extensionCheckCache", () => {
     });
     it("evicts the oldest entry when the cache reaches its size cap", () => {
       const first = extensionCheckCacheKey(
-        { backendId: "claude", scopeKind: "user", cwd: null },
+        { backendId: "test-backend-a", scopeKind: "user", cwd: null },
         groups
       );
-      for (let i = 0; i < 25; i++) {
+      storeCachedExtensionCheck(null, first, runtimeWith("connected"));
+      expect(readCachedExtensionCheck(null, first)).not.toBeNull();
+      for (let i = 0; i < 19; i++) {
         const varied: readonly AgentExtensionGroup[] = [
           {
             kind: "mcp",
@@ -142,16 +153,26 @@ describe("extensionCheckCache", () => {
         ];
         storeCachedExtensionCheck(
           null,
-          extensionCheckCacheKey({ backendId: "claude", scopeKind: "user", cwd: null }, varied),
+          extensionCheckCacheKey(
+            { backendId: "test-backend-a", scopeKind: "user", cwd: null },
+            varied
+          ),
           runtimeWith("connected")
         );
       }
+      expect(readCachedExtensionCheck(null, first)).not.toBeNull();
+      const newest = extensionCheckCacheKey(
+        { backendId: "test-backend-a", scopeKind: "project", cwd: "/vault" },
+        groups
+      );
+      storeCachedExtensionCheck(null, newest, runtimeWith("connected"));
       expect(readCachedExtensionCheck(null, first)).toBeNull();
+      expect(readCachedExtensionCheck(null, newest)).not.toBeNull();
     });
     it(`answers after a plugin reload from the snapshot saved in local storage`, () => {
       const { app } = fakeApp();
       const key = extensionCheckCacheKey(
-        { backendId: "claude", scopeKind: "user", cwd: null },
+        { backendId: "test-backend-a", scopeKind: "user", cwd: null },
         groups
       );
       storeCachedExtensionCheck(app, key, runtimeWith("connected"));
@@ -166,31 +187,34 @@ describe("extensionCheckCache", () => {
 
   describe("readCachedExtensionView", () => {
     it("answers nothing when no page has saved an answer for the scope yet", () => {
-      expect(readCachedExtensionView(null, "claude")).toBeNull();
+      expect(readCachedExtensionView(null, "test-backend-a")).toBeNull();
     });
     it(`restores the saved answer after a plugin reload`, () => {
       const { app } = fakeApp();
       const view = { groups, runtimeState: "checked" as const };
-      storeCachedExtensionView(app, "claude", view);
+      storeCachedExtensionView(app, "test-backend-a", view);
 
       resetExtensionCheckCacheForTests();
 
-      expect(readCachedExtensionView(app, "claude")).toEqual(view);
+      expect(readCachedExtensionView(app, "test-backend-a")).toEqual(view);
     });
     it("ignores a saved payload that does not carry a group list", () => {
       const { app, storage } = fakeApp();
-      storage.set("scribe:extension-check-cache:v1", { checks: {}, views: { claude: "broken" } });
-      expect(readCachedExtensionView(app, "claude")).toBeNull();
+      storage.set("scribe:extension-check-cache:v1", {
+        checks: {},
+        views: { "test-backend-a": "broken" },
+      });
+      expect(readCachedExtensionView(app, "test-backend-a")).toBeNull();
     });
   });
 
   describe("storeCachedExtensionView", () => {
     it(`keeps the most recent answer for each backend and scope`, () => {
       const { app } = fakeApp();
-      storeCachedExtensionView(app, "claude", { groups, runtimeState: "checked" });
+      storeCachedExtensionView(app, "test-backend-a", { groups, runtimeState: "checked" });
       const changed = { groups, runtimeState: "partial" as const };
-      storeCachedExtensionView(app, "claude", changed);
-      expect(readCachedExtensionView(app, "claude")).toEqual(changed);
+      storeCachedExtensionView(app, "test-backend-a", changed);
+      expect(readCachedExtensionView(app, "test-backend-a")).toEqual(changed);
     });
     it("evicts the oldest saved answer once the view cache reaches its size cap", () => {
       for (let i = 0; i < 10; i++) {

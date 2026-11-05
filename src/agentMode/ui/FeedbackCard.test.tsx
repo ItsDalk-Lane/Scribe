@@ -1,18 +1,20 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { FeedbackCard, findFeedbackCardIndex } from "./FeedbackCard";
+import { Uploaded } from "./FeedbackCard.stories";
 import type { FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
 import type { AgentChatMessage } from "@/agentMode/session/types";
+import { setInterfaceLocale } from "@/lib/i18n";
 
 const OPEN_OFFER: FeedbackOffer = {
   trigger: "agent",
   draft: {
-    title: "Replied in Swedish to an English request",
-    whatHappened: "The agent answered 'hej'.",
-    userSaid: "Why do you switch to a different language?",
-    repro: "1. Ask in English.",
+    title: "Scribe could not save a note",
+    whatHappened: "The write_note tool returned a permission error.",
+    userSaid: "Why wasn't the note saved?",
+    repro: "1. Ask Scribe to save a note.",
   },
-  evidence: { backendId: "codex", model: "gpt-6.1-sol", sessionId: "s-1", raisedAt: "t" },
+  evidence: { backendId: "native", model: "gpt-6.1-sol", sessionId: "s-1", raisedAt: "t" },
   afterUserMessageId: "user-2",
   status: "open",
 };
@@ -40,6 +42,8 @@ function renderCard(offer: FeedbackOffer = OPEN_OFFER) {
 jest.mock("@/constants", () => ({ USER_SENDER: "user" }));
 
 describe("FeedbackCard", () => {
+  afterEach(() => setInterfaceLocale("en"));
+
   describe("findFeedbackCardIndex", () => {
     it("places the card after the last reply of the turn that raised it", () => {
       expect(findFeedbackCardIndex(TRANSCRIPT, OPEN_OFFER)).toBe(4);
@@ -91,19 +95,50 @@ describe("FeedbackCard", () => {
       expect(screen.queryByText(/You said/)).toBeNull();
     });
 
-    it("confirms a sent report with its ID and a link to the GitHub issue, without the draft actions", () => {
-      renderCard({
-        ...OPEN_OFFER,
-        status: "reported",
-        report: { reportId: "da3b3782", issueUrl: "https://github.com/x/y/issues/new" },
-      });
+    it.each([
+      [
+        "en",
+        "Report uploaded",
+        "Review and submit the issue on GitHub.",
+        "Open the GitHub issue page",
+        "Report sent to the Scribe team",
+      ],
+      [
+        "zh-CN",
+        "报告已上传",
+        "请在 GitHub 检查并提交问题。",
+        "打开 GitHub 问题页面",
+        "报告已发送给 Scribe 团队",
+      ],
+    ] as const)(
+      "shows the upload and manual issue submission step in %s",
+      (locale, title, guidance, link, oldTitle) => {
+        setInterfaceLocale(locale);
+        renderCard({
+          ...OPEN_OFFER,
+          status: "reported",
+          report: { reportId: "da3b3782", issueUrl: "https://github.com/x/y/issues/new" },
+        });
 
-      expect(screen.getByText("Report sent to the Scribe team")).toBeTruthy();
-      expect(screen.getByText("da3b3782")).toBeTruthy();
-      expect(screen.getByRole("link", { name: "Open the GitHub issue" }).getAttribute("href")).toBe(
-        "https://github.com/x/y/issues/new"
-      );
-      expect(screen.queryByRole("button")).toBeNull();
-    });
+        expect(screen.getByText(title)).toBeTruthy();
+        expect(screen.getByText(guidance)).toBeTruthy();
+        expect(screen.queryByText(oldTitle)).toBeNull();
+        expect(screen.getByText("da3b3782")).toBeTruthy();
+        expect(screen.getByRole("link", { name: link }).getAttribute("href")).toBe(
+          "https://github.com/x/y/issues/new"
+        );
+        expect(screen.queryByRole("button")).toBeNull();
+
+        cleanup();
+        const storyOffer = Uploaded.args?.offer;
+        expect(storyOffer?.report).toBeDefined();
+        renderCard(storyOffer);
+        expect(screen.getByText(title)).toBeTruthy();
+        expect(screen.getByText(guidance)).toBeTruthy();
+        expect(screen.getByRole("link", { name: link }).getAttribute("href")).toBe(
+          storyOffer?.report?.issueUrl
+        );
+      }
+    );
   });
 });

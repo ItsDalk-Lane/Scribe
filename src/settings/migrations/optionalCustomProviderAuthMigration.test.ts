@@ -16,7 +16,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
 
 describe("optionalCustomProviderAuthMigration", () => {
   describe("planOptionalCustomProviderAuthMigration", () => {
-    it("makes existing custom OpenAI-compatible BYOK rows optional without dropping their key pointer", () => {
+    it("makes a custom OpenAI-compatible provider key optional without dropping its key pointer", () => {
       const next = planOptionalCustomProviderAuthMigration({
         p1: provider({ apiKeyKeychainId: "keychain-p1" }),
       });
@@ -25,7 +25,7 @@ describe("optionalCustomProviderAuthMigration", () => {
       expect(next?.p1.apiKeyKeychainId).toBe("keychain-p1");
     });
 
-    it("leaves catalog providers, non-BYOK providers, and other provider types unchanged", () => {
+    it("leaves catalog providers, agent-origin providers, and other provider types unchanged", () => {
       const catalog = provider({
         providerId: "catalog",
         origin: { kind: "byok", catalogProviderId: "openai" },

@@ -162,12 +162,22 @@ export async function migrateSystemPromptsFromSettings(
         id: "system-prompt",
         title: t("System prompt"),
         status: "action-required",
-        summary: t("The prompt was preserved, but its migrated content could not be verified."),
+        summary: t(
+          "The migrated prompt could not be verified. A recovery file was created, but the old settings value was cleared from memory during this run. The setting on disk has not been verified."
+        ),
         details: [
-          t("Review {path}, then move it to {folder} to make the prompt available.", {
-            path: unsupportedPath,
-            folder,
-          }),
+          t(
+            "Recovery file: {path}. Its contents were not verified and may not be the prompt currently used; review it after disabling Scribe.",
+            {
+              path: unsupportedPath,
+            }
+          ),
+          t(
+            "Securely back up your existing files, including the recovery file, and keep the backups safe before disabling Scribe."
+          ),
+          t(
+            "Disable Scribe until file safety issues are fixed. Saves already queued may still finish while disabling."
+          ),
         ],
       };
     }
@@ -189,12 +199,22 @@ export async function migrateSystemPromptsFromSettings(
         id: "system-prompt",
         title: t("System prompt"),
         status: "action-required",
-        summary: t("The prompt migration failed, but the original content was preserved."),
+        summary: t(
+          "The prompt migration failed. A recovery file was created, but the old settings value was cleared from memory during this run. The setting on disk has not been verified."
+        ),
         details: [
-          t("Review {path}, then move it to {folder} to make the prompt available.", {
-            path: unsupportedPath,
-            folder: getSystemPromptsFolder(),
-          }),
+          t(
+            "Recovery file: {path}. Its contents were not verified and may not be the prompt currently used; review it after disabling Scribe.",
+            {
+              path: unsupportedPath,
+            }
+          ),
+          t(
+            "Securely back up your existing files, including the recovery file, and keep the backups safe before disabling Scribe."
+          ),
+          t(
+            "Disable Scribe until file safety issues are fixed. Saves already queued may still finish while disabling."
+          ),
         ],
       };
     } catch (saveError) {
@@ -205,9 +225,17 @@ export async function migrateSystemPromptsFromSettings(
         id: "system-prompt",
         title: t("System prompt"),
         status: "error",
-        summary: t("The prompt could not be migrated. It remains in settings and will be retried."),
+        summary: t(
+          "The prompt could not be migrated and no recovery file could be confirmed. The setting on disk has not been verified."
+        ),
         details: [
           errorMessage,
+          t(
+            "Do not restart yet. Securely back up your existing files, including Scribe settings and prompt files, and keep the backups safe; they may contain private content."
+          ),
+          t(
+            "Disable Scribe until file safety issues are fixed. Saves already queued may still finish while disabling."
+          ),
           t("Check folder permissions and available disk space for {folder}.", {
             folder: getSystemPromptsFolder(),
           }),

@@ -116,7 +116,7 @@ export const PlanProposalCard: React.FC<PlanProposalCardProps> = ({ plan, app, c
         <div className="scribe-divider-t tw-flex tw-items-stretch tw-gap-2 tw-px-3 tw-py-2">
           <textarea
             className="tw-min-h-9 tw-flex-1 tw-resize-y tw-rounded tw-border tw-border-solid tw-border-border tw-bg-primary tw-px-2 tw-py-1 tw-text-sm tw-text-normal tw-outline-none focus:tw-border-border-focus"
-            placeholder={FEEDBACK_PLACEHOLDER}
+            placeholder={t(FEEDBACK_PLACEHOLDER)}
             value={feedback}
             disabled={busy}
             onChange={(e) => setFeedback(e.target.value)}
@@ -153,7 +153,7 @@ const DECISION_CHIP: Record<PlanProposalDecision, { label: string; cls: string }
 
 const DecisionChip: React.FC<{ decision: PlanProposalDecision }> = ({ decision }) => {
   const { label, cls } = DECISION_CHIP[decision];
-  return <span className={`tw-rounded tw-px-2 tw-py-0.5 tw-text-xs ${cls}`}>{label}</span>;
+  return <span className={`tw-rounded tw-px-2 tw-py-0.5 tw-text-xs ${cls}`}>{t(label)}</span>;
 };
 
 const PlanTeaser: React.FC<{ plan: CurrentPlan }> = ({ plan }) => (

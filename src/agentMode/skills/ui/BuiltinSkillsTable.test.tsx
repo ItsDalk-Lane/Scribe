@@ -45,6 +45,41 @@ describe("BuiltinSkillsTable", () => {
       fireEvent.click(control);
       expect(onToggle).toHaveBeenCalledWith("obsidian-markdown", "native", false);
     });
+    it("preserves the enabled preference and allows disabling it while no model can run (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      const onToggle = jest.fn().mockResolvedValue(undefined);
+      render(
+        <BuiltinSkillsTable
+          {...props()}
+          availableAgents={[]}
+          isEnabled={() => true}
+          onToggle={onToggle}
+        />
+      );
+
+      const control = screen.getByRole("switch");
+      expect(control.getAttribute("aria-checked")).toBe("true");
+      expect(control.getAttribute("aria-disabled")).toBe("false");
+      expect(screen.getByTitle("Configure a chat model to use this skill.")).toBeTruthy();
+      fireEvent.click(control);
+      expect(onToggle).toHaveBeenCalledWith("obsidian-markdown", "native", false);
+    });
+    it("keeps an off preference off and prevents enabling it while no model can run (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      const onToggle = jest.fn().mockResolvedValue(undefined);
+      render(
+        <BuiltinSkillsTable
+          {...props()}
+          availableAgents={[]}
+          isEnabled={() => false}
+          onToggle={onToggle}
+        />
+      );
+
+      const control = screen.getByRole("switch");
+      expect(control.getAttribute("aria-checked")).toBe("false");
+      expect(control.getAttribute("aria-disabled")).toBe("true");
+      fireEvent.click(control);
+      expect(onToggle).not.toHaveBeenCalled();
+    });
     it("gives each agent its own built-in switch state", () => {
       const isEnabled = jest.fn((_name: string, agent: string) => agent === "native");
       render(

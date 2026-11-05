@@ -35,7 +35,7 @@ const meta = {
         providerType: "openai-compatible",
         defaultBaseUrl: "http://localhost:11434/v1",
         requiresApiKey: false,
-        modelInputHint: "本地模型 ID",
+        modelInputHint: "本机模型 ID",
       },
     ],
     customTemplate: {

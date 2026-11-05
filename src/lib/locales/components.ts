@@ -1,4 +1,11 @@
 export const componentTranslations: Record<string, string> = {
+  "Scribe file caches cleared.": "已清理 Scribe 文件缓存。",
+  "No Scribe file caches needed clearing.": "没有需要清理的 Scribe 文件缓存。",
+  "Scribe file cache cleanup failed: {p0}": "Scribe 文件缓存清理失败：{p0}",
+  "Some items may already have been removed. Check the remaining files and retry.":
+    "部分内容可能已经移除，请检查剩余文件后再重试。",
+  "Failed to save project context. Check the result and try again.":
+    "项目参考内容保存失败，请检查结果后重试。",
   "System prompt": "系统提示词",
   Projects: "项目",
   "Custom commands": "自定义指令",
@@ -28,8 +35,6 @@ export const componentTranslations: Record<string, string> = {
   "Please select some text first. Selected text is required for quick commands.":
     "请先选中一些文字，再使用快捷指令。",
   "Quick Command": "快捷指令",
-  "All Scribe caches cleared successfully": "已清除 Scribe 的所有缓存",
-  "Failed to clear Scribe caches": "清除 Scribe 缓存失败",
   "Failed to create Scribe log file.": "创建 Scribe 日志文件失败。",
   "Scribe log cleared.": "已清除 Scribe 日志。",
   "Failed to clear Scribe log file.": "清除 Scribe 日志文件失败。",
@@ -106,7 +111,7 @@ export const componentTranslations: Record<string, string> = {
   Auto: "自动",
   "Uses the agent's Auto permissions for tools and edits.":
     "按照代理的自动权限使用工具和编辑文件。",
-  Plan: "规划",
+  Plan: "计划",
   "Drafts a plan and waits for your approval before editing.": "先拟定计划，等待你批准后再编辑。",
   Default: "默认",
   "Allows edits under the agent's approval rules.": "按代理的批准规则允许编辑。",
@@ -114,9 +119,9 @@ export const componentTranslations: Record<string, string> = {
   "Model failed to load": "模型加载失败",
   "Select model": "选择模型",
   "Clear search": "清空搜索",
-  "Model · effort": "模型与思考强度",
+  "Model · effort": "模型与推理强度",
   Model: "模型",
-  Effort: "思考强度",
+  Effort: "推理强度",
   "Show less": "收起",
   "Show more": "展开",
   Chat: "聊天",
@@ -268,7 +273,7 @@ export const componentTranslations: Record<string, string> = {
   "Thought for a while": "思考了一会儿",
   "YouTube Video": "YouTube 视频",
   "Free model. The provider may log or train on your prompts. Review their privacy terms before sending sensitive content.":
-    "免费模型。提供商可能记录你的提示词或用来训练模型。发送敏感内容前，请查看其隐私条款。",
+    "免费模型。供应商可能记录你的提示词或用来训练模型。发送敏感内容前，请查看其隐私条款。",
   "Search models…": "搜索模型…",
   "This model does not support image inputs.": "此模型不支持图片输入。",
   "Current Note": "当前笔记",
@@ -307,7 +312,7 @@ export const componentTranslations: Record<string, string> = {
   Thinking: "正在思考",
   Today: "今天",
   Yesterday: "昨天",
-  Advanced: "高级",
+  Advanced: "高级设置",
   Selection: "选中文字",
   Continue: "继续",
   "Reset Settings": "重置设置",
@@ -361,14 +366,20 @@ export const componentTranslations: Record<string, string> = {
   "Recover the projects from {folder}.": "请从 {folder} 恢复项目。",
   'Migrated "{promptName}" and set it as the default system prompt.':
     "已迁移“{promptName}”并将其设为默认系统提示词。",
-  "The prompt was preserved, but its migrated content could not be verified.":
-    "提示词已保留，但无法验证迁移后的内容。",
-  "The prompt migration failed, but the original content was preserved.":
-    "提示词迁移失败，但原始内容已保留。",
-  "The prompt could not be migrated. It remains in settings and will be retried.":
-    "提示词无法迁移，已保留在设置中，稍后将重试。",
-  "Review {path}, then move it to {folder} to make the prompt available.":
-    "请检查 {path}，然后将其移至 {folder} 以使用该提示词。",
+  "The migrated prompt could not be verified. A recovery file was created, but the old settings value was cleared from memory during this run. The setting on disk has not been verified.":
+    "无法核实迁移后的提示词。已创建恢复文件，但本次运行中，旧设置值已从内存中清空。尚未核实磁盘上的设置。",
+  "The prompt migration failed. A recovery file was created, but the old settings value was cleared from memory during this run. The setting on disk has not been verified.":
+    "提示词迁移失败。已创建恢复文件，但本次运行中，旧设置值已从内存中清空。尚未核实磁盘上的设置。",
+  "The prompt could not be migrated and no recovery file could be confirmed. The setting on disk has not been verified.":
+    "提示词无法迁移，无法确认已创建恢复文件。尚未核实磁盘上的设置。",
+  "Recovery file: {path}. Its contents were not verified and may not be the prompt currently used; review it after disabling Scribe.":
+    "恢复文件：{path}。内容尚未核实，不一定是当前生效的提示词；请停用 Scribe 后再检查。",
+  "Do not restart yet. Securely back up your existing files, including Scribe settings and prompt files, and keep the backups safe; they may contain private content.":
+    "请暂时不要重新启动。请安全备份现有文件，包括 Scribe 设置和提示词文件，并妥善保管；这些文件可能包含私人内容。",
+  "Securely back up your existing files, including the recovery file, and keep the backups safe before disabling Scribe.":
+    "请先安全备份现有文件，包括恢复文件，并妥善保管，然后再停用 Scribe。",
+  "Disable Scribe until file safety issues are fixed. Saves already queued may still finish while disabling.":
+    "请停用 Scribe，直到文件安全问题修复。停用期间，已排队的保存可能仍会完成。",
   "Check folder permissions and available disk space for {folder}.":
     "请检查 {folder} 的文件夹权限和可用磁盘空间。",
   "{validCount} to add": "待添加 {validCount} 项",

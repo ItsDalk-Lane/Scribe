@@ -185,7 +185,13 @@ function DetailsPage({
 
       <Callout tone="warning" title={t("Before you upload")}>
         {t(
-          "Scribe redacts common sensitive data from diagnostic text on your device before upload. Review it before sending; screenshots are not automatically redacted. Reports are private and deleted after 60 days."
+          "Scribe redacts common sensitive data from diagnostic text on your device before upload. Review it before sending; screenshots are not automatically redacted."
+        )}{" "}
+        {t(
+          "The draft may include your description, app details and attachment names; GitHub receives it when the issue page opens. Review the draft before submitting."
+        )}{" "}
+        {t(
+          "Uploads go to Brevilabs. Upstream documentation says reports are private and deleted after 60 days; Scribe cannot verify privacy, retention or maintainer access."
         )}
       </Callout>
 
@@ -303,7 +309,7 @@ function ReviewPage({
         <Callout tone="error" title={t("Could not upload the report")}>
           {failure}{" "}
           {t(
-            "The zip is still on your machine; retrying sends the same report and stores it at most once. Or use"
+            "The zip is still on your machine; retrying sends the same report, and the earlier attempt may already have arrived. Or use"
           )}
           <span className="tw-font-medium">{t("Open issue anyway")}</span>{" "}
           {t(

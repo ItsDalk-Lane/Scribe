@@ -72,10 +72,10 @@ describe("AddProviderDialog", () => {
       setInterfaceLocale("zh-CN");
       const onPick = jest.fn();
       renderDialog({ onPick });
-      expect(screen.getByPlaceholderText("搜索服务商…")).toBeTruthy();
+      expect(screen.getByPlaceholderText("搜索供应商…")).toBeTruthy();
       expect(screen.getByText("推荐")).toBeTruthy();
       expect(screen.getByText(/Claude 系列/)).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: "添加 Ollama 服务商" }));
+      fireEvent.click(screen.getByRole("button", { name: "添加 Ollama 供应商" }));
       expect(onPick).toHaveBeenCalledWith(localTemplates[0]);
     });
 

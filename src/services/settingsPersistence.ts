@@ -35,7 +35,7 @@ function buildDiskSettings(
   vaultId: string,
   isFreshInstall: boolean
 ): ScribeSettings {
-  // 首次写盘也走同一规范化，未知嵌套代理设置一次清干净，而不是等重载后的下一次保存。
+  // 首次写盘沿用规范化以保持结果一致；当前实现会丢弃未知嵌套代理设置。
   // https://github.com/ItsDalk-Lane/Scribe/issues/18
   const stripped = stripKeychainFields(cleanupLegacyFields(sanitizeSettings(settings)));
   stripped._keychainVaultId = vaultId;
@@ -104,17 +104,19 @@ function credentialMigrationFromRecovery(
     id: "credentials",
     title: t("API keys"),
     status: "action-required",
-    summary: t("Credential storage moved to the Obsidian Keychain."),
+    summary: t("Scribe uses the Obsidian Keychain for API keys."),
     details: recovery.encrypted
       ? [
-          t("Previous keys were copied to {path}.", { path: recovery.path }),
+          t("Settings backup location: {path}.", { path: recovery.path }),
           t(
-            "Some keys are encrypted and cannot be read back. Get fresh keys from those providers and enter them in Settings."
+            "The backup may contain encrypted keys that Scribe cannot read. After the file-safety issues are fixed, get fresh keys from those providers if needed. Keep the backup private and review it before making changes."
           ),
         ]
       : [
-          t("Previous keys were copied to {path}.", { path: recovery.path }),
-          t("Re-enter the keys in Settings, then delete the backup file."),
+          t("Settings backup location: {path}.", { path: recovery.path }),
+          t(
+            "After the file-safety issues are fixed, re-enter the keys in Settings. The backup may contain API keys; keep it private and review it before making changes."
+          ),
         ],
   };
 }
@@ -132,7 +134,7 @@ function planProviderNames(
   }
 }
 
-// 改名副作用只在备份成功后执行；备份失败的那次加载完全不动钥匙串，指针沿用旧名。
+// 备份失败时不更改钥匙串名称，避免丢失可能尚未备份的密钥。
 // https://github.com/ItsDalk-Lane/Scribe/issues/23
 function executeProviderNamesSafely(
   keychain: KeychainService,
@@ -191,7 +193,7 @@ export async function loadSettingsWithKeychain(
     const backup = await backupLegacyCredentials(rawData);
     if (backup.status === "failed") {
       legacyCredentialsUnprotected = true;
-      // 备份失败：不动钥匙串、不写盘，指针沿用旧名，本次加载照常工作。
+      // 备份失败时不改写设置文件或钥匙串，避免丢失尚未备份的密钥。
       // https://github.com/ItsDalk-Lane/Scribe/issues/23
       runtimeSettings = rawSettings;
       credentialMigration = {
@@ -199,11 +201,15 @@ export async function loadSettingsWithKeychain(
         title: t("API keys"),
         status: "error",
         summary: t("API keys could not be backed up, so data.json was left untouched."),
-        details: [t("Check that the vault is writable, then restart Obsidian to retry.")],
+        details: [
+          t(
+            "Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+          ),
+        ],
       };
       showFallbackNotice(
         t(
-          "Scribe could not back up the API keys stored in data.json, so it left the file untouched. Check that the vault is writable, then restart Obsidian."
+          "Scribe could not back up the API keys stored in data.json, so it left the file untouched. Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
         )
       );
     } else {
@@ -221,11 +227,11 @@ export async function loadSettingsWithKeychain(
         showFallbackNotice(
           backup.encrypted
             ? t(
-                "Scribe moved credential storage to the Obsidian Keychain. Your previous keys were copied to {path}, but some are encrypted and cannot be read back. Get fresh keys from those providers and enter them in Settings.",
+                "Scribe uses the Obsidian Keychain for API keys. Settings backup location: {path}. The backup may contain encrypted keys that Scribe cannot read. After the file-safety issues are fixed, get fresh keys from those providers if needed. Keep the backup private and review it before making changes.",
                 { path: backup.path }
               )
             : t(
-                "Scribe moved credential storage to the Obsidian Keychain. Your previous keys were copied to {path}. Re-enter them in Settings, then delete that file.",
+                "Scribe uses the Obsidian Keychain for API keys. Settings backup location: {path}. After the file-safety issues are fixed, re-enter the keys in Settings. The backup may contain API keys; keep it private and review it before making changes.",
                 { path: backup.path }
               ),
           15000
@@ -235,12 +241,14 @@ export async function loadSettingsWithKeychain(
         await saveData(diskSettings);
       } catch {
         markCredentialError(
-          t("Check that the vault is writable, then restart Obsidian to retry."),
+          t(
+            "Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+          ),
           t("API keys were backed up, but could not be removed from data.json.")
         );
         showFallbackNotice(
           t(
-            "Scribe could not remove API keys from data.json. Check that the vault is writable, then restart Obsidian."
+            "Scribe could not remove API keys from data.json. Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
           )
         );
       }
@@ -275,12 +283,12 @@ export async function loadSettingsWithKeychain(
   if (hadFailures) {
     markCredentialError(
       t(
-        "Some API keys could not be loaded from the Obsidian Keychain. Restart Obsidian if the issue persists."
+        "Some API keys could not be loaded from the Obsidian Keychain. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
       )
     );
     showFallbackNotice(
       t(
-        "Some API keys could not be loaded from the Obsidian Keychain. Restart Obsidian if the issue persists."
+        "Some API keys could not be loaded from the Obsidian Keychain. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
       )
     );
   }
@@ -296,8 +304,9 @@ async function persistKeychainSettings(
 ): Promise<void> {
   if (legacyCredentialsUnprotected) {
     throw new Error(
-      "Scribe cannot save settings until it can back up the API keys still in data.json. " +
-        "Check that the vault is writable, then restart Obsidian."
+      t(
+        "Scribe cannot save settings until it can back up the API keys still in data.json. Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+      )
     );
   }
 

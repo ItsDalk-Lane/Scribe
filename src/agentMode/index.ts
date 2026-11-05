@@ -73,7 +73,6 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
   const saveSkillPreferences = (update: BuiltinPreferencesUpdate) =>
     saveBuiltinPreferences(update, (data) => plugin.saveData(data));
   const skillManager = SkillManager.initialize(app, collectAgentSkillsDirsProjectRel(), {
-    availableAgents: availableSkillAgents,
     savePreferences: saveSkillPreferences,
     prepare: async (folder) => {
       await reconcileBuiltinSkills({

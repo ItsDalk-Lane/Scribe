@@ -191,6 +191,19 @@ describe("TurnTracker", () => {
       });
     });
 
+    describe("restoreLastTurnFailure()", () => {
+      it("restores the last failure and clears it when a new send starts or a successful history is restored", () => {
+        const { tracker } = setup();
+        tracker.restoreLastTurnFailure(true);
+        expect(tracker.hasLastTurnFailed()).toBe(true);
+        tracker.startSend();
+        expect(tracker.hasLastTurnFailed()).toBe(false);
+        tracker.restoreLastTurnFailure(true);
+        tracker.restoreLastTurnFailure(false);
+        expect(tracker.hasLastTurnFailed()).toBe(false);
+      });
+    });
+
     describe("hasLastTurnFailed", () => {
       it("reports a failure from a failed reply until the next send starts", () => {
         const { tracker } = setup();
@@ -964,7 +977,7 @@ describe("TurnTracker", () => {
 
         expect(deps.store.getMessage(replyId)?.isErrorMessage).toBe(true);
         expect(deps.store.getMessage(replyId)?.message).toContain(
-          "claude finished the turn without returning any assistant text or tool activity"
+          "No response or action was returned. Try again, or switch models if this happens repeatedly."
         );
       });
 

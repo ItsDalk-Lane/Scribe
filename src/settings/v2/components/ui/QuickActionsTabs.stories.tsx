@@ -25,7 +25,7 @@ const meta = {
 } satisfies Meta<React.ComponentProps<typeof QuickActionsTabs>>;
 export default meta;
 
-export const Models: StoryObj<React.ComponentProps<typeof QuickActionsTabs>> = {
+export const ModelsAndProviders: StoryObj<React.ComponentProps<typeof QuickActionsTabs>> = {
   render: () => <Preview initial="models" />,
 };
 export const Tools: StoryObj<React.ComponentProps<typeof QuickActionsTabs>> = {

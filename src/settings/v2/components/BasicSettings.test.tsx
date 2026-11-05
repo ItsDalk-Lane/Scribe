@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from "@/constants";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { settingsAtom, settingsStore } from "@/settings/model";
 import { BasicSettings } from "@/settings/v2/components/BasicSettings";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -67,6 +68,8 @@ describe("BasicSettings", () => {
       findScribeRootFileConflict.mockReturnValue(null);
     });
 
+    afterEach(() => setInterfaceLocale("en"));
+
     it("shows only the selected section and retains an unapplied folder draft while switching sections", () => {
       const view = render(<BasicSettings />);
       fireEvent.change(screen.getByLabelText("Scribe folder"), {
@@ -101,6 +104,30 @@ describe("BasicSettings", () => {
       fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
       expect(screen.getByText("Chat note name template")).not.toBeNull();
     });
+
+    it.each([
+      [
+        "en",
+        "Automatically saves chats as notes in your vault. When off, no new automatic saves are scheduled for chats without a linked note; linked chats and already scheduled saves may still be saved. Agent chats still appear in Recent chats.",
+      ],
+      [
+        "zh-CN",
+        "自动将聊天保存为资料库笔记。关闭后，尚未关联笔记的聊天不会再安排自动保存；已关联的聊天和之前排队的保存仍可能写入。代理聊天仍会出现在“最近聊天”中。",
+      ],
+    ] as const)(
+      "explains existing note updates when autosave is off in %s",
+      (locale, description) => {
+        setInterfaceLocale(locale);
+        settingsStore.set(settingsAtom, {
+          ...DEFAULT_SETTINGS,
+          scribeFolder: "scribe",
+          autosaveChat: false,
+        });
+        render(<BasicSettings section="saving" />);
+
+        expect(screen.getByText(description)).toBeTruthy();
+      }
+    );
 
     it("turns off active-note auto-attach from its switch", () => {
       render(<BasicSettings />);

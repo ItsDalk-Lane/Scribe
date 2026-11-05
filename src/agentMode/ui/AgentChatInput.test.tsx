@@ -205,6 +205,48 @@ describe("AgentChatInput", () => {
   });
 
   describe("AgentChatInput", () => {
+    it("keeps the draft and attachments while sending is disabled and sends them after sending is enabled (https://github.com/ItsDalk-Lane/Scribe/issues/21)", async () => {
+      const backend = {
+        sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      const note = makeFile("Reference.md");
+      const store = new AgentInputDraftStore(makeApp(), () => true);
+      store.update("input-1", (draft) => ({
+        ...draft,
+        input: "Keep this draft",
+        images: [image],
+        contextNotes: [note],
+        includeActiveNote: false,
+      }));
+      function Composer({ disabled }: { disabled: boolean }) {
+        const draft = useAgentInputDrafts({ store, chatInputId: "input-1" });
+        return inputNode(backend, draft, { sendDisabled: disabled });
+      }
+      const view = render(<Composer disabled />);
+
+      fireEvent.click(screen.getByText("send"));
+
+      expect(expandCustomCommandPrefix).not.toHaveBeenCalled();
+      expect(backend.sendMessage).not.toHaveBeenCalled();
+      expect(store.get("input-1")).toMatchObject({
+        input: "Keep this draft",
+        images: [image],
+        contextNotes: [note],
+      });
+
+      view.rerender(<Composer disabled={false} />);
+      fireEvent.click(screen.getByText("send"));
+
+      await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
+      expect(jest.mocked(backend.sendMessage).mock.calls[0]).toEqual([
+        "Keep this draft",
+        { notes: [note], selectedTextContexts: undefined, webTabs: undefined },
+        [imageBlock],
+      ]);
+      expect(store.get("input-1")).toMatchObject({ input: "", images: [], contextNotes: [] });
+    });
+
     it("limits slash-menu skills to the current chat project and updates them when the project changes", () => {
       const shared: Skill = {
         name: "shared",

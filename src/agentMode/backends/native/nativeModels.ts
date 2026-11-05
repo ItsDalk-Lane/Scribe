@@ -1,7 +1,11 @@
 import type { App } from "obsidian";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 import type { ProviderChatModel } from "@/LLMProviders/piChatModel";
-import type { EnabledModelEntry, ModelEntry } from "@/agentMode/session/types";
+import type {
+  EnabledModelCredentialState,
+  EnabledModelEntry,
+  ModelEntry,
+} from "@/agentMode/session/types";
 import {
   capabilitiesFromConfiguredInfo,
   configuredModelToCustomModel,
@@ -9,6 +13,7 @@ import {
   isChatModelSelectionForEntry,
   providerNeedsResolvedApiKey,
   type ConfiguredModel,
+  type Provider,
 } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
 import { getSettings, type ScribeSettings } from "@/settings/model";
@@ -98,6 +103,27 @@ export function getNativeModelEntries(settings: ScribeSettings): ModelEntry[] {
   });
 }
 
+function credentialState(provider: Provider): EnabledModelCredentialState {
+  if (!providerNeedsResolvedApiKey(provider)) return "ok";
+  if (!provider.apiKeyKeychainId) return "missing_key";
+  try {
+    const value = KeychainService.getInstance().getSecretById(provider.apiKeyKeychainId);
+    return value?.trim() ? "ok" : "missing_key";
+  } catch {
+    return "unavailable_key";
+  }
+}
+
+export function getNativeModelReadiness(
+  settings: ScribeSettings
+): "no_models" | "missing_credentials" | "ready" {
+  const models = configuredModels(settings);
+  if (!models.length) return "no_models";
+  return models.some((model) => credentialState(settings.providers[model.providerId]) === "ok")
+    ? "ready"
+    : "missing_credentials";
+}
+
 export function getNativeEnabledModelEntries(settings: ScribeSettings): EnabledModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_ENABLED_ENTRIES;
@@ -109,10 +135,7 @@ export function getNativeEnabledModelEntries(settings: ScribeSettings): EnabledM
         baseModelId: model.configuredModelId,
         name: model.info.displayName || model.info.id,
         description: model.info.description,
-        credentialState:
-          providerNeedsResolvedApiKey(provider) && !provider.apiKeyKeychainId
-            ? "missing_key"
-            : "ok",
+        credentialState: credentialState(provider),
         capabilities: capabilitiesFromConfiguredInfo(model.info),
       };
     })

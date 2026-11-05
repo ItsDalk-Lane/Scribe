@@ -53,6 +53,18 @@ function toChatMessageView(m: AgentChatMessage): ChatMessage {
   };
 }
 
+function messageFailureText(message: AgentChatMessage): string | undefined {
+  if (!message.isErrorMessage) return undefined;
+  if (typeof message.errorText === "string") return message.errorText;
+  const body = (message.parts ?? [])
+    .flatMap((part) => (part.kind === "text" ? [part.text] : []))
+    .join("");
+  const prefix = `${body}\n\n`;
+  return body && message.message.startsWith(prefix)
+    ? message.message.slice(prefix.length)
+    : message.message;
+}
+
 function findToolCallTitle(messages: AgentChatMessage[], toolCallId: string): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const part = messages[i].parts?.find((p) => p.kind === "tool_call" && p.id === toolCallId);
@@ -124,7 +136,7 @@ const AgentMessageRow = memo(function AgentMessageRow({
             timestamp={message.timestamp?.display}
             app={app}
             turnStopReason={message.turnStopReason}
-            errorText={message.isErrorMessage ? message.message : undefined}
+            errorText={messageFailureText(message)}
             fileChanges={message.fileChanges}
             onOpenFileChange={(change) =>
               void openTurnDiff(app, change, message.id).catch((error: unknown) =>

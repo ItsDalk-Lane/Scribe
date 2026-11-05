@@ -43,7 +43,6 @@ import {
 
 export interface BuiltinSkillRuntime {
   prepare(folder: string): Promise<void>;
-  availableAgents(): readonly string[];
   savePreferences(
     update: (current: BuiltinPreferences) => BuiltinPreferences
   ): Promise<BuiltinPreferences>;
@@ -252,14 +251,14 @@ export class SkillManager {
       }
 
       const settings = getSettings();
-      const availableAgents = this.builtinRuntime?.availableAgents();
       const skills = mergeDiscovery(canonicalDiscovery.accepted, projectCandidates).map((skill) => {
-        if (!skill.builtin || !availableAgents) return skill;
+        if (!skill.builtin || !this.builtinRuntime) return skill;
         return {
           ...skill,
           enabledAgents: builtinSkillUnavailableReason(skill.name)
             ? []
-            : availableAgents.filter((agent) =>
+            : // 模型停用不代表用户关闭技能，不能据此删除链接。https://github.com/ItsDalk-Lane/Scribe/issues/21
+              Object.keys(this.agentDirsProjectRel).filter((agent) =>
                 isBuiltinSkillEnabledFor(settings, skill.name, agent)
               ),
         };

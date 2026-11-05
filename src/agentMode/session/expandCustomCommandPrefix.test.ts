@@ -34,7 +34,7 @@ describe("expandCustomCommandPrefix", () => {
       expect(result).toEqual({ text: "/" });
     });
 
-    it("returns input unchanged when an empty commands list is given (skill collision case)", async () => {
+    it("returns input unchanged when no commands are available", async () => {
       const result = await expandCustomCommandPrefix("/foo", [], "", null);
       expect(result).toEqual({ text: "/foo" });
     });

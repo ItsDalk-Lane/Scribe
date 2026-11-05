@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
+import { setInterfaceLocale, type InterfaceLocale } from "@/lib/i18n";
 
 const mockEnsureLoaded = jest.fn().mockResolvedValue(undefined);
 const mockGetAllProviders = jest.fn().mockReturnValue([]);
@@ -81,7 +82,7 @@ jest.mock("@/modelManagement/ui/dialogs/AddProviderDialog", () => ({
   AddProviderModal: jest.fn().mockImplementation(() => ({ open: mockAddProviderOpen })),
 }));
 
-import { ByokPanel } from "./ByokPanel";
+import { ModelsAndProvidersPanel } from "./ModelsAndProvidersPanel";
 import { AddProviderModal } from "@/modelManagement/ui/dialogs/AddProviderDialog";
 import { ConfigureProviderModal } from "@/modelManagement/ui/dialogs/ConfigureProviderDialog";
 
@@ -96,16 +97,36 @@ beforeAll(() => {
   (window as unknown as { activeDocument: Document }).activeDocument = window.document;
 });
 
-describe("ByokPanel", () => {
+describe("ModelsAndProvidersPanel", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockListByOrigin.mockReturnValue([{ providerId: "p1" }, { providerId: "p2" }]);
     mockVerify.mockReset().mockResolvedValue({ ok: true, checkedAt: 0 });
     mockEnsureLoaded.mockResolvedValue(undefined);
   });
-  describe("ByokPanel", () => {
+  describe("ModelsAndProvidersPanel", () => {
+    it.each([
+      ["en", "Models and providers", "Add a provider", "Search providers…"],
+      ["zh-CN", "模型与供应商", "添加供应商", "搜索供应商…"],
+    ] as const)(
+      "names the shared provider settings in %s",
+      async (language: InterfaceLocale, title, add, search) => {
+        setInterfaceLocale(language);
+        try {
+          render(<ModelsAndProvidersPanel />);
+          expect(await screen.findByText(title)).toBeTruthy();
+          expect(screen.getByText("Anthropic")).toBeTruthy();
+          expect(screen.getByText("Local")).toBeTruthy();
+          expect(screen.getByRole("button", { name: add })).toBeTruthy();
+          expect(screen.getByPlaceholderText(search)).toBeTruthy();
+        } finally {
+          setInterfaceLocale("en");
+        }
+      }
+    );
+
     it("renders configured providers and their models after the catalog loads", async () => {
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       const providerCard = await screen.findByText("Anthropic");
       expect(providerCard).toBeTruthy();
 
@@ -114,7 +135,7 @@ describe("ByokPanel", () => {
     });
 
     it("opens the Add Provider modal from the add button", async () => {
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findByText("Anthropic");
       fireEvent.click(screen.getByRole("button", { name: /Add a provider/i }));
       expect(mockAddProviderOpen).toHaveBeenCalled();
@@ -131,7 +152,7 @@ describe("ByokPanel", () => {
               resolveSecond = resolve;
             })
       );
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findByText("Anthropic");
       expect(mockListByOrigin).toHaveBeenCalledWith("byok");
       expect(mockVerify.mock.calls).toEqual([["p1"], ["p2"]]);
@@ -158,7 +179,7 @@ describe("ByokPanel", () => {
             oldResolvers.push(resolve);
           })
       );
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findByText("Anthropic");
       mockVerify.mockResolvedValue({ ok: false, code: "missing_api_key", checkedAt: 1 });
       await act(async () => {
@@ -174,7 +195,7 @@ describe("ByokPanel", () => {
     });
 
     it("clears an earlier success while checking edited providers and shows rejected checks", async () => {
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findAllByText("Endpoint accessible");
       let rejectCheck!: (error: Error) => void;
       mockListByOrigin.mockReturnValue([{ providerId: "p1" }]);
@@ -196,18 +217,18 @@ describe("ByokPanel", () => {
     });
 
     it("runs fresh checks when the tab remounts", async () => {
-      const first = render(<ByokPanel />);
+      const first = render(<ModelsAndProvidersPanel />);
       await screen.findAllByText("Endpoint accessible");
       first.unmount();
       expect(mockSubscribe).not.toHaveBeenCalled();
       mockVerify.mockResolvedValue({ ok: false, code: "invalid_api_key", checkedAt: 1 });
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findAllByText("Invalid key");
       expect(mockVerify).toHaveBeenCalledTimes(4);
     });
 
     it("does not probe intermediate registry mutations before a save completes", async () => {
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findAllByText("Endpoint accessible");
       act(() => {
         mockProviderListener?.();
@@ -221,14 +242,14 @@ describe("ByokPanel", () => {
 
     it("finishes without a progress banner when there are no providers", async () => {
       mockListByOrigin.mockReturnValue([]);
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await waitFor(() => expect(mockEnsureLoaded).toHaveBeenCalled());
       expect(mockVerify).not.toHaveBeenCalled();
       expect(screen.queryByRole("status")).toBeNull();
     });
     it("shows current provider health while the catalog is still loading", async () => {
       mockEnsureLoaded.mockReturnValue(new Promise(() => {}));
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       expect(screen.getByText("Anthropic")).toBeTruthy();
       await screen.findAllByText("Endpoint accessible");
     });
@@ -241,10 +262,10 @@ describe("ByokPanel", () => {
             oldResolvers.push(resolve);
           })
       );
-      const first = render(<ByokPanel />);
+      const first = render(<ModelsAndProvidersPanel />);
       first.unmount();
       mockVerify.mockResolvedValue({ ok: false, code: "invalid_api_key", checkedAt: 1 });
-      render(<ByokPanel />);
+      render(<ModelsAndProvidersPanel />);
       await screen.findAllByText("Invalid key");
       await act(async () => {
         oldResolvers.forEach((resolve) => resolve({ ok: true, checkedAt: 0 }));

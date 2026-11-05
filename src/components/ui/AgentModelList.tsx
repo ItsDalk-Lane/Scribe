@@ -100,7 +100,9 @@ export function AgentModelList({
           {visible.length === 0 && (
             <p role="status" className="tw-py-4 tw-text-center tw-text-ui-small tw-text-muted">
               {t(
-                q ? "No matching models." : "No chat models configured. Add one in model settings."
+                q
+                  ? "No matching models."
+                  : "No chat models configured. Add one under Models and providers."
               )}
             </p>
           )}

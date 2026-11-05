@@ -1,16 +1,18 @@
 # Scribe documentation
 
-The static site published at [docs.obsidiancopilot.com](https://docs.obsidiancopilot.com). It is an
-[Astro Starlight](https://starlight.astro.build/) package that is independent of the plugin build:
-its own `package.json`, its own lockfile, and its own dependency tree.
+This directory builds a static documentation site for Scribe using
+[Astro Starlight](https://starlight.astro.build/), independently of the plugin build: it has its
+own `package.json`, lockfile, and dependency tree. The configured site URL currently points to
+[the upstream documentation](https://docs.obsidiancopilot.com), which describes the upstream
+project. A public Scribe documentation address has not been confirmed here.
 
 The guides next to this README are the single source of truth and are never modified to suit this
 site. The guides carry no frontmatter and link to each other by filename, so the site adapts them at
 build time: `src/docs-loader.mjs` takes each guide's opening level-one heading as its page title, and
 `src/remark-published-docs.mjs` removes that heading from the body and rewrites `getting-started.md`
-style links to `/getting-started/`. Slugs are the source filenames, so every guide keeps the URL it
-had on the previous site minus its `/docs` prefix. Only the Markdown files directly next to this
-README are published; `README.md`, `plans/`, and the non-Markdown installers stay excluded.
+style links to `/getting-started/`. Slugs are the source filenames. Only the Markdown files
+directly next to this README are published; `README.md`, `plans/`, and the non-Markdown installers
+stay excluded.
 
 ## Building
 
@@ -27,7 +29,9 @@ npm run preview   # serves the built site
 
 ## Deployment
 
-Create a separate Vercel project for this site with these settings:
+Before deploying, confirm a domain you are authorized to use. The site URL and analytics host
+checks currently refer to the upstream documentation host; update them to match the confirmed
+Scribe address. If using Vercel, create a separate project with these settings:
 
 - **Root Directory:** `docs`
 - **Framework Preset:** Astro
@@ -36,15 +40,16 @@ Create a separate Vercel project for this site with these settings:
 - **Production Branch:** `main`
 - **Node.js Version:** `22.x`
 
-Attach `docs.obsidiancopilot.com` to that project. No environment variables are required to build
-or preview the site.
+No environment variables are required to build or preview the site.
 
 ## Production analytics
 
 Analytics is optional and must remain disabled until the privacy policy is confirmed to cover the
-docs subdomain. After that approval, add `PUBLIC_POSTHOG_KEY` and `PUBLIC_POSTHOG_HOST` to the
-Vercel **Production** environment only, using values from the approved production configuration.
-Keep their values out of the repository, issue comments, build logs, and preview environments.
+chosen docs domain. The current host check and query below refer to the upstream host; update them
+for the confirmed Scribe address before enabling analytics. After that approval, add
+`PUBLIC_POSTHOG_KEY` and `PUBLIC_POSTHOG_HOST` to the Vercel **Production** environment only, using
+values from the approved production configuration. Keep their values out of the repository, issue
+comments, build logs, and preview environments.
 
 After deploying, visit a few docs pages and run this query in PostHog to confirm that only the
 allowlisted events and canonical paths arrive:

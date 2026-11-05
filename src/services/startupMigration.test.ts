@@ -42,7 +42,7 @@ describe("startupMigration", () => {
     it("formats statuses and recovery details as one readable message", () => {
       expect(formatStartupMigrationSummary([initial, failure, final])).toBe(
         [
-          "Scribe finished updating this vault.",
+          "Scribe startup report.",
           "API keys — Completed\nKeys migrated.",
           "Projects — Failed\nProjects failed.",
           "Prompts — Action required\nReview prompt locations.\n• Open Scribe Settings.",

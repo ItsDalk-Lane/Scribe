@@ -1,5 +1,7 @@
-import { removeSeededBuiltin, seedBuiltinSkills, type BuiltinSeedFs } from "./seedBuiltinSkills";
+import { seedBuiltinSkills, type BuiltinSeedFs } from "./seedBuiltinSkills";
+import { logWarn } from "@/logger";
 import type { BuiltinSkill } from "@/builtinSkills/builtinSkills";
+import { OBSIDIAN_SKILLS } from "@/builtinSkills/obsidianSkills";
 
 jest.mock("@/logger", () => ({ logError: jest.fn(), logInfo: jest.fn(), logWarn: jest.fn() }));
 
@@ -132,25 +134,83 @@ describe("seedBuiltinSkills", () => {
       expect(fs.files.get(MD)).toMatch(/scribe-content-hash:/);
     });
 
-    it("keeps managing a folder seeded with legacy copilot markers and defers once (https://github.com/ItsDalk-Lane/Scribe/issues/29)", async () => {
-      const legacyMd = skill(1).skillMd.replace(/scribe-/g, "copilot-");
-      const fs = memFs({ [MD]: legacyMd, [SCRIPT]: "// script v1" });
+    it("reports the skipped update without claiming an inline-metadata baseline was recorded (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const markdown = OBSIDIAN_SKILLS.find((entry) => entry.name === "obsidian-markdown")!;
+      const olderContent = markdown.skillMd.replace(
+        /metadata:\n {2}scribe-enabled-agents: claude\n {2}scribe-builtin-version: "3"\n {2}scribe-upstream-revision: "([^"]+)"\n/,
+        'metadata: { scribe-enabled-agents: claude, scribe-builtin-version: "2", scribe-upstream-revision: "$1" }\n'
+      );
+      expect(olderContent).not.toBe(markdown.skillMd);
+      const directory = `${FOLDER}/${markdown.name}`;
+      const fs = memFs({
+        [`${directory}/SKILL.md`]: olderContent,
+        [`${directory}/references/EMBEDS.md`]: "personal reference edits",
+        [`${directory}/my-notes.md`]: "personal notes",
+      });
+      const original = new Map(fs.files);
+      jest.spyOn(fs, "write");
+      jest.spyOn(fs, "removeDir");
+      jest.mocked(logWarn).mockClear();
+
+      const result = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [markdown],
+      });
+
+      expect(result.seeded).toEqual([]);
+      expect(fs.files).toEqual(original);
+      expect(fs.write).not.toHaveBeenCalled();
+      expect(fs.removeDir).not.toHaveBeenCalled();
+      expect(logWarn).toHaveBeenCalledWith(
+        `[Skills] builtin skill obsidian-markdown lacked a verifiable content baseline, so the v3 update was skipped`
+      );
+    });
+
+    it("uses the same accurate skipped-update warning when a missing baseline is recorded (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
+      const fs = memFs({ [MD]: skill(1).skillMd, [SCRIPT]: "// script v1" });
+      jest.spyOn(fs, "write");
+      jest.spyOn(fs, "removeDir");
+      jest.mocked(logWarn).mockClear();
+
+      const result = await seedBuiltinSkills({
+        skillsFolderRelPath: FOLDER,
+        fs,
+        skills: [skill(2)],
+      });
+
+      expect(result.seeded).toEqual([]);
+      expect(fs.write).toHaveBeenCalledTimes(1);
+      expect(fs.removeDir).not.toHaveBeenCalled();
+      expect(fs.files.get(MD)).toContain("body v1");
+      expect(fs.files.get(MD)).toMatch(/scribe-content-hash:/);
+      expect(fs.files.get(SCRIPT)).toBe("// script v1");
+      expect(logWarn).toHaveBeenCalledWith(
+        `[Skills] builtin skill test-helper lacked a verifiable content baseline, so the v2 update was skipped`
+      );
+    });
+
+    it("leaves a folder with another owner's markers and user files unchanged", async () => {
+      const otherOwnerMd = skill(1).skillMd.replace(/scribe-/g, "independent-");
+      const notes = `${FOLDER}/test-helper/my-notes.md`;
+      const fs = memFs({ [MD]: otherOwnerMd, [SCRIPT]: "// user script", [notes]: "my notes" });
 
       const first = await seedBuiltinSkills({
         skillsFolderRelPath: FOLDER,
         fs,
         skills: [skill(2)],
       });
-      expect(first.seeded).toEqual([]);
-      expect(fs.files.get(MD)).toContain("body v1");
-
       const second = await seedBuiltinSkills({
         skillsFolderRelPath: FOLDER,
         fs,
         skills: [skill(2)],
       });
-      expect(second.seeded).toEqual(["test-helper"]);
-      expect(fs.files.get(MD)).toContain("body v2");
+
+      expect(first.seeded).toEqual([]);
+      expect(second.seeded).toEqual([]);
+      expect(fs.files.get(MD)).toBe(otherOwnerMd);
+      expect(fs.files.get(SCRIPT)).toBe("// user script");
+      expect(fs.files.get(notes)).toBe("my notes");
     });
 
     it("preserves user-modified scribe-enabled-agents when upgrading an unmodified builtin (https://github.com/ItsDalk-Lane/Scribe/issues/19)", async () => {
@@ -197,37 +257,6 @@ describe("seedBuiltinSkills", () => {
       ).resolves.toEqual({ seeded: [] });
       expect(fs.files.get(MD)).toBe(content);
       expect(fs.write).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("removeSeededBuiltin", () => {
-    it("removes the whole managed directory including user additions and leaves sibling skills intact", async () => {
-      const definition = {
-        ...skill(1),
-        files: [{ path: "references/owned.md", content: "owned" }],
-      };
-      const fs = memFs();
-      await seedBuiltinSkills({ skillsFolderRelPath: FOLDER, fs, skills: [definition] });
-      const root = `${FOLDER}/${definition.name}`;
-      fs.files.set(`${root}/references/my-notes.md`, "personal reference");
-      fs.dirs.add(`${root}/themes`);
-      fs.files.set(`${root}/themes/custom.css`, "personal theme");
-      const sibling = `${root}-extra`;
-      fs.dirs.add(sibling);
-      fs.files.set(`${sibling}/SKILL.md`, "sibling skill");
-
-      expect(await removeSeededBuiltin(FOLDER, definition.name, fs)).toBe("removed");
-      expect([...fs.files.entries()]).toEqual([[`${sibling}/SKILL.md`, "sibling skill"]]);
-      expect([...fs.dirs].filter((dir) => dir === root || dir.startsWith(`${root}/`))).toEqual([]);
-      expect(fs.dirs.has(sibling)).toBe(true);
-      expect(fs.dirs.has(FOLDER)).toBe(true);
-    });
-
-    it("removes a marked skill without requiring a catalog entry", async () => {
-      const path = `${FOLDER}/unknown/SKILL.md`;
-      const fs = memFs({ [path]: skill(1).skillMd });
-      expect(await removeSeededBuiltin(FOLDER, "unknown", fs)).toBe("removed");
-      expect(fs.files.size).toBe(0);
     });
   });
 });

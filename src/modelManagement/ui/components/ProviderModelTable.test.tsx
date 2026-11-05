@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import { ByokGlobalTable, type ByokTableGroup } from "./ByokGlobalTable";
+import { ProviderModelTable, type ProviderModelGroup } from "./ProviderModelTable";
 import { ModelManagementProvider } from "@/modelManagement/ui/ModelManagementContext";
 import { createModelManagement } from "@/modelManagement/createModelManagement";
 import { AppContext } from "@/context";
 import type { App } from "obsidian";
+import { setInterfaceLocale } from "@/lib/i18n";
 
 beforeAll(() => {
   (window as unknown as { activeDocument: Document }).activeDocument = window.document;
@@ -16,7 +17,7 @@ const mockApp = {
 
 const api = createModelManagement({ app: mockApp });
 
-const group: ByokTableGroup = {
+const group: ProviderModelGroup = {
   provider: {
     providerId: "p1",
     providerType: "anthropic",
@@ -55,18 +56,18 @@ const renderWithProvider = (ui: React.ReactElement) =>
     </AppContext.Provider>
   );
 
-describe("ByokGlobalTable", () => {
-  describe("ByokGlobalTable", () => {
+describe("ProviderModelTable", () => {
+  describe("ProviderModelTable", () => {
     it("shows the empty state when there are no groups", () => {
       renderWithProvider(
-        <ByokGlobalTable groups={[]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       expect(screen.getByTestId("byok-table-empty")).toBeTruthy();
     });
 
     it("lists the provider's models after the provider card is expanded", () => {
       renderWithProvider(
-        <ByokGlobalTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       expect(screen.getByText("Anthropic")).toBeTruthy();
 
@@ -76,7 +77,7 @@ describe("ByokGlobalTable", () => {
     });
 
     it("names where each provider sends requests", () => {
-      const local: ByokTableGroup = {
+      const local: ProviderModelGroup = {
         provider: {
           ...group.provider,
           providerId: "p2",
@@ -86,7 +87,7 @@ describe("ByokGlobalTable", () => {
         models: [],
       };
       renderWithProvider(
-        <ByokGlobalTable groups={[group, local]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[group, local]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       expect(screen.getByText("Sends requests to: Anthropic")).toBeTruthy();
       expect(screen.getByText("Sends requests to: A server on this computer")).toBeTruthy();
@@ -94,29 +95,29 @@ describe("ByokGlobalTable", () => {
 
     it("shows the model count and a Endpoint accessible badge for a verified provider", () => {
       renderWithProvider(
-        <ByokGlobalTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       expect(screen.getByText("2 models")).toBeTruthy();
       expect(screen.getByText("Endpoint accessible")).toBeTruthy();
     });
 
     it("shows No key instead of Endpoint accessible when verification reports a missing key", () => {
-      const noKeyGroup: ByokTableGroup = {
+      const noKeyGroup: ProviderModelGroup = {
         provider: { ...group.provider, apiKeyKeychainId: undefined },
         models: group.models,
         verification: { ok: false, code: "missing_api_key", checkedAt: 0 },
       };
       renderWithProvider(
-        <ByokGlobalTable groups={[noKeyGroup]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[noKeyGroup]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       expect(screen.getByText("No key")).toBeTruthy();
       expect(screen.queryByText("Endpoint accessible")).toBeNull();
     });
 
     it("says No models added instead of 0 models when a keyed provider has none", () => {
-      const emptyGroup: ByokTableGroup = { ...group, models: [] };
+      const emptyGroup: ProviderModelGroup = { ...group, models: [] };
       renderWithProvider(
-        <ByokGlobalTable groups={[emptyGroup]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[emptyGroup]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       expect(screen.getByText("No models added")).toBeTruthy();
       expect(screen.queryByText("0 models")).toBeNull();
@@ -124,21 +125,63 @@ describe("ByokGlobalTable", () => {
     });
 
     it("shows Checking… instead of Endpoint accessible for a keyless provider until verification returns", () => {
-      const localGroup: ByokTableGroup = {
+      const localGroup: ProviderModelGroup = {
         provider: { ...group.provider, displayName: "Ollama", requiresApiKey: false },
         models: [],
       };
       renderWithProvider(
-        <ByokGlobalTable groups={[localGroup]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[localGroup]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
-      expect(screen.getByText("Local models on your machine")).toBeTruthy();
+      expect(screen.getByText("No API key required")).toBeTruthy();
       expect(screen.getByText("Checking…")).toBeTruthy();
       expect(screen.queryByText("Endpoint accessible")).toBeNull();
     });
 
+    it("describes a keyless remote provider without calling it a local model", () => {
+      const remote: ProviderModelGroup = {
+        provider: {
+          ...group.provider,
+          providerType: "openai-compatible",
+          displayName: "Public gateway",
+          baseUrl: "https://models.example.com/v1",
+          requiresApiKey: false,
+        },
+        models: [],
+      };
+      renderWithProvider(
+        <ProviderModelTable groups={[remote]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+      );
+      expect(screen.getByText("No API key required")).toBeTruthy();
+      expect(screen.getByText("Sends requests to: Public gateway")).toBeTruthy();
+      expect(screen.queryByText("Local models on your machine")).toBeNull();
+    });
+
+    it("describes a keyless remote provider accurately in Chinese", () => {
+      const remote: ProviderModelGroup = {
+        provider: {
+          ...group.provider,
+          providerType: "openai-compatible",
+          displayName: "Public gateway",
+          baseUrl: "https://models.example.com/v1",
+          requiresApiKey: false,
+        },
+        models: [],
+      };
+      setInterfaceLocale("zh-CN");
+      try {
+        renderWithProvider(
+          <ProviderModelTable groups={[remote]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        );
+        expect(screen.getByText("无需 API 密钥")).toBeTruthy();
+        expect(screen.getByText("请求发送至：Public gateway")).toBeTruthy();
+      } finally {
+        setInterfaceLocale("en");
+      }
+    });
+
     it("toggles the model list each time the provider card is clicked", () => {
       renderWithProvider(
-        <ByokGlobalTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
 
       expect(screen.queryByText("Claude Sonnet 4.5")).toBeNull();
@@ -152,7 +195,7 @@ describe("ByokGlobalTable", () => {
 
     it("toggles the model list from the keyboard with Enter and Space on the focusable card header", () => {
       renderWithProvider(
-        <ByokGlobalTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
 
       const header = screen.getByRole("button", { name: /2 models/i });
@@ -170,7 +213,7 @@ describe("ByokGlobalTable", () => {
 
     it("offers a keyboard-reachable Remove button for each model once expanded", () => {
       renderWithProvider(
-        <ByokGlobalTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
       );
       fireEvent.click(screen.getByText("Anthropic"));
 

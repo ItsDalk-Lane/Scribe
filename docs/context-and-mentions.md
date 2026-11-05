@@ -45,13 +45,13 @@ To attach an excerpt from a note:
 
 The manual selection command is available from the command palette or an assigned hotkey. The editor's Scribe menu contains Quick Ask, quick commands, and custom commands.
 
-For text selected in the Web Viewer, run **将网页选中文字添加为聊天参考内容**. Scribe sends the selected excerpt together with the active web tab it came from.
+For text selected in the Web Viewer, run **将网页选中文字添加为聊天参考内容**. The selected excerpt includes its source title and URL; selecting text alone does not attach the whole page. A separately included web-tab context may send page content, and the active tab at send time may differ from the selection's source.
 
 Selected text in notes is automatically added to chat context as you select it in Reading or Edit view, and stays attached when you move to chat. Reading view selections show the note path without line numbers. On desktop, this also works with Web Viewer selections. Shapes selected in an Excalidraw drawing are attached the same way. Review or remove the selection badge before sending.
 
 ## Reuse context with Projects
 
-For material that should be prepared for more than one chat, create a [Project](projects.md). Add saved context from the **Context** section or tab:
+For material that should be prepared for more than one chat, create a [Project](projects.md). Add saved context from the **上下文** (**Context** in English) section or tab:
 
 - drag in a vault file or folder;
 - add a web page or YouTube URL; or

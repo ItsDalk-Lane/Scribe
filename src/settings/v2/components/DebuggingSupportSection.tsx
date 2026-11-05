@@ -35,7 +35,7 @@ export const DebuggingSupportSection: React.FC<DebuggingSupportSectionProps> = (
       type="custom"
       title={t("Report an issue")}
       description={t(
-        "Walks you through collecting a screenshot and recent logs, packs them into a single zip you can review, uploads it privately, and opens a prefilled GitHub issue with the report ID already in it."
+        "Prepare a zip from your description and selected attachments for review. You can choose whether to upload it; a GitHub issue draft may open afterward."
       )}
     >
       <Button variant="default" size="sm" onClick={onReportIssue}>
@@ -47,7 +47,7 @@ export const DebuggingSupportSection: React.FC<DebuggingSupportSectionProps> = (
       type="switch"
       title={t("Offer feedback reports in Agent Chat")}
       description={t(
-        "When something goes wrong in Agent Chat, or a reply fails with an error, Scribe drafts a report for you to review. Nothing is sent unless you press Report."
+        "Feedback cards may appear after a problem or a failed reply. Turning this off prevents new feedback cards from failed replies and the agent. You can still choose Report an issue. Nothing is sent unless you choose to upload a report."
       )}
       checked={offerFeedbackCards}
       onCheckedChange={onOfferFeedbackCardsChange}

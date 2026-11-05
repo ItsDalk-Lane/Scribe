@@ -58,7 +58,7 @@ export interface BackendModelCatalog {
   availableModels: readonly ModelEntry[] | null;
 }
 
-export type EnabledModelCredentialState = "ok" | "missing_key";
+export type EnabledModelCredentialState = "ok" | "missing_key" | "unavailable_key";
 
 export interface EnabledModelEntry {
   baseModelId: string;
@@ -555,6 +555,7 @@ export interface AgentChatMessage {
   timestamp: FormattedDateTime | null;
   isVisible: boolean;
   isErrorMessage?: boolean;
+  errorText?: string;
   message: string;
   parts?: AgentMessagePart[];
   context?: MessageContext;

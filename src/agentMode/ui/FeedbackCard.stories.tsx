@@ -5,14 +5,14 @@ import type { Meta, StoryObj } from "@/lib/story";
 const draft: FeedbackOffer = {
   trigger: "agent",
   draft: {
-    title: 'Replied in Swedish to an English "commit and push"',
-    whatHappened: "The agent read a garbled request as Swedish and answered in Swedish.",
-    userSaid: "What the fuck? I mean, commit and push. Why do you switch to a different language?",
-    repro: '1. Type a garbled "commit and push". 2. Observe the Swedish reply.',
+    title: "Scribe could not save a note",
+    whatHappened: "The write_note tool returned a permission error while saving a note.",
+    userSaid: "Why wasn't the note saved?",
+    repro: "1. Ask Scribe to save a note. 2. Observe the write_note error.",
   },
   evidence: {
-    backendId: "claude",
-    model: "claude-opus-5-5",
+    backendId: "native",
+    model: "claude-sonnet-4-6",
     sessionId: "1911da54-5b56-4820-a062-9a7f8f44e74f",
     raisedAt: "2026-10-08T22:13:52.669Z",
   },
@@ -45,7 +45,7 @@ export const FailedReply: StoryObj<FeedbackCardProps> = {
       ...draft,
       trigger: "turn_error",
       draft: {
-        title: "Agent Chat reply failed on Claude",
+        title: "Agent Chat reply failed on native",
         whatHappened: "Internal error: Internal service failure",
         userSaid: "",
         repro: "",
@@ -66,7 +66,7 @@ export const LongQuote: StoryObj<FeedbackCardProps> = {
   },
 };
 
-export const Sent: StoryObj<FeedbackCardProps> = {
+export const Uploaded: StoryObj<FeedbackCardProps> = {
   args: {
     offer: {
       ...draft,

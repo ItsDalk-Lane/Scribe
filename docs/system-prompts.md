@@ -2,6 +2,12 @@
 
 Instructions are rules Scribe should keep following, such as your writing style, folder conventions, preferred formats, and safety boundaries.
 
+Isolated tests found that opening or restoring a Project can change existing instructions, and saving another Project detail can overwrite a newer instruction body. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. See [Projects](projects.md) and [Troubleshooting](troubleshooting-and-faq.md).
+
+隔离测试发现，打开或恢复项目可能改写已有说明；保存其他项目详情时也可能覆盖较新的说明。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。详见[项目](projects.md)和[故障排查](troubleshooting-and-faq.md)。
+
+The guidance below applies after these issues are fixed. 以下操作应在问题修复后执行。
+
 Agent Chat reads the vault-root `AGENTS.md` for your custom instructions when starting a response in a native Scribe session.
 
 Agent Chat's built-in guidance covers vault context, Obsidian links and tool routing. The selected agent decides how much searching and planning the task needs, and can report unavailable tools or access honestly.

@@ -15,9 +15,9 @@ import { ProviderVerificationProgress } from "@/modelManagement/ui/components/Pr
 import type { ConfiguredModel } from "@/modelManagement/types/persisted";
 import { useModelManagement } from "@/modelManagement/ui/ModelManagementContext";
 import {
-  ByokGlobalTable,
-  type ByokTableGroup,
-} from "@/modelManagement/ui/components/ByokGlobalTable";
+  ProviderModelTable,
+  type ProviderModelGroup,
+} from "@/modelManagement/ui/components/ProviderModelTable";
 import { AddProviderModal } from "@/modelManagement/ui/dialogs/AddProviderDialog";
 import { ConfigureProviderModal } from "@/modelManagement/ui/dialogs/ConfigureProviderDialog";
 import { settingsStore } from "@/settings/model";
@@ -30,7 +30,7 @@ const EMPTY_VERIFICATION: Readonly<Record<string, VerificationResult>> = Object.
 const EMPTY_CATALOG: readonly CatalogProvider[] = Object.freeze([]);
 const EMPTY_MODELS: readonly ConfiguredModel[] = Object.freeze([]);
 
-export const ByokPanel: React.FC = () => {
+export const ModelsAndProvidersPanel: React.FC = () => {
   const api = useModelManagement();
   const app = useApp();
 
@@ -87,7 +87,7 @@ export const ByokPanel: React.FC = () => {
         sync();
       })
       .catch((err) => {
-        logError("[ByokPanel] catalog ensureLoaded failed", err);
+        logError("[ModelsAndProvidersPanel] catalog ensureLoaded failed", err);
       });
     return () => {
       cancelled = true;
@@ -95,7 +95,7 @@ export const ByokPanel: React.FC = () => {
     };
   }, [api]);
 
-  const groups = useMemo<ByokTableGroup[]>(() => {
+  const groups = useMemo<ProviderModelGroup[]>(() => {
     const byProvider = new Map<string, ConfiguredModel[]>();
     for (const model of configuredModels) {
       const list = byProvider.get(model.providerId);
@@ -148,7 +148,7 @@ export const ByokPanel: React.FC = () => {
         try {
           await api.coordinator.removeProvider(providerId);
         } catch (err) {
-          logError("[ByokPanel] removeProvider failed", err);
+          logError("[ModelsAndProvidersPanel] removeProvider failed", err);
           new Notice(t("Failed to remove provider."));
         }
       },
@@ -168,7 +168,7 @@ export const ByokPanel: React.FC = () => {
       <div className="tw-flex tw-items-start tw-justify-between tw-gap-4">
         <div className="tw-flex tw-flex-col tw-gap-1">
           <div className="tw-text-base tw-font-semibold tw-text-normal">
-            {t("Bring your own key")}
+            {t("Models and providers")}
           </div>
           <div className="tw-max-w-xl tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
             {t("Set up your own providers and models to use in Scribe.")}
@@ -183,7 +183,7 @@ export const ByokPanel: React.FC = () => {
       <SearchBar value={query} onChange={setQuery} placeholder={t("Search providers…")} />
 
       <div className="tw-flex tw-flex-col">
-        <ByokGlobalTable
+        <ProviderModelTable
           groups={groups}
           emptyMessage={
             query.trim() && providers.length > 0 ? t("No providers match your search.") : undefined

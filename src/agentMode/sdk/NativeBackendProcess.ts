@@ -898,25 +898,26 @@ export class NativeBackendProcess implements BackendProcess {
         await ready;
         if (!stopped) await agent.prompt(input.prompt);
         const message = agent.state.messages.findLast((message) => message.role === "assistant");
+        const reply =
+          message?.role === "assistant"
+            ? message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")
+            : "";
         const failed =
           stopped ||
           !message ||
+          !reply.trim() ||
           (message.role === "assistant" &&
             (message.stopReason === "error" ||
               message.stopReason === "aborted" ||
               message.stopReason === "toolUse" ||
               message.stopReason === "length"));
-        const reply =
-          message?.role === "assistant"
-            ? message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")
-            : "";
-        const text =
-          reply ||
-          (message?.role === "assistant" && message.stopReason === "toolUse"
+        const text = reply.trim()
+          ? reply
+          : message?.role === "assistant" && message.stopReason === "toolUse"
             ? "The child agent reached its step limit before completing the task."
             : message?.role === "assistant"
               ? (message.errorMessage ?? "The child agent did not return a final result.")
-              : "The child agent did not return a final result.");
+              : "The child agent did not return a final result.";
         this.emit(session, {
           sessionUpdate: "task_ended",
           taskId,

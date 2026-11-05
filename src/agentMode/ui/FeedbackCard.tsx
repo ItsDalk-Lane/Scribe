@@ -45,7 +45,7 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({
           <MessageSquareWarning className="tw-size-4 tw-shrink-0 tw-text-accent" />
         )}
         <div className="tw-truncate tw-text-sm tw-font-medium">
-          {report ? t("Report sent to the Scribe team") : t("Report this to the Scribe team?")}
+          {report ? t("Report uploaded") : t("Report this to the Scribe team?")}
         </div>
       </div>
 
@@ -58,17 +58,20 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({
           </div>
         ) : null}
         {report ? (
-          <div className="tw-text-muted">
-            {t("Report ID")}{" "}
-            <span className="tw-break-all tw-font-mono tw-text-normal">{report.reportId}</span>
-          </div>
+          <>
+            <div className="tw-text-muted">
+              {t("Report ID")}{" "}
+              <span className="tw-break-all tw-font-mono tw-text-normal">{report.reportId}</span>
+            </div>
+            <div className="tw-text-muted">{t("Review and submit the issue on GitHub.")}</div>
+          </>
         ) : null}
       </div>
 
       <div className="scribe-divider-t tw-flex tw-flex-wrap tw-items-center tw-gap-2 tw-px-3 tw-py-2">
         {report ? (
           <a href={report.issueUrl} className="tw-text-xs">
-            {t("Open the GitHub issue")}
+            {t("Open the GitHub issue page")}
           </a>
         ) : (
           <>

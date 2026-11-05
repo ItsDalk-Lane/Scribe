@@ -3,7 +3,6 @@ import {
   captureInstructionFiles,
   restoreInstructionFiles,
   ensureAgentsFile,
-  removeGeneratedInstructionFiles,
   ensureAgentsFileForDiscovery,
   openAgentsFile,
   readAgentsFile,
@@ -76,11 +75,6 @@ function makeApp(initialFiles: Record<string, string> = {}, folders: string[] = 
     },
     workspace: {
       getLeaf: jest.fn(() => ({ openFile })),
-    },
-    fileManager: {
-      trashFile: jest.fn(async (file: TFile) => {
-        state.files.delete(file.path);
-      }),
     },
   };
   return { app: app as unknown as App, state, openFile };
@@ -324,57 +318,6 @@ describe("agentsFile", () => {
       await restoreInstructionFiles(app, "Projects/Research", before, "New rules");
 
       expect(state.files.get("Projects/Research/AGENTS.md")).toBe("");
-    });
-  });
-
-  describe("removeGeneratedInstructionFiles", () => {
-    const marker = "<!-- scribe:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
-
-    it("removes a marker-owned mirror, so a recreated project starts clean", async () => {
-      const { app, state } = makeApp({
-        "Projects/Research/AGENTS.md": `${marker}\n\nDead project's instructions`,
-      });
-
-      await removeGeneratedInstructionFiles(app, "Projects/Research");
-
-      expect(state.files.has("Projects/Research/AGENTS.md")).toBe(false);
-    });
-
-    it("keeps an import-only CLAUDE.md, which carries no marker to prove it is ours", async () => {
-      const { app, state } = makeApp({
-        "Projects/Research/AGENTS.md": `${marker}\n\nDead project's instructions`,
-        "Projects/Research/CLAUDE.md": "@AGENTS.md\n",
-      });
-
-      await removeGeneratedInstructionFiles(app, "Projects/Research");
-
-      expect(state.files.get("Projects/Research/CLAUDE.md")).toBe("@AGENTS.md\n");
-    });
-
-    it("preserves files carrying anything the user wrote", async () => {
-      const { app, state } = makeApp({
-        "Projects/Research/AGENTS.md": "The user's own rules",
-        "Projects/Research/CLAUDE.md": "# Claude notes\n\n@AGENTS.md\n",
-      });
-
-      await removeGeneratedInstructionFiles(app, "Projects/Research");
-
-      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("The user's own rules");
-      expect(state.files.get("Projects/Research/CLAUDE.md")).toBe("# Claude notes\n\n@AGENTS.md\n");
-    });
-
-    it("never rejects when deletion fails", async () => {
-      const { app } = makeApp({
-        "Projects/Research/AGENTS.md": `${marker}\n\nbody`,
-      });
-      (app.vault.adapter.remove as jest.Mock | undefined)?.mockRejectedValue?.(new Error("locked"));
-      (
-        app as unknown as { fileManager?: { trashFile: jest.Mock } }
-      ).fileManager?.trashFile?.mockRejectedValue?.(new Error("locked"));
-
-      await expect(
-        removeGeneratedInstructionFiles(app, "Projects/Research")
-      ).resolves.toBeUndefined();
     });
   });
 

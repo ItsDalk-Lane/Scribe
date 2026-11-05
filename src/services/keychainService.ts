@@ -298,9 +298,6 @@ export class KeychainService {
     return { secretEntries, keychainIdsToDelete };
   }
 
-  // Every device migrates on load because the pointer it reads may have been rewritten by another
-  // device that already ran this, while this device's key still sits under the old name.
-  // https://github.com/logancyang/obsidian-copilot/issues/3618
   // 拆成规划与执行两步：备份失败时可以只规划不动钥匙串，改名等下次启动重试。
   // https://github.com/ItsDalk-Lane/Scribe/issues/23
   planProviderNames(settings: ScribeSettings): {
@@ -412,7 +409,7 @@ export class KeychainService {
       logError("forgetAllSecrets: saveData failed — aborting keychain clear", error);
       new Notice(
         t(
-          "Failed to remove API keys from data.json. Obsidian Keychain was NOT cleared. Please try again."
+          "Failed to remove API keys from data.json. Obsidian Keychain was NOT cleared. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
         )
       );
       return;
@@ -430,7 +427,7 @@ export class KeychainService {
     if (keychainError) {
       new Notice(
         t(
-          "Some Obsidian Keychain entries could not be removed. Your keys have been cleared from data.json and memory. Please restart and retry."
+          "Some Obsidian Keychain entries could not be removed. Recognized API key fields were cleared from data.json and memory. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
         )
       );
       throw keychainError;

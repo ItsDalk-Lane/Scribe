@@ -23,3 +23,6 @@ const meta = {
 export default meta;
 
 export const Auto: StoryObj<ModePickerProps> = {};
+export const Plan: StoryObj<ModePickerProps> = {
+  args: { override: { ...meta.args.override, value: "plan" } },
+};

@@ -21,7 +21,10 @@ const args: AgentConfigurationCardProps = {
   enabled: true,
   onEnabledChange: () => {},
 };
-export const Ready: StoryObj<AgentConfigurationCardProps> = { args };
+export const Ready: StoryObj<AgentConfigurationCardProps> = {
+  name: "Configured models and providers",
+  args,
+};
 export const Disabled: StoryObj<AgentConfigurationCardProps> = {
   args: { ...args, enabled: false },
 };
@@ -35,7 +38,11 @@ export const Missing: StoryObj<AgentConfigurationCardProps> = {
 export const DetectionError: StoryObj<AgentConfigurationCardProps> = {
   args: {
     ...args,
-    installState: { kind: "error", message: "请配置聊天模型后重试。" },
+    installState: {
+      kind: "error",
+      reason: "configuration",
+      message: "Configure and enable a chat model in your model settings first.",
+    },
     resolvedPath: null,
   },
 };

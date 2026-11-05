@@ -148,6 +148,18 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("getInstallState()", () => {
+    it("does not construct model display capabilities to determine readiness (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
+      setSettings({
+        configuredModels: getSettings().configuredModels.map((model) => ({
+          ...model,
+          info: {
+            ...model.info,
+            modalities: { input: 42 as unknown as string[], output: ["text"] },
+          },
+        })),
+      });
+      expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
+    });
     it("is immediately ready with an existing model and never requires an external binary or login", () => {
       expect(NativeBackendDescriptor.getInstallState(getSettings())).toEqual({
         kind: "ready",
@@ -157,14 +169,19 @@ describe("nativeDescriptor", () => {
       expect(NativeBackendDescriptor.managedInstall).toBeUndefined();
       expect(NativeBackendDescriptor.getResolvedBinaryPath).toBeUndefined();
     });
-    it("keeps the configuration controls reachable after every native model is disabled", () => {
+    it("reports a model configuration error after every native model is disabled (https://github.com/ItsDalk-Lane/Scribe/issues/21)", () => {
       setSettings({ backends: { ...getSettings().backends, native: { enabledModels: [] } } });
-      expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
+      expect(NativeBackendDescriptor.getInstallState(getSettings())).toMatchObject({
+        kind: "error",
+        reason: "configuration",
+        message: expect.stringContaining("chat model"),
+      });
     });
     it("shows a localized model setup error when no BYOK chat model exists (https://github.com/ItsDalk-Lane/Scribe/issues/28)", () => {
       setSettings({ configuredModels: [] });
       expect(NativeBackendDescriptor.getInstallState(getSettings())).toEqual({
         kind: "error",
+        reason: "configuration",
         message: expect.stringContaining("chat model"),
       });
     });
@@ -188,7 +205,7 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("openInstallUI()", () => {
-    it("opens the existing BYOK settings in the active view's window", () => {
+    it("opens the existing model and provider settings in the active view's window", () => {
       const app = {
         workspace: {
           getMostRecentLeaf: () => ({ view: { containerEl: document.createElement("div") } }),
@@ -245,11 +262,17 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("dataDestination()", () => {
-    it("reports the selected BYOK model's local destination", () => {
+    it("reports the selected configured model's destination and a generic provider label without a selection", () => {
       expect(NativeBackendDescriptor.dataDestination?.(getSettings(), "/vault")).toEqual({
         kind: "local",
         label: "A server on this computer",
       });
+      expect(
+        NativeBackendDescriptor.dataDestination?.(
+          { ...getSettings(), configuredModels: [] },
+          "/vault"
+        )
+      ).toEqual({ kind: "cloud", label: "Model provider" });
     });
   });
   describe("applySelection()", () => {

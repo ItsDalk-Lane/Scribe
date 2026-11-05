@@ -58,6 +58,31 @@ describe("skillRuntimeItem", () => {
         ]).availability
       ).toBe("loaded");
     });
+    it("does not let a pathless root name confirm a configured project file (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+      expect(
+        skillRuntimeItem(
+          { ...skill, location: { kind: "project", agentDirs: ["claude"] } },
+          "claude",
+          [{ id: "runtime:review", name: "review", source: "runtime", availability: "loaded" }]
+        ).availability
+      ).toBeUndefined();
+    });
+    it("does not use a pathless name to mark a skill shared when its saved agent mapping is disabled (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+      expect(
+        skillRuntimeItem({ ...skill, enabledAgents: [] }, "claude", [
+          { id: "runtime:review", name: "review", source: "runtime", availability: "loaded" },
+        ]).availability
+      ).toBe("disabled");
+    });
+    it("does not use an old name at the same path to confirm a renamed project file (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+      expect(
+        skillRuntimeItem(
+          { ...skill, name: "renamed", location: { kind: "project", agentDirs: ["claude"] } },
+          "claude",
+          [observed]
+        ).availability
+      ).toBeUndefined();
+    });
     it("keeps a configured managed skill switchable as manual when runtime evidence is unavailable", () => {
       expect(skillRuntimeItem(skill, "claude")).toMatchObject({
         availability: "manual_only",

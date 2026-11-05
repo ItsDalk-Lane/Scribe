@@ -72,7 +72,7 @@ function makeState(modelId: string): BackendState {
 }
 
 function makeDescriptor(
-  id: "codex" | "claude" | "opencode",
+  id: "native" | "codex" | "claude" | "opencode",
   installState: InstallState = { kind: "ready", source: "custom" }
 ): BackendDescriptor {
   return {
@@ -211,6 +211,28 @@ describe("agentModelPickerHelpers", () => {
   });
 
   describe("buildPickerEntries", () => {
+    it.each(["pending", "ready", "error"] as const)(
+      "does not show a loading failure for unavailable model configuration with a %s preload (https://github.com/ItsDalk-Lane/Scribe/issues/21)",
+      (status) => {
+        const descriptor = {
+          ...makeDescriptor("native", {
+            kind: "error",
+            reason: "configuration",
+            message: "Configure and enable a chat model.",
+          }),
+          usesConfiguredModels: true,
+          getEnabledModelEntries: () => [],
+        };
+        const manager = makeManager({ preloadStatusById: { native: status } });
+
+        expect(
+          buildPickerEntries(manager, [descriptor], noSessionContext(), emptySettings)
+        ).toEqual({
+          entries: [],
+          valueKey: "",
+        });
+      }
+    );
     it("still shows a loading placeholder for a routing agent whose preload has not settled", () => {
       const descriptor = {
         ...makeDescriptor("opencode"),
@@ -793,8 +815,8 @@ describe("agentModelPickerHelpers", () => {
   });
 
   describe("buildEffortOptionsByModelKey", () => {
-    const ACTIVE = "github-copilot/gpt-5.4";
-    const OTHER = "opencode/nemotron-3-super-free";
+    const ACTIVE = "provider-a/model-a";
+    const OTHER = "provider-b/model-b";
 
     function catalogWithEffort(
       available: { baseModelId: string; effortOptions: EffortOption[] }[]
@@ -810,16 +832,16 @@ describe("agentModelPickerHelpers", () => {
     }
 
     it("prefers catalog effort and falls back to the prefetch cache for other models", () => {
-      const opencode = makeDescriptor("opencode");
+      const native = makeDescriptor("native");
       const manager = makeManager({
         catalogById: {
-          opencode: catalogWithEffort([
+          native: catalogWithEffort([
             { baseModelId: ACTIVE, effortOptions: [{ value: "high", label: "high" }] },
             { baseModelId: OTHER, effortOptions: [] },
           ]),
         },
         effortCatalogById: {
-          opencode: {
+          native: {
             [ACTIVE]: [{ value: "low", label: "low" }],
             [OTHER]: [
               { value: "minimal", label: "minimal" },
@@ -829,8 +851,8 @@ describe("agentModelPickerHelpers", () => {
         },
       });
       const entries = [
-        synthesizeAgentEntry(ACTIVE, ACTIVE, opencode),
-        synthesizeAgentEntry(OTHER, OTHER, opencode),
+        synthesizeAgentEntry(ACTIVE, ACTIVE, native),
+        synthesizeAgentEntry(OTHER, OTHER, native),
       ];
       const out = buildEffortOptionsByModelKey(manager, entries);
       expect(out[getModelKeyFromModel(entries[0])]).toEqual([{ value: "high", label: "high" }]);
@@ -841,14 +863,14 @@ describe("agentModelPickerHelpers", () => {
     });
 
     it("returns empty when neither catalog nor prefetched effort exists", () => {
-      const opencode = makeDescriptor("opencode");
+      const native = makeDescriptor("native");
       const manager = makeManager({
         catalogById: {
-          opencode: catalogWithEffort([{ baseModelId: OTHER, effortOptions: [] }]),
+          native: catalogWithEffort([{ baseModelId: OTHER, effortOptions: [] }]),
         },
-        effortCatalogById: { opencode: {} },
+        effortCatalogById: { native: {} },
       });
-      const entries = [synthesizeAgentEntry(OTHER, OTHER, opencode)];
+      const entries = [synthesizeAgentEntry(OTHER, OTHER, native)];
       const out = buildEffortOptionsByModelKey(manager, entries);
       expect(out[getModelKeyFromModel(entries[0])]).toEqual([]);
     });

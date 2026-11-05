@@ -8,7 +8,7 @@ plugin process runtime, native configuration, UI, and skills.
 - `sdk/` contains the in-process Pi Agent runtime, Scribe tools, real desktop
   commands, and native transcript storage. Pi drives the execution loop;
   no external Agent executable or local Agent proxy is used.
-- `backends/native/` wires the existing BYOK model configuration, credentials,
+- `backends/native/` wires configured models and providers, credentials,
   project instructions, extensions, and Agent settings to that runtime.
 - `backends/registry.ts` registers only the native Scribe backend.
 - `ui/` consumes session-domain data and preserves the established chat

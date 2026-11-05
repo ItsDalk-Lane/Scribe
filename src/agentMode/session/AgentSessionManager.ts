@@ -1606,6 +1606,12 @@ export class AgentSessionManager {
     if (this.disposed || !this.isBackendEnabled(backendId)) return;
     const installState = this.opts.resolveDescriptor(backendId)?.getInstallState(getSettings());
     if (installState?.kind === "checking") return;
+    // 模型配置不可用时保留聊天和草稿，避免误按程序移除处理。https://github.com/ItsDalk-Lane/Scribe/issues/21
+    if (installState?.kind === "error" && installState.reason === "configuration") {
+      this.preloader.clearCached(backendId);
+      this.notify();
+      return;
+    }
     if (installState?.kind !== "ready") {
       await this.restartBackend(backendId, "binary no longer available");
       this.preloader.clearCached(backendId);

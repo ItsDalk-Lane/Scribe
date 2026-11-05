@@ -1,5 +1,6 @@
 import type { CustomModel } from "@/aiParams";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
+import { getInterfaceLocale, setInterfaceLocale } from "@/lib/i18n";
 import { safeFetchNoThrow } from "@/utils";
 import { runInThisContext } from "node:vm";
 const {
@@ -62,7 +63,7 @@ const serviceAccount = JSON.stringify({
 });
 
 describe("providerTransport", () => {
-  describe("createProviderFetch", () => {
+  describe("createProviderFetch()", () => {
     beforeEach(() => {
       safeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
       nativeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
@@ -189,11 +190,11 @@ describe("providerTransport", () => {
     });
 
     it.each(["/chat/completions", "/responses", "/v1/messages"])(
-      "exchanges a GitHub user token and preserves the Scribe protocol path %s",
+      "exchanges a GitHub user token and preserves the requested API path %s",
       async (path) => {
         safeFetch.mockResolvedValueOnce(
           jsonResponse({
-            token: "scribe-service-token",
+            token: "provider-service-token",
             expires_at: Math.floor(Date.now() / 1000) + 3600,
             endpoints: { api: "https://api.business.githubcopilot.com" },
           })
@@ -209,7 +210,7 @@ describe("providerTransport", () => {
         expect(safeFetch.mock.calls[0][0]).toBe("https://api.github.com/copilot_internal/v2/token");
         expect(requestHeaders(0).get("Authorization")).toBe("Bearer ghu_fixture");
         expect(safeFetch.mock.calls[1][0]).toBe(`https://api.business.githubcopilot.com${path}`);
-        expect(requestHeaders(1).get("Authorization")).toBe("Bearer scribe-service-token");
+        expect(requestHeaders(1).get("Authorization")).toBe("Bearer provider-service-token");
         expect(requestHeaders(1).has("x-api-key")).toBe(false);
         expect(requestHeaders(1).get("User-Agent")).toBe("obsidian-scribe/4");
         expect(requestHeaders(1).get("Editor-Version")).toBe("obsidian-scribe/4");
@@ -218,7 +219,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("caches a Scribe token until expiry then exchanges the original GitHub key again", async () => {
+    it("caches a provider token until expiry then exchanges the original GitHub key again", async () => {
       const now = jest.spyOn(Date, "now").mockReturnValue(1_000_000);
       safeFetch.mockResolvedValueOnce(jsonResponse({ token: "service-first", expires_at: 2000 }));
       const fetcher = createProviderFetch(
@@ -266,7 +267,7 @@ describe("providerTransport", () => {
       }
     });
 
-    it("accepts an already-issued Scribe service token without exchanging it as a GitHub user token", async () => {
+    it("accepts an already-issued provider service token without exchanging it as a GitHub user token", async () => {
       await createProviderFetch(
         model({
           providerCatalogId: "github-copilot",
@@ -285,7 +286,7 @@ describe("providerTransport", () => {
       "https://user:pass@api.githubcopilot.com",
       "https://api.githubcopilot.com:444",
     ])(
-      "rejects the untrusted Scribe service endpoint %s before sending a service token",
+      "rejects the untrusted provider service endpoint %s before sending a service token",
       async (api) => {
         safeFetch.mockResolvedValueOnce(
           jsonResponse({
@@ -298,12 +299,34 @@ describe("providerTransport", () => {
           createProviderFetch(
             model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
           )("https://api.githubcopilot.com/responses")
-        ).rejects.toThrow();
+        ).rejects.toThrow("Invalid Copilot API endpoint.");
         expect(safeFetch).toHaveBeenCalledTimes(1);
       }
     );
 
-    it("keeps an explicitly configured Scribe inference proxy instead of redirecting it to a vendor metadata host", async () => {
+    it("identifies GitHub as the source of an invalid API address in Chinese", async () => {
+      const previousLocale = getInterfaceLocale();
+      setInterfaceLocale("zh-CN");
+      try {
+        safeFetch.mockResolvedValueOnce(
+          jsonResponse({
+            token: "service-token",
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            endpoints: { api: "https://untrusted.example" },
+          })
+        );
+        await expect(
+          createProviderFetch(
+            model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
+          )("https://api.githubcopilot.com/responses")
+        ).rejects.toThrow("GitHub 返回的 API 地址无效。");
+        expect(safeFetch).toHaveBeenCalledTimes(1);
+      } finally {
+        setInterfaceLocale(previousLocale);
+      }
+    });
+
+    it("keeps an explicitly configured inference proxy instead of redirecting it to a vendor metadata host", async () => {
       safeFetch.mockResolvedValueOnce(
         jsonResponse({
           token: "service-token",
@@ -344,7 +367,7 @@ describe("providerTransport", () => {
     });
 
     it.each([{}, { token: "fixture", expires_at: 0 }, { token: 123, expires_at: 9999999999 }])(
-      "rejects unusable successful Scribe token replies %p before inference",
+      "rejects unusable successful provider token replies %p before inference",
       async (body) => {
         safeFetch.mockResolvedValueOnce(jsonResponse(body));
         await expect(
@@ -509,7 +532,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("coalesces concurrent Scribe credential exchanges without serializing inference requests", async () => {
+    it("coalesces concurrent provider credential exchanges without serializing inference requests", async () => {
       safeFetch.mockResolvedValueOnce(
         jsonResponse({ token: "service-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
       );

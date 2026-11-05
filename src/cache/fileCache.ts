@@ -113,8 +113,9 @@ export class FileCache<T> {
     }
   }
 
-  async clear(vault: Vault): Promise<void> {
+  async clear(vault: Vault): Promise<boolean> {
     try {
+      let cleared = this.memoryCache.size > 0;
       this.memoryCache.clear();
 
       if (await vault.adapter.exists(this.cacheDir)) {
@@ -123,10 +124,13 @@ export class FileCache<T> {
 
         for (const file of files.files) {
           await vault.adapter.remove(file);
+          cleared = true;
         }
       }
+      return cleared;
     } catch (error) {
       logError("Error clearing file cache:", error);
+      throw error;
     }
   }
 }

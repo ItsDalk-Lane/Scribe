@@ -3,7 +3,7 @@ import { t } from "@/lib/i18n";
 import React from "react";
 
 export const QUICK_ACTIONS_SECTIONS = [
-  { id: "models", label: "Models" },
+  { id: "models", label: "Models and providers" },
   { id: "tools", label: "Tool configuration" },
   { id: "commands", label: "My commands" },
 ] as const;

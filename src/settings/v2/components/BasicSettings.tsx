@@ -23,6 +23,7 @@ import {
 import { updateSetting, useSettingsValue, validateScribeFolder } from "@/settings/model";
 import { ScribeFolderChangeNotice } from "@/settings/v2/components/ScribeFolderChangeNotice";
 import { VaultInstructionsSetting } from "@/settings/v2/components/VaultInstructionsSetting";
+import { ChatAutosaveSetting } from "@/settings/v2/components/ui/ChatAutosaveSetting";
 import { formatDateTime } from "@/utils";
 import { revealFolderInExplorer } from "@/utils/revealFolderInExplorer";
 import { Folder, Loader2 } from "lucide-react";
@@ -305,12 +306,7 @@ export const BasicSettings: React.FC<BasicSettingsProps> = ({ section = "general
 
       {section === "saving" && (
         <SettingSection label={t("Saving chats")}>
-          <SettingItem
-            type="switch"
-            title={t("Autosave chats as Markdown")}
-            description={t(
-              "Writes each chat to a Markdown note in your vault after every user message and AI response. With this off, agent chats still appear in Recent chats; only the Markdown note is skipped."
-            )}
+          <ChatAutosaveSetting
             checked={settings.autosaveChat}
             onCheckedChange={(checked) => updateSetting("autosaveChat", checked)}
           />

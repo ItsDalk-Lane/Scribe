@@ -73,7 +73,8 @@ function appendEnabledFallbackEntries(
       enabled.isFree,
       enabled.capabilities
     );
-    if (enabled.credentialState === "missing_key") entry._disabledReason = t(MISSING_KEY_LABEL);
+    const reason = credentialDisabledReason(enabled.credentialState, true);
+    if (reason) entry._disabledReason = reason;
     entries.push(entry);
   }
 }
@@ -109,6 +110,7 @@ function credentialDisabledReason(
   reported: boolean
 ): string | undefined {
   if (state === "missing_key") return t(MISSING_KEY_LABEL);
+  if (state === "unavailable_key") return t("Cannot read API key on this device");
   if (!reported) return t("Not offered by agent");
   return undefined;
 }
@@ -214,14 +216,18 @@ export function buildPickerEntries(
     const backendModels = catalog?.availableModels ?? null;
     const hasNoCatalog = catalog === null;
     const preloadStatus = manager.getPreloadStatus(descriptor.id);
-    if (!isActiveBackend && descriptor.getInstallState(settings).kind === "absent") continue;
+    const installState = descriptor.getInstallState(settings);
+    const configurationUnavailable =
+      installState.kind === "error" && installState.reason === "configuration";
+    if (!isActiveBackend && installState.kind === "absent") continue;
     const sectionStart = entries.length;
     appendBackendSection(entries, descriptor, {
       backendModels,
       settings,
       useEnabledFallback: hasNoCatalog && (preloadStatus === "ready" || preloadStatus === "error"),
     });
-    if (hasNoCatalog && entries.length === sectionStart) {
+    // 未启用模型并非加载失败，不能借用旧预加载结果误报。https://github.com/ItsDalk-Lane/Scribe/issues/21
+    if (hasNoCatalog && entries.length === sectionStart && !configurationUnavailable) {
       if (preloadStatus === "pending") {
         entries.push(synthesizePreloadPlaceholder(descriptor, "pending"));
       } else if (preloadStatus === "ready" || preloadStatus === "error") {
@@ -229,7 +235,7 @@ export function buildPickerEntries(
       }
     }
     if (!isActiveBackend) {
-      const readiness = backendReadinessReason(descriptor.getInstallState(settings));
+      const readiness = backendReadinessReason(installState);
       if (readiness) {
         for (let i = sectionStart; i < entries.length; i++) {
           entries[i]._disabledReason = readiness;

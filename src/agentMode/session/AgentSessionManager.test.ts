@@ -3751,6 +3751,26 @@ describe("AgentSessionManager", () => {
         };
       }
 
+      it("keeps the live chat when model configuration becomes unavailable (https://github.com/ItsDalk-Lane/Scribe/issues/21)", async () => {
+        const { mgr, preloader, setInstallState } = buildInstallStateManager({
+          installState: { kind: "ready", source: "custom" },
+        });
+        const chat = await mgr.createSession();
+        mockBackendShutdown.mockClear();
+        const configurationError = {
+          kind: "error",
+          reason: "configuration",
+          message: "Enable a chat model.",
+        } as const;
+        setInstallState(configurationError);
+
+        await mgr.onInstallStateChanged("native");
+
+        expect(mgr.getActiveSession()).toBe(chat);
+        expect(mockBackendShutdown).not.toHaveBeenCalled();
+        expect(preloader.clearCached).toHaveBeenCalledWith("native");
+      });
+
       it("preloads a freshly-installed backend that was never probed", async () => {
         const { mgr, preloader } = buildInstallStateManager({
           installState: { kind: "ready", source: "custom" },
@@ -4000,6 +4020,33 @@ describe("AgentSessionManager", () => {
           descriptor: buildDescriptor({ id: "claude", displayName: "Claude", getModeMapping }),
         });
       }
+
+      it("saves a manually selected permission mode as the default for later chats", async () => {
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            id: "native",
+            displayName: "Scribe",
+            getModeMapping: () => ({
+              kind: "setMode",
+              canonical: { default: "default", plan: "plan", auto: "auto" },
+            }),
+          }),
+        });
+        await manager.createSession("native");
+        setSettingsMock.mockClear();
+
+        await manager.applyMode("native", "auto", { kind: "setMode", nativeId: "auto" });
+
+        const update = setSettingsMock.mock.calls.at(-1)?.[0] as
+          | ((
+              settings: ReturnType<typeof mockDefaultSettings>
+            ) => ReturnType<typeof mockDefaultSettings>)
+          | undefined;
+        expect(update).toBeDefined();
+        if (!update) throw new Error("Missing settings update");
+        getSettingsMock.mockReturnValue(update(mockDefaultSettings()));
+        expect(manager.getDefaultMode("native")).toBe("auto");
+      });
 
       it("refreshes a state-independent native mapping before dispatch", async () => {
         const manager = buildModeManager(() => ({

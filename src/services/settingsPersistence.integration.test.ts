@@ -1,9 +1,14 @@
-import type { App } from "obsidian";
+import { Notice, type App } from "obsidian";
+import { setInterfaceLocale } from "@/lib/i18n";
 
 import { DEFAULT_SETTINGS } from "@/constants";
 import type { Provider } from "@/modelManagement";
 import { KeychainService } from "@/services/keychainService";
-import { loadSettingsWithKeychain, resetPersistenceState } from "@/services/settingsPersistence";
+import {
+  loadSettingsWithKeychain,
+  persistSettings,
+  resetPersistenceState,
+} from "@/services/settingsPersistence";
 import type { ScribeSettings } from "@/settings/model";
 
 jest.mock("@/logger", () => ({
@@ -81,12 +86,161 @@ function apiKeyFor(app: App, settings: ScribeSettings): string | null {
 }
 
 describe("settingsPersistence", () => {
-  describe("loadSettingsWithKeychain", () => {
+  describe("loadSettingsWithKeychain()", () => {
     beforeEach(() => {
       secrets = new Map();
+      jest.mocked(Notice).mockClear();
+      setInterfaceLocale("en");
       resetPersistenceState();
       KeychainService.resetInstance();
     });
+
+    it.each([
+      [
+        "en",
+        "Scribe could not back up the API keys stored in data.json, so it left the file untouched. Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.",
+      ],
+      [
+        "zh-CN",
+        "Scribe 无法备份 data.json 中的 API 密钥，因此保留了原文件。请确认资料库可以写入。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
+      ],
+    ] as const)(
+      "shows safe %s fallback guidance and rejects later saves when backup fails",
+      async (locale, expected) => {
+        setInterfaceLocale(locale);
+        const app = makeApp();
+        KeychainService.getInstance(app);
+        const raw = { ...diskSettings(STABLE_NAME), openAIApiKey: "fixture-key" };
+        let saved = 0;
+        await loadSettingsWithKeychain(
+          app,
+          raw,
+          async () => {
+            saved++;
+          },
+          async () => ({ status: "failed", error: new Error("disk full") })
+        );
+        expect(Notice).toHaveBeenCalledWith(expected, undefined);
+        await expect(
+          persistSettings(raw, async () => {
+            saved++;
+          })
+        ).rejects.toThrow(
+          locale === "en"
+            ? /disable Scribe until file-safety issues are fixed/
+            : /停用 Scribe，直到文件安全问题修复/
+        );
+        expect(saved).toBe(0);
+      }
+    );
+
+    it.each([
+      [
+        "en",
+        "Scribe could not remove API keys from data.json. Check that the vault is writable. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.",
+      ],
+      [
+        "zh-CN",
+        "Scribe 无法从 data.json 中移除 API 密钥。请确认资料库可以写入。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
+      ],
+    ] as const)(
+      "shows safe %s fallback guidance when saving sanitized credentials fails",
+      async (locale, expected) => {
+        setInterfaceLocale(locale);
+        const app = makeApp();
+        KeychainService.getInstance(app);
+        const raw = { ...diskSettings(STABLE_NAME), openAIApiKey: "fixture-key" };
+        await loadSettingsWithKeychain(
+          app,
+          raw,
+          async () => {
+            throw new Error("disk full");
+          },
+          async () => ({ status: "backed-up", path: "fixture-backup.json", encrypted: false })
+        );
+        expect(Notice).toHaveBeenCalledWith(expected, undefined);
+      }
+    );
+
+    it.each([
+      [
+        "en",
+        "Some API keys could not be loaded from the Obsidian Keychain. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.",
+      ],
+      [
+        "zh-CN",
+        "部分 API 密钥无法从 Obsidian 钥匙串加载。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
+      ],
+    ] as const)(
+      "shows safe %s fallback guidance when the keychain cannot be read",
+      async (locale, expected) => {
+        setInterfaceLocale(locale);
+        const app = makeApp();
+        app.secretStorage!.getSecret = () => {
+          throw new Error("locked");
+        };
+        KeychainService.getInstance(app);
+        await loadSettingsWithKeychain(
+          app,
+          diskSettings(STABLE_NAME),
+          async () => {},
+          noLegacyBackup
+        );
+        expect(Notice).toHaveBeenCalledWith(expected, undefined);
+      }
+    );
+
+    it.each([
+      [
+        "en",
+        "Scribe uses the Obsidian Keychain for API keys. Settings backup location: fixture-backup.json. After the file-safety issues are fixed, re-enter the keys in Settings. The backup may contain API keys; keep it private and review it before making changes.",
+      ],
+      [
+        "zh-CN",
+        "Scribe 使用 Obsidian 钥匙串保存 API 密钥。设置备份位置：fixture-backup.json。文件安全问题修复后，请在设置中重新输入密钥。备份可能包含 API 密钥，请妥善保管，并在作出更改前检查。",
+      ],
+    ] as const)(
+      "advises preserving the backup in the %s fallback notification",
+      async (locale, expected) => {
+        setInterfaceLocale(locale);
+        const app = makeApp();
+        KeychainService.getInstance(app);
+        const raw = { ...diskSettings(STABLE_NAME), openAIApiKey: "fixture-key" };
+        await loadSettingsWithKeychain(
+          app,
+          raw,
+          async () => {},
+          async () => ({ status: "backed-up", path: "fixture-backup.json", encrypted: false })
+        );
+        expect(Notice).toHaveBeenCalledWith(expected, 15000);
+      }
+    );
+
+    it.each([
+      [
+        "en",
+        "Scribe uses the Obsidian Keychain for API keys. Settings backup location: fixture-backup.json. The backup may contain encrypted keys that Scribe cannot read. After the file-safety issues are fixed, get fresh keys from those providers if needed. Keep the backup private and review it before making changes.",
+      ],
+      [
+        "zh-CN",
+        "Scribe 使用 Obsidian 钥匙串保存 API 密钥。设置备份位置：fixture-backup.json。备份可能含有 Scribe 无法读取的加密密钥。文件安全问题修复后，如有需要，请从相应供应商获取新密钥。请妥善保管备份，并在作出更改前检查。",
+      ],
+    ] as const)(
+      "advises preserving the encrypted backup in the %s fallback notification",
+      async (locale, expected) => {
+        setInterfaceLocale(locale);
+        const app = makeApp();
+        KeychainService.getInstance(app);
+        const raw = { ...diskSettings(STABLE_NAME), openAIApiKey: "enc_desk_fixture" };
+        await loadSettingsWithKeychain(
+          app,
+          raw,
+          async () => {},
+          async () => ({ status: "backed-up", path: "fixture-backup.json", encrypted: true })
+        );
+        expect(Notice).toHaveBeenCalledWith(expected, 15000);
+      }
+    );
 
     it("keeps an upgrading user's provider key working without re-entry, across repeated loads", async () => {
       const app = makeApp();

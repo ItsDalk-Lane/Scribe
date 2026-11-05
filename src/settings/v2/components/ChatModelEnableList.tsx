@@ -50,8 +50,9 @@ export const ChatModelEnableList: React.FC = () => {
 
   const emptyState = (
     <span>
-      {t("No models yet. Add a provider on the ")}
-      <span className="tw-font-medium">{t("Models")}</span> {t(" tab to use it in Quick tools.")}
+      {t("No matching chat models. Check your search or add one under ")}
+      <span className="tw-font-medium">{t("Models and providers")}</span>
+      {t(" to use it in Quick tools.")}
     </span>
   );
 

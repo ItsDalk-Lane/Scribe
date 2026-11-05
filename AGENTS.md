@@ -4,9 +4,9 @@ This file provides guidance to any coding agent when working with code in this r
 
 ## Overview
 
-Scribe is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) and the Claude Code agent with Obsidian. It provides chat interfaces and various AI-powered commands for note-taking and knowledge management.
+Scribe is an AI-powered assistant plugin for Obsidian. It connects to configured model providers and runs its desktop agent inside Obsidian, with chat and commands for note-taking and knowledge management.
 
-This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/logancyang/obsidian-copilot), forked from upstream v4.0.17. It tracks upstream releases and selectively syncs the updates this project can use. The currently followed upstream version is recorded in the README's "Upstream project" section — update that record whenever a sync lands. Scribe's own version numbering is independent of upstream and starts at 1.0.0.
+This repository is a fork of the upstream project at v4.0.17. It tracks upstream releases and selectively syncs usable updates. The README's "Upstream project" section records the currently followed version and attribution; update that record whenever a sync lands. Scribe's own version numbering is independent and starts at 1.0.0.
 
 ## Commands
 
@@ -55,9 +55,8 @@ Read the matching guide when your task touches that area — they aren't loaded 
 - The plugin supports multiple LLM providers with custom endpoints.
 - Settings are versioned — migrations may be needed.
 - Local model support via Ollama / LM Studio.
-- Rate limiting is implemented for all API calls.
-- Message & chat architecture: Repository → Manager → UIState → UI; single `MessageRepository`; per-project isolation.
-- Current session plan → [`TODO.md`](./TODO.md).
+- Agent chats are coordinated by `AgentSessionManager` and `AgentSession`, exposed to the UI through `AgentChatUIState`, and persisted through the session and chat storage components; project scope is tracked per chat.
+- Follow the session tracker requested for the current task and the [`PROCESS_GUIDE.md`](./internal-docs/PROCESS_GUIDE.md).
 - Available Tailwind tokens/classes → [`tailwind.config.js`](./tailwind.config.js).
 
 ## Obsidian review guidelines

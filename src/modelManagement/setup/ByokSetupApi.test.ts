@@ -134,7 +134,7 @@ describe("ByokSetupApi", () => {
       expect(providers.list()).toHaveLength(0);
     });
 
-    it("enrolls models only into the backends listed in autoEnrollIn", async () => {
+    it("enrolls only into listed backends, leaving native and retired backend entries empty", async () => {
       const result = await api.setupProvider({
         providerType: "openai-compatible",
         displayName: "Ollama",
@@ -143,6 +143,7 @@ describe("ByokSetupApi", () => {
         autoEnrollIn: ["chat"],
       });
       expect(backends.get("chat").enabledModels).toEqual([...result.configuredModelIds]);
+      expect(backends.get("native").enabledModels).toEqual([]);
       expect(backends.get("claude").enabledModels).toEqual([]);
     });
   });

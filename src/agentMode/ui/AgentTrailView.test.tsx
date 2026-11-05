@@ -7,6 +7,7 @@ import type { AgentMessagePart, TurnFileChange } from "@/agentMode/session/types
 import { excalidrawToolCall } from "@/excalidraw/agentMode/testing/excalidrawToolCall";
 import { AgentTasksProvider } from "@/agentMode/ui/AgentTasksContext";
 import { makeCommandTask, makeTask } from "@/agentMode/ui/testing/taskFixtures";
+import { setInterfaceLocale } from "@/lib/i18n";
 
 jest.mock("@/agentMode/ui/AgentMarkdownText", () => ({
   AgentMarkdownText: ({ text }: { text: string }) => <div data-testid="agent-md">{text}</div>,
@@ -470,6 +471,25 @@ describe("AgentTrail", () => {
     expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
+  it.each([
+    { trigger: "manual" as const, label: "正在压缩对话…" },
+    { trigger: "auto" as const, label: "上下文已满，正在压缩…" },
+  ])("shows the running $trigger compaction in Chinese", ({ trigger, label }) => {
+    setInterfaceLocale("zh-CN");
+    try {
+      renderTrail({
+        parts: [compaction({ status: "in_progress", trigger, startedAtMs: Date.now() - 5_000 })],
+        isStreaming: true,
+        turnStopReason: undefined,
+      });
+
+      expect(screen.getByRole("status").textContent).toBe(label);
+      expect(screen.getAllByText(label)).toHaveLength(2);
+    } finally {
+      setInterfaceLocale("en");
+    }
+  });
+
   it("shows a failed turn's error under a reply that holds parts but no answer text", () => {
     renderTrail({
       parts: [compaction()],
@@ -481,14 +501,15 @@ describe("AgentTrail", () => {
     expect(screen.getByTestId("agent-md").textContent).toBe("**Error:** stream error");
   });
 
-  it("leaves a reply that has answer text alone, since its error text would repeat the answer", () => {
+  it("shows a partial reply once followed by its separate failure reason", () => {
     renderTrail({
       parts: [text("Partial answer."), compaction()],
-      errorText: "Partial answer.\n\n**Error:** stream error",
+      errorText: "**Error:** stream error",
     });
 
     expect(screen.getAllByTestId("agent-md").map((el) => el.textContent)).toEqual([
       "Partial answer.",
+      "**Error:** stream error",
     ]);
   });
 

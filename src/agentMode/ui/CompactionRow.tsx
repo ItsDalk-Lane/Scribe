@@ -48,7 +48,7 @@ export const CompactionRow: React.FC<CompactionRowProps> = ({ part }) => {
         <AgentTurnDurationIndicator
           status="running"
           startedAtMs={part.startedAtMs}
-          label={RUNNING_LABEL[part.trigger]}
+          label={t(RUNNING_LABEL[part.trigger])}
           icon={<CompactionIcon />}
           inline
         />

@@ -2,10 +2,10 @@
 
 ===/Users/study_superior/Desktop/Code/Scribe/===
 .gitignore[FC4T]: F:Keeps build outputs, environment files, local settings, and local agent session state out of version control | R:- | A:- | S:-
-AGENTS.md[SG8M]: F:Defines agent workflows, source boundaries, upstream tracking and repository cognition policy | R:- | A:- | S:Do not change AI prompt content without explicit instruction; RELEASES.md changes belong only to release PRs; empty slices use frozen constants
+AGENTS.md[SG8M]: F:Defines repository development, testing, review, data and cognition rules for coding agents | R:code:internal-docs/STYLE_GUIDE.md,code:internal-docs/TESTING_GUIDE.md | A:- | S:Never run npm run dev or alter AI prompts without explicit instruction; release notes change only in release PRs
 CONTRIBUTING.md[SQ4S]: F:Contribution workflow covering issue reporting, dev environment setup, and the Obsidian review preflight | R:- | A:- | S:-
 LICENSE[SZ1L]: F:Full GNU Affero General Public License v3 text governing the project | R:- | A:- | S:-
-README.md[SG7S]: F:Introduces Scribe, its in-app Agent Chat, setup, privacy, and the tracked upstream version | R:- | A:- | S:Agent Chat is desktop-only and needs no external agent install or login; Scribe versions start at 1.0.0 independently of the tracked Copilot 4.0.17 base
+README.md[SU7T]: F:Introduces Scribe, safety risks, provider setup, features and upstream attribution | R:code:docs/getting-started.md,code:docs/troubleshooting-and-faq.md | A:- | S:Warns users to back up and disable Scribe while data risks remain; old credential backups can contain unencrypted keys
 esbuild.config.mjs[XV8S]: F:Production esbuild config producing the plugin bundle with banner, shims, and guards | R:- | A:- | S:Every production build enforces the bundle size guard
 eslint.config.mjs[XQ8L]: F:Repository-wide ESLint flat config including the custom no-direct-node-imports rule | R:code:eslint.review.config.mjs | A:- | S:Node built-ins must be reached through requireNodeModule from the desktop runtime helper, not imported directly
 manifest.json[FV7T]: F:Declares Scribe identity, release version, minimum Obsidian version, and author metadata | R:code:package.json | A:- | S:-
@@ -28,6 +28,9 @@ tailwind.config.js[FV6M]: F:Tailwind theme: colors, fonts, and container queries
 version-bump.mjs[XV6T]: F:Writes release versions into the manifests during npm version | R:code:manifest.json | A:- | S:Prerelease versions write manifest-beta.json only; stable versions write manifest.json and versions.json
 versions.json[FV3T]: F:Maps Scribe release versions to the minimum supported Obsidian version | R:code:manifest.json | A:- | S:Stable bumps delete manifest-beta.json
 wasmPlugin.mjs[XV3T]: F:Esbuild plugin loading WebAssembly modules | R:- | A:wasmPlugin | S:-
+BLOCKED.md[SR7T]: F:Records unresolved data-safety, capability, scan and acceptance blockers with evidence and limits | R:code:PROGRESS.md,code:CONSISTENCY_MATRIX.md | A:- | S:Reported reproductions and candidate fixes are not acceptance or proof that real vaults were exercised
+CONSISTENCY_MATRIX.md[SQ7T]: F:Tracks R01–R57 and AC01–AC12 evidence, coverage and pending acceptance | R:code:BLOCKED.md,code:PROGRESS.md | A:- | S:Choice A limits only naming-reset legacy-format migration; it does not pass the original compatibility requirement
+PROGRESS.md[SW7S]: F:Records the consistency-work baseline, local changes, test evidence, safeguards and continuation status | R:code:BLOCKED.md,code:CONSISTENCY_MATRIX.md | A:- | S:Preflight tests and isolated reproductions are not final acceptance or live-vault verification
 
 ===/Users/study_superior/Desktop/Code/Scribe/.github/workflows/===
 release.yml[OV7M]: F:Publishes GitHub releases from semver-titled PRs merged to the default branch, stable or prerelease, with attested build artifacts | R:- | A:- | S:Non-semver PR titles exit silently; the committed manifest.json must stay pinned to the latest stable release because the Obsidian store reads it to serve installs
@@ -37,34 +40,34 @@ pr-size.yml[OQ3T]: F:Labels pull requests by production-code churn while excludi
 windows-tests.yml[OQ4S]: F:Runs native Windows test coverage on every PR plus a no-regexp-optimization sanitization check | R:- | A:- | S:Releases call these jobs pinned to their exact merge commit via workflow_call
 
 ===/Users/study_superior/Desktop/Code/Scribe/docs/===
-projects.md[SU5T]: F:Guide to Projects: per-project instructions, context, and chat history in Agent Chat | R:code:docs/agent-mode-and-tools.md | A:- | S:Source list caps at 100 entries on the first ordinary message; both instruction files reach the model with no guaranteed winner
+projects.md[SU5T]: F:Guides project instructions, reusable context, chat history and project deletion | R:code:docs/system-prompts.md | A:- | S:Documents unresolved instruction overwrite risks and limits the initial context list to 100 entries
 .gitignore[FC1T]: F:Keeps docs site build output and Astro cache out of version control | R:- | A:- | S:-
 .nvmrc[FC2T]: F:Pins Node 22 for docs site tooling, which the plugin build does not share | R:- | A:- | S:-
-README.md[SO5T]: F:Explains docs site architecture, build, and Vercel deployment for the published guides | R:code:docs/astro.config.mjs | A:- | S:The guides beside this README are the single source of truth; the site adapts them at build time and never edits them
-agent-mode-and-tools.md[SU6S]: F:Explains native Agent Chat setup, chats, permissions, queued messages, extension checks, and drawing tools | R:code:docs/settings.md | A:- | S:An extension check reports connecting, unconfirmed, and read-only states without sending a chat prompt; saved permission decisions outrank Auto eligibility
-agent-mode-windows-setup.md[SU4T]: F:Windows setup guide for the in-app native agent covering BYOK models, permissions, and skill links | R:code:docs/agent-mode-and-tools.md | A:- | S:The obsidian-cli skill still requires Obsidian own command line interface setting
-agents-md-examples.md[SU3T]: F:Starter AGENTS.md examples and patterns for vault and project instructions | R:- | A:- | S:Both files reach the model; no conflict winner
-astro.config.mjs[FV4T]: F:Starlight docs site configuration with sidebar sections and published-docs processing | R:code:docs/src/remark-published-docs.mjs | A:- | S:-
-context-and-mentions.md[SU4T]: F:Guide to context lifetimes for attachments, mentions, badges, and active-note or web-tab capture | R:- | A:- | S:Project context rides the first ordinary message only; web-tab extraction may fail
-custom-commands.md[SU4T]: F:Guide to saved commands, variables, model selection, and Quick Ask usage | R:- | A:- | S:The Commands page and quick-actions list share one file; deleting trashes it
-getting-started.md[SU5T]: F:Installation and first-chat walkthrough including BRAT updates, language behavior, and BYOK model setup | R:code:docs/agent-mode-and-tools.md | A:- | S:Agent Chat needs a model enabled under Agents after BYOK setup; no external agent install
-index.md[SU3T]: F:Docs landing page pointing to installation and Agent Chat setup | R:code:docs/getting-started.md | A:- | S:Agent Chat runs in-app; no external agent login
-llm-providers.md[SU5S]: F:Explains BYOK setup, chat verification, credentials, transport, Google and Vertex compatibility, and the OpenCode model service | R:code:src/LLMProviders/testProviderConnection.ts | A:- | S:Directory access is not chat verification; buffered transport cannot cancel issued requests; fixtures do not prove real account or device access; keys live in the per-device Obsidian Keychain
-models-and-parameters.md[SU4T]: F:Guide to per-experience model lists, enablement, defaults, effort, and permissions | R:code:docs/llm-providers.md | A:- | S:Auto never approves vault-config-dir edits or commands; saved decisions outrank Auto
+README.md[SO5T]: F:Explains the Scribe documentation build, adapted guides and deployment preparation | R:code:docs/astro.config.mjs,code:docs/src/remark-published-docs.mjs | A:- | S:The configured URL is the upstream site; a Scribe publication address is unconfirmed
+agent-mode-and-tools.md[SU6S]: F:Documents Agent Chat setup, permissions, history, skills, extension checks and drawing tools | R:code:docs/settings.md,code:docs/troubleshooting-and-faq.md | A:- | S:Auto compaction needs a known window and previous assistant usage at least 80%; file loss and false readiness remain; same-name skills may send commands
+agent-mode-windows-setup.md[SU4T]: F:Guides Windows Agent Chat model setup and skill prerequisites | R:code:docs/agent-mode-and-tools.md | A:- | S:Mac safety reproductions are not Windows verification
+agents-md-examples.md[SU3T]: F:Provides vault and project instruction examples with source and safety guidance | R:code:docs/projects.md | A:- | S:Both files reach the model; no conflict winner
+astro.config.mjs[FV4T]: F:Configures the Starlight documentation site, navigation and published-docs transform | R:code:docs/src/remark-published-docs.mjs | A:- | S:-
+context-and-mentions.md[SU4T]: F:Guide to context lifetimes for attachments, mentions, badges, and active-note or web-tab capture | R:code:docs/projects.md | A:- | S:Project sources ride the first ordinary message; selecting web text does not itself attach page content
+custom-commands.md[SU4S]: F:Explains commands, entry-specific context, collision risks and Quick Ask | R:code:docs/settings.md | A:- | S:Same-named skills can send commands instead
+getting-started.md[SU5T]: F:Guides installation, language, model setup and first use of Scribe | R:code:docs/troubleshooting-and-faq.md | A:- | S:Setup steps follow the file-safety fixes; .obsidian is only the default vault configuration folder
+index.md[SU3T]: F:Introduces documentation and links to setup, Agent Chat, everyday tools and help | R:code:docs/getting-started.md | A:- | S:Warns users to back up and disable Scribe
+llm-providers.md[SU5M]: F:Explains configured providers, model selection, connection checks, credentials and transport limits | R:code:src/LLMProviders/testProviderConnection.ts | A:- | S:The form may request models before saving, even with an empty key in edit mode; listing does not verify chat; shared keys, old backups and echoed credentials pose risks
+models-and-parameters.md[SU4T]: F:Explains model setup, readiness warnings, per-chat effort and permission modes | R:code:docs/llm-providers.md | A:- | S:Saved permission decisions precede Auto eligibility
 package-lock.json[FV1L]: F:Dependency lockfile pinning the docs site toolchain | R:- | A:- | S:-
 package.json[FV4T]: F:Docs site package definition with Astro build, preview, and node test scripts | R:- | A:- | S:-
-settings.md[SU6S]: F:Documents settings including native agent configuration, scoped extension availability switches, and plugin details | R:code:docs/agent-mode-and-tools.md | A:- | S:Reset retains API keys, credential-bearing provider rows, and folder history; headings and control names mirror the live zh labels
-system-prompts.md[SU4T]: F:Guide to Agent Chat instructions: vault AGENTS.md, project instructions, skills, and commands | R:code:docs/projects.md | A:- | S:Instruction files are reread when a response starts; no guaranteed winner on conflict
-troubleshooting-and-faq.md[SU4S]: F:Troubleshooting guide for startup, models, permissions, and common failures | R:code:docs/getting-started.md | A:- | S:Older installs may hold plaintext credential backups; treat them as sensitive
+settings.md[SU6M]: F:Documents settings controls, model status and credential risks, skills and commands | R:code:docs/agent-mode-and-tools.md | A:- | S:A bound chat note can keep updating with autosave off; settings changes can refresh skills destructively; key removal may affect another vault
+system-prompts.md[SU4T]: F:Explains vault and project instructions, skills and commands for Agent Chat | R:code:docs/projects.md | A:- | S:Vault and project rules both reach the model without a guaranteed conflict winner
+troubleshooting-and-faq.md[SU5S]: F:Guides troubleshooting, model access, reporting, mobile limits and current safety precautions | R:code:docs/getting-started.md | A:- | S:Warns to disable Scribe while file and key risks remain; old backups and echoed credentials can expose keys
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/===
-main.ts[EC9L]: F:Plugin entry registering views, commands, agents, projects, and migrations | R:code:src/commands/index.ts | A:ScribePlugin | S:Loads in the background without blocking vault startup; Agent Chat registers only on desktop
+main.ts[EC9L]: F:Initializes Scribe, registers commands and views, runs startup migrations and handles plugin teardown | R:code:src/commands/index.ts,code:src/settings/migrations/index.ts | A:ScribePlugin | S:Startup runs in the background; native Agent Chat is desktop-only and migration failures are reported separately
 aiParams.ts[EG7T]: F:Core parameter types for projects and custom models | R:- | A:ProjectConfig, CustomModel | S:-
 constants.ts[EG7M]: F:Shared constants: view types, event names, commands, and default values | R:- | A:CHAT_AGENT_VIEWTYPE, EVENT_NAMES, COMMAND_IDS | S:View type strings and event names are stable surfaces; renaming them breaks persisted state and registered listeners
 context.ts[EU4T]: F:React contexts for the app instance and chat view events | R:code:src/constants.ts | A:AppContext, ChatViewEventTarget, EventTargetContext | S:-
 contextProcessor.ts[DB7M]: F:Builds context blocks for notes, URLs, web tabs, and selections into prompts | R:code:src/services/webViewerService/webViewerServiceSingleton.ts | A:ContextProcessor | S:A web tab fetch that times out degrades to a notice block instead of blocking the send
 error.ts[EG3T]: F:CustomError and MissingApiKeyError | R:- | A:CustomError, MissingApiKeyError | S:-
-logFileManager.ts[DO5M]: F:Writes the plugin log note and builds diagnostic bundles | R:code:src/services/settingsSecretTransforms.ts | A:logFileManager | S:-
+logFileManager.ts[DO6M]: F:Buffers logs and writes a diagnostic note with a filtered settings snapshot | R:code:src/services/settingsSecretTransforms.ts | A:logFileManager | S:Settings fields and sensitive name-value pairs are filtered here; ordinary log strings are not generally secret-redacted
 logger.ts[DO6T]: F:Debug-gated logging functions writing to the log file | R:code:src/logFileManager.ts | A:logInfo, logWarn, logError | S:The only approved console boundary in the codebase
 types.ts[EG4T]: F:Obsidian module augmentations and shared UI types | R:- | A:- | S:-
 utils.ts[DB7L]: F:General utilities: text extraction, message cleaning, and shared helpers | R:code:src/constants.ts | A:extractTextFromChunk, extractNoteTitleFromContent, cleanMessageForCopy | S:cleanMessageForCopy strips think tags and tool markers from text destined for the clipboard
@@ -130,15 +133,15 @@ Head.astro[IO4T]: F:Starlight head override that starts docs analytics in the br
 ===/Users/study_superior/Desktop/Code/Scribe/internal-docs/===
 DOCS_GUIDE.md[SG3T]: F:When and how to update user-facing docs alongside behavior changes | R:- | A:- | S:-
 GALLERY_REVIEW_COVERAGE.md[SQ3T]: F:Records the bounded gallery review set, capture procedure, and known gaps | R:- | A:- | S:Fixtures and stories are never live verification
-OBSIDIAN_COMMUNITY_REVIEW.md[SQ6T]: F:Defines the local Obsidian review gate, metadata and dependency policies, fixtures and retained fetch disclosures | R:code:eslint.review.config.mjs,code:src/LLMProviders/providerTransport.ts | A:- | S:Review compliance must not change plugin behavior, persisted data, prompts, or UI unless a blocker requires it
+OBSIDIAN_COMMUNITY_REVIEW.md[SQ6T]: F:Defines the Obsidian review gate, dependency and metadata policy and retained warning review | R:code:eslint.review.config.mjs,code:scripts/review-obsidian-fixtures.mjs | A:- | S:Review cleanup must not alter runtime, stored data, prompts or UI merely to remove warnings
 PLUGIN_DEV_GUIDE.md[SG5T]: F:Plugin runtime guide: app access, requestUrl versus fetch, and popout-safe document selection | R:code:src/utils.ts | A:- | S:-
 PROCESS_GUIDE.md[SG3T]: F:Multi-step session conventions centered on the TODO.md tracker | R:- | A:- | S:-
 STYLE_GUIDE.md[SG7S]: F:Detailed coding conventions for TypeScript, comments, styling, and import boundaries | R:- | A:- | S:A rejected import means fix the structure, never the fence
-TESTING_GUIDE.md[SG7L]: F:Defines unit-specification, BYOK protocol regression, live-vault E2E and component-gallery testing workflows | R:code:scripts/mobile-load-smoke.cjs | A:- | S:Unit tests are executable specs; fixture success is not live-account or device proof; E2E must verify target vault and deployed build
+TESTING_GUIDE.md[SQ7L]: F:Defines unit, provider protocol, isolated vault and component-gallery verification workflows | R:code:scripts/mobile-load-smoke.cjs,code:scripts/obsidian-vault.sh | A:- | S:Check the resolved vault and deployed build before live tests; fixture results do not prove real accounts or devices
 NATIVE_AGENT_COVERAGE.md[SQ6S]: F:Records native agent UI coverage: the U01-U24 matrix, extra reachable states, Claude removal exceptions, and A01-A10 gaps | R:- | A:- | S:Component fixtures and stories never count as live verification; no row is marked fully passed without desktop evidence
 NATIVE_AGENT_EXECUTION_EVIDENCE.md[SQ5S]: F:Records real desktop, file, process, and controlled-model evidence per native agent scenario with build identities | R:code:internal-docs/NATIVE_AGENT_COVERAGE.md | A:- | S:Build success, screenshots, or model claims alone never count as end-to-end pass; real-model rows stay separate from controlled-fixture rows
-NATIVE_AGENT_PROVIDER_COVERAGE.md[SQ6M]: F:Lists native agent tool-call coverage across every actual factory route, both transports, and the full provider catalog | R:code:internal-docs/NATIVE_AGENT_EXECUTION_EVIDENCE.md | A:- | S:Directory enumeration and fixture passes never equal real-provider verification; untested endpoints stay listed with reasons
-CONCEPT_GLOSSARY.md[SG8M]: F:Authoritative zh/en names for every core concept across code, UI, and docs | R:code:internal-docs/STYLE_GUIDE.md | A:- | S:Obsidian elements stay English and Scribe labels use zh; a name that appears in only one layer is a defect
+NATIVE_AGENT_PROVIDER_COVERAGE.md[SQ6M]: F:Records provider tool-call fixture coverage and bounded real-model evidence | R:code:internal-docs/NATIVE_AGENT_EXECUTION_EVIDENCE.md | A:- | S:Fixtures and catalog enumeration do not prove real-account, device or endpoint access
+CONCEPT_GLOSSARY.md[SG7M]: F:Defines current Chinese and English concept names, distinctions, layers and user-facing limits | R:code:BLOCKED.md,code:docs/agent-mode-and-tools.md | A:- | S:Definitions do not prove every entry point or failure case has been verified
 
 ===/Users/study_superior/Desktop/Code/Scribe/scripts/===
 bundleSizeGuard.js[XV7S]: F:Esbuild plugin enforcing the bundle byte cap with license-block accounting and exact zod import rewriting | R:code:esbuild.config.mjs | A:createBundleSizeGuard | S:Exceeding the byte cap fails the production build
@@ -164,13 +167,13 @@ data.legacy-byok.json[TQ4S]: F:Legacy BYOK settings fixture with top-level keys,
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/LLMProviders/===
 chatModelManager.ts[IB7T]: F:Constructs BYOK pi-ai models with credential checks, OpenAI organization inheritance and local token estimates | R:code:src/LLMProviders/createProviderChatModel.ts,code:src/settings/model.ts | A:ChatModelManager | S:Token estimates remain ceil(text length/4) without network calls; missing credentials are allowed only for explicitly keyless custom providers
-createProviderChatModel.ts[IB7M]: F:Maps saved and legacy BYOK models into pi-ai protocols, request defaults, context window, roles, authentication and stream drivers | R:code:src/LLMProviders/createHttpProviderChatModel.ts,code:src/LLMProviders/providerTransport.ts,code:src/LLMProviders/piChatModel.ts | A:createProviderChatModel | S:Saved defaults override pi-ai; omit unselected effort, managed auth placeholders, cache only on OpenRouter's host; Vertex Anthropic defaults 4096; contextWindow trusts only numCtx, unknown is 0
+createProviderChatModel.ts[IB7M]: F:Maps saved and legacy models into pi-ai protocols, request defaults, context window, roles, authentication and stream drivers | R:code:src/LLMProviders/createHttpProviderChatModel.ts,code:src/LLMProviders/providerTransport.ts,code:src/LLMProviders/piChatModel.ts | A:createProviderChatModel | S:Saved defaults override pi-ai; omit unspecified effort; cache only on OpenRouter's host; contextWindow uses only numCtx
 providerSession.ts[IN3T]: F:Issues stable per-conversation session headers for the opencode inference endpoints | R:code:src/LLMProviders/providerTransport.ts | A:getProviderSessionOptions, resetProviderSession | S:-
-providerTransport.ts[II6M]: F:Applies provider routing and safe managed authentication over native fetch or buffered Obsidian requests | R:code:src/LLMProviders/createProviderChatModel.ts,code:src/LLMProviders/nativeSdk/createVertexAccessToken.ts,code:src/utils.ts | A:createProviderFetch | S:Check cancellation before auth and before dispatch, including Request signals. Shared refresh survives stopped turns; requestUrl cannot cancel issued requests
+providerTransport.ts[II6M]: F:Routes provider requests, adapts payloads and headers, and obtains managed credentials over native or Obsidian transport | R:code:src/LLMProviders/createProviderChatModel.ts,code:src/LLMProviders/nativeSdk/createVertexAccessToken.ts,code:src/utils.ts | A:createProviderFetch | S:Check cancellation before auth and dispatch, including Request signals. Shared refresh survives stopped turns; requestUrl cannot cancel issued requests
 testProviderConnection.ts[IV5S]: F:Verifies a BYOK model through a short pi-ai chat with cancellation, timeout, empty-reply and error classification | R:code:src/LLMProviders/chatModelManager.ts,code:src/modelManagement/chatModel/configuredModelToCustomModel.ts | A:testProviderConnection, TestProviderConnectionInput | S:Only nonempty text counts as verified; listing or thinking-only output does not. Tests use zero retries, retain the 90s timeout and redact the supplied secret
 createHttpProviderChatModel.ts[IN6M]: F:Routes custom HTTP protocols through pi-ai with Vertex credentials, GitLab aliases and deferred provider authentication | R:code:src/LLMProviders/httpChatApis.ts,code:src/LLMProviders/nativeSdk/createVertexAccessToken.ts,code:src/LLMProviders/nativeSdk/gitlabModelMappings.ts | A:createHttpProviderChatModel | S:Construction makes no requests; shared auth outlives stopped turns. GitLab aliases and API shapes stay authoritative; Google needs custom fetch
 httpChatApis.ts[IN6M]: F:Encodes Google, Cohere and Ollama requests with tool declarations and translates streamed text, thinking, tool results, continuation and usage | R:code:src/LLMProviders/piHttpStream.ts | A:postChatRequest, textContent, streamGoogle, streamCohere, streamOllama | S:Retry setup only; Google continuation reuses context and signal, at most 32 tokens, never replays text; usage sums final snapshots; Ollama sends num_ctx only for a known positive window
-piChatModel.ts[IN7M]: F:Normalizes streamed text and complete replies with per-turn cancellation, transport errors, credential-redacted diagnostics, and reasoning disablement | R:code:src/LLMProviders/createProviderChatModel.ts | A:ProviderChatModel, AgentStreamOptions, PiRequest, createPiChatModel, createAssistantMessage | S:Capture seeded text before SDK snapshots mutate. Pre-aborted turns never authenticate; errors never commit success; provider errors are scrubbed of the request's own credentials
+piChatModel.ts[IN7M]: F:Normalizes provider streams, cancellation, errors and agent replies with partial credential redaction | R:code:src/LLMProviders/createProviderChatModel.ts | A:ProviderChatModel, AgentStreamOptions, PiRequest, createPiChatModel, createAssistantMessage | S:Redaction misses short or encoded keys and shares state across concurrent turns; Quick stream errors and successful diagnostics can expose credentials
 piHttpStream.ts[IN6S]: F:Parses SSE and NDJSON responses and converts HTTP deltas into pi-ai assistant events with complete cleanup | R:code:src/LLMProviders/piChatModel.ts | A:HttpChatDelta, readJsonStream, streamHttpCompletion | S:Transport EOF without a protocol finish signal is failure, not success; the response reader must be cancelled and released on every exit
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/LLMProviders/chainRunner/utils/===
@@ -181,9 +184,9 @@ xmlParsing.ts[DB2T]: F:Escapes text for safe XML interpolation | R:- | A:escapeX
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/LLMProviders/nativeSdk/===
 SapLanguageModel.ts[IN5S]: F:Adapts SAP orchestration templates and SSE replies to pi-ai text, thinking, usage and completion events | R:code:src/LLMProviders/nativeSdk/createSapLanguageModel.ts,code:src/LLMProviders/piHttpStream.ts,code:src/LLMProviders/httpChatApis.ts | A:createSapHttpModel | S:Escape template-like input via placeholders; only [DONE] completes orchestration, not final_result or a disconnect
-createGitlabAccessToken.ts[IS4T]: F:Fetches and caches GitLab Duo direct-access tokens with single-flight refresh | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:createGitlabAccessToken | S:A shared refresh uses its own 15s timeout, so one caller stopping never cancels another chat's token
-createSapLanguageModel.ts[IC5S]: F:Resolves SAP pi-ai streams with OAuth caching, resource-group routing and deployment discovery | R:code:src/LLMProviders/nativeSdk/SapLanguageModel.ts,code:src/LLMProviders/providerTransport.ts | A:createSapLanguageModel | S:A shared token refresh uses its own 15s timeout and ignores caller aborts
-createVertexAccessToken.ts[IS4T]: F:Safely parses Vertex credentials and signs RS256 assertions for cached OAuth access tokens | R:code:src/LLMProviders/createHttpProviderChatModel.ts,code:src/LLMProviders/providerTransport.ts | A:parseVertexCredentials, createVertexAccessToken | S:Credential errors never echo secrets; shared refresh owns its 15s timeout and ignores caller cancellation
+createGitlabAccessToken.ts[IS4T]: F:Fetches and caches GitLab Duo direct-access tokens with single-flight refresh | R:code:src/LLMProviders/createHttpProviderChatModel.ts | A:createGitlabAccessToken | S:Shared refresh owns its 15s timeout and survives one caller stopping; response parse errors may expose fragments
+createSapLanguageModel.ts[IC5S]: F:Resolves SAP pi-ai streams with OAuth caching, resource-group routing and deployment discovery | R:code:src/LLMProviders/nativeSdk/SapLanguageModel.ts,code:src/LLMProviders/providerTransport.ts | A:createSapLanguageModel | S:Shared token refresh owns its 15s timeout and ignores caller aborts; response parse errors may expose fragments
+createVertexAccessToken.ts[IS4T]: F:Parses Vertex credentials and signs RS256 assertions for cached OAuth access tokens | R:code:src/LLMProviders/createHttpProviderChatModel.ts,code:src/LLMProviders/providerTransport.ts | A:parseVertexCredentials, createVertexAccessToken | S:Shared refresh owns its 15s timeout and ignores caller cancellation; response parse errors may expose fragments
 gitlabModelMappings.LICENSE[SZ1T]: F:GitLab MIT license text covering the vendored model mappings | R:- | A:- | S:-
 gitlabModelMappings.md[SZ3T]: F:Records GitLab alias provenance, integrity checks and isolated regeneration without reinstalling its inference SDK | R:code:src/LLMProviders/nativeSdk/gitlabModelMappings.ts | A:- | S:Regenerate outside the project dependency tree
 gitlabModelMappings.ts[LZ3S]: F:Verbatim model alias to provider mapping table from gitlab-ai-provider 6.23.1 | R:code:src/LLMProviders/nativeSdk/createNativeSdkChatModel.ts | A:gitlabModelMappings | S:-
@@ -194,7 +197,7 @@ vertexHttpContracts.md[SZ4T]: F:Verified Vertex service-account authorization co
 mockObsidian.ts[TQ3T]: F:Builders that construct TFile and TFolder test doubles from partial props | R:- | A:mockTFile, mockTFolder | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/===
-AGENTS.md[SG7S]: F:Agent Mode layer rules: enforced import boundaries across session, native sdk runtime, native backend wiring, and UI | R:code:eslint.config.mjs | A:- | S:The backend-agnostic contract lives in session types; the native Pi runtime and UI never leak into each other's layers; restoring history must not rerun tools or reuse permission decisions
+AGENTS.md[SG7T]: F:Defines Agent Mode layer boundaries and native session restoration rules | R:code:eslint.config.mjs,code:src/agentMode/session/types.ts | A:- | S:History restoration must not rerun tools or reuse prior permission decisions as new authorization
 index.ts[EC7S]: F:Agent Mode public surface wiring sessions, skills, views, and native backend resources from settings | R:code:src/agentMode/backends/registry.ts | A:ScribeAgentView, PlanPreviewView, SkillsSettings, ModelEnableList | S:Agent Mode layers import each other only through this module surface and the session contract
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/backends/===
@@ -207,15 +210,15 @@ installStatus.tsx[EU4T]: F:Maps install and auth states to status badge specific
 obsidianCliPath.ts[IR4T]: F:Resolves the Obsidian-bundled CLI binary path per platform | R:- | A:resolveObsidianCliPath, SCRIBE_OBSIDIAN_CLI_ENV | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/backends/shared/ui/===
-AgentConfigurationCard.stories.tsx[TQ3T]: F:Gallery stories for the agent configuration card states | R:code:src/agentMode/backends/shared/ui/AgentConfigurationCard.tsx | A:- | S:-
-AgentConfigurationCard.tsx[EU5S]: F:Collapsible settings card rendering one backend descriptor's identity, install and auth state, and enable switch | R:code:src/agentMode/backends/registry.ts | A:AgentConfigurationCard | S:-
+AgentConfigurationCard.stories.tsx[TU3T]: F:Previews agent configuration card ready, disabled, pending and error states | R:code:src/agentMode/backends/shared/ui/AgentConfigurationCard.tsx | A:- | S:-
+AgentConfigurationCard.tsx[EU5S]: F:Renders a collapsible agent configuration card with status, enablement and model settings | R:code:src/agentMode/backends/shared/installStatus.tsx | A:AgentConfigurationCard | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/session/===
 AgentChatBackend.ts[EC6T]: F:UI-facing chat backend contract: messaging, queuing, withdrawal, permissions, and revision-checked plan decisions | R:code:src/agentMode/session/types.ts | A:AgentChatBackend | S:-
 AgentChatPersistenceManager.ts[DP6L]: F:Persists agent chats as vault Markdown notes with frontmatter, images, and byte-limit handling | R:code:src/utils/chatImagePersistence.ts | A:AgentChatPersistenceManager | S:Sender markers and timestamp-like lines inside a body are escaped before writing, so a round-trip never splits a message; the transcript baseline cache is LRU-bounded and cleared on delete
 AgentChatUIState.ts[EU6M]: F:Subscribeable UI-state adapter over an AgentSession implementing the chat backend contract | R:code:src/agentMode/session/AgentSession.ts | A:AgentChatUIState | S:Plan decisions carrying an expected revision are ignored when the pending plan's revision differs, so an old click cannot approve a newer plan
 AgentInputDraftStore.ts[DU4T]: F:Per-input draft and queued-message store keyed by chat input id | R:code:src/agentMode/session/types.ts | A:AgentInputDraftStore | S:-
-AgentMessageStore.ts[DD6L]: F:Owns the chat message list, merging part updates and tracking pending tool calls | R:code:src/agentMode/session/types.ts | A:AgentMessageStore | S:-
+AgentMessageStore.ts[DD6L]: F:Stores chat messages, merges streaming parts and caches display views | R:code:src/agentMode/session/types.ts | A:AgentMessageStore | S:Error text is appended to displayText; loading and display conversion enumerate known message fields
 AgentModelPreloader.ts[AP5L]: F:Warms backend processes ahead of use so model catalogs load before the first chat | R:code:src/agentMode/session/types.ts | A:AgentModelPreloader, WarmBackend | S:-
 AgentSession.ts[DB9L]: F:The agent session: turns, messages, branching, tasks, permissions, and plan decisions | R:code:src/agentMode/session/TurnTracker.ts,code:src/agentMode/session/types.ts | A:AgentSession, AgentBranchState, AgentTask, ATTENTION_TRIGGER_STATUSES, DEFAULT_TITLE_PREFIX | S:Only the 20 most recent completed tasks keep their record and content; a task's file changes are captured before pruning; edits snapshot files beforehand and the compact command is handled inline; interrupted tasks are marked stopped and never auto-resume
 AgentSessionIndex.ts[DD6M]: F:Persistent session index with entries, tombstones, and pluggable storage | R:code:src/agentMode/session/nodeFileStorage.ts | A:AgentSessionIndexEntry, AgentSessionIndexStorage | S:-
@@ -223,7 +226,7 @@ AgentSessionManager.ts[AA9L]: F:Owns agent chats, projects, history, notificatio
 AgentSessionSnapshots.ts[DD5S]: F:Saves and loads session snapshots with deterministic ids and task messages | R:code:src/agentMode/session/AgentSessionIndex.ts | A:AgentSessionSnapshot, SavedAgentTask | S:-
 InteractiveRequests.ts[DB6M]: F:Routes permission prompts, plan decisions, and questions between session events and the UI | R:code:src/agentMode/session/types.ts | A:- | S:A permission or plan card resolves as cancelled when its backend abort signal fires; persistent permission grants are scoped to the same chat, requester, and action
 SessionHistoryReplay.ts[DD5S]: F:Replays recorded session events into the message store | R:code:src/agentMode/session/messageParts.ts | A:SessionHistoryReplayDeps | S:-
-TurnTracker.ts[DB7L]: F:Drives one turn end to end: prompt build, queueing, failure notices, and outcome recording | R:code:src/agentMode/session/promptEnvelope.ts | A:TurnOutcome, TurnSend | S:A delivered prompt that fails still shows the failure notice; a turn with no assistant output produces an explicit retry notice
+TurnTracker.ts[AW7L]: F:Coordinates prompt ordering, queued messages, turn completion, cancellation and error notices | R:code:src/agentMode/session/AgentMessageStore.ts,code:src/agentMode/session/promptFailure.ts | A:TurnTracker | S:File-change capture failure is logged and completion continues; stopped prompts are settled after reply finalization
 UsageTracker.ts[DO4T]: F:Keeps session and plan usage snapshots for display | R:code:src/agentMode/session/planUsage.ts | A:UsageTracker | S:-
 agentChatYaml.ts[DC4T]: F:Escapes YAML scalars and merges chat frontmatter safely | R:- | A:escapeYamlString, unescapeYamlString, mergeFrontmatter | S:-
 chatHistoryMerge.ts[DD4T]: F:Merges Markdown chat notes with native session index entries and derives titles | R:code:src/agentMode/session/AgentSessionIndex.ts | A:deriveChatTitleFromMessages, mergeChatHistoryItems | S:-
@@ -236,14 +239,14 @@ errors.ts[EG3T]: F:MethodUnsupportedError and AuthRequiredError for backend cont
 expandCustomCommandPrefix.ts[DW3T]: F:Expands a typed command into its prompt text with variables filled | R:code:src/commands/resolveCustomCommandPrefix.ts | A:expandCustomCommandPrefix | S:-
 extensionInventory.ts[EG4S]: F:Defines extension identities, installation records, runtime reports and per-direction control capabilities | R:- | A:AgentExtensionItem, AgentExtensionRuntimeSnapshot, AgentPluginInstallation, hasPendingMcpServers, markPendingMcpServersUnconfirmed | S:An MCP status left pending after the settle window is stored as unconfirmed, never as connected
 extensionManagement.ts[EG4T]: F:Defines scoped extension management, revision-bound edits, plugin actions and detail component contracts | R:- | A:AgentExtensionManager, AgentExtensionDetails, AgentExtensionScope | S:-
-mergeExtensionRuntime.ts[DB5M]: F:Matches runtime extensions to inventory entries and preserves unknown, disabled, and partial-loading evidence | R:code:src/agentMode/session/extensionInventory.ts | A:mergeExtensionRuntime, MergeExtensionRuntimeOptions | S:appendRuntimeEntries=false keeps runtime-only rows out of a scope-isolated list; a disabled plugin hides its children
+mergeExtensionRuntime.ts[DB5M]: F:Merges reported extension availability into scoped inventory while retaining unmatched evidence | R:code:src/agentMode/session/extensionInventory.ts | A:mergeExtensionRuntime | S:Project filtering applies only when the runtime scope and target are both project scopes
 messageParts.ts[DB5S]: F:Converts tool calls, plans, and compactions into display message parts | R:code:src/agentMode/session/types.ts | A:toolCallToPart, planToPart, mergeToolCallUpdate | S:-
 modeApply.ts[DA3T]: F:Applies a mode change spec as sequential mode or config steps | R:code:src/agentMode/session/AgentSession.ts | A:applyModeSpec | S:-
 nodeFileStorage.ts[PD4T]: F:Node filesystem implementations of the session index and snapshot storage | R:code:src/agentMode/session/AgentSessionIndex.ts | A:createNodeFileStorage, createNodeSnapshotStorage | S:-
 plan.ts[EG3T]: F:Plan proposal types: body, revision, and decision state | R:- | A:CurrentPlan, PlanProposalDecision | S:-
 planUsage.ts[DO4T]: F:Usage window types and the snapshot merge policy for plan meters | R:- | A:planUsageReading, toUsagePercent, PlanUsage | S:A failed read keeps the previous snapshot; a success reporting no caps discards it
 promptEnvelope.ts[DB5S]: F:Wraps user content and attachments into the tagged prompt envelope sent to backends | R:code:src/contextProcessor.ts | A:buildUserMessage, stripUserMessageWrapper, OUTPUT_LIMIT_CONTINUATION_PROMPT | S:-
-promptFailure.ts[DB4T]: F:Formats backend failures, surfacing provider error payloads and empty-turn guidance | R:- | A:buildEmptyTurnMessage, formatPromptFailure | S:-
+promptFailure.ts[DB4T]: F:Formats prompt failures with nested provider details and localizes empty-turn advice | R:code:src/utils/errorFormat.ts | A:buildEmptyTurnMessage,formatPromptFailure | S:-
 replayPersistedMode.ts[DA3T]: F:Re-applies the persisted mode after a session reconnects | R:code:src/agentMode/session/modeApply.ts | A:replayPersistedMode | S:-
 resolveActiveNoteToken.ts[DB2T]: F:Replaces the active-note token with a wikilink to the current file | R:- | A:resolveActiveNoteToken | S:-
 scope.ts[EG2T]: F:Global scope constant and project scope id type | R:- | A:GLOBAL_SCOPE | S:-
@@ -296,9 +299,9 @@ vaultEventExpectations.ts[DW4S]: F:Matchers describing expected vault path effec
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/skills/builtin/===
 buildBuiltinSeedFs.ts[IE3T]: F:Vault-adapter filesystem used to seed builtin skills without following directory links | R:code:src/agentMode/skills/builtin/builtinOwnership.ts | A:buildBuiltinSeedFs | S:-
-builtinOwnership.ts[DS4T]: F:Reads the builtin version marker and content-baseline hash from skill frontmatter | R:- | A:getBuiltinSkillVersion, getBuiltinSkillContentHash | S:A marker in a skill body never authorizes replacement; scribe- and legacy copilot- markers both count as managed
+builtinOwnership.ts[DE5T]: F:Reads the current built-in skill version and content hash from frontmatter | R:code:src/agentMode/skills/builtin/seedBuiltinSkills.ts | A:getBuiltinSkillVersion,getBuiltinSkillContentHash | S:Version and hash identify markers in SKILL.md, not ownership or integrity of every supporting file
 reconcileBuiltinSkills.ts[IE4T]: F:Reconciles builtin skills between settings preferences and the seeded folders | R:code:src/agentMode/skills/builtin/seedBuiltinSkills.ts | A:reconcileBuiltinSkills, availableBuiltinAgents | S:-
-seedBuiltinSkills.ts[IE5S]: F:Seeds and updates builtin skill folders based on version markers and content baselines | R:code:src/agentMode/skills/builtin/builtinOwnership.ts | A:seedBuiltinSkills, inspectBuiltinSkill, BuiltinSeedFs | S:A newer version replaces the folder only when the content baseline matches; local edits or a missing baseline defer the update
+seedBuiltinSkills.ts[IE7S]: F:Installs and refreshes built-in skill folders using version and SKILL.md content markers | R:code:src/agentMode/skills/builtin/builtinOwnership.ts,code:src/builtinSkills/builtinSkills.ts | A:seedBuiltinSkills,inspectBuiltinSkill | S:Same-version missing-file repair can remove the whole directory and lose edited or added files; the fingerprint does not cover supporting files
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/skills/ui/===
 BuiltinSkillsTable.stories.tsx[TQ3T]: F:Previews confirmed, checking, unknown and unavailable built-in skill rows | R:code:src/agentMode/skills/ui/BuiltinSkillsTable.tsx | A:- | S:-
@@ -314,7 +317,7 @@ SkillEditorModal.tsx[EU4S]: F:Modal wrapping the editor form for create and edit
 SkillLoadIssues.stories.tsx[TQ3S]: F:Gallery stories for the skill load issues dialog | R:code:src/agentMode/skills/ui/SkillLoadIssues.tsx | A:- | S:-
 SkillLoadIssues.tsx[EU4S]: F:Dialog listing skills that failed to load with evidence and a repair prompt | R:code:src/agentMode/skills/skillRepairPrompt.ts | A:SkillLoadIssuesDialog | S:-
 SkillRow.tsx[EU6L]: F:Displays skill availability switches and retains editing, properties, migration and deletion actions | R:code:src/agentMode/skills/ui/skillRuntimeItem.ts | A:SkillRow | S:Migration remains a separate action; a canonical skill's switch follows local enablement and stays usable regardless of the last check's verdict
-SkillRowLayout.stories.tsx[TQ3S]: F:Previews shared skill row layout with canonical, checking, mirrored, waiting, disabled and unconfirmed states | R:code:src/agentMode/skills/ui/SkillRowLayout.tsx | A:- | S:-
+SkillRowLayout.stories.tsx[TU3S]: F:Previews skill row layouts, availability states, long text and project scopes | R:code:src/agentMode/skills/ui/SkillRowLayout.tsx | A:- | S:-
 SkillRowLayout.tsx[EU3T]: F:Shared row layout for skill tables | R:- | A:SkillRowLayout | S:-
 SkillsSettings.tsx[EU7L]: F:Combines managed and built-in skill lists with runtime usability, management actions and load-issue recovery | R:code:src/agentMode/skills/SkillManager.ts | A:SkillsSettings, openNewSkillModal | S:Built-ins reconcile on entry; repair prepares a draft and never sends it; embedding hides the new-skill button; built-in switches save a per-agent preference and refresh
 skillRuntimeItem.ts[DB4T]: F:Matches managed skill files to runtime evidence and derives safe direction-specific toggle capabilities | R:code:src/agentMode/skills/toggleDecision.ts | A:skillRuntimeItem, sameSkillPath | S:File identity compares resolved real paths so linked copies match; an unconfirmed skill stays switchable as manual_only
@@ -333,9 +336,9 @@ AgentContextMeter.stories.tsx[TQ4T]: F:Gallery stories for the context usage met
 AgentContextMeter.tsx[EU5S]: F:Session usage meter with expiry-aware windows and missing-data states | R:code:src/agentMode/session/planUsage.ts | A:AgentContextMeter | S:Only real session token statistics render; the subscription quota area belongs to the removed Claude backend and never returns
 AgentContextSection.tsx[EU5S]: F:Project context editor section with sources and badge list | R:code:src/components/project/ProjectContextSourceEditor.tsx | A:AgentContextSection | S:-
 AgentDetailModal.tsx[EU4T]: F:Base React modal that reopens by detail key across view refreshes | R:code:src/components/modals/ReactModal.tsx | A:AgentDetailModal | S:-
-AgentExtensionsPanel.stories.tsx[TQ4M]: F:Previews extension lists across skills, collapsed sections, MCP states, plugin availability, built-ins and failed checks | R:code:src/agentMode/ui/AgentExtensionsPanel.tsx | A:- | S:-
+AgentExtensionsPanel.stories.tsx[TU4M]: F:Previews extension-list loading, errors, scope and item availability states | R:code:src/agentMode/ui/AgentExtensionsPanel.tsx | A:- | S:-
 AgentExtensionsPanel.tsx[EU5M]: F:Displays collapsible grouped extension rows with availability switches, plugin versions, and management actions | R:code:src/agentMode/session/extensionAvailability.ts | A:AgentExtensionsPanel, EXTENSION_LABELS | S:Collapse choices last only for the app session; a search query forces every section open; row keys pair each id with its owning scope so same-named entries from different scopes stay separate
-AgentExtensionsSettings.tsx[EU6L]: F:Renders the extension pages by merging user, current-vault, and per-project configurations into one list | R:code:src/agentMode/session/mergeExtensionRuntime.ts | A:AgentExtensionsSettings | S:Project listings drop user entries, so the user scope is also listed; mutations use the entry scope; duplicates drop only within scope and id; the skills page new-skill button sits in the header
+AgentExtensionsSettings.tsx[EU6L]: F:Collects scoped extension inventories, checks runtime status and routes settings mutations | R:code:src/agentMode/session/mergeExtensionRuntime.ts,code:src/agentMode/skills/SkillManager.ts | A:AgentExtensionsSettings | S:A vault-root runtime check can overwrite project skill availability; project skill discovery remains incomplete
 AgentHome.tsx[EU7L]: F:Agent Chat home screen combining transcript, composer, context, and landing states | R:code:src/agentMode/ui/AgentChatInput.tsx | A:- | S:With no messages the landing stack renders in place of the transcript while the composer stays
 AgentHomeSection.tsx[EU4S]: F:Home section scaffolding with scroll area and create row anchored to a trigger | R:- | A:AgentHomeCreateRow | S:-
 AgentHomeShelf.stories.tsx[TQ3T]: F:Gallery stories for the home shelf tabs | R:code:src/agentMode/ui/AgentHomeShelf.tsx | A:- | S:-
@@ -350,7 +353,7 @@ AgentModeStatus.tsx[EU5S]: F:Status line handling install, sign-in, and unsuppor
 AgentProjectCreateForm.tsx[EU4T]: F:Form creating a project from a name | R:- | A:AgentProjectCreateForm | S:-
 AgentProjectHeader.stories.tsx[TQ3T]: F:Gallery stories for the project header | R:code:src/agentMode/ui/AgentProjectHeader.tsx | A:- | S:-
 AgentProjectHeader.tsx[EU3T]: F:Project header with back action and menu | R:- | A:AgentProjectHeader | S:-
-AgentProjectRowActions.tsx[EU4S]: F:Row menu for opening, renaming, revealing, and deleting a project | R:code:src/projects/ProjectFileManager.ts | A:AgentProjectRowActions | S:-
+AgentProjectRowActions.tsx[EU4S]: F:Provides reveal, edit and delete actions for a project row | R:code:src/projects/ProjectFileManager.ts,code:src/components/modals/ConfirmModal.tsx | A:AgentProjectRowActions,revealProjectFolder | S:-
 AgentSelectPane.stories.tsx[TQ3T]: F:Gallery stories for the select pane layout | R:code:src/agentMode/ui/AgentSelectPane.tsx | A:- | S:-
 AgentSelectPane.tsx[EU2T]: F:Centered pane layout with a controls footer | R:- | A:AgentSelectPane | S:-
 AgentSelectPanel.tsx[EU3T]: F:Wires the selection view to session manager state | R:code:src/agentMode/ui/AgentSelectView.tsx | A:AgentSelectPanel | S:-
@@ -360,23 +363,23 @@ AgentStatusCard.stories.tsx[TQ4S]: F:Gallery stories for status card tones and a
 AgentStatusCard.tsx[EU4S]: F:Status card with tone, optional progress, and action buttons | R:- | A:AgentStatusCard | S:-
 AgentTabStrip.tsx[EU6L]: F:Session tabs with per-tab menus, renaming, and overflow handling | R:code:src/agentMode/backends/registry.ts | A:AgentTabStrip | S:-
 AgentTasksContext.tsx[EU2T]: F:React context exposing running tasks and a task opener | R:code:src/agentMode/session/AgentSession.ts | A:AgentTasksProvider | S:-
-AgentTrailView.stories.tsx[TQ4M]: F:Gallery stories for the activity trail across turn shapes | R:code:src/agentMode/ui/AgentTrailView.tsx | A:- | S:-
+AgentTrailView.stories.tsx[TU4M]: F:Previews activity trails, tool results, changed files and compaction states | R:code:src/agentMode/ui/AgentTrailView.tsx | A:- | S:-
 AgentTrailView.tsx[EU6M]: F:Renders a turn's activity trail from grouped message parts | R:code:src/agentMode/ui/activityGroups.ts | A:AgentTrailView | S:-
 AgentTurnDurationIndicator.stories.tsx[TQ3T]: F:Gallery stories for the turn duration indicator | R:code:src/agentMode/ui/AgentTurnDurationIndicator.tsx | A:- | S:-
 AgentTurnDurationIndicator.tsx[EU3T]: F:Shows running or final turn duration with a spinner | R:- | A:AgentTurnDurationIndicator, formatWorkedDuration | S:-
-AgentWelcomeCard.stories.tsx[TQ2T]: F:Gallery story for the welcome card | R:code:src/agentMode/ui/AgentWelcomeCard.tsx | A:- | S:-
-AgentWelcomeCard.tsx[EU3T]: F:Dismissible welcome card prompting project creation | R:- | A:AgentWelcomeCard | S:-
+AgentWelcomeCard.stories.tsx[TU2T]: F:Previews the project welcome card | R:code:src/agentMode/ui/AgentWelcomeCard.tsx | A:- | S:-
+AgentWelcomeCard.tsx[EU3T]: F:Renders a dismissible invitation to create a project with references and chat history | R:- | A:AgentWelcomeCard | S:-
 AskUserQuestionCard.stories.tsx[TQ3T]: F:Gallery stories for the question card | R:code:src/agentMode/ui/AskUserQuestionCard.tsx | A:- | S:-
 AskUserQuestionCard.tsx[EU5M]: F:Renders an agent question with selectable options and free-text input | R:code:src/agentMode/session/types.ts | A:AskUserQuestionCard | S:-
 ChatBookmarkMenuItem.tsx[EU3T]: F:Menu item toggling a chat's bookmark state | R:code:src/agentMode/ui/hooks/useAgentHistoryControls.ts | A:ChatBookmarkMenuItem | S:-
-CompactionRow.tsx[EU3T]: F:Row showing compaction progress or outcome | R:- | A:CompactionRow | S:-
+CompactionRow.tsx[EU3T]: F:Displays in-progress, completed, failed, cancelled and skipped compaction states | R:code:src/agentMode/ui/agentTrail.ts | A:CompactionRow | S:-
 CreateProjectPanel.tsx[EU4S]: F:Anchored panel hosting the project creation form | R:code:src/agentMode/ui/AgentProjectCreateForm.tsx | A:CreateProjectPanel | S:-
 ExtensionDialogs.stories.tsx[TQ4S]: F:Previews install, import, and plugin detail dialogs with component, ownership, and missing-file states | R:code:src/agentMode/ui/ExtensionDialogs.tsx | A:- | S:-
 ExtensionDialogs.tsx[EU5L]: F:Renders extension install and import forms plus versioned plugin details and component availability | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:ExtensionModal, PluginInstallForm, ExtensionImportForm, ExtensionDetailsView | S:A details modal may omit its native title so the name and copy button start the content; an optional scope label renders between the name and the availability row
 ExtensionEditor.stories.tsx[TQ4S]: F:Gallery stories for the extension editor fields | R:code:src/agentMode/ui/ExtensionEditor.tsx | A:- | S:-
 ExtensionEditor.tsx[EU5L]: F:Field primitives and form body for editing extension drafts | R:code:src/agentMode/session/extensionManagement.ts | A:ExtensionField, ExtensionSelect | S:-
-FeedbackCard.stories.tsx[TQ3T]: F:Gallery stories for the feedback offer card | R:code:src/agentMode/ui/FeedbackCard.tsx | A:- | S:-
-FeedbackCard.tsx[EU4T]: F:Card offering to report a failed turn or agent-flagged issue | R:code:src/agentMode/session/feedback/feedbackOffer.ts | A:FeedbackCard | S:-
+FeedbackCard.stories.tsx[TQ3T]: F:Previews feedback drafts, failures, long text and an uploaded report | R:code:src/agentMode/ui/FeedbackCard.tsx | A:- | S:-
+FeedbackCard.tsx[EU4T]: F:Renders feedback offers or uploaded report identifiers and issue links | R:code:src/agentMode/session/feedback/feedbackOffer.ts | A:FeedbackCard,findFeedbackCardIndex | S:Upload does not mean an issue was submitted
 FileChangeSummary.stories.tsx[TQ2T]: F:Gallery stories for file change counts and badges | R:code:src/agentMode/ui/FileChangeSummary.tsx | A:- | S:-
 FileChangeSummary.tsx[EU3T]: F:Addition and deletion counts plus per-file status badges | R:- | A:FileChangeCounts, FileChangeStatusBadge | S:-
 FilesChangedCard.stories.tsx[TQ3T]: F:Gallery stories for the changed-files card | R:code:src/agentMode/ui/FilesChangedCard.tsx | A:- | S:-
@@ -384,11 +387,11 @@ FilesChangedCard.tsx[EU3T]: F:Card listing a turn's changed files with open acti
 GlobalRecentChatsSection.stories.tsx[TQ4S]: F:Gallery stories for the global recent chats section | R:code:src/agentMode/ui/GlobalRecentChatsSection.tsx | A:- | S:-
 GlobalRecentChatsSection.tsx[EU6L]: F:Global recent chats list with rename, bookmark, and delete actions | R:code:src/agentMode/ui/RecentChatTitle.tsx | A:- | S:Row menus stop click propagation so opening a menu never opens the chat
 PlanPreviewView.tsx[EU5M]: F:ItemView rendering the full plan body with approve and reject actions | R:code:src/agentMode/session/plan.ts | A:PlanPreviewView | S:-
-PlanProposalCard.stories.tsx[TQ3T]: F:Gallery stories for the plan proposal card | R:code:src/agentMode/ui/PlanProposalCard.tsx | A:- | S:-
-PlanProposalCard.tsx[EU5S]: F:Inline plan card with decision buttons and a full-preview opener | R:code:src/agentMode/ui/PlanPreviewView.tsx | A:PlanProposalCard | S:Decision clicks carry the pending revision so a stale card cannot decide a newer plan
+PlanProposalCard.stories.tsx[TU3T]: F:Previews a pending plan proposal and its actions | R:code:src/agentMode/ui/PlanProposalCard.tsx | A:- | S:-
+PlanProposalCard.tsx[EU5S]: F:Renders a plan preview, decision controls and feedback entry | R:code:src/agentMode/ui/PlanPreviewView.tsx | A:PlanProposalCard | S:Decision calls include the plan revision; changing the plan identity resets draft feedback
 ProjectInfoPopover.stories.tsx[TQ3T]: F:Gallery stories for the project info popover | R:code:src/agentMode/ui/ProjectInfoPopover.tsx | A:- | S:-
 ProjectInfoPopover.tsx[EU5M]: F:Popover editing project details, instructions, and context sources | R:code:src/components/modals/project/AddProjectModal.tsx | A:ProjectInfoPopover | S:-
-ProjectPickerList.stories.tsx[TQ4S]: F:Gallery stories for the project picker list | R:code:src/agentMode/ui/ProjectPickerList.tsx | A:- | S:-
+ProjectPickerList.stories.tsx[TU4S]: F:Previews project lists, overflow, empty state and deletion warning | R:code:src/agentMode/ui/ProjectPickerList.tsx | A:- | S:-
 ProjectPickerList.tsx[EU5S]: F:Searchable project list with row actions and a create row | R:code:src/agentMode/ui/AgentHomeSection.tsx | A:ProjectPickerList | S:-
 QueuedMessageList.stories.tsx[TQ3T]: F:Gallery stories for the queued messages list | R:code:src/agentMode/ui/QueuedMessageList.tsx | A:- | S:-
 QueuedMessageList.tsx[EU4S]: F:Lists delivering and held queued messages with withdraw actions | R:code:src/agentMode/session/AgentInputDraftStore.ts | A:QueuedMessageList | S:-
@@ -398,8 +401,8 @@ RecentChatTitle.stories.tsx[TQ3T]: F:Gallery stories for the recent chat title a
 RecentChatTitle.tsx[EU2T]: F:Chat title display with project badge | R:- | A:RecentChatProjectBadge, RecentChatTitle | S:-
 RenameChatModal.stories.tsx[TQ2T]: F:Gallery story for the rename chat modal | R:code:src/agentMode/ui/RenameChatModal.tsx | A:- | S:-
 RenameChatModal.tsx[EU3T]: F:Modal renaming a chat with an initial title | R:code:src/components/modals/ReactModal.tsx | A:RenameChatModal | S:-
-ReportIssueFlow.stories.tsx[TQ4S]: F:Gallery stories for the issue report flow stages | R:code:src/agentMode/ui/ReportIssueFlow.tsx | A:- | S:-
-ReportIssueFlow.tsx[EU5M]: F:Multi-stage report flow: consent, attachments, upload, and result | R:code:src/utils/issueReport.ts | A:ReportIssueFlow | S:-
+ReportIssueFlow.stories.tsx[TQ4S]: F:Previews report details, preparation, review, upload and failure states | R:code:src/agentMode/ui/ReportIssueFlow.tsx | A:- | S:-
+ReportIssueFlow.tsx[EU5M]: F:Multi-stage report flow: consent, attachments, upload, and result | R:code:src/utils/issueReport.ts,code:src/agentMode/ui/ReportIssueModal.tsx | A:ReportIssueFlow | S:Opening the issue can share draft text with GitHub before submission; upload and issue submission are separate
 ReportIssueModal.tsx[EU6M]: F:Modal building the report bundle with logs, frames, and a linked issue URL | R:code:src/agentMode/session/debugSink.ts | A:openReportIssueModal | S:-
 RunningTasksIndicator.stories.tsx[TQ4S]: F:Gallery stories for the running tasks indicator | R:code:src/agentMode/ui/RunningTasksIndicator.tsx | A:- | S:-
 RunningTasksIndicator.tsx[EU5S]: F:Popover listing running background tasks with output tails | R:code:src/agentMode/ui/hooks/useTaskOutputTail.ts | A:RunningTasksIndicator | S:-
@@ -618,13 +621,14 @@ model-settings-button.tsx[EU2T]: F:Button opening model settings when a model is
 ===/Users/study_superior/Desktop/Code/Scribe/src/components/modals/===
 ApplyCustomCommandModal.tsx[EU3T]: F:Fuzzy picker applying a custom command to the editor selection | R:code:src/commands/CustomCommandChatModal.tsx | A:ApplyCustomCommandModal | S:-
 BaseNoteModal.tsx[EU3T]: F:Fuzzy note picker base filtering out the active note | R:- | A:BaseNoteModal | S:-
-ConfirmModal.tsx[EU4T]: F:Generic confirmation modal with React content | R:- | A:ConfirmModal | S:-
+ConfirmModal.tsx[EU4T]: F:Hosts confirmation content and invokes confirm or cancel callbacks | R:code:src/utils/react/createPluginRoot.tsx | A:ConfirmModal,ConfirmModalContent | S:Async callback rejection is logged after the modal closes
 FolderSearchModal.tsx[EU3T]: F:Fuzzy folder picker excluding ignored paths | R:code:src/search/searchUtils.ts | A:FolderSearchModal | S:-
 ProjectFileSelectModal.tsx[EU4S]: F:Picker scoped to a project folder's files | R:code:src/components/modals/BaseNoteModal.tsx | A:ProjectFileSelectModal | S:-
 PropertySearchModal.tsx[EU3T]: F:Picker over note property keys with selectable-key rules | R:code:src/search/searchUtils.ts | A:PropertySearchModal | S:-
 ReactModal.tsx[EU4T]: F:Obsidian modal hosting a React root, with a full-bleed variant | R:code:src/utils/react/createPluginRoot.ts | A:ReactModal, FullBleedReactModal, FULL_BLEED_MODAL_CLASS, UNTITLED_MODAL_CLASS | S:A missing title adds the untitled class so the empty header collapses while the close button stays available
 ResetSettingsConfirmModal.tsx[EU2T]: F:Confirmation for resetting settings | R:code:src/components/modals/ConfirmModal.tsx | A:ResetSettingsConfirmModal | S:-
 TagSearchModal.tsx[EU2T]: F:Picker over tags collected from notes | R:- | A:TagSearchModal | S:-
+ConfirmModal.stories.tsx[TU4T]: F:Previews startup and prompt-recovery reports in English and Chinese | R:code:src/components/modals/ConfirmModal.tsx | A:- | S:Example reports do not verify recovery file or settings content
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/components/modals/project/===
 AddProjectModal.tsx[EU5M]: F:Modal creating or editing a project with context management | R:code:src/components/modals/project/context-manage-modal.tsx | A:AddProjectModal | S:-
@@ -654,8 +658,8 @@ useQuickAskSession.ts[EU5S]: F:Hook running the quick ask chat turns against a m
 ===/Users/study_superior/Desktop/Code/Scribe/src/components/ui/===
 AgentConfigurationHeader.stories.tsx[TQ3T]: F:Gallery stories for the agent configuration header | R:code:src/components/ui/AgentConfigurationHeader.tsx | A:- | S:-
 AgentConfigurationHeader.tsx[EU4T]: F:Agent tab strip below which a label and left-aligned search bar share a row with right-aligned action buttons | R:code:src/components/ui/SearchBar.tsx | A:AgentConfigurationHeader | S:-
-AgentModelList.stories.tsx[TQ3T]: F:Gallery stories for the agent model list | R:code:src/components/ui/AgentModelList.tsx | A:- | S:-
-AgentModelList.tsx[EU4S]: F:Collapsible grouped list enabling agent models | R:code:src/components/ui/ModelEnableList.tsx | A:AgentModelList | S:-
+AgentModelList.stories.tsx[TU3T]: F:Previews collapsed, full, empty, disabled and long-name model lists | R:code:src/components/ui/AgentModelList.tsx | A:- | S:-
+AgentModelList.tsx[EU4S]: F:Renders a searchable list of configured agent models with enablement controls | R:code:src/components/ui/ModelEnableList.tsx | A:AgentModelList | S:-
 AssistantResponseFooter.stories.tsx[TQ3T]: F:Gallery stories for the assistant response footer | R:code:src/components/ui/AssistantResponseFooter.tsx | A:- | S:-
 AssistantResponseFooter.tsx[EU2T]: F:Footer layout row with leading content, timestamp, and actions | R:- | A:AssistantResponseFooter | S:-
 ChatSendButton.stories.tsx[TQ1T]: F:Gallery story for the send button | R:code:src/components/ui/ChatSendButton.tsx | A:- | S:-
@@ -663,7 +667,7 @@ ChatSendButton.tsx[EU2T]: F:Send button reflecting composer readiness | R:- | A:
 DestinationIcon.stories.tsx[TQ2T]: F:Gallery story for the destination icon | R:code:src/components/ui/DestinationIcon.tsx | A:- | S:-
 DestinationIcon.tsx[EU2T]: F:Cloud or local icon for a model's destination | R:code:src/types/destination.ts | A:DestinationIcon | S:-
 FreeModelWarningIcon.tsx[EU2T]: F:Warning icon explaining free model privacy tradeoffs | R:- | A:FreeModelWarningIcon | S:-
-ModePicker.stories.tsx[TQ2T]: F:Gallery story for the mode picker | R:code:src/components/ui/ModePicker.tsx | A:- | S:-
+ModePicker.stories.tsx[TU2T]: F:Previews Auto and Plan mode choices | R:code:src/components/ui/ModePicker.tsx | A:- | S:-
 ModePicker.tsx[EU4T]: F:Dropdown choosing default, plan, or auto mode | R:- | A:ModePicker | S:Labels the modes Default, Plan, and Auto to match docs and the type layer
 ModelEffortPicker.stories.tsx[TQ3S]: F:Gallery stories for the effort picker including native default and off states | R:code:src/components/ui/ModelEffortPicker.tsx | A:- | S:-
 ModelEffortPicker.tsx[EU5M]: F:Picker combining effort levels with a reasoning slider when supported | R:code:src/lib/model-effort.ts | A:ModelEffortPicker | S:-
@@ -777,9 +781,9 @@ useResolvedChatBackendModel.ts[EU3T]: F:Hook resolving the effective quick chat 
 ===/Users/study_superior/Desktop/Code/Scribe/src/instructions/===
 InstructionsTextarea.stories.tsx[TQ2T]: F:Gallery story for the instructions textarea | R:code:src/instructions/InstructionsTextarea.tsx | A:- | S:-
 InstructionsTextarea.tsx[EU2T]: F:Textarea with an empty-state example | R:code:src/components/ui/textarea.tsx | A:InstructionsTextarea | S:-
-ProjectInstructionsField.stories.tsx[TQ2T]: F:Gallery story for the project instructions field | R:code:src/instructions/ProjectInstructionsField.tsx | A:- | S:-
-ProjectInstructionsField.tsx[EU2T]: F:Labeled field wrapping the instructions textarea | R:code:src/instructions/InstructionsTextarea.tsx | A:ProjectInstructionsField | S:-
-agentsFile.ts[DC5S]: F:Reads, writes, and opens the vault AGENTS.md with filesystem case quirks handled | R:- | A:readAgentsFile, openAgentsFile, isClaudeImportOnly | S:-
+ProjectInstructionsField.stories.tsx[TU2T]: F:Previews empty, populated and long project-instruction drafts | R:code:src/instructions/ProjectInstructionsField.tsx | A:- | S:-
+ProjectInstructionsField.tsx[EU2T]: F:Renders the project instructions field and explains its relation to vault instructions | R:code:src/instructions/InstructionsTextarea.tsx | A:ProjectInstructionsField | S:-
+agentsFile.ts[DP6S]: F:Reads, creates, updates, opens and restores vault or project instruction files | R:code:src/projects/ProjectFileManager.ts | A:readAgentsFile,writeAgentsFile,ensureAgentsFile,openAgentsFile | S:Generated-marker conversion can remove a marker or replace existing content; expected-content checks apply only when supplied
 useAgentsFileDraft.ts[EU2T]: F:Hook loading the AGENTS.md text for editing | R:code:src/instructions/agentsFile.ts | A:useAgentsFileDraft | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/lib/===
@@ -795,16 +799,16 @@ url-tag.ts[DB5S]: F:Parses and serializes URL context items with video detection
 utils.ts[EU2T]: F:Class name combiner with the tw prefix | R:- | A:cn | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/lib/locales/===
-agent.ts[CL3L]: F:Simplified Chinese translations for agent surfaces | R:code:src/lib/i18n.ts | A:agentTranslations | S:-
-components.ts[CL2M]: F:Simplified Chinese translations for shared components | R:code:src/lib/i18n.ts | A:componentTranslations | S:-
-runtime.ts[CL2S]: F:Simplified Chinese translations for runtime messages | R:code:src/lib/i18n.ts | A:runtimeTranslations | S:-
-settings.ts[CL2L]: F:Provides Simplified Chinese settings labels including availability reasons and plugin detail fields | R:code:src/lib/i18n.ts | A:settingsTranslations | S:-
+agent.ts[CL3L]: F:Maps agent-facing English interface messages to Simplified Chinese | R:code:src/lib/i18n.ts | A:agentTranslations | S:-
+components.ts[CL2M]: F:Maps shared component interface messages to Simplified Chinese | R:code:src/lib/i18n.ts | A:componentTranslations | S:-
+runtime.ts[CL2S]: F:Maps startup, migration and runtime messages to Simplified Chinese | R:code:src/lib/i18n.ts | A:runtimeTranslations | S:-
+settings.ts[CL2L]: F:Maps settings, model, extension and feedback interface messages to Simplified Chinese | R:code:src/lib/i18n.ts | A:settingsTranslations | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/lib/plugins/===
 colorOpacityPlugin.ts[XV4T]: F:Tailwind plugin adding opacity variants for theme colors | R:- | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/===
-AGENTS.md[SG6T]: F:Model management layer rules and architecture summary | R:- | A:- | S:-
+AGENTS.md[SG6T]: F:Defines model-management layers, persisted origins and provider-model selection responsibilities | R:code:src/modelManagement/types/persisted.ts | A:- | S:An agent-origin provider does not imply a second active agent backend
 createModelManagement.ts[AA5T]: F:Composes the model management coordinator from its BYOK and chat registries | R:code:src/modelManagement/models/ConfiguredModelRegistry.ts | A:createModelManagement, ModelManagementCoordinator | S:-
 index.ts[EG4T]: F:Model management barrel exports | R:- | A:- | S:-
 testRegistries.ts[TQ3T]: F:Factory building isolated registries for tests | R:code:src/modelManagement/createModelManagement.ts | A:- | S:-
@@ -860,22 +864,22 @@ atoms.ts[DD4T]: F:Jotai atoms projecting model management state | R:code:src/mod
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/types/===
 catalog.ts[EG4T]: F:Catalog types for providers and models | R:- | A:ModelInfo, ProviderType | S:-
-persisted.ts[EG4T]: F:Persisted types for providers, configured models, and the native backend | R:- | A:Provider, ConfiguredModel, BackendType | S:-
+persisted.ts[EG4T]: F:Defines persisted provider, configured-model and backend-selection shapes | R:code:src/modelManagement/types/catalog.ts | A:Provider,ConfiguredModel,BackendType,BackendConfig | S:The retired agent identity remains a persisted type, not an active backend
 runtime.ts[EG4T]: F:Runtime types for verification and enabled entries | R:- | A:VerificationResult, EnabledBackendEntry | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/===
 ModelManagementContext.tsx[EU2T]: F:React context exposing the management API | R:code:src/modelManagement/createModelManagement.ts | A:ModelManagementProvider, useModelManagement | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/components/===
-ByokGlobalTable.stories.tsx[TQ3T]: F:Gallery stories for the BYOK provider table | R:code:src/modelManagement/ui/components/ByokGlobalTable.tsx | A:- | S:-
-ByokGlobalTable.tsx[EU5M]: F:BYOK provider table with verification status and model counts | R:code:src/modelManagement/ui/components/ProviderVerificationStatus.tsx | A:ByokGlobalTable | S:-
+ByokGlobalTable.stories.tsx[TU3T]: F:Previews provider lists, failed checks, keyless endpoints and empty state | R:code:src/modelManagement/ui/components/ByokGlobalTable.tsx | A:- | S:-
+ByokGlobalTable.tsx[EU5M]: F:Renders provider cards, connection status, models and edit or removal actions | R:code:src/modelManagement/ui/components/ProviderVerificationStatus.tsx | A:ByokGlobalTable | S:-
 CorsCompatibilitySetting.stories.tsx[TQ2T]: F:Gallery story for the CORS compatibility toggle | R:code:src/modelManagement/ui/components/CorsCompatibilitySetting.tsx | A:- | S:-
 CorsCompatibilitySetting.tsx[EU3T]: F:Toggle explaining when direct browser access is needed | R:- | A:CorsCompatibilitySetting | S:-
 ModelChecklist.stories.tsx[TQ3T]: F:Gallery stories for the model checklist | R:code:src/modelManagement/ui/components/ModelChecklist.tsx | A:- | S:-
 ModelChecklist.tsx[EU5M]: F:Checklist selecting catalog models with capability badges | R:code:src/modelManagement/chatModel/modelCapabilityFlags.ts | A:ModelChecklist | S:-
-ProviderConnectionFields.stories.tsx[TQ4S]: F:Gallery stories for the connection fields | R:code:src/modelManagement/ui/components/ProviderConnectionFields.tsx | A:- | S:-
+ProviderConnectionFields.stories.tsx[TU4S]: F:Previews localized provider connection fields, chat checks, errors and provider-specific inputs | R:code:src/modelManagement/ui/components/ProviderConnectionFields.tsx | A:- | S:-
 ProviderConnectionFields.tsx[EU4S]: F:Base URL and parameter fields from the provider profile | R:code:src/modelManagement/providers/providerProfiles.ts | A:ProviderConnectionFields | S:-
-ProviderVerificationStatus.stories.tsx[TQ4S]: F:Gallery stories for the verification status badge | R:code:src/modelManagement/ui/components/ProviderVerificationStatus.tsx | A:- | S:-
+ProviderVerificationStatus.stories.tsx[TU4S]: F:Previews provider verification progress, failures and chat verification | R:code:src/modelManagement/ui/components/ProviderVerificationStatus.tsx | A:- | S:-
 ProviderVerificationStatus.tsx[EU3T]: F:Badge showing verification state with spinner | R:- | A:ProviderVerificationStatus | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/dialogs/===
@@ -886,14 +890,14 @@ ConfigureProviderDialog.tsx[EU6L]: F:Dialog configuring credentials, connection,
 useModelCandidatePool.ts[DB5M]: F:Hook pooling catalog and listed models for selection | R:code:src/modelManagement/providers/adapters/listProviderModels.ts | A:useModelCandidatePool | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/tabs/===
-ByokPanel.tsx[EU5M]: F:BYOK settings tab with provider table and add flow | R:code:src/modelManagement/ui/components/ByokGlobalTable.tsx | A:ByokPanel | S:-
+ByokPanel.tsx[EU5M]: F:Lists and searches configured providers, runs provider checks and opens add or edit dialogs | R:code:src/modelManagement/ui/components/ByokGlobalTable.tsx | A:ByokPanel | S:Directory verification is distinct from a successful chat request
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/utils/===
 formatModelMetadata.ts[DB2T]: F:Formats context windows and token limits | R:code:src/lib/i18n.ts | A:formatContextWindow | S:-
 orderCatalogModels.ts[DB2T]: F:Orders catalog models with selection first | R:- | A:orderCatalogModels | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/projects/===
-ProjectFileManager.ts[DP6L]: F:Creates, updates, and deletes project notes and folders | R:code:src/projects/projectPaths.ts | A:ProjectFileManager | S:-
+ProjectFileManager.ts[DP7L]: F:Creates, updates, deletes and caches project records and their vault files | R:code:src/projects/projectPaths.ts,code:src/projects/projectUtils.ts | A:ProjectFileManager | S:Deletion leaves nonempty project folders; updating rewrites the project body and may overwrite newer external edits
 constants.ts[DC3T]: F:Project defaults and frontmatter property names | R:- | A:EMPTY_PROJECT_CONFIG | S:-
 moveProjectPrompt.ts[DP3T]: F:Moves a project prompt into its AGENTS.md | R:code:src/projects/ProjectFileManager.ts | A:moveProjectPromptToAgentsFile | S:-
 projectContextSignature.ts[DB4T]: F:Builds a change signature over project context sources | R:code:src/projects/projectPaths.ts | A:- | S:-
@@ -912,11 +916,11 @@ selectionWatcher.ts[DA5S]: F:Watches editor and web selections and reports them 
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/services/===
 interfaceLanguage.ts[CL3T]: F:Initializes the interface language from Obsidian and system | R:code:src/lib/i18n.ts | A:initializeInterfaceLanguage | S:-
-keychainService.ts[IS8L]: F:Stores provider credentials in the Obsidian keychain with planned name migration | R:code:src/services/settingsPersistence.ts | A:KeychainService | S:A rename keeps both values when old and new names differ; hydration restores only this device profile
+keychainService.ts[IS8L]: F:Hydrates, writes, renames and deletes Scribe credential entries in Obsidian SecretStorage | R:code:src/services/settingsPersistence.ts | A:KeychainService,providerKeychainName | S:Different values at old and new names are retained; name migration can remove the old secret before the new pointer is saved
 legacyCredentialBackup.ts[DP4T]: F:Writes a hashed backup file before credential migration | R:code:src/services/settingsSecretTransforms.ts | A:legacyBackupFilename, LEGACY_BACKUP_PREFIX | S:-
-settingsPersistence.ts[DP7M]: F:Saves and loads settings, splitting secrets into the keychain | R:code:src/services/keychainService.ts | A:- | S:Secrets are stripped before writing the vault data file; a failed backup leaves the keychain and pointers untouched
+settingsPersistence.ts[DP8L]: F:Loads and persists settings with credential backup, keychain operations and queued writes | R:code:src/services/keychainService.ts,code:src/services/legacyCredentialBackup.ts | A:loadSettingsWithKeychain,persistSettings,runPersistenceTransaction | S:Sanitization drops unknown nested fields; a later save can overwrite external changes; backup failure defers protected credential migration
 settingsSecretTransforms.ts[DS5S]: F:Identifies and strips secret fields and credential pairs from settings before persistence | R:code:src/constants.ts | A:isSensitiveKey, stripKeychainFields, cleanupLegacyFields | S:Stripping returns a copy and leaves the live settings untouched; name/value pairs with sensitive names count as secrets
-startupMigration.ts[DV4T]: F:Startup migration status types and helpers | R:- | A:- | S:-
+startupMigration.ts[DW4T]: F:Defines startup migration reports and presents settled project, command and prompt outcomes | R:- | A:runStartupMigrationSummary,formatStartupMigrationSummary,shouldClearCredentialRecovery | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/services/obsidianCli/===
 ObsidianCliClient.ts[IE3T]: F:IPC bridge checking whether the bundled Obsidian CLI is available | R:- | A:isObsidianCliEnabled | S:-
@@ -947,8 +951,8 @@ scribeSaveData.ts[DP3T]: F:Builds the settings save callback writing through per
 azureRemovalMigration.ts[DV3T]: F:Removes the retired Azure provider and its models | R:code:src/settings/migrations/retiredProviderRemovalMigration.ts | A:- | S:-
 bedrockRemovalMigration.ts[DV3T]: F:Removes the retired Bedrock provider and its models | R:code:src/settings/migrations/retiredProviderRemovalMigration.ts | A:- | S:-
 byokMigration.ts[DV5M]: F:Migrates legacy top-level BYOK keys into provider rows | R:code:src/settings/model.ts | A:- | S:-
-githubCopilotRemovalMigration.ts[DV4T]: F:Removes the retired GitHub Copilot provider and its keychain tokens | R:code:src/services/keychainService.ts | A:- | S:-
-index.ts[DV5T]: F:Runs versioned settings migrations at startup with a retired-secret sweep | R:code:src/settings/migrations/byokMigration.ts | A:- | S:Migrations defer entirely while the legacy backup failed; the sweep deletes retired secret names every start regardless of version
+githubCopilotRemovalMigration.ts[DV4T]: F:Plans and applies removal of retired provider models and their selected settings | R:code:src/settings/model.ts | A:planRetiredModelsAndSelectionsRemoval,executeRetiredModelsAndSelectionsRemoval | S:-
+index.ts[DW5T]: F:Runs versioned settings migrations and advances the saved schema version | R:code:src/settings/migrations/byokMigration.ts | A:runSettingsMigrations | S:Credential backup failure defers migrations and version stamping
 legacyIndexSettings.ts[DV2T]: F:Lists removed index-only setting fields to strip | R:- | A:- | S:-
 optionalCustomProviderAuthMigration.ts[DV2T]: F:Marks optional-auth custom providers as keyless | R:- | A:planOptionalCustomProviderAuthMigration | S:-
 requiresApiKeyMigration.ts[DV3T]: F:Sets the API key requirement per provider identity | R:code:src/modelManagement/providers/isSelfHostedProvider.ts | A:- | S:-
@@ -962,24 +966,26 @@ memoryFolderAdapter.ts[TQ3T]: F:In-memory data adapter for settings tests | R:- 
 SettingsMainV2.tsx[EU5S]: F:Settings main view with tab navigation | R:code:src/components/ui/setting-tabs.tsx | A:- | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/settings/v2/components/===
-AdvancedSettings.tsx[EU5M]: F:Advanced settings: debugging, resets, and support | R:code:src/settings/v2/components/DebuggingSupportSection.tsx | A:AdvancedSettings | S:-
+AdvancedSettings.tsx[EU6S]: F:Wires key removal, debugging, activity logs and feedback settings to their controls | R:code:src/services/keychainService.ts,code:src/settings/v2/components/DebuggingSupportSection.tsx | A:AdvancedSettings | S:Key removal saves stripped settings before clearing keychain entries and can lose unknown fields
 AgentSettings.tsx[EU4S]: F:Agents tab configuring the native backend and its models | R:code:src/agentMode/backends/shared/ui/AgentConfigurationCard.tsx | A:AgentSettings | S:-
 BasicSettings.tsx[EU6L]: F:General tab combining chat, save, and interface sections | R:code:src/settings/v2/components/ui/GeneralSettingsTabs.tsx | A:BasicSettings | S:-
-ChatModelEnableList.tsx[EU4T]: F:Enables quick-tool chat models | R:code:src/components/ui/ModelEnableList.tsx | A:ChatModelEnableList | S:-
+ChatModelEnableList.tsx[EU4T]: F:Groups and toggles configured models available to quick tools | R:code:src/settings/v2/components/configuredModelGrouping.ts | A:ChatModelEnableList | S:-
 CommandSettings.tsx[EU5M]: F:Commands settings tab with the command list and options | R:code:src/commands/ui/CommandConfigurationRow.tsx | A:CommandSettings | S:-
 ConfiguredModelEnableList.tsx[EU3T]: F:Enables configured models for the native agent backend | R:code:src/components/ui/ModelEnableList.tsx | A:ConfiguredModelEnableList | S:-
-DebuggingSupportSection.stories.tsx[TQ3T]: F:Gallery stories for the debugging section | R:code:src/settings/v2/components/DebuggingSupportSection.tsx | A:- | S:-
-DebuggingSupportSection.tsx[EU4S]: F:Debug toggles, log export, and issue reporting controls | R:code:src/settings/v2/components/AdvancedSettings.tsx | A:DebuggingSupportSection | S:The activity-log description never promises current native chats are recorded
+DebuggingSupportSection.stories.tsx[TU3T]: F:Previews debugging, activity log and feedback setting states | R:code:src/settings/v2/components/DebuggingSupportSection.tsx | A:- | S:-
+DebuggingSupportSection.tsx[EU4T]: F:Renders issue reporting, feedback, debug and activity-log controls | R:code:src/settings/v2/components/AdvancedSettings.tsx | A:DebuggingSupportSection | S:Current native chats are not recorded in the legacy activity log
 DesktopOnlySettingsPanel.tsx[EU1T]: F:Panel explaining desktop-only settings on mobile | R:- | A:DesktopOnlySettingsPanel | S:-
 GeneralSettings.tsx[EU3T]: F:General wrapper combining basic and advanced settings | R:code:src/settings/v2/components/BasicSettings.tsx | A:GeneralSettings | S:-
 QuickActionsSettings.tsx[EU2T]: F:Quick actions tab combining tools and commands | R:code:src/settings/v2/components/CommandSettings.tsx | A:QuickActionsSettings | S:-
 QuickToolsPanel.tsx[EU2T]: F:Quick tools model configuration panel | R:code:src/settings/v2/components/ChatModelEnableList.tsx | A:QuickToolsPanel | S:-
 VaultInstructionsSetting.stories.tsx[TQ2T]: F:Gallery story for the vault instructions setting | R:code:src/settings/v2/components/VaultInstructionsSetting.tsx | A:- | S:-
 VaultInstructionsSetting.tsx[EU3T]: F:Setting editing the vault AGENTS.md inline | R:code:src/instructions/InstructionsTextarea.tsx | A:VaultInstructionsSetting | S:-
-configuredModelGrouping.ts[DB4S]: F:Groups configured models by provider destination and origin | R:code:src/modelManagement/providers/providerDestination.ts | A:- | S:-
+configuredModelGrouping.ts[DB4S]: F:Partitions configured models and builds searchable provider or agent-origin groups | R:code:src/modelManagement/providers/providerDestination.ts | A:partitionCandidates,partitionChatCandidates,buildModelEnableGroups | S:-
 ConfiguredModelEnableList.stories.tsx[TQ3T]: F:Gallery stories for configured model visibility rows including manual IDs | R:code:src/settings/v2/components/ConfiguredModelEnableList.tsx | A:- | S:-
 ScribeFolderChangeNotice.stories.tsx[TQ2T]: F:Gallery story for the folder change notice | R:code:src/settings/v2/components/ScribeFolderChangeNotice.tsx | A:- | S:-
 ScribeFolderChangeNotice.tsx[EU3T]: F:Warning about data left under an old root | R:- | A:ScribeFolderChangeNotice | S:-
+KeyStorageSection.stories.tsx[TU3T]: F:Previews key storage information, unavailable storage and removal states | R:code:src/settings/v2/components/KeyStorageSection.tsx | A:- | S:-
+KeyStorageSection.tsx[EU4T]: F:Shows key storage availability and a control to remove Scribe keys | R:code:src/settings/v2/components/AdvancedSettings.tsx | A:KeyStorageSection | S:Availability does not establish whether an individual key exists
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/settings/v2/components/ui/===
 AboutSettings.stories.tsx[TQ1T]: F:Gallery story for the about section | R:code:src/settings/v2/components/ui/AboutSettings.tsx | A:- | S:-
@@ -988,11 +994,11 @@ AgentNotificationSoundSettings.stories.tsx[TQ2T]: F:Gallery stories for the noti
 AgentNotificationSoundSettings.tsx[EU2T]: F:Sound choice and test playback for agent notifications | R:- | A:AgentNotificationSoundSettings | S:-
 GeneralSettingsTabs.stories.tsx[TQ2T]: F:Gallery stories for the general tabs | R:code:src/settings/v2/components/ui/GeneralSettingsTabs.tsx | A:- | S:-
 GeneralSettingsTabs.tsx[EU2T]: F:Tab definitions for the general settings page | R:code:src/components/ui/setting-tabs.tsx | A:GENERAL_SETTINGS_SECTIONS | S:-
-QuickActionsTabs.stories.tsx[TQ2T]: F:Gallery stories for the quick actions tabs | R:code:src/settings/v2/components/ui/QuickActionsTabs.tsx | A:- | S:-
-QuickActionsTabs.tsx[EU2T]: F:Tab definitions for the quick actions page | R:code:src/components/ui/setting-tabs.tsx | A:QUICK_ACTIONS_SECTIONS | S:-
+QuickActionsTabs.stories.tsx[TU2T]: F:Previews the model, tool and command quick-action tabs | R:code:src/settings/v2/components/ui/QuickActionsTabs.tsx | A:- | S:-
+QuickActionsTabs.tsx[EU2T]: F:Defines and renders quick-action settings tabs | R:code:src/components/ui/setting-tabs.tsx | A:QUICK_ACTIONS_SECTIONS,QuickActionsTabs | S:-
 QuickCommandModelSetting.stories.tsx[TQ2T]: F:Gallery story for the quick command model setting | R:code:src/settings/v2/components/ui/QuickCommandModelSetting.tsx | A:- | S:-
 QuickCommandModelSetting.tsx[EU2T]: F:Selects the shared default quick command model | R:- | A:QuickCommandModelSetting | S:-
-QuickToolsModelSettings.stories.tsx[TQ3T]: F:Gallery stories for the quick tools model settings | R:code:src/settings/v2/components/ui/QuickToolsModelSettings.tsx | A:- | S:-
+QuickToolsModelSettings.stories.tsx[TU3T]: F:Previews configured and empty quick-tool model settings | R:code:src/settings/v2/components/ui/QuickToolsModelSettings.tsx | A:- | S:-
 QuickToolsModelSettings.tsx[EU2T]: F:Model settings row group for quick tools | R:code:src/settings/v2/components/ui/QuickCommandModelSetting.tsx | A:QuickToolsModelSettings | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/state/===
@@ -1003,7 +1009,7 @@ tailwind.css[FU6L]: F:Tailwind source stylesheet with theme tokens and component
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/system-prompts/===
 constants.ts[DC2T]: F:Prompt frontmatter property names | R:- | A:SCRIBE_SYSTEM_PROMPT_CREATED | S:-
-migration.ts[DP5M]: F:Migrates settings-defined system prompts into vault notes | R:code:src/system-prompts/systemPromptUtils.ts | A:migrateSystemPromptsFromSettings | S:-
+migration.ts[DP6M]: F:Migrates a settings-defined system prompt to a vault file and reports recovery outcomes | R:code:src/system-prompts/systemPromptUtils.ts,code:src/services/startupMigration.ts | A:migrateSystemPromptsFromSettings | S:After creating a recovery file, the old runtime setting is cleared even when migrated content verification failed
 systemPromptUtils.ts[DP4T]: F:Prompt note frontmatter and path helpers | R:code:src/system-prompts/constants.ts | A:ensurePromptFrontmatter, getPromptFilePath | S:-
 type.ts[EG2T]: F:User system prompt type | R:- | A:UserSystemPrompt | S:-
 
@@ -1096,5 +1102,5 @@ nativeAdvancedTools.ts[DG6M]: F:Defines native advanced agent tools: user questi
 nativeCommandTasks.ts[RW7M]: F:Runs real system commands for agent tools with foreground results and independent background task lifecycles | R:code:src/agentMode/sdk/NativeBackendProcess.ts | A:NativeCommandTasks | S:Stopping the main turn never kills background tasks; each stops via its own task id; launch re-checks permission; stopping kills the task's descendants, setsid included, before reporting stopped
 nativeToolDefinition.ts[DG4T]: F:Shared native tool factory that validates arguments against the compiled schema before execution | R:code:src/agentMode/sdk/nativeTools.ts | A:defineNativeTool, NATIVE_PERMISSION_OPTIONS | S:Every native permission prompt offers exactly allow once and deny; persistent grants are decided by the session layer
 nativeTools.ts[DG7M]: F:Defines native vault tools: reading, listing, searching, writing, and editing notes with permission gates and plan blocking | R:code:src/agentMode/sdk/nativeVaultPath.ts,code:src/agentMode/sdk/nativeToolDefinition.ts | A:createNativeTools | S:Writes hold per-path locks and re-check plan mode before disk; final writes use no-follow exclusive opens bound to the re-resolved target; edits pass the shared permission decision
-nativeVaultPath.ts[DB4T]: F:Resolves vault-contained paths with dangling-symlink rejection and per-path write locks, and writes files bound to the verified target | R:code:src/agentMode/sdk/nativeTools.ts | A:withNativeWriteLock, resolveNativeVaultPath, writeNativeVaultTarget | S:Paths re-resolve against the real root; dangling symlinks are refused; writes open O_NOFOLLOW and creation adds O_EXCL
+nativeVaultPath.ts[DP7S]: F:Resolves vault paths, serializes in-process writes and opens target files for creation or update | R:code:src/agentMode/sdk/nativeTools.ts | A:withNativeWriteLock,resolveNativeVaultPath,writeNativeVaultTarget | S:Parent replacement and hard links can bypass containment; an update truncates before writing and write failure can damage existing content
 

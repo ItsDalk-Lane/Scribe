@@ -107,6 +107,10 @@ export class TurnTracker {
     return this.sendController !== null || this.openTurnId !== null;
   }
 
+  restoreLastTurnFailure(failed: boolean): void {
+    this.lastTurnFailed = failed;
+  }
+
   hasLastTurnFailed(): boolean {
     return this.lastTurnFailed;
   }
@@ -444,7 +448,7 @@ export class TurnTracker {
       !this.showedActivityElsewhere &&
       !store.hasAssistantActivity(placeholderId)
     ) {
-      const message = buildEmptyTurnMessage(backendId, stopReason);
+      const message = buildEmptyTurnMessage();
       logWarn(
         `[AgentMode] ${backendId} completed a turn without assistant text or tool activity (stopReason=${stopReason})`
       );

@@ -1,11 +1,13 @@
 export const agentTranslations: Record<string, string> = {
+  "No enabled chat model has usable credentials on this device. Check Models and providers.":
+    "此设备上没有凭据可用的已启用聊天模型，请检查“模型与供应商”。",
+  "Cannot read API key on this device": "无法读取此设备上的 API 密钥",
   "Always allow this action in this chat": "在此聊天中始终允许此操作",
   "Always deny this action in this chat": "在此聊天中始终拒绝此操作",
   "Only this file or exact command, in this folder, chat, and requester.":
     "仅限当前文件或完全相同的命令，且只对当前目录、聊天和发起者有效。",
   "Agent configuration": "代理配置",
   "Runs inside Scribe": "由 Scribe 内置运行",
-  "Model settings": "模型设置",
   "Connection not completed in this check": "本次检查尚未连通",
   "Check extensions": "检查扩展",
   "Checking extensions…": "正在检查扩展…",
@@ -18,8 +20,8 @@ export const agentTranslations: Record<string, string> = {
     "已加载或已连接，不代表每次执行都会成功。",
   Loaded: "已加载",
   "Loaded; manual invocation only": "已加载，仅手动调用",
-  "Claude reported plugin errors; details for each plugin were not provided.":
-    "Claude 报告了插件错误，但未提供每个插件的具体原因。",
+  "The agent reported plugin errors; details for each plugin were not provided.":
+    "代理报告了插件错误，但未提供每个插件的具体原因。",
   "Loaded with component errors": "已加载，部分组件异常",
   Registered: "已注册",
   "Not loaded in this check": "本次检查未加载",
@@ -48,13 +50,13 @@ export const agentTranslations: Record<string, string> = {
     "聊天详情保存失败，最近的任务记录可能在重启后丢失。",
   "Failed to load saved chat details. The saved record has been preserved.":
     "无法读取已保存的聊天详情，原记录已保留。",
-  Context: "上下文",
+  Context: "参考内容",
   "Show extended thinking": "显示深度思考",
   "Show the model's reasoning as it works. Uses more tokens.":
-    "显示模型工作时的思考过程，会消耗更多 token。",
+    "显示模型工作时的思考过程，会消耗更多词元。",
   "Scribe supports": "Scribe 支持",
   "Auto-detect": "自动检测",
-  Clear: "清除",
+  Clear: "清空",
   Apply: "应用",
   "Searched:": "已搜索：",
   "Environment variables": "环境变量",
@@ -85,7 +87,7 @@ export const agentTranslations: Record<string, string> = {
   "This project no longer exists. Restore it to open its chats.":
     "此项目已不存在。恢复项目后才能打开其中的聊天。",
   "This chat belongs to a project that no longer exists.": "此聊天所属的项目已不存在。",
-  "Failed to send message. Please try again.": "消息发送失败，请重试。",
+  "Failed to send message. Please try again.": "发送消息失败，请重试。",
   "Built-in skills": "内置技能",
   "No built-in skills match your search.": "没有找到匹配的内置技能。",
   Disabled: "已停用",
@@ -169,11 +171,11 @@ export const agentTranslations: Record<string, string> = {
   "Remove from bookmarks": "从书签中移除",
   "Report an issue": "反馈问题",
   "Could not read the attached images. Please attach them again.": "无法读取附加图片，请重新添加。",
-  "Ask anything • @ to add context • / for commands": "随时提问 • @ 添加上下文 • / 使用命令",
+  "Ask anything • @ to add context • / for commands": "随时提问 • @ 添加参考内容 • / 使用指令",
   "Pending agent actions": "待处理的代理操作",
   Usage: "用量",
   "Context window": "上下文窗口",
-  "Default effort": "默认思考强度",
+  "Default effort": "默认推理强度",
   "Default model": "默认模型",
   "Used for new chats on this agent. Open chats switch on their next turn.":
     "用于此代理的新聊天，已打开的聊天会在下一轮切换。",
@@ -182,7 +184,7 @@ export const agentTranslations: Record<string, string> = {
   "Chat saved as note.": "聊天已保存为笔记。",
   "Nothing to save yet.": "暂无可保存的内容。",
   "Failed to save chat as note. Check the Scribe log for details.":
-    "聊天保存失败，请查看 Scribe 日志了解详情。",
+    "将聊天保存为笔记失败，请查看 Scribe 日志。",
   "Failed to start a new chat. Please try again.": "新建聊天失败，请重试。",
   "Failed to leave project. Please try again.": "退出项目失败，请重试。",
   "Failed to open project. Please try again.": "打开项目失败，请重试。",
@@ -202,8 +204,8 @@ export const agentTranslations: Record<string, string> = {
   "Close chat": "关闭聊天",
   Plan: "计划",
   "Try a project": "试试项目",
-  "Group notes, URLs, PDFs, and folders into a focused context. The agent answers only within those materials, and each project keeps its own chat history.":
-    "将笔记、网址、PDF 和文件夹汇集为专注的上下文。代理只基于这些材料回答，每个项目拥有独立的聊天历史。",
+  "Save references to notes, URLs, PDFs, and folders in a project. Each project keeps its own chat history.":
+    "在项目中保存笔记、网址、PDF 和文件夹的参考信息，并为每个项目保留独立的聊天记录。",
   "New project": "新建项目",
   "Question from agent": "代理提问",
   Other: "其他",
@@ -220,12 +222,11 @@ export const agentTranslations: Record<string, string> = {
   "Context compacted": "上下文已压缩",
   "You said: “": "您说：“",
   "Report ID": "报告编号",
-  "Open the GitHub issue": "打开 GitHub 问题",
   "Don&apos;t offer again": "不再提示",
   "Review & report": "查看并反馈",
   "Files changed (": "已更改文件（",
   "Open source note": "打开来源笔记",
-  Responding: "正在回复",
+  Responding: "正在回答",
   "Search chats...": "搜索聊天…",
   "No matching chats": "没有匹配的聊天",
   "No chats in this project yet": "此项目暂无聊天",
@@ -264,14 +265,18 @@ export const agentTranslations: Record<string, string> = {
   "Describe what you were doing and what happened…": "请描述您当时的操作和遇到的情况…",
   "Attachments — bundled into one zip": "附件将打包为一个压缩文件",
   "Before you upload": "上传前请检查",
-  "Scribe redacts common sensitive data from diagnostic text on your device before upload. Review it before sending; screenshots are not automatically redacted. Reports are private and deleted after 60 days.":
-    "上传前，Scribe 会在您的设备上遮盖诊断文字中常见的敏感信息。发送前请自行检查；截图不会自动遮盖。报告为私密内容，将在 60 天后删除。",
+  "Scribe redacts common sensitive data from diagnostic text on your device before upload. Review it before sending; screenshots are not automatically redacted.":
+    "上传前，Scribe 会在本机遮盖诊断文字中常见的敏感信息。发送前请检查；截图不会自动遮盖。",
+  "The draft may include your description, app details and attachment names; GitHub receives it when the issue page opens. Review the draft before submitting.":
+    "草稿可能包含您的描述、应用信息和附件名称；打开问题页面时，GitHub 会收到这些内容。提交前请检查草稿。",
+  "Uploads go to Brevilabs. Upstream documentation says reports are private and deleted after 60 days; Scribe cannot verify privacy, retention or maintainer access.":
+    "上传会发送至 Brevilabs。上游文档称报告会保密并在 60 天后删除；Scribe 无法核实报告是否私密、保存期限或维护者能否访问。",
   "Prepare report": "准备报告",
   "Report contents": "报告内容",
   "Preparing report…": "正在准备报告…",
   "Could not upload the report": "无法上传报告",
-  "The zip is still on your machine; retrying sends the same report and stores it at most once. Or use":
-    "压缩文件仍保存在本机。重试会发送同一份报告，最多保存一次。也可以选择",
+  "The zip is still on your machine; retrying sends the same report, and the earlier attempt may already have arrived. Or use":
+    "压缩文件仍保存在本机。重试会再次发送同一份报告，之前的尝试可能已经送达。也可以选择",
   "Open issue anyway": "直接打开问题页面",
   "— that issue carries no report ID, so you would have to attach the zip to it yourself.":
     "；该问题不会带有报告编号，需要您自行附上压缩文件。",
@@ -279,9 +284,10 @@ export const agentTranslations: Record<string, string> = {
   "Show zip": "显示压缩文件",
   "Retry upload": "重试上传",
   "Upload & open issue": "上传并打开问题页面",
-  "Reporting an issue is available on desktop only.": "反馈问题仅支持桌面端。",
+  "Reporting an issue is available on desktop only.": "问题反馈仅支持桌面端。",
   "Report uploaded. Finish the issue in your browser.": "报告已上传，请在浏览器中完成反馈。",
-  "Report sent to the Scribe team": "报告已发送给 Scribe 团队",
+  "Report uploaded": "报告已上传",
+  "Review and submit the issue on GitHub.": "请在 GitHub 检查并提交问题。",
   "Report this to the Scribe team?": "要向 Scribe 团队反馈此问题吗？",
   "Screenshot of the Obsidian window": "Obsidian 窗口截图",
   "Agent activity log": "代理活动日志",
@@ -327,12 +333,12 @@ export const agentTranslations: Record<string, string> = {
   "This agent doesn't support switching models mid-chat.": "此代理不支持在聊天中途切换模型。",
   "Bookmarked.": "已添加到书签。",
   "Removed from bookmarks.": "已从书签移除。",
-  "Project not found — could not add to context": "项目不存在，无法添加到上下文",
+  "Project not found — could not add to context": "项目不存在，无法添加到参考内容",
   "Only vault files or folders can be added to project context":
-    "项目上下文只能添加库内的文件或文件夹",
-  "Added to project context": "已添加到项目上下文",
-  "Already in project context": "已在项目上下文中",
-  "Could not add to project context": "无法添加到项目上下文",
+    "项目参考内容只能添加库内的文件或文件夹",
+  "Added to project context": "已添加到项目参考内容",
+  "Already in project context": "已在项目参考内容中",
+  "Could not add to project context": "无法添加到项目参考内容",
   "Recent chats": "最近聊天",
   "Checking agent sign-in…": "正在检查代理登录状态…",
   "Loading agent models…": "正在加载代理模型…",
@@ -343,6 +349,7 @@ export const agentTranslations: Record<string, string> = {
   "Delete chat": "删除聊天",
   "Plan proposal": "计划建议",
   "Give feedback to redirect the plan…": "提供反馈以调整计划…",
+  Pending: "待处理",
   "Plan proposed": "已提出计划",
   "Feedback sent": "反馈已发送",
   "Add API key": "添加 API 密钥",
@@ -480,8 +487,8 @@ export const agentTranslations: Record<string, string> = {
   "Can't reveal \"{p0}\" — its folder isn't visible in the file explorer.":
     "无法显示“{p0}”，其文件夹在文件列表中不可见。",
   'Failed to delete project "{p0}".': "无法删除项目“{p0}”。",
-  'Delete project "{p0}"? This removes its configuration; your notes stay in the vault.':
-    "要删除项目“{p0}”吗？这只会移除项目配置，您的笔记会保留在库中。",
+  'Delete project "{p0}"? This removes the project configuration; project instructions and other notes stay in the vault. If you create another project with the same name, its existing instructions may be changed when it opens. Save a copy of any instructions you want to keep before recreating the project.':
+    "要删除项目“{p0}”吗？这会移除项目配置，项目说明和其他笔记会保留在库中。如果之后新建同名项目，打开时可能修改原有说明。重新创建前，请先保存需要保留的项目说明副本。",
   "Reveal {p0} in vault": "在库中显示 {p0}",
   "Edit project {p0}": "编辑项目 {p0}",
   "Delete project {p0}": "删除项目 {p0}",
@@ -591,7 +598,8 @@ export const agentTranslations: Record<string, string> = {
   edit: "编辑",
   delete: "删除",
   "Didn't {action}": "未{action}",
-  "~{count} tokens": "约 {count} token",
+  "~{count} tokens": "约 {count} 个词元",
+  "Model provider": "模型供应商",
   "+{added} / −{removed} lines": "+{added} / −{removed} 行",
   "{action} vault root": "{action}库根目录",
   "read {count}": "读取了 {count}",
@@ -641,4 +649,7 @@ export const agentTranslations: Record<string, string> = {
   "Allow once": "允许一次",
   "Allow always": "始终允许",
   "Deny once": "拒绝一次",
+  "Error:": "错误：",
+  "No response or action was returned. Try again, or switch models if this happens repeatedly.":
+    "没有收到回复或操作结果。请重试；如果问题反复出现，请切换模型。",
 };

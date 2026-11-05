@@ -102,6 +102,8 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
   const descriptors = backendDisplayOrder();
   const [selectedAgent, setSelectedAgent] = React.useState(descriptors[0].id);
   const descriptor = descriptors.find((item) => item.id === selectedAgent) ?? descriptors[0];
+  // 旧视图可能误认同名项目，读取当前身份且不重写可能含未知数据的旧缓存。https://github.com/ItsDalk-Lane/Scribe/issues/6
+  const usePersistentCache = descriptor.id !== "native" || kind !== "skill";
   const [query, setQuery] = React.useState("");
   const [operation, setOperation] = React.useState<{
     context: string;
@@ -161,17 +163,21 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
   const context = JSON.stringify([descriptor.id, scanScopes, kind]);
   const cacheIdentity = React.useMemo(
     () =>
-      extensionCheckCacheIdentity({
-        backendId: descriptor.id,
-        scopeKind: scope.kind,
-        cwd: scope.kind === "user" ? null : cwd,
-        vaultBase,
-      }),
-    [descriptor.id, scope.kind, cwd, vaultBase]
+      // 项目清单改变后，旧页面可能把其他项目的状态显示给当前用户。https://github.com/ItsDalk-Lane/Scribe/issues/6
+      JSON.stringify([
+        extensionCheckCacheIdentity({
+          backendId: descriptor.id,
+          scopeKind: scope.kind,
+          cwd: scope.kind === "user" ? null : cwd,
+          vaultBase,
+        }),
+        scanScopes,
+      ]),
+    [descriptor.id, scope.kind, cwd, vaultBase, scanScopes]
   );
   const [state, setState] = React.useState<InventoryState>(
     () =>
-      savedInventoryState(plugin.app, cacheIdentity, context) ?? {
+      (usePersistentCache ? savedInventoryState(plugin.app, cacheIdentity, context) : null) ?? {
         context,
         groups: null,
         loading: true,
@@ -195,7 +201,9 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
       controller.current?.abort();
       const abort = new AbortController();
       controller.current = abort;
-      const savedView = readCachedExtensionView(plugin.app, cacheIdentity);
+      const savedView = usePersistentCache
+        ? readCachedExtensionView(plugin.app, cacheIdentity)
+        : null;
       setState((current) => {
         if (current.context === context)
           return { ...current, loading: current.groups === null, error: false };
@@ -243,8 +251,11 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           },
           inventory
         );
-        const cached = enabled && !force ? readCachedExtensionCheck(plugin.app, key) : null;
-        const mergeOptions = { appendRuntimeEntries: true };
+        const cached =
+          usePersistentCache && enabled && !force
+            ? readCachedExtensionCheck(plugin.app, key)
+            : null;
+        const mergeOptions = { appendRuntimeEntries: true, runtimeScope: scope };
         let runtime: AgentExtensionRuntimeSnapshot | null = cached;
         let failed = false;
         if (!cached && enabled && descriptor.checkExtensions) {
@@ -252,17 +263,18 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
             current.context === context ? { ...current, loading: true } : current
           );
           const applyUpdate = (snapshot: AgentExtensionRuntimeSnapshot) => {
-            storeCachedExtensionCheck(plugin.app, key, snapshot);
+            if (usePersistentCache) storeCachedExtensionCheck(plugin.app, key, snapshot);
             const mergedSnapshot = mergeExtensionRuntime(
               inventoryWithWarnings,
               snapshot,
               mergeOptions
             );
             const runtimeState = snapshot.checkErrors?.length ? "partial" : "checked";
-            storeCachedExtensionView(plugin.app, cacheIdentity, {
-              groups: mergedSnapshot,
-              runtimeState,
-            });
+            if (usePersistentCache)
+              storeCachedExtensionView(plugin.app, cacheIdentity, {
+                groups: mergedSnapshot,
+                runtimeState,
+              });
             if (id !== requestId.current || abort.signal.aborted) return;
             setState((current) =>
               current.context === context
@@ -278,7 +290,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
               signal: abort.signal,
               onUpdate: applyUpdate,
             });
-            if (runtime) storeCachedExtensionCheck(plugin.app, key, runtime);
+            if (runtime && usePersistentCache) storeCachedExtensionCheck(plugin.app, key, runtime);
           } catch {
             failed = true;
             runtime = null;
@@ -294,7 +306,8 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
               : "not_started";
         if (id === requestId.current && !abort.signal.aborted) {
           setState({ context, groups: merged, loading: false, runtimeState });
-          storeCachedExtensionView(plugin.app, cacheIdentity, { groups: merged, runtimeState });
+          if (usePersistentCache)
+            storeCachedExtensionView(plugin.app, cacheIdentity, { groups: merged, runtimeState });
         }
       } catch (error) {
         if (id === requestId.current && !abort.signal.aborted) {
@@ -315,6 +328,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
       plugin,
       context,
       cacheIdentity,
+      usePersistentCache,
     ]
   );
   const loadRef = React.useRef(load);
@@ -423,7 +437,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
   const currentState: InventoryState =
     state.context === context
       ? state
-      : (savedInventoryState(plugin.app, cacheIdentity, context) ?? {
+      : ((usePersistentCache ? savedInventoryState(plugin.app, cacheIdentity, context) : null) ?? {
           context,
           groups: null,
           loading: true,

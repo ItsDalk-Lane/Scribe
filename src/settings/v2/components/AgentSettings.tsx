@@ -110,7 +110,9 @@ function BackendPanel({ descriptor }: BackendPanelProps) {
         aria-disabled={!enabled}
         className={enabled ? "tw-space-y-5" : "tw-space-y-5 tw-opacity-50"}
       >
-        {installState.kind === "ready" && <ConfiguredModelEnableList descriptor={descriptor} />}
+        {(installState.kind === "ready" || descriptor.usesConfiguredModels) && (
+          <ConfiguredModelEnableList descriptor={descriptor} />
+        )}
         {Panel && (
           <SettingSection>
             <Panel plugin={plugin} app={plugin.app} />

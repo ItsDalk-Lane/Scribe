@@ -14,7 +14,7 @@ interface ProviderToken {
 const CLIENT_ID = "obsidian-scribe/4";
 const PROVIDER_TOKEN_TIMEOUT_MS = 15_000;
 
-function copilotHost(url: URL): boolean {
+function isGitHubInferenceHost(url: URL): boolean {
   return (
     url.protocol === "https:" &&
     (url.hostname === "githubcopilot.com" || url.hostname.endsWith(".githubcopilot.com")) &&
@@ -29,12 +29,12 @@ async function requestProviderToken(
   apiKey: string,
   signal?: AbortSignal
 ): Promise<ProviderToken> {
-  const copilot = model.providerCatalogId === "github-copilot";
+  const isGitHubProvider = model.providerCatalogId === "github-copilot";
   const response = await safeFetchNoThrow(
-    copilot
+    isGitHubProvider
       ? "https://api.github.com/copilot_internal/v2/token"
       : "https://iam.cloud.ibm.com/identity/token",
-    copilot
+    isGitHubProvider
       ? {
           method: "GET",
           signal,
@@ -75,12 +75,12 @@ async function requestProviderToken(
     throw new Error(t("Invalid provider authentication response."));
   }
   if (!isRecord(data)) throw new Error(t("Invalid provider authentication response."));
-  const value = copilot ? data.token : data.access_token;
-  const epoch = copilot ? data.expires_at : data.expiration;
+  const value = isGitHubProvider ? data.token : data.access_token;
+  const epoch = isGitHubProvider ? data.expires_at : data.expiration;
   const expiresAt =
     typeof epoch === "number"
       ? epoch * 1000
-      : !copilot && typeof data.expires_in === "number"
+      : !isGitHubProvider && typeof data.expires_in === "number"
         ? Date.now() + data.expires_in * 1000
         : 0;
   if (
@@ -92,7 +92,7 @@ async function requestProviderToken(
     throw new Error(t("Invalid provider authentication response."));
   }
   let apiEndpoint: URL | undefined;
-  const endpoint = copilot && isRecord(data.endpoints) ? data.endpoints.api : undefined;
+  const endpoint = isGitHubProvider && isRecord(data.endpoints) ? data.endpoints.api : undefined;
   if (endpoint !== undefined) {
     if (typeof endpoint !== "string") throw new Error(t("Invalid Copilot API endpoint."));
     try {
@@ -101,7 +101,7 @@ async function requestProviderToken(
       throw new Error(t("Invalid Copilot API endpoint."));
     }
     if (
-      !copilotHost(apiEndpoint) ||
+      !isGitHubInferenceHost(apiEndpoint) ||
       apiEndpoint.pathname !== "/" ||
       apiEndpoint.search ||
       apiEndpoint.hash
@@ -306,7 +306,7 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     }
     if (catalogId === "github-copilot") {
       const credential = await managedToken();
-      if (credential.apiEndpoint && copilotHost(url)) {
+      if (credential.apiEndpoint && isGitHubInferenceHost(url)) {
         url.host = credential.apiEndpoint.host;
       }
       headers.delete("x-api-key");

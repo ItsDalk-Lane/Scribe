@@ -77,7 +77,7 @@ describe("QuickToolsModelSettings", () => {
         expect(screen.queryByText("快捷工具模型")).toBeNull();
         expect(screen.getByPlaceholderText("搜索快捷工具模型…")).not.toBeNull();
         expect(screen.queryByText(/Quick tools/)).toBeNull();
-        if (empty) expect(screen.getByText(/页面添加服务商，即可在快捷工具中使用/)).not.toBeNull();
+        if (empty) expect(screen.getByText(/中添加聊天模型后用于快捷工具/)).not.toBeNull();
       }
     );
   });

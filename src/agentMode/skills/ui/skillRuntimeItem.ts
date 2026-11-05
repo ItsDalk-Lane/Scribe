@@ -28,7 +28,14 @@ export function skillRuntimeItem(
   );
   const observed =
     named?.find((item) => sameSkillPath(item.location ?? item.target?.path, skill.filePath)) ??
-    (named?.length === 1 && !named[0].location && !named[0].target?.path ? named[0] : undefined);
+    // 同名的根范围报告不能确认项目中的另一个文件。https://github.com/ItsDalk-Lane/Scribe/issues/6
+    (skill.location.kind === "canonical" &&
+    skill.enabledAgents.includes(agent) &&
+    named?.length === 1 &&
+    !named[0].location &&
+    !named[0].target?.path
+      ? named[0]
+      : undefined);
   const configured = skill.enabledAgents.includes(agent);
   const enable = decideToggleAction(skill, agent, true);
   const disable = decideToggleAction(skill, agent, false);
@@ -55,8 +62,11 @@ export function skillRuntimeItem(
     canDisable: canDisable && observed?.canDisable !== false,
     unavailableReason:
       observed?.unavailableReason ??
-      (enable.kind === "migrate-confirm" || disable.kind === "migrate-confirm"
-        ? t("Move this skill to the shared folder before changing its availability.")
-        : undefined),
+      // 身份未确认时先说明状态未知，迁移限制不能代替运行状态。https://github.com/ItsDalk-Lane/Scribe/issues/6
+      (configured && skill.location.kind !== "canonical" && !observed?.availability
+        ? t("Availability could not be confirmed. Check again.")
+        : enable.kind === "migrate-confirm" || disable.kind === "migrate-confirm"
+          ? t("Move this skill to the shared folder before changing its availability.")
+          : undefined),
   };
 }

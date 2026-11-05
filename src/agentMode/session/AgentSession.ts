@@ -362,6 +362,10 @@ export class AgentSession {
 
   completeResume(state: BackendState | null): void {
     this.historyReplay.end();
+    const lastMessage = this.store.getDisplayMessages().at(-1);
+    this.turns.restoreLastTurnFailure(
+      lastMessage?.sender !== USER_SENDER && lastMessage?.isErrorMessage === true
+    );
     this.currentState = state;
     const settle = () => {
       this.startupSettled = true;
@@ -639,6 +643,11 @@ export class AgentSession {
 
   loadDisplayMessages(messages: AgentChatMessage[]): void {
     this.store.loadMessages(messages);
+    const lastMessage = messages.at(-1);
+    this.turns.restoreLastTurnFailure(
+      lastMessage?.sender !== USER_SENDER && lastMessage?.isErrorMessage === true
+    );
+    this.recomputeStatusIfChanged();
     this.notifyMessages();
   }
 
@@ -1108,6 +1117,7 @@ export class AgentSession {
   }
 
   offerFeedback(draft: FeedbackDraft): FeedbackOfferResult {
+    if (getSettings().agentMode.offerFeedbackCards === false) return "turned_off";
     if (this.feedbackOffer) return "already_offered";
     this.feedbackOffer = this.openFeedbackOffer("agent", draft);
     this.notifyMessages();

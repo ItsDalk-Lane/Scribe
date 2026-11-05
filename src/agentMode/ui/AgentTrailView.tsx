@@ -79,7 +79,7 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
   forkDisabled,
 }) => {
   const answer = agentResponseText(parts);
-  const notice = errorText && answer.length === 0 ? errorText : stopReasonNotice(turnStopReason);
+  const notice = errorText || stopReasonNotice(turnStopReason);
   const hasRunningDuration = isStreaming && turnStartedAtMs !== undefined;
   const trailNodes = buildAgentTrail(parts);
   const compactionOnly =

@@ -89,7 +89,7 @@ Remaining behavioral gaps include the complete Settings navigation/save/reopen j
 - `src/components/ui/tooltip.tsx`
 - `src/components/ui/truncated-text.tsx`
 - `src/modelManagement/ui/ModelManagementContext.tsx`
-- `src/modelManagement/ui/components/ByokGlobalTable.tsx`
+- `src/modelManagement/ui/components/ProviderModelTable.tsx`
 - `src/modelManagement/ui/dialogs/AddProviderDialog.tsx`
 - `src/modelManagement/ui/dialogs/ConfigureProviderDialog.tsx`
-- `src/modelManagement/ui/tabs/ByokPanel.tsx`
+- `src/modelManagement/ui/tabs/ModelsAndProvidersPanel.tsx`

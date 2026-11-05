@@ -33,6 +33,7 @@ jest.mock("@/logger", () => ({
 
 import { FileSystemAdapter, Notice, type App } from "obsidian";
 import { getSettings } from "@/settings/model";
+import { setInterfaceLocale } from "@/lib/i18n";
 import type { ScribeSettings } from "@/settings/model";
 import type { CustomModel } from "@/aiParams";
 import type { Provider } from "@/modelManagement";
@@ -125,6 +126,7 @@ function makeApp(options?: {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  setInterfaceLocale("en");
   KeychainService.resetInstance();
 });
 
@@ -604,7 +606,7 @@ describe("keychainService", () => {
       });
     });
 
-    describe("forgetAllSecrets", () => {
+    describe("forgetAllSecrets()", () => {
       it("clears vault secrets, strips settings, and notifies the user", async () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
@@ -670,6 +672,33 @@ describe("keychainService", () => {
         );
       });
 
+      it.each([
+        [
+          "en",
+          "Failed to remove API keys from data.json. Obsidian Keychain was NOT cleared. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.",
+        ],
+        [
+          "zh-CN",
+          "无法从 data.json 中移除 API 密钥。Obsidian 钥匙串尚未清空。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
+        ],
+      ] as const)(
+        "advises safe action in %s when saving before key removal fails",
+        async (locale, expected) => {
+          setInterfaceLocale(locale);
+          const secretStorage = makeSecretStorage();
+          const service = KeychainService.getInstance(makeApp({ secretStorage }));
+          (getSettings as jest.Mock).mockReturnValue(makeSettings({ openAIApiKey: "fixture-key" }));
+          await service.forgetAllSecrets(
+            async () => {
+              throw new Error("disk full");
+            },
+            () => {}
+          );
+          expect(secretStorage.deleteSecret).not.toHaveBeenCalled();
+          expect(Notice).toHaveBeenCalledWith(expected);
+        }
+      );
+
       it("propagates keychain delete failures after successful disk save so the user can retry", async () => {
         const secretStorage = makeSecretStorage();
         const service = KeychainService.getInstance(makeApp({ secretStorage }));
@@ -696,6 +725,37 @@ describe("keychainService", () => {
         expect(secretStorage.deleteSecret).toHaveBeenCalledWith(idA);
         expect(syncMemory).toHaveBeenCalled();
       });
+
+      it.each([
+        [
+          "en",
+          "Some Obsidian Keychain entries could not be removed. Recognized API key fields were cleared from data.json and memory. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.",
+        ],
+        [
+          "zh-CN",
+          "部分 Obsidian 钥匙串条目无法移除。data.json 和内存中已清除可识别的 API 密钥字段。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看可用日志。",
+        ],
+      ] as const)(
+        "advises safe action in %s when deleting a keychain entry fails",
+        async (locale, expected) => {
+          setInterfaceLocale(locale);
+          const secretStorage = makeSecretStorage();
+          const service = KeychainService.getInstance(makeApp({ secretStorage }));
+          const id = `scribe-v${service.getVaultId()}-open-a-i-api-key`;
+          secretStorage.listSecrets.mockReturnValue([id]);
+          secretStorage.deleteSecret.mockImplementation(() => {
+            throw new Error("locked");
+          });
+          (getSettings as jest.Mock).mockReturnValue(makeSettings({ openAIApiKey: "fixture-key" }));
+          await expect(
+            service.forgetAllSecrets(
+              async () => {},
+              () => {}
+            )
+          ).rejects.toThrow(/Failed to clear 1 keychain/);
+          expect(Notice).toHaveBeenCalledWith(expected);
+        }
+      );
 
       it("refuses to run when Obsidian Keychain is unavailable", async () => {
         const service = KeychainService.getInstance(makeApp({ secretStorage: null }));

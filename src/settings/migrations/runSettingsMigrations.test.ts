@@ -85,7 +85,7 @@ describe("settingsMigrations", () => {
   });
 
   describe("runSettingsMigrations", () => {
-    it("clears obsolete builtin opt-outs while preserving the native model and permission configuration", async () => {
+    it("preserves builtin opt-outs and the native model and permission configuration", async () => {
       const settings = seedVault({
         settingsVersion: 17,
         agentMode: {
@@ -115,7 +115,10 @@ describe("settingsMigrations", () => {
         defaultMode: "plan",
         maxSteps: 75,
       });
-      expect(getSettings().agentMode.skills.builtinPreferences).toEqual({});
+      expect(getSettings().agentMode.skills.builtinPreferences).toEqual({
+        "obsidian-markdown": { disabled: true },
+        "obsidian-bases": { disabledAgents: ["claude"] },
+      });
       expect(getSettings().configuredModels).toEqual(settings.configuredModels);
       expect(getSettings().backends).toEqual(settings.backends);
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
@@ -142,23 +145,12 @@ describe("settingsMigrations", () => {
       expect(getSettings().settingsVersion).toBeUndefined();
     });
 
-    it("sweeps retired keychain entries even when the settings version is already current (https://github.com/ItsDalk-Lane/Scribe/issues/25)", async () => {
+    it("keeps existing keychain entries when the settings version is already current", async () => {
       seedVault({ settingsVersion: CURRENT_SETTINGS_VERSION });
       const { api } = makeApi();
-      const deleteSecret = jest.fn((key: string) => undefined);
-      getInstance.mockReturnValueOnce({
-        isAvailable: () => true,
-        deleteSecret,
-      });
-
       await runSettingsMigrations(api);
 
-      expect(deleteSecret.mock.calls.map((call) => call[0])).toEqual([
-        "amazonBedrockApiKey",
-        "azureOpenAIApiKey",
-        "githubCopilotAccessToken",
-        "githubCopilotToken",
-      ]);
+      expect(getInstance).not.toHaveBeenCalled();
       expect(getSettings().settingsVersion).toBe(CURRENT_SETTINGS_VERSION);
     });
 
