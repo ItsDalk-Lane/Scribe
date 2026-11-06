@@ -29,7 +29,7 @@ export interface AgentBrand {
 
 export type SessionId = string;
 
-export type ScribeMode = "default" | "plan" | "auto";
+export type ScribeMode = "default" | "plan" | "auto" | "full";
 
 export interface ModeMapping {
   kind: "setMode" | "configOption";

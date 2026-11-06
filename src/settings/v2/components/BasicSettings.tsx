@@ -11,6 +11,7 @@ import { useAgentsFileDraft } from "@/instructions/useAgentsFileDraft";
 import { logError } from "@/logger";
 import { debounce } from "@/utils/debounce";
 import { updateSetting, useSettingsValue } from "@/settings/model";
+import { clearDeviceUnlock } from "@/services/deviceUnlockStore";
 import { VaultInstructionsSetting } from "@/settings/v2/components/VaultInstructionsSetting";
 import { Notice } from "obsidian";
 import React, { useEffect, useMemo, useRef } from "react";
@@ -107,6 +108,19 @@ export const BasicSettings: React.FC = () => {
           )}
           checked={settings.autoAttachActiveNote}
           onCheckedChange={(checked) => updateSetting("autoAttachActiveNote", checked)}
+        />
+
+        <SettingItem
+          type="switch"
+          title={t("Remember the master password on this device")}
+          description={t(
+            "Keep the saved keys unlocked across plugin reloads by storing the master password with this device's system keychain. Turn this off to require the password after every reload. Desktop only."
+          )}
+          checked={settings.secretsRememberOnDevice}
+          onCheckedChange={(checked) => {
+            updateSetting("secretsRememberOnDevice", checked);
+            if (!checked) void clearDeviceUnlock(app);
+          }}
         />
 
         <AgentStepLimitSetting

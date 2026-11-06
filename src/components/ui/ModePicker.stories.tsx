@@ -13,6 +13,7 @@ const meta = {
         { label: "Default", value: "default" },
         { label: "Plan", value: "plan" },
         { label: "Auto", value: "auto" },
+        { label: "Full", value: "full" },
       ],
       value: "auto",
       onChange: () => undefined,
@@ -25,4 +26,7 @@ export default meta;
 export const Auto: StoryObj<ModePickerProps> = {};
 export const Plan: StoryObj<ModePickerProps> = {
   args: { override: { ...meta.args.override, value: "plan" } },
+};
+export const Full: StoryObj<ModePickerProps> = {
+  args: { override: { ...meta.args.override, value: "full" } },
 };

@@ -14,7 +14,6 @@ const args: CommandConfigurationRowProps = {
     content: "Read the selected notes and list questions that need clarification.",
     enabled: true,
     showInContextMenu: true,
-    showInSlashMenu: true,
     modelKey: "",
     order: 0,
     lastUsedMs: 0,
@@ -41,7 +40,7 @@ export const Disabled: StoryObj<CommandConfigurationRowProps> = {
   args: { command: { ...args.command, enabled: false } },
 };
 export const MenuPreferencesOff: StoryObj<CommandConfigurationRowProps> = {
-  args: { command: { ...args.command, showInContextMenu: false, showInSlashMenu: false } },
+  args: { command: { ...args.command, showInContextMenu: false } },
 };
 export const LongContent: StoryObj<CommandConfigurationRowProps> = {
   args: {

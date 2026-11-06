@@ -143,6 +143,22 @@ describe("NativeSessionStorage", () => {
         expect((await storage.load(SESSION_ID))?.effort).toBe(effort);
       });
 
+      it("round-trips a full-mode chat and the mode held before entering plan (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+        const saved = record();
+        saved.mode = "full";
+        saved.modeBeforePlan = "full";
+        await storage.save(saved);
+        const restored = await new NodeNativeSessionStorage(journal).load(SESSION_ID);
+        expect(restored).toMatchObject({ mode: "full", modeBeforePlan: "full" });
+
+        saved.mode = "default";
+        await storage.save(saved);
+        expect(await storage.load(SESSION_ID)).toMatchObject({
+          mode: "default",
+          modeBeforePlan: "full",
+        });
+      });
+
       it("refuses to create over a journal whose only complete record is malformed", async () => {
         await writeFile(join(directory, `${SESSION_ID}.jsonl`), "original broken bytes\n");
         const broken = new NodeNativeSessionStorage(new NodeJournalStorage(directory));

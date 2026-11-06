@@ -31,11 +31,7 @@
     ".mimosa",
     ".context"
   ],
-  "exclude_files": [
-    "*.backup.*",
-    "*.bak",
-    ".coverage"
-  ],
+  "exclude_files": ["*.backup.*", "*.bak", ".coverage"],
   "exclude_exts": [],
   "curation_exclude": [],
   "hook_strict": false,
@@ -43,7 +39,7 @@
   "line_ending_tolerance": true,
   "cognition_refresh_threshold": 30,
   "overview_delivery": {
-    "chunk_tokens": 4000
+    "chunk_tokens": 12000
   },
   "managed_scope": {
     "version": "managed-scope-policy/v2",

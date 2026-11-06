@@ -107,6 +107,13 @@ export const componentTranslations: Record<string, string> = {
   "Drafts a plan and waits for your approval before editing.": "先拟定计划，等待你批准后再编辑。",
   Default: "默认",
   "Allows edits under the agent's approval rules.": "按代理的批准规则允许编辑。",
+  Full: "完全",
+  "Runs every tool action without asking, including commands and files outside the vault.":
+    "所有工具操作均免确认执行，包括系统命令与库外文件。",
+  "Switch to Full mode": "切换到完全模式",
+  "Switch to Full": "切换到完全",
+  "In Full mode the agent runs every action without asking, including:\n- system commands\n- writes outside the vault\n- changes to the Obsidian config folder\nUse it only when you trust the task.":
+    "在完全模式下，代理执行任何操作前都不再询问，包括：\n- 运行系统命令\n- 写入库外文件\n- 修改 Obsidian 配置目录\n请仅在你完全信任当前任务时使用。",
   Mode: "模式",
   "Model failed to load": "模型加载失败",
   "Select model": "选择模型",

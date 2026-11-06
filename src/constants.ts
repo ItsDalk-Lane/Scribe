@@ -259,6 +259,7 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
   scribeFolder: DEFAULT_SCRIBE_FOLDER,
   scribeRootHistory: [],
   autoAttachActiveNote: true,
+  secretsRememberOnDevice: true,
   defaultOpenArea: DEFAULT_OPEN_AREA.VIEW,
   defaultSendShortcut: SEND_SHORTCUT.ENTER,
   qaExclusions: DEFAULT_QA_EXCLUSIONS_SETTING,

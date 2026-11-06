@@ -40,6 +40,7 @@ export interface ScribeSettings {
   scribeFolder: string;
   scribeRootHistory: string[];
   autoAttachActiveNote: boolean;
+  secretsRememberOnDevice: boolean;
   debug: boolean;
   enableInlineCitations: boolean;
   qaExclusions: string;
@@ -252,6 +253,10 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
     sanitizedSettings.autoAttachActiveNote = DEFAULT_SETTINGS.autoAttachActiveNote;
   }
 
+  if (typeof sanitizedSettings.secretsRememberOnDevice !== "boolean") {
+    sanitizedSettings.secretsRememberOnDevice = DEFAULT_SETTINGS.secretsRememberOnDevice;
+  }
+
   if (typeof sanitizedSettings.quickCommandIncludeNoteContext !== "boolean") {
     sanitizedSettings.quickCommandIncludeNoteContext =
       DEFAULT_SETTINGS.quickCommandIncludeNoteContext;
@@ -410,7 +415,7 @@ function sanitizeDefaultModel(raw: unknown): ModelSelection | undefined {
   return { baseModelId, effort };
 }
 
-const SCRIBE_MODES: readonly ScribeMode[] = ["default", "plan", "auto"];
+const SCRIBE_MODES: readonly ScribeMode[] = ["default", "plan", "auto", "full"];
 function sanitizeDefaultMode(raw: unknown): ScribeMode | undefined {
   return typeof raw === "string" && (SCRIBE_MODES as readonly string[]).includes(raw)
     ? (raw as ScribeMode)

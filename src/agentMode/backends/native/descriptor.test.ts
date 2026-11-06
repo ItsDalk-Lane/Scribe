@@ -321,10 +321,10 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("getModeMapping()", () => {
-    it("maps every existing permission mode to the matching native mode", () => {
+    it("maps every existing permission mode to the matching native mode (full: https://github.com/ItsDalk-Lane/Scribe/issues/38)", () => {
       expect(NativeBackendDescriptor.getModeMapping?.(null, null)).toEqual({
         kind: "setMode",
-        canonical: { default: "default", plan: "plan", auto: "auto" },
+        canonical: { default: "default", plan: "plan", auto: "auto", full: "full" },
       });
     });
   });

@@ -2,6 +2,7 @@ import type { App } from "obsidian";
 import { ensureFolderExists } from "@/utils";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/utils/base64";
 import { sha256 } from "@/utils/hash";
+import { logWarn } from "@/logger";
 import { assertScribePath, writeVaultFile } from "@/utils/vaultFileStore";
 
 const DIRECTORY = ".scribe/secrets";
@@ -58,10 +59,17 @@ export interface SecretUnlockRequest {
   reset(): Promise<void>;
 }
 
+export interface DeviceUnlockAccess {
+  restore(): Promise<string | null>;
+  remember(password: string): Promise<boolean>;
+  forget(): Promise<void>;
+}
+
 export interface SecretStoreOptions {
   requestUnlock?: (request: SecretUnlockRequest) => Promise<void>;
   onReset?: () => Promise<void>;
   crypto?: Crypto;
+  deviceUnlock?: DeviceUnlockAccess;
 }
 
 export class SecretStore {
@@ -164,6 +172,30 @@ export class SecretStore {
       const controller = new AbortController();
       this.unlockController = controller;
       this.pendingUnlock = (async () => {
+        const device = this.options.deviceUnlock;
+        if (device) {
+          let restored: string | null = null;
+          try {
+            restored = await device.restore();
+          } catch {
+            restored = null;
+          }
+          if (restored !== null) {
+            try {
+              await this.unlock(restored, generation, true);
+              return;
+            } catch (error) {
+              // 恢复的设备解锁包只有通过既有校验才被接受；失效即删除并回到人工输入。
+              // https://github.com/ItsDalk-Lane/Scribe/issues/37
+              if (generation !== this.generation) throw error;
+              try {
+                await device.forget();
+              } catch (forgetError) {
+                logWarn("[SecretStore] Failed to drop a stale device unlock.", forgetError);
+              }
+            }
+          }
+        }
         const request: SecretUnlockRequest = {
           creating: !this.metadata && !this.metadataError,
           signal: controller.signal,
@@ -190,7 +222,38 @@ export class SecretStore {
     return this.pendingUnlock;
   }
 
-  private async unlock(password: string, generation: number): Promise<void> {
+  async tryDeviceUnlock(): Promise<boolean> {
+    const generation = this.generation;
+    await this.initialize();
+    if (generation !== this.generation) return false;
+    if (this.key) return true;
+    if (this.pendingUnlock) return false;
+    const device = this.options.deviceUnlock;
+    if (!device) return false;
+    let restored: string | null = null;
+    try {
+      restored = await device.restore();
+    } catch {
+      restored = null;
+    }
+    if (restored === null) return false;
+    try {
+      await this.unlock(restored, generation, true);
+      return true;
+    } catch {
+      // 静默恢复失败不弹窗：失效解锁包删除后保持锁定，等待真正需要密钥时再人工输入。
+      // https://github.com/ItsDalk-Lane/Scribe/issues/37
+      if (generation !== this.generation) return false;
+      try {
+        await device.forget();
+      } catch (forgetError) {
+        logWarn("[SecretStore] Failed to drop a stale device unlock.", forgetError);
+      }
+      return false;
+    }
+  }
+
+  private async unlock(password: string, generation: number, viaDevice = false): Promise<void> {
     if (this.metadataError)
       throw new Error("密钥存储已损坏，原文件未被修改。可从备份恢复，或重置后重新填写密钥。");
     if (!password.length) throw new Error("请输入主密码。");
@@ -245,6 +308,13 @@ export class SecretStore {
     }
     if (generation !== this.generation) throw cancelled();
     this.key = key;
+    if (this.options.deviceUnlock && !viaDevice) {
+      try {
+        await this.options.deviceUnlock.remember(password);
+      } catch (error) {
+        logWarn("[SecretStore] Failed to remember the master password on this device.", error);
+      }
+    }
   }
 
   private async encrypt(value: string, key: CryptoKey, id: string): Promise<Ciphertext> {
@@ -354,6 +424,13 @@ export class SecretStore {
     await this.initialize();
     await this.enqueue(async () => {
       await this.options.onReset?.();
+      if (this.options.deviceUnlock) {
+        try {
+          await this.options.deviceUnlock.forget();
+        } catch (error) {
+          logWarn("[SecretStore] Failed to drop the device unlock during reset.", error);
+        }
+      }
       this.dispose();
       if (await this.app.vault.adapter.exists(DIRECTORY)) {
         const listing = await this.app.vault.adapter.list(DIRECTORY);

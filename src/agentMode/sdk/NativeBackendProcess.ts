@@ -85,6 +85,9 @@ export interface NativeSessionRecord {
   modelId: string;
   effort: ThinkingLevel | null;
   mode: ScribeMode;
+  // 计划批准后恢复进入计划前的模式；完全模式下批准计划须回到完全模式而非 default。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/38
+  modeBeforePlan?: ScribeMode;
   messages: AgentMessage[];
   events: SessionEvent[];
   updatedAt: number;
@@ -233,7 +236,7 @@ const DENIED: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "cancelled" }),
 });
 const NO_ANSWERS: AgentQuestionAnswers = Object.freeze({});
-const AUTO_ALLOWED: PermissionDecision = Object.freeze({
+const ALLOWED_BY_MODE: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "selected", optionId: "allow_once" }),
 });
 
@@ -493,23 +496,27 @@ export class NativeBackendProcess implements BackendProcess {
               },
             ]
           : prompt.options;
+        // 完全模式有意覆盖已保存的拒绝规则：该模式的契约是放行一切请求，仅计划审批保留人工。
+        // https://github.com/ItsDalk-Lane/Scribe/issues/38
         const answer = prompt.signal?.aborted
           ? DENIED
-          : saved
-            ? {
-                outcome: {
-                  outcome: "selected" as const,
-                  optionId: saved.allowed ? "allow_once" : "reject_once",
-                },
-              }
-            : isAutoEligibleEdit(
-                  session.record.mode,
-                  this.options.getVaultConfigDir?.() ?? OBSIDIAN_DEFAULT_CONFIG_DIR,
-                  prompt.toolCall
-                )
-              ? AUTO_ALLOWED
-              : await (this.permission?.({ ...prompt, requester, options }) ??
-                  Promise.resolve(DENIED));
+          : session.record.mode === "full" && !prompt.toolCall.isPlanProposal
+            ? ALLOWED_BY_MODE
+            : saved
+              ? {
+                  outcome: {
+                    outcome: "selected" as const,
+                    optionId: saved.allowed ? "allow_once" : "reject_once",
+                  },
+                }
+              : isAutoEligibleEdit(
+                    session.record.mode,
+                    this.options.getVaultConfigDir?.() ?? OBSIDIAN_DEFAULT_CONFIG_DIR,
+                    prompt.toolCall
+                  )
+                ? ALLOWED_BY_MODE
+                : await (this.permission?.({ ...prompt, requester, options }) ??
+                    Promise.resolve(DENIED));
         const response = prompt.signal?.aborted ? DENIED : answer;
         (session.record.decisions ??= []).push({
           kind: "permission",
@@ -576,8 +583,9 @@ export class NativeBackendProcess implements BackendProcess {
         await this.persist(session, "task_admitted", task, true);
       },
       onPlanApproved: () => {
-        session.record.mode = "default";
-        emit({ sessionUpdate: "current_mode_update", currentModeId: "default" });
+        session.record.mode = session.record.modeBeforePlan ?? "default";
+        delete session.record.modeBeforePlan;
+        emit({ sessionUpdate: "current_mode_update", currentModeId: session.record.mode });
         emit({ sessionUpdate: "state_changed", state: this.state(session) });
       },
       subagents: this.options.getSubagents?.().filter((entry) => entry.enabled),
@@ -681,6 +689,7 @@ export class NativeBackendProcess implements BackendProcess {
             part.arguments.plan.trim().length > 0
         );
         if (proposesPlan && session.record.mode !== "plan") {
+          session.record.modeBeforePlan = session.record.mode;
           session.record.mode = "plan";
           emit({ sessionUpdate: "current_mode_update", currentModeId: "plan" });
           emit({ sessionUpdate: "state_changed", state: this.state(session) });
@@ -1602,9 +1611,20 @@ export class NativeBackendProcess implements BackendProcess {
 
   async setSessionMode(input: { sessionId: string; modeId: string }): Promise<BackendState> {
     const session = this.session(input.sessionId);
-    if (input.modeId !== "default" && input.modeId !== "plan" && input.modeId !== "auto")
+    if (
+      input.modeId !== "default" &&
+      input.modeId !== "plan" &&
+      input.modeId !== "auto" &&
+      input.modeId !== "full"
+    )
       throw new Error("Unknown permission mode.");
+    const previous = session.record.mode;
     session.record.mode = input.modeId;
+    if (input.modeId === "plan" && previous !== "plan") {
+      session.record.modeBeforePlan = previous;
+    } else if (input.modeId !== "plan") {
+      delete session.record.modeBeforePlan;
+    }
     this.emit(session, { sessionUpdate: "current_mode_update", currentModeId: input.modeId });
     return this.publishState(session);
   }
@@ -1822,11 +1842,13 @@ export class NativeBackendProcess implements BackendProcess {
           { value: "default", label: "Default" },
           { value: "plan", label: "Plan" },
           { value: "auto", label: "Auto" },
+          { value: "full", label: "Full" },
         ],
         apply: {
           default: { kind: "setMode", nativeId: "default" },
           plan: { kind: "setMode", nativeId: "plan" },
           auto: { kind: "setMode", nativeId: "auto" },
+          full: { kind: "setMode", nativeId: "full" },
         },
       },
     };

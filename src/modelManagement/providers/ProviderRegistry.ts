@@ -188,7 +188,11 @@ export class ProviderRegistry {
         checkedAt: Date.now(),
       };
     }
-    if (status === "locked" || status === "unavailable")
+    // 自动检查不打扰用户输主密码，但会先尝试设备解锁包的静默恢复，恢复成功即真实验证。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/37
+    const restored =
+      status === "locked" && (await SecretStore.getInstance(this.#app).tryDeviceUnlock());
+    if ((status === "locked" && !restored) || status === "unavailable")
       return {
         ok: false,
         code: "credentials_locked",

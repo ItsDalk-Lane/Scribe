@@ -1647,6 +1647,9 @@ export class AgentSessionManager {
   }
 
   async persistDefaultMode(backendId: BackendId, mode: ScribeMode | null): Promise<void> {
+    // 完全模式不落为任何后端的新聊天默认值：每次进入都必须重新知情确认。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/38
+    if (mode === "full") return;
     setSettings((cur) => {
       const existing = (cur.agentMode.backends as Record<string, unknown> | undefined)?.[
         backendId

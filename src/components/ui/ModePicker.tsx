@@ -38,6 +38,11 @@ const MODE_DISPLAY: Record<ScribeMode, { label: string; description: string }> =
     label: "Default",
     description: "Allows edits under the agent's approval rules.",
   },
+  full: {
+    label: "Full",
+    description:
+      "Runs every tool action without asking, including commands and files outside the vault.",
+  },
 };
 
 function getModeLabel(value: ScribeMode): string {
@@ -61,6 +66,7 @@ export function ModePicker({ override, className }: ModePickerProps) {
               "tw-text-blue/70 hover:tw-text-blue/100 focus-visible:tw-text-blue/100",
             value === "auto" &&
               "tw-text-red/70 hover:tw-text-red/100 focus-visible:tw-text-red/100",
+            value === "full" && "tw-text-error/80 hover:tw-text-error focus-visible:tw-text-error",
             className
           )}
           title={t("Mode")}

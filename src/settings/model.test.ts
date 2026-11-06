@@ -101,6 +101,17 @@ describe("model", () => {
       });
     });
 
+    it("keeps a hand-configured full default mode so loading never silently downgrades it (https://github.com/ItsDalk-Lane/Scribe/issues/38)", () => {
+      const result = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          backends: { native: { defaultMode: "full" } },
+        },
+      } as unknown as ScribeSettings);
+      expect(result.agentMode.backends.native?.defaultMode).toBe("full");
+    });
+
     it("drops invalid native model, permission mode, step limit and external runtime fields", () => {
       const result = sanitizeSettings({
         ...DEFAULT_SETTINGS,

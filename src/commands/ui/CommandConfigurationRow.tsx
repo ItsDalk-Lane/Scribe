@@ -49,11 +49,6 @@ export function CommandConfigurationRow({
                 {t("Right-click")}
               </Badge>
             )}
-            {command.showInSlashMenu && (
-              <Badge variant="secondary" className="tw-shrink-0">
-                {t("Slash menu")}
-              </Badge>
-            )}
           </div>
           {description && (
             <p className="tw-m-0 tw-truncate tw-text-ui-smaller tw-leading-relaxed tw-text-muted">

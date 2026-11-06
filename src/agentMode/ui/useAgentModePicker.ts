@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import type { App } from "obsidian";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { modeStateSignature } from "@/agentMode/session/translateBackendState";
 import type { ScribeMode } from "@/agentMode/session/types";
@@ -31,11 +32,12 @@ function useAgentModeSignal(manager: AgentSessionManager | null): string {
 }
 
 export function useAgentModePicker(
-  manager: AgentSessionManager | null
+  manager: AgentSessionManager | null,
+  app: App | null
 ): AgentModePickerOverride | null {
   const signal = useAgentModeSignal(manager);
   return useMemo(() => {
     void signal;
-    return buildAgentModePicker({ manager });
-  }, [manager, signal]);
+    return buildAgentModePicker({ manager, app });
+  }, [manager, app, signal]);
 }

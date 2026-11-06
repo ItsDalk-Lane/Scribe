@@ -25,7 +25,6 @@ describe("migrator", () => {
           title: "Summarize",
           content: "Existing",
           showInContextMenu: true,
-          showInSlashMenu: true,
           order: 1,
           modelKey: "",
           lastUsedMs: 0,

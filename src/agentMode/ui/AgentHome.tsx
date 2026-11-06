@@ -276,7 +276,7 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   const selectedModel = modelPickerOverride?.models.find(
     (model) => getModelKeyFromModel(model) === modelPickerOverride.value
   );
-  const modePickerOverride = useAgentModePicker(manager);
+  const modePickerOverride = useAgentModePicker(manager, app);
 
   const handleCycleMode = useCallback(() => {
     if (!modePickerOverride || modePickerOverride.disabled) return;

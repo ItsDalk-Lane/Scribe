@@ -354,6 +354,14 @@ describe("nativeTools", () => {
       expect(options.requestPermission).toHaveBeenCalledTimes(2);
     });
 
+    it("routes full-mode edits and commands through the shared permission decision so the backend decides the allow-all (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+      mode = "full";
+      await execute("write_note", { path: "full.md", content: "Approved by full mode" });
+      expect(options.requestPermission).toHaveBeenCalledTimes(1);
+      await execute("run_command", { command: `"${process.execPath}" -p "43"` });
+      expect(options.requestPermission).toHaveBeenCalledTimes(2);
+    });
+
     const posix = process.platform === "win32" ? it.skip : it;
     posix(
       "refuses to write through a dangling symbolic link and leaves the outside target uncreated (https://github.com/ItsDalk-Lane/Scribe/issues/11)",

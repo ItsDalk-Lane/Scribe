@@ -14,7 +14,6 @@ import {
   SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
   SCRIBE_COMMAND_LAST_USED,
   SCRIBE_COMMAND_MODEL_KEY,
-  SCRIBE_COMMAND_SLASH_ENABLED,
   EMPTY_COMMAND,
 } from "@/commands/constants";
 import {
@@ -31,7 +30,6 @@ const METADATA_FIELDS = {
   enabled: SCRIBE_COMMAND_ENABLED,
   enableTemplating: SCRIBE_COMMAND_ENABLE_TEMPLATING,
   showInContextMenu: SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
-  showInSlashMenu: SCRIBE_COMMAND_SLASH_ENABLED,
   order: SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
   modelKey: SCRIBE_COMMAND_MODEL_KEY,
   lastUsedMs: SCRIBE_COMMAND_LAST_USED,
@@ -41,7 +39,6 @@ const EDITABLE_FIELDS = [
   "enableTemplating",
   "content",
   "showInContextMenu",
-  "showInSlashMenu",
   "modelKey",
 ] as const;
 type CommandChanges = Partial<Omit<CustomCommand, "title">>;

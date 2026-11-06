@@ -238,10 +238,22 @@ describe("ProviderRegistry", () => {
         const id = await registry.add(providerInput());
         await registry.setApiKey(id, "secret");
         jest.spyOn(store, "getStatus").mockReturnValue("locked");
+        jest.spyOn(store, "tryDeviceUnlock").mockResolvedValue(false);
         const read = jest.spyOn(store, "withSecret");
         expect(await registry.verify(id)).toMatchObject({ ok: false, code: "credentials_locked" });
         expect(read).not.toHaveBeenCalled();
         expect(adapters.verifyCredentials).not.toHaveBeenCalled();
+      });
+      it("verifies with the saved key after a silent device-unlock restore succeeds (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        jest.spyOn(store, "getStatus").mockReturnValue("locked");
+        jest.spyOn(store, "tryDeviceUnlock").mockResolvedValue(true);
+        expect(await registry.verify(id)).toMatchObject({ ok: true, message: "Verified" });
+        expect(adapters.verifyCredentials).toHaveBeenCalledWith(
+          "anthropic",
+          expect.objectContaining({ apiKey: "secret" })
+        );
       });
       it("reports a missing required key and permits a deliberately keyless provider", async () => {
         const id = await registry.add(providerInput());

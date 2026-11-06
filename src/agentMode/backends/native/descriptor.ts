@@ -141,7 +141,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
   },
   getModeMapping: () => ({
     kind: "setMode",
-    canonical: { default: "default", plan: "plan", auto: "auto" },
+    canonical: { default: "default", plan: "plan", auto: "auto", full: "full" },
   }),
   createBackendProcess({ plugin, app }) {
     if (!isAgentBackendEnabled(getSettings(), "native")) throw new Error("This agent is disabled.");

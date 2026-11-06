@@ -3710,6 +3710,26 @@ describe("AgentSessionManager", () => {
         expect(manager.getDefaultMode("native")).toBe("auto");
       });
 
+      it("does not save full as the default mode for later chats (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+        const manager = buildManager({
+          descriptor: buildDescriptor({
+            id: "native",
+            displayName: "Scribe",
+            getModeMapping: () => ({
+              kind: "setMode",
+              canonical: { default: "default", plan: "plan", auto: "auto", full: "full" },
+            }),
+          }),
+        });
+        await manager.createSession("native");
+        setSettingsMock.mockClear();
+
+        await manager.applyMode("native", "full", { kind: "setMode", nativeId: "full" });
+
+        expect(setSettingsMock).not.toHaveBeenCalled();
+        expect(manager.getDefaultMode("native")).not.toBe("full");
+      });
+
       it("refreshes a state-independent native mapping before dispatch", async () => {
         const manager = buildModeManager(() => ({
           kind: "setMode",

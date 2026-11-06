@@ -9,8 +9,6 @@ export interface CustomCommand {
 
   showInContextMenu: boolean;
 
-  showInSlashMenu: boolean;
-
   order: number;
 
   modelKey: string;

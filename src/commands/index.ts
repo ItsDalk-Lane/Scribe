@@ -135,7 +135,6 @@ export function registerCommands(plugin: ScribePlugin) {
       title: t("Quick Command"),
       content: "",
       showInContextMenu: false,
-      showInSlashMenu: false,
       order: 0,
       modelKey: "",
       lastUsedMs: Date.now(),

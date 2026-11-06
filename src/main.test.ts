@@ -36,7 +36,10 @@ jest.mock("@/logFileManager", () => ({
 jest.mock("@/services/secretStore", () => ({
   SecretStore: {
     resetInstance: jest.fn(),
-    getInstance: jest.fn(() => ({ initialize: jest.fn(async () => {}) })),
+    getInstance: jest.fn(() => ({
+      initialize: jest.fn(async () => {}),
+      tryDeviceUnlock: jest.fn(async () => false),
+    })),
   },
 }));
 jest.mock("@/utils/vaultFileStore", () => ({ assertScribePath: jest.fn(async () => {}) }));

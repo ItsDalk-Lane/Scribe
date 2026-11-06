@@ -42,8 +42,14 @@ function fixture() {
   const app = { vault: { adapter }, secretStorage } as unknown as App;
   const prompt = jest.fn(async (request: SecretUnlockRequest) => request.submit(password));
   const reset = jest.fn(async () => {});
-  const createStore = (requestUnlock: (request: SecretUnlockRequest) => Promise<void> = prompt) =>
-    new SecretStore(app, { crypto: cryptoApi, requestUnlock, onReset: reset });
+  const createStore = (
+    requestUnlock: (request: SecretUnlockRequest) => Promise<void> = prompt,
+    deviceUnlock?: {
+      restore(): Promise<string | null>;
+      remember(password: string): Promise<boolean>;
+      forget(): Promise<void>;
+    }
+  ) => new SecretStore(app, { crypto: cryptoApi, requestUnlock, onReset: reset, deviceUnlock });
   return { files, adapter, secretStorage, app, prompt, reset, createStore };
 }
 
@@ -218,6 +224,95 @@ describe("secretStore", () => {
         await expect(cancelled.ensureUnlocked()).rejects.toMatchObject({ name: "AbortError" });
         expect(f.files.size).toBe(0);
       });
+
+      it("restores the unlocked state from the device-wrapped password without prompting (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const f = fixture();
+        await f.createStore().setSecret("provider-a", "synthetic-secret");
+        f.prompt.mockClear();
+        const send = jest.fn(async () => "sent");
+        const remembered: string[] = [];
+        const restored = f.createStore(undefined, {
+          restore: jest.fn(async () => password),
+          remember: jest.fn(async (value) => {
+            remembered.push(value);
+            return true;
+          }),
+          forget: jest.fn(),
+        });
+        await restored.withSecret("provider-a", send);
+        expect(f.prompt).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledWith("synthetic-secret");
+        expect(remembered).toEqual([]);
+      });
+
+      it("clears a stale device-wrapped password and recovers through the normal prompt (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const f = fixture();
+        await f.createStore().setSecret("provider-a", "synthetic-secret");
+        f.prompt.mockClear();
+        const remembered: string[] = [];
+        const forget = jest.fn(async () => {});
+        const stale = f.createStore(undefined, {
+          restore: jest.fn(async () => "wrong-password"),
+          remember: jest.fn(async (value) => {
+            remembered.push(value);
+            return true;
+          }),
+          forget,
+        });
+        await expect(stale.ensureUnlocked()).resolves.toBeUndefined();
+        expect(forget).toHaveBeenCalledTimes(1);
+        expect(f.prompt).toHaveBeenCalledTimes(1);
+        expect(remembered).toEqual([password]);
+        expect(stale.getStatus("provider-a")).toBe("available");
+      });
+    });
+
+    describe("tryDeviceUnlock()", () => {
+      it("silently restores the unlocked state without prompting or re-wrapping the stored blob (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const f = fixture();
+        await f.createStore().setSecret("provider-a", "synthetic-secret");
+        f.prompt.mockClear();
+        const remember = jest.fn(async () => true);
+        const store = f.createStore(undefined, {
+          restore: jest.fn(async () => password),
+          remember,
+          forget: jest.fn(),
+        });
+        await expect(store.tryDeviceUnlock()).resolves.toBe(true);
+        expect(f.prompt).not.toHaveBeenCalled();
+        expect(remember).not.toHaveBeenCalled();
+        expect(store.getStatus("provider-a")).toBe("available");
+      });
+
+      it("returns false and stays locked when no wrapped password is available (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const f = fixture();
+        await f.createStore().setSecret("provider-a", "synthetic-secret");
+        f.prompt.mockClear();
+        const store = f.createStore(undefined, {
+          restore: jest.fn(async () => null),
+          remember: jest.fn(async () => true),
+          forget: jest.fn(),
+        });
+        await expect(store.tryDeviceUnlock()).resolves.toBe(false);
+        expect(f.prompt).not.toHaveBeenCalled();
+        expect(store.getStatus("provider-a")).toBe("locked");
+      });
+
+      it("drops a stale wrapped password silently instead of prompting (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const f = fixture();
+        await f.createStore().setSecret("provider-a", "synthetic-secret");
+        f.prompt.mockClear();
+        const forget = jest.fn(async () => {});
+        const store = f.createStore(undefined, {
+          restore: jest.fn(async () => "wrong-password"),
+          remember: jest.fn(async () => true),
+          forget,
+        });
+        await expect(store.tryDeviceUnlock()).resolves.toBe(false);
+        expect(forget).toHaveBeenCalledTimes(1);
+        expect(f.prompt).not.toHaveBeenCalled();
+        expect(store.getStatus("provider-a")).toBe("locked");
+      });
     });
 
     describe("deleteSecret()", () => {
@@ -258,6 +353,19 @@ describe("secretStore", () => {
         expect(f.reset).toHaveBeenCalledTimes(1);
         expect(f.files).toEqual(new Map([["old-scribe/skills/keep.md", "old content"]]));
         expect(f.secretStorage.getSecret).not.toHaveBeenCalled();
+      });
+      it("deletes the device-wrapped password together with the stored secrets (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const f = fixture();
+        const deviceUnlock = {
+          restore: jest.fn(async () => null),
+          remember: jest.fn(async () => true),
+          forget: jest.fn(async () => {}),
+        };
+        const store = f.createStore(undefined, deviceUnlock);
+        await store.setSecret("provider-a", "synthetic-secret");
+        expect(deviceUnlock.remember).toHaveBeenCalledWith(password);
+        await store.reset();
+        expect(deviceUnlock.forget).toHaveBeenCalledTimes(1);
       });
     });
 

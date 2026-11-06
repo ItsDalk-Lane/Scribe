@@ -18,11 +18,12 @@ import type {
 } from "@/agentMode/session/types";
 import { sortEffortOptions } from "@/lib/model-effort";
 
-const CANONICAL_ORDER: ScribeMode[] = ["default", "plan", "auto"];
+const CANONICAL_ORDER: ScribeMode[] = ["default", "plan", "auto", "full"];
 const CANONICAL_LABELS: Record<ScribeMode, string> = {
   default: "Default",
   plan: "Plan",
   auto: "Auto",
+  full: "Full",
 };
 
 export interface BackendStateInputs {

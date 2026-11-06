@@ -32,6 +32,7 @@ import {
 } from "@/constants";
 import { logError, logFatalError, logInfo, logWarn } from "@/logger";
 import { SecretStore } from "@/services/secretStore";
+import { createDeviceUnlockAccess, loadDesktopSafeStorage } from "@/services/deviceUnlockStore";
 import { assertScribePath } from "@/utils/vaultFileStore";
 import { logFileManager } from "@/logFileManager";
 import { createModelManagement, type ModelManagementApi } from "@/modelManagement";
@@ -182,6 +183,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
       })();
     });
     await assertScribePath(this.app.vault, ".scribe/chats");
+    const deviceSafeStorage = loadDesktopSafeStorage();
     await SecretStore.getInstance(this.app, {
       onReset: async () => {
         const current = getSettings();
@@ -196,7 +198,11 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         suppressNextPersistOnce();
         setSettings(next);
       },
+      deviceUnlock: createDeviceUnlockAccess(this.app, deviceSafeStorage),
     }).initialize();
+    // 启动即静默恢复设备解锁包，让重载后的首次检查与请求准备都不再等待人工解锁。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/37
+    void SecretStore.getInstance().tryDeviceUnlock();
     const agentMode = isDesktopRuntime() ? await import("@/agentMode") : null;
     if (!this.pluginLifecycleActive) return;
 

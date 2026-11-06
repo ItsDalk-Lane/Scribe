@@ -219,8 +219,6 @@ export const settingsTranslations: Record<string, string> = {
     "确定要删除指令“{title}”吗？这会永久删除指令文件，且无法撤销。",
   "Right-click": "右键菜单",
   "Shows the command when you right-click in the editor.": "在编辑器的右键菜单中显示此指令。",
-  "Slash menu": "斜杠菜单",
-  "Shows the command in the chat's / menu.": "在聊天的 / 菜单中显示此指令。",
   "Edit command": "编辑指令",
   "Duplicate command": "创建指令副本",
   'Command "{title}" deleted successfully!': "已删除指令“{title}”！",
@@ -279,6 +277,9 @@ export const settingsTranslations: Record<string, string> = {
   "Auto-attach active note": "自动附加当前笔记",
   "Attach the note open in the editor to each new chat. With this off, add it from Add context or with @ when you need it.":
     "每次新建聊天时附加编辑器中打开的笔记。关闭后，可在需要时通过“添加参考内容”或 @ 手动添加。",
+  "Remember the master password on this device": "在这台设备上记住主密码",
+  "Keep the saved keys unlocked across plugin reloads by storing the master password with this device's system keychain. Turn this off to require the password after every reload. Desktop only.":
+    "把主密码托付给本机系统钥匙串保管，插件重载后自动恢复解锁，无需重新输入。关闭后每次重载都需重新输入主密码。仅桌面端生效。",
   "Scribe folder location": "Scribe 文件夹位置",
   "Where Scribe keeps chats, commands, skills, and projects. Its other folders live inside this one.":
     "Scribe 保存聊天、指令、技能和项目的位置。其他数据文件夹均位于此文件夹内。",

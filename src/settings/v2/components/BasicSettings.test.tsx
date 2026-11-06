@@ -27,6 +27,11 @@ jest.mock("@/instructions/agentsFile", () => ({
   writeAgentsFile: (...a: unknown[]): Promise<void> => writeAgentsFile(...a),
 }));
 
+const mockClearDeviceUnlock = jest.fn<Promise<void>, unknown[]>().mockResolvedValue(undefined);
+jest.mock("@/services/deviceUnlockStore", () => ({
+  clearDeviceUnlock: (...a: unknown[]): Promise<void> => mockClearDeviceUnlock(...a),
+}));
+
 describe("BasicSettings", () => {
   describe("BasicSettings", () => {
     beforeEach(() => {
@@ -52,6 +57,17 @@ describe("BasicSettings", () => {
       fireEvent.click(within(row).getByRole("switch"));
 
       expect(settingsStore.get(settingsAtom).autoAttachActiveNote).toBe(false);
+    });
+
+    it("turns off device master-password remembering and drops the stored unlock (https://github.com/ItsDalk-Lane/Scribe/issues/37)", () => {
+      render(<BasicSettings />);
+
+      const row = screen.getByText("Remember the master password on this device").parentElement!
+        .parentElement!;
+      fireEvent.click(within(row).getByRole("switch"));
+
+      expect(settingsStore.get(settingsAtom).secretsRememberOnDevice).toBe(false);
+      expect(mockClearDeviceUnlock).toHaveBeenCalledTimes(1);
     });
 
     it("keeps the draft open after a failed save and retries it before opening the file", async () => {

@@ -7,7 +7,6 @@ const command: CommandEditorFormProps["command"] = {
   enabled: true,
   modelKey: "review-model",
   showInContextMenu: true,
-  showInSlashMenu: true,
   order: 0,
   lastUsedMs: 0,
 };

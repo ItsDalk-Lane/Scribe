@@ -18,6 +18,11 @@ import {
   ProviderModelTable,
   type ProviderModelGroup,
 } from "@/modelManagement/ui/components/ProviderModelTable";
+import {
+  providerVerificationFingerprint,
+  readProviderVerificationCache,
+  rememberProviderVerification,
+} from "@/modelManagement/providers/providerVerificationCache";
 import { AddProviderModal } from "@/modelManagement/ui/dialogs/AddProviderDialog";
 import { ConfigureProviderModal } from "@/modelManagement/ui/dialogs/ConfigureProviderDialog";
 import { settingsStore } from "@/settings/model";
@@ -39,6 +44,8 @@ const EMPTY_MODELS: readonly ConfiguredModel[] = Object.freeze([]);
 export const ModelsAndProvidersPanel: React.FC = () => {
   const api = useModelManagement();
   const app = useApp();
+  const appRef = React.useRef(app);
+  appRef.current = app;
 
   const providers = useAtomValue(visibleByokProvidersAtom, { store: settingsStore });
   const configuredModels = useAtomValue(configuredModelsAtom, { store: settingsStore });
@@ -49,7 +56,11 @@ export const ModelsAndProvidersPanel: React.FC = () => {
   const [verification, setVerification] =
     useState<Readonly<Record<string, VerificationResult>>>(EMPTY_VERIFICATION);
   const [verificationProviders, setVerificationProviders] = useState(EMPTY_PROVIDERS);
-  const pendingChecks = verificationProviders.length - Object.keys(verification).length;
+  // 只统计真正在等待结果的供应商：缓存播种的结果不在待查列表里，差值法会得到负数并让进度徽章常驻。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/39
+  const pendingChecks = verificationProviders.filter(
+    (provider) => !(provider.providerId in verification)
+  ).length;
   const refreshVerification = (): void => {
     setVerification(EMPTY_VERIFICATION);
     setVerificationProviders([...api.providerRegistry.listByOrigin("byok")]);
@@ -71,12 +82,35 @@ export const ModelsAndProvidersPanel: React.FC = () => {
         .then((result) => {
           if (cancelled) return;
           setVerification((results) => ({ ...results, [provider.providerId]: result }));
+          void rememberProviderVerification(appRef.current, provider.providerId, provider, result);
         });
     }
     return () => {
       cancelled = true;
     };
   }, [api, verificationProviders]);
+
+  useEffect(() => {
+    // 打开页面先显示上次检查结果，配置指纹变化后缓存自动失效，不发起网络检查。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/39
+    let cancelled = false;
+    void readProviderVerificationCache(appRef.current).then((entries) => {
+      if (cancelled) return;
+      const seeded: Record<string, VerificationResult> = {};
+      for (const provider of providers) {
+        const cached = entries[provider.providerId];
+        if (cached && cached.fingerprint === providerVerificationFingerprint(provider)) {
+          seeded[provider.providerId] = cached.result;
+        }
+      }
+      if (Object.keys(seeded).length > 0) {
+        setVerification((current) => ({ ...seeded, ...current }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [providers]);
 
   useEffect(() => {
     let cancelled = false;

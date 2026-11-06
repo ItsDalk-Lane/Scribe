@@ -1315,6 +1315,15 @@ describe("NativeBackendProcess integration", () => {
     });
 
     describe("setSessionMode", () => {
+      function lastUserText(context: TranscriptContext): string {
+        const last = context.messages.filter((message) => message.role === "user").at(-1);
+        return last && last.role === "user"
+          ? typeof last.content === "string"
+            ? last.content
+            : last.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")
+          : "";
+      }
+
       it("allows a manual switch from plan to auto before any plan is approved", async () => {
         const f = fixture((context) =>
           results(context).length === 0
@@ -1339,6 +1348,160 @@ describe("NativeBackendProcess integration", () => {
           "Written after mode switch"
         );
         expect(permission).not.toHaveBeenCalled();
+      });
+
+      it("exposes full mode in the picker state and allows every action without asking, including commands and config-dir writes (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+        const f = fixture((context) =>
+          results(context).length === 0
+            ? response("", [
+                {
+                  id: "full-note-write",
+                  name: "write_note",
+                  arguments: { path: "full-note.md", content: "Full wrote inside" },
+                },
+                {
+                  id: "full-config-write",
+                  name: "write_note",
+                  arguments: {
+                    path: `${OBSIDIAN_DEFAULT_CONFIG_DIR}/full-test.md`,
+                    content: "Full wrote config",
+                  },
+                },
+                {
+                  id: "full-command",
+                  name: "run_command",
+                  arguments: { command: `"${process.execPath}" -p "full-ok"` },
+                },
+              ])
+            : response("Done")
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "reject_once" },
+        }));
+        f.process.setPermissionPrompter(permission);
+        const id = await f.open();
+        const state = await f.process.setSessionMode({ sessionId: id, modeId: "full" });
+        expect(state.mode?.current).toBe("full");
+        expect(state.mode?.options.map((option) => option.value)).toContain("full");
+        await f.send(id);
+        expect(await readFile(join(root, "full-note.md"), "utf8")).toBe("Full wrote inside");
+        expect(
+          await readFile(join(root, OBSIDIAN_DEFAULT_CONFIG_DIR, "full-test.md"), "utf8")
+        ).toBe("Full wrote config");
+        const last = f.contexts.at(-1);
+        const commandResult = JSON.stringify(last?.messages.filter((m) => m.role === "toolResult"));
+        expect(commandResult).toContain("full-ok");
+        expect(permission).not.toHaveBeenCalled();
+      });
+
+      it("overrides a saved always-deny rule in full mode and restores the rule after leaving full (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+        const turns: Record<string, { id: string; name: string; arguments: JsonObject }> = {
+          "deny in default": {
+            id: "saved-rule-write",
+            name: "write_note",
+            arguments: { path: "saved-rule.md", content: "FULL-WROTE" },
+          },
+          "retry in full": {
+            id: "saved-rule-write",
+            name: "write_note",
+            arguments: { path: "saved-rule.md", content: "FULL-WROTE" },
+          },
+          "back to default": {
+            id: "saved-rule-write",
+            name: "write_note",
+            arguments: { path: "saved-rule.md", content: "FULL-WROTE" },
+          },
+        };
+        const turnIndex: Record<string, number> = {
+          "deny in default": 0,
+          "retry in full": 1,
+          "back to default": 2,
+        };
+        const f = fixture((context) => {
+          const text = lastUserText(context);
+          return results(context).length === turnIndex[text]
+            ? response("", [turns[text]])
+            : response("Done");
+        });
+        const send = (sessionId: string, promptId: string, text: string) =>
+          f.process.prompt({ sessionId, promptId, prompt: [{ type: "text", text }] });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "reject_always" },
+        }));
+        f.process.setPermissionPrompter(permission);
+        const id = await f.open();
+        await send(id, "deny-turn", "deny in default");
+        await expect(access(join(root, "saved-rule.md"))).rejects.toMatchObject({ code: "ENOENT" });
+
+        await f.process.setSessionMode({ sessionId: id, modeId: "full" });
+        await send(id, "full-turn", "retry in full");
+        expect(await readFile(join(root, "saved-rule.md"), "utf8")).toBe("FULL-WROTE");
+
+        await f.process.setSessionMode({ sessionId: id, modeId: "default" });
+        await writeFile(join(root, "saved-rule.md"), "FULL-WROTE");
+        await send(id, "default-turn", "back to default");
+        expect(await readFile(join(root, "saved-rule.md"), "utf8")).toBe("FULL-WROTE");
+        expect(permission).toHaveBeenCalledTimes(1);
+      });
+
+      it("keeps plan approval human in full mode and returns to full after approval (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+        const count = (context: TranscriptContext) => results(context).length;
+        const f = fixture((context) =>
+          count(context) === 0
+            ? response("", [
+                { id: "full-plan", name: "propose_plan", arguments: { plan: "Step one only" } },
+              ])
+            : count(context) === 1
+              ? response("", [
+                  {
+                    id: "post-plan-write",
+                    name: "write_note",
+                    arguments: { path: "after-plan.md", content: "Approved into full" },
+                  },
+                ])
+              : response("Done")
+        );
+        const permission = jest.fn(async (prompt: PermissionPrompt) =>
+          prompt.toolCall.isPlanProposal
+            ? { outcome: { outcome: "selected" as const, optionId: "allow_once" } }
+            : { outcome: { outcome: "selected" as const, optionId: "reject_once" } }
+        );
+        f.process.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.process.setSessionMode({ sessionId: id, modeId: "full" });
+        await f.send(id);
+        expect(await readFile(join(root, "after-plan.md"), "utf8")).toBe("Approved into full");
+        const modes = f.events
+          .filter((event) => event.update.sessionUpdate === "current_mode_update")
+          .map((event) =>
+            event.update.sessionUpdate === "current_mode_update" ? event.update.currentModeId : null
+          );
+        expect(modes).toEqual(["full", "plan", "full"]);
+        expect(permission).toHaveBeenCalledTimes(1);
+      });
+
+      it("returns to the mode held before entering plan when a plan is approved (https://github.com/ItsDalk-Lane/Scribe/issues/38)", async () => {
+        const f = fixture((context) =>
+          results(context).length === 0
+            ? response("", [
+                { id: "auto-plan", name: "propose_plan", arguments: { plan: "Step one only" } },
+              ])
+            : response("Done")
+        );
+        f.process.setPermissionPrompter(async (prompt: PermissionPrompt) =>
+          prompt.toolCall.isPlanProposal
+            ? { outcome: { outcome: "selected" as const, optionId: "allow_once" } }
+            : { outcome: { outcome: "selected" as const, optionId: "allow_once" } }
+        );
+        const id = await f.open();
+        await f.process.setSessionMode({ sessionId: id, modeId: "auto" });
+        await f.send(id);
+        const modes = f.events
+          .filter((event) => event.update.sessionUpdate === "current_mode_update")
+          .map((event) =>
+            event.update.sessionUpdate === "current_mode_update" ? event.update.currentModeId : null
+          );
+        expect(modes).toEqual(["auto", "plan", "auto"]);
       });
     });
 

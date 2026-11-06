@@ -93,6 +93,19 @@ function completeProviderSave(): void {
   jest.mocked(ConfigureProviderModal).mock.calls.at(-1)![1].onSaved!();
 }
 
+const mockReadVerificationCache = jest.fn<Promise<Record<string, unknown>>, unknown[]>();
+const mockRememberVerification = jest.fn<Promise<void>, unknown[]>().mockResolvedValue(undefined);
+const mockVerificationFingerprint = jest.fn(
+  (provider: { providerId: string; apiKeyRef?: string | null }) =>
+    `fp:${provider.providerId}:${provider.apiKeyRef ?? "none"}`
+);
+jest.mock("@/modelManagement/providers/providerVerificationCache", () => ({
+  readProviderVerificationCache: (...args: unknown[]) => mockReadVerificationCache(...args),
+  rememberProviderVerification: (...args: unknown[]) => mockRememberVerification(...args),
+  providerVerificationFingerprint: (provider: { providerId: string; apiKeyRef?: string | null }) =>
+    mockVerificationFingerprint(provider),
+}));
+
 beforeAll(() => {
   (window as unknown as { activeDocument: Document }).activeDocument = window.document;
 });
@@ -103,6 +116,8 @@ describe("ModelsAndProvidersPanel", () => {
     mockListByOrigin.mockReturnValue([{ providerId: "p1" }, { providerId: "p2" }]);
     mockVerify.mockReset().mockResolvedValue({ ok: true, checkedAt: 0 });
     mockEnsureLoaded.mockResolvedValue(undefined);
+    mockReadVerificationCache.mockReset().mockResolvedValue({});
+    mockRememberVerification.mockClear();
   });
   describe("ModelsAndProvidersPanel", () => {
     it.each([
@@ -135,6 +150,36 @@ describe("ModelsAndProvidersPanel", () => {
       render(<ModelsAndProvidersPanel />);
       await waitFor(() => expect(mockEnsureLoaded).toHaveBeenCalledTimes(2));
       expect(mockVerify).not.toHaveBeenCalled();
+    });
+
+    it("shows the cached verification result on open when the provider config is unchanged (https://github.com/ItsDalk-Lane/Scribe/issues/39)", async () => {
+      mockReadVerificationCache.mockResolvedValue({
+        p1: { fingerprint: "fp:p1:none", result: { ok: true, checkedAt: 41 } },
+      });
+      render(<ModelsAndProvidersPanel />);
+      expect(await screen.findByText("Endpoint accessible")).toBeTruthy();
+      expect(screen.getAllByText("Not verified")).toHaveLength(1);
+      expect(mockVerify).not.toHaveBeenCalled();
+    });
+
+    it("keeps the unverified badge when the cached fingerprint no longer matches (https://github.com/ItsDalk-Lane/Scribe/issues/39)", async () => {
+      mockReadVerificationCache.mockResolvedValue({
+        p1: { fingerprint: "fp-from-old-config", result: { ok: true, checkedAt: 41 } },
+      });
+      render(<ModelsAndProvidersPanel />);
+      await screen.findByText("Anthropic");
+      expect(screen.getAllByText("Not verified")).toHaveLength(2);
+      expect(mockVerify).not.toHaveBeenCalled();
+    });
+
+    it("keeps the verifying banner hidden when only cached results are seeded (https://github.com/ItsDalk-Lane/Scribe/issues/39)", async () => {
+      mockReadVerificationCache.mockResolvedValue({
+        p1: { fingerprint: "fp:p1:none", result: { ok: true, checkedAt: 41 } },
+      });
+      render(<ModelsAndProvidersPanel />);
+      expect(await screen.findByText("Endpoint accessible")).toBeTruthy();
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText("Verifying providers…")).toBeNull();
     });
 
     it("renders configured providers and their models after the catalog loads", async () => {

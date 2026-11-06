@@ -6,7 +6,6 @@ import {
   SCRIBE_COMMAND_CONTEXT_MENU_ORDER,
   SCRIBE_COMMAND_LAST_USED,
   SCRIBE_COMMAND_MODEL_KEY,
-  SCRIBE_COMMAND_SLASH_ENABLED,
   EMPTY_COMMAND,
   LEGACY_SELECTED_TEXT_PLACEHOLDER,
 } from "@/commands/constants";
@@ -105,7 +104,6 @@ export async function parseCustomCommandFile(
     enabled: value(SCRIBE_COMMAND_ENABLED, true),
     enableTemplating: value(SCRIBE_COMMAND_ENABLE_TEMPLATING, true),
     showInContextMenu: value(SCRIBE_COMMAND_CONTEXT_MENU_ENABLED, EMPTY_COMMAND.showInContextMenu),
-    showInSlashMenu: value(SCRIBE_COMMAND_SLASH_ENABLED, EMPTY_COMMAND.showInSlashMenu),
     lastUsedMs: value(SCRIBE_COMMAND_LAST_USED, EMPTY_COMMAND.lastUsedMs),
     order: value(SCRIBE_COMMAND_CONTEXT_MENU_ORDER, EMPTY_COMMAND.order),
     modelKey: value(SCRIBE_COMMAND_MODEL_KEY, EMPTY_COMMAND.modelKey),

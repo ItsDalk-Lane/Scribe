@@ -37,6 +37,7 @@ function configuration(record: NativeSessionRecord): Record<string, unknown> {
     modelId: record.modelId,
     effort: record.effort,
     mode: record.mode,
+    modeBeforePlan: record.modeBeforePlan,
     permissions: record.permissions,
   };
 }
@@ -52,7 +53,9 @@ function validHeader(value: unknown, sessionId: string): value is NativeSessionR
     typeof value.modelId === "string" &&
     value.modelId.length > 0 &&
     (value.effort === null || typeof value.effort === "string") &&
-    ["default", "plan", "auto"].includes(value.mode as string) &&
+    ["default", "plan", "auto", "full"].includes(value.mode as string) &&
+    (value.modeBeforePlan === undefined ||
+      ["default", "plan", "auto", "full"].includes(value.modeBeforePlan as string)) &&
     (value.purpose === undefined || value.purpose === "skill-authoring")
   );
 }
