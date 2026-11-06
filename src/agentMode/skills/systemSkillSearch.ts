@@ -2,7 +2,9 @@ import type { Skill, SkillImportCandidate } from "@/agentMode/skills/types";
 import {
   normalizeSkillImportName,
   prepareSkillImportDescription,
+  repairSkillImportPreparation,
   SKILL_IMPORT_MAX_BYTES,
+  type PreparedSkillDescription,
 } from "@/agentMode/skills/skillImport";
 import { t } from "@/lib/i18n";
 import { requireNodeModule } from "@/utils/desktopRuntime";
@@ -198,10 +200,18 @@ export async function searchSystemSkills(
             const descriptionPath = path.join(real, descriptions[0].name);
             if ((await fs.promises.stat(descriptionPath)).size > SKILL_IMPORT_MAX_BYTES)
               throw new Error(t("A skill can contain at most 2000 files and 50 MB."));
-            const prepared = prepareSkillImportDescription(
-              await fs.promises.readFile(descriptionPath, "utf8"),
-              name
-            );
+            const content = await fs.promises.readFile(descriptionPath, "utf8");
+            // 扫描期同样走「严格 → 受限修复」链路，可修复候选带差异进入确认流程。
+            // https://github.com/ItsDalk-Lane/Scribe/issues/44
+            let prepared: PreparedSkillDescription;
+            try {
+              prepared = prepareSkillImportDescription(content, name);
+            } catch (error) {
+              const fixed = repairSkillImportPreparation(content, name);
+              if (!fixed) throw error;
+              prepared = fixed.prepared;
+              candidate.repair = fixed.repair;
+            }
             name = prepared.name;
             candidate.name = name;
             candidate.description = prepared.description;

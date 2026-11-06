@@ -18,10 +18,18 @@ export interface SkillPackageFile {
   data: Uint8Array;
 }
 
+// 导入暂存区自动修复的逐行差异；安装的始终是确认后的修复副本。
+// https://github.com/ItsDalk-Lane/Scribe/issues/44
+export interface SkillImportRepairChange {
+  before: string;
+  after: string;
+}
+
 export interface SkillPackage {
   name: string;
   files: SkillPackageFile[];
   source: SkillSource;
+  repair?: SkillImportRepairChange[];
 }
 
 export interface SkillImportCandidate {
@@ -33,6 +41,7 @@ export interface SkillImportCandidate {
   status: "available" | "installed" | "conflict";
   error?: string;
   renamedFrom?: string;
+  repair?: SkillImportRepairChange[];
 }
 
 export interface Skill {

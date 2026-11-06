@@ -5,7 +5,7 @@ interface SkillPickerElectron {
   webUtils?: { getPathForFile: (file: File) => string };
 }
 
-function selectedImportPath(kind: "folder" | "zip", file: File): string {
+function selectedImportPath(kind: "folder" | "zip" | "md", file: File): string {
   const electron = requireNodeModule<SkillPickerElectron>("electron");
   const path = requireNodeModule<typeof import("node:path")>("path");
   const absolute = electron.webUtils?.getPathForFile
@@ -14,7 +14,7 @@ function selectedImportPath(kind: "folder" | "zip", file: File): string {
   if (!absolute || !path.isAbsolute(absolute)) {
     throw new Error(t("The selected file has no accessible local path. Try choosing it again."));
   }
-  if (kind === "zip") return absolute;
+  if (kind !== "folder") return absolute;
   const relative = file.webkitRelativePath?.split("/");
   if (
     !relative ||
@@ -27,14 +27,14 @@ function selectedImportPath(kind: "folder" | "zip", file: File): string {
 }
 
 export function pickSkillImport(
-  kind: "folder" | "zip",
+  kind: "folder" | "zip" | "md",
   ownerDocument: Document
 ): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const input = ownerDocument.body.createEl("input", { attr: { type: "file" } });
     input.hidden = true;
     if (kind === "folder") input.setAttribute("webkitdirectory", "");
-    else input.accept = ".zip";
+    else input.accept = kind === "zip" ? ".zip" : ".md";
     const cleanup = (): void => {
       input.removeEventListener("change", changed);
       input.removeEventListener("cancel", cancelled);

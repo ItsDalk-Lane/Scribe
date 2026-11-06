@@ -239,7 +239,7 @@ export function SkillsSettings({
     await changed();
     new Notice(t("Skill imported"));
   };
-  const importLocal = async (kind: "folder" | "zip") => {
+  const importLocal = async (kind: "folder" | "zip" | "md") => {
     await perform(async () => {
       const ownerDocument = containerRef.current?.ownerDocument;
       if (!ownerDocument) return;
@@ -349,6 +349,10 @@ export function SkillsSettings({
                 onPickZip={() => {
                   close();
                   void importLocal("zip");
+                }}
+                onPickMarkdown={() => {
+                  close();
+                  void importLocal("md");
                 }}
               />
             )).open()

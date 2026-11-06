@@ -732,7 +732,8 @@ export const agentTranslations: Record<string, string> = {
   "Import ZIP archive": "导入 ZIP 压缩包",
   "Drop a skill folder or a ZIP archive here, or click to choose a ZIP":
     "拖放技能文件夹或 ZIP 压缩包到此处，或点击选择 ZIP",
-  "Supports .zip files and folders containing SKILL.md": "支持 .zip 文件，或包含 SKILL.md 的文件夹",
+  "Supports .zip files, folders containing SKILL.md, and single skill .md files":
+    "支持 .zip 文件、包含 SKILL.md 的文件夹，以及单个技能 .md 文件",
   "Drop a skill folder or a ZIP archive.": "请拖放技能文件夹或 ZIP 压缩包。",
   "The dropped item has no accessible local path. Try the import buttons.":
     "拖入的项目没有可访问的本地位置，请改用下方按钮导入。",
@@ -784,7 +785,13 @@ export const agentTranslations: Record<string, string> = {
   "ZIP links, special files, encryption or unsupported compression cannot be imported.":
     "不能导入包含文件链接、特殊文件、加密内容或不支持压缩方式的 ZIP。",
   "Skill import was cancelled.": "技能导入已取消。",
-  "Choose a skill folder or a ZIP file.": "请选择技能文件夹或 ZIP 文件。",
+  "Choose a skill folder, a ZIP archive, or a single skill Markdown file.":
+    "请选择技能文件夹、ZIP 压缩包或单个技能 Markdown 文件。",
+  "This skill has minor format issues. We adjusted {count} lines; confirm to install the repaired copy. The original file is never modified.":
+    "该技能存在轻微格式问题。我们调整了 {count} 行；确认后将安装修复后的副本，原始文件永不修改。",
+  "{count} lines will be adjusted automatically; review the changes before importing.":
+    "导入时将自动调整 {count} 行，请先查看改动再导入。",
+  "Import Markdown file": "导入 Markdown 文件",
   "Could not import this skill: {reason}": "无法导入此技能：{reason}",
   "Builtin skills are read-only. Restore the builtin version instead.":
     "内置技能为只读，请通过恢复内置技能重置。",

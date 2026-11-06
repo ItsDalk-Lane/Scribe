@@ -92,6 +92,40 @@ describe("systemSkillSearch", () => {
       return directory;
     }
 
+    // 可修复候选带差异进入确认流程，不可修复候选维持错误。https://github.com/ItsDalk-Lane/Scribe/issues/44
+    it("carries staged repairs on repairable candidates and errors on unrepairable ones", async () => {
+      const repairable = join(root, ".agents/skills/repairable");
+      await mkdir(repairable, { recursive: true });
+      await writeFile(
+        join(repairable, "SKILL.md"),
+        "---\nname: repairable\ndescription: Use ffmpeg: converts media\n---\nFull body"
+      );
+      const unrepairable = join(root, ".agents/skills/unrepairable");
+      await mkdir(unrepairable, { recursive: true });
+      await writeFile(
+        join(unrepairable, "SKILL.md"),
+        "---\nname: Broken Name\ndescription: Works\n---\nFull body"
+      );
+      const result = await searchSystemSkills({
+        skillsDirectory: join(root, ".scribe/skills"),
+        installed: [],
+      });
+      const repaired = result.candidates.find((candidate) => candidate.name === "repairable");
+      expect(repaired).toMatchObject({
+        status: "available",
+        repair: [
+          {
+            before: "description: Use ffmpeg: converts media",
+            after: 'description: "Use ffmpeg: converts media"',
+          },
+        ],
+      });
+      expect(repaired?.error).toBeUndefined();
+      const broken = result.candidates.find((candidate) => candidate.name === "unrepairable");
+      expect(broken?.error).toBeTruthy();
+      expect(broken?.repair).toBeUndefined();
+    });
+
     it("finds skills through login environment overrides and merges physical duplicates", async () => {
       const directory = await skill(".agents/skills/review-prose");
       await mkdir(join(root, ".claude"));

@@ -150,6 +150,58 @@ describe("skillImport", () => {
       expect(await readdir(root)).toEqual(["My_Skill"]);
     });
 
+    // 扁平单文件技能展开为标准目录束入库。https://github.com/ItsDalk-Lane/Scribe/issues/45
+    it("expands a compliant single Markdown file into a standard skill package", async () => {
+      const file = join(root, "Flat_Skill.md");
+      const original = "---\nname: flat-skill\ndescription: One-file skill\n---\nBody text\n";
+      await writeFile(file, original);
+      const result = await readSkillPackage(file, "local");
+      expect(result.name).toBe("flat-skill");
+      expect(result.files.map((entry) => entry.path)).toEqual(["SKILL.md"]);
+      expect(new TextDecoder().decode(result.files[0].data)).toContain("name: flat-skill");
+      expect(await readFile(file, "utf8")).toBe(original);
+    });
+
+    it("derives the flat-file skill name from the file name and reports the rename", async () => {
+      const file = join(root, "Note Tidier.md");
+      await writeFile(file, content("note-tidier"));
+      const result = await readSkillPackage(file, "local");
+      expect(result.name).toBe("note-tidier");
+    });
+
+    it("rejects a flat file whose declared name does not match its file name", async () => {
+      const file = join(root, "other-name.md");
+      await writeFile(file, content("flat-skill"));
+      await expect(readSkillPackage(file, "local")).rejects.toThrow(/does not match its folder/);
+    });
+
+    // 修复链路：确认后安装修复副本，原始文件不变。https://github.com/ItsDalk-Lane/Scribe/issues/44
+    it("repairs a colon-description import in the staged copy while keeping the source untouched", async () => {
+      const skill = join(root, "colon-skill");
+      const original =
+        "---\nname: colon-skill\ndescription: Use ffmpeg: converts media\n---\nBody\n";
+      await mkdir(skill);
+      await writeFile(join(skill, "SKILL.md"), original);
+      const result = await readSkillPackage(skill, "local");
+      expect(result.repair).toEqual([
+        {
+          before: "description: Use ffmpeg: converts media",
+          after: 'description: "Use ffmpeg: converts media"',
+        },
+      ]);
+      expect(new TextDecoder().decode(result.files[0].data)).toContain(
+        'description: "Use ffmpeg: converts media"'
+      );
+      expect(await readFile(join(skill, "SKILL.md"), "utf8")).toBe(original);
+    });
+
+    it("keeps an unrepairable skill rejected with its original error", async () => {
+      const skill = join(root, "broken-skill");
+      await mkdir(skill);
+      await writeFile(join(skill, "SKILL.md"), "---\nname: Broken Name\ndescription: Works\n---\n");
+      await expect(readSkillPackage(skill, "local")).rejects.toThrow(/Could not import/);
+    });
+
     it("locates exactly one direct nested skill folder", async () => {
       await mkdir(join(root, "review-prose"));
       await writeFile(join(root, "review-prose", "SKILL.md"), content("review-prose"));

@@ -1,5 +1,10 @@
-import type { SkillPackage, SkillPackageFile } from "@/agentMode/skills/types";
+import type {
+  SkillImportRepairChange,
+  SkillPackage,
+  SkillPackageFile,
+} from "@/agentMode/skills/types";
 import { NAME_MAX, parseSkillFile, serializeSkillFile } from "@/agentMode/skills/skillFormat";
+import { attemptSkillImportRepair } from "@/agentMode/skills/skillImportRepair";
 import { t } from "@/lib/i18n";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { isMap, parseDocument } from "yaml";
@@ -36,7 +41,7 @@ export function prepareSkillImportDescription(
   content: string,
   folderName?: string
 ): PreparedSkillDescription {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/.exec(content);
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/);
   if (!match) throw new Error(t("SKILL.md must start with a metadata block."));
   const doc = parseDocument(match[1], { keepSourceTokens: true, intAsBigInt: true });
   const originalName = isMap(doc.contents) ? doc.get("name") : undefined;
@@ -64,6 +69,39 @@ export function prepareSkillImportDescription(
     content: normalized,
     ...(name !== (folderName ?? originalName) ? { renamedFrom: folderName ?? originalName } : {}),
   };
+}
+
+// 严格解析失败时的受限修复通道；修复副本仍需通过全部既有校验。
+// https://github.com/ItsDalk-Lane/Scribe/issues/44
+export function repairSkillImportPreparation(
+  content: string,
+  folderName?: string
+): { prepared: PreparedSkillDescription; repair: SkillImportRepairChange[] } | null {
+  const repaired = attemptSkillImportRepair(content);
+  if (!repaired) return null;
+  try {
+    return {
+      prepared: prepareSkillImportDescription(repaired.content, folderName),
+      repair: repaired.changes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// 导入入口统一走「严格解析 → 受限修复 → 原始错误」链路，修复与拒收共用错误口径。
+// https://github.com/ItsDalk-Lane/Scribe/issues/44
+function prepareImportedDescriptionOrRepair(
+  content: string,
+  folderName?: string
+): { prepared: PreparedSkillDescription; repair?: SkillImportRepairChange[] } {
+  try {
+    return { prepared: prepareSkillImportDescription(content, folderName) };
+  } catch (error) {
+    const fixed = repairSkillImportPreparation(content, folderName);
+    if (!fixed) throw error;
+    return { prepared: fixed.prepared, repair: fixed.repair };
+  }
 }
 
 function assertSafeImportPath(path: string): void {
@@ -112,7 +150,7 @@ async function buildSkillPackage(
   if (raw.byteLength !== description.size)
     throw new Error(t("The source skill changed while it was being read. Try importing it again."));
   signal?.throwIfAborted();
-  const prepared = prepareSkillImportDescription(
+  const { prepared, repair } = prepareImportedDescriptionOrRepair(
     new TextDecoder("utf-8", { fatal: true }).decode(raw),
     folderName
   );
@@ -134,7 +172,7 @@ async function buildSkillPackage(
     checkImportLimits(files.length + 1, bytes);
     files.push({ path: entry.path.slice(prefix.length), data });
   }
-  return { name: prepared.name, files, source };
+  return { name: prepared.name, files, source, ...(repair ? { repair } : {}) };
 }
 
 async function readBoundedFile(path: string, signal?: AbortSignal): Promise<Uint8Array> {
@@ -309,6 +347,29 @@ async function readZipPackage(
   }
 }
 
+// 扁平单文件技能：合规 frontmatter 的单个 .md 展开为标准目录束入库（R6）。
+// https://github.com/ItsDalk-Lane/Scribe/issues/45
+async function readFlatSkillPackage(
+  origin: string,
+  source: SkillPackage["source"],
+  signal?: AbortSignal
+): Promise<SkillPackage> {
+  const nodePath = requireNodeModule<typeof import("node:path")>("path");
+  const raw = await readBoundedFile(origin, signal);
+  signal?.throwIfAborted();
+  const decoded = new TextDecoder("utf-8", { fatal: true }).decode(raw);
+  const folderName = nodePath.basename(origin, nodePath.extname(origin));
+  const { prepared, repair } = prepareImportedDescriptionOrRepair(decoded, folderName);
+  const data = new TextEncoder().encode(prepared.content);
+  checkImportLimits(1, data.byteLength);
+  return {
+    name: prepared.name,
+    files: [{ path: "SKILL.md", data }],
+    source,
+    ...(repair ? { repair } : {}),
+  };
+}
+
 export async function readSkillPackage(
   path: string,
   kind: "local" | "system",
@@ -328,7 +389,10 @@ export async function readSkillPackage(
     if (kind === "local" && stat.isFile() && nodePath.extname(origin).toLowerCase() === ".zip") {
       return await readZipPackage(origin, source, signal);
     }
-    throw new Error(t("Choose a skill folder or a ZIP file."));
+    if (kind === "local" && stat.isFile() && nodePath.extname(origin).toLowerCase() === ".md") {
+      return await readFlatSkillPackage(origin, source, signal);
+    }
+    throw new Error(t("Choose a skill folder, a ZIP archive, or a single skill Markdown file."));
   } catch (error) {
     signal?.throwIfAborted();
     throw new Error(

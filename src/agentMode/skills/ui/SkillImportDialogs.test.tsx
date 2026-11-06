@@ -138,6 +138,7 @@ describe("SkillImportDialogs", () => {
           onImportPath={onImportPath}
           onPickFolder={jest.fn()}
           onPickZip={jest.fn()}
+          onPickMarkdown={jest.fn()}
         />
       );
       fireEvent.drop(screen.getByRole("button", { name: zoneLabel }), dropPayload("review-notes"));
@@ -150,6 +151,7 @@ describe("SkillImportDialogs", () => {
           onImportPath={onImportPath}
           onPickFolder={jest.fn()}
           onPickZip={jest.fn()}
+          onPickMarkdown={jest.fn()}
         />
       );
       fireEvent.drop(screen.getByRole("button", { name: zoneLabel }), {
@@ -164,6 +166,7 @@ describe("SkillImportDialogs", () => {
           onImportPath={jest.fn()}
           onPickFolder={jest.fn()}
           onPickZip={jest.fn()}
+          onPickMarkdown={jest.fn()}
         />
       );
       const zone = screen.getByRole("button", { name: zoneLabel });
@@ -177,11 +180,13 @@ describe("SkillImportDialogs", () => {
     it("keeps the folder and ZIP picker buttons and lets clicking the zone choose a ZIP (https://github.com/ItsDalk-Lane/Scribe/issues/33)", () => {
       const onPickFolder = jest.fn();
       const onPickZip = jest.fn();
+      const onPickMarkdown = jest.fn();
       render(
         <LocalSkillImportView
           onImportPath={jest.fn()}
           onPickFolder={onPickFolder}
           onPickZip={onPickZip}
+          onPickMarkdown={onPickMarkdown}
         />
       );
       fireEvent.click(screen.getByRole("button", { name: "Import folder" }));
@@ -271,6 +276,23 @@ describe("SkillImportDialogs", () => {
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
       await expect(result).resolves.toBe(false);
     });
+    it("shows the staged repair diff and resolves false when the user cancels https://github.com/ItsDalk-Lane/Scribe/issues/44", async () => {
+      const result = confirmSkillPackage(app, {
+        ...pkg,
+        repair: [
+          {
+            before: "description: Use ffmpeg: converts media",
+            after: 'description: "Use ffmpeg: converts media"',
+          },
+        ],
+      });
+      render(mockModal.content);
+      expect(screen.getByText(/adjusted 1 lines/)).toBeTruthy();
+      expect(screen.getByText("- description: Use ffmpeg: converts media")).toBeTruthy();
+      expect(screen.getByText('+ description: "Use ffmpeg: converts media"')).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await expect(result).resolves.toBe(false);
+    });
   });
   describe("SystemSkillSearchView()", () => {
     it("disables malformed and conflicting candidates while reporting each reason", () => {
@@ -297,6 +319,30 @@ describe("SkillImportDialogs", () => {
         screen.getByRole("checkbox", { name: "Select conflict" }).hasAttribute("disabled")
       ).toBe(true);
       expect(screen.getByRole("alert").textContent).toBe("Missing description");
+    });
+    it("marks a repairable candidate as importable with its adjustment note https://github.com/ItsDalk-Lane/Scribe/issues/44", () => {
+      render(
+        <SystemSkillSearchView
+          candidates={[
+            {
+              ...candidate("fixable"),
+              repair: [{ before: "user-invocable: yes", after: "user-invocable: true" }],
+            },
+          ]}
+          warnings={[]}
+          selected={new Set()}
+          results={{}}
+          loading={false}
+          busy={false}
+          onRefresh={jest.fn()}
+          onImport={jest.fn()}
+          onSelect={jest.fn()}
+        />
+      );
+      expect(
+        screen.getByRole("checkbox", { name: "Select fixable" }).hasAttribute("disabled")
+      ).toBe(false);
+      expect(screen.getByText(/1 lines will be adjusted automatically/)).toBeTruthy();
     });
   });
   describe("SystemSkillSearch()", () => {

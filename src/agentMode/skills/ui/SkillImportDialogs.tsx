@@ -84,6 +84,22 @@ export async function confirmSkillPackage(
         <p className="tw-break-all tw-text-ui-smaller tw-text-muted">
           {pkg.source.displayPath ?? pkg.source.origin}
         </p>
+        {pkg.repair?.length ? (
+          <div className="tw-space-y-1">
+            <p className="tw-text-warning">
+              {t(
+                "This skill has minor format issues. We adjusted {count} lines; confirm to install the repaired copy. The original file is never modified.",
+                { count: String(pkg.repair.length) }
+              )}
+            </p>
+            {pkg.repair.map((change) => (
+              <div key={change.after} className="tw-font-mono tw-text-ui-smaller">
+                <div className="tw-break-all tw-text-error">- {change.before}</div>
+                <div className="tw-break-all tw-text-success">+ {change.after}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {existing && (
           <p className="tw-text-error">
             {t(
@@ -324,6 +340,16 @@ export function SystemSkillSearchView({
               })}
             </p>
           )}
+          {candidate.repair?.length ? (
+            <p className="tw-m-0 tw-text-ui-smaller tw-text-warning">
+              {t(
+                "{count} lines will be adjusted automatically; review the changes before importing.",
+                {
+                  count: String(candidate.repair.length),
+                }
+              )}
+            </p>
+          ) : null}
           {candidate.error && (
             <p role="alert" className="tw-text-ui-small tw-text-error">
               {candidate.error}
@@ -344,12 +370,14 @@ export interface LocalSkillImportViewProps {
   onImportPath: (path: string) => void;
   onPickFolder: () => void;
   onPickZip: () => void;
+  onPickMarkdown: () => void;
 }
 
 export function LocalSkillImportView({
   onImportPath,
   onPickFolder,
   onPickZip,
+  onPickMarkdown,
 }: LocalSkillImportViewProps) {
   const [dragActive, setDragActive] = React.useState(false);
   const [error, setError] = React.useState<string>();
@@ -388,7 +416,7 @@ export function LocalSkillImportView({
           {t("Drop a skill folder or a ZIP archive here, or click to choose a ZIP")}
         </span>
         <span className="tw-text-ui-smaller tw-text-muted">
-          {t("Supports .zip files and folders containing SKILL.md")}
+          {t("Supports .zip files, folders containing SKILL.md, and single skill .md files")}
         </span>
       </button>
       {error && (
@@ -404,6 +432,10 @@ export function LocalSkillImportView({
         <Button variant="secondary" onClick={onPickZip}>
           <FileDown className="tw-size-4" />
           {t("Import ZIP archive")}
+        </Button>
+        <Button variant="secondary" onClick={onPickMarkdown}>
+          <FileDown className="tw-size-4" />
+          {t("Import Markdown file")}
         </Button>
       </div>
     </div>

@@ -94,6 +94,11 @@ export const RecoveryFailure: StoryObj<SystemSkillSearchViewProps> = {
 };
 export const LocalImport: StoryObj<SystemSkillSearchViewProps> = {
   render: () => (
-    <LocalSkillImportView onImportPath={() => {}} onPickFolder={() => {}} onPickZip={() => {}} />
+    <LocalSkillImportView
+      onImportPath={() => {}}
+      onPickFolder={() => {}}
+      onPickZip={() => {}}
+      onPickMarkdown={() => {}}
+    />
   ),
 };
