@@ -14,9 +14,10 @@ import { $createActiveNotePillNode } from "@/components/chat-components/pills/Ac
 import { $createFolderPillNode } from "@/components/chat-components/pills/FolderPillNode";
 import { $createWebTabPillNode } from "@/components/chat-components/pills/WebTabPillNode";
 import { $createActiveWebTabPillNode } from "@/components/chat-components/pills/ActiveWebTabPillNode";
+import { $createCommandPillNode } from "@/components/chat-components/pills/CommandPillNode";
 import { logInfo } from "@/logger";
 
-export type PillType = "notes" | "folders" | "active-note" | "webTabs" | "activeWebTab";
+export type PillType = "notes" | "folders" | "active-note" | "webTabs" | "activeWebTab" | "command";
 
 export type ParsedContentType = "text" | "note-pill" | "active-note-pill" | "folder-pill";
 
@@ -53,6 +54,11 @@ function $createPillNode(pillData: PillData) {
       break;
     case "activeWebTab":
       return $createActiveWebTabPillNode();
+    case "command":
+      if (title && typeof data === "string") {
+        return $createCommandPillNode(title, data);
+      }
+      break;
   }
 
   throw new Error(`Invalid pill data: ${JSON.stringify(pillData)}`);

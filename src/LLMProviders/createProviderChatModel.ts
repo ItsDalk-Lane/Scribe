@@ -7,6 +7,7 @@ import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderCh
 import { anthropicHostBaseUrl, groqHostBaseUrl } from "@/utils/providerBaseUrl";
 import { isRecord } from "@/utils/obsidianInternals";
 import { t } from "@/lib/i18n";
+import { withModelCredentials } from "@/LLMProviders/modelCredentials";
 
 const LEGACY_PROTOCOLS: Record<ChatModelProviders, string> = {
   [ChatModelProviders.OPENAI]: "@ai-sdk/openai",
@@ -123,8 +124,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     },
   };
   const defaults: StreamOptions = {
-    apiKey: model.apiKey || "keyless-endpoint",
-    fetch: createProviderFetch(model),
     maxRetries: 3,
     cacheRetention: "none",
     ...((api === "openai-responses" || npm === "gitlab-ai-provider") && model.reasoningEffort
@@ -161,7 +160,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
 
   const headers: Record<string, string> = {};
   if (model.openAIOrgId) headers["OpenAI-Organization"] = model.openAIOrgId;
-  if (anthropic) headers["x-api-key"] = model.apiKey || "";
   if (openRouter) {
     headers["HTTP-Referer"] = "https://obsidiancopilot.com";
     headers["X-Title"] = "Obsidian Scribe";
@@ -196,8 +194,24 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
       : api === "openai-responses"
         ? await import("@earendil-works/pi-ai/api/openai-responses")
         : await import("@earendil-works/pi-ai/api/openai-completions");
-  return createPiChatModel(descriptor, async () => ({
-    stream: implementation.stream,
-    options: defaults,
-  }));
+  return createPiChatModel(descriptor, async (options) => {
+    options.signal?.throwIfAborted();
+    return withModelCredentials(model, async (requestModel) => {
+      options.signal?.throwIfAborted();
+      const redactionValues = [requestModel.apiKey ?? ""];
+      return {
+        redactionValues,
+        stream: implementation.stream,
+        options: {
+          ...defaults,
+          apiKey: defaults.apiKey ?? requestModel.apiKey ?? "keyless-endpoint",
+          fetch: createProviderFetch(requestModel, redactionValues),
+          headers: {
+            ...headers,
+            ...(anthropic ? { "x-api-key": requestModel.apiKey || "" } : {}),
+          },
+        },
+      };
+    });
+  });
 }

@@ -13,8 +13,10 @@ export const nodeBuiltinExternals = [
   "process",
   "readline",
   "string_decoder",
+  "stream",
   "url",
   "util",
+  "zlib",
 ];
 
 const nodeModuleShim = {

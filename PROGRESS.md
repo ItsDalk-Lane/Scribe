@@ -1,3 +1,449 @@
+# 2026-11-06 第一批旧版残留清理（本次任务）
+
+## 追加授权续办：删除名单外测试
+
+- 用户明确追加授权删除此前阻塞构建/lint 的 `src/projects/projectUtils.test.ts`；仅扩展这一文件，不扩大到其他测试或生产文件。
+- 删除前运行并记录实际输出，随后删除整个测试文件（含 8 项用例），没有通过 skip、放宽断言或更改检查配置绕过验收。
+
+```text
+$ npx jest src/projects/projectUtils.test.ts --silent
+PASS src/projects/projectUtils.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        0.346 s, estimated 1 s
+exit 0
+```
+
+- 删除和重验完成：五项命令全部 exit 0。455 组 / 6320 项通过，0 failed；比上一轮减少 1 组 / 8 项，全部来自上述获准删除的文件。当前总计相对任务 0：6362 - 53 + 19 - 8 = 6320；458 - 3 + 1 - 1 = 455。
+- 本轮新增改动仅该测试文件与两份进度/阻塞记录；其余受管文件指纹未变。旧白名单仅按最新用户授权扩展到这一文件，未改其他测试或验收配置。
+
+续办最终实际输出（测试保留结果尾部，review 不重复贴大量已有 warning）：
+
+```text
+$ npm test
+
+Test Suites: 455 passed, 455 total
+Tests:       6320 passed, 6320 total
+Snapshots:   0 total
+Time:        12.527 s
+Ran all test suites.
+exit 0
+
+$ npm run build
+> obsidian-scribe@1.0.2 build
+> npm run build:tailwind && npm run build:esbuild || exit 1
+
+
+> obsidian-scribe@1.0.2 build:tailwind
+> npx tailwindcss -i src/styles/tailwind.css -o styles.css --minify
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Rebuilding...
+
+Done in 1519ms.
+
+> obsidian-scribe@1.0.2 build:esbuild
+> tsc -noEmit -skipLibCheck && node esbuild.config.mjs production
+exit 0
+
+$ npm run lint
+> obsidian-scribe@1.0.2 lint
+> eslint .
+
+
+/Users/study_superior/Desktop/Code/Scribe/src/hooks/use-streaming-chat-session.test.tsx
+  18:3  warning  If your function doesn't call any Hooks, avoid the 'use' prefix. Instead, write it as a regular function without the 'use' prefix  @eslint-react/hooks-extra/no-unnecessary-use-prefix
+
+✖ 1 problem (0 errors, 1 warning)
+exit 0
+
+$ npm run format:check
+> obsidian-scribe@1.0.2 format:check
+> prettier --check 'src/**/*.{js,ts,tsx,md}'
+
+Checking formatting...
+All matched files use Prettier code style!
+exit 0
+
+$ npm run review:obsidian
+Obsidian package metadata, dependency, and license validation passed.
+found 0 vulnerabilities
+::error file=manifest-beta.json,line=1,col=184,title=obsidianmd/validate-manifest::The 'fundingUrl' object must only contain string values.
+::error file=manifest-beta.json,line=1,col=188,title=obsidianmd/validate-manifest::The 'unsupported' property is not allowed in the manifest.
+Obsidian review fixtures passed.
+exit 0
+```
+
+review 中两条 error 样式输出属于预期拒绝夹具，最终 fixtures passed、exit 0；lint 保留 1 条已有 warning。没有改变规则、隐藏失败或新增 skip/only/todo。清理代码及此前红→绿证据未变；不执行真实磁盘删除，不提交或推送。移动端保守跳过、未实机展示及未同步索引等限制仍保留，但此前旧测试引起的构建/lint 阻塞已解除。
+
+- 以下上一轮 BLOCKED 结论保留为当时记录，当前状态以本节及续办验收为准。
+
+- 目标：删除无运行路径的旧设置、空记忆目录创建、旧缓存和旧活动日志；保留当前 native 功能与指定数据。
+- 顺序：任务 0 基线 → 任务 1 设置/目录 → 任务 2 缓存/日志及安全清理 → 五项验收和范围核对。
+- 最大风险：误删活跃配置或数据、覆盖开工前改动、清理路径经过符号链接。
+- 成功标准：五项检查退出 0、旧键加载后重存消失、精确清理与保留目录测试通过、仅修改白名单。
+- 本次只以最新任务书为来源，下方历史记录仅保留原件；不用历史待办扩展本次任务。
+- 使用最小实现技能；只读边界调查和独立界面修改由子代理协助。索引及其运行资产明确禁止写入，不调用可能追加记录的索引工具。
+- 不建立另一个计划文件；不提交、推送、回滚、暂存或清理真实用户数据。
+
+## 任务 0：已完成
+
+`git status --short`：19 个已有未提交文件；包括 `.aoci/baseline.json`、`aoci.code.txt`、两份语言表、设置说明及既有组件/测试。已记录 1313 个受管文件开工指纹，最终按本次增量核对，已有范围外差异不回滚。
+
+实际检查输出（保留结尾与退出码；完整常规 PASS 行及既有样式警告未重复粘贴）：
+
+```text
+$ npm test
+Test Suites: 458 passed, 458 total
+Tests:       6362 passed, 6362 total
+Snapshots:   0 total
+Time:        14.514 s
+Ran all test suites.
+exit 0
+
+$ npm run build
+Done in 1952ms.
+> tsc -noEmit -skipLibCheck && node esbuild.config.mjs production
+exit 0
+
+$ npm run lint
+✖ 1 problem (0 errors, 1 warning)
+exit 0
+
+$ npm run format:check
+All matched files use Prettier code style!
+exit 0
+
+$ npm run review:obsidian
+found 0 vulnerabilities
+Obsidian review fixtures passed.
+exit 0
+```
+
+基线与任务书一致。lint 的既有警告来自测试辅助函数名称；review 保留已有样式/弃用提示，夹具中的两条错误样式输出为预期拒绝样例；未修改规则。
+
+## 本次待办
+
+- [x] 任务 1：旧设置、空记忆目录及加载/保存回归。
+- [x] 任务 2：旧缓存/调试日志及精确范围清理、红绿反向验证（移动端限制见阻塞记录）。
+- [x] 最终五项检查已执行、测试数量已解释、范围与原改动已核验；build/lint 为 BLOCKED，非全绿。
+
+### 任务 1 结果及删除前计数
+
+已从类型、默认值和清洗逻辑删除指定设置；统一清除表接管旧索引 11 键，旧索引辅助文件已删。记忆目录不再自动创建，磁盘原件未动。旧日志界面已删除，调试模式及密钥操作保留。并发设置测试改用仍有效的设置字段，保留原断言目的；提示词测试仅将已删除字段的输入换成现行根文件夹输入，提示词内容未动。
+
+删除前逐文件实际输出：
+
+```text
+$ npx jest src/settings/model.test.ts --silent
+Test Suites: 1 passed, 1 total
+Tests:       65 passed, 65 total
+$ npx jest src/settings/scribeFolder.test.ts --silent
+Test Suites: 1 passed, 1 total
+Tests:       23 passed, 23 total
+$ npx jest src/cache/legacyCaches.test.ts --silent
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+$ npx jest src/commands/cacheCommandStatus.integration.test.ts --silent
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+$ npx jest src/agentMode/session/debugSink.test.ts --silent
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+$ npx jest src/settings/v2/components/DebuggingSupportSection.test.tsx --silent
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+$ npx jest src/settings/v2/components/AdvancedSettings.test.tsx --silent
+Test Suites: 1 passed, 1 total
+Tests:       14 passed, 14 total
+以上退出码均为 0。
+```
+
+新增加载→保存回归实际红绿输出：
+
+```text
+$ npx jest src/services/settingsPersistence.integration.test.ts --silent
+Expected path: not "projectList"
+Received value: "retired"
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 14 passed, 15 total
+exit 1
+
+$ npx jest src/services/settingsPersistence.integration.test.ts --silent
+PASS src/services/settingsPersistence.integration.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       15 passed, 15 total
+exit 0
+
+$ npx jest src/settings/model.test.ts src/settings/scribeFolder.test.ts src/settings/scribeRootChange.test.ts src/services/settingsSecretTransforms.test.ts src/services/settingsPersistence.integration.test.ts src/agentMode/backends/shared/agentSystemPrompt.test.ts --silent
+Test Suites: 6 passed, 6 total
+Tests:       154 passed, 154 total
+exit 0
+```
+
+界面断言先改为仅调试开关，旧实现下 3 failed / 13 passed；移除旧控件后同一命令输出：
+
+```text
+$ npx jest src/settings/v2/components/AdvancedSettings.test.tsx src/settings/v2/components/DebuggingSupportSection.test.tsx --silent
+PASS src/settings/v2/components/AdvancedSettings.test.tsx
+PASS src/settings/v2/components/DebuggingSupportSection.test.tsx
+Test Suites: 2 passed, 2 total
+Tests:       16 passed, 16 total
+exit 0
+```
+
+计数减少来源：删除旧缓存 3、旧清理命令 5、旧日志 36；设置旧调试开关 2、记忆路径 3、旧日志界面 4。共移除 53 项；新增设置重存回归 1 项。其余测试未删、未跳过、未放宽断言。
+
+### 任务 2 结果及反向验证
+
+旧文件缓存、旧清理命令和旧帧日志实现已删；旧命令翻译和无效忽略项已清理，模型目录缓存仍保留。新清理只面向任务书指定三处目录，检查目标及相关父级的目录类型/符号链接；失败记录后继续。启动流程接入一次，测试用替身避免接触真实主目录/临时日志；磁盘原件未运行清理。说明文档和术语表已同步。
+
+实际反向验证：临时把正确的调用期待加入 `.scribe/file-content-cache`，未扩大生产删除范围。其余保留项断言始终保留。
+
+```text
+$ npx jest src/cache/legacyStorageCleanup.test.ts --silent
+FAIL src/cache/legacyStorageCleanup.test.ts
+  removes exactly the three retired directories and preserves current data and other vaults
+  Expected 额外包含 [".scribe/file-content-cache", true]，Received 仅 [".scribe/pdf-cache", true]
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 16 passed, 17 total
+Time:        0.416 s
+exit 1
+
+$ npx jest src/cache/legacyStorageCleanup.test.ts --silent
+PASS src/cache/legacyStorageCleanup.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Time:        1.513 s
+exit 0
+
+补齐初始化失败分支后的同命令：
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Time:        0.411 s
+exit 0
+```
+
+启动接线先验证未调用会被发现：`npx jest src/main.startup-report.integration.test.ts --silent` 输出 `Expected number of calls: 1 / Received number of calls: 0`，23 failed / 23 total，exit 1；随后加入真实启动调用，等待定向验收。
+
+中途全量预检发现并修复相邻测试残留 mock：旧日志模块删除后 `src/agentMode/index.test.ts` 仍模拟该模块，1 suite failed / 455 passed，6314 tests passed；已删除该失效 mock，未减少测试或绕过检查。此预检不是最终验收。另已记录白名单外 `projectUtils.test.ts` 的类型依赖阻塞，不改该文件。
+
+最终 18 项清理测试的实际反向验证完整输出（临时期待已恢复）：
+
+```text
+$ npx jest src/cache/legacyStorageCleanup.test.ts --silent (反向期待)
+FAIL src/cache/legacyStorageCleanup.test.ts
+  ● legacyStorageCleanup › cleanupLegacyStorage() › removes exactly the three retired directories and preserves current data and other vaults
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 0
+
+      Array [
+        Array [
+          ".scribe/pdf-cache",
+          true,
+        ],
+    -   Array [
+    -     ".scribe/file-content-cache",
+    -     true,
+    -   ],
+      ]
+
+      83 |       await cleanupLegacyStorage(app);
+      84 |
+    > 85 |       expect(removeVaultDirectory.mock.calls).toEqual([[".scribe/pdf-cache", true], [".scribe/file-content-cache", true]]);
+         |                                               ^
+      86 |       expect(jest.mocked(rm).mock.calls).toEqual([
+      87 |         [contextDirectory, { recursive: true, force: true }],
+      88 |         [frameDirectory, { recursive: true, force: true }],
+
+      at src/cache/legacyStorageCleanup.test.ts:85:47
+      at fulfilled (src/cache/legacyStorageCleanup.test.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 17 passed, 18 total
+Snapshots:   0 total
+Time:        0.411 s, estimated 1 s
+exit 1
+
+$ npx jest src/cache/legacyStorageCleanup.test.ts --silent (正确期待)
+PASS src/cache/legacyStorageCleanup.test.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        0.358 s, estimated 1 s
+exit 0
+```
+
+### 最终检查结果：整体 BLOCKED
+
+实现和受控验证已完成，但未达到五项全绿；不把边界阻塞记成成功。没有连续三次无新信息地重跑同一失败项，也未跑满三轮。新建清理测试 18 项，新增重存回归 1 项；6362 - 53 + 19 = 6328。测试组 458 - 3 + 1 = 456，下降全部来自本次删除的旧测试。
+
+启动接线定向结果（中间一次新增测试误用夹具变量名而失败，已纠正，无放宽断言）：
+
+```text
+$ npx jest src/cache/legacyStorageCleanup.test.ts src/main.test.ts src/main.startup-report.integration.test.ts src/agentMode/index.test.ts --silent
+PASS src/main.startup-report.integration.test.ts
+PASS src/main.test.ts
+PASS src/agentMode/index.test.ts
+PASS src/cache/legacyStorageCleanup.test.ts
+Test Suites: 4 passed, 4 total
+Tests:       99 passed, 99 total
+Time:        1.066 s
+exit 0
+```
+
+最终五项实际输出如下（测试仅贴结果尾部，review 的大量既有 warning 不重复粘贴）：
+
+```text
+$ npm test
+
+Test Suites: 456 passed, 456 total
+Tests:       6328 passed, 6328 total
+Snapshots:   0 total
+Time:        12.586 s
+Ran all test suites.
+exit 0
+
+$ npm run build
+> obsidian-scribe@1.0.2 build
+> npm run build:tailwind && npm run build:esbuild || exit 1
+
+
+> obsidian-scribe@1.0.2 build:tailwind
+> npx tailwindcss -i src/styles/tailwind.css -o styles.css --minify
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Rebuilding...
+
+Done in 2041ms.
+
+> obsidian-scribe@1.0.2 build:esbuild
+> tsc -noEmit -skipLibCheck && node esbuild.config.mjs production
+
+src/projects/projectUtils.test.ts(16,68): error TS2339: Property 'projectsFolder' does not exist on type 'Readonly<ScribeSettings>'.
+exit 1
+
+$ npm run lint
+> obsidian-scribe@1.0.2 lint
+> eslint .
+
+
+/Users/study_superior/Desktop/Code/Scribe/src/hooks/use-streaming-chat-session.test.tsx
+  18:3  warning  If your function doesn't call any Hooks, avoid the 'use' prefix. Instead, write it as a regular function without the 'use' prefix  @eslint-react/hooks-extra/no-unnecessary-use-prefix
+
+/Users/study_superior/Desktop/Code/Scribe/src/projects/projectUtils.test.ts
+  16:54  error  Unsafe return of a value of type error  @typescript-eslint/no-unsafe-return
+
+✖ 2 problems (1 error, 1 warning)
+exit 1
+
+$ npm run format:check
+> obsidian-scribe@1.0.2 format:check
+> prettier --check 'src/**/*.{js,ts,tsx,md}'
+
+Checking formatting...
+All matched files use Prettier code style!
+exit 0
+
+$ npm run review:obsidian
+Obsidian package metadata, dependency, and license validation passed.
+found 0 vulnerabilities
+::error file=manifest-beta.json,line=1,col=184,title=obsidianmd/validate-manifest::The 'fundingUrl' object must only contain string values.
+::error file=manifest-beta.json,line=1,col=188,title=obsidianmd/validate-manifest::The 'unsupported' property is not allowed in the manifest.
+Obsidian review fixtures passed.
+exit 0
+```
+
+Obsidian 检查有 859 条 warning，未屏蔽或降级；上列两条 error 样式是其预期拒绝夹具，夹具最终通过。构建及 lint 唯一剩余错误均来自白名单外的同一个旧测试，详见本次 BLOCKED。定向格式整理只写授权文件；三份文档另执行 `npx prettier --write docs/settings.md docs/troubleshooting-and-faq.md internal-docs/CONCEPT_GLOSSARY.md`，exit 0。
+
+未配置隔离资料库，未做真实组件展示部署；展示样本已更新且实际组件渲染/交互检查通过。清理只经替身文件系统验证，没有执行真实数据删除或权限调整。
+
+### 最终范围与保留项核对
+
+- 开工指纹对照：本次变动 36 个原受管文件，另新建清理实现及测试 2 个文件；均在指定业务文件或上述目录内本任务相关测试/stories 范围。
+- 原有 19 个未提交文件中，13 个本次未触碰的文件字节保持原样；另 6 个授权文件只叠加本任务清理，原有界面顺序、无标题展示及说明改动保留。
+- `RELEASES.md`、`AGENTS.md`、正式索引及 `.aoci` 运行资产、AI 提示词、迁移实现（本次明确允许删除的旧索引辅助文件除外）、jest/tsconfig/eslint/package 脚本均与开工指纹一致。
+- 未 revert/stash/checkout/commit，未更改测试配置、阈值或门禁；改动测试中无 skip/only/todo。
+- `git diff --check` exit 0。完整 `git diff --stat` 仍包含开工已有的范围外差异；不能回滚它们来伪造白名单结果。以下按开工指纹筛选本次文件集合，逐项核对白名单。
+- 生产精确符号扫描：FileCache / clearLegacyCaches / acpFrameSink / FrameSink / setFrameSinkVaultBasePath / CLEAR_SCRIBE_CACHE / DEFAULT_MEMORY_FOLDER / deriveMemoryFolder / getEffectiveMemoryFolder 均无命中；debugFullFrames 和 memoryFolderName 仅在清除表。openAIProxyBaseUrl 仅清除表与 aiParams.ts 模型级配置。Obsidian 的 getFileCache API 属活跃功能，未误删。
+- projectsFolder/customPromptsFolder 的同名局部变量仍用于现行派生目录，位于白名单外活跃功能，不是旧设置读取；生产旧字段访问已清除。models.dev 和现行模型目录缓存保留。
+
+```text
+$ rg -n '\b(FileCache|clearLegacyCaches|acpFrameSink|FrameSink|setFrameSinkVaultBasePath|debugFullFrames|CLEAR_SCRIBE_CACHE|DEFAULT_MEMORY_FOLDER|deriveMemoryFolder|getEffectiveMemoryFolder)\b|memoryFolder' src --glob '!*.test.*' --glob '!*.stories.*'
+src/services/settingsSecretTransforms.ts:139:    "memoryFolderName",
+src/services/settingsSecretTransforms.ts:173:    delete agentMode.debugFullFrames;
+```
+
+结论：本次不提交、不清真实磁盘；可继续部分均已处理。整体停在白名单外旧测试的构建/lint 依赖；移动端无法确认链接时保守跳过、未做实机展示及索引未同步等限制均已如实保留。
+
+最后一次开工指纹核验实际输出：
+
+```json
+{ "changedCount": 36, "unexpectedChanges": [], "protectedUnchanged": true }
+```
+
+`git diff --stat -- <按开工指纹筛选的本次36个文件>` 的实际快照输出如下；其中六个文件也含开工已有改动，新建的两文件尚未暂存，不在这个 stat 中。本进度记录随后追加文字会增加其自身行数。
+
+```text
+ .gitignore                                         |   8 +-
+ BLOCKED.md                                         |  15 +
+ PROGRESS.md                                        | 310 +++++++++
+ docs/settings.md                                   |  50 +-
+ docs/troubleshooting-and-faq.md                     |   6 +-
+ internal-docs/CONCEPT_GLOSSARY.md                   |   2 +-
+ .../backends/shared/agentSystemPrompt.test.ts        |   2 +-
+ src/agentMode/index.test.ts                         |   1 -
+ src/agentMode/index.ts                              |   1 -
+ src/agentMode/session/debugSink.test.ts              | 703 ---------------------
+ src/agentMode/session/debugSink.ts                   | 524 ---------------
+ src/cache/fileCache.ts                              | 136 ----
+ src/cache/legacyCaches.test.ts                       |  70 --
+ src/cache/legacyCaches.ts                            |  33 -
+ .../cacheCommandStatus.integration.test.ts          | 183 ------
+ src/commands/index.ts                               |  24 +-
+ src/constants.ts                                    |  19 +-
+ src/lib/locales/components.ts                        |   7 -
+ src/lib/locales/settings.ts                          |  11 -
+ src/main.startup-report.integration.test.ts          |  11 +-
+ src/main.test.ts                                    |   5 +-
+ src/main.ts                                         |  11 +-
+ .../settingsPersistence.integration.test.ts          |  56 ++
+ src/services/settingsSecretTransforms.ts             |  34 +-
+ src/settings/migrations/legacyIndexSettings.ts       |  21 -
+ src/settings/model.test.ts                           |  46 +-
+ src/settings/model.ts                                |  94 +--
+ src/settings/scribeFolder.test.ts                    |  26 +-
+ src/settings/scribeFolder.ts                         |  10 -
+ src/settings/scribeRootChange.test.ts                |  12 +-
+ src/settings/testing/memoryFolderAdapter.ts          |  67 --
+ .../v2/components/AdvancedSettings.test.tsx           |  10 +-
+ src/settings/v2/components/AdvancedSettings.tsx      |  70 +-
+ .../components/DebuggingSupportSection.stories.tsx   |  31 +-
+ .../v2/components/DebuggingSupportSection.test.tsx   |  93 +--
+ .../v2/components/DebuggingSupportSection.tsx        |  35 +-
+ 36 files changed, 507 insertions(+), 2230 deletions(-)
+
+$ git diff --check
+exit 0
+$ git ls-files --others --exclude-standard
+src/cache/legacyStorageCleanup.test.ts
+src/cache/legacyStorageCleanup.ts
+exit 0
+```
+
+---
+
 # 开工回执
 
 - 基线：`63f7a9690393dc08a45a7867705d1f3a1c64da9f`；独立分支：`codex/project-consistency`；开工时工作区干净。

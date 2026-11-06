@@ -3,8 +3,8 @@ import { setInterfaceLocale } from "@/lib/i18n";
 import { settingsAtom, settingsStore } from "@/settings/model";
 import { BasicSettings } from "@/settings/v2/components/BasicSettings";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Notice } from "obsidian";
 import React from "react";
+import { Notice } from "obsidian";
 
 const mockCloseSettings = jest.fn<void, []>();
 jest.mock("@/context", () => {
@@ -27,54 +27,21 @@ jest.mock("@/instructions/agentsFile", () => ({
   writeAgentsFile: (...a: unknown[]): Promise<void> => writeAgentsFile(...a),
 }));
 
-const applyScribeRootChange = jest.fn<Promise<void>, unknown[]>().mockResolvedValue(undefined);
-const scribeRootContainsNotes = jest.fn<boolean, unknown[]>().mockReturnValue(false);
-const findScribeRootFileConflict = jest.fn<string | null, unknown[]>().mockReturnValue(null);
-jest.mock("@/settings/scribeRootChange", () => ({
-  applyScribeRootChange: (...a: unknown[]) => applyScribeRootChange(...a),
-  scribeRootContainsNotes: (...a: unknown[]) => scribeRootContainsNotes(...a),
-  findScribeRootFileConflict: (...a: unknown[]) => findScribeRootFileConflict(...a),
-}));
-
-let capturedOnConfirm: (() => void) | null = null;
-let capturedConfirmButtonText = "";
-const modalCtor = jest.fn((onConfirm: () => void, confirmButtonText: string) => {
-  capturedOnConfirm = onConfirm;
-  capturedConfirmButtonText = confirmButtonText;
-});
-jest.mock("@/components/modals/ConfirmModal", () => ({
-  ConfirmModal: class {
-    open = jest.fn();
-    constructor(
-      _app: unknown,
-      onConfirm: () => void,
-      _content: unknown,
-      _title: string,
-      confirmButtonText: string
-    ) {
-      modalCtor(onConfirm, confirmButtonText);
-    }
-  },
-}));
-
 describe("BasicSettings", () => {
   describe("BasicSettings", () => {
     beforeEach(() => {
       jest.clearAllMocks();
-      capturedOnConfirm = null;
-      capturedConfirmButtonText = "";
       settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS, scribeFolder: "scribe" });
-      scribeRootContainsNotes.mockReturnValue(false);
-      findScribeRootFileConflict.mockReturnValue(null);
     });
 
     afterEach(() => setInterfaceLocale("en"));
 
-    it("shows the general settings and the vault instructions in one panel", () => {
+    it("shows the general settings and the vault instructions without section headings", () => {
       render(<BasicSettings />);
 
-      expect(screen.getByLabelText("Scribe folder")).toBeTruthy();
-      expect(screen.getByText("Custom instructions")).toBeTruthy();
+      expect(screen.queryByLabelText("Scribe folder")).toBeNull();
+      expect(screen.queryByText("General")).toBeNull();
+      expect(screen.queryByText("Custom instructions")).toBeNull();
       expect(screen.queryByText("Autosave chats as Markdown")).toBeNull();
     });
 
@@ -85,91 +52,6 @@ describe("BasicSettings", () => {
       fireEvent.click(within(row).getByRole("switch"));
 
       expect(settingsStore.get(settingsAtom).autoAttachActiveNote).toBe(false);
-    });
-
-    it("binds the Scribe folder input to the persisted root", () => {
-      render(<BasicSettings />);
-      expect(screen.getByLabelText<HTMLInputElement>("Scribe folder").value).toBe("scribe");
-    });
-
-    it("rejects an invalid root on Apply without opening the confirm modal", () => {
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "../escape" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(Notice).toHaveBeenCalledTimes(1);
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-    });
-
-    it("rejects a root inside the vault's active config directory", () => {
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), {
-        target: { value: ".vault-config/plugins" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-
-      expect(Notice).toHaveBeenCalledTimes(1);
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-    });
-
-    it("rejects a root whose path is occupied by an existing file without opening the confirm modal", () => {
-      findScribeRootFileConflict.mockReturnValue("ai.txt");
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "ai.txt" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(Notice).toHaveBeenCalledTimes(1);
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-    });
-
-    it("opens a warning confirmation for a root that already contains Markdown", () => {
-      scribeRootContainsNotes.mockReturnValue(true);
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "existing" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-
-      expect(modalCtor).toHaveBeenCalledTimes(1);
-      expect(capturedConfirmButtonText).toBe("Use folder");
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-
-      capturedOnConfirm?.();
-      expect(applyScribeRootChange).toHaveBeenCalledWith(expect.anything(), "existing");
-    });
-
-    it("still warns when the non-empty folder is a previously used Scribe root", () => {
-      settingsStore.set(settingsAtom, {
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "scribe",
-        scribeRootHistory: ["scribe", "old-root"],
-      });
-      scribeRootContainsNotes.mockReturnValue(true);
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "old-root" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-
-      expect(scribeRootContainsNotes).toHaveBeenCalledWith(expect.anything(), "old-root");
-      expect(modalCtor).toHaveBeenCalledTimes(1);
-      expect(capturedConfirmButtonText).toBe("Use folder");
-    });
-
-    it("opens the confirm modal for a valid new root and applies the change on confirm", () => {
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "ai" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(modalCtor).toHaveBeenCalledTimes(1);
-      expect(capturedConfirmButtonText).toBe("Change folder");
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-
-      capturedOnConfirm?.();
-      expect(applyScribeRootChange).toHaveBeenCalledWith(expect.anything(), "ai");
-    });
-
-    it("does nothing when Apply is pressed with the current root unchanged", () => {
-      render(<BasicSettings />);
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
     });
 
     it("keeps the draft open after a failed save and retries it before opening the file", async () => {

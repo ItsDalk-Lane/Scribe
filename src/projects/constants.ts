@@ -12,6 +12,7 @@ export const EMPTY_PROJECT_CONFIG: ProjectConfig = {
 
 export const SCRIBE_PROJECT_ID = "scribe-project-id";
 export const SCRIBE_PROJECT_NAME = "scribe-project-name";
+export const SCRIBE_PROJECT_WORKSPACE = "scribe-project-workspace";
 export const SCRIBE_PROJECT_DESCRIPTION = "scribe-project-description";
 export const SCRIBE_PROJECT_CREATED = "scribe-project-created";
 export const SCRIBE_PROJECT_LAST_USED = "scribe-project-last-used";

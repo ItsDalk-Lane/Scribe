@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Notice } from "obsidian";
 import { QuickAskPanel } from "@/components/quick-ask/QuickAskPanel";
 import type { QuickAskPanelProps } from "@/components/quick-ask/types";
@@ -7,7 +7,7 @@ import { useQuickAskSession } from "@/components/quick-ask/useQuickAskSession";
 import { updateSetting } from "@/settings/model";
 
 let mockDefaultModel: string | undefined;
-const mockSend = jest.fn(async () => undefined);
+const mockSend = jest.fn<Promise<void>, [string]>().mockResolvedValue(undefined);
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hooks; names must match the exports */
 jest.mock("@/settings/model", () => ({
   useSettingsValue: () => ({
@@ -88,6 +88,41 @@ describe("QuickAskPanel", () => {
       fireEvent.click(screen.getByTitle("Send message"));
       await waitFor(() => expect(mockSend).toHaveBeenCalledWith("Fix the sentence"));
       expect(screen.getByLabelText<HTMLInputElement>("Question").value).toBe("");
+    });
+
+    it("retains the question when the master-password prompt is cancelled", async () => {
+      mockSend.mockRejectedValueOnce(new DOMException("Cancelled", "AbortError"));
+      render(<QuickAskPanel {...props} />);
+      fireEvent.change(screen.getByLabelText("Question"), {
+        target: { value: "Keep this question" },
+      });
+      fireEvent.click(screen.getByTitle("Send message"));
+      await waitFor(() => expect(mockSend).toHaveBeenCalledWith("Keep this question"));
+      expect(screen.getByLabelText<HTMLInputElement>("Question").value).toBe("Keep this question");
+    });
+
+    it("submits only once while unlocking and allows retry after cancellation", async () => {
+      let rejectUnlock!: (error: Error) => void;
+      const waiting = new Promise<void>((_resolve, reject) => {
+        rejectUnlock = reject;
+      });
+      mockSend.mockReturnValueOnce(waiting);
+      render(<QuickAskPanel {...props} />);
+      fireEvent.change(screen.getByLabelText("Question"), {
+        target: { value: "Keep this question" },
+      });
+      fireEvent.click(screen.getByTitle("Send message"));
+      fireEvent.click(screen.getByTitle("Send message"));
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        rejectUnlock(new DOMException("Cancelled", "AbortError"));
+        await waiting.catch(() => undefined);
+      });
+      fireEvent.click(screen.getByTitle("Send message"));
+      await waitFor(() =>
+        expect(screen.getByLabelText<HTMLInputElement>("Question").value).toBe("")
+      );
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     it("keeps a popup model choice local and reopens with the default", () => {

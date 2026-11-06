@@ -110,6 +110,54 @@ describe("NativeBackendProcess", () => {
         expect(f.records.get(opened.sessionId)?.modelId).toBe(model.id);
       });
 
+      it("refuses an unknown purpose instead of silently granting ordinary-chat tools", async () => {
+        const f = fixture();
+        await expect(
+          f.proc.newSession({ cwd: "/fixture/vault", purpose: "unsupported" as never })
+        ).rejects.toThrow("purpose is not supported");
+        expect(f.records.size).toBe(0);
+      });
+
+      it("persists a skill-authoring purpose and registers only read and explicit-review tools even in auto mode", async () => {
+        const seen: string[][] = [];
+        const names = [
+          "read_note",
+          "list_directory",
+          "find_paths",
+          "search_content",
+          "ask_user",
+          "invoke_skill",
+          "propose_skill",
+          "write_note",
+          "edit_note",
+          "run_command",
+          "delegate_task",
+          "excalidraw_write",
+        ];
+        const tools = names.map((name) => ({
+          name,
+          label: name,
+          description: name,
+          parameters: { type: "object", properties: {} },
+          execute: jest.fn(async () => ({ content: [], details: undefined })),
+        })) as AgentTool[];
+        const f = fixture((_model, context) => {
+          seen.push(getCurrentTools(context.messages).map((tool) => tool.name));
+          return response("Draft ready");
+        }, tools);
+        const opened = await f.proc.newSession({
+          cwd: "/fixture/vault",
+          ...{ purpose: "skill-authoring" as const },
+        });
+        await f.proc.setSessionMode({ sessionId: opened.sessionId, modeId: "auto" });
+        await f.send(opened.sessionId);
+        expect(f.records.get(opened.sessionId)).toMatchObject({ purpose: "skill-authoring" });
+        expect(seen[0]).toEqual(names.slice(0, 7));
+        expect(tools.slice(7).every((tool) => !jest.mocked(tool.execute).mock.calls.length)).toBe(
+          true
+        );
+      });
+
       it("creates a separate native identity and persists the configured model and working folder", async () => {
         const f = fixture();
         const id = await f.open();
@@ -157,6 +205,92 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("prompt", () => {
+      it("loads an explicitly named manual skill for this request without rewriting the original user message", async () => {
+        const contexts: Context[] = [];
+        const findSkill = jest.fn((name: string) =>
+          name === "manual-review"
+            ? {
+                name,
+                body: "Verify each quoted claim.",
+                dirPath: "/fixture/vault/.scribe/skills/manual-review",
+              }
+            : null
+        );
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Reviewed");
+          },
+          [],
+          { getManuallyInvokedSkill: findSkill }
+        );
+        const id = await f.open();
+        const original =
+          "<scribe-context>Attached note</scribe-context>\n<user-message>\n/manual-review Check this note\n</user-message>";
+        await f.send(id, "manual", original);
+        expect(JSON.stringify(contexts[0].messages)).toContain("Verify each quoted claim.");
+        expect(JSON.stringify(contexts[0].messages)).toContain(
+          "/fixture/vault/.scribe/skills/manual-review"
+        );
+        expect(
+          f.records.get(id)?.messages.find((message) => message.role === "user")?.content
+        ).toEqual([{ type: "text", text: original }]);
+        await f.send(id, "ordinary", "Continue without a skill");
+        expect(JSON.stringify(contexts[1].messages)).not.toContain("Verify each quoted claim.");
+      });
+
+      it("does not send a model request when the explicitly named skill disallows manual invocation", async () => {
+        const request = jest.fn(() => response("must not run"));
+        const f = fixture(request, [], {
+          getManuallyInvokedSkill: () => {
+            throw new Error("Manual use is disabled");
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/private-skill Check this");
+        expect(request).not.toHaveBeenCalled();
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            update: expect.objectContaining({
+              sessionUpdate: "turn_ended",
+              stopReason: "request_error",
+            }),
+          })
+        );
+      });
+
+      it("rejects a model attempt to run a command in an authoring chat without executing it", async () => {
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "must not run" }],
+          details: undefined,
+        }));
+        const tool: AgentTool = {
+          name: "run_command",
+          label: "Run",
+          description: "Run",
+          parameters: { type: "object", properties: {} },
+          execute,
+        };
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "forbidden-command", name: "run_command", arguments: {} }])
+              : response("Draft only"),
+          [tool]
+        );
+        const opened = await f.proc.newSession({
+          cwd: "/fixture/vault",
+          purpose: "skill-authoring",
+        });
+        await f.proc.setSessionMode({ sessionId: opened.sessionId, modeId: "auto" });
+        await f.send(opened.sessionId);
+        expect(execute).not.toHaveBeenCalled();
+        expect(f.records.get(opened.sessionId)?.messages).toContainEqual(
+          expect.objectContaining({ role: "toolResult", toolName: "run_command", isError: true })
+        );
+      });
+
       it.each([false, true])(
         "keeps a saving-phase message isolated from the ended agent when cancel=%s",
         async (cancel) => {
@@ -350,7 +484,13 @@ describe("NativeBackendProcess", () => {
         const summaryInput = JSON.stringify(contexts[1].messages);
         expect(summaryInput).toContain("Large previous answer");
         expect(summaryInput).not.toContain("Exact new authorization");
-        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Preserved history summary");
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Large previous answer");
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "compaction",
+            summary: "Preserved history summary",
+          })
+        );
         await f.send(id, "third", "Follow-up");
         expect(JSON.stringify(contexts[3].messages)).not.toContain("Large previous answer");
         expect(JSON.stringify(contexts[2].messages)).toContain("Exact new authorization");
@@ -741,6 +881,97 @@ describe("NativeBackendProcess", () => {
         }
       );
 
+      it("does not start a child request when a selected custom agent is disabled or missing", async () => {
+        const request = jest.fn(() => response("Unused"));
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "reviewer",
+              name: "Reviewer",
+              description: "Review",
+              instructions: "Review carefully",
+              enabled: false,
+            },
+          ],
+        });
+        await f.open();
+        for (const agent of ["reviewer", "missing"]) {
+          await expect(
+            f.toolContexts[0].executeSubagent!("child", {
+              prompt: "Review",
+              description: "Review",
+              agent,
+            })
+          ).rejects.toThrow("disabled or unavailable");
+        }
+        expect(request).not.toHaveBeenCalled();
+        expect(
+          f.events
+            .map((event) => event.update)
+            .filter((update) => update.sessionUpdate === "task_started")
+        ).toEqual([]);
+      });
+      it("delegates to a saved custom agent with its own instructions and the current model", async () => {
+        const contexts: Context[] = [];
+        const request = jest.fn((_model, context: Context) => {
+          contexts.push(context);
+          const last = context.messages.at(-1);
+          if (JSON.stringify(last).includes("Analyze selected"))
+            return response("Custom review done");
+          if (last?.role === "toolResult") return response("Parent complete");
+          return response("", [
+            {
+              id: "delegate",
+              name: "delegate_task",
+              arguments: { prompt: "Analyze selected", description: "Review", agent: "reviewer" },
+            },
+          ]);
+        });
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "reviewer",
+              name: "Reviewer",
+              description: "Review sources",
+              instructions: "Custom reviewer: cite every source.",
+              enabled: true,
+            },
+          ],
+          createTools: (context) => ({
+            tools: context.executeSubagent
+              ? [
+                  {
+                    name: "delegate_task",
+                    label: "Delegate",
+                    description: "Delegate",
+                    parameters: { type: "object", properties: {} },
+                    execute: (id, args, signal) =>
+                      context.executeSubagent!(
+                        id,
+                        args as { prompt: string; description: string; agent?: string },
+                        signal
+                      ),
+                  },
+                ]
+              : [],
+          }),
+        });
+        const id = await f.open();
+        await f.send(id);
+        expect(
+          contexts.some((context) =>
+            JSON.stringify(context.messages).includes("Custom reviewer: cite every source.")
+          )
+        ).toBe(true);
+        expect(request.mock.calls.every((call) => call[0].id === model.id)).toBe(true);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "task_started",
+            description: "Reviewer: Review",
+          })
+        );
+      });
+
       it("stops the parent without another request when a child exhausts quota (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         const request = jest.fn((_model, context: Context, options?: AgentStreamOptions) => {
           if (
@@ -855,7 +1086,7 @@ describe("NativeBackendProcess", () => {
                 message.content.some((part) => part.type === "text" && part.text === "Finished")
             )
         ).toHaveLength(1);
-        expect(JSON.stringify(f.records.get(id)?.messages)).not.toContain('"toolCallId":"read-1"');
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain('"toolCallId":"read-1"');
         expect(f.events.map((event) => event.update)).toContainEqual(
           expect.objectContaining({
             sessionUpdate: "compaction",
@@ -1779,6 +2010,33 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("resumeSession", () => {
+      it("restores the authoring purpose and never exposes file or command tools after reopening", async () => {
+        const seen: string[][] = [];
+        const tools = ["read_note", "run_command", "write_note", "delegate_task"].map((name) => ({
+          name,
+          label: name,
+          description: name,
+          parameters: { type: "object", properties: {} },
+          execute: jest.fn(async () => ({ content: [], details: undefined })),
+        })) as AgentTool[];
+        const f = fixture((_model, context) => {
+          seen.push(getCurrentTools(context.messages).map((tool) => tool.name));
+          return response("Still drafting");
+        }, tools);
+        const opened = await f.proc.newSession({
+          cwd: "/fixture/vault",
+          purpose: "skill-authoring",
+        });
+        await f.proc.closeSession({ sessionId: opened.sessionId });
+        const restored = await f.proc.resumeSession({
+          sessionId: opened.sessionId,
+          cwd: "/fixture/vault",
+        });
+        expect(restored.purpose).toBe("skill-authoring");
+        await f.send(opened.sessionId);
+        expect(seen[0]).toEqual(["read_note"]);
+      });
+
       it("resumes the original project and refuses an attempt from another project", async () => {
         const f = fixture();
         const id = await f.open();

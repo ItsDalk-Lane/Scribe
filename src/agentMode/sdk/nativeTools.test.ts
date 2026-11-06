@@ -405,16 +405,17 @@ describe("nativeTools", () => {
         content: [{ type: "text" as const, text: "Child result" }],
         details: undefined,
       }));
+      options.subagents = [{ id: "reviewer", name: "Reviewer", description: "Check sources" }];
       const result = await execute(
         "delegate_task",
-        { prompt: "Inspect the notes", description: "Inspect" },
+        { prompt: "Inspect the notes", description: "Inspect", agent: "reviewer" },
         "child-tool",
         controller.signal
       );
       expect(result.content).toContainEqual({ type: "text" as const, text: "Child result" });
       expect(options.executeSubagent).toHaveBeenCalledWith(
         "child-tool",
-        { prompt: "Inspect the notes", description: "Inspect" },
+        { prompt: "Inspect the notes", description: "Inspect", agent: "reviewer" },
         controller.signal
       );
     });

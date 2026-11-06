@@ -1,3 +1,4 @@
+import { getSubagents } from "@/agentMode/subagents/SubagentManager";
 import type {
   AgentExtensionGroup,
   AgentExtensionItem,
@@ -90,6 +91,19 @@ export function readNativeExtensions({
       status: "partial",
       warnings: EMPTY_ENTRIES,
       items: [
+        ...getSubagents().map(
+          (entry): AgentExtensionItem => ({
+            id: `subagent:${entry.id}`,
+            name: entry.name,
+            description: entry.description,
+            kind: "subagent",
+            source: "runtime",
+            enabled: entry.enabled,
+            availability: entry.enabled ? "loaded" : "disabled",
+            readOnly: true,
+            capabilities: READ_ONLY,
+          })
+        ),
         {
           id: "builtin:delegate_task",
           ...SUBAGENT,
@@ -135,7 +149,12 @@ export function readNativeExtensionRuntime(cwd: string | null): AgentExtensionRu
     ),
     commands: EMPTY_ENTRIES,
     builtinCommands: BUILTIN_COMMANDS,
-    subagents: SUBAGENTS,
+    subagents: [
+      ...SUBAGENTS,
+      ...getSubagents()
+        .filter((entry) => entry.enabled)
+        .map((entry) => ({ name: entry.name, description: entry.description })),
+    ],
     hooks: EMPTY_ENTRIES,
     hooksDisabled: true,
     plugins: EMPTY_ENTRIES,

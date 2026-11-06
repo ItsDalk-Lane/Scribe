@@ -76,6 +76,35 @@ describe("SessionHistoryReplay", () => {
     });
 
     describe("append", () => {
+      it("freezes a normal reply's final thought at its recorded end time after a later replay", () => {
+        const clock = jest.spyOn(Date, "now").mockReturnValue(9_000_000);
+        try {
+          const { store, replay } = startReplay();
+          replay.append({ sessionUpdate: "turn_started", turnId: "request" }, 1000, 1);
+          replay.append(
+            { sessionUpdate: "message_delivered", promptId: "request", messageSeq: 0 },
+            2000,
+            2
+          );
+          replay.append(replayText("user_message_chunk", "Question", "request"), 3000, 3);
+          replay.append(replayText("agent_thought_chunk", "Thinking"), 4000, 4);
+          replay.append(
+            { sessionUpdate: "turn_ended", turnId: "request", stopReason: "end_turn" },
+            9000,
+            5
+          );
+          replay.end();
+          expect(store.getMessage("assistant:request")).toMatchObject({
+            seq: 2,
+            timestamp: { epoch: 2000 },
+            turnStopReason: "end_turn",
+            turnDurationMs: 7000,
+            parts: [{ kind: "thought", startedAtMs: 4000, durationMs: 5000 }],
+          });
+        } finally {
+          clock.mockRestore();
+        }
+      });
       it("restores a persisted failure even when no assistant text arrived, without inventing a duration", () => {
         const { store, replay } = startReplay();
         replay.append(replayText("user_message_chunk", "Question", "u1"), undefined);

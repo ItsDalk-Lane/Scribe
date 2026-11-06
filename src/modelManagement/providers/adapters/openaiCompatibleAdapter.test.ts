@@ -26,7 +26,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     baseUrl: "https://api.openai.com/v1",
     origin: { kind: "byok" },
     addedAt: 0,
-    apiKeyKeychainId: null,
+    apiKeyRef: null,
     ...overrides,
   };
 }

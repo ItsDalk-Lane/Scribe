@@ -261,7 +261,7 @@ describe("createHttpProviderChatModel", () => {
         expect(await collectText(client, "Second mobile question")).toBe("Mobile Vertex reply");
         expect(
           requests.filter((request) => request.url === "https://oauth2.googleapis.com/token")
-        ).toHaveLength(1);
+        ).toHaveLength(2);
         expect(requests.some((request) => request.url.includes("untrusted.invalid"))).toBe(false);
         expect(
           requests.filter((request) => request.url.includes(":streamGenerateContent"))
@@ -484,7 +484,9 @@ describe("createHttpProviderChatModel", () => {
             apiKey: secret,
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
-        ).catch((reason: unknown) => reason);
+        )
+          .then((client) => collectText(client, "Credential validation"))
+          .catch((reason: unknown) => reason);
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toBe("The provider credentials must be valid JSON.");
         expect((error as Error).message).not.toContain("DO-NOT-LOG-THIS");
@@ -504,7 +506,16 @@ describe("createHttpProviderChatModel", () => {
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
         )
-      ).rejects.toThrow("requires client_email and private_key");
+      ).resolves.toBeDefined();
+      const client = await createProviderChatModel(
+        model("@ai-sdk/google-vertex", {
+          apiKey: '{"client_email":"fixture@example.invalid"}',
+          providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+        })
+      );
+      await expect(collectText(client, "Credential validation")).rejects.toThrow(
+        "requires client_email and private_key"
+      );
     });
     it("rejects missing Vertex credentials before a request can be attempted", async () => {
       await expect(
@@ -514,7 +525,16 @@ describe("createHttpProviderChatModel", () => {
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
         )
-      ).rejects.toThrow("requires service-account JSON or an OAuth access token");
+      ).resolves.toBeDefined();
+      const client = await createProviderChatModel(
+        model("@ai-sdk/google-vertex", {
+          apiKey: "",
+          providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+        })
+      );
+      await expect(collectText(client, "Credential validation")).rejects.toThrow(
+        "requires service-account JSON or an OAuth access token"
+      );
     });
     it.each([
       "[]",
@@ -522,10 +542,12 @@ describe("createHttpProviderChatModel", () => {
       '{"clientid":"fixture-id","clientsecret":"secret","url":"https://auth.example.invalid"}',
     ])("rejects incomplete SAP service credentials %s", async (apiKey) => {
       await expect(
-        createProviderChatModel(model("@jerome-benoit/sap-ai-provider-v2", { apiKey }))
+        createProviderChatModel(model("@jerome-benoit/sap-ai-provider-v2", { apiKey })).then(
+          (client) => collectText(client, "Credential validation")
+        )
       ).rejects.toThrow(/JSON object|requires clientid|requires serviceurls/);
     });
-    it("uses public GitLab direct access with a browser-safe Anthropic child and cached tokens", async () => {
+    it("uses public GitLab direct access with a browser-safe Anthropic child and request-scoped tokens", async () => {
       const requests: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
       setRequestUrlImpl(async (request: (typeof requests)[number]) => {
         requests.push(request);
@@ -559,7 +581,7 @@ describe("createHttpProviderChatModel", () => {
       );
       expect(await collectText(client, "Original GitLab input")).toBe("GitLab fixture reply");
       expect(await collectText(client, "Second input")).toBe("GitLab fixture reply");
-      expect(requests.filter((request) => request.url.endsWith("direct_access"))).toHaveLength(1);
+      expect(requests.filter((request) => request.url.endsWith("direct_access"))).toHaveLength(2);
       const inference = requests.filter((request) => !request.url.endsWith("direct_access"));
       expect(inference).toHaveLength(2);
       expect(inference[0].url).toBe("https://cloud.gitlab.com/ai/v1/proxy/anthropic/v1/messages");

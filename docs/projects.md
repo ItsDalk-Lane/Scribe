@@ -4,27 +4,26 @@ Projects are focused workspaces inside Agent Chat. Each Project keeps its own in
 
 A Project works with the Scribe agent. It uses the agent, model, effort, and permission setting selected for the current chat. It does not lock you to a separate model.
 
-Isolated tests found that opening or restoring a Project can change existing instructions, and saving another Project detail can overwrite a newer instruction body. Back up your files first and keep Scribe disabled until these issues are fixed; pending saves may finish during shutdown. See [Troubleshooting](troubleshooting-and-faq.md).
-
-隔离测试发现，打开或恢复项目可能改写已有说明；保存其他项目详情时也可能覆盖较新的说明。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。详见[故障排查](troubleshooting-and-faq.md)。
-
-The guidance below applies after these issues are fixed. 以下操作应在问题修复后执行。
-
 On the Agent Chat home screen, open **项目** (**Projects** in English) to browse your most recently used Projects. Scroll the list to see more, or use **搜索项目…** (**Search projects...** in English) to find a Project by name or description. Search includes every Project, even those you have not scrolled to yet.
 
 ## Create a Project
 
 1. Open **Agent Chat** from the ribbon or command palette.
 2. From the Agent Chat home screen, open **项目** and select **新建项目**.
-3. Enter a name and select **创建**.
+3. Enter a name. Optionally select **选择文件夹** (**Choose folder** in English) to use an existing folder in this vault, including an empty folder or the vault root.
+4. Select **创建**.
 
-Scribe opens the new Project immediately. Creation asks only for a name. Use **编辑项目** to add a description, instructions, and saved context.
+Scribe opens the new Project immediately and shows its working location. Without a folder selection, Scribe creates a folder with the Project's name at the vault root. If that folder already exists, creation stops: select it explicitly or choose another name. Selecting an existing folder uses that folder directly; Scribe does not move or copy its notes.
 
-Each Project has a folder under `<Scribe folder>/projects/`. The default root is `scribe/projects/`. Its `project.md` file stores Project details and the context list. Its `AGENTS.md` file contains the instructions you own and edit.
+Use **编辑项目** to add a description, instructions, and saved context. The edit screen and Project info show the working location. Renaming a Project changes its name in Scribe; it does not rename or move the working folder.
+
+Project details and the saved context list are kept in the vault-root `.scribe` folder. The working folder is separate and holds your ordinary notes and the Project's `AGENTS.md`. Scribe does not create another `.scribe` folder inside it. Vault-wide instructions remain in the vault-root `AGENTS.md`.
+
+Projects from earlier storage locations are not imported automatically. Their files stay untouched. To continue using an existing working folder, create a new Project and select that folder explicitly.
 
 ## Add Project instructions
 
-Open the Project info menu beside the name and select **AGENTS.md**. You can also choose **编辑项目** from the Projects list and edit **项目说明** (**Project instructions** in English). Both open the same Project file.
+Open the Project info menu beside the name and select **AGENTS.md**. You can also choose **编辑项目** from the Projects list and edit **项目说明** (**Project instructions** in English). Both edit the instructions in the working folder. A hidden working folder is supported; its instruction file opens with the system's default application.
 
 Scribe provides both the vault-wide instructions and the Project `AGENTS.md` to the model for chats in that Project. Avoid conflicting rules: Scribe does not enforce a guaranteed winner when the files disagree.
 
@@ -74,7 +73,7 @@ Inside a Project:
 
 From the Projects list, hover over a Project to **在库中显示**, **编辑项目**, or **删除** it. The global **最近聊天** list on the Agent Chat home screen includes conversations from across Projects.
 
-Deleting a Project removes its Scribe Project configuration and leaves its instructions and other notes in place. If you later recreate a Project in the same folder and open it, an `AGENTS.md` carrying an older generated marker may be modified or overwritten. Save a copy of any instructions you need before reopening a Project in that folder.
+Deleting a Project removes only its Scribe configuration. The working folder, `AGENTS.md`, and all notes remain in their original location. Opening a Project does not automatically replace existing instructions. If you later create another Project for that folder, select the existing folder explicitly.
 
 ## When to use a Project
 

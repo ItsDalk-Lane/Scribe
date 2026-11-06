@@ -5,7 +5,7 @@ import { ReactModal } from "@/components/modals/ReactModal";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
+import { ProviderCredentialField } from "@/modelManagement/ui/components/ProviderCredentialField";
 import { useApp } from "@/context";
 import { logError } from "@/logger";
 import type { ModelManagementApi } from "@/modelManagement/createModelManagement";
@@ -76,34 +76,10 @@ export const ConfigureProviderForm: React.FC<ConfigureProviderFormProps> = ({
     [state, configuredModels]
   );
 
-  const keyProviderId = state.mode === "edit" ? state.providerId : null;
-  const [initialApiKey, setInitialApiKey] = useState<string | null>(null);
-  const [keyResolved, setKeyResolved] = useState(keyProviderId === null);
-  useEffect(() => {
-    if (keyProviderId === null) return;
-    let cancelled = false;
-    void api.providerRegistry
-      .getApiKey(keyProviderId)
-      .then((key) => {
-        if (cancelled) return;
-        setInitialApiKey(key);
-        setKeyResolved(true);
-      })
-      .catch(() => {
-        if (!cancelled) setKeyResolved(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [keyProviderId, api]);
-
-  if (state.mode === "edit" && (!provider || !keyResolved)) {
-    return (
-      <div className="tw-flex tw-h-full tw-items-center tw-justify-center">
-        <Loader2 className="tw-size-5 tw-animate-spin tw-text-muted" />
-      </div>
-    );
-  }
+  const hasSavedKey =
+    !!provider?.apiKeyRef &&
+    api.providerRegistry.getApiKeyStatus(provider.providerId) !== "missing";
+  if (state.mode === "edit" && !provider) return null;
 
   return (
     <ConfigureProviderBody
@@ -112,7 +88,7 @@ export const ConfigureProviderForm: React.FC<ConfigureProviderFormProps> = ({
       onSaved={onSaved}
       provider={provider}
       existingModels={existingModels}
-      initialApiKey={initialApiKey}
+      hasSavedKey={hasSavedKey}
     />
   );
 };
@@ -123,7 +99,7 @@ interface ConfigureProviderBodyProps {
   onSaved?: () => void;
   provider: Provider | undefined;
   existingModels: readonly ConfiguredModel[];
-  initialApiKey: string | null;
+  hasSavedKey: boolean;
 }
 
 const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
@@ -132,7 +108,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   onSaved,
   provider,
   existingModels,
-  initialApiKey,
+  hasSavedKey,
 }) => {
   const api = useModelManagement();
   const app = useApp();
@@ -173,7 +149,8 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const [displayName, setDisplayName] = useState(() =>
     state.mode === "new" ? state.source.displayName : (provider?.displayName ?? "")
   );
-  const [apiKey, setApiKey] = useState(() => initialApiKey ?? "");
+  const [apiKey, setApiKey] = useState("");
+  const [clearKey, setClearKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState(() =>
     state.mode === "edit" ? (provider?.baseUrl ?? "") : ""
   );
@@ -266,7 +243,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     const value = connectionExtras[parameter.key];
     return parameter.required && (typeof value !== "string" || !value.trim());
   });
-  const missingRequiredKey = requiresApiKey && !apiKey.trim();
+  const missingRequiredKey = requiresApiKey && !apiKey.trim() && !(hasSavedKey && !clearKey);
 
   const pool = useModelCandidatePool({
     mode: state.mode,
@@ -275,9 +252,10 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     existingModels,
     catalogMetadata,
     apiKey,
+    apiKeyRef: clearKey ? undefined : (provider?.apiKeyRef ?? undefined),
     extras: connectionExtras,
     requiresApiKey,
-    autoDiscover: !!defaultBaseUrl,
+    autoDiscover: state.mode === "new" && !!defaultBaseUrl,
     providerHydrated: !missingParameters && !baseUrlError && (state.mode !== "edit" || !!provider),
   });
   const testModels = pool.buildSelectedModelInfos().filter(isChatModelInfo);
@@ -336,6 +314,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
       }),
       providerType,
       displayName,
+      apiKeyRef: clearKey ? null : provider?.apiKeyRef,
       baseUrl: storedBaseUrl || undefined,
       enableCors,
       requiresApiKey,
@@ -399,7 +378,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
       await saveProviderEdit({
         providerId: state.providerId,
         apiKey,
-        initialApiKey,
+        clearKey,
         displayName,
         effectiveBaseUrl: storedBaseUrl,
         enableCors,
@@ -421,6 +400,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
 
   const handleClearKey = (): void => {
     setApiKey("");
+    setClearKey(true);
     invalidateChatCheck();
   };
 
@@ -453,7 +433,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const canSave =
     pool.selectedWireIds.size > 0 &&
     !missingRequiredBaseUrl &&
-    !missingRequiredKey &&
+    (state.mode === "edit" || !missingRequiredKey) &&
     !missingParameters &&
     !baseUrlError;
   const canTest =
@@ -493,41 +473,24 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </FormField>
-          <FormField label={t(profile.credentialLabel ?? "API key")} required={requiresApiKey}>
-            <div className="tw-flex tw-gap-2">
-              <PasswordInput
-                className="tw-flex-1"
-                value={apiKey}
-                disabled={saving}
-                onChange={(value) => {
-                  invalidateChatCheck();
-                  setApiKey(value);
-                }}
-                placeholder={
-                  profile.credentialPlaceholder
-                    ? t(profile.credentialPlaceholder)
-                    : state.mode === "edit"
-                      ? t("No API key set")
-                      : t("Paste your API key")
-                }
-              />
-              {state.mode === "edit" && apiKey.length > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={handleClearKey}
-                  data-testid="api-key-clear"
-                  disabled={saving}
-                >
-                  {t("Clear")}
-                </Button>
-              )}
-            </div>
-            {missingRequiredKey && (
-              <div className="tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
-                {t("An API key is required for this provider.")}
-              </div>
-            )}
-          </FormField>
+          <ProviderCredentialField
+            label={t(profile.credentialLabel ?? "API key")}
+            required={requiresApiKey}
+            value={apiKey}
+            hasSavedKey={hasSavedKey}
+            clearRequested={clearKey}
+            editableExisting={state.mode === "edit"}
+            saving={saving}
+            placeholder={
+              profile.credentialPlaceholder ? t(profile.credentialPlaceholder) : undefined
+            }
+            onChange={(value) => {
+              invalidateChatCheck();
+              setApiKey(value);
+              if (value) setClearKey(false);
+            }}
+            onClear={handleClearKey}
+          />
           <FormField label={t("Base URL")} required={profile.requiresBaseUrl || nativeApiSelected}>
             <Input
               value={baseUrl}
@@ -675,7 +638,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
 interface SaveEditArgs {
   providerId: string;
   apiKey: string;
-  initialApiKey: string | null;
+  clearKey: boolean;
   displayName: string;
   effectiveBaseUrl: string;
   enableCors: boolean;
@@ -689,7 +652,7 @@ interface SaveEditArgs {
 async function saveProviderEdit({
   providerId,
   apiKey,
-  initialApiKey,
+  clearKey,
   displayName,
   effectiveBaseUrl,
   enableCors,
@@ -699,10 +662,8 @@ async function saveProviderEdit({
   selectedInfos,
   api,
 }: SaveEditArgs): Promise<void> {
-  if (apiKey !== (initialApiKey ?? "")) {
-    if (apiKey.trim().length > 0) await api.providerRegistry.setApiKey(providerId, apiKey);
-    else await api.providerRegistry.clearApiKey(providerId);
-  }
+  if (apiKey.trim().length > 0) await api.providerRegistry.setApiKey(providerId, apiKey);
+  else if (clearKey) await api.providerRegistry.clearApiKey(providerId);
   await api.providerRegistry.update(providerId, {
     displayName,
     baseUrl: effectiveBaseUrl || undefined,

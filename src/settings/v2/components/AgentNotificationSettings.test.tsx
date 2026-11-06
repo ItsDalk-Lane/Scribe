@@ -10,7 +10,7 @@ jest.mock("@/utils/notificationSound", () => ({ playNotificationSound: jest.fn()
 describe("AgentNotificationSettings", () => {
   describe("AgentNotificationSettings()", () => {
     beforeEach(() => resetSettings());
-    it("saves notification choices from General without changing the existing stored preferences https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+    it("saves notification choices without changing the existing stored preferences https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       render(<AgentNotificationSettings />);
       const enabled = getSettings().agentMode.notificationSound;
       const toggle = screen.getByRole("switch");

@@ -76,7 +76,7 @@ describe("createModelManagement", () => {
         expect(backends.get("chat").enabledModels).toEqual([]);
         expect(backends.get("native").enabledModels).toEqual([]);
         expect(backends.get("claude").enabledModels).toEqual([]);
-        expect(await providers.getApiKey(providerId)).toBeNull();
+        expect(await providers.withApiKey(providerId, async (key) => key)).toBeNull();
       });
 
       it("keeps other providers, their models, and their backend refs", async () => {

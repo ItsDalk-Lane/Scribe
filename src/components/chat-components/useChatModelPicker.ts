@@ -47,7 +47,7 @@ export function useChatModelPicker(params: {
       if (entry.state !== "ok") continue;
       const { configuredModel, provider, configuredModelId } = entry;
       const capabilities = capabilitiesFromConfiguredInfo(configuredModel.info);
-      const needsKey = providerRequiresApiKey(provider) && !provider.apiKeyKeychainId;
+      const needsKey = providerRequiresApiKey(provider) && !provider.apiKeyRef;
       const modelEntry: ModelSelectorEntry = {
         name: configuredModelId,
         provider: mapProviderTypeToChatModelProvider(provider),

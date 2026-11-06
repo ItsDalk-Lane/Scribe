@@ -30,7 +30,7 @@ const fixtureApi = {
     onChange: () => () => undefined,
     getProvider: () => provider,
   },
-  providerRegistry: { getApiKey: async () => null },
+  providerRegistry: { getApiKeyStatus: () => "missing" },
   setup: {
     byok: { setupProvider: async () => ({ providerId: "fixture", configuredModelIds: [] }) },
   },

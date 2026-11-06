@@ -93,16 +93,26 @@ describe("searchUtils", () => {
       expect(shouldIndexFile(window.app, file, null, null)).toBe(true);
     });
 
-    it("excludes Scribe instructions while keeping other files as ordinary searchable content", () => {
+    it("excludes vault instructions and all plugin data while preserving notes in former data folders", () => {
       expect(shouldIndexFile(window.app, createTestFile("AGENTS.md"), null, null)).toBe(false);
       expect(shouldIndexFile(window.app, createTestFile("CLAUDE.md"), null, null)).toBe(true);
-
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",
         qaExclusions: "",
         scribeFolder: "scribe",
-        projectsFolder: "scribe/projects",
+        scribeRootHistory: ["Archive"],
       });
+      expect(
+        shouldIndexFile(
+          window.app,
+          createTestFile(".scribe/projects/research/project.md"),
+          null,
+          null
+        )
+      ).toBe(false);
+      expect(
+        shouldIndexFile(window.app, createTestFile(".scribe/skills/research/CLAUDE.md"), null, null)
+      ).toBe(false);
       expect(
         shouldIndexFile(
           window.app,
@@ -110,15 +120,10 @@ describe("searchUtils", () => {
           null,
           null
         )
-      ).toBe(false);
-      expect(
-        shouldIndexFile(
-          window.app,
-          createTestFile("scribe/projects/research/CLAUDE.md"),
-          null,
-          null
-        )
-      ).toBe(false);
+      ).toBe(true);
+      expect(shouldIndexFile(window.app, createTestFile("Archive/notes.md"), null, null)).toBe(
+        true
+      );
     });
 
     it("skips a file inside an excluded folder", () => {
@@ -515,59 +520,43 @@ describe("searchUtils", () => {
   });
 
   describe("getSystemExcludedFolders()", () => {
-    it("always includes the historical scribe root", () => {
-      const folders = getSystemExcludedFolders({
-        scribeFolder: "scribe",
-        scribeRootHistory: [],
-      } as unknown as Parameters<typeof getSystemExcludedFolders>[0]);
-      expect(folders).toContain("scribe");
+    it("excludes only the fixed plugin data folder, independently of old saved folder choices", () => {
+      expect(
+        getSystemExcludedFolders({
+          scribeFolder: "team-ai",
+          scribeRootHistory: ["scribe", "Archive"],
+        } as unknown as Parameters<typeof getSystemExcludedFolders>[0])
+      ).toEqual([".scribe"]);
     });
-
-    it("includes the active root and every historical root", () => {
-      const folders = getSystemExcludedFolders({
-        scribeFolder: "team-ai",
-        scribeRootHistory: ["scribe", "ai"],
-      } as unknown as Parameters<typeof getSystemExcludedFolders>[0]);
-      expect(new Set(folders)).toEqual(new Set(["scribe", "scribe", "ai", "team-ai"]));
-    });
-
-    it("normalizes and dedupes without lowercasing (matcher is case-sensitive)", () => {
-      const folders = getSystemExcludedFolders({
-        scribeFolder: "Scribe/",
-        scribeRootHistory: ["scribe", "Scribe"],
-      } as unknown as Parameters<typeof getSystemExcludedFolders>[0]);
-      expect(new Set(folders)).toEqual(new Set(["scribe", "scribe", "Scribe"]));
+    it("does not reactivate historical folders that differ only by casing or trailing slash", () => {
+      expect(
+        getSystemExcludedFolders({
+          scribeFolder: "Scribe/",
+          scribeRootHistory: ["scribe", "Scribe"],
+        } as unknown as Parameters<typeof getSystemExcludedFolders>[0])
+      ).toEqual([".scribe"]);
     });
   });
 
   describe("isInternalExcludedPath()", () => {
-    it("excludes project-config files under the projects folder derived from the default root", () => {
-      (settingsModel.getSettings as jest.Mock).mockReturnValue({
-        qaInclusions: "",
-        qaExclusions: "",
-        scribeFolder: "scribe",
-      });
-      expect(isInternalExcludedPath("scribe/projects/my-project/project.md")).toBe(true);
+    it("recognizes every plugin data file in the fixed hidden folder as internal", () => {
+      expect(isInternalExcludedPath(".scribe/projects/my-project/project.md")).toBe(true);
+      expect(isInternalExcludedPath(".scribe/logs/debug.md")).toBe(true);
+      expect(isInternalExcludedPath(".scribe/skills/research/SKILL.md")).toBe(true);
     });
-
-    it("derives the projects folder from a custom root, not the retired projectsFolder field", () => {
+    it("treats notes in former configured folders as ordinary user content", () => {
       (settingsModel.getSettings as jest.Mock).mockReturnValue({
         qaInclusions: "",
         qaExclusions: "",
         scribeFolder: "team-ai",
         projectsFolder: "scribe/projects",
       });
-      expect(isInternalExcludedPath("team-ai/projects/my-project/project.md")).toBe(true);
+      expect(isInternalExcludedPath("team-ai/projects/my-project/project.md")).toBe(false);
       expect(isInternalExcludedPath("scribe/projects/my-project/project.md")).toBe(false);
-    });
-
-    it("does not exclude ordinary user files that merely live under the projects folder", () => {
-      (settingsModel.getSettings as jest.Mock).mockReturnValue({
-        qaInclusions: "",
-        qaExclusions: "",
-        scribeFolder: "team-ai",
-      });
       expect(isInternalExcludedPath("team-ai/projects/my-project/notes.md")).toBe(false);
+    });
+    it("does not hide an ordinary folder whose name merely starts with the plugin data folder name", () => {
+      expect(isInternalExcludedPath(".scribe-backup/notes.md")).toBe(false);
     });
   });
 

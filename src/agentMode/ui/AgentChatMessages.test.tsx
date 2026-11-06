@@ -219,6 +219,38 @@ describe("AgentChatMessages", () => {
 
     afterEach(() => jest.useRealTimers());
 
+    it("opens the latest 30 turns and reveals 30 older turns per request", () => {
+      const history: AgentChatMessage[] = Array.from({ length: 65 }, (_, index) => [
+        {
+          id: `user-${index}`,
+          sender: "user",
+          message: `Question ${index + 1}`,
+          timestamp: null,
+          isVisible: true,
+        },
+        {
+          id: `reply-${index}`,
+          sender: AI_SENDER,
+          message: `Answer ${index + 1}`,
+          timestamp: null,
+          isVisible: true,
+          turnStopReason: "end_turn" as const,
+        },
+      ]).flat();
+      renderMessages(history, false);
+      expect(screen.queryByText("Question 1")).toBeNull();
+      expect(screen.getByText("Question 36")).toBeTruthy();
+      expect(screen.getByText("Answer 65")).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: "Load 30 earlier turns" }));
+      expect(screen.getByText("Question 6")).toBeTruthy();
+      expect(screen.queryByText("Question 1")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Load 30 earlier turns" }));
+      expect(screen.getByText("Question 1")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Load 30 earlier turns" })).toBeNull();
+    });
+
     it("shows a return control over the paused transcript and resumes following on click", () => {
       mockScrollState.paused = true;
       renderMessages([assistantMessage("response", 1_000)], false);

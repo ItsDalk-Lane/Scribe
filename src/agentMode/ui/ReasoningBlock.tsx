@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { AgentReasoningBlock } from "@/components/chat-components/AgentReasoningBlock";
 import { useTrailExpansion } from "@/agentMode/ui/useTrailExpansion";
 import type { ThoughtPart } from "@/agentMode/ui/agentTrail";
@@ -9,11 +9,11 @@ interface ReasoningBlockProps {
   isTurnStreaming?: boolean;
 }
 
-export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({
+export const ReasoningBlock: React.FC<ReasoningBlockProps> = memo(function ReasoningBlock({
   part,
   isStreaming,
   isTurnStreaming,
-}) => {
+}) {
   const expansion = useTrailExpansion(isTurnStreaming ?? isStreaming);
   const fallbackStartedAtRef = useRef(Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -42,4 +42,4 @@ export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({
       steps={steps.length > 0 ? steps : [part.text]}
     />
   );
-};
+});

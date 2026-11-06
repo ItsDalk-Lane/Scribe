@@ -17,9 +17,19 @@ import { htmlToMarkdown } from "@/services/webViewerService/webViewerServiceHelp
 import { isRecord } from "@/utils/obsidianInternals";
 import { safeFetchNoThrow } from "@/utils";
 
+export interface SkillDraftProposal {
+  name: string;
+  description: string;
+  body: string;
+}
+
 export interface NativeAdvancedToolsOptions extends NativeToolContext {
+  reviewSkillDraft?: (
+    draft: SkillDraftProposal,
+    signal?: AbortSignal
+  ) => Promise<{ name: string } | null>;
   app: App;
-  skills(): readonly { name: string; description: string; body: string }[];
+  skills(): readonly { name: string; description: string; body: string; dirPath?: string }[];
   fetch?: typeof safeFetchNoThrow;
   searchUrlTemplate?: string;
 }
@@ -67,12 +77,26 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
     defineNativeTool(
       "invoke_skill",
       "Use skill",
-      "Read the instructions of a registered Scribe skill for the current project and user.",
+      "Read the instructions of a registered Scribe skill for the current project and user.\nAvailable skills:\n" +
+        options
+          .skills()
+          .map((skill) => `${skill.name}: ${skill.description}`)
+          .join("\n"),
       obj({ name: str({ minLength: 1 }) }),
       async (_id, args) => {
         const skill = options.skills().find((entry) => entry.name === args.name);
         if (!skill) throw new Error(`The skill is not registered in this session: ${args.name}`);
-        return { content: [{ type: "text", text: skill.body }], details: { name: skill.name } };
+        return {
+          content: [
+            {
+              type: "text",
+              text: skill.dirPath
+                ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n\n${skill.body}`
+                : skill.body,
+            },
+          ],
+          details: { name: skill.name, ...(skill.dirPath ? { directory: skill.dirPath } : {}) },
+        };
       }
     ),
     defineNativeTool(
@@ -105,6 +129,38 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
       }
     ),
   ];
+
+  if (options.reviewSkillDraft) {
+    tools.push(
+      defineNativeTool(
+        "propose_skill",
+        "Review skill draft",
+        "Show the complete skill draft to the user for editing and explicit confirmation. Only the confirmation interface can save it; cancellation never installs a skill.",
+        obj({
+          name: str({ minLength: 1 }),
+          description: str({ minLength: 1 }),
+          body: str({ minLength: 1 }),
+        }),
+        async (_id, draft, signal) => {
+          signal?.throwIfAborted();
+          const saved = await options.reviewSkillDraft!(draft, signal);
+          if (!saved)
+            return {
+              content: [
+                { type: "text", text: "The user cancelled the draft. No skill was saved." },
+              ],
+              details: { saved: false },
+            };
+          return {
+            content: [
+              { type: "text", text: `Skill saved after explicit confirmation: ${saved.name}` },
+            ],
+            details: { name: saved.name, saved: true },
+          };
+        }
+      )
+    );
+  }
 
   for (const definition of [EXCALIDRAW_READ_TOOL, EXCALIDRAW_RENDER_TOOL, EXCALIDRAW_WRITE_TOOL]) {
     const writes = definition.name === EXCALIDRAW_WRITE_TOOL.name;

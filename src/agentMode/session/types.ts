@@ -166,6 +166,7 @@ export type PromptContent =
 
 export type StopReason =
   | "end_turn"
+  | "interrupted"
   | "cancelled"
   | "refusal"
   | "max_tokens"
@@ -256,6 +257,9 @@ export type CompactionStatus = "in_progress" | "completed" | "failed" | "cancell
 export type CompactionTrigger = "manual" | "auto";
 
 export interface CompactionSnapshot {
+  summary?: string;
+  fromIndex?: number;
+  toIndex?: number;
   id: string;
   status: CompactionStatus;
   trigger: CompactionTrigger;
@@ -264,10 +268,30 @@ export interface CompactionSnapshot {
   postTokens?: number;
 }
 
+export interface AgentSegmentBlock {
+  kind: "text" | "thought";
+  text: string;
+  contentIndex: number;
+}
+
 export type SessionUpdate =
   | { sessionUpdate: "user_message_chunk"; content: PromptContent; messageId?: string }
-  | { sessionUpdate: "agent_message_chunk"; content: PromptContent; messageId?: string }
-  | { sessionUpdate: "agent_thought_chunk"; content: PromptContent; messageId?: string }
+  | {
+      sessionUpdate: "agent_message_chunk";
+      content: PromptContent;
+      messageId?: string;
+      segmentSeq?: number;
+      contentIndex?: number;
+    }
+  | {
+      sessionUpdate: "agent_thought_chunk";
+      content: PromptContent;
+      messageId?: string;
+      segmentSeq?: number;
+      contentIndex?: number;
+    }
+  | { sessionUpdate: "agent_segment_started" }
+  | { sessionUpdate: "agent_segment_finalized"; segmentSeq: number; blocks: AgentSegmentBlock[] }
   | ({ sessionUpdate: "tool_call" } & ToolCallSnapshot)
   | ({ sessionUpdate: "tool_call_update" } & ToolCallDelta)
   | { sessionUpdate: "plan"; entries: AgentPlanEntry[] }
@@ -278,7 +302,7 @@ export type SessionUpdate =
   | { sessionUpdate: "state_changed"; state: BackendState }
   | { sessionUpdate: "usage_update"; usage: SessionUsage }
   | { sessionUpdate: "plan_usage_update"; planUsage: PlanUsage | null }
-  | { sessionUpdate: "message_delivered"; promptId: string }
+  | { sessionUpdate: "message_delivered"; promptId: string; messageSeq?: number }
   | { sessionUpdate: "messages_withdrawn"; promptIds: string[] }
   | { sessionUpdate: "turn_started"; turnId: string; startedAt?: number }
   | ({ sessionUpdate: "turn_ended" } & TurnEnd)
@@ -334,6 +358,8 @@ export interface SessionUsage {
 }
 
 export interface SessionEvent {
+  seq?: number;
+  origin?: "observed" | "synthetic" | "derived";
   sessionId: SessionId;
   update: SessionUpdate;
   occurredAt?: number;
@@ -405,7 +431,10 @@ export interface AgentMcpServer {
   headers: Readonly<Record<string, string>>;
 }
 
+export type AgentSessionPurpose = "skill-authoring";
+
 export interface OpenSessionInput {
+  purpose?: AgentSessionPurpose;
   cwd: string;
   modelId?: string;
   projectId?: ProjectScopeId;
@@ -413,8 +442,12 @@ export interface OpenSessionInput {
 }
 
 export interface OpenSessionOutput {
+  purpose?: AgentSessionPurpose;
   sessionId: SessionId;
   state: BackendState;
+  historyFormat?: 2;
+  historyWarnings?: string[];
+  historyReadOnly?: boolean;
 }
 
 export interface ResumeSessionInput {
@@ -439,6 +472,7 @@ export interface PromptInput {
   sessionId: SessionId;
   promptId: string;
   prompt: PromptContent[];
+  displayMessage?: StoredAgentDisplayMessage;
 }
 
 export interface QueuedPrompt {
@@ -458,6 +492,10 @@ export interface ListSessionsInput {
 }
 
 export interface ListedSessionInfo {
+  hasMessages?: boolean;
+  lastSeq?: number;
+  projectId?: ProjectScopeId;
+  pinnedAt?: number | null;
   sessionId: SessionId;
   cwd: string;
   title?: string | null;
@@ -486,6 +524,8 @@ export interface StopTaskInput {
 export type SessionUpdateHandler = (event: SessionEvent) => void;
 
 export interface BackendProcess {
+  appendDisplayFacts?(params: { sessionId: SessionId; facts: AgentDisplayFact[] }): Promise<void>;
+  readDisplayFacts?(params: { sessionId: SessionId }): Promise<SequencedAgentDisplayFact[]>;
   refreshSessionConfiguration?(sessionId: SessionId): void;
   getExtensionRuntime?(params: {
     sessionId: SessionId;
@@ -527,7 +567,7 @@ export interface BackendProcess {
   shutdown(): Promise<void>;
 }
 
-export type AgentMessagePart =
+export type AgentMessagePart = (
   | {
       kind: "tool_call";
       id: string;
@@ -557,9 +597,12 @@ export type AgentMessagePart =
       kind: "plan";
       entries: AgentPlanEntry[];
     }
-  | ({ kind: "compaction"; startedAtMs: number } & CompactionSnapshot);
+  | ({ kind: "compaction"; startedAtMs: number } & CompactionSnapshot)
+) & { seq?: number; synthetic?: boolean; segmentSeq?: number; contentIndex?: number };
 
 export interface AgentChatMessage {
+  seq?: number;
+  synthetic?: boolean;
   id: string;
   sender: string;
   timestamp: FormattedDateTime | null;
@@ -586,3 +629,36 @@ export interface TurnFileChange {
 }
 
 export type NewAgentChatMessage = Omit<AgentChatMessage, "id"> & { id?: string };
+
+export interface StoredAgentDisplayMessage extends Omit<AgentChatMessage, "context"> {
+  context?: Omit<MessageContext, "notes"> & { notes: string[] };
+}
+
+export type AgentDisplayFact =
+  | { kind: "pin"; pinnedAt: number | null }
+  | { kind: "inherited_message"; message: StoredAgentDisplayMessage }
+  | { kind: "user_message"; message: StoredAgentDisplayMessage }
+  | {
+      kind: "message_metadata";
+      messageId: string;
+      metadata: Pick<AgentChatMessage, "fileChanges" | "missingAttachments">;
+    }
+  | { kind: "message_deleted"; messageId: string }
+  | { kind: "messages_cleared" }
+  | {
+      kind: "branch";
+      branch: import("./AgentSession").AgentBranchState | null;
+      messages?: StoredAgentDisplayMessage[];
+    }
+  | {
+      kind: "task";
+      task: import("./AgentSession").AgentTask;
+      messages: StoredAgentDisplayMessage[];
+    }
+  | { kind: "session_metadata"; chatId: string; label: string | null };
+
+export interface SequencedAgentDisplayFact {
+  seq: number;
+  origin?: "observed" | "synthetic" | "derived";
+  payload: AgentDisplayFact;
+}

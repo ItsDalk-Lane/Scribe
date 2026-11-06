@@ -4,17 +4,30 @@ import { AddProjectModal } from "@/components/modals/project/AddProjectModal";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { Button } from "@/components/ui/button";
 import { logError } from "@/logger";
-import { getProjectFolderPath } from "@/projects/projectPaths";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
+import { validateProjectWorkspace } from "@/projects/projectWorkspace";
 import { getCachedProjectRecordById } from "@/projects/state";
 import { FolderSearch, Pencil, Trash2 } from "lucide-react";
 import { App, Notice, TFolder } from "obsidian";
 import React, { memo } from "react";
 
-export function revealProjectFolder(app: App, project: ProjectConfig): void {
+export async function revealProjectFolder(app: App, project: ProjectConfig): Promise<void> {
   const record = getCachedProjectRecordById(project.id);
-  const folderPath = record ? getProjectFolderPath(record.folderName) : null;
-  const folder = folderPath ? app.vault.getAbstractFileByPath(folderPath) : null;
+  const folderPath = record?.project.workspacePath;
+  if (folderPath === undefined) return;
+  try {
+    await validateProjectWorkspace(app, folderPath);
+  } catch (error) {
+    logError("无法打开项目工作文件夹。", error);
+    new Notice(String(error));
+    return;
+  }
+  const folder =
+    folderPath === ""
+      ? app.vault.getRoot()
+      : folderPath
+        ? app.vault.getAbstractFileByPath(folderPath)
+        : null;
   if (folder instanceof TFolder) {
     const fileExplorer = (
       app as unknown as {
@@ -50,8 +63,8 @@ export const AgentProjectRowActions = memo(
     const handleEdit = () => {
       new AddProjectModal(
         app,
-        async (next) => {
-          await ProjectFileManager.getInstance(app).updateProject(project.id, next);
+        async (next, baseline) => {
+          await ProjectFileManager.getInstance(app).updateProject(project.id, next, baseline);
         },
         project
       ).open();
@@ -70,7 +83,7 @@ export const AgentProjectRowActions = memo(
           }
         },
         t(
-          'Delete project "{p0}"? This removes the project configuration; project instructions and other notes stay in the vault. If you create another project with the same name, its existing instructions may be changed when it opens. Save a copy of any instructions you want to keep before recreating the project.',
+          'Delete project "{p0}"? Only its Scribe configuration will be removed. The workspace, AGENTS.md, and all notes will stay where they are.',
           { p0: project.name }
         ),
         t("Delete project"),
@@ -89,7 +102,7 @@ export const AgentProjectRowActions = memo(
           className="tw-size-5 tw-p-0"
           onClick={(e) => {
             e.stopPropagation();
-            revealProjectFolder(app, project);
+            void revealProjectFolder(app, project);
           }}
         >
           <FolderSearch className="tw-size-3.5" />

@@ -11,7 +11,7 @@ import {
 import { appendBackendSection } from "@/agentMode/ui/agentModelPickerHelpers";
 import type { ModelSelectorEntry } from "@/components/ui/ModelSelector";
 import { createModelManagement } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { MissingApiKeyError } from "@/error";
 import { getSettings, setSettings } from "@/settings/model";
@@ -25,7 +25,7 @@ const SYNTHETIC_SECRET = "test-only-provider-value";
 function fixture() {
   const values = new Map<string, string>();
   const storage = {
-    getSecret: jest.fn((id: string) => values.get(id) ?? null),
+    getStatus: jest.fn((id: string) => (values.get(id)?.trim() ? "available" : "missing")),
     setSecret: jest.fn((id: string, value: string) => {
       values.set(id, value);
     }),
@@ -35,8 +35,12 @@ function fixture() {
     listSecrets: jest.fn(() => [...values.keys()]),
   };
   const app = { vault: { adapter: {} }, secretStorage: storage } as unknown as App;
-  KeychainService.resetInstance();
-  KeychainService.getInstance(app);
+  SecretStore.resetInstance();
+  Object.assign(SecretStore.getInstance(app), {
+    getStatus: storage.getStatus,
+    setSecret: async (id: string, value: string) => storage.setSecret(id, value),
+    deleteSecret: async (id: string) => storage.deleteSecret(id),
+  });
   setSettings({
     ...DEFAULT_SETTINGS,
     defaultModelKey: "cloud-model",
@@ -47,7 +51,7 @@ function fixture() {
         providerType: "openai-compatible",
         origin: { kind: "byok" },
         requiresApiKey: true,
-        apiKeyKeychainId: POINTER,
+        apiKeyRef: POINTER,
         addedAt: 1,
       },
       optional: {
@@ -85,7 +89,7 @@ function fixture() {
 
 describe("nativeCredentialStatus", () => {
   beforeEach(() => setInterfaceLocale("en"));
-  afterEach(() => KeychainService.resetInstance());
+  afterEach(() => SecretStore.resetInstance());
 
   describe("getNativeModelReadiness()", () => {
     it.each([
@@ -130,20 +134,20 @@ describe("nativeCredentialStatus", () => {
       }
     );
 
-    it("uses the real nonempty secret and skips keychain access for a no-key connection", () => {
+    it("uses credential metadata and skips credential checks for a keyless connection", () => {
       const { values, storage } = fixture();
       values.set(POINTER, ` ${SYNTHETIC_SECRET} `);
       const result = getNativeEnabledModelEntries(getSettings());
       expect(result.map((entry) => entry.credentialState)).toEqual(["ok", "ok"]);
-      expect(storage.getSecret.mock.calls).toEqual([[POINTER]]);
+      expect(storage.getStatus.mock.calls).toEqual([[POINTER]]);
       expect(JSON.stringify(result)).not.toContain(SYNTHETIC_SECRET);
       expect(storage.setSecret).not.toHaveBeenCalled();
       expect(storage.deleteSecret).not.toHaveBeenCalled();
     });
 
-    it("reports a failed keychain read without leaking its raw error or writing a replacement value", () => {
+    it("reports unavailable metadata without leaking its raw error or writing a replacement value", () => {
       const { storage } = fixture();
-      storage.getSecret.mockImplementation(() => {
+      storage.getStatus.mockImplementation(() => {
         throw new Error(`sensitive diagnostic ${SYNTHETIC_SECRET}`);
       });
       const result = getNativeEnabledModelEntries(getSettings());
@@ -161,7 +165,7 @@ describe("nativeCredentialStatus", () => {
       setSettings({
         providers: {
           ...settings.providers,
-          optional: { ...settings.providers.optional, apiKeyKeychainId: POINTER },
+          optional: { ...settings.providers.optional, apiKeyRef: POINTER },
         },
       });
       expect(
@@ -172,7 +176,7 @@ describe("nativeCredentialStatus", () => {
       await expect(createNativeModel(plugin.app, "optional-model")).rejects.toBeInstanceOf(
         MissingApiKeyError
       );
-      expect(storage.getSecret.mock.calls.every(([id]) => id === POINTER)).toBe(true);
+      expect(storage.getStatus.mock.calls.every(([id]) => id === POINTER)).toBe(true);
       expect(storage.setSecret).not.toHaveBeenCalled();
       expect(storage.deleteSecret).not.toHaveBeenCalled();
     });
@@ -236,7 +240,7 @@ describe("nativeCredentialStatus", () => {
       "shows a safe read-failure reason in the picker with reported models %p",
       (reported) => {
         const { storage } = fixture();
-        storage.getSecret.mockImplementation(() => {
+        storage.getStatus.mockImplementation(() => {
           throw new Error(SYNTHETIC_SECRET);
         });
         const entries: ModelSelectorEntry[] = [];

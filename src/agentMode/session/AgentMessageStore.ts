@@ -3,6 +3,8 @@ import { t } from "@/lib/i18n";
 import {
   AgentChatMessage,
   AgentMessagePart,
+  AgentDisplayFact,
+  AgentSegmentBlock,
   AgentToolCallOutput,
   NewAgentChatMessage,
   StopReason,
@@ -12,6 +14,8 @@ import { FormattedDateTime, MessageContext } from "@/types/message";
 import { formatDateTime } from "@/utils";
 
 interface StoredAgentMessage {
+  seq?: number;
+  synthetic?: boolean;
   id: string;
   displayText: string;
   sender: string;
@@ -30,6 +34,7 @@ interface StoredAgentMessage {
 }
 
 const MAX_COMPARE_JSON_CHARS = 8_000;
+const EMPTY_DISPLAY_FACTS = Object.freeze([]) as unknown as AgentDisplayFact[];
 const MAX_COMPARE_EDGE_CHARS = 512;
 const MAX_COMPARE_TEXT_EDGE_CHARS = 128;
 
@@ -48,6 +53,7 @@ function agentPartId(part: AgentMessagePart): string | undefined {
 function partsEqual(a: AgentMessagePart, b: AgentMessagePart): boolean {
   if (a === b) return true;
   if (a.kind !== b.kind) return false;
+  if (a.synthetic !== b.synthetic || a.seq !== b.seq) return false;
 
   switch (a.kind) {
     case "text":
@@ -67,6 +73,9 @@ function partsEqual(a: AgentMessagePart, b: AgentMessagePart): boolean {
         a.error === b.error &&
         a.preTokens === b.preTokens &&
         a.postTokens === b.postTokens &&
+        a.summary === b.summary &&
+        a.fromIndex === b.fromIndex &&
+        a.toIndex === b.toIndex &&
         a.startedAtMs === b.startedAtMs
       );
     case "tool_call":
@@ -180,9 +189,26 @@ export class AgentMessageStore {
   private messages: StoredAgentMessage[] = [];
   private displayCache = new Map<string, { version: number; view: AgentChatMessage }>();
   private lastDisplay: AgentChatMessage[] | null = null;
+  private displayFacts: AgentDisplayFact[] = [];
+  private recordedTime: number | undefined;
+  private segments = new Map<number, { messageId: string; startIndex: number }>();
+
+  withRecordedTime<T>(occurredAt: number | undefined, operation: () => T): T {
+    const previous = this.recordedTime;
+    this.recordedTime = occurredAt ?? previous;
+    try {
+      return operation();
+    } finally {
+      this.recordedTime = previous;
+    }
+  }
+
+  private currentTime(): number {
+    return this.recordedTime ?? Date.now();
+  }
 
   private generateId(): string {
-    return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return `msg-${this.currentTime()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 
   private touch(msg: StoredAgentMessage): void {
@@ -200,17 +226,21 @@ export class AgentMessageStore {
     ) {
       return false;
     }
-    const durationMs = Math.max(last.durationMs ?? 0, Date.now() - last.startedAtMs);
+    const durationMs = Math.max(last.durationMs ?? 0, this.currentTime() - last.startedAtMs);
     if (last.durationMs === durationMs) return false;
-    last.durationMs = durationMs;
+    msg.parts = msg.parts!.map((part) => (part === last ? { ...last, durationMs } : part));
     return true;
   }
 
   addMessage(message: NewAgentChatMessage): string {
     const id = message.id || this.generateId();
     const timestamp =
-      message.timestamp === null ? null : message.timestamp || formatDateTime(new Date());
+      message.timestamp === null
+        ? null
+        : message.timestamp || formatDateTime(new Date(this.currentTime()));
     this.messages.push({
+      seq: message.seq,
+      synthetic: message.synthetic,
       id,
       displayText: message.message,
       sender: message.sender,
@@ -267,6 +297,11 @@ export class AgentMessageStore {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg) return false;
     msg.fileChanges = changes;
+    this.displayFacts.push({
+      kind: "message_metadata",
+      messageId: id,
+      metadata: { fileChanges: changes },
+    });
     this.touch(msg);
     return true;
   }
@@ -279,25 +314,61 @@ export class AgentMessageStore {
     return true;
   }
 
-  appendAgentText(id: string, text: string): boolean {
+  appendAgentText(
+    id: string,
+    text: string,
+    seq?: number,
+    synthetic?: boolean,
+    segmentSeq?: number,
+    contentIndex?: number
+  ): boolean {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg) return false;
+    if (segmentSeq !== undefined && contentIndex !== undefined)
+      return this.appendSegmentBlock(msg, "text", text, segmentSeq, contentIndex, seq, synthetic);
     msg.displayText += text;
     if (!msg.parts) msg.parts = [];
     this.finishTrailingThought(msg);
     const last = msg.parts[msg.parts.length - 1];
     if (last && last.kind === "text") {
-      last.text += text;
+      msg.parts = msg.parts.map((part) =>
+        part === last ? { ...last, text: last.text + text } : part
+      );
     } else {
-      msg.parts.push({ kind: "text", text });
+      msg.parts = [
+        ...msg.parts,
+        {
+          kind: "text",
+          text,
+          ...(seq === undefined ? {} : { seq }),
+          ...(synthetic ? { synthetic } : {}),
+        },
+      ];
     }
     this.touch(msg);
     return true;
   }
 
-  appendAgentThought(id: string, text: string): boolean {
+  appendAgentThought(
+    id: string,
+    text: string,
+    seq?: number,
+    synthetic?: boolean,
+    segmentSeq?: number,
+    contentIndex?: number
+  ): boolean {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg) return false;
+    if (segmentSeq !== undefined && contentIndex !== undefined)
+      return this.appendSegmentBlock(
+        msg,
+        "thought",
+        text,
+        segmentSeq,
+        contentIndex,
+        seq,
+        synthetic
+      );
     if (!msg.parts) msg.parts = [];
     const last = msg.parts[msg.parts.length - 1];
     if (
@@ -305,18 +376,30 @@ export class AgentMessageStore {
       last.kind === "thought" &&
       (last.durationMs === undefined || msg.turnStopReason !== undefined)
     ) {
-      last.text += text;
-      if (msg.turnStopReason !== undefined && last.startedAtMs !== undefined) {
-        last.durationMs = Math.max(0, Date.now() - last.startedAtMs);
-      }
+      msg.parts = msg.parts.map((part) =>
+        part === last
+          ? {
+              ...last,
+              text: last.text + text,
+              ...(msg.turnStopReason !== undefined && last.startedAtMs !== undefined
+                ? { durationMs: Math.max(0, this.currentTime() - last.startedAtMs) }
+                : {}),
+            }
+          : part
+      );
     } else {
-      const startedAtMs = Date.now();
-      msg.parts.push({
-        kind: "thought",
-        text,
-        startedAtMs,
-        ...(msg.turnStopReason !== undefined ? { durationMs: 0 } : {}),
-      });
+      const startedAtMs = this.currentTime();
+      msg.parts = [
+        ...msg.parts,
+        {
+          kind: "thought",
+          text,
+          startedAtMs,
+          ...(seq === undefined ? {} : { seq }),
+          ...(synthetic ? { synthetic } : {}),
+          ...(msg.turnStopReason !== undefined ? { durationMs: 0 } : {}),
+        },
+      ];
     }
     this.touch(msg);
     return true;
@@ -335,13 +418,13 @@ export class AgentMessageStore {
           if (finishedThought) this.touch(msg);
           return finishedThought;
         }
-        msg.parts[idx] = part;
+        msg.parts = msg.parts.map((previous, index) => (index === idx ? part : previous));
         this.touch(msg);
         return true;
       }
     }
     this.finishTrailingThought(msg);
-    msg.parts.push(part);
+    msg.parts = [...msg.parts, part];
     this.touch(msg);
     return true;
   }
@@ -409,13 +492,16 @@ export class AgentMessageStore {
     const idx = this.messages.findIndex((m) => m.id === id);
     if (idx === -1) return false;
     this.messages.splice(idx, 1);
+    this.displayFacts.push({ kind: "message_deleted", messageId: id });
     this.displayCache.delete(id);
     this.lastDisplay = null;
     return true;
   }
 
   clear(): void {
+    if (this.messages.length > 0) this.displayFacts.push({ kind: "messages_cleared" });
     this.messages = [];
+    this.segments.clear();
     this.displayCache.clear();
     this.lastDisplay = null;
   }
@@ -453,8 +539,11 @@ export class AgentMessageStore {
 
   loadMessages(messages: AgentChatMessage[]): void {
     this.clear();
+    this.displayFacts = [];
     for (const msg of messages) {
       this.messages.push({
+        seq: msg.seq,
+        synthetic: msg.synthetic,
         id: msg.id || this.generateId(),
         displayText: msg.message,
         sender: msg.sender,
@@ -477,6 +566,8 @@ export class AgentMessageStore {
 
   private toAgentChatMessage(m: StoredAgentMessage): AgentChatMessage {
     return {
+      ...(m.seq === undefined ? {} : { seq: m.seq }),
+      ...(m.synthetic ? { synthetic: true } : {}),
       id: m.id,
       message: m.displayText,
       sender: m.sender,
@@ -492,5 +583,162 @@ export class AgentMessageStore {
       turnDurationMs: m.turnDurationMs,
       fileChanges: m.fileChanges,
     };
+  }
+
+  takeDisplayFacts(): AgentDisplayFact[] {
+    if (!this.displayFacts.length) return EMPTY_DISPLAY_FACTS;
+    const facts = this.displayFacts;
+    this.displayFacts = [];
+    return facts;
+  }
+
+  restoreDisplayFacts(facts: AgentDisplayFact[]): void {
+    this.displayFacts = [...facts, ...this.displayFacts];
+  }
+
+  identifyMessage(id: string, nextId: string, seq?: number, occurredAt?: number): void {
+    const message = this.messages.find((item) => item.id === id);
+    if (!message) return;
+    this.displayCache.delete(id);
+    message.id = nextId;
+    if (id !== nextId)
+      for (const segment of this.segments.values())
+        if (segment.messageId === id) segment.messageId = nextId;
+    if (seq !== undefined) message.seq = seq;
+    if (occurredAt !== undefined) message.timestamp = formatDateTime(new Date(occurredAt));
+    this.touch(message);
+  }
+
+  startAgentSegment(id: string, segmentSeq: number): void {
+    const message = this.messages.find((item) => item.id === id);
+    if (message && !this.segments.has(segmentSeq))
+      this.segments.set(segmentSeq, { messageId: id, startIndex: message.parts?.length ?? 0 });
+  }
+
+  findMessageIdWithSegment(segmentSeq: number): string | undefined {
+    return this.segments.get(segmentSeq)?.messageId;
+  }
+
+  private appendSegmentBlock(
+    message: StoredAgentMessage,
+    kind: "text" | "thought",
+    text: string,
+    segmentSeq: number,
+    contentIndex: number,
+    seq?: number,
+    synthetic?: boolean
+  ): boolean {
+    this.startAgentSegment(message.id, segmentSeq);
+    const start = this.segments.get(segmentSeq)!.startIndex;
+    const existing = message.parts?.find(
+      (part, index) =>
+        index >= start &&
+        part.segmentSeq === segmentSeq &&
+        part.contentIndex === contentIndex &&
+        part.kind === kind
+    );
+    if (!existing || kind === "text") this.finishTrailingThought(message);
+    const parts = message.parts ?? [];
+    if (existing && (existing.kind === "text" || existing.kind === "thought")) {
+      const replacement = {
+        ...existing,
+        text: existing.text + text,
+        ...(existing.kind === "thought" &&
+        message.turnStopReason !== undefined &&
+        existing.startedAtMs !== undefined
+          ? { durationMs: Math.max(0, this.currentTime() - existing.startedAtMs) }
+          : {}),
+      };
+      message.parts = parts.map((part) => (part === existing ? replacement : part));
+    } else {
+      const part: AgentMessagePart = {
+        kind,
+        text,
+        segmentSeq,
+        contentIndex,
+        ...(seq === undefined ? {} : { seq }),
+        ...(synthetic ? { synthetic } : {}),
+        ...(kind === "thought"
+          ? {
+              startedAtMs: this.currentTime(),
+              ...(message.turnStopReason === undefined ? {} : { durationMs: 0 }),
+            }
+          : {}),
+      };
+      const nextIndex = parts.findIndex(
+        (candidate, index) =>
+          index >= start &&
+          candidate.segmentSeq === segmentSeq &&
+          candidate.contentIndex !== undefined &&
+          candidate.contentIndex > contentIndex
+      );
+      const insertion = nextIndex < 0 ? parts.length : nextIndex;
+      message.parts = [...parts.slice(0, insertion), part, ...parts.slice(insertion)];
+    }
+    this.syncSegmentText(message);
+    this.touch(message);
+    return true;
+  }
+
+  finalizeAgentSegment(
+    id: string,
+    segmentSeq: number,
+    blocks: AgentSegmentBlock[],
+    finalSeq?: number,
+    synthetic?: boolean
+  ): boolean {
+    const message = this.messages.find((item) => item.id === id);
+    if (!message) return false;
+    this.startAgentSegment(id, segmentSeq);
+    const start = this.segments.get(segmentSeq)!.startIndex;
+    const thoughtFinished = this.finishTrailingThought(message);
+    const parts = message.parts ?? [];
+    const belongs = (part: AgentMessagePart, index: number) =>
+      index >= start &&
+      part.segmentSeq === segmentSeq &&
+      (part.kind === "text" || part.kind === "thought");
+    const originals = parts.filter(belongs);
+    const confirmed: AgentMessagePart[] = blocks.map((block) => {
+      const existing = originals.find(
+        (part) => part.contentIndex === block.contentIndex && part.kind === block.kind
+      );
+      if (existing && (existing.kind === "text" || existing.kind === "thought"))
+        return existing.text === block.text ? existing : { ...existing, text: block.text };
+      return {
+        ...block,
+        segmentSeq,
+        ...(finalSeq === undefined ? {} : { seq: finalSeq }),
+        ...(synthetic ? { synthetic } : {}),
+      };
+    });
+    const preserved = parts.filter((part, index) => !belongs(part, index));
+    const next = [...preserved.slice(0, start), ...confirmed, ...preserved.slice(start)];
+    if (
+      !thoughtFinished &&
+      next.length === parts.length &&
+      next.every((part, index) => part === parts[index])
+    )
+      return false;
+    message.parts = next;
+    const delta = confirmed.length - originals.length;
+    for (const [otherSeq, segment] of this.segments) {
+      if (
+        segment.messageId === id &&
+        (segment.startIndex > start || (segment.startIndex === start && otherSeq > segmentSeq))
+      )
+        segment.startIndex += delta;
+    }
+    this.syncSegmentText(message);
+    this.touch(message);
+    return true;
+  }
+
+  private syncSegmentText(message: StoredAgentMessage): void {
+    const text = (message.parts ?? [])
+      .flatMap((part) => (part.kind === "text" ? [part.text] : []))
+      .join("");
+    message.displayText = message.errorText
+      ? `${text}${text ? "\n\n" : ""}${message.errorText}`
+      : text;
   }
 }

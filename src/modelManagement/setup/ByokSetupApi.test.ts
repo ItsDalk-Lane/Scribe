@@ -53,7 +53,7 @@ describe("ByokSetupApi", () => {
       expect(provider.origin).toEqual({ kind: "byok", catalogProviderId: "anthropic" });
       expect(provider.providerType).toBe("anthropic");
       expect(provider.baseUrl).toBe("https://api.anthropic.com/v1");
-      expect(await providers.getApiKey(result.providerId)).toBe("sk-ant");
+      expect(await providers.withApiKey(result.providerId, async (key) => key)).toBe("sk-ant");
 
       expect(
         models
@@ -82,7 +82,7 @@ describe("ByokSetupApi", () => {
       const provider = providers.get(result.providerId)!;
       expect(provider.origin).toEqual({ kind: "byok" });
       expect(provider.baseUrl).toBe("http://localhost:11434/v1");
-      expect(provider.apiKeyKeychainId).toBeNull();
+      expect(provider.apiKeyRef).toBeNull();
     });
 
     it("persists the provider's Quick tools CORS choice", async () => {

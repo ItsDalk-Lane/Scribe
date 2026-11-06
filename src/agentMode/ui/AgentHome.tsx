@@ -245,10 +245,15 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   }, []);
 
   const persistCreateProject = useCallback(
-    async ({ name }: { name: string }) => {
-      const project = makeNewProjectConfig(name);
+    async ({ name, workspacePath }: { name: string; workspacePath?: string }) => {
+      const project = makeNewProjectConfig(name, workspacePath);
       try {
-        await ProjectFileManager.getInstance(app).createProject(project);
+        const record = await ProjectFileManager.getInstance(app).createProject(project);
+        new Notice(
+          t("Project created. Workspace: {path}", {
+            path: record.project.workspacePath || t("Vault root"),
+          })
+        );
         await manager.enterProject(project.id);
       } catch (e) {
         logError("[AgentMode] create project failed", e);
@@ -362,12 +367,24 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   const [globalShelfTab, setGlobalShelfTabState] = useState<string | null>(() =>
     getHomeShelfTab(app, HOME_SHELF_TAB_STORAGE_KEY)
   );
+  const refreshProjects = useCallback(() => {
+    void ProjectFileManager.getInstance(app)
+      .fetchProjects()
+      .catch((error) => {
+        logError("无法刷新项目列表。", error);
+        new Notice(String(error));
+      });
+  }, [app]);
+  useEffect(() => {
+    if (!isProjectScope && isLanding && globalShelfTab === "projects") refreshProjects();
+  }, [isProjectScope, isLanding, globalShelfTab, refreshProjects]);
   const setGlobalShelfTab = useCallback(
     (id: string) => {
+      if (id === "projects" && id === globalShelfTab) refreshProjects();
       setGlobalShelfTabState(id);
       setHomeShelfTab(app, HOME_SHELF_TAB_STORAGE_KEY, id);
     },
-    [app]
+    [app, globalShelfTab, refreshProjects]
   );
 
   const landingSections = useMemo<AgentHomeShelfSection[]>(

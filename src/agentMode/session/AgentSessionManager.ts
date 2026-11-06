@@ -28,16 +28,13 @@ import { buildNativeChatId, parseNativeChatId } from "@/utils/nativeChatId";
 import { CHAT_AGENT_VIEWTYPE, USER_SENDER } from "@/constants";
 import { playNotificationSound } from "@/utils/notificationSound";
 import type { AgentSessionIndex, AgentSessionIndexEntry } from "./AgentSessionIndex";
-import type {
-  AgentSessionSnapshots,
-  AgentSessionSnapshot,
-} from "@/agentMode/session/AgentSessionSnapshots";
+import type { AgentSessionSnapshots } from "@/agentMode/session/AgentSessionSnapshots";
 import {
   createNodeTaskOutputReader,
   TaskOutputTail,
   type TaskOutputReader,
 } from "@/agentMode/session/taskOutputTail";
-import { mergeSnapshotReplay } from "@/agentMode/session/sessionSnapshotMessages";
+import { serializeDisplayMessage } from "@/agentMode/session/AgentDisplayFacts";
 import {
   deriveChatTitleFromMessages,
   mergeChatHistoryItems,
@@ -67,11 +64,11 @@ import {
 import { ProjectContentTracker } from "@/context/projectContentTracker";
 import { buildProjectContextUpdatesBlock } from "@/context/contextUpdatesBlockBuilder";
 import { ensureAgentsFileForDiscovery } from "@/instructions/agentsFile";
-import { moveProjectPromptToAgentsFile } from "@/projects/moveProjectPrompt";
-import { getProjectAnchorFromConfigPath } from "@/projects/projectPaths";
+import { validateProjectWorkspace } from "@/projects/projectWorkspace";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import type {
   AgentQuestionAnswers,
+  AgentSessionPurpose,
   AskUserQuestionPrompt,
   BackendDescriptor,
   BackendId,
@@ -196,6 +193,7 @@ export class AgentSessionManager {
   private readonly resumedSessionPromiseById = new Map<string, Promise<AgentSession | null>>();
   private latestHistoryLoadRequestId = 0;
   private pendingCreates = 0;
+  private readonly startingSessions = new Set<AgentSession>();
   private listeners = new Set<() => void>();
   private disposed = false;
   private startingBackendId: BackendId | null = null;
@@ -628,6 +626,7 @@ export class AgentSessionManager {
     const scopeIdsBefore = this.getSessionIdsForScope(session.projectId);
     const closedIndex = scopeIdsBefore.indexOf(id);
     this.detachedFromTabIds.add(id);
+    if (this.startingSessions.delete(session)) this.finishPendingCreate();
 
     if (this.lastActiveByScope.get(session.projectId) === id) {
       this.lastActiveByScope.delete(session.projectId);
@@ -688,7 +687,32 @@ export class AgentSessionManager {
     if (native) {
       const index = this.opts.sessionIndex;
       if (!index) throw new Error("Agent session index is not configured.");
-      await index.setTitle(native.backendId, native.sessionId, newTitle);
+      const descriptor = this.opts.resolveDescriptor(native.backendId);
+      const backend = descriptor
+        ? await this.ensureBackend(native.backendId, descriptor)
+        : undefined;
+      if (backend?.appendDisplayFacts && backend.readDisplayFacts) {
+        const facts = await backend.readDisplayFacts({ sessionId: native.sessionId });
+        const previous = facts.findLast(
+          (record) => record.payload.kind === "session_metadata"
+        )?.payload;
+        await backend.appendDisplayFacts({
+          sessionId: native.sessionId,
+          facts: [
+            {
+              kind: "session_metadata",
+              chatId: previous?.kind === "session_metadata" ? previous.chatId : native.sessionId,
+              label: newTitle,
+            },
+          ],
+        });
+      }
+      try {
+        await index.setTitle(native.backendId, native.sessionId, newTitle);
+      } catch (error) {
+        if (!backend?.appendDisplayFacts) throw error;
+        logWarn("[AgentMode] Saved title fact; history cache will be rebuilt", error);
+      }
       this.findLiveSession(native.backendId, native.sessionId)?.setLabel(newTitle);
       return;
     }
@@ -721,7 +745,28 @@ export class AgentSessionManager {
     const index = this.opts.sessionIndex;
     if (!index) throw new Error("Agent session index is not configured.");
     const pinnedAt = pinned ? Date.now() : null;
-    await index.setPinOverride(await this.getPinIdentity(id), pinnedAt);
+    const identity = await this.getPinIdentity(id);
+    const native = parseNativeChatId(identity);
+    let factSaved = false;
+    if (native) {
+      const backend = await this.ensureBackend(
+        native.backendId,
+        this.resolveDescriptor(native.backendId)
+      );
+      if (backend.appendDisplayFacts) {
+        await backend.appendDisplayFacts({
+          sessionId: native.sessionId,
+          facts: [{ kind: "pin", pinnedAt }],
+        });
+        factSaved = true;
+      }
+    }
+    try {
+      await index.setPinOverride(identity, pinnedAt);
+    } catch (error) {
+      if (!factSaved) throw error;
+      logWarn("[AgentMode] Saved pin fact; history cache will be rebuilt", error);
+    }
     return { id, pinnedAt: pinnedAt ?? undefined };
   }
 
@@ -730,9 +775,43 @@ export class AgentSessionManager {
     if (!index) return items;
     return Promise.all(
       items.map(async (item) => {
-        const pinnedAt = await index.getPinOverride(await this.getPinIdentity(item.id));
+        const identity = await this.getPinIdentity(item.id);
+        const native = parseNativeChatId(identity);
+        let pinnedAt = await index.getPinOverride(identity);
+        let title = item.title;
+        if (native && this.opts.resolveDescriptor(native.backendId)) {
+          const backend = await this.ensureBackend(
+            native.backendId,
+            this.resolveDescriptor(native.backendId)
+          );
+          if (backend.readDisplayFacts) {
+            const facts = await backend.readDisplayFacts({ sessionId: native.sessionId });
+            const pin = facts.findLast((record) => record.payload.kind === "pin")?.payload;
+            if (pin?.kind === "pin") pinnedAt = pin.pinnedAt;
+            const metadata = facts.findLast(
+              (record) => record.payload.kind === "session_metadata"
+            )?.payload;
+            if (metadata?.kind === "session_metadata") {
+              title =
+                metadata.label ??
+                deriveChatTitleFromMessages(
+                  facts.flatMap((record) =>
+                    record.payload.kind === "user_message" ||
+                    record.payload.kind === "inherited_message"
+                      ? [{ ...record.payload.message, context: undefined }]
+                      : []
+                  )
+                ) ??
+                t("New chat");
+            }
+          }
+        }
         // null 会压住旧笔记中的置顶值，避免重扫时恢复用户已取消的置顶。https://github.com/ItsDalk-Lane/Scribe/issues/31
-        return pinnedAt === undefined ? item : { ...item, pinnedAt: pinnedAt ?? undefined };
+        return {
+          ...item,
+          title,
+          ...(pinnedAt === undefined ? {} : { pinnedAt: pinnedAt ?? undefined }),
+        };
       })
     );
   }
@@ -746,14 +825,7 @@ export class AgentSessionManager {
 
     const pinIdentity = await this.getPinIdentity(fileId);
     const ref = native ?? (await this.readSessionRefFromFile(fileId));
-    const snapshot = ref ? await this.readSessionSnapshot(ref.backendId, ref.sessionId) : null;
-    const snapshotIds = [
-      ...new Set([
-        ...(ref ? [ref.sessionId] : []),
-        ...(snapshot?.aliases ?? []),
-        ...(snapshot?.currentSessionId ? [snapshot.currentSessionId] : []),
-      ]),
-    ];
+    const snapshotIds = [...new Set([...(ref ? [ref.sessionId] : [])])];
 
     const savedPaths = await this.closeOpenChatForDelete(fileId);
 
@@ -775,9 +847,6 @@ export class AgentSessionManager {
     if (persistence) {
       for (const path of notePaths) await persistence.deleteFile(path);
     }
-    if (ref)
-      for (const snapshotId of snapshotIds)
-        await this.opts.sessionSnapshots?.remove(ref.backendId, snapshotId);
     // 历史删除成功后清除覆盖值，避免已删聊天留下无用的置顶元数据。https://github.com/ItsDalk-Lane/Scribe/issues/31
     if (index) {
       await index.setPinOverride(pinIdentity, undefined);
@@ -839,6 +908,16 @@ export class AgentSessionManager {
     if (!(adapter instanceof FileSystemAdapter)) return;
     const vaultBasePath = adapter.getBasePath();
     const procs = this.getRunningProcsByBackend();
+    if (!procs.has("native")) {
+      const descriptor = this.opts.resolveDescriptor("native");
+      if (descriptor) {
+        try {
+          procs.set("native", await this.ensureBackend("native", descriptor));
+        } catch (error) {
+          logWarn("[AgentMode] Native history discovery unavailable", error);
+        }
+      }
+    }
     if (procs.size === 0) return;
     const sweeps = Array.from(procs, ([backendId, proc]) =>
       this.sweepNativeSessions(backendId, proc, vaultBasePath)
@@ -909,10 +988,12 @@ export class AgentSessionManager {
     const index = this.opts.sessionIndex;
     if (!index) return;
     const descriptor = this.opts.resolveDescriptor(backendId);
-    if (!descriptor?.summarizesSessionTitle) return;
+    if (!descriptor || (!descriptor.summarizesSessionTitle && backendId !== "native")) return;
     let sessions;
     try {
-      ({ sessions } = await proc.listSessions({ cwd: vaultBasePath }));
+      ({ sessions } = await proc.listSessions(
+        backendId === "native" ? {} : { cwd: vaultBasePath }
+      ));
     } catch (err) {
       if (!(err instanceof MethodUnsupportedError)) {
         logWarn(`[AgentMode] listSessions sweep failed for ${backendId}`, err);
@@ -923,15 +1004,18 @@ export class AgentSessionManager {
     const now = Date.now();
     const discovered = [];
     for (const s of sessions) {
+      if (s.hasMessages === false && !s.title?.trim()) continue;
       const inVaultRoot = isSameCwd(s.cwd, vaultBasePath);
-      const projectId = inVaultRoot ? undefined : resolveProjectIdForCwd(vaultBasePath, s.cwd);
+      const projectId =
+        s.projectId ?? (inVaultRoot ? undefined : resolveProjectIdForCwd(vaultBasePath, s.cwd));
       if (!inVaultRoot && !projectId) continue;
       if (probeSessionId && s.sessionId === probeSessionId) continue;
-      const title = s.title?.trim();
+      const title = s.title?.trim() || (backendId === "native" ? t("New chat") : "");
       if (!title || title.startsWith(DEFAULT_TITLE_PREFIX)) continue;
       const updatedAtMs = s.updatedAt ? Date.parse(s.updatedAt) : NaN;
       const timestamp = Number.isFinite(updatedAtMs) && updatedAtMs > 0 ? updatedAtMs : now;
       discovered.push({
+        lastSeq: s.lastSeq,
         backendId,
         sessionId: s.sessionId,
         title,
@@ -968,7 +1052,8 @@ export class AgentSessionManager {
     projectId: ProjectScopeId = this.activeProjectId,
     seedSelection?: ModelSelection,
     chatInputId?: string,
-    activate = true
+    activate = true,
+    purpose?: AgentSessionPurpose
   ): Promise<AgentSession> {
     if (this.disposed) {
       throw new Error("AgentSessionManager has been shut down");
@@ -1024,28 +1109,37 @@ export class AgentSessionManager {
     }
 
     const resolvedChatInputId = chatInputId ?? uuidv4();
-    const session = AgentSession.start({
-      backend,
-      cwd,
-      internalId,
-      chatInputId: resolvedChatInputId,
-      backendId: resolvedId,
-      projectId,
-      defaultModelSelection: resolvedSeed,
-      defaultMode: this.getDefaultMode(resolvedId),
-      getDescriptor: () => this.opts.resolveDescriptor(resolvedId),
-      getDisplayName: (backendId) => this.resolveDescriptor(backendId).displayName,
-      getApp: () => this.app,
-      beforePrompt: () => this.prepareNextPrompt(internalId),
-      ...(projectId !== GLOBAL_SCOPE
-        ? {
-            getProjectContextBlock: () => this.buildFirstProjectContextBlock(internalId, projectId),
-            getProjectContextUpdates: () => this.getProjectContextUpdates(internalId, projectId),
-            markProjectContextUpdatesDelivered: (epoch: number) =>
-              this.markProjectContextUpdatesDelivered(internalId, epoch),
-          }
-        : {}),
-    });
+    let session: AgentSession;
+    try {
+      session = AgentSession.start({
+        backend,
+        cwd,
+        internalId,
+        chatInputId: resolvedChatInputId,
+        backendId: resolvedId,
+        projectId,
+        ...(purpose ? { purpose } : {}),
+        defaultModelSelection: resolvedSeed,
+        defaultMode: this.getDefaultMode(resolvedId),
+        getDescriptor: () => this.opts.resolveDescriptor(resolvedId),
+        getDisplayName: (backendId) => this.resolveDescriptor(backendId).displayName,
+        getApp: () => this.app,
+        beforePrompt: () => this.prepareNextPrompt(internalId),
+        ...(projectId !== GLOBAL_SCOPE
+          ? {
+              getProjectContextBlock: () =>
+                this.buildFirstProjectContextBlock(internalId, projectId),
+              getProjectContextUpdates: () => this.getProjectContextUpdates(internalId, projectId),
+              markProjectContextUpdatesDelivered: (epoch: number) =>
+                this.markProjectContextUpdatesDelivered(internalId, epoch),
+            }
+          : {}),
+      });
+    } catch (error) {
+      this.finishPendingCreate();
+      throw error;
+    }
+    this.startingSessions.add(session);
     this.sessions.set(session.internalId, session);
     this.chatUIStates.set(session.internalId, new AgentChatUIState(session));
     if (landingCaptureSignature) {
@@ -1068,6 +1162,7 @@ export class AgentSessionManager {
 
     void session.ready
       .then(async () => {
+        if (!this.sessions.has(session.internalId)) return;
         if (descriptor.applyInitialSessionConfig) {
           try {
             await descriptor.applyInitialSessionConfig(session, getSettings(), resolvedSeed);
@@ -1087,9 +1182,11 @@ export class AgentSessionManager {
         await replayPersistedMode(session, this.getDefaultMode(resolvedId));
       })
       .catch((err) => {
-        this.setLastError(err2String(err));
+        if (this.sessions.has(session.internalId)) this.setLastError(err2String(err));
       })
-      .finally(() => this.finishPendingCreate());
+      .finally(() => {
+        if (this.startingSessions.delete(session)) this.finishPendingCreate();
+      });
 
     return session;
   }
@@ -1129,7 +1226,8 @@ export class AgentSessionManager {
       source.projectId,
       source.getState()?.model?.current,
       undefined,
-      false
+      false,
+      source.purpose
     );
     try {
       await fork.ready;
@@ -1141,6 +1239,14 @@ export class AgentSessionManager {
         createdAtMs: Date.now(),
       });
       fork.loadDisplayMessages(inherited);
+      await fork.persistDisplayFacts([
+        {
+          kind: "branch",
+          branch: fork.getBranchState(),
+          messages: inherited.map(serializeDisplayMessage),
+        },
+      ]);
+      await fork.restorePersistedDisplayFacts();
       await this.flushSessionSnapshot(fork);
       await this.flushIndexTouch(fork);
       await this.opts.sessionIndex?.flushOrThrow();
@@ -1154,19 +1260,26 @@ export class AgentSessionManager {
     }
   }
 
-  async createGlobalSessionWithDraft(initialDraft: string): Promise<AgentSession> {
+  async createGlobalSessionWithDraft(
+    initialDraft: string,
+    purpose?: AgentSessionPurpose
+  ): Promise<AgentSession> {
     const projectId = GLOBAL_SCOPE;
     const previousActiveProjectId = this.activeProjectId;
     const scopeSeq = this.setActiveScope(projectId);
     let session: AgentSession;
     try {
-      session = await this.createSession(undefined, projectId);
+      session = await this.createSession(undefined, projectId, undefined, undefined, true, purpose);
     } catch (error) {
       this.rollbackOptimisticScopeSwitch(previousActiveProjectId, scopeSeq);
       throw error;
     }
     this.drafts.update(session.chatInputId, (draft) => ({ ...draft, input: initialDraft }));
     return session;
+  }
+
+  async createSkillAuthoringSession(initialDraft: string): Promise<AgentSession> {
+    return this.createGlobalSessionWithDraft(initialDraft, "skill-authoring");
   }
 
   async addContextNoteToActiveChat(note: TFile): Promise<void> {
@@ -1227,9 +1340,19 @@ export class AgentSessionManager {
 
   async enterProject(projectId: ProjectScopeId): Promise<void> {
     if (this.disposed) return;
+    if (projectId !== GLOBAL_SCOPE) {
+      await ProjectFileManager.getInstance(this.app).fetchProjects();
+      if (this.disposed) return;
+    }
     if (projectId !== GLOBAL_SCOPE && !getCachedProjectRecordById(projectId)) {
       new Notice(t("This project no longer exists. Restore it to open its chats."));
       return;
+    }
+    if (projectId !== GLOBAL_SCOPE) {
+      const workspacePath = getCachedProjectRecordById(projectId)?.project.workspacePath;
+      if (workspacePath === undefined) throw new Error("项目工作位置未设置。");
+      await validateProjectWorkspace(this.app, workspacePath);
+      if (this.disposed) return;
     }
     const current = this.getActiveSession();
     if (
@@ -1340,11 +1463,9 @@ export class AgentSessionManager {
     }
     if (!record) return;
     await ensureAgentsFileForDiscovery(this.app, "");
-    await moveProjectPromptToAgentsFile(this.app, record);
-    await ensureAgentsFileForDiscovery(
-      this.app,
-      getProjectAnchorFromConfigPath(record.filePath).projectFolderPath
-    );
+    if (record.project.workspacePath === undefined) throw new Error("项目工作位置未设置。");
+    await validateProjectWorkspace(this.app, record.project.workspacePath);
+    await ensureAgentsFileForDiscovery(this.app, record.project.workspacePath);
   }
 
   private touchProjectUsage(projectId: ProjectScopeId): void {
@@ -1731,6 +1852,7 @@ export class AgentSessionManager {
     }
     this.detachAutoSave(id);
     this.sessions.delete(id);
+    if (this.startingSessions.delete(session)) this.finishPendingCreate();
     this.dirtyExtensionSessions.delete(id);
     this.chatUIStates.delete(id);
     this.landingCaptureSignatures.delete(id);
@@ -1805,7 +1927,9 @@ export class AgentSessionManager {
       backendId,
       replacedProjectId,
       options.seedSelection,
-      chatInputId
+      chatInputId,
+      true,
+      replaced?.purpose
     );
     if (oldIdx >= 0) {
       this.moveMapEntry(this.sessions, created.internalId, oldIdx);
@@ -2101,8 +2225,25 @@ export class AgentSessionManager {
     this.resolveDescriptor(backendId);
     const index = this.opts.sessionIndex;
     const entry = index ? await index.getEntry(backendId, sessionId) : null;
-    const snapshot = !entry ? await this.readSessionSnapshot(backendId, sessionId) : null;
-    const projectId: ProjectScopeId = entry?.projectId ?? snapshot?.projectId ?? GLOBAL_SCOPE;
+    let projectId: ProjectScopeId = entry?.projectId ?? GLOBAL_SCOPE;
+    if (!entry) {
+      try {
+        const backend = await this.ensureBackend(backendId, this.resolveDescriptor(backendId));
+        const listed = await backend.listSessions({});
+        const saved = listed.sessions.find((session) => session.sessionId === sessionId);
+        projectId =
+          saved?.projectId ??
+          (saved?.cwd
+            ? (resolveProjectIdForCwd(
+                (this.app.vault.adapter as FileSystemAdapter).getBasePath(),
+                saved.cwd
+              ) ?? GLOBAL_SCOPE)
+            : GLOBAL_SCOPE);
+      } catch (error) {
+        this.setLastError(err2String(error));
+        throw error;
+      }
+    }
     if (projectId !== GLOBAL_SCOPE && !getCachedProjectRecordById(projectId)) {
       new Notice(t("This chat belongs to a project that no longer exists."));
       throw new OrphanedProjectError(projectId);
@@ -2120,7 +2261,7 @@ export class AgentSessionManager {
     if (!session) {
       throw new Error(`Could not resume session ${sessionId} from the ${backendId} session store.`);
     }
-    if (entry?.title) {
+    if (entry?.title && !session.supportsDisplayFacts()) {
       session.restoreLabel(entry.title, entry.titleSource === "user" ? "user" : "agent");
     }
     return session;
@@ -2170,9 +2311,7 @@ export class AgentSessionManager {
     const cwd = this.resolveSessionCwd(projectId);
     const descriptor = this.resolveDescriptor(backendId);
 
-    const saved = await this.readSessionSnapshot(backendId, sessionId);
-    const snapshot = saved?.projectId === projectId ? saved : null;
-    const savedSelection = seedSelection ?? snapshot?.selection;
+    const savedSelection = seedSelection;
     const resolvedSelection = this.getSeedSelection(backendId, savedSelection) ?? undefined;
     if (!resolvedSelection && descriptor.getEnabledModelEntries) return null;
     // 没有界面快照的原生历史仍有自己的模型记录，不能被新聊天偏好覆盖。https://github.com/ItsDalk-Lane/Scribe/issues/31
@@ -2206,7 +2345,7 @@ export class AgentSessionManager {
       backendSessionId: sessionId,
       beforePrompt: () => this.prepareNextPrompt(internalId),
       internalId,
-      chatInputId: chatInputId ?? snapshot?.chatId,
+      chatInputId,
       backendId,
       projectId,
       defaultModelSelection: seedSelection,
@@ -2258,7 +2397,7 @@ export class AgentSessionManager {
       return null;
     }
 
-    session.completeResume(resumeResult.state);
+    session.completeResume(resumeResult.state, resumeResult.purpose);
 
     await session.ready;
 
@@ -2282,7 +2421,10 @@ export class AgentSessionManager {
     if (projectId !== GLOBAL_SCOPE) {
       this.lastSeenProjectContentEpochBySession.set(internalId, RESUMED_SESSION_BEHIND_EPOCH);
     }
-    if (snapshot) this.restoreSessionSnapshot(session, snapshot);
+    if (resumeResult.historyFormat === 2) await session.restorePersistedDisplayFacts();
+    session.setHistoryReadOnly(resumeResult.historyReadOnly === true);
+    if (resumeResult.historyWarnings?.length)
+      new Notice(resumeResult.historyWarnings.map((warning) => t(warning)).join("\n"));
     this.sessions.set(session.internalId, session);
     this.chatUIStates.set(session.internalId, new AgentChatUIState(session));
     this.detachedFromTabIds.delete(session.internalId);
@@ -2299,7 +2441,7 @@ export class AgentSessionManager {
   private attachAutoSave(session: AgentSession): void {
     const persistence = this.opts.persistenceManager;
     const index = this.opts.sessionIndex;
-    if (!persistence && !index && !this.opts.sessionSnapshots) return;
+    if (!persistence && !index && !session.supportsDisplayFacts()) return;
 
     const trigger = () => {
       this.scheduleIndexTouch(session);
@@ -2316,7 +2458,7 @@ export class AgentSessionManager {
   }
 
   private scheduleSessionSnapshot(session: AgentSession): void {
-    if (!this.opts.sessionSnapshots) return;
+    if (!session.supportsDisplayFacts()) return;
     const state = this.getSessionState(session.internalId);
     if (state.snapshotTimer) window.clearTimeout(state.snapshotTimer);
     state.snapshotTimer = window.setTimeout(() => {
@@ -2326,16 +2468,13 @@ export class AgentSessionManager {
   }
 
   flushSessionSnapshot(session: AgentSession): Promise<void> {
-    const snapshots = this.opts.sessionSnapshots;
-    if (!snapshots) return Promise.resolve();
+    if (!session.supportsDisplayFacts()) return Promise.resolve();
     const state = this.getSessionState(session.internalId);
     window.clearTimeout(state.snapshotTimer);
     state.snapshotTimer = undefined;
     const save = (state.snapshotSaving ?? Promise.resolve())
       .catch(() => {})
       .then(async () => {
-        const sessionId = session.getBackendSessionId();
-        if (!sessionId || !session.hasUserVisibleMessages()) return;
         await Promise.all(
           session.getTasks().map(async (task) => {
             if (task.kind !== "command" || !task.outputFile) return;
@@ -2351,20 +2490,7 @@ export class AgentSessionManager {
             }
           })
         );
-        const snapshot: AgentSessionSnapshot = {
-          version: 1,
-          chatId: session.chatInputId,
-          backendId: session.backendId,
-          sessionId,
-          projectId: session.projectId,
-          savedAtMs: Date.now(),
-          label: session.getLabel(),
-          selection: session.getState()?.model?.current,
-          messages: session.store.getDisplayMessages(),
-          tasks: [...session.getTaskSnapshots()],
-          branch: session.getBranchState(),
-        };
-        await snapshots.save(snapshot);
+        await session.persistDisplayFacts();
         state.snapshotFailureReported = false;
       })
       .catch((error: unknown) => {
@@ -2383,32 +2509,6 @@ export class AgentSessionManager {
     };
     void save.then(finished, finished);
     return save;
-  }
-
-  private async readSessionSnapshot(
-    backendId: string,
-    sessionId: string
-  ): Promise<AgentSessionSnapshot | null> {
-    try {
-      return (await this.opts.sessionSnapshots?.load(backendId, sessionId)) ?? null;
-    } catch (error) {
-      logError("[AgentMode] could not load chat details", error);
-      new Notice(t("Failed to load saved chat details. The saved record has been preserved."));
-      return null;
-    }
-  }
-
-  private restoreSessionSnapshot(session: AgentSession, snapshot: AgentSessionSnapshot): void {
-    const replay = session.store.getDisplayMessages();
-    const inheritedCount = snapshot.branch?.inheritedMessageCount ?? 0;
-    session.loadDisplayMessages(mergeSnapshotReplay(snapshot.messages, replay, inheritedCount));
-    if (snapshot.branch) {
-      session.restoreBranchState({
-        ...snapshot.branch,
-        historyPending: snapshot.branch.historyPending,
-      });
-    }
-    session.restoreTaskSnapshots(snapshot.tasks);
   }
 
   private scheduleIndexTouch(session: AgentSession): void {
@@ -2701,7 +2801,8 @@ export class AgentSessionManager {
     resumableSessionId: SessionId | undefined,
     label: string | null,
     labelSource: "user" | "agent" | null,
-    carriedSelection?: ModelSelection
+    carriedSelection?: ModelSelection,
+    purpose?: AgentSessionPurpose
   ): Promise<AgentSession> {
     const seedSelection = carriedSelection
       ? (this.getSeedSelection(backendId, carriedSelection) ?? undefined)
@@ -2723,7 +2824,7 @@ export class AgentSessionManager {
         return resumed;
       }
     }
-    return this.createSession(backendId, projectId, seedSelection, chatInputId);
+    return this.createSession(backendId, projectId, seedSelection, chatInputId, true, purpose);
   }
 
   private async restartBackendNow(
@@ -2759,6 +2860,7 @@ export class AgentSessionManager {
             label: session.getLabel(),
             labelSource: session.getLabelSource(),
             seedSelection: session.getState()?.model?.current,
+            purpose: session.purpose,
             detached: this.detachedFromTabIds.has(session.internalId),
             recoveryMessages:
               session.getStatus() === "error" ? session.store.getDisplayMessages() : undefined,
@@ -2792,7 +2894,8 @@ export class AgentSessionManager {
               replacement.resumableSessionId,
               replacement.label,
               replacement.labelSource,
-              replacement.seedSelection
+              replacement.seedSelection,
+              replacement.purpose
             );
             const resumed = rebuilt.getBackendSessionId() === replacement.resumableSessionId;
             const note = this.app.vault.getAbstractFileByPath(replacement.notePath);

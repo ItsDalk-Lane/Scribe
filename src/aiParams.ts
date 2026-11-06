@@ -2,6 +2,7 @@ import { ModelCapability, ReasoningEffort } from "@/constants";
 export interface ProjectConfig {
   id: string;
   name: string;
+  workspacePath?: string;
   description?: string;
   systemPrompt: string;
   contextSource: {
@@ -34,6 +35,7 @@ export interface ModelConfig {
 
 export interface CustomModel {
   configuredModelId?: string;
+  credentialRef?: string;
   providerCatalogId?: string;
   providerNpm?: string;
   providerOptions?: Record<string, unknown>;

@@ -11,6 +11,7 @@ function makeProject(overrides: Partial<ProjectConfig> = {}): ProjectConfig {
   return {
     id: "p1",
     name: "Project One",
+    workspacePath: "Projects/One",
     systemPrompt: "",
     contextSource: {},
     created: 0,
@@ -98,9 +99,22 @@ describe("projectContextSignature", () => {
   });
 
   describe("getProjectLandingCaptureSignature()", () => {
-    it("resolves AGENTS.md beside the record's own project.md, not under the live root", () => {
-      const record = makeRecord(makeProject(), "old-root/projects/One/project.md");
-      const app = makeApp({ "old-root/projects/One/AGENTS.md": { mtime: 1000, size: 40 } });
+    it("uses root AGENTS.md when the project explicitly selects the vault root", () => {
+      const record = makeRecord(
+        makeProject({ workspacePath: "" }),
+        ".scribe/projects/p1/project.md"
+      );
+      expect(
+        getProjectLandingCaptureSignature(
+          makeApp({ "AGENTS.md": { mtime: 100, size: 20 } }),
+          record
+        )
+      ).toContain("agents:100:20");
+    });
+
+    it("resolves AGENTS.md from the workspace while configuration stays hidden", () => {
+      const record = makeRecord(makeProject(), ".scribe/projects/p1/project.md");
+      const app = makeApp({ "Projects/One/AGENTS.md": { mtime: 1000, size: 40 } });
 
       expect(getProjectLandingCaptureSignature(app, record)).toContain("agents:1000:40");
     });

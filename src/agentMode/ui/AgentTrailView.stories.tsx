@@ -416,3 +416,31 @@ export const SingleToolCompletesAndCollapses: StoryObj<AgentTrailProps> = {
 export const ReasoningCompletesAndCollapses: StoryObj<AgentTrailProps> = {
   render: () => <ActivityLifecycleDemo reasoningOnly />,
 };
+
+export const InterruptedWithPreservedOriginal: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        tool("interrupted-edit", "Edit", {
+          synthetic: true,
+          status: "failed",
+          input: { file_path: "Projects/Brief.md" },
+          output: [
+            {
+              type: "text",
+              text: "系统恢复说明：文件可能已被改动，结果无法确认。请核查实际文件后再重试。",
+            },
+          ],
+        }),
+        say("意外退出前已经显示的回复仍保留在这里。"),
+        tool("finished-read", "Read", { input: { file_path: "Notes/Context.md" } }),
+        compaction({
+          summary: "用户正在整理项目说明；已完成资料阅读，文件修改结果需要人工核查。",
+          fromIndex: 0,
+          toIndex: 12,
+        }),
+      ]}
+      stopReason="interrupted"
+    />
+  ),
+};

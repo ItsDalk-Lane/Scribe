@@ -1,9 +1,4 @@
 export const componentTranslations: Record<string, string> = {
-  "Scribe file caches cleared.": "已清理 Scribe 文件缓存。",
-  "No Scribe file caches needed clearing.": "没有需要清理的 Scribe 文件缓存。",
-  "Scribe file cache cleanup failed: {p0}": "Scribe 文件缓存清理失败：{p0}",
-  "Some items may already have been removed. Check the remaining files and retry.":
-    "部分内容可能已经移除，请检查剩余文件后再重试。",
   "Failed to save project context. Check the result and try again.":
     "项目参考内容保存失败，请检查结果后重试。",
   "System prompt": "系统提示词",
@@ -57,7 +52,6 @@ export const componentTranslations: Record<string, string> = {
   Prompt: "提示词",
   "Enter command prompt": "输入指令提示词",
   "Show in context menu": "在右键菜单中显示",
-  "Show in slash menu": "在斜杠菜单中显示",
   Cancel: "取消",
   Save: "保存",
   "Edit command": "编辑指令",
@@ -316,7 +310,6 @@ export const componentTranslations: Record<string, string> = {
   "{count} selected": "已选择 {count} 项",
   'Resetting settings will restore the default values. API keys are not cleared by this action — use "Delete All Keys" in About → API key storage if you also want to remove them. Are you sure you want to continue?':
     "重置设置将恢复默认值，但不会清除 API 密钥。如需清除密钥，请使用关于 → API 密钥存储中的“删除所有密钥”。确定继续吗？",
-  "Clear Scribe cache": "清除 Scribe 缓存",
   "Count total tokens in your vault": "统计库中的词元总数",
   "Count words and tokens in selection": "统计选中文字的单词和词元数量",
   "New Scribe Agent Chat": "新建 Scribe 代理聊天",

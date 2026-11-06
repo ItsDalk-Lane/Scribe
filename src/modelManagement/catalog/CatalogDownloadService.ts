@@ -1,3 +1,5 @@
+import { writeVaultFile } from "@/utils/vaultFileStore";
+import { DEFAULT_SCRIBE_FOLDER } from "@/constants";
 import type { App, RequestUrlResponse } from "obsidian";
 import { normalizePath, requestUrl } from "obsidian";
 
@@ -7,7 +9,7 @@ import type { CatalogProvider } from "@/modelManagement/types/catalog";
 import { transformWireToCatalog } from "./catalogTransform";
 import { isPlainObject } from "./modelsDevWire";
 
-const CACHE_DIR = ".scribe";
+const CACHE_DIR = DEFAULT_SCRIBE_FOLDER;
 const CACHE_FILENAME = "model-catalog-cache.json";
 const MODELS_DEV_URL = "https://models.dev/api.json";
 const FETCH_TIMEOUT_MS = 5000;
@@ -121,7 +123,7 @@ export class CatalogDownloadService {
         await this.app.vault.adapter.mkdir(CACHE_DIR);
       }
       const payload: DiskPayload = { fetchedAt, data: parsed };
-      await this.app.vault.adapter.write(this.cachePath, JSON.stringify(payload));
+      await writeVaultFile(this.app.vault, this.cachePath, JSON.stringify(payload));
     } catch (err) {
       logError("[modelsCatalog] failed to write disk cache", err);
     }

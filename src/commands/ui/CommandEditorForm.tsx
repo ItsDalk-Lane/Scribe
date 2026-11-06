@@ -93,33 +93,6 @@ export function CommandEditorForm({
         )}
       </div>
 
-      <div className="tw-flex tw-flex-col tw-gap-2">
-        <Label htmlFor="content">{t("Prompt")}</Label>
-        <CustomPromptSyntaxInstruction />
-        <Textarea
-          id="content"
-          value={command.content}
-          onChange={(e) => handleUpdate("content", e.target.value)}
-          placeholder={t("Enter command prompt")}
-          className="tw-min-h-[200px]"
-        />
-        {errors.content && <div className="tw-text-sm tw-text-error">{errors.content}</div>}
-
-        <div className="tw-flex tw-items-center tw-gap-2">
-          <Checkbox
-            id="enableTemplating"
-            checked={command.enableTemplating !== false}
-            onCheckedChange={(checked) => handleUpdate("enableTemplating", checked)}
-          />
-          <Label htmlFor="enableTemplating">{t("Command templating")}</Label>
-        </div>
-        <p className="tw-m-0 tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
-          {t(
-            "Fill in variables like {activenote}, {foldername}, or {#tag} in commands. Turn off to send commands exactly as written."
-          )}
-        </p>
-      </div>
-
       <CommandModelSelect
         value={command.modelKey || ""}
         options={modelOptions}
@@ -135,13 +108,33 @@ export function CommandEditorForm({
         <Label htmlFor="showInContextMenu">{t("Show in context menu")}</Label>
       </div>
 
-      <div className="tw-flex tw-items-center tw-gap-2">
-        <Checkbox
-          id="showInSlashMenu"
-          checked={command.showInSlashMenu}
-          onCheckedChange={(checked) => handleUpdate("showInSlashMenu", checked)}
+      <div className="tw-flex tw-flex-col tw-gap-2">
+        <div className="tw-flex tw-items-center tw-gap-2">
+          <Checkbox
+            id="enableTemplating"
+            checked={command.enableTemplating !== false}
+            onCheckedChange={(checked) => handleUpdate("enableTemplating", checked)}
+          />
+          <Label htmlFor="enableTemplating">{t("Command templating")}</Label>
+        </div>
+        <p className="tw-m-0 tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
+          {t(
+            "Fill in variables like {activenote}, {foldername}, or {#tag} in commands. Turn off to send commands exactly as written."
+          )}
+        </p>
+      </div>
+
+      <div className="tw-flex tw-flex-col tw-gap-2">
+        <Label htmlFor="content">{t("Prompt")}</Label>
+        <CustomPromptSyntaxInstruction />
+        <Textarea
+          id="content"
+          value={command.content}
+          onChange={(e) => handleUpdate("content", e.target.value)}
+          placeholder={t("Enter command prompt")}
+          className="tw-min-h-[200px]"
         />
-        <Label htmlFor="showInSlashMenu">{t("Show in slash menu")}</Label>
+        {errors.content && <div className="tw-text-sm tw-text-error">{errors.content}</div>}
       </div>
 
       {error && (

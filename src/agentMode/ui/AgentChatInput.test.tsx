@@ -19,6 +19,15 @@ import React from "react";
 const mockPrependContent = jest.fn();
 let mockManagedSkills: Skill[] = [];
 let mockComposerSkills: readonly Skill[] | undefined;
+let mockSettings: {
+  debug: boolean;
+  configuredModels: Array<{ configuredModelId: string; providerId: string }>;
+  providers: Record<string, { apiKeyRef?: string }>;
+} = { debug: false, configuredModels: [], providers: {} };
+const mockWithSecret = jest.fn<Promise<void>, [string, (value: string) => Promise<void>]>();
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ withSecret: mockWithSecret }) },
+}));
 jest.mock("@/agentMode/skills/SkillManager", () => ({ useManagedSkills: () => mockManagedSkills }));
 jest.mock("@/components/chat-components/ChatInput", () => ({
   __esModule: true,
@@ -73,7 +82,7 @@ jest.mock("@/settings/model", () => ({
     return model._backendId ? `${model._backendId}:${baseKey}` : baseKey;
   },
   useSettingsValue: () => ({}),
-  getSettings: () => ({ debug: false }),
+  getSettings: () => mockSettings,
 }));
 /* eslint-enable @eslint-react/hooks-extra/no-unnecessary-use-prefix */
 
@@ -126,6 +135,7 @@ function inputNode(
   extraProps: Partial<React.ComponentProps<typeof AgentChatInput>> = {}
 ) {
   if (!backend.getMessages) backend.getMessages = () => [];
+  if (!backend.getBackendState) backend.getBackendState = () => null;
   backend.isStarting = () => extraProps.isStarting ?? false;
   backend.isTurnInFlight = () => extraProps.isLoading ?? draft.loading;
   backend.getQueuedPrompts = () => extraProps.queuedPrompts ?? [];
@@ -190,6 +200,8 @@ function setupCancellation() {
 
 describe("AgentChatInput", () => {
   beforeEach(() => {
+    mockSettings = { debug: false, configuredModels: [], providers: {} };
+    mockWithSecret.mockReset().mockResolvedValue(undefined);
     mockManagedSkills = [];
     mockComposerSkills = undefined;
     mockSelectedTextContexts = [];
@@ -198,6 +210,31 @@ describe("AgentChatInput", () => {
   });
 
   describe("AgentChatInput", () => {
+    it.each([new DOMException("Cancelled", "AbortError"), new Error("Damaged encrypted entry")])(
+      "keeps the draft and attachments when selected-key validation fails: %s",
+      async (failure) => {
+        mockSettings = {
+          debug: false,
+          configuredModels: [{ configuredModelId: "saved-model", providerId: "provider" }],
+          providers: { provider: { apiKeyRef: "saved-reference" } },
+        };
+        mockWithSecret.mockRejectedValueOnce(failure);
+        const backend = {
+          sendMessage: jest.fn(),
+          takeWithdrawnPrompts: () => [],
+          getBackendState: () => ({ model: { current: { baseModelId: "saved-model" } } }),
+        } as unknown as AgentChatBackend;
+        const draft = makeDraft({ input: "Keep my draft", images: [image] });
+        renderInput(backend, draft);
+        await act(async () => {
+          fireEvent.click(screen.getByText("send"));
+        });
+        expect(mockWithSecret).toHaveBeenCalledWith("saved-reference", expect.any(Function));
+        expect(backend.sendMessage).not.toHaveBeenCalled();
+        expect(draft.resetCompose).not.toHaveBeenCalled();
+      }
+    );
+
     it("keeps the draft and attachments while sending is disabled and sends them after sending is enabled (https://github.com/ItsDalk-Lane/Scribe/issues/21)", async () => {
       const backend = {
         sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),

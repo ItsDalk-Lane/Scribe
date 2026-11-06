@@ -133,15 +133,15 @@ describe("AgentTrail", () => {
       turnStopReason: "end_turn",
       turnDurationMs: 2_000,
     });
-    const completed = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(completed.map((group) => group.getAttribute("aria-expanded"))).toEqual([
-      "false",
-      "false",
-    ]);
+    const completed = screen.getAllByRole("button", { name: /Ran 4 commands, read 2 files/ });
+    expect(completed.map((group) => group.getAttribute("aria-expanded"))).toEqual(["false"]);
     expect(screen.queryByText("First file contents")).toBeNull();
     expect(screen.getByText("Visible response")).toBeTruthy();
     fireEvent.click(completed[0]);
     expect(screen.queryByText("First file contents")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Ran 4 commands, read 2 files/, expanded: false })
+    );
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
     expect(screen.getByText("First file contents")).toBeTruthy();
   });
@@ -595,10 +595,10 @@ describe("AgentTrail", () => {
     });
 
     const headers = [...container.querySelectorAll("[data-agent-activity-card-header]")];
-    expect(headers).toHaveLength(4);
+    expect(headers).toHaveLength(1);
     expect(headers.every((header) => header.classList.contains("tw-pl-1"))).toBe(true);
     expect(headers.every((header) => header.getAttribute("aria-expanded") === "false")).toBe(true);
-    expect(container.querySelectorAll(".lucide-chevron-right")).toHaveLength(4);
+    expect(container.querySelectorAll(".lucide-chevron-right")).toHaveLength(1);
   });
 
   it("shows progress on a childless background subagent card", () => {
@@ -814,11 +814,48 @@ describe("AgentTrail", () => {
       ],
     });
 
+    fireEvent.click(screen.getByRole("button", { name: /Ran 5 commands/ }));
     fireEvent.click(screen.getByRole("button", { name: /Ran 2 commands, read 1 file/ }));
     fireEvent.click(screen.getByText('Explore · "Look around"'));
 
     const groups = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
     expect(groups.map((group) => group.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
+  });
+
+  it("keeps synthetic recovery warnings visible while completed process details are folded", () => {
+    renderTrail({
+      parts: [
+        {
+          ...READ_A,
+          synthetic: true,
+          status: "failed",
+          output: [
+            {
+              type: "text",
+              text: "Files may have changed. Check the actual files before retrying.",
+            },
+          ],
+        },
+        text("The saved reply remains visible."),
+        LINT,
+      ],
+    });
+    expect(screen.getByRole("alert").textContent).toContain("Files may have changed");
+    expect(screen.getByText("Recovered after interruption")).toBeTruthy();
+    expect(screen.getByText("The saved reply remains visible.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Read notes\/a.md/ })).toBeNull();
+  });
+
+  it("identifies an interrupted reply as system recovery without claiming the user cancelled it", () => {
+    renderTrail({
+      parts: [text("The partial reply remains intact.")],
+      turnStopReason: "interrupted",
+    });
+    expect(screen.getByRole("alert").textContent).toContain(
+      "System recovery: this reply was interrupted"
+    );
+    expect(screen.queryByText(/Cancelled by you/)).toBeNull();
+    expect(screen.getByText("The partial reply remains intact.")).toBeTruthy();
   });
 
   it("keeps live activity inside an earlier sub-agent quiet", () => {
@@ -868,8 +905,10 @@ describe("AgentTrail", () => {
     });
     renderTrail({ app, parts: [READ_A, LINT, write, READ_B, LINT, text("Drew it.")] });
 
+    fireEvent.click(screen.getByRole("button", { name: /Ran 5 commands/ }));
+
     expect(screen.getByText("Drew in Excalidraw")).toBeTruthy();
-    expect(screen.getAllByText("Ran 2 commands, read 1 file")).toHaveLength(2);
+    expect(screen.getByText("Drew it.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Release plan" }));
     expect(openLinkText).toHaveBeenCalledWith("Drawings/Release plan.excalidraw.md", "", "tab");
   });
@@ -891,6 +930,7 @@ describe("AgentTrail", () => {
       ],
     });
 
+    fireEvent.click(screen.getByRole("button", { name: /Ran 5 commands/ }));
     expect(screen.getAllByText("Edited in Excalidraw")).toHaveLength(1);
     expect(screen.getByText("1 failed")).toBeTruthy();
     expect(screen.queryByText(/Unsupported field/)).toBeNull();

@@ -2,12 +2,6 @@
 
 Instructions are rules Scribe should keep following, such as your writing style, folder conventions, preferred formats, and safety boundaries.
 
-Isolated tests found that opening or restoring a Project can change existing instructions, and saving another Project detail can overwrite a newer instruction body. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. See [Projects](projects.md) and [Troubleshooting](troubleshooting-and-faq.md).
-
-隔离测试发现，打开或恢复项目可能改写已有说明；保存其他项目详情时也可能覆盖较新的说明。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。详见[项目](projects.md)和[故障排查](troubleshooting-and-faq.md)。
-
-The guidance below applies after these issues are fixed. 以下操作应在问题修复后执行。
-
 Agent Chat reads the vault-root `AGENTS.md` for your custom instructions when starting a response in a native Scribe session.
 
 Agent Chat's built-in guidance covers vault context, Obsidian links and tool routing. The selected agent decides how much searching and planning the task needs, and can report unavailable tools or access honestly.
@@ -28,7 +22,7 @@ Keep stable conventions in `AGENTS.md`. Use a [Skill](agent-mode-and-tools.md#sk
 
 Vault-wide instructions live in `AGENTS.md` at the root of your vault. Scribe makes them available to native Agent Chats in that vault.
 
-Open [**Settings → Scribe → Agent 配置 → 自定义说明**](settings.md#自定义说明) and edit **库的自定义说明**. Scribe saves the text to the vault-root file as you type. Select **打开 AGENTS.md** to edit the same file as a normal note.
+Open [**Settings → Scribe → Agent 配置**](settings.md#agent-配置) and edit **库的自定义说明**. Scribe saves the text to the vault-root file as you type. Select **打开 AGENTS.md** to edit the same file as a normal note.
 
 Good instructions are short and concrete:
 
@@ -57,6 +51,10 @@ Use Project instructions for details that should not affect the rest of the vaul
 ## Native instructions
 
 Scribe 使用自己的 Obsidian 任务说明，并组合资料库说明、当前项目说明和你选择的上下文。原生代理不读取外部代理的专属说明目录，也不导入它们的设置。原有外部文件保留。
+
+The old `.scribe/system-prompts` directory and its saved selection are retired. Scribe no longer creates or reads that directory, and does not import or delete its old files. Manage vault and Project instructions through their `AGENTS.md` files.
+
+旧版 `.scribe/system-prompts` 目录及其选择项已停用。插件不再创建或读取该目录，也不导入或删除其中旧文件。库说明和项目说明分别通过各自的 `AGENTS.md` 管理。
 
 ## Examples and next steps
 

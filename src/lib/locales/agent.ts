@@ -1,4 +1,29 @@
 export const agentTranslations: Record<string, string> = {
+  "Some chat content or attachments could not be loaded. The available history has been preserved.":
+    "部分聊天内容或附件未能加载，其余历史记录已保留。",
+  "This chat can be viewed, but its record sequence is damaged and new operations are disabled.":
+    "这段聊天的记录存在损坏。目前可以查看已恢复的内容，暂时无法继续发送或执行操作。",
+  "An attached image is unavailable. Restore the image before continuing this chat.":
+    "聊天中的一张图片无法读取，请恢复该图片后再继续。",
+
+  "System recovery: this reply was interrupted. It was not automatically resumed.":
+    "系统恢复说明：这次回复因意外中断而停止，系统没有自动继续执行。",
+  "Load 30 earlier turns": "再加载前 30 轮",
+  "A chat display record could not be interpreted. The saved record was preserved.":
+    "有一条聊天显示记录暂时无法识别，其余内容仍可查看，原记录已保留。",
+  "Summary used by the model; original conversation preserved": "模型使用的摘要；原始对话完整保留",
+  "This chat is read-only because its history needs repair. Your saved records have been preserved.":
+    "这段聊天的历史记录需要修复，目前只能查看。已保存的记录均已保留。",
+  "Recovered after interruption": "系统恢复说明",
+  "System recovery: this operation was admitted, but its outcome is unknown. Files may have changed. Check the actual files or tasks before retrying; it was not automatically resumed.":
+    "系统恢复说明：此操作已获准执行，但结果无法确认。文件可能已被改动，请核查实际文件或任务后再决定是否重试；系统没有自动重做。",
+  "System recovery: this operation never started. No changes were made and it was not automatically resumed.":
+    "系统恢复说明：此操作从未启动，没有造成改动，系统也没有自动重做。",
+  "System recovery: the task outcome is unknown. Check actual files and processes before retrying.":
+    "系统恢复说明：任务结果无法确认，请核查实际文件和运行中的任务后再决定是否重试。",
+
+  "This removes the skill and its supporting files. This cannot be undone.":
+    "这会删除该技能及配套文件，无法撤销。",
   "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue.":
     "**已达到步数上限。** 代理已结束本轮，请查看收尾总结；发送新消息即可继续。",
   "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.":
@@ -163,13 +188,8 @@ export const agentTranslations: Record<string, string> = {
   "Scribe shares a skill by adding a shortcut to each agent&rsquo;s skills folder, and Windows allows that only for admins or with Developer Mode (Settings → Privacy &amp; security → For developers). Until then, turning a skill on for an agent is saved, but the agent can&rsquo;t see the skill.":
     "Scribe 通过在各代理技能文件夹中创建快捷链接来共享技能。Windows 仅允许管理员或开发者模式执行此操作（设置 → 隐私和安全性 → 开发者选项）。开启前，技能启用状态会保存，但代理无法看到技能。",
   Dismiss: "关闭提示",
-  "This vault is inside": "此库位于",
-  "Sync can break the links Scribe uses to share skills with agents. If a skill disappears from an agent after a sync, turn it off and on again here.":
-    "同步可能破坏 Scribe 用于共享技能的链接。若同步后代理中缺少技能，请在这里将其停用后重新启用。",
   "A skill with this name already exists in Your skills. Your file is kept unchanged.":
     "您的技能中已有同名技能，原文件保持不变。",
-  "Some skill links could not be updated. Check folder permissions.":
-    "部分技能链接无法更新，请检查文件夹权限。",
   "Disable skill": "停用技能",
   "Enable skill": "启用技能",
   "manual only": "仅手动调用",
@@ -613,4 +633,222 @@ export const agentTranslations: Record<string, string> = {
   "Error:": "错误：",
   "No response or action was returned. Try again, or switch models if this happens repeatedly.":
     "没有收到回复或操作结果。请重试；如果问题反复出现，请切换模型。",
+  "Custom subagents": "自定义子代理",
+  Refresh: "刷新",
+  "New subagent": "新建子代理",
+  "Edit subagent": "编辑子代理",
+  "Delete subagent": "删除子代理",
+  "No custom subagents yet.": "还没有自定义子代理。",
+  "Subagents use the current chat model and permission policy.":
+    "子代理沿用当前聊天的模型和操作权限。",
+  "Without a custom subagent, general delegation remains available.":
+    "未配置自定义子代理时，仍可使用通用委派。",
+  "Enable {name}": "启用{name}",
+  "Edit {name}": "编辑{name}",
+  "Delete {name}": "删除{name}",
+  "Delete subagent {name}? Existing chats and task results are kept.":
+    "删除子代理{name}？已有聊天和任务结果会保留。",
+  "Built-in": "内置",
+  "Agent created": "Agent 创建",
+  "System imported": "系统导入",
+  Local: "本地",
+  "Use now": "立即使用",
+  "Use {name} now": "立即使用 {name}",
+  "Could not load this skill": "无法加载此技能",
+  "Imported from": "导入来源",
+  Author: "作者",
+  Tags: "标签",
+  "Tags (comma separated)": "标签（用英文逗号分隔）",
+  Preview: "预览",
+  Edit: "编辑",
+  "Skill view": "技能视图",
+  "Skill details": "技能详情",
+  "Ask Agent to repair": "让 Agent 修复",
+  "Restore this built-in skill to repair its files.": "请通过恢复内置技能修复此技能的文件。",
+  "Could not save skill: {reason}": "技能保存失败：{reason}",
+  "Could not open skill: {reason}": "技能打开失败：{reason}",
+  "Please try again.": "请重试。",
+  "Review skill draft": "确认技能草稿",
+  "Review the complete draft. The skill is installed only when you choose Save.":
+    "请检查完整草稿。只有点击“保存”后才会安装技能。",
+  "Update imported skill": "更新已导入技能",
+  "Import skill": "导入技能",
+  "Update and replace": "更新并替换",
+  Import: "导入",
+  "Install as {name}": "将以 {name} 的名称安装",
+  "This replaces the installed copy and all supporting files, including your local edits. The original source is kept.":
+    "这会替换已安装的副本及全部附带文件，包括你在副本中的修改。原始来源文件会保留。",
+  "Importing…": "正在导入…",
+  Cancelled: "已取消",
+  Imported: "已导入",
+  "Could not import skill: {reason}": "技能导入失败：{reason}",
+  "Could not search for skills: {reason}": "技能搜索失败：{reason}",
+  "Import a copy of skills from other tools. Their original folders are never changed.":
+    "把其他工具中的技能复制到 Scribe。原来的文件夹始终保持不变。",
+  "Import selected": "导入所选技能",
+  "Searching for skills…": "正在搜索技能…",
+  "No skills found in the supported locations.": "未在支持的位置找到技能。",
+  "Select {name}": "选择 {name}",
+  Reimport: "重新导入",
+  "Available to import": "可导入",
+  "Already imported": "已导入",
+  "Name conflict": "名称冲突",
+  "Name will change from {from} to {to}.": "名称将从 {from} 调整为 {to}。",
+  "Could not read built-in skill status. Please try again.": "无法读取内置技能状态，请重试。",
+  "Reset built-in skill": "重置内置技能",
+  "Reset {name} to the bundled version? This replaces all local changes. Cancel keeps your files.":
+    "将 {name} 重置为插件内置版本？这会替换全部本地修改。选择“取消”会保留现有文件。",
+  Reset: "重置",
+  Restored: "已恢复",
+  "Could not restore skill: {reason}": "技能恢复失败：{reason}",
+  "Could not restore built-in skills. Your existing files are kept.":
+    "无法恢复内置技能。现有文件会保留。",
+  "Restore uninstalled skills or reset modified built-in skills to the version included with Scribe.":
+    "可恢复已卸载的技能，或把在外部修改过的内置技能重置为 Scribe 附带的版本。",
+  "All built-in skills are installed.": "所有内置技能均已安装。",
+  "Restore all": "恢复全部",
+  Uninstalled: "已卸载",
+  "Modified outside Scribe": "在 Scribe 外修改过",
+  Missing: "文件缺失",
+  "A personal skill already uses this name": "已有个人技能使用此名称",
+  Restore: "恢复",
+  "Could not refresh skills: {reason}": "技能列表刷新失败：{reason}",
+  "Could not update skills: {reason}": "技能更新失败：{reason}",
+  "Enable and use skill": "启用并使用技能",
+  "Enable {name} before opening a chat?": "先启用 {name}，再打开聊天？",
+  "Enable and use": "启用并使用",
+  "Uninstall {name}?": "卸载 {name}？",
+  "This removes the built-in skill and supporting files. You can reinstall it with Restore built-in skills.":
+    "这会移除内置技能及其附带文件。之后可通过“恢复内置技能”重新安装。",
+  "This permanently removes the skill folder and all supporting files. The original imported source is kept.":
+    "这会永久删除技能文件夹及全部附带文件。导入时的原始来源文件不会被删除。",
+  "Skill uninstalled": "技能已卸载",
+  "Skill imported": "技能已导入",
+  "Add skill": "添加技能",
+  "Create with Agent": "Agent 创建",
+  "The built-in skill-creator skill is missing. Restore built-in skills first.":
+    "内置的 skill-creator 技能不存在，请先恢复内置技能。",
+  "System search": "系统搜索",
+  "Local import": "本地导入",
+  "Import folder": "导入文件夹",
+  "Import ZIP archive": "导入 ZIP 压缩包",
+  "Drop a skill folder or a ZIP archive here, or click to choose a ZIP":
+    "拖放技能文件夹或 ZIP 压缩包到此处，或点击选择 ZIP",
+  "Supports .zip files and folders containing SKILL.md": "支持 .zip 文件，或包含 SKILL.md 的文件夹",
+  "Drop a skill folder or a ZIP archive.": "请拖放技能文件夹或 ZIP 压缩包。",
+  "The dropped item has no accessible local path. Try the import buttons.":
+    "拖入的项目没有可访问的本地位置，请改用下方按钮导入。",
+  "The current vault path is unavailable.": "无法取得当前资料库的位置。",
+  "Restore built-in skills": "恢复内置技能",
+  "Updating skills…": "正在更新技能…",
+  "Some built-in skills need attention. Open Restore built-in skills to review conflicts or local changes.":
+    "部分内置技能需要处理。打开“恢复内置技能”可查看名称冲突或本地修改。",
+  "No skills match your search.": "没有符合搜索条件的技能。",
+  "The selected file has no accessible local path. Try choosing it again.":
+    "无法取得所选文件的本地位置，请重新选择。",
+  "Could not determine the selected skill folder.": "无法确定所选技能文件夹的位置。",
+  "The selected folder does not contain any files.": "所选文件夹中没有文件。",
+  "Could not open the skill picker.": "无法打开技能文件选择窗口。",
+  "Could not determine your home folder.": "无法确定你的电脑用户文件夹位置。",
+  "Could not read the Scribe skill library.": "无法读取 Scribe 技能库。",
+  "System search stopped after 10000 folders. Some skills may not be listed.":
+    "扫描已达到 10000 个文件夹的上限，部分技能可能未列出。",
+  "The skill could not be read.": "无法读取此技能。",
+  "Could not read a system skill folder: {path}": "无法读取系统技能文件夹：{path}",
+  "The skill name must contain English letters or numbers.": "技能名称必须包含英文字母或数字。",
+  "SKILL.md must start with a metadata block.": "技能描述文件开头缺少必需的基本信息。",
+  "Skill metadata is invalid or its name is missing.": "技能的基本信息格式有误，或缺少名称。",
+  "The skill name does not match its folder.": "技能名称与所在文件夹不一致。",
+  "The imported skill is invalid: {reason}": "导入的技能格式不符合要求：{reason}",
+  "The skill contains an unsafe file path: {path}": "技能中包含不安全的文件位置：{path}",
+  "A skill can contain at most 2000 files and 50 MB.":
+    "每个技能最多包含 2000 个文件，总大小不能超过 50 MB。",
+  "Choose a folder or ZIP containing exactly one SKILL.md, directly or one folder below.":
+    "请选择只包含一个技能描述文件的文件夹或 ZIP；描述文件应位于顶层或下一层文件夹。",
+  "The source skill changed while it was being read. Try importing it again.":
+    "读取期间原始技能发生变化，请重新导入。",
+  "Skill links and special files cannot be imported.": "不能导入包含文件链接或特殊文件的技能。",
+  "The skill contains too many folders.": "技能包含的文件夹数量过多。",
+  "The skill contains duplicate file paths.": "技能中存在重复的文件位置。",
+  "ZIP links, special files, encryption or unsupported compression cannot be imported.":
+    "不能导入包含文件链接、特殊文件、加密内容或不支持压缩方式的 ZIP。",
+  "Skill import was cancelled.": "技能导入已取消。",
+  "Choose a skill folder or a ZIP file.": "请选择技能文件夹或 ZIP 文件。",
+  "Could not import this skill: {reason}": "无法导入此技能：{reason}",
+  "Builtin skills are read-only. Restore the builtin version instead.":
+    "内置技能为只读，请通过恢复内置技能重置。",
+  "A skill from another source already uses this name.": "其他来源的技能已使用此名称，不能覆盖。",
+  "A skill with this name already exists. Confirm an update from the same source.":
+    "已有同名技能。只有相同来源的技能才可经确认后更新。",
+  "The builtin skill is not installed.": "此内置技能尚未安装。",
+  "Could not save configuration.": "无法保存设置。",
+  "Preview shows the saved version. Your unsaved edits are kept when switching views.":
+    "预览显示已保存的版本，切换视图会保留尚未保存的编辑。",
+  "This skill is disabled or does not permit manual use.": "此技能已停用，或不允许手动调用。",
+  "The skill folder returned an unsafe child path.": "技能文件夹中发现不安全的子文件位置。",
+  "Unrecognized skill recovery files were retained. Review them before changing skills.":
+    "已保留无法识别的技能恢复文件。请先检查这些文件，再更改技能。",
+  "Skill recovery information changed. Original files were retained.":
+    "技能恢复信息发生变化，原文件已保留。",
+  "The backup changed during recovery. Both copies were retained.":
+    "恢复期间备份发生变化，两份文件都已保留。",
+  "Unknown recovery files were retained instead of being removed.":
+    "已保留未知的恢复文件，没有删除。",
+  "Changed recovery files were retained instead of being removed.":
+    "已保留发生变化的恢复文件，没有删除。",
+  "Describe the workflow you want to turn into a skill. Discuss it with me, show the complete name, description and instructions, then submit the complete draft for my review and confirmation. Do not save files or run commands directly.":
+    "请描述你想做成技能的方法或流程。先和我讨论，展示完整的名称、说明和操作步骤，再提交完整草稿让我检查确认。不要直接保存文件或运行命令。",
+  "The skill changed before uninstallation. Refresh and confirm again.":
+    "技能在卸载前发生变化，请刷新后重新确认。",
+  "A skill named “{name}” already exists.": "已存在名为“{name}”的技能。",
+  "Confirm replacement before updating this skill.": "更新此技能前，请先确认替换现有副本。",
+  "The skill changed outside this editor. Refresh before saving again.":
+    "技能已在此编辑界面之外发生变化，请刷新后再保存。",
+  "The skill changed before replacement. Refresh and try again.":
+    "技能在替换前发生变化，请刷新后重试。",
+  "The destination was created by another operation.":
+    "另一个操作已在目标位置创建了内容，未进行覆盖。",
+  "Skill recovery information is damaged. Original files were retained.":
+    "技能恢复信息已损坏，原文件已保留。",
+  "Skill records changed during recovery. Original files were retained.":
+    "恢复期间技能记录发生变化，原文件已保留。",
+  "The new skill changed during recovery. Both copies were retained.":
+    "恢复期间新技能发生变化，两份文件都已保留。",
+  "The original location is occupied. The backup was retained.":
+    "原位置已被其他内容占用，备份已保留。",
+  "The skill contains an unsafe or duplicate file path.": "技能中包含不安全或重复的文件位置。",
+  "The skill exceeds the file count or size limit.": "技能的文件数量或总大小超过上限。",
+  "SKILL.md was not found.": "未找到技能描述文件 SKILL.md。",
+  "Skill source records are damaged. Restore the records before changing skills.":
+    "技能来源记录已损坏，请先恢复记录，再更改技能。",
+  "The skill folder is not safe to manage.": "技能文件夹不符合安全要求，无法进行管理。",
+  "This builtin skill is unavailable.": "此内置技能目前不可用。",
+  "A personal skill uses this name. It was not replaced.": "已有个人技能使用此名称，未进行替换。",
+  "Not enough free space to save this skill. Free some space and try again.":
+    "可用空间不足，无法保存技能。请释放一些空间后重试。",
+  "Scribe cannot change these skill files. Check the folder permissions and try again.":
+    "Scribe 无法修改这些技能文件，请检查文件夹权限后重试。",
+  "The skill operation failed. Refresh and try again.": "技能操作失败，请刷新后重试。",
+  "Skill metadata must be a mapping before enablement can be changed.":
+    "技能的基本信息格式不正确，修复后才能更改启用状态。",
+  "If the installed skill is damaged, the updated copy stays disabled. Review it before enabling it.":
+    "如果原技能已损坏，更新后的副本会保持停用。请检查后再手动开启。",
+  "Back to skills": "返回技能列表",
+  "Source files": "源文件",
+  "File contents": "文件内容",
+  "Read only": "只读",
+  "Global enabled": "全局启用",
+  "Unsaved changes": "尚未保存",
+  Saved: "已保存",
+  "Save or cancel your edits before selecting another file.":
+    "请先保存或取消修改，再选择其他文件。",
+  "Your edits have not been saved.": "当前修改尚未保存。",
+  "Keep editing": "继续编辑",
+  "Discard and return": "放弃修改并返回",
+  "Could not read this skill file.": "无法读取这个技能文件。",
+  "This file cannot be previewed as text.": "这个文件无法以文字形式预览。",
+  "Save failed": "保存失败",
+  "Reload from disk": "重新读取文件",
+  "Retry save": "重试保存",
+  "Restored your unsaved edits.": "已恢复尚未保存的修改。",
 };

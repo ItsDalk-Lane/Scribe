@@ -8,7 +8,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     displayName: "P",
     origin: { kind: "byok" },
     addedAt: 0,
-    apiKeyKeychainId: null,
+    apiKeyRef: null,
     ...overrides,
   };
 }
@@ -40,9 +40,7 @@ describe("providerRequiresApiKey", () => {
     it("needs a runtime key for required-key providers and optional-key providers with a stored key, but not for an optional-key provider without one", () => {
       expect(providerNeedsResolvedApiKey(provider({ requiresApiKey: true }))).toBe(true);
       expect(
-        providerNeedsResolvedApiKey(
-          provider({ requiresApiKey: false, apiKeyKeychainId: "keychain-p1" })
-        )
+        providerNeedsResolvedApiKey(provider({ requiresApiKey: false, apiKeyRef: "keychain-p1" }))
       ).toBe(true);
       expect(providerNeedsResolvedApiKey(provider({ requiresApiKey: false }))).toBe(false);
     });

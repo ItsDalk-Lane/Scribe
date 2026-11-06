@@ -21,15 +21,27 @@ describe("CommandEditorForm", () => {
         target: { value: "review-model" },
       });
       fireEvent.click(screen.getByRole("checkbox", { name: "Show in context menu" }));
-      fireEvent.click(screen.getByRole("checkbox", { name: "Show in slash menu" }));
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
       expect(onConfirm).toHaveBeenCalledWith({
         ...props.command,
         title: "Edited review",
         modelKey: "review-model",
         showInContextMenu: false,
-        showInSlashMenu: false,
       });
+    });
+    it("orders name, model, context-menu visibility, templating, and prompt, and no longer offers slash-menu visibility", () => {
+      render(<CommandEditorForm {...props} />);
+      const fields = [
+        screen.getByLabelText("Name"),
+        screen.getByLabelText("Model (optional)"),
+        screen.getByRole("checkbox", { name: "Show in context menu" }),
+        screen.getByRole("checkbox", { name: "Command templating" }),
+        screen.getByLabelText("Prompt"),
+      ];
+      fields.slice(1).forEach((field, index) => {
+        expect(fields[index].compareDocumentPosition(field)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      expect(screen.queryByRole("checkbox", { name: "Show in slash menu" })).toBeNull();
     });
     it("turns variable templating off for this command only", () => {
       const onConfirm = jest.fn();

@@ -30,9 +30,10 @@ export interface NativeToolsOptions {
   requester?: PermissionRequester;
   onPlanApproved?(): void;
   commandTasks: NativeCommandTasks;
+  subagents?: readonly { id: string; name: string; description: string }[];
   executeSubagent?(
     toolCallId: string,
-    input: { prompt: string; description: string },
+    input: { prompt: string; description: string; agent?: string },
     signal?: AbortSignal
   ): Promise<AgentToolResult>;
 }
@@ -357,8 +358,23 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
       defineNativeTool(
         "delegate_task",
         "Delegate task",
-        "Run an independent Scribe child agent for a specific task and return its actual result.",
-        obj({ prompt: str({ minLength: 1 }), description: str({ minLength: 1 }) }),
+        [
+          "Run an independent Scribe child agent for a specific task and return its actual result.",
+          ...(options.subagents ?? []).map(
+            (entry) => `Custom agent ${entry.id}: ${entry.name} — ${entry.description}`
+          ),
+        ].join("\n"),
+        obj({
+          prompt: str({ minLength: 1 }),
+          description: str({ minLength: 1 }),
+          agent: opt(
+            str({
+              minLength: 1,
+              description:
+                "Optional custom agent ID from the list above; omit for general delegation.",
+            })
+          ),
+        }),
         (toolCallId, args, signal) => options.executeSubagent!(toolCallId, args, signal)
       )
     );

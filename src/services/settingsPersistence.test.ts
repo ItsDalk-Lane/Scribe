@@ -1,514 +1,220 @@
-import { CURRENT_SETTINGS_VERSION } from "@/settings/migrations/version";
-import type { ScribeSettings } from "@/settings/model";
-import type { StartupMigrationItem } from "@/services/startupMigration";
+import { DEFAULT_SETTINGS } from "@/constants";
+import { getSettings, settingsAtom, settingsStore, type ScribeSettings } from "@/settings/model";
+import {
+  flushPersistence,
+  loadStoredSettings,
+  persistSettings,
+  persistSettingsWithinTransaction,
+  resetPersistenceState,
+  runPersistenceTransaction,
+  serializeSettings,
+  suppressNextPersistOnce,
+} from "@/services/settingsPersistence";
 
-if (typeof window.structuredClone === "undefined") {
-  window.structuredClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-}
-
-function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
+function configuredSettings() {
   return {
-    activeModels: [],
-    openAIApiKey: "",
-    ...overrides,
-  } as unknown as ScribeSettings;
-}
-
-const backedUp = jest.fn().mockResolvedValue({ status: "not-needed" });
-const DEVICE_ID = "device-a";
-const APP = {} as import("obsidian").App;
-
-async function loadModule(overrides: Record<string, unknown> = {}) {
-  jest.resetModules();
-
-  const keychain = {
-    isAvailable: jest.fn().mockReturnValue(true),
-    getVaultId: jest.fn().mockReturnValue("abcd1234"),
-    setVaultId: jest.fn(),
-    planProviderNames: jest.fn(
-      (settings: ScribeSettings): { settings: ScribeSettings; moves: unknown[] } => ({
-        settings,
-        moves: [],
-      })
-    ),
-    executeProviderNames: jest.fn(),
-    hydrateFromKeychain: jest.fn(async (settings: ScribeSettings) => ({
-      settings,
-      hadFailures: false,
-    })),
-    persistSecrets: jest.fn().mockReturnValue({
-      secretEntries: [],
-      keychainIdsToDelete: [],
-    }),
-    setSecretById: jest.fn(),
-    ...overrides,
+    ...DEFAULT_SETTINGS,
+    storageId: "stable-vault-id",
+    providers: {
+      service: {
+        providerId: "service",
+        providerType: "openai-compatible" as const,
+        displayName: "Test service",
+        baseUrl: "https://service.example/v1",
+        origin: { kind: "byok" as const },
+        addedAt: 1,
+        apiKeyRef: "new-secret-reference",
+      },
+    },
+    homeShelfTabs: { home: "projects" },
   };
-
-  jest.doMock("@/services/keychainService", () => ({
-    KeychainService: { getInstance: jest.fn(() => keychain) },
-  }));
-  jest.doMock("@/logger", () => ({ logWarn: jest.fn() }));
-  jest.doMock("@/settings/model", () => ({
-    sanitizeSettings: jest.fn((settings: ScribeSettings) => settings),
-  }));
-  jest.doMock("@/utils/deviceId", () => ({ getDeviceId: jest.fn(() => DEVICE_ID) }));
-
-  const module = await import("@/services/settingsPersistence");
-  return { module, keychain };
 }
 
 describe("settingsPersistence", () => {
-  describe("resetPersistenceState", () => {
-    it("clears a pending one-shot persist suppression", async () => {
-      const { module } = await loadModule();
-      const saveData = jest.fn().mockResolvedValue(undefined);
-      module.suppressNextPersistOnce();
-
-      module.resetPersistenceState();
-      await module.persistSettings(makeSettings(), saveData);
-
-      expect(saveData).toHaveBeenCalledTimes(1);
-    });
+  beforeEach(() => {
+    resetPersistenceState();
+    settingsStore.set(settingsAtom, DEFAULT_SETTINGS);
   });
 
-  describe("refreshLastPersistedSettings", () => {
-    it("sets the Keychain diff baseline for the next write", async () => {
-      const { module, keychain } = await loadModule();
-      const baseline = makeSettings({ openAIApiKey: "old-key" });
-      const next = makeSettings({ openAIApiKey: "new-key" });
-      module.refreshLastPersistedSettings(baseline);
-
-      await module.persistSettings(next, jest.fn().mockResolvedValue(undefined));
-
-      expect(keychain.persistSecrets).toHaveBeenCalledWith(next, baseline);
-    });
-  });
-
-  describe("suppressNextPersistOnce", () => {
-    it("skips exactly one subscriber-driven save", async () => {
-      const { module } = await loadModule();
-      const saveData = jest.fn().mockResolvedValue(undefined);
-      module.suppressNextPersistOnce();
-
-      await module.persistSettings(makeSettings(), saveData);
-      await module.persistSettings(makeSettings(), saveData);
-
-      expect(saveData).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("runPersistenceTransaction", () => {
-    it("keeps the queue usable after a transaction fails", async () => {
-      const { module } = await loadModule();
-      const failure = new Error("failed transaction");
-
-      await expect(
-        module.runPersistenceTransaction(async () => {
-          throw failure;
-        })
-      ).rejects.toBe(failure);
-
-      const followup = jest.fn().mockResolvedValue(undefined);
-      await module.runPersistenceTransaction(followup);
-      expect(followup).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("flushPersistence", () => {
-    it("waits for the active settings write", async () => {
-      const { module } = await loadModule();
-      let release!: () => void;
-      const saveData = jest.fn(
-        () =>
-          new Promise<void>((resolve) => {
-            release = resolve;
-          })
-      );
-      const persist = module.persistSettings(makeSettings(), saveData);
-      await Promise.resolve();
-
-      let flushed = false;
-      const flush = module.flushPersistence().then(() => {
-        flushed = true;
-      });
-      await Promise.resolve();
-      expect(flushed).toBe(false);
-
-      release();
-      await Promise.all([persist, flush]);
-      expect(flushed).toBe(true);
-    });
-  });
-
-  describe("loadSettingsWithKeychain", () => {
-    it("discards disk credentials and exposes only Keychain-hydrated values", async () => {
-      const { module, keychain } = await loadModule();
-      keychain.hydrateFromKeychain.mockImplementation(async (settings: ScribeSettings) => ({
-        settings: { ...settings, openAIApiKey: "keychain-key" },
-        hadFailures: false,
-      }));
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      const loaded = await module.loadSettingsWithKeychain(
-        APP,
-        {
-          _keychainVaultId: "1234abcd",
-          _keychainOnly: false,
-          openAIApiKey: "enc_desk_legacy",
-          activeModels: [{ name: "custom", provider: "openai", apiKey: "plaintext-disk-key" }],
+  describe("serializeSettings()", () => {
+    it("does not persist raw authorization headers or private keys inside service options", () => {
+      const settings = configuredSettings();
+      const provider = {
+        ...settings.providers.service,
+        extras: {
+          headers: { Authorization: "Bearer synthetic-header" },
+          account: { private_key: "synthetic-private-key", client_email: "fixture@example.test" },
         },
-        saveData,
-        backedUp
-      );
-
-      const hydrateInput = keychain.hydrateFromKeychain.mock.calls[0][0];
-      expect(hydrateInput.openAIApiKey).toBe("");
-      expect(hydrateInput.activeModels[0].apiKey).toBe("");
-      expect(loaded.openAIApiKey).toBe("keychain-key");
-      expect(saveData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          _keychainVaultId: "1234abcd",
-          openAIApiKey: "",
-          activeModels: [expect.objectContaining({ apiKey: "" })],
-        })
-      );
-      expect(saveData.mock.calls[0][0]).not.toHaveProperty("_keychainOnly");
-    });
-
-    it("persists and loads the provider pointers the Keychain name migration rewrote", async () => {
-      const { module, keychain } = await loadModule();
-      const legacyRow = {
-        providerId: "row-1",
-        apiKeyKeychainId: "scribe-v1234abcd-provider-row-1",
       };
-      const stableName = "scribe-v1234abcd-provider-anthropic-api-key";
-      keychain.planProviderNames.mockImplementation((settings: ScribeSettings) => ({
-        settings: {
-          ...settings,
-          providers: { "row-1": { ...legacyRow, apiKeyKeychainId: stableName } },
-        } as unknown as ScribeSettings,
-        moves: [{ name: stableName, legacyIds: ["scribe-v1234abcd-provider-row-1"] }],
-      }));
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      const loaded = await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", providers: { "row-1": legacyRow } },
-        saveData,
-        backedUp
-      );
-
-      expect(keychain.setVaultId.mock.invocationCallOrder[0]).toBeLessThan(
-        keychain.planProviderNames.mock.invocationCallOrder[0]
-      );
-      expect(saveData.mock.calls[0][0].providers["row-1"].apiKeyKeychainId).toBe(stableName);
-      expect(loaded.providers["row-1"].apiKeyKeychainId).toBe(stableName);
-    });
-
-    it("loads with the stored pointers when the Keychain name migration throws, so the next load retries", async () => {
-      const { module, keychain } = await loadModule();
-      const legacyRow = {
-        providerId: "row-1",
-        apiKeyKeychainId: "scribe-v1234abcd-provider-row-1",
-      };
-      keychain.planProviderNames.mockImplementation(() => {
-        throw new Error("keychain locked");
+      const disk = serializeSettings({ ...settings, providers: { service: provider } });
+      expect(JSON.stringify(disk)).not.toMatch(/synthetic-header|synthetic-private-key/);
+      expect(disk.providers.service.extras).toEqual({
+        headers: {},
+        account: { client_email: "fixture@example.test" },
       });
-
-      const loaded = await module.loadSettingsWithKeychain(
-        APP,
-        { providers: { "row-1": legacyRow } },
-        jest.fn().mockResolvedValue(undefined),
-        backedUp
-      );
-
-      expect(loaded.providers["row-1"].apiKeyKeychainId).toBe("scribe-v1234abcd-provider-row-1");
+    });
+    it("keeps explicit model settings, lightweight preferences and secret references without secret values", () => {
+      const settings = configuredSettings();
+      const disk = serializeSettings({
+        ...settings,
+        openAIApiKey: "plaintext-key",
+        ...{ userSystemPrompt: "legacy instructions", defaultSystemPromptTitle: "Selected" },
+        scribeFolder: "old-folder",
+      });
+      expect(disk.providers.service).toEqual(settings.providers.service);
+      expect(disk.storageId).toBe("stable-vault-id");
+      expect(disk.homeShelfTabs).toEqual({ home: "projects" });
+      expect(disk).not.toHaveProperty("openAIApiKey");
+      expect(disk).not.toHaveProperty("userSystemPrompt");
+      expect(disk).not.toHaveProperty("scribeFolder");
+      expect(disk).not.toHaveProperty("scribeRootHistory");
     });
 
-    it("keeps credentials empty when Keychain is unavailable", async () => {
-      const { module, keychain } = await loadModule();
-      keychain.isAvailable.mockReturnValue(false);
+    it("drops old keychain pointers and credentials hidden in service options without importing them", () => {
+      const settings = configuredSettings();
+      const provider = {
+        ...settings.providers.service,
+        apiKeyRef: undefined,
+        apiKeyKeychainId: "old-keychain-entry",
+        extras: {
+          apiKey: "nested-plaintext",
+          region: "test",
+          headers: [{ name: "Authorization", value: "Bearer secret" }],
+        },
+      };
+      const disk = serializeSettings({ ...settings, providers: { service: provider } });
+      expect(disk.providers.service).not.toHaveProperty("apiKeyKeychainId");
+      expect(disk.providers.service.extras).toEqual({
+        region: "test",
+        headers: [{ name: "Authorization" }],
+      });
+      expect(JSON.stringify(disk)).not.toMatch(/nested-plaintext|Bearer secret|old-keychain-entry/);
+    });
+  });
 
-      const loaded = await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        jest.fn().mockResolvedValue(undefined),
-        backedUp
+  describe("loadStoredSettings()", () => {
+    it("preserves an explicitly keyless custom service through saving and reopening", async () => {
+      const settings = configuredSettings();
+      const keyless = {
+        ...settings.providers.service,
+        requiresApiKey: false,
+        apiKeyRef: undefined,
+      };
+      const loaded = await loadStoredSettings(
+        serializeSettings({ ...settings, providers: { service: keyless } }),
+        async () => {}
       );
+      expect(loaded.providers.service.requiresApiKey).toBe(false);
+    });
+    it("creates a stable storage identity and preserves it on subsequent loads", async () => {
+      const save = jest.fn(async () => {});
+      const first = await loadStoredSettings(null, save);
+      expect(first.storageId).toMatch(/^[a-f0-9-]{36}$/);
+      const second = await loadStoredSettings(serializeSettings(first), save);
+      expect(second.storageId).toBe(first.storageId);
+      expect(save).toHaveBeenCalledTimes(1);
+    });
 
+    it("retains explicit configuration but ignores legacy keys, commands and prompt content", async () => {
+      const loaded = await loadStoredSettings(
+        {
+          ...configuredSettings(),
+          openAIApiKey: "old-key",
+          userSystemPrompt: "old-prompt",
+          defaultSystemPromptTitle: "Selected",
+          inlineEditCommands: [{ name: "old-command", prompt: "old-body" }],
+          activeModels: [{ apiKey: "old-model-key" }],
+        },
+        async () => {}
+      );
+      expect(loaded.providers.service.baseUrl).toBe("https://service.example/v1");
       expect(loaded.openAIApiKey).toBe("");
-      expect(keychain.hydrateFromKeychain).not.toHaveBeenCalled();
+      expect(loaded).not.toHaveProperty("userSystemPrompt");
+      expect(loaded).not.toHaveProperty("defaultSystemPromptTitle");
+      expect(loaded.activeModels).toEqual([]);
+      expect(loaded.inlineEditCommands).toEqual([]);
     });
 
-    it("persists a vault namespace and current schema version for a fresh install", async () => {
-      const { module, keychain } = await loadModule();
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      await module.loadSettingsWithKeychain(APP, null, saveData, backedUp);
-
-      expect(keychain.setVaultId).toHaveBeenCalledWith("abcd1234");
-      expect(saveData).toHaveBeenCalledWith({
-        _keychainVaultId: "abcd1234",
-        settingsVersion: CURRENT_SETTINGS_VERSION,
-      });
-    });
-    it("leaves data.json intact when the credential backup fails", async () => {
-      const { module } = await loadModule();
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        saveData,
-        jest.fn().mockResolvedValue({ status: "failed", error: new Error("read-only") })
-      );
-
-      expect(saveData).not.toHaveBeenCalled();
-    });
-
-    it("strips data.json once the credentials are backed up", async () => {
-      const { module } = await loadModule();
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        saveData,
-        jest.fn().mockResolvedValue({
-          status: "backed-up",
-          path: "plugins/scribe/backup.json",
-          encrypted: false,
-        })
-      );
-
-      expect(saveData.mock.calls[0][0].openAIApiKey).toBe("");
-    });
-
-    it("reports a backed-up credential migration instead of opening a separate notice", async () => {
-      const { module } = await loadModule();
-      const onMigration = jest.fn();
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      const result = await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        saveData,
-        jest.fn().mockResolvedValue({
-          status: "backed-up",
-          path: "config/plugins/scribe/backup.json",
-          encrypted: false,
-        }),
-        onMigration
-      );
-
-      expect(onMigration).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "credentials", status: "action-required" })
-      );
-      expect(saveData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          _pendingCredentialRecovery: {
-            deviceId: DEVICE_ID,
-            path: "config/plugins/scribe/backup.json",
-            encrypted: false,
-          },
-        })
-      );
-      expect(result._pendingCredentialRecovery).toEqual({
-        deviceId: DEVICE_ID,
-        path: "config/plugins/scribe/backup.json",
-        encrypted: false,
-      });
-    });
-
-    it("replays pending credential recovery after data.json was stripped", async () => {
-      const { module } = await loadModule();
-      const onMigration = jest.fn();
-
-      await module.loadSettingsWithKeychain(
-        APP,
-        {
-          _keychainVaultId: "1234abcd",
-          _pendingCredentialRecovery: {
-            deviceId: DEVICE_ID,
-            path: "config/plugins/scribe/backup.json",
-            encrypted: false,
-          },
-        },
-        jest.fn().mockResolvedValue(undefined),
-        jest.fn().mockResolvedValue({ status: "not-needed" }),
-        onMigration
-      );
-
-      const result = onMigration.mock.calls[0][0] as StartupMigrationItem;
-      expect(result.id).toBe("credentials");
-      expect(result.details?.some((detail) => detail.includes("backup.json"))).toBe(true);
-    });
-
-    it("preserves another device's credential recovery without reporting it locally", async () => {
-      const { module } = await loadModule();
-      const onMigration = jest.fn();
-      const recovery = {
-        deviceId: "device-b",
-        path: "config/plugins/scribe/device-b-backup.json",
-        encrypted: false,
-      };
-
-      const result = await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", _pendingCredentialRecovery: recovery },
-        jest.fn().mockResolvedValue(undefined),
-        jest.fn().mockResolvedValue({ status: "not-needed" }),
-        onMigration
-      );
-
-      expect(onMigration).not.toHaveBeenCalled();
-      expect(result._pendingCredentialRecovery).toEqual(recovery);
-    });
-
-    it("includes Keychain availability failures in the credential migration result", async () => {
-      const { module, keychain } = await loadModule();
-      keychain.isAvailable.mockReturnValue(false);
-      const onMigration = jest.fn();
-
-      await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        jest.fn().mockResolvedValue(undefined),
-        jest.fn().mockResolvedValue({
-          status: "backed-up",
-          path: "config/plugins/scribe/backup.json",
-          encrypted: false,
-        }),
-        onMigration
-      );
-
-      const result = onMigration.mock.calls[0][0] as StartupMigrationItem;
-      expect(result.status).toBe("error");
-      expect(result.details?.some((detail) => detail.includes("Keychain is unavailable"))).toBe(
-        true
-      );
-    });
-
-    it("rejects later settings writes rather than skipping them when the backup fails", async () => {
-      const { module, keychain } = await loadModule({
-        persistSecrets: jest.fn().mockReturnValue({
-          secretEntries: [["scribe-vabcd1234-open-a-i-api-key", "re-entered"]],
-          keychainIdsToDelete: [],
-        }),
-      });
-      await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        jest.fn().mockResolvedValue(undefined),
-        jest.fn().mockResolvedValue({ status: "failed", error: new Error("read-only") })
-      );
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      await expect(module.persistSettings(makeSettings(), saveData)).rejects.toThrow(
-        "cannot save settings"
-      );
-      expect(saveData).not.toHaveBeenCalled();
-      expect(keychain.setSecretById).not.toHaveBeenCalled();
-    });
-
-    it("rejects a durable transaction while the hold is active", async () => {
-      const { module } = await loadModule();
-      await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        jest.fn().mockResolvedValue(undefined),
-        jest.fn().mockResolvedValue({ status: "failed", error: new Error("read-only") })
-      );
-
+    it("reports an initial save failure without publishing partially loaded settings", async () => {
       await expect(
-        module.persistSettingsWithinTransaction(
-          makeSettings(),
-          jest.fn().mockResolvedValue(undefined)
-        )
-      ).rejects.toThrow("cannot save settings");
-    });
-  });
-
-  describe("releaseLegacyCredentialHold", () => {
-    it("resumes writing once a dedicated flow has stripped data.json", async () => {
-      const { module } = await loadModule();
-      await module.loadSettingsWithKeychain(
-        APP,
-        { _keychainVaultId: "1234abcd", openAIApiKey: "plaintext-disk-key" },
-        jest.fn().mockResolvedValue(undefined),
-        jest.fn().mockResolvedValue({ status: "failed", error: new Error("read-only") })
-      );
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      module.releaseLegacyCredentialHold();
-      await module.persistSettings(makeSettings(), saveData);
-
-      expect(saveData).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("persistSettingsWithinTransaction", () => {
-    it("writes Keychain entries and strips the disk snapshot immediately", async () => {
-      const { module, keychain } = await loadModule({
-        persistSecrets: jest.fn().mockReturnValue({
-          secretEntries: [["scribe-vabcd1234-open-a-i-api-key", "new-key"]],
-          keychainIdsToDelete: [],
-        }),
-      });
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      await module.persistSettingsWithinTransaction(
-        makeSettings({ openAIApiKey: "new-key" }),
-        saveData
-      );
-
-      expect(keychain.setSecretById).toHaveBeenCalledWith(
-        "scribe-vabcd1234-open-a-i-api-key",
-        "new-key"
-      );
-      expect(saveData.mock.calls[0][0].openAIApiKey).toBe("");
-    });
-  });
-
-  describe("persistSettings", () => {
-    it("tombstones cleared credentials and never writes them to data.json", async () => {
-      const { module, keychain } = await loadModule({
-        persistSecrets: jest.fn().mockReturnValue({
-          secretEntries: [],
-          keychainIdsToDelete: ["scribe-vabcd1234-open-a-i-api-key"],
-        }),
-      });
-      const saveData = jest.fn().mockResolvedValue(undefined);
-
-      await module.persistSettings(makeSettings(), saveData);
-
-      expect(keychain.setSecretById).toHaveBeenCalledWith("scribe-vabcd1234-open-a-i-api-key", "");
-      expect(saveData.mock.calls[0][0].openAIApiKey).toBe("");
-    });
-
-    it("rolls Keychain values back when the disk save fails", async () => {
-      const persistSecrets = jest
-        .fn()
-        .mockReturnValueOnce({
-          secretEntries: [["credential-id", "new-key"]],
-          keychainIdsToDelete: [],
+        loadStoredSettings(null, async () => {
+          throw new Error("read-only vault");
         })
-        .mockReturnValueOnce({
-          secretEntries: [["credential-id", "old-key"]],
-          keychainIdsToDelete: [],
-        });
-      const { module, keychain } = await loadModule({ persistSecrets });
-      module.refreshLastPersistedSettings(makeSettings({ openAIApiKey: "old-key" }));
+      ).rejects.toThrow("read-only vault");
+      expect(getSettings()).toBe(DEFAULT_SETTINGS);
+    });
+  });
 
-      await expect(
-        module.persistSettings(
-          makeSettings({ openAIApiKey: "new-key" }),
-          jest.fn().mockRejectedValue(new Error("disk full"))
-        )
-      ).rejects.toThrow("disk full");
+  describe("persistSettings()", () => {
+    it("serializes concurrent saves in order and continues after a failed save", async () => {
+      const observed: boolean[] = [];
+      const save = jest.fn(async (data: ScribeSettings) => {
+        observed.push(data.debug);
+        if (data.debug) throw new Error("disk unavailable");
+      });
+      const first = persistSettings({ ...DEFAULT_SETTINGS, debug: true }, save);
+      const second = persistSettings({ ...DEFAULT_SETTINGS, debug: false }, save);
+      await expect(first).rejects.toThrow("disk unavailable");
+      await second;
+      expect(observed).toEqual([true, false]);
+    });
+  });
 
-      expect(keychain.setSecretById).toHaveBeenNthCalledWith(1, "credential-id", "new-key");
-      expect(keychain.setSecretById).toHaveBeenNthCalledWith(2, "credential-id", "old-key");
+  describe("persistSettingsWithinTransaction()", () => {
+    it("writes only the permitted configuration fields", async () => {
+      const save = jest.fn(async (_data: ScribeSettings) => {});
+      await persistSettingsWithinTransaction(
+        { ...DEFAULT_SETTINGS, googleApiKey: "must-not-save" },
+        save
+      );
+      expect(save.mock.calls[0][0]).not.toHaveProperty("googleApiKey");
+    });
+  });
+
+  describe("suppressNextPersistOnce()", () => {
+    it("suppresses exactly the next subscriber save", async () => {
+      const save = jest.fn(async () => {});
+      suppressNextPersistOnce();
+      await persistSettings(DEFAULT_SETTINGS, save);
+      await persistSettings(DEFAULT_SETTINGS, save);
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("resetPersistenceState()", () => {
+    it("clears stale save suppression before a new plugin lifecycle", async () => {
+      const save = jest.fn(async () => {});
+      suppressNextPersistOnce();
+      resetPersistenceState();
+      await persistSettings(DEFAULT_SETTINGS, save);
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("runPersistenceTransaction()", () => {
+    it("keeps a transaction ordered with earlier saves", async () => {
+      const events: string[] = [];
+      const saved = persistSettings(DEFAULT_SETTINGS, async () => {
+        events.push("save");
+      });
+      const transaction = runPersistenceTransaction(async () => {
+        events.push("transaction");
+      });
+      await Promise.all([saved, transaction]);
+      expect(events).toEqual(["save", "transaction"]);
+    });
+  });
+
+  describe("flushPersistence()", () => {
+    it("waits for the queued save itself", async () => {
+      let release!: () => void;
+      const completion = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const save = persistSettings(DEFAULT_SETTINGS, () => completion);
+      const flushed = flushPersistence();
+      release();
+      await Promise.all([save, flushed]);
     });
   });
 });

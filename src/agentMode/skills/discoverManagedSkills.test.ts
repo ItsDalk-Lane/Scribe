@@ -89,6 +89,36 @@ describe("discoverManagedSkills", () => {
       expect(mockedLogWarn).not.toHaveBeenCalled();
     });
 
+    it("recognizes a lowercase description and displays existing author, version and tags", async () => {
+      const adapter = makeAdapter({
+        [`${SKILLS_ROOT}/review-prose/skill.md`]:
+          "---\nname: review-prose\ndescription: Test\nmetadata:\n  author: Jane\n  version: 2\n  tags: [writing, notes]\n---\nBody",
+      });
+      const result = await discoverManagedSkills({
+        skillsFolderRelPath: SKILLS_ROOT,
+        skillsFolderAbsPath: null,
+        adapter,
+      });
+      expect(result.accepted[0]).toMatchObject({
+        author: "Jane",
+        version: "2",
+        tags: ["writing", "notes"],
+        filePath: `${SKILLS_ROOT}/review-prose/skill.md`,
+      });
+    });
+    it("reports ambiguous description files without choosing one", async () => {
+      const adapter = makeAdapter({
+        [`${SKILLS_ROOT}/review-prose/SKILL.md`]: validSkillMd(),
+        [`${SKILLS_ROOT}/review-prose/skill.md`]: validSkillMd(),
+      });
+      const result = await discoverManagedSkills({
+        skillsFolderRelPath: SKILLS_ROOT,
+        skillsFolderAbsPath: null,
+        adapter,
+      });
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected[0].reason).toContain("Multiple SKILL.md");
+    });
     it("reads a previously bundled skill as an ordinary skill without changing its metadata or body https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
       const content =
         '---\nname: obsidian-markdown\ndescription: Local skill\nmetadata:\n  scribe-builtin-version: "1"\n  scribe-enabled-agents: "native"\n  user-data: keep\n---\nExisting user-edited instructions';

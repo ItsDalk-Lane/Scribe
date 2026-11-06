@@ -1,5 +1,4 @@
 import { SettingSection } from "@/components/ui/setting-section";
-import { t } from "@/lib/i18n";
 import React from "react";
 import { AgentNotificationSoundSettings } from "@/settings/v2/components/ui/AgentNotificationSoundSettings";
 import { setSettings, useSettingsValue } from "@/settings/model";
@@ -12,7 +11,7 @@ import {
 export function AgentNotificationSettings() {
   const settings = useSettingsValue();
   return (
-    <SettingSection label={t("Notification")}>
+    <SettingSection>
       <AgentNotificationSoundSettings
         enabled={settings.agentMode.notificationSound}
         onEnabledChange={(notificationSound) =>

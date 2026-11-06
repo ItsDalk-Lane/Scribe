@@ -13,7 +13,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     displayName: "P",
     origin: { kind: "byok" },
     addedAt: 0,
-    apiKeyKeychainId: null,
+    apiKeyRef: null,
     ...overrides,
   };
 }
@@ -203,7 +203,7 @@ describe("configuredModelToCustomModel", () => {
       expect(requiresKey.requiresApiKey).toBe(true);
 
       const missingStoredKey = configuredModelToCustomModel({
-        provider: provider({ requiresApiKey: false, apiKeyKeychainId: "keychain-p1" }),
+        provider: provider({ requiresApiKey: false, apiKeyRef: "keychain-p1" }),
         configuredModel: configuredModel(),
         apiKey: null,
       });

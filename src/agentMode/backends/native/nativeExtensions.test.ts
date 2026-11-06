@@ -4,12 +4,14 @@ import {
   readNativeExtensions,
   readNativeExtensionRuntime,
 } from "@/agentMode/backends/native/nativeExtensions";
+import { getSubagents } from "@/agentMode/subagents/SubagentManager";
 import { getManagedSkills } from "@/agentMode/skills/SkillManager";
 import type { Skill } from "@/agentMode/skills/types";
 import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
 
 jest.mock("@/agentMode/skills/SkillManager", () => ({ getManagedSkills: jest.fn() }));
 jest.mock("@/logger");
+jest.mock("@/agentMode/subagents/SubagentManager", () => ({ getSubagents: jest.fn() }));
 
 const shared: Skill = {
   name: "shared",
@@ -38,6 +40,7 @@ const scope = { kind: "project" as const, cwd: "/vault" };
 describe("nativeExtensions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(getSubagents).mockReturnValue([]);
     jest.mocked(getManagedSkills).mockReturnValue([shared, first, second]);
   });
   describe("getNativeScopedSkills()", () => {
@@ -55,6 +58,38 @@ describe("nativeExtensions", () => {
     });
   });
   describe("readNativeExtensions()", () => {
+    it("lists custom definitions including disabled agents while keeping disabled definitions out of runtime discovery", () => {
+      jest.mocked(getSubagents).mockReturnValue([
+        {
+          id: "review",
+          name: "Reviewer",
+          description: "Review notes",
+          instructions: "Check sources",
+          enabled: true,
+        },
+        {
+          id: "writing",
+          name: "Writer",
+          description: "Write notes",
+          instructions: "Write clearly",
+          enabled: false,
+        },
+      ]);
+      const items = readNativeExtensions({ cwd: "/vault" }).find(
+        (group) => group.kind === "subagent"
+      )!.items;
+      expect(items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Reviewer", enabled: true, availability: "loaded" }),
+          expect.objectContaining({ name: "Writer", enabled: false, availability: "disabled" }),
+          expect.objectContaining({ name: "delegate_task" }),
+        ])
+      );
+      expect(readNativeExtensionRuntime("/vault").subagents!.map((entry) => entry.name)).toEqual([
+        "delegate_task",
+        "Reviewer",
+      ]);
+    });
     it("lists registered native skills and genuine delegation entries while leaving saved commands to their own tab", () => {
       const groups = readNativeExtensions({ cwd: "/vault/first" });
       expect(groups.map((group) => group.kind)).toEqual(["skill", "command", "subagent"]);

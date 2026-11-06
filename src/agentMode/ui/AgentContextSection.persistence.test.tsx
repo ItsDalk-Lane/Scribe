@@ -13,9 +13,9 @@ import {
   upsertCachedProjectRecord,
 } from "@/projects/state";
 import { setInterfaceLocale } from "@/lib/i18n";
-import { mockTFile } from "@/__tests__/mockObsidian";
 import type { App } from "obsidian";
-import { Notice } from "obsidian";
+import { FileSystemAdapter, Notice, parseYaml } from "obsidian";
+import { serializeProjectConfig } from "@/projects/projectUtils";
 
 interface OpenedModal {
   close: jest.Mock;
@@ -58,44 +58,56 @@ const NEW_URL = "https://example.test/new-reference";
 
 async function fixture() {
   const root = await disk.mkdtemp(join(tmpdir(), "scribe-project-save-status-"));
-  const path = join(root, "project.md");
-  const original = '---\n{"future":{"nested":[1,{"keep":true}]}}\n---\nOriginal instructions\n';
-  await disk.writeFile(path, original);
-  const file = mockTFile({ path: "scribe/projects/Project/project.md" });
-  let fail = true;
-  let release: (() => void) | undefined;
-  let pending: Promise<void> | undefined;
-  const processFrontMatter = jest.fn(
-    async (_file: unknown, update: (fm: Record<string, unknown>) => void) => {
-      if (pending) await pending;
-      if (fail) throw new Error("Controlled save failure");
-      const current = await disk.readFile(path, "utf8");
-      const end = current.indexOf("\n---", 4);
-      const fm = JSON.parse(current.slice(4, end));
-      update(fm);
-      await disk.writeFile(path, `---\n${JSON.stringify(fm)}\n---${current.slice(end + 4)}`);
-    }
-  );
-  const app = {
-    vault: {
-      getFiles: () => [],
-      getAbstractFileByPath: (candidate: string) => (candidate === file.path ? file : null),
-      read: () => disk.readFile(path, "utf8"),
-      modify: (_file: unknown, text: string) => disk.writeFile(path, text),
-    },
-    fileManager: { processFrontMatter },
-    metadataCache: { getFileCache: () => null },
-    workspace: { getActiveFile: () => null },
-  } as unknown as App;
+  const filePath = ".scribe/projects/project-id/project.md";
+  const path = join(root, filePath);
   const project: ProjectConfig = {
     id: "project-id",
     name: "Project",
+    workspacePath: "Research",
     systemPrompt: "Original instructions\n",
     contextSource: { webUrls: "https://example.test/original" },
     created: 1,
     UsageTimestamps: 1,
   };
-  updateCachedProjectRecords([{ project, filePath: file.path, folderName: "Project" }]);
+  const original = serializeProjectConfig(project).replace(
+    "\n---",
+    "\nfuture: {nested: [1, {keep: true}]}\n---"
+  );
+  await disk.mkdir(join(root, ".scribe/projects/project-id"), { recursive: true });
+  await disk.writeFile(path, original);
+  let fail = true;
+  let release: (() => void) | undefined;
+  let pending: Promise<void> | undefined;
+  const write = jest.fn(async (candidate: string, content: string) => {
+    if (pending) await pending;
+    if (fail) throw new Error("Controlled save failure");
+    await disk.writeFile(join(root, candidate), content);
+  });
+  const adapter = new (FileSystemAdapter as unknown as new (root: string) => FileSystemAdapter)(
+    root
+  );
+  Object.assign(adapter, {
+    exists: async (candidate: string) =>
+      disk.access(join(root, candidate)).then(
+        () => true,
+        () => false
+      ),
+    read: (candidate: string) => disk.readFile(join(root, candidate), "utf8"),
+    write,
+    rename: (from: string, to: string) => disk.rename(join(root, from), join(root, to)),
+    remove: (candidate: string) => disk.unlink(join(root, candidate)),
+  });
+  const app = {
+    vault: {
+      adapter,
+      configDir: ".custom-config",
+      getFiles: () => [],
+      getAbstractFileByPath: () => null,
+    },
+    metadataCache: { getFileCache: () => null },
+    workspace: { getActiveFile: () => null },
+  } as unknown as App;
+  updateCachedProjectRecords([{ project, filePath, folderName: "Project" }]);
   render(
     <AppContext.Provider value={app}>
       <AgentContextSection app={app} projectId={project.id} />
@@ -104,7 +116,7 @@ async function fixture() {
   return {
     project,
     original,
-    processFrontMatter,
+    writeAdapter: write,
     read: () => disk.readFile(path, "utf8"),
     write: (text: string) => disk.writeFile(path, text),
     allowSaving: () => {
@@ -157,9 +169,16 @@ describe("AgentContextSectionPersistence", () => {
           false
         );
         expect(await f.read()).toBe(f.original);
-        expect(getCachedProjectRecordById(f.project.id)?.project).toBe(f.project);
+        expect(getCachedProjectRecordById(f.project.id)?.project).toMatchObject(f.project);
         await f.write(
-          (await f.read()).replace("Original instructions\n", "Updated instructions\n")
+          serializeProjectConfig(
+            {
+              ...f.project,
+              description: "Updated outside the editor",
+              systemPrompt: "Updated instructions\n",
+            },
+            await f.read()
+          )
         );
         const latest = getCachedProjectRecordById(f.project.id)!;
         act(() =>
@@ -178,7 +197,14 @@ describe("AgentContextSectionPersistence", () => {
         expect(getCachedProjectRecordById(f.project.id)?.project.contextSource.webUrls).toContain(
           NEW_URL
         );
-        expect(await f.read()).toContain('"future":{"nested":[1,{"keep":true}]}');
+        expect(
+          (
+            parseYaml((await f.read()).match(/^---\n([\s\S]*?)\n---/)![1]) as Record<
+              string,
+              unknown
+            >
+          ).future
+        ).toEqual({ nested: [1, { keep: true }] });
         expect(await f.read()).toContain("Updated instructions\n");
         expect(getCachedProjectRecordById(f.project.id)?.project.description).toBe(
           "Updated outside the editor"
@@ -201,7 +227,7 @@ describe("AgentContextSectionPersistence", () => {
         );
         expect(mockOpenedModals[0].close).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole("button", { name: "Saving..." }));
-        expect(f.processFrontMatter).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(f.writeAdapter).toHaveBeenCalledTimes(1));
         expect(screen.getByRole<HTMLButtonElement>("button", { name: "Cancel" }).disabled).toBe(
           true
         );
@@ -219,7 +245,7 @@ describe("AgentContextSectionPersistence", () => {
         addUrl();
         await waitFor(() => expect(Notice).toHaveBeenCalledWith(FAILURE));
         expect(await f.read()).toBe(f.original);
-        expect(getCachedProjectRecordById(f.project.id)?.project).toBe(f.project);
+        expect(getCachedProjectRecordById(f.project.id)?.project).toMatchObject(f.project);
       } finally {
         await f.dispose();
       }

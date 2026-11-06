@@ -1,3 +1,10 @@
+jest.mock("@/utils/vaultFileStore", () => ({
+  writeVaultFile: (
+    vault: { adapter: { write: (path: string, value: string) => Promise<void> } },
+    path: string,
+    value: string
+  ) => vault.adapter.write(path, value),
+}));
 jest.mock("@/settings/model", () => ({
   getSettings: () => ({ debug: false }),
 }));

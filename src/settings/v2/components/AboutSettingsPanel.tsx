@@ -11,12 +11,12 @@ export const AboutSettingsPanel: React.FC = () => {
 
   return (
     <div className="tw-space-y-4">
+      <AgentNotificationSettings />
+      <AdvancedSettings />
       <AboutSettings
         version={plugin.manifest.version}
         onReset={() => new ResetSettingsConfirmModal(plugin.app, resetSettings).open()}
       />
-      <AgentNotificationSettings />
-      <AdvancedSettings />
     </div>
   );
 };

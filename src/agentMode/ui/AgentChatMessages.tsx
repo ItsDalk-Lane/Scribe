@@ -10,6 +10,7 @@ import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndi
 import ChatSingleMessage from "@/components/chat-components/ChatSingleMessage";
 import { ChatTranscriptViewport } from "@/components/chat-components/ui/ChatTranscriptViewport";
 import { USER_SENDER } from "@/constants";
+import { Button } from "@/components/ui/button";
 import { useChatScrolling } from "@/hooks/useChatScrolling";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type {
@@ -21,7 +22,7 @@ import type {
 import type { ChatMessage } from "@/types/message";
 import { logError } from "@/logger";
 import { App, Notice, Plugin } from "obsidian";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 interface AgentChatMessagesProps {
   messages: AgentChatMessage[];
@@ -191,16 +192,45 @@ const AgentChatMessages = memo(
       [onForkMessage]
     );
 
-    const visible = useMemo(() => messages.filter((m) => m.isVisible), [messages]);
-    const adapted = useMemo(() => visible.map(toChatMessageView), [visible]);
+    const allVisible = useMemo(() => messages.filter((m) => m.isVisible), [messages]);
+    const [paging, setPaging] = useState({ backend: chatBackend, rounds: 30 });
+    const roundLimit = paging.backend === chatBackend ? paging.rounds : 30;
+    const start = useMemo(() => {
+      const turns = allVisible.flatMap((message, index) =>
+        message.sender === USER_SENDER ? [index] : []
+      );
+      return turns.length > roundLimit ? turns[turns.length - roundLimit] : 0;
+    }, [allVisible, roundLimit]);
+    const visible = useMemo(() => allVisible.slice(start), [allVisible, start]);
+    const adapted = useMemo(() => allVisible.map(toChatMessageView), [allVisible]);
+    const scrollNode = useRef<HTMLDivElement | null>(null);
+    const scrollAnchor = useRef<{ height: number; top: number } | null>(null);
     const {
       scrollContainerCallbackRef,
       contentCallbackRef,
       onScroll,
       isScrollPaused,
       scrollToEnd,
-      getMessageKey,
     } = useChatScrolling({ chatHistory: adapted });
+    const attachScrollNode = useCallback(
+      (node: HTMLDivElement | null) => {
+        scrollNode.current = node;
+        scrollContainerCallbackRef(node);
+      },
+      [scrollContainerCallbackRef]
+    );
+    const loadEarlier = useCallback(() => {
+      const node = scrollNode.current;
+      if (node) scrollAnchor.current = { height: node.scrollHeight, top: node.scrollTop };
+      setPaging({ backend: chatBackend, rounds: roundLimit + 30 });
+    }, [chatBackend, roundLimit]);
+    useLayoutEffect(() => {
+      const anchor = scrollAnchor.current;
+      const node = scrollNode.current;
+      if (!anchor || !node) return;
+      node.scrollTop = anchor.top + node.scrollHeight - anchor.height;
+      scrollAnchor.current = null;
+    }, [visible]);
 
     const showPlanCard = currentPlan != null && currentPlan.decision === "pending";
     const inlinePlanCard = showPlanCard ? (
@@ -233,16 +263,23 @@ const AgentChatMessages = memo(
     return (
       <div className="tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
         <ChatTranscriptViewport
-          scrollContainerRef={scrollContainerCallbackRef}
+          scrollContainerRef={attachScrollNode}
           contentRef={contentCallbackRef}
           onScroll={onScroll}
           isScrollPaused={isScrollPaused}
           scrollToEnd={scrollToEnd}
         >
-          {visible.map((message, index) => {
+          {start > 0 ? (
+            <div className="tw-flex tw-justify-center tw-py-2">
+              <Button type="button" variant="ghost" onClick={loadEarlier}>
+                {t("Load 30 earlier turns")}
+              </Button>
+            </div>
+          ) : null}
+          {visible.map((message) => {
             return (
               <AgentMessageRow
-                key={getMessageKey(adapted[index], index)}
+                key={message.seq ?? message.id}
                 message={message}
                 onForkMessage={onForkMessage ? forkMessage : undefined}
                 forkDisabled={forkDisabled}

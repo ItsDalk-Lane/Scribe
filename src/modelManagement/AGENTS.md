@@ -14,3 +14,7 @@ origin is a persisted type; it does not provide a second active agent
 backend. The model-and-provider settings show providers with
 `origin.kind === "byok"`, and the chat-model factory selects the provider
 protocol from the configured provider.
+
+## Persisted storage
+
+Follow [`internal-docs/DATA_STORAGE.md`](../../internal-docs/DATA_STORAGE.md) before changing persistence. Provider and model configuration stays in the plugin `data.json`; credentials are references to encrypted files under the current vault-root `.scribe/secrets`. Never reintroduce Obsidian SecretStorage, plaintext credentials or computer-level cache folders. Catalog file caches belong under `.scribe`, and viewing settings or model lists must not decrypt saved credentials.

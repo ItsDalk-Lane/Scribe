@@ -1,6 +1,6 @@
 import { CommandConfigurationRow } from "@/commands/ui/CommandConfigurationRow";
 import { t } from "@/lib/i18n";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { useCustomCommands } from "@/commands/state";
 import { GripVertical, Plus } from "lucide-react";
@@ -26,7 +26,11 @@ import { useSettingsValue } from "@/settings/model";
 import { EMPTY_COMMAND } from "@/commands/constants";
 import { CustomCommandManager } from "@/commands/customCommandManager";
 import { CustomCommandSettingsModal } from "@/commands/CustomCommandSettingsModal";
-import { generateCopyCommandName, sortCommandsByOrder } from "@/commands/customCommandUtils";
+import {
+  generateCopyCommandName,
+  sortCommandsByOrder,
+  loadAllCustomCommands,
+} from "@/commands/customCommandUtils";
 import { generateDefaultCommands } from "@/commands/migrator";
 import type { CustomCommand } from "@/commands/type";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
@@ -89,7 +93,7 @@ function SortableCommandRow({
             app,
             () => onRemove(command),
             t(
-              'Are you sure you want to delete the command "{title}"? This will permanently remove the command file and cannot be undone.',
+              'Are you sure you want to delete the command "{title}"? Its file will be moved to Scribe’s trash.',
               { title: command.title }
             ),
             t("Delete Command"),
@@ -108,6 +112,12 @@ export interface CommandSettingsProps {
 
 export const CommandSettings: React.FC<CommandSettingsProps> = ({ children }) => {
   const app = useApp();
+  useEffect(() => {
+    void loadAllCustomCommands(app).catch((error) => {
+      logError("Failed to refresh commands.", error);
+      new Notice(t("Failed to load commands."));
+    });
+  }, [app]);
   const rawCommands = useCustomCommands();
   const commands = useMemo(() => {
     return sortCommandsByOrder([...rawCommands]);
@@ -193,7 +203,7 @@ export const CommandSettings: React.FC<CommandSettingsProps> = ({ children }) =>
       <p className="tw-m-0 tw-break-words tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
         {t("Commands load automatically from the Markdown files in your custom commands folder")}{" "}
         <strong>{customPromptsFolder}</strong>
-        {t(". Editing a file updates its command.")}
+        {t(". Reopen this page to reload files edited outside Scribe.")}
       </p>
       <section className="tw-space-y-3" aria-label={t("My commands")}>
         <div className="tw-group/extension-actions tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3">

@@ -5,7 +5,7 @@ import { ModelManagementCoordinator } from "@/modelManagement/createModelManagem
 import { ConfiguredModelRegistry } from "@/modelManagement/models/ConfiguredModelRegistry";
 import { ProviderRegistry } from "@/modelManagement/providers/ProviderRegistry";
 import { ProviderAdapterRegistry } from "@/modelManagement/providers/adapters/ProviderAdapterRegistry";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { resetSettings, setSettings } from "@/settings/model";
 
 export interface TestRegistries {
@@ -17,28 +17,32 @@ export interface TestRegistries {
 }
 
 function createFakeApp(): App {
-  const secrets = new Map<string, string>();
-  return {
-    secretStorage: {
-      setSecret: (id: string, value: string) => {
-        secrets.set(id, value);
-      },
-      getSecret: (id: string) => (secrets.has(id) ? secrets.get(id)! : null),
-      listSecrets: () => Array.from(secrets.keys()),
-      deleteSecret: (id: string) => {
-        secrets.delete(id);
-      },
-    },
-    vault: { adapter: {} },
-  } as unknown as App;
+  return { vault: { adapter: {} } } as unknown as App;
 }
 
 export function createTestRegistries(): TestRegistries {
   resetSettings();
   setSettings({ providers: {}, configuredModels: [] });
-  KeychainService.resetInstance();
+  SecretStore.resetInstance();
   const app = createFakeApp();
-  KeychainService.getInstance(app);
+  const secrets = new Map<string, string>();
+  const store = SecretStore.getInstance(app);
+  Object.assign(store, {
+    ensureUnlocked: async () => {},
+    setSecret: async (id: string, value: string) => {
+      secrets.set(id, value);
+    },
+    deleteSecret: async (id: string) => {
+      secrets.delete(id);
+    },
+    getStatus: (id: string) => (secrets.get(id)?.trim() ? "available" : "missing"),
+    withSecret: async <T>(id: string, execute: (value: string) => Promise<T>) => {
+      const value = secrets.get(id);
+      if (!value) throw new Error("Saved credential is unavailable.");
+      return execute(value);
+    },
+    dispose: () => secrets.clear(),
+  });
   const providers = new ProviderRegistry(app, new ProviderAdapterRegistry());
   const models = new ConfiguredModelRegistry();
   const backends = new BackendConfigRegistry(providers, models);

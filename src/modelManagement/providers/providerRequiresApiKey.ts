@@ -5,5 +5,5 @@ export function providerRequiresApiKey(provider: Provider): boolean {
 }
 
 export function providerNeedsResolvedApiKey(provider: Provider): boolean {
-  return providerRequiresApiKey(provider) || !!provider.apiKeyKeychainId;
+  return providerRequiresApiKey(provider) || !!provider.apiKeyRef;
 }

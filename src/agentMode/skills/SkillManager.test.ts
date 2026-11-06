@@ -1,804 +1,757 @@
-import { createNodeMigrateSkillFs } from "./nodeFsAdapters";
-import { parseSkillFile } from "./skillFormat";
 import { act, renderHook } from "@testing-library/react";
-import { FileSystemAdapter, type App, type EventRef } from "obsidian";
-import { useSkillLoadErrorCount } from "@/settings/skillLoadErrorState";
-import { discoverManagedSkills } from "./discoverManagedSkills";
-import { reconcile } from "./reconcile";
+import { FileSystemAdapter, type App } from "obsidian";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { parseSkillFile } from "./skillFormat";
 import {
+  SkillManager,
   computeSkillSetSignature,
   getManagedSkills,
-  SkillManager,
-  type RefreshResult,
+  useManagedSkills,
   useRejectedSkills,
 } from "./SkillManager";
-import { runDeleteSkill, runToggleAgent } from "./toggleAgent";
-import { runRenameSkill, runUpdateProperties } from "./updateProperties";
-import type { RejectedSkill, Skill, SkillDiscoveryResult } from "./types";
-
-jest.mock("@/logger", () => ({
-  logInfo: jest.fn(),
-  logWarn: jest.fn(),
-  logError: jest.fn(),
-}));
-
-let skillsFolder = "scribe/skills";
+import { getSettings, updateSetting } from "@/settings/model";
 
 jest.mock("@/settings/model", () => ({
-  getSettings: () => ({
-    agentMode: {
-      skills: {
-        folder: skillsFolder,
-      },
-    },
-  }),
+  getSettings: jest.fn(() => ({ debug: false, agentMode: { skills: {} } })),
   updateSetting: jest.fn(),
 }));
+jest.mock("@/settings/scribeFolder", () => ({ getEffectiveSkillsFolder: () => ".scribe/skills" }));
+jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 
-jest.mock("@/settings/scribeFolder", () => ({
-  getEffectiveSkillsFolder: () => skillsFolder,
-}));
+const CONTENT =
+  "---\nname: review\ndescription: Review a note\nmetadata:\n  scribe-enabled-agents: native\n---\nRead carefully.";
 
-jest.mock("./discoverManagedSkills", () => ({
-  discoverManagedSkills: jest.fn(),
-}));
-
-jest.mock("./reconcile", () => ({
-  reconcile: jest.fn(async () => ({ created: [], removedOrphans: [], errors: [] })),
-}));
-
-jest.mock("./nodeFsAdapters", () => ({
-  createNodeMigrateSkillFs: jest.fn(() => ({})),
-  createNodeProjectDiscoveryFs: jest.fn(() => ({})),
-  createNodeReconcileFs: jest.fn(() => ({})),
-}));
-
-jest.mock("./discoverProjectSkills", () => ({
-  discoverProjectSkills: jest.fn(async () => ({ accepted: [], rejected: [] })),
-}));
-
-jest.mock("./toggleAgent", () => ({
-  runDeleteSkill: jest.fn(),
-  runToggleAgent: jest.fn(),
-}));
-
-jest.mock("./updateProperties", () => ({
-  runRenameSkill: jest.fn(),
-  runUpdateProperties: jest.fn(),
-}));
-
-const mockedDiscoverManagedSkills = discoverManagedSkills as jest.MockedFunction<
-  typeof discoverManagedSkills
->;
-const mockedRunRenameSkill = runRenameSkill as jest.MockedFunction<typeof runRenameSkill>;
-const mockedRunUpdateProperties = runUpdateProperties as jest.MockedFunction<
-  typeof runUpdateProperties
->;
-const mockedRunToggleAgent = runToggleAgent as jest.MockedFunction<typeof runToggleAgent>;
-const mockedRunDeleteSkill = runDeleteSkill as jest.MockedFunction<typeof runDeleteSkill>;
-const mockedReconcile = reconcile as jest.MockedFunction<typeof reconcile>;
+function setup() {
+  const files = new Map<string, string>();
+  const folders = new Set<string>();
+  const adapter = {
+    exists: async (path: string) => files.has(path) || folders.has(path),
+    stat: async (path: string) =>
+      folders.has(path) ? { type: "folder" } : files.has(path) ? { type: "file" } : null,
+    mkdir: async (path: string) => {
+      folders.add(path);
+    },
+    read: jest.fn(async (path: string) => {
+      if (!files.has(path)) throw new Error("missing file");
+      return files.get(path)!;
+    }),
+    readBinary: jest.fn(async (path: string): Promise<ArrayBuffer> => {
+      if (!files.has(path)) throw new Error("missing file");
+      return new TextEncoder().encode(files.get(path)).slice().buffer;
+    }),
+    writeBinary: async (path: string, data: ArrayBuffer) => {
+      files.set(path, new TextDecoder().decode(data));
+    },
+    write: jest.fn(async (path: string, value: string) => {
+      files.set(path, value);
+    }),
+    remove: async (path: string) => {
+      files.delete(path);
+    },
+    rmdir: async (path: string) => {
+      for (const file of files.keys()) if (file.startsWith(`${path}/`)) files.delete(file);
+      for (const folder of folders)
+        if (folder === path || folder.startsWith(`${path}/`)) folders.delete(folder);
+    },
+    rename: async (from: string, to: string) => {
+      if (files.has(from)) {
+        files.set(to, files.get(from)!);
+        files.delete(from);
+        return;
+      }
+      for (const path of [...folders])
+        if (path === from || path.startsWith(`${from}/`)) {
+          folders.add(to + path.slice(from.length));
+          folders.delete(path);
+        }
+      for (const [path, value] of [...files])
+        if (path.startsWith(`${from}/`)) {
+          files.set(to + path.slice(from.length), value);
+          files.delete(path);
+        }
+    },
+    list: async (path: string) => ({
+      files: [...files.keys()].filter(
+        (file) => file.startsWith(`${path}/`) && !file.slice(path.length + 1).includes("/")
+      ),
+      folders: [...folders].filter(
+        (folder) => folder.startsWith(`${path}/`) && !folder.slice(path.length + 1).includes("/")
+      ),
+    }),
+  };
+  const app = {
+    vault: {
+      adapter,
+      getFiles: jest.fn(() => {
+        throw new Error("hidden files are not indexed");
+      }),
+      getAbstractFileByPath: jest.fn(() => null),
+    },
+  } as unknown as App;
+  const manager = SkillManager.initialize(app, { native: ".scribe/skills" });
+  const seed = async () => {
+    folders.add(".scribe");
+    folders.add(".scribe/skills");
+    folders.add(".scribe/skills/review");
+    files.set(".scribe/skills/review/SKILL.md", CONTENT);
+    await manager.refresh();
+    return getManagedSkills()[0];
+  };
+  return { app, manager, files, folders, adapter, seed };
+}
 
 describe("SkillManager", () => {
   beforeEach(() => {
-    skillsFolder = "scribe/skills";
-    mockedDiscoverManagedSkills.mockReset();
-    mockedReconcile.mockClear();
-    mockedRunRenameSkill.mockReset();
-    mockedRunUpdateProperties.mockReset();
-    mockedRunToggleAgent.mockReset();
-    mockedRunDeleteSkill.mockReset();
     SkillManager.resetForTesting();
-    jest.restoreAllMocks();
-    jest.useRealTimers();
+    jest.clearAllMocks();
   });
-
-  afterEach(() => {
-    SkillManager.resetForTesting();
-    jest.useRealTimers();
-  });
-
+  afterEach(() => SkillManager.resetForTesting());
   describe("SkillManager", () => {
-    describe("refresh", () => {
-      it("queues one follow-up refresh when the configured folder changes during an in-flight pass", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        let releaseFirst = (): void => {};
-
-        mockedDiscoverManagedSkills.mockImplementationOnce(async () => {
-          skillsFolder = "team/skills";
-          void manager.refresh();
-          await new Promise<void>((resolve) => {
-            releaseFirst = resolve;
-          });
-          return discoveryResult();
-        });
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult());
-
-        const resultPromise = manager.refresh();
-        await Promise.resolve();
-        releaseFirst();
-        const result = await resultPromise;
-
-        expect(mockedDiscoverManagedSkills).toHaveBeenCalledTimes(2);
-        expect(mockedDiscoverManagedSkills.mock.calls[0][0].skillsFolderRelPath).toBe(
-          "scribe/skills"
+    describe("initialize()", () => {
+      it("reuses the same manager without creating links or subscribing to indexed file events", () => {
+        const fixture = setup();
+        expect(SkillManager.initialize(fixture.app, { native: ".scribe/skills" })).toBe(
+          fixture.manager
         );
-        expect(mockedDiscoverManagedSkills.mock.calls[1][0].skillsFolderRelPath).toBe(
-          "team/skills"
-        );
-        expect(result.folder).toBe("team/skills");
-      });
-
-      it("publishes and clears rejected discovery state", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const { result: loadErrorCount } = renderHook(() => useSkillLoadErrorCount());
-        const rejected: RejectedSkill = {
-          name: "broken-skill",
-          filePath: "/vault/scribe/skills/broken-skill/SKILL.md",
-          dirPath: "/vault/scribe/skills/broken-skill",
-          reason: "The description must be quoted.",
-        };
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult([], [rejected]));
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult());
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult());
-        const { result } = renderHook(() => useRejectedSkills());
-        const initialRejectedSkills = result.current;
-
-        await act(async () => {
-          await manager.refresh();
-        });
-        expect(result.current).toEqual([rejected]);
-        expect(loadErrorCount.current).toBe(1);
-
-        await act(async () => {
-          await manager.refresh();
-        });
-        expect(result.current).toBe(initialRejectedSkills);
-        expect(loadErrorCount.current).toBe(0);
-
-        await act(async () => {
-          await manager.refresh();
-        });
-        expect(result.current).toBe(initialRejectedSkills);
-      });
-
-      it("notifies when a backend-visible skill signature changes", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { opencode: ".opencode/skills" });
-        const listener = jest.fn();
-        manager.subscribeToSkillSetChange(listener);
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(
-          discoveryResult([makeSkill({ enabledAgents: ["opencode"] })])
-        );
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(
-          discoveryResult([makeSkill({ body: "updated", enabledAgents: ["opencode"] })])
-        );
-
-        await manager.refresh();
-        await manager.refresh();
-
-        expect(listener).toHaveBeenCalledTimes(2);
-        expect(listener.mock.calls.map((call) => call[0])).toEqual(["opencode", "opencode"]);
+        expect(fixture.manager.getAgentDirsProjectRel()).toEqual({ native: ".scribe/skills" });
+        expect(SkillManager.hasInstance()).toBe(true);
+        expect(SkillManager.getInstance()).toBe(fixture.manager);
       });
     });
-    describe("initialize", () => {
-      it("schedules reconciliation when a rename moves a watched old path elsewhere", () => {
-        jest.useFakeTimers();
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const refreshResult: RefreshResult = {
-          ok: true,
-          folder: "scribe/skills",
-          skillCount: 0,
-          reconcileErrorCount: 0,
-        };
-        const refreshSpy = jest.spyOn(manager, "refresh").mockResolvedValue(refreshResult);
-        const renameHandler = app.vault.on.mock.calls.find(([event]) => event === "rename")?.[1];
-
-        expect(renameHandler).toBeDefined();
-        renameHandler?.({ path: "elsewhere/foo/SKILL.md" }, "scribe/skills/foo/SKILL.md");
-        jest.advanceTimersByTime(250);
-
-        expect(refreshSpy).toHaveBeenCalledTimes(1);
-      });
-
-      it("suppresses a vault event that matches a pending expectation", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill({ enabledAgents: [] });
-        await seedSkills(manager, [skill]);
-        mockedRunToggleAgent.mockResolvedValueOnce({ ok: true });
-        const refreshResult: RefreshResult = {
-          ok: true,
-          folder: "scribe/skills",
-          skillCount: 0,
-          reconcileErrorCount: 0,
-        };
-        const refreshSpy = jest.spyOn(manager, "refresh").mockResolvedValue(refreshResult);
-
-        await manager.toggleAgent(skill, "claude", true);
-        refreshSpy.mockClear();
-
-        fireVaultEvent(app, "create", { path: ".claude/skills/foo" });
-        await flushMicrotasks();
-        jest.useFakeTimers();
-        jest.advanceTimersByTime(250);
-        expect(refreshSpy).not.toHaveBeenCalled();
-        jest.useRealTimers();
-      });
-
-      it("passes through a vault event that does not match any expectation", async () => {
-        jest.useFakeTimers();
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill({ enabledAgents: [] });
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult([skill]));
-        await manager.refresh();
-        mockedRunToggleAgent.mockResolvedValueOnce({ ok: true });
-        await manager.toggleAgent(skill, "claude", true);
-
-        const refreshResult: RefreshResult = {
-          ok: true,
-          folder: "scribe/skills",
-          skillCount: 1,
-          reconcileErrorCount: 0,
-        };
-        const refreshSpy = jest.spyOn(manager, "refresh").mockResolvedValue(refreshResult);
-
-        fireVaultEvent(app, "create", { path: "scribe/skills/unrelated/SKILL.md" });
-        jest.advanceTimersByTime(250);
-        expect(refreshSpy).toHaveBeenCalledTimes(1);
-      });
-
-      it("schedules a reconcile after the safety timeout when expected vault events never arrive", async () => {
-        jest.useFakeTimers();
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill({ enabledAgents: [] });
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult([skill]));
-        await manager.refresh();
-        mockedRunToggleAgent.mockResolvedValueOnce({ ok: true });
-        await manager.toggleAgent(skill, "claude", true);
-
-        const refreshResult: RefreshResult = {
-          ok: true,
-          folder: "scribe/skills",
-          skillCount: 1,
-          reconcileErrorCount: 0,
-        };
-        const refreshSpy = jest.spyOn(manager, "refresh").mockResolvedValue(refreshResult);
-
-        jest.advanceTimersByTime(10_000);
-        jest.advanceTimersByTime(250);
-        expect(refreshSpy).toHaveBeenCalledTimes(1);
-      });
-
-      it("preserves a pre-existing scheduled reconcile across an internal mutation", async () => {
-        jest.useFakeTimers();
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill({ enabledAgents: [] });
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult([skill]));
-        await manager.refresh();
-
-        const refreshResult: RefreshResult = {
-          ok: true,
-          folder: "scribe/skills",
-          skillCount: 1,
-          reconcileErrorCount: 0,
-        };
-        const refreshSpy = jest.spyOn(manager, "refresh").mockResolvedValue(refreshResult);
-
-        fireVaultEvent(
-          app,
-          "rename",
-          { path: "elsewhere/foo/SKILL.md" },
-          "scribe/skills/foo/SKILL.md"
-        );
-
-        mockedRunToggleAgent.mockResolvedValueOnce({ ok: true });
-        await manager.toggleAgent(skill, "claude", true);
-
-        jest.advanceTimersByTime(250);
-        expect(refreshSpy).toHaveBeenCalledTimes(1);
-      });
-    });
-    describe("toggleAgent", () => {
-      it("uses ordinary per-file enablement for a legacy-marked skill https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
-        const manager = SkillManager.initialize(makeApp(), { native: ".scribe/skills" });
-        const skill = { ...makeSkill({ enabledAgents: ["native"] }), builtin: true };
-        await seedSkills(manager, [skill]);
-        mockedRunToggleAgent.mockResolvedValueOnce({ ok: true });
-        expect(await manager.toggleAgent(skill, "native", false)).toEqual({ ok: true });
-        expect(mockedRunToggleAgent).toHaveBeenCalledWith(
-          expect.objectContaining({ skill, agent: "native", enabled: false })
-        );
-        expect(getManagedSkills()[0].enabledAgents).toEqual([]);
-      });
-
-      it("adds the agent to one row without rerunning discovery or reconcile", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill({ enabledAgents: [] });
-        await seedSkills(manager, [skill]);
-        mockedRunToggleAgent.mockResolvedValueOnce({ ok: true });
-        mockedDiscoverManagedSkills.mockClear();
-        mockedReconcile.mockClear();
-
-        const result = await manager.toggleAgent(skill, "claude", true);
-
-        expect(result).toEqual({ ok: true });
-        expect(mockedDiscoverManagedSkills).not.toHaveBeenCalled();
-        expect(mockedReconcile).not.toHaveBeenCalled();
-        expect(getManagedSkills()[0].enabledAgents).toEqual(["claude"]);
-      });
-    });
-    describe("deleteSkill", () => {
-      it("deletes a legacy-marked skill only when the user explicitly requests deletion https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
-        const manager = SkillManager.initialize(makeApp(), { native: ".scribe/skills" });
-        const skill = { ...makeSkill({ enabledAgents: ["native"] }), builtin: true };
-        await seedSkills(manager, [skill]);
-        expect(mockedRunDeleteSkill).not.toHaveBeenCalled();
-        mockedRunDeleteSkill.mockResolvedValueOnce({ ok: true });
-        expect(await manager.deleteSkill(skill)).toEqual({ ok: true });
-        expect(mockedRunDeleteSkill).toHaveBeenCalledWith(expect.objectContaining({ skill }));
-        expect(getManagedSkills()).toEqual([]);
-      });
-
-      it("removes one row without rerunning discovery or reconcile", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        const other = makeSkill({ name: "bar", dirPath: "/vault/scribe/skills/bar" });
-        await seedSkills(manager, [skill, other]);
-        mockedRunDeleteSkill.mockResolvedValueOnce({ ok: true });
-        mockedDiscoverManagedSkills.mockClear();
-        mockedReconcile.mockClear();
-
-        const result = await manager.deleteSkill(skill);
-
-        expect(result).toEqual({ ok: true });
-        expect(mockedDiscoverManagedSkills).not.toHaveBeenCalled();
-        expect(mockedReconcile).not.toHaveBeenCalled();
-        expect(getManagedSkills().map((s) => s.name)).toEqual(["bar"]);
-      });
-    });
-    describe("saveProperties", () => {
-      it("applies a rename plus patch with a single skill-set notification", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { opencode: ".opencode/skills" });
-        const listener = jest.fn();
-        const skill = makeSkill({ enabledAgents: ["opencode"] });
-        manager.subscribeToSkillSetChange(listener);
-        await seedSkills(manager, [skill]);
-        listener.mockClear();
-        mockedRunRenameSkill.mockResolvedValueOnce({
-          ok: true,
-          newDirPath: "/vault/scribe/skills/bar",
-          newFilePath: "/vault/scribe/skills/bar/SKILL.md",
-        });
-        mockedRunUpdateProperties.mockResolvedValueOnce({ ok: true });
-
-        const result = await manager.saveProperties(skill, {
-          newName: "bar",
-          patch: { description: "Updated description." },
-        });
-
-        expect(result).toEqual({ ok: true });
-        expect(listener).toHaveBeenCalledTimes(1);
-        expect(getManagedSkills()[0]).toMatchObject({
-          name: "bar",
-          description: "Updated description.",
-        });
-      });
-
-      it("applies a description-only patch without renaming", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        await seedSkills(manager, [skill]);
-        mockedRunUpdateProperties.mockResolvedValueOnce({ ok: true });
-
-        const result = await manager.saveProperties(skill, {
-          patch: { description: "Updated description." },
-        });
-
-        expect(result).toEqual({ ok: true });
-        expect(mockedRunRenameSkill).not.toHaveBeenCalled();
-        expect(getManagedSkills()[0]).toMatchObject({
-          name: "foo",
-          description: "Updated description.",
-        });
-      });
-
-      it("applies a rename with an empty patch", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        await seedSkills(manager, [skill]);
-        mockedRunRenameSkill.mockResolvedValueOnce({
-          ok: true,
-          newDirPath: "/vault/scribe/skills/bar",
-          newFilePath: "/vault/scribe/skills/bar/SKILL.md",
-        });
-        mockedRunUpdateProperties.mockResolvedValueOnce({ ok: true });
-
-        const result = await manager.saveProperties(skill, {
-          newName: "bar",
-          patch: {},
-        });
-
-        expect(result).toEqual({ ok: true });
-        expect(getManagedSkills()[0]).toMatchObject({
-          name: "bar",
-          description: "A skill.",
-        });
-      });
-
-      it("returns a collision error without patching when the new name is taken", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        await seedSkills(manager, [skill]);
-        mockedRunRenameSkill.mockResolvedValueOnce({ ok: false, reason: "collision" });
-
-        const result = await manager.saveProperties(skill, {
-          newName: "bar",
-          patch: { description: "Updated description." },
-        });
-
-        expect(result).toEqual({
-          ok: false,
-          code: "collision",
-          message: "A skill with that name already exists.",
-        });
-        expect(mockedRunUpdateProperties).not.toHaveBeenCalled();
-      });
-
-      it("refreshes from disk and returns the failure when the rename fails after mutating the canonical directory", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        await seedSkills(manager, [skill]);
-        mockedRunRenameSkill.mockResolvedValueOnce({
-          ok: false,
-          reason: "Could not rewrite SKILL.md",
-          mutated: true,
-        });
-        const refreshResult: RefreshResult = {
-          ok: true,
-          folder: "scribe/skills",
-          skillCount: 0,
-          reconcileErrorCount: 0,
-        };
-        const refreshSpy = jest.spyOn(manager, "refresh").mockResolvedValue(refreshResult);
-
-        const result = await manager.saveProperties(skill, {
-          newName: "bar",
-          patch: { description: "Updated description." },
-        });
-
-        expect(result).toEqual({
-          ok: false,
-          code: "fs-error",
-          message: "Could not rewrite SKILL.md",
-        });
-        expect(refreshSpy).toHaveBeenCalledTimes(1);
-        expect(mockedRunUpdateProperties).not.toHaveBeenCalled();
-      });
-
-      it("succeeds when the rename reports EPERM after mutating but the patch succeeds", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        await seedSkills(manager, [skill]);
-        mockedRunRenameSkill.mockResolvedValueOnce({ ok: false, reason: "eperm", mutated: true });
-        mockedRunUpdateProperties.mockResolvedValueOnce({ ok: true });
-
-        const result = await manager.saveProperties(skill, {
-          newName: "bar",
-          patch: { description: "Updated description." },
-        });
-
-        expect(result).toEqual({ ok: true });
-        expect(getManagedSkills()[0]).toMatchObject({
-          name: "bar",
-          description: "Updated description.",
-        });
-      });
-
-      it("keeps the rename in the published row when the follow-up patch fails", async () => {
-        const app = makeApp();
-        const manager = SkillManager.initialize(app, { claude: ".claude/skills" });
-        const skill = makeSkill();
-        await seedSkills(manager, [skill]);
-        mockedRunRenameSkill.mockResolvedValueOnce({
-          ok: true,
-          newDirPath: "/vault/scribe/skills/bar",
-          newFilePath: "/vault/scribe/skills/bar/SKILL.md",
-        });
-        mockedRunUpdateProperties.mockResolvedValueOnce({ ok: false, reason: "write failed" });
-
-        const result = await manager.saveProperties(skill, {
-          newName: "bar",
-          patch: { description: "Updated description." },
-        });
-
-        expect(result).toEqual({ ok: false, code: "fs-error", message: "write failed" });
-        expect(getManagedSkills()[0]).toMatchObject({
-          name: "bar",
-          description: "A skill.",
-        });
-      });
-    });
-    describe("readContent", () => {
-      it("reads the complete original skill file without dropping unknown frontmatter", async () => {
-        const raw = "---\nname: foo\ndescription: A skill\ncustom-field: keep\n---\nInstructions";
-        const readFile = jest.fn().mockResolvedValue(raw);
-        jest.mocked(createNodeMigrateSkillFs).mockReturnValue({ readFile } as never);
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        expect(await manager.readContent(makeSkill())).toBe(raw);
-        expect(readFile).toHaveBeenCalledWith(makeSkill().filePath);
-      });
-    });
-    describe("createSkill", () => {
-      it("creates and enables a valid skill without overwriting an existing file", async () => {
-        const fs = {
-          exists: jest.fn().mockResolvedValue(false),
-          mkdirRecursive: jest.fn(),
-          writeFile: jest.fn(),
-        };
-        jest.mocked(createNodeMigrateSkillFs).mockReturnValue(fs as never);
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        jest.spyOn(manager, "refresh").mockResolvedValue({
-          ok: true,
-          folder: skillsFolder,
-          skillCount: 1,
-          reconcileErrorCount: 0,
-        });
+    describe("refresh()", () => {
+      it("loads hidden personal skills while ignoring unrelated old locations", async () => {
+        const fixture = setup();
+        fixture.folders.add("old-skills/review");
+        fixture.files.set("old-skills/review/SKILL.md", CONTENT);
+        await fixture.seed();
+        expect(getManagedSkills()).toHaveLength(1);
+        expect(getManagedSkills()[0].filePath).toBe(".scribe/skills/review/SKILL.md");
+        expect(fixture.app.vault.getFiles).not.toHaveBeenCalled();
         expect(
-          await manager.createSkill(
-            "new-skill",
-            "---\nname: new-skill\ndescription: A new skill\n---\nInstructions"
-          )
-        ).toEqual({ ok: true });
-        expect(fs.writeFile.mock.calls[0][0]).toBe("/vault/scribe/skills/new-skill/SKILL.md");
-        expect(fs.writeFile.mock.calls[0][2]).toBe("wx");
-        expect(
-          parseSkillFile(fs.writeFile.mock.calls[0][1], "new-skill").frontmatter.enabledAgents
-        ).toEqual(["claude"]);
+          fixture.adapter.read.mock.calls.every(([path]) => path.startsWith(".scribe/skills/"))
+        ).toBe(true);
+      });
+      it("classifies existing files without a source record as local", async () => {
+        const fixture = setup();
+        await fixture.seed();
+        expect(getManagedSkills()[0].source?.kind).toBe("local");
+      });
+      it("publishes malformed skill information and clears it after repair", async () => {
+        const fixture = setup();
+        const { result } = renderHook(() => ({
+          skills: useManagedSkills(),
+          errors: useRejectedSkills(),
+        }));
+        await act(async () => {
+          await fixture.seed();
+        });
+        expect(result.current.skills).toHaveLength(1);
+        fixture.files.set(".scribe/skills/review/SKILL.md", "---\nname: wrong-name\n---\nBroken");
+        await act(async () => {
+          await fixture.manager.refresh();
+        });
+        expect(result.current.errors).toHaveLength(1);
+        fixture.files.set(".scribe/skills/review/SKILL.md", CONTENT);
+        await act(async () => {
+          await fixture.manager.refresh();
+        });
+        expect(result.current.errors).toEqual([]);
+      });
+    });
+    describe("createSkill()", () => {
+      it("creates a usable skill under the fixed folder without adding a link", async () => {
+        const fixture = setup();
+        expect(await fixture.manager.createSkill("review", CONTENT)).toEqual({ ok: true });
+        expect(getManagedSkills()[0].enabledAgents).toEqual(["native"]);
+        expect([...fixture.files.keys()]).toEqual([
+          ".scribe/skills/review/SKILL.md",
+          ".scribe/skills/.registry.json",
+        ]);
       });
       it.each([
-        { ok: true, reconcileErrorCount: 1, reconcileError: "Cannot create the agent link" },
-        { ok: false, reconcileErrorCount: 0, discoveryError: "Cannot read the skills folder" },
-      ])(
-        "keeps a new skill saved and reports incomplete syncing when refresh returns %j",
-        async (failure) => {
-          const writeFile = jest.fn();
-          jest.mocked(createNodeMigrateSkillFs).mockReturnValue({
-            exists: jest.fn().mockResolvedValue(false),
-            mkdirRecursive: jest.fn(),
-            writeFile,
-          } as never);
-          const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-          jest.spyOn(manager, "refresh").mockResolvedValue({
-            folder: skillsFolder,
-            skillCount: 1,
-            ...failure,
-          });
-          expect(
-            await manager.createSkill(
-              "new-skill",
-              "---\nname: new-skill\ndescription: A new skill\n---\nInstructions"
-            )
-          ).toEqual({ ok: true, warning: failure.reconcileError ?? failure.discoveryError });
-          expect(writeFile).toHaveBeenCalledTimes(1);
-        }
-      );
-      it("rejects a name collision before writing to a user's folder", async () => {
-        const fs = { exists: jest.fn().mockResolvedValue(true), writeFile: jest.fn() };
-        jest.mocked(createNodeMigrateSkillFs).mockReturnValue(fs as never);
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        expect(
-          await manager.createSkill(
-            "foo",
-            "---\nname: foo\ndescription: A skill\n---\nInstructions"
-          )
-        ).toMatchObject({ ok: false, code: "collision" });
-        expect(fs.writeFile).not.toHaveBeenCalled();
-      });
-      it("rejects an invalid skill before creating any files", async () => {
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        expect(await manager.createSkill("../escape", "not a skill")).toMatchObject({
+        ["ENOSPC", "Not enough free space"],
+        ["EACCES", "folder permissions"],
+        ["EPERM", "folder permissions"],
+      ])("explains %s without leaving an installed skill", async (code, message) => {
+        const fixture = setup();
+        fixture.adapter.write.mockRejectedValueOnce(
+          Object.assign(new Error("native file error"), { code })
+        );
+        expect(await fixture.manager.createSkill("review", CONTENT)).toMatchObject({
           ok: false,
-          code: "invalid",
+          message: expect.stringContaining(message),
         });
+        expect(fixture.files.has(".scribe/skills/review/SKILL.md")).toBe(false);
+      });
+      it("does not overwrite an existing skill directory", async () => {
+        const fixture = setup();
+        await fixture.seed();
+        expect(await fixture.manager.createSkill("review", CONTENT)).toMatchObject({
+          ok: false,
+          code: "collision",
+        });
+        expect(fixture.files.get(".scribe/skills/review/SKILL.md")).toBe(CONTENT);
       });
     });
-    describe("saveContent", () => {
-      it("allows an explicit legacy-marked skill edit while retaining its disabled agents and metadata https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
-        const writeFile = jest.fn();
-        jest.mocked(createNodeMigrateSkillFs).mockReturnValue({ writeFile } as never);
-        const manager = SkillManager.initialize(makeApp(), { native: ".scribe/skills" });
-        jest.spyOn(manager, "refresh").mockResolvedValue({
-          ok: true,
-          folder: skillsFolder,
-          skillCount: 1,
-          reconcileErrorCount: 0,
-        });
-        const skill = { ...makeSkill({ enabledAgents: [] }), builtin: true };
-        const content =
-          '---\nname: foo\ndescription: A skill\nmetadata:\n  scribe-builtin-version: "1"\n  user-value: keep\n---\nChanged by user';
-        expect(await manager.saveContent(skill, content)).toEqual({ ok: true });
-        const saved = writeFile.mock.calls[0][1];
-        expect(saved).toContain('scribe-builtin-version: "1"');
-        expect(saved).toContain("user-value: keep");
-        expect(parseSkillFile(saved, "foo").frontmatter.enabledAgents).toEqual([]);
-        expect(parseSkillFile(saved, "foo").body).toBe("Changed by user");
+    describe("readContent()", () => {
+      it("reads the saved document and rejects a reference outside the new store", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(await fixture.manager.readContent(skill)).toBe(CONTENT);
+        await expect(
+          fixture.manager.readContent({ ...skill, filePath: "old-skills/review/SKILL.md" })
+        ).rejects.toThrow();
       });
-
-      it("updates skill instructions while preserving metadata and the existing enabled agents", async () => {
-        const writeFile = jest.fn();
-        jest.mocked(createNodeMigrateSkillFs).mockReturnValue({ writeFile } as never);
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        jest.spyOn(manager, "refresh").mockResolvedValue({
+    });
+    describe("listSkillFiles()", () => {
+      it("lists nested source files while rejecting a skill reference with a different folder identity", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.folders.add(".scribe/skills/review/references");
+        fixture.files.set(".scribe/skills/review/references/guide.md", "Supporting text");
+        fixture.files.set(".scribe/skills/review/image.png", "\0binary");
+        expect(await fixture.manager.listSkillFiles(skill)).toEqual([
+          "SKILL.md",
+          "image.png",
+          "references/guide.md",
+        ]);
+        await expect(
+          fixture.manager.listSkillFiles({ ...skill, name: "another-skill" })
+        ).rejects.toThrow();
+      });
+    });
+    describe("readSkillFile()", () => {
+      it("reads a supporting text file exactly and rejects paths outside the selected skill", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.folders.add(".scribe/skills/review/references");
+        fixture.files.set(".scribe/skills/review/references/guide.md", "中文\nCode  123\n");
+        expect(await fixture.manager.readSkillFile(skill, "references/guide.md")).toBe(
+          "中文\nCode  123\n"
+        );
+        for (const path of [
+          "../other/SKILL.md",
+          "/etc/passwd",
+          "a\\b",
+          "",
+          "./SKILL.md",
+          "a//b",
+          "C:foo",
+        ]) {
+          await expect(fixture.manager.readSkillFile(skill, path)).rejects.toThrow();
+        }
+      });
+      it("refuses a symbolic link in the selected skill before reading its destination", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const root = await mkdtemp(join(tmpdir(), "scribe-skill-files-"));
+        const Adapter = FileSystemAdapter as unknown as new (base: string) => FileSystemAdapter;
+        try {
+          await mkdir(join(root, ".scribe/skills/review"), { recursive: true });
+          await writeFile(join(root, ".scribe/skills/review/SKILL.md"), CONTENT);
+          await writeFile(join(root, "outside.md"), "Outside text");
+          await symlink(join(root, "outside.md"), join(root, ".scribe/skills/review/guide.md"));
+          fixture.app.vault.adapter = new Adapter(root);
+          await expect(fixture.manager.readSkillFile(skill, "guide.md")).rejects.toThrow(
+            "快捷链接"
+          );
+        } finally {
+          await rm(root, { recursive: true, force: true });
+        }
+      });
+      it("refuses binary or invalid UTF-8 content instead of decoding a lossy editable copy", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.files.set(".scribe/skills/review/image.png", "\0binary");
+        await expect(fixture.manager.readSkillFile(skill, "image.png")).rejects.toThrow("text");
+        fixture.adapter.readBinary.mockResolvedValueOnce(new Uint8Array([0xff]).buffer);
+        await expect(fixture.manager.readSkillFile(skill, "image.png")).rejects.toThrow("text");
+      });
+    });
+    describe("saveSkillFile()", () => {
+      it("saves a supporting file, refreshes its session signature and keeps the imported baseline", async () => {
+        const fixture = setup();
+        await fixture.manager.installPackage({
+          name: "review",
+          source: { kind: "local", origin: "/original/review" },
+          files: [
+            { path: "SKILL.md", data: new TextEncoder().encode(CONTENT) },
+            { path: "guide.md", data: new TextEncoder().encode("Original guide") },
+          ],
+        });
+        const skill = getManagedSkills()[0];
+        const registry = fixture.files.get(".scribe/skills/.registry.json");
+        const document = await fixture.manager.readContent(skill);
+        const signature = computeSkillSetSignature([skill], "native");
+        expect(
+          await fixture.manager.saveSkillFile(skill, "guide.md", "New guide", "Original guide")
+        ).toEqual({ ok: true });
+        expect(await fixture.manager.readSkillFile(skill, "guide.md")).toBe("New guide");
+        expect(fixture.files.get(skill.filePath)).toBe(document);
+        expect(fixture.files.get(".scribe/skills/.registry.json")).toBe(registry);
+        expect(computeSkillSetSignature(getManagedSkills(), "native")).not.toBe(signature);
+      });
+      it("updates the signature of an existing unregistered local skill after a supporting-file edit", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.files.set(".scribe/skills/review/guide.md", "Original");
+        await fixture.manager.refresh();
+        const signature = computeSkillSetSignature(getManagedSkills(), "native");
+        expect(
+          await fixture.manager.saveSkillFile(skill, "guide.md", "Edited", "Original")
+        ).toEqual({ ok: true });
+        expect(computeSkillSetSignature(getManagedSkills(), "native")).not.toBe(signature);
+        expect(fixture.files.has(".scribe/skills/.registry.json")).toBe(false);
+        expect(await fixture.manager.deleteSkill(getManagedSkills()[0])).toEqual({ ok: true });
+      });
+      it("renames a complete skill from raw SKILL.md while preserving its support files and unknown number text", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.files.set(".scribe/skills/review/guide.md", "Supporting text");
+        const draft = CONTENT.replace("name: review", "name: renamed-review").replace(
+          "metadata:",
+          "unknown: 0.123456789012345678901234567890\nmetadata:"
+        );
+        expect(await fixture.manager.saveSkillFile(skill, "SKILL.md", draft, CONTENT)).toEqual({
           ok: true,
-          folder: skillsFolder,
-          skillCount: 1,
-          reconcileErrorCount: 0,
+        });
+        const renamed = getManagedSkills()[0];
+        expect(renamed.name).toBe("renamed-review");
+        expect(await fixture.manager.readContent(renamed)).toContain(
+          "unknown: 0.123456789012345678901234567890"
+        );
+        expect(await fixture.manager.readSkillFile(renamed, "guide.md")).toBe("Supporting text");
+        expect(fixture.files.has(skill.filePath)).toBe(false);
+      });
+      it("edits a lowercase root descriptor through its canonical alias without remapping nested skill.md files", async () => {
+        const fixture = setup();
+        const initial = await fixture.seed();
+        fixture.files.delete(initial.filePath);
+        fixture.files.set(".scribe/skills/review/skill.md", CONTENT);
+        fixture.folders.add(".scribe/skills/review/references");
+        fixture.files.set(".scribe/skills/review/references/skill.md", "Nested supporting text");
+        await fixture.manager.refresh();
+        const skill = getManagedSkills()[0];
+        expect(skill.filePath).toBe(".scribe/skills/review/skill.md");
+        expect(await fixture.manager.listSkillFiles(skill)).toEqual([
+          "SKILL.md",
+          "references/skill.md",
+        ]);
+        expect(await fixture.manager.readSkillFile(skill, "SKILL.md")).toBe(CONTENT);
+        expect(await fixture.manager.readSkillFile(skill, "references/skill.md")).toBe(
+          "Nested supporting text"
+        );
+        const renamed = CONTENT.replace("name: review", "name: renamed-review");
+        expect(await fixture.manager.saveSkillFile(skill, "SKILL.md", renamed, CONTENT)).toEqual({
+          ok: true,
+        });
+        const updated = getManagedSkills()[0];
+        expect(updated.name).toBe("renamed-review");
+        expect(updated.filePath).toBe(".scribe/skills/renamed-review/SKILL.md");
+        expect(await fixture.manager.readSkillFile(updated, "SKILL.md")).toBe(renamed);
+        expect(await fixture.manager.readSkillFile(updated, "references/skill.md")).toBe(
+          "Nested supporting text"
+        );
+        expect(fixture.files.has(".scribe/skills/review/skill.md")).toBe(false);
+      });
+      it("keeps raw line endings and metadata blank lines so consecutive saves use the exact persisted baseline", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const first = CONTENT.replace("\n---\nRead carefully.", "\n\n\n---\nFirst edit.").replace(
+          /\n/g,
+          "\r\n"
+        );
+        expect(await fixture.manager.saveSkillFile(skill, "SKILL.md", first, CONTENT)).toEqual({
+          ok: true,
+        });
+        expect(await fixture.manager.readContent(getManagedSkills()[0])).toBe(first);
+        const second = first.replace("First edit.", "Second edit.");
+        expect(
+          await fixture.manager.saveSkillFile(getManagedSkills()[0], "SKILL.md", second, first)
+        ).toEqual({ ok: true });
+        expect(await fixture.manager.readContent(getManagedSkills()[0])).toBe(second);
+      });
+      it("preserves a UTF-8 byte-order mark when reading and saving a supporting text file", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const original = "\uFEFFSupporting text";
+        fixture.files.set(".scribe/skills/review/guide.md", original);
+        expect(await fixture.manager.readSkillFile(skill, "guide.md")).toBe(original);
+        const edited = "\uFEFFEdited text";
+        expect(await fixture.manager.saveSkillFile(skill, "guide.md", edited, original)).toEqual({
+          ok: true,
+        });
+        expect(await fixture.manager.readSkillFile(skill, "guide.md")).toBe(edited);
+        expect(fixture.files.get(".scribe/skills/review/guide.md")).toBe(edited);
+      });
+      it("saves raw enablement changes exactly and refreshes the global switch state", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const disabled = CONTENT.replace(
+          "scribe-enabled-agents: native",
+          'scribe-enabled-agents: ""'
+        );
+        expect(await fixture.manager.saveSkillFile(skill, "SKILL.md", disabled, CONTENT)).toEqual({
+          ok: true,
+        });
+        const saved = getManagedSkills()[0];
+        expect(saved.enabledAgents).toEqual([]);
+        expect(await fixture.manager.readContent(saved)).toBe(disabled);
+        expect(await fixture.manager.saveSkillFile(saved, "SKILL.md", CONTENT, disabled)).toEqual({
+          ok: true,
+        });
+        expect(getManagedSkills()[0].enabledAgents).toEqual(["native"]);
+        expect(await fixture.manager.readContent(getManagedSkills()[0])).toBe(CONTENT);
+      });
+      it("keeps changed originals and rejects invalid raw descriptors or writes outside the selected skill", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.files.set(".scribe/skills/review/guide.md", "External change");
+        expect(
+          await fixture.manager.saveSkillFile(skill, "guide.md", "Draft", "Original")
+        ).toMatchObject({ ok: false });
+        expect(fixture.files.get(".scribe/skills/review/guide.md")).toBe("External change");
+        expect(
+          await fixture.manager.saveSkillFile(
+            skill,
+            "SKILL.md",
+            CONTENT.replace("name: review", "name: Invalid Name"),
+            CONTENT
+          )
+        ).toMatchObject({ ok: false });
+        expect(
+          await fixture.manager.saveSkillFile(skill, "../outside.md", "Draft", "Original")
+        ).toMatchObject({ ok: false });
+        expect(fixture.files.get(skill.filePath)).toBe(CONTENT);
+      });
+      it("keeps binary supporting files untouched when a text save is attempted", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const original = "\0binary data";
+        fixture.files.set(".scribe/skills/review/image.png", original);
+        fixture.adapter.write.mockClear();
+        expect(
+          await fixture.manager.saveSkillFile(skill, "image.png", "Text draft", original)
+        ).toMatchObject({ ok: false });
+        expect(fixture.files.get(".scribe/skills/review/image.png")).toBe(original);
+        expect(fixture.adapter.write).not.toHaveBeenCalled();
+      });
+      it("preserves a support file changed while staging or when writing fails", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const path = ".scribe/skills/review/guide.md";
+        fixture.files.set(path, "Original");
+        fixture.adapter.write.mockImplementationOnce(async (staging, value) => {
+          fixture.files.set(path, "External change");
+          fixture.files.set(staging, value);
         });
         expect(
-          await manager.saveContent(
-            makeSkill(),
-            "---\nname: foo\ndescription: A skill\ncustom-field: keep\n---\nUpdated instructions"
+          await fixture.manager.saveSkillFile(skill, "guide.md", "Draft", "Original")
+        ).toMatchObject({ ok: false });
+        expect(fixture.files.get(path)).toBe("External change");
+        fixture.adapter.write.mockRejectedValueOnce(new Error("disk full"));
+        expect(
+          await fixture.manager.saveSkillFile(skill, "guide.md", "Draft", "External change")
+        ).toMatchObject({ ok: false });
+        expect(fixture.files.get(path)).toBe("External change");
+      });
+      it("refuses builtin support edits even when the displayed source is forged as local", async () => {
+        const fixture = setup();
+        await fixture.manager.syncBuiltins();
+        const skill = getManagedSkills().find((item) => item.name === "skill-creator")!;
+        const original = await fixture.manager.readSkillFile(skill, "LICENSE.txt");
+        expect(
+          await fixture.manager.saveSkillFile(
+            { ...skill, source: { kind: "local" } },
+            "LICENSE.txt",
+            "Changed",
+            original
+          )
+        ).toMatchObject({ ok: false });
+        expect(await fixture.manager.readSkillFile(skill, "LICENSE.txt")).toBe(original);
+      });
+    });
+    describe("saveContent()", () => {
+      it("retains enablement when editing the document and publishes the new body", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(
+          await fixture.manager.saveContent(
+            skill,
+            CONTENT.replace("Read carefully.", "New instructions.")
           )
         ).toEqual({ ok: true });
-        expect(writeFile.mock.calls[0][1]).toContain("custom-field: keep");
-        expect(parseSkillFile(writeFile.mock.calls[0][1], "foo").frontmatter.enabledAgents).toEqual(
-          ["claude"]
-        );
+        expect(getManagedSkills()[0].body.trim()).toBe("New instructions.");
+        expect(getManagedSkills()[0].enabledAgents).toEqual(["native"]);
       });
-      it("keeps updated instructions saved and reports the link failure instead of claiming syncing succeeded", async () => {
-        const writeFile = jest.fn();
-        jest.mocked(createNodeMigrateSkillFs).mockReturnValue({ writeFile } as never);
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        jest.spyOn(manager, "refresh").mockResolvedValue({
-          ok: true,
-          folder: skillsFolder,
-          skillCount: 1,
-          reconcileErrorCount: 1,
-        });
+      it("preserves the saved content when staging fails", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.adapter.write.mockRejectedValueOnce(new Error("disk full"));
         expect(
-          await manager.saveContent(
-            makeSkill(),
-            "---\nname: foo\ndescription: A skill\n---\nUpdated instructions"
-          )
-        ).toEqual({
-          ok: true,
-          warning: "Some skill links could not be updated. Check folder permissions.",
-        });
-        expect(writeFile.mock.calls[0][1]).toContain("Updated instructions");
+          await fixture.manager.saveContent(skill, CONTENT.replace("Read carefully.", "Draft"))
+        ).toMatchObject({ ok: false });
+        expect(fixture.files.get(skill.filePath)).toBe(CONTENT);
       });
     });
-
-    describe("dispose", () => {
-      it("clears the rejected-skill count on disposal so plugin reloads do not keep a stale warning", async () => {
-        const manager = SkillManager.initialize(makeApp(), { claude: ".claude/skills" });
-        const { result: loadErrorCount } = renderHook(() => useSkillLoadErrorCount());
-        mockedDiscoverManagedSkills.mockResolvedValueOnce(
-          discoveryResult(
-            [],
-            [
-              {
-                name: "broken-skill",
-                filePath: "/vault/scribe/skills/broken-skill/SKILL.md",
-                dirPath: "/vault/scribe/skills/broken-skill",
-                reason: "The description must be quoted.",
-              },
-            ]
-          )
+    describe("toggleAgent()", () => {
+      it("changes enablement in the skill document without creating or deleting links", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(await fixture.manager.toggleAgent(skill, "native", false)).toEqual({ ok: true });
+        expect(getManagedSkills()[0].enabledAgents).toEqual([]);
+        expect(
+          parseSkillFile(fixture.files.get(skill.filePath)!, "review").frontmatter.enabledAgents
+        ).toEqual([]);
+        expect([...fixture.files.keys()]).toEqual([skill.filePath]);
+      });
+      it("refuses an unavailable agent before writing", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(await fixture.manager.toggleAgent(skill, "other", true)).toMatchObject({
+          ok: false,
+          code: "unknown-agent",
+        });
+        expect(fixture.adapter.write).not.toHaveBeenCalled();
+      });
+    });
+    describe("saveProperties()", () => {
+      it("renames the stored skill and saves its description without touching old folders", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(
+          await fixture.manager.saveProperties(skill, {
+            newName: "review-notes",
+            patch: { description: "Updated description" },
+          })
+        ).toEqual({ ok: true });
+        expect(getManagedSkills()[0]).toMatchObject({
+          name: "review-notes",
+          description: "Updated description",
+        });
+        expect([...fixture.files.keys()]).toEqual([
+          ".scribe/skills/review-notes/SKILL.md",
+          ".scribe/skills/.registry.json",
+        ]);
+      });
+    });
+    describe("deleteSkill()", () => {
+      it("preserves a skill changed while uninstall confirmation was pending", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        const changed = CONTENT.replace("Read carefully", "External instructions");
+        fixture.files.set(skill.filePath, changed);
+        expect(await fixture.manager.deleteSkill(skill)).toMatchObject({ ok: false });
+        expect(fixture.files.get(skill.filePath)).toBe(changed);
+      });
+      it("deletes only the managed skill and preserves an old copy", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.files.set("old-skills/review/SKILL.md", CONTENT);
+        expect(await fixture.manager.deleteSkill(skill)).toEqual({ ok: true });
+        expect(getManagedSkills()).toEqual([]);
+        expect([...fixture.files.keys()]).toEqual([
+          "old-skills/review/SKILL.md",
+          ".scribe/skills/.registry.json",
+        ]);
+      });
+    });
+    describe("subscribeToSkillSetChange()", () => {
+      it("notifies after a visible change and stops notifying after unsubscribe", async () => {
+        const fixture = setup();
+        const changed = jest.fn();
+        const unsubscribe = fixture.manager.subscribeToSkillSetChange(changed);
+        const skill = await fixture.seed();
+        await fixture.manager.refresh();
+        expect(changed).toHaveBeenCalledTimes(1);
+        unsubscribe();
+        await fixture.manager.toggleAgent(skill, "native", false);
+        expect(changed).toHaveBeenCalledTimes(1);
+      });
+    });
+    describe("dispose()", () => {
+      it("releases the singleton and permits a new manager", () => {
+        const fixture = setup();
+        fixture.manager.dispose();
+        expect(SkillManager.hasInstance()).toBe(false);
+        expect(() => SkillManager.getInstance()).toThrow();
+        expect(SkillManager.initialize(fixture.app, {})).not.toBe(fixture.manager);
+      });
+    });
+    describe("syncBuiltins()", () => {
+      it("installs all seven complete builtin packages and preserves a personal name collision", async () => {
+        const fixture = setup();
+        fixture.folders.add(".scribe");
+        fixture.folders.add(".scribe/skills");
+        fixture.folders.add(".scribe/skills/json-canvas");
+        const original = "---\nname: json-canvas\ndescription: My own skill\n---\nPersonal rules";
+        fixture.files.set(".scribe/skills/json-canvas/SKILL.md", original);
+        await fixture.manager.syncBuiltins();
+        expect(getManagedSkills()).toHaveLength(7);
+        expect(getManagedSkills().filter((skill) => skill.source?.kind === "builtin")).toHaveLength(
+          6
         );
-
-        await act(() => manager.refresh());
-        expect(loadErrorCount.current).toBe(1);
-
-        act(() => manager.dispose());
-        expect(loadErrorCount.current).toBe(0);
+        expect(fixture.files.get(".scribe/skills/json-canvas/SKILL.md")).toBe(original);
+        expect(fixture.manager.getBuiltinWarnings()).toContain("json-canvas");
+      });
+      it("does not reinstall an explicitly uninstalled builtin after synchronization", async () => {
+        const fixture = setup();
+        await fixture.manager.syncBuiltins();
+        const skill = getManagedSkills().find((item) => item.name === "skill-creator")!;
+        await fixture.manager.deleteSkill(skill);
+        await fixture.manager.syncBuiltins();
+        expect(getManagedSkills().some((item) => item.name === "skill-creator")).toBe(false);
+      });
+    });
+    describe("getBuiltinStatuses()", () => {
+      it("detects a changed support file without mistaking disablement for modification", async () => {
+        const fixture = setup();
+        await fixture.manager.syncBuiltins();
+        const skill = getManagedSkills().find((item) => item.name === "skill-creator")!;
+        await fixture.manager.toggleAgent(skill, "native", false);
+        expect(
+          (await fixture.manager.getBuiltinStatuses()).find((item) => item.name === skill.name)
+            ?.status
+        ).toBe("installed");
+        fixture.files.set(".scribe/skills/skill-creator/LICENSE.txt", "external edit");
+        expect(
+          (await fixture.manager.getBuiltinStatuses()).find((item) => item.name === skill.name)
+            ?.status
+        ).toBe("modified");
+      });
+    });
+    describe("restoreBuiltin()", () => {
+      it("restores an uninstalled builtin as enabled without overwriting a personal collision", async () => {
+        const fixture = setup();
+        await fixture.manager.syncBuiltins();
+        const skill = getManagedSkills().find((item) => item.name === "skill-creator")!;
+        await fixture.manager.deleteSkill(skill);
+        expect(await fixture.manager.restoreBuiltin(skill.name)).toEqual({ ok: true });
+        expect(getManagedSkills().find((item) => item.name === skill.name)?.enabledAgents).toEqual([
+          "native",
+        ]);
+        expect(await fixture.manager.restoreBuiltin("unknown")).toMatchObject({ ok: false });
+      });
+    });
+    describe("saveSkill()", () => {
+      it("refuses builtin edits even when the supplied row claims to be local", async () => {
+        const fixture = setup();
+        await fixture.manager.syncBuiltins();
+        const skill = getManagedSkills()[0];
+        const original = await fixture.manager.readContent(skill);
+        expect(
+          await fixture.manager.saveSkill(
+            { ...skill, source: { kind: "local" } },
+            original,
+            skill.name,
+            original
+          )
+        ).toMatchObject({ ok: false });
+        expect(await fixture.manager.readContent(skill)).toBe(original);
+      });
+    });
+    describe("installPackage()", () => {
+      it("keeps raw-edited enablement when the same source is imported again", async () => {
+        const fixture = setup();
+        const pkg = {
+          name: "review",
+          source: { kind: "local" as const, origin: "/original/review" },
+          files: [{ path: "SKILL.md", data: new TextEncoder().encode(CONTENT) }],
+        };
+        expect(await fixture.manager.installPackage(pkg)).toEqual({ ok: true });
+        const skill = getManagedSkills()[0];
+        const original = await fixture.manager.readContent(skill);
+        const disabled = original.replace(
+          "scribe-enabled-agents: native",
+          'scribe-enabled-agents: ""'
+        );
+        expect(await fixture.manager.saveSkillFile(skill, "SKILL.md", disabled, original)).toEqual({
+          ok: true,
+        });
+        expect(await fixture.manager.installPackage(pkg, true)).toEqual({ ok: true });
+        expect(getManagedSkills()[0].enabledAgents).toEqual([]);
+      });
+      it("imports a local snapshot then requires confirmation to replace the same source", async () => {
+        const fixture = setup();
+        const pkg = {
+          name: "review",
+          source: { kind: "local" as const, origin: "/original/review" },
+          files: [{ path: "SKILL.md", data: new TextEncoder().encode(CONTENT) }],
+        };
+        expect(await fixture.manager.installPackage(pkg)).toEqual({ ok: true });
+        expect(await fixture.manager.installPackage(pkg)).toMatchObject({
+          ok: false,
+          code: "collision",
+        });
+        expect(await fixture.manager.installPackage(pkg, true)).toEqual({ ok: true });
+      });
+    });
+    describe("resolveCanonicalNameForMigration()", () => {
+      it("chooses an available name using only current managed skills", async () => {
+        const fixture = setup();
+        await fixture.seed();
+        expect(fixture.manager.resolveCanonicalNameForMigration("review")).not.toBe("review");
+      });
+    });
+    describe("getSuppressMigrationConfirm()", () => {
+      it("reads the retained lightweight preference", () => {
+        expect(setup().manager.getSuppressMigrationConfirm()).toBe(false);
+      });
+    });
+    describe("setSuppressMigrationConfirm()", () => {
+      it("saves the retained lightweight preference without touching files", () => {
+        setup().manager.setSuppressMigrationConfirm(true);
+        expect(updateSetting).toHaveBeenCalledWith(
+          "agentMode",
+          expect.objectContaining({ skills: { suppressMigrationConfirm: true } })
+        );
+        expect(getSettings).toHaveBeenCalled();
+      });
+    });
+    describe("migrateProjectSkillForToggle()", () => {
+      it("declines old skill imports without reading their files", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        fixture.adapter.read.mockClear();
+        expect(
+          await fixture.manager.migrateProjectSkillForToggle(skill, "native", "expandToNewAgent")
+        ).toMatchObject({ ok: false });
+        expect(fixture.adapter.read).not.toHaveBeenCalled();
+      });
+    });
+    describe("consolidateMirroredSkill()", () => {
+      it("does not consolidate old copies", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(await fixture.manager.consolidateMirroredSkill(skill, false)).toMatchObject({
+          ok: false,
+        });
+      });
+    });
+    describe("removeProjectAgentDir()", () => {
+      it("leaves old agent directories alone", async () => {
+        const fixture = setup();
+        const skill = await fixture.seed();
+        expect(await fixture.manager.removeProjectAgentDir(skill, "native")).toMatchObject({
+          ok: false,
+        });
+        expect(fixture.files.has(skill.filePath)).toBe(true);
       });
     });
   });
-  describe("computeSkillSetSignature", () => {
-    it("is identical for equivalent skill sets", () => {
-      expect(computeSkillSetSignature([makeSkill()], "claude")).toBe(
-        computeSkillSetSignature([makeSkill()], "claude")
+  describe("computeSkillSetSignature()", () => {
+    it("returns a stable signature for unchanged skills and changes it for edited content", async () => {
+      const fixture = setup();
+      const skill = await fixture.seed();
+      expect(computeSkillSetSignature([], "native")).toBe("skills:v1:0");
+      expect(computeSkillSetSignature([skill], "native")).toBe(
+        computeSkillSetSignature([skill], "native")
       );
-    });
-
-    it("differs when a skill body or its enabled agents change", () => {
-      const base = makeSkill({ enabledAgents: ["claude"] });
-      const bodyChanged = makeSkill({ body: "new body", enabledAgents: ["claude"] });
-      const enabledChanged = makeSkill({ enabledAgents: ["opencode"] });
-
-      expect(computeSkillSetSignature([base], "opencode")).not.toBe(
-        computeSkillSetSignature([bodyChanged], "opencode")
-      );
-      expect(computeSkillSetSignature([base], "opencode")).not.toBe(
-        computeSkillSetSignature([enabledChanged], "opencode")
+      expect(computeSkillSetSignature([skill], "native")).not.toBe(
+        computeSkillSetSignature([{ ...skill, body: "Changed" }], "native")
       );
     });
   });
 });
-
-function makeApp(): App & {
-  vault: App["vault"] & {
-    on: jest.Mock<EventRef, [string, (...args: unknown[]) => void]>;
-    offref: jest.Mock<void, [EventRef]>;
-  };
-} {
-  const adapter = new (FileSystemAdapter as unknown as new (basePath: string) => FileSystemAdapter)(
-    "/vault"
-  );
-  adapter.exists = jest.fn().mockResolvedValue(true);
-  adapter.list = jest.fn().mockResolvedValue({ files: [], folders: [] });
-  adapter.read = jest.fn().mockResolvedValue("");
-  return {
-    vault: {
-      adapter,
-      on: jest.fn((event: string, handler: (...args: unknown[]) => void) => ({ event, handler })),
-      offref: jest.fn(),
-    },
-  } as unknown as App & {
-    vault: App["vault"] & {
-      on: jest.Mock<EventRef, [string, (...args: unknown[]) => void]>;
-      offref: jest.Mock<void, [EventRef]>;
-    };
-  };
-}
-
-async function seedSkills(manager: SkillManager, skills: Skill[]): Promise<void> {
-  mockedDiscoverManagedSkills.mockResolvedValueOnce(discoveryResult(skills));
-  await manager.refresh();
-}
-
-function discoveryResult(
-  accepted: Skill[] = [],
-  rejected: RejectedSkill[] = []
-): SkillDiscoveryResult<Skill> {
-  return { accepted, rejected };
-}
-
-function fireVaultEvent(
-  app: ReturnType<typeof makeApp>,
-  event: string,
-  file: { path: string },
-  oldPath?: string
-): void {
-  const call = app.vault.on.mock.calls.find(([e]) => e === event);
-  if (call === undefined) throw new Error(`No handler registered for "${event}"`);
-  if (oldPath !== undefined) {
-    call[1](file, oldPath);
-  } else {
-    call[1](file);
-  }
-}
-
-async function flushMicrotasks(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
-function makeSkill(overrides: Partial<Skill> = {}): Skill {
-  const name = overrides.name ?? "foo";
-  const dirPath = overrides.dirPath ?? `/vault/scribe/skills/${name}`;
-  return {
-    name: "foo",
-    description: "A skill.",
-    filePath: `${dirPath}/SKILL.md`,
-    dirPath,
-    body: "body",
-    enabledAgents: ["claude"],
-    location: { kind: "canonical" },
-    ...overrides,
-  };
-}

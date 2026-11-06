@@ -38,7 +38,6 @@ import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
 import { AgentSessionSnapshots } from "@/agentMode/session/AgentSessionSnapshots";
 import { createNodeSnapshotStorage } from "@/agentMode/session/nodeFileStorage";
-import { mergeSnapshotReplay } from "@/agentMode/session/sessionSnapshotMessages";
 import type {
   AgentQuestionAnswers,
   AskUserQuestionPrompt,
@@ -210,6 +209,8 @@ describe("NativeBackendProcess integration", () => {
             sessionId: context.sessionId,
             outputDirectory: join(data, "commands"),
             emit: context.emit,
+            flush: context.flush,
+            beforeStart: context.beforeTaskStart,
           });
           return {
             tools: createNativeTools({
@@ -399,7 +400,7 @@ describe("NativeBackendProcess integration", () => {
             "Synthetic stream failure"
           );
           expect(displayed.getStatus()).toBe("error");
-          const expectedBody = reopened ? "Saved user edit" : "Partial reply";
+          const expectedBody = "Partial reply";
           if (reopened) {
             const sessionId = displayed.getBackendSessionId();
             if (!sessionId) throw new Error("Missing native session");
@@ -439,12 +440,14 @@ describe("NativeBackendProcess integration", () => {
             );
             const originalSnapshot = await readFile(snapshotFile, "utf8");
             await f.process.closeSession({ sessionId });
-            const path = join(data, "sessions", `${sessionId}.json`);
-            const record = JSON.parse(await readFile(path, "utf8"));
-            record.futureData = { nested: ["retain", { untouched: true }] };
-            record.messages.at(-1).futureMessageField = { retain: ["message", 42] };
-            record.events.at(-1).futureEventField = { untouched: "event" };
-            await writeFile(path, JSON.stringify(record));
+            const path = join(data, "sessions", `${sessionId}.jsonl`);
+            const storage = new NodeNativeSessionStorage(join(data, "sessions"));
+            await storage.append(
+              sessionId,
+              "future_record",
+              { nested: ["retain", { untouched: true }] },
+              { durable: true }
+            );
             const original = await readFile(path, "utf8");
             const restored = fixture(() => response("Recovery reply"));
             displayed = new AgentSession({
@@ -462,32 +465,19 @@ describe("NativeBackendProcess integration", () => {
               cwd: root,
               projectId: "project-a",
             });
-            expect(await readFile(path, "utf8")).toBe(original);
+            expect((await readFile(path, "utf8")).startsWith(original)).toBe(true);
             displayed.completeResume(opened.state);
             await displayed.ready;
             expect(restored.contexts).toEqual([]);
-            const afterResume = JSON.parse(await readFile(path, "utf8"));
-            expect(afterResume.futureData).toEqual(record.futureData);
+            await displayed.restorePersistedDisplayFacts();
             expect(
-              afterResume.events.find(
-                (event: { futureEventField?: unknown }) => event.futureEventField
-              )?.futureEventField
-            ).toEqual({ untouched: "event" });
-            expect(afterResume.messages).toEqual(record.messages);
-            expect(afterResume.events.slice(0, record.events.length)).toEqual(record.events);
-            const snapshot = await snapshots.load("native", sessionId);
-            if (!snapshot) throw new Error("Missing saved snapshot");
-            const restoredMessages = mergeSnapshotReplay(
-              snapshot.messages,
-              displayed.store.getDisplayMessages()
-            );
-            expect(restoredMessages[1]).toMatchObject({
-              message: "Saved user edit",
+              displayed.store.getDisplayMessages().find((message) => message.sender !== "user")
+            ).toMatchObject({
+              message: "Partial reply\n\n**Error:** Synthetic stream failure",
               isErrorMessage: true,
               errorText: "**Error:** Synthetic stream failure",
-              customSavedField: { retain: "edit" },
             });
-            displayed.loadDisplayMessages(restoredMessages);
+            expect((await readFile(path, "utf8")).startsWith(original)).toBe(true);
             expect(await readFile(snapshotFile, "utf8")).toBe(originalSnapshot);
           }
           expect(displayed.getStatus()).toBe("error");
@@ -528,7 +518,7 @@ describe("NativeBackendProcess integration", () => {
             expect(view.container.textContent).toContain("Synthetic stream failure")
           );
           expect(view.container.textContent?.split(expectedBody).length).toBe(2);
-          if (reopened) expect(view.container.textContent).not.toContain("Partial reply");
+          if (reopened) expect(view.container.textContent).not.toContain("Saved user edit");
           expect(view.container.textContent?.match(/Synthetic stream failure/g)).toHaveLength(1);
           await act(async () => {
             fireEvent.click(view.getByTitle("Copy"));
@@ -1386,6 +1376,10 @@ describe("NativeBackendProcess integration", () => {
         const id = await f.open();
         const running = f.send(id, "Parent waiting task");
         await questionAsked.promise;
+        expect(f.contexts.map((context) => userText(context))).toEqual([
+          "Parent waiting task",
+          "Waiting child",
+        ]);
         const child = f.events.flatMap((event) =>
           event.update.sessionUpdate === "task_started" && event.update.kind === "subagent"
             ? [event.update]
@@ -1393,6 +1387,11 @@ describe("NativeBackendProcess integration", () => {
         )[0];
         await f.process.stopTask({ sessionId: id, taskId: child.taskId! });
         await running;
+        expect(f.contexts.map((context) => userText(context))).toEqual([
+          "Parent waiting task",
+          "Waiting child",
+          "Parent waiting task",
+        ]);
         expect(f.events).toContainEqual(
           expect.objectContaining({
             update: expect.objectContaining({

@@ -39,6 +39,14 @@ function entry(overrides: Partial<Parameters<AgentSessionIndex["recordSession"]>
 
 describe("AgentSessionIndex", () => {
   describe("recordSession()", () => {
+    it("persists the last confirmed journal sequence across index reloads", async () => {
+      const storage = makeStorage();
+      const index = new AgentSessionIndex(storage, INDEX_PATH);
+      await index.recordSession({ ...entry(), lastSeq: 8 });
+      await index.flush();
+      const reopened = new AgentSessionIndex(storage, INDEX_PATH);
+      expect((await reopened.getEntry("native", "s1"))?.lastSeq).toBe(8);
+    });
     it("records sessions and lists them", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry());
@@ -82,6 +90,12 @@ describe("AgentSessionIndex", () => {
   });
 
   describe("mergeDiscoveredSessions()", () => {
+    it("uses the actual journal sequence when discovery corrects an index that was ahead", async () => {
+      const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
+      await index.recordSession({ ...entry(), lastSeq: 50 });
+      await index.mergeDiscoveredSessions([{ ...entry(), lastSeq: 20 }]);
+      expect((await index.getEntry("native", "s1"))?.lastSeq).toBe(20);
+    });
     it("never moves lastAccessed backwards", async () => {
       const index = new AgentSessionIndex(makeStorage(), INDEX_PATH);
       await index.recordSession(entry({ lastAccessedAtMs: 9_000 }));
@@ -219,6 +233,29 @@ describe("AgentSessionIndex", () => {
   });
 
   describe("getEntries()", () => {
+    it("keeps valid journal watermarks and drops invalid watermarks without dropping chats", async () => {
+      const storage = makeStorage({
+        [INDEX_PATH]: JSON.stringify({
+          version: 1,
+          tombstones: {},
+          entries: [
+            { ...entry({ sessionId: "zero" }), lastSeq: 0 },
+            { ...entry({ sessionId: "negative" }), lastSeq: -1 },
+            { ...entry({ sessionId: "fraction" }), lastSeq: 1.5 },
+            { ...entry({ sessionId: "text" }), lastSeq: "8" },
+          ],
+        }),
+      });
+      const index = new AgentSessionIndex(storage, INDEX_PATH);
+      const entries = await index.getEntries();
+      expect(entries).toHaveLength(4);
+      expect(entries.find((item) => item.sessionId === "zero")?.lastSeq).toBe(0);
+      expect(
+        entries
+          .filter((item) => item.sessionId !== "zero")
+          .every((item) => item.lastSeq === undefined)
+      ).toBe(true);
+    });
     it("starts empty when the index file is corrupt", async () => {
       const corrupt = new AgentSessionIndex(
         makeStorage({ [INDEX_PATH]: "not json {" }),

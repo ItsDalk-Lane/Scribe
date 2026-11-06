@@ -11,7 +11,11 @@ let mockFirstModel: string | undefined = "quick";
 const mockSettings = { quickCommandModelKey: "quick", quickCommandIncludeNoteContext: false };
 const mockApp = { workspace: { getActiveFile: () => null } };
 const mockModels = {
-  explicit: { name: "explicit", configuredModelId: "explicit" },
+  explicit: {
+    name: "explicit",
+    configuredModelId: "explicit",
+    credentialRef: undefined as string | undefined,
+  },
   quick: { name: "quick", configuredModelId: "quick" },
   picked: { name: "picked", configuredModelId: "picked" },
 };
@@ -19,6 +23,10 @@ const mockTurns: { model: string; prompt: string }[] = [];
 const mockStop = jest.fn();
 const mockReset = jest.fn();
 const mockLatest = () => "";
+const mockWithSecret = jest.fn<Promise<void>, [string, (value: string) => Promise<void>]>();
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ withSecret: mockWithSecret }) },
+}));
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hooks; names must match the exports */
 jest.mock("@/context", () => ({ useApp: () => mockApp }));
 jest.mock("@/settings/model", () => ({
@@ -143,10 +151,31 @@ describe("CustomCommandChatModal", () => {
   describe("CustomCommandChatModalContent", () => {
     beforeEach(() => {
       mockTurns.length = 0;
+      mockModels.explicit.credentialRef = undefined;
+      mockWithSecret.mockReset().mockResolvedValue(undefined);
       jest.clearAllMocks();
       mockFirstModel = "quick";
       mockSettings.quickCommandModelKey = "explicit";
     });
+    it.each([new DOMException("Cancelled", "AbortError"), new Error("Damaged encrypted entry")])(
+      "keeps the instruction when selected-key validation fails: %s",
+      async (failure) => {
+        mockModels.explicit.credentialRef = "saved-reference";
+        mockWithSecret.mockRejectedValueOnce(failure);
+        renderCommand("explicit", false);
+        fireEvent.change(screen.getByLabelText("Instruction"), {
+          target: { value: "Keep this instruction" },
+        });
+        fireEvent.click(screen.getByText("Submit"));
+        await waitFor(() => expect(mockWithSecret).toHaveBeenCalledTimes(1));
+        expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe(
+          "Keep this instruction"
+        );
+        expect(mockTurns).toEqual([]);
+        expect(processCommandPrompt).not.toHaveBeenCalled();
+      }
+    );
+
     it("runs the saved command with its explicit model", async () => {
       renderCommand("explicit");
       await screen.findByText("Answer from explicit");

@@ -57,6 +57,20 @@ describe("AgentProjectCreateForm", () => {
     });
   });
 
+  it("saves an explicitly chosen existing workspace", async () => {
+    const onChooseWorkspace = jest.fn((select: (path: string) => void) => select("Existing/Empty"));
+    const { onSave } = renderForm({ onChooseWorkspace });
+    fireEvent.change(screen.getByPlaceholderText("Project name"), {
+      target: { value: "Research" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Choose folder" }));
+    expect(screen.getByText("Existing/Empty")).toBeTruthy();
+    fireEvent.click(screen.getByText("Create"));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ name: "Research", workspacePath: "Existing/Empty" })
+    );
+  });
+
   describe("makeNewProjectConfig()", () => {
     it("builds a name-only config with the Agent-Mode-empty defaults", () => {
       const project = makeNewProjectConfig("Research");

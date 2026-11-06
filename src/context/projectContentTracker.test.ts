@@ -10,7 +10,7 @@ jest.mock("@/logger", () => ({
 }));
 
 jest.mock("@/logFileManager", () => ({
-  logFileManager: { getLogPath: () => "scribe/scribe-log.md" },
+  logFileManager: { getLogPath: () => ".scribe/logs/scribe-log.md" },
 }));
 
 jest.mock(
@@ -166,21 +166,30 @@ describe("projectContentTracker", () => {
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
 
-        fire("modify", file("scribe/scribe-conversations/chat.md"));
+        fire("modify", file(".scribe/scribe-conversations/chat.md"));
         tracker.flushNow();
 
         expect(tracker.getEpoch("a")).toBe(0);
         tracker.dispose();
       });
-      it("still dirties a TAG-declaring project under a system Scribe root (tag scope is unchanged)", () => {
+      it("refreshes property context when an ordinary note in a former data folder changes", () => {
+        mockRecords(record("a", { inclusions: "[Topics:Physics]" }));
+        const { app, fire } = makeApp();
+        const tracker = new ProjectContentTracker(app);
+        fire("modify", file("scribe/ordinary.md"));
+        tracker.flushNow();
+        expect(tracker.getEpoch("a")).toBe(1);
+        tracker.dispose();
+      });
+      it("ignores plugin-data changes even when a project uses a broad tag source", () => {
         mockRecords(record("a", { inclusions: "#physics" }));
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
 
-        fire("modify", file("scribe/scribe-conversations/chat.md"));
+        fire("modify", file(".scribe/scribe-conversations/chat.md"));
         tracker.flushNow();
 
-        expect(tracker.getEpoch("a")).toBe(1);
+        expect(tracker.getEpoch("a")).toBe(0);
         tracker.dispose();
       });
       it("conservatively dirties a project declaring a property EXCLUSION on a markdown change out of folder scope", () => {
@@ -199,7 +208,7 @@ describe("projectContentTracker", () => {
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
 
-        fire("modify", file("scribe/scribe-log.md"));
+        fire("modify", file(".scribe/logs/scribe-log.md"));
         tracker.flushNow();
 
         expect(tracker.getEpoch("a")).toBe(0);
@@ -232,7 +241,7 @@ describe("projectContentTracker", () => {
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
 
-        fire("modify", file("scribe/scribe-log.md"));
+        fire("modify", file(".scribe/logs/scribe-log.md"));
         tracker.flushNow();
 
         expect(tracker.getEpoch("a")).toBe(0);
@@ -311,7 +320,7 @@ describe("projectContentTracker", () => {
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
 
-        fire("changed", file("scribe/scribe-log.md"));
+        fire("changed", file(".scribe/logs/scribe-log.md"));
         tracker.flushNow();
 
         expect(tracker.getEpoch("p")).toBe(0);
@@ -322,7 +331,7 @@ describe("projectContentTracker", () => {
         const { app, fire } = makeApp();
         const tracker = new ProjectContentTracker(app);
 
-        fire("changed", file("scribe/scribe-conversations/chat.md"));
+        fire("changed", file(".scribe/scribe-conversations/chat.md"));
         tracker.flushNow();
 
         expect(tracker.getEpoch("p")).toBe(0);

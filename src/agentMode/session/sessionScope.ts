@@ -14,7 +14,8 @@ export function resolveScopeCwd(vaultBasePath: string, projectId: ProjectScopeId
   const path = requireNodeModule<typeof import("node:path")>("path");
   const record = getCachedProjectRecordById(projectId);
   if (!record) throw new OrphanedProjectError(projectId);
-  return path.join(vaultBasePath, path.dirname(record.filePath));
+  if (record.project.workspacePath === undefined) throw new Error("项目工作位置未设置。");
+  return path.join(vaultBasePath, record.project.workspacePath);
 }
 
 export function resolveProjectIdForCwd(vaultBasePath: string, cwd: string): string | undefined {
@@ -23,7 +24,7 @@ export function resolveProjectIdForCwd(vaultBasePath: string, cwd: string): stri
   const target = norm(cwd);
   if (target === norm(vaultBasePath)) return undefined;
   for (const record of getCachedProjectRecords()) {
-    if (target === norm(path.join(vaultBasePath, path.dirname(record.filePath)))) {
+    if (target === norm(path.join(vaultBasePath, record.project.workspacePath ?? ""))) {
       return record.project.id;
     }
   }

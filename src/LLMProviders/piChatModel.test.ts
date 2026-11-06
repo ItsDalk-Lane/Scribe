@@ -36,6 +36,192 @@ describe("piChatModel", () => {
 
   describe("createPiChatModel", () => {
     describe("agentStream", () => {
+      it("redacts request credentials from split text, thinking, tool arguments and persisted final messages", async () => {
+        const apiKey = "request-private-key";
+        const bearer = "request-derived-token";
+        const message = createAssistantMessage(model);
+        message.content = [
+          { type: "text", text: apiKey },
+          { type: "thinking", thinking: bearer },
+          { type: "toolCall", id: "tool", name: "write_note", arguments: { content: apiKey } },
+        ];
+        message.stopReason = "toolUse";
+        const chat = createPiChatModel(model, async () => ({
+          stream: () => {
+            const source = createAssistantMessageEventStream();
+            source.push({ type: "text_start", contentIndex: 0, partial: message });
+            source.push({
+              type: "text_delta",
+              contentIndex: 0,
+              delta: "request-",
+              partial: message,
+            });
+            source.push({
+              type: "text_delta",
+              contentIndex: 0,
+              delta: "private-key",
+              partial: message,
+            });
+            source.push({ type: "text_end", contentIndex: 0, content: apiKey, partial: message });
+            source.push({ type: "thinking_start", contentIndex: 1, partial: message });
+            source.push({
+              type: "thinking_delta",
+              contentIndex: 1,
+              delta: "request-derived-",
+              partial: message,
+            });
+            source.push({
+              type: "thinking_delta",
+              contentIndex: 1,
+              delta: "token",
+              partial: message,
+            });
+            source.push({
+              type: "thinking_end",
+              contentIndex: 1,
+              content: bearer,
+              partial: message,
+            });
+            source.push({ type: "toolcall_start", contentIndex: 2, partial: message });
+            source.push({
+              type: "toolcall_delta",
+              contentIndex: 2,
+              delta: '{"content":"request-',
+              partial: message,
+            });
+            source.push({
+              type: "toolcall_delta",
+              contentIndex: 2,
+              delta: 'private-key"}',
+              partial: message,
+            });
+            source.push({
+              type: "toolcall_end",
+              contentIndex: 2,
+              toolCall: message.content[2] as ToolCall,
+              partial: message,
+            });
+            source.push({ type: "done", reason: "toolUse", message });
+            source.end();
+            return source;
+          },
+          options: {
+            apiKey,
+            headers: { Authorization: `Bearer ${bearer}` },
+            fetch: jest.fn(),
+            maxRetries: 0,
+          },
+        }));
+        const events = [];
+        const source = chat.agentStream({ messages: [] });
+        for await (const event of source) events.push(event);
+        const result = await source.result();
+        expect(result.content).toEqual([
+          { type: "text", text: "[redacted]" },
+          { type: "thinking", thinking: "[redacted]" },
+          {
+            type: "toolCall",
+            id: "tool",
+            name: "write_note",
+            arguments: { content: "[redacted]" },
+          },
+        ]);
+        for (const secret of [apiKey, bearer]) {
+          expect(JSON.stringify(events)).not.toContain(secret);
+          expect(
+            events
+              .filter(
+                (event) =>
+                  event.type === "text_delta" ||
+                  event.type === "thinking_delta" ||
+                  event.type === "toolcall_delta"
+              )
+              .map((event) => ("delta" in event ? event.delta : ""))
+              .join("")
+          ).not.toContain(secret);
+        }
+      });
+
+      it("masks service-account fields in errors and every terminal content payload before persistence", async () => {
+        const privateKey = "PRIVATE-KEY-CONTENT";
+        const json = JSON.stringify({ private_key: privateKey, access_token: "oauth-token" });
+        const message = createAssistantMessage(model);
+        message.content = [
+          { type: "thinking", thinking: privateKey, thinkingSignature: "opaque-signature" },
+          {
+            type: "toolCall",
+            id: "call",
+            name: "write_note",
+            arguments: { value: "oauth-token" },
+            argumentsError: json,
+          },
+        ];
+        message.stopReason = "error";
+        message.errorMessage = `Rejected ${privateKey}`;
+        const chat = createPiChatModel(model, async () => ({
+          redactionValues: [json],
+          stream: () => {
+            const source = createAssistantMessageEventStream();
+            source.push({ type: "error", reason: "error", error: message });
+            source.end();
+            return source;
+          },
+          options: { apiKey: "provider-managed-auth", fetch: jest.fn(), maxRetries: 0 },
+        }));
+        const result = await chat.agentStream({ messages: [] }).result();
+        expect(result).toMatchObject({ stopReason: "error" });
+        for (const value of [privateKey, "oauth-token", json])
+          expect(JSON.stringify(result)).not.toContain(value);
+        expect(result.errorMessage).toContain("[redacted]");
+      });
+
+      it("preserves tool identity and opaque protocol signatures with a short credential", async () => {
+        const message = createAssistantMessage(model);
+        const tool: ToolCall = {
+          type: "toolCall",
+          id: "call-a",
+          name: "read_note",
+          arguments: { path: "a" },
+          thoughtSignature: "opaque-signature",
+        };
+        message.content = [
+          { type: "thinking", thinking: "a", thinkingSignature: "opaque-signature" },
+          tool,
+        ];
+        message.stopReason = "toolUse";
+        const chat = createPiChatModel(model, async () => ({
+          stream: () => {
+            const source = createAssistantMessageEventStream();
+            source.push({
+              type: "toolcall_end",
+              contentIndex: 1,
+              toolCall: tool,
+              partial: message,
+            });
+            source.push({ type: "done", reason: "toolUse", message });
+            source.end();
+            return source;
+          },
+          options: { apiKey: "a", fetch: jest.fn(), maxRetries: 0 },
+        }));
+        const events = [];
+        const source = chat.agentStream({ messages: [] });
+        for await (const event of source) events.push(event);
+        const result = await source.result();
+        expect(result.content).toEqual([
+          { type: "thinking", thinking: "[redacted]", thinkingSignature: "opaque-signature" },
+          { ...tool, arguments: { path: "[redacted]" } },
+        ]);
+        expect(events.find((event) => event.type === "toolcall_end")).toMatchObject({
+          toolCall: {
+            id: "call-a",
+            name: "read_note",
+            arguments: { path: "[redacted]" },
+            thoughtSignature: "opaque-signature",
+          },
+        });
+      });
+
       it("does not treat an unclassified transport TypeError as a proven transient network error (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
         try {

@@ -8,7 +8,7 @@ import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel"
 import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import { configuredModelToCustomModel } from "@/modelManagement";
 import type { Provider, ModelInfo } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { logFileManager } from "@/logFileManager";
 import { logError } from "@/logger";
 import { getSettings, setSettings } from "@/settings/model";
@@ -38,7 +38,7 @@ interface CapturedRequest {
   body?: string;
 }
 
-function installNetwork(tokenStatus = 200): CapturedRequest[] {
+function installNetwork(tokenStatus = 200, replyText = "fixture success"): CapturedRequest[] {
   const requests: CapturedRequest[] = [];
   function reply(url: string, options: RequestInit = {}) {
     requests.push({
@@ -58,9 +58,7 @@ function installNetwork(tokenStatus = 200): CapturedRequest[] {
           )
         : url.includes(":streamGenerateContent")
           ? fixtureSse({
-              candidates: [
-                { content: { parts: [{ text: "fixture success" }] }, finishReason: "STOP" },
-              ],
+              candidates: [{ content: { parts: [{ text: replyText }] }, finishReason: "STOP" }],
             })
           : url.includes(":streamRawPredict") &&
               typeof options.body === "string" &&
@@ -70,11 +68,21 @@ function installNetwork(tokenStatus = 200): CapturedRequest[] {
                 role: "assistant",
                 model: "fixture-model",
                 id: "fixture-message",
-                content: [{ type: "text", text: "fixture success" }],
+                content: [{ type: "text", text: replyText }],
                 stop_reason: "end_turn",
                 usage: { input_tokens: 1, output_tokens: 1 },
               })
-            : completion;
+            : replyText === "fixture success"
+              ? completion
+              : fixtureSse({
+                  choices: [
+                    {
+                      index: 0,
+                      message: { role: "assistant", content: replyText },
+                      finish_reason: "stop",
+                    },
+                  ],
+                });
     return {
       status,
       text,
@@ -114,7 +122,7 @@ function savedVertexModel(npm: string, enableCors: boolean, pretty: boolean): Cu
     displayName: "Synthetic Vertex",
     origin: { kind: "byok", catalogProviderId: "google-vertex" },
     addedAt: 0,
-    apiKeyKeychainId: id,
+    apiKeyRef: id,
     enableCors,
     extras: { GOOGLE_VERTEX_PROJECT: "synthetic-project", GOOGLE_VERTEX_LOCATION: "us-central1" },
   };
@@ -137,7 +145,6 @@ function savedVertexModel(npm: string, enableCors: boolean, pretty: boolean): Cu
       configuredAt: 0,
       info,
     },
-    apiKey: KeychainService.getInstance().getSecretById(id),
   });
 }
 
@@ -168,11 +175,15 @@ describe("providerTransport authentication integration", () => {
   beforeAll(() => {
     Object.assign(window, nativeClasses);
     Object.defineProperty(window.crypto, "subtle", { configurable: true, value: webcrypto.subtle });
-    KeychainService.resetInstance();
-    KeychainService.getInstance({
-      vault: { adapter: { getBasePath: () => "/synthetic-vault" } },
-      secretStorage: { getSecret: (id: string) => secretEntries.get(id) ?? null },
-    } as unknown as App);
+    SecretStore.resetInstance();
+    const store = SecretStore.getInstance({ vault: { adapter: {} } } as unknown as App);
+    Object.assign(store, {
+      withSecret: async <T>(id: string, execute: (value: string) => Promise<T>) => {
+        const value = secretEntries.get(id);
+        if (!value) throw new Error("Missing synthetic credential");
+        return execute(value);
+      },
+    });
   });
   beforeEach(async () => {
     secretEntries.clear();
@@ -184,11 +195,24 @@ describe("providerTransport authentication integration", () => {
     window.fetch = previousFetch;
     Object.defineProperty(window.crypto, "subtle", { configurable: true, value: previousSubtle });
     setRequestUrlImpl(undefined);
-    KeychainService.resetInstance();
+    SecretStore.resetInstance();
     setSettings({ debug: previousDebug });
   });
 
   describe("createProviderChatModel", () => {
+    it.each([
+      "@ai-sdk/google-vertex",
+      "@ai-sdk/google-vertex/anthropic",
+      "@ai-sdk/openai-compatible",
+    ])(
+      "masks an echoed derived OAuth token from the actual %s request before the reply is stored",
+      async (npm) => {
+        installNetwork(200, "short-lived-access-token");
+        const result = await attempt(savedVertexModel(npm, false, true));
+        expect(result.error).toBeUndefined();
+        expect(result.reply).toBe("[redacted]");
+      }
+    );
     it.each(
       ["@ai-sdk/mistral", "@ai-sdk/openai-compatible"].flatMap((npm) =>
         [false, true].flatMap((enableCors) =>
@@ -265,7 +289,7 @@ describe("providerTransport authentication integration", () => {
       async ({ npm, enableCors, form }) => {
         const requests = installNetwork();
         const model = savedVertexModel("@ai-sdk/mistral", enableCors, true);
-        const credentials = JSON.parse(model.apiKey!) as unknown;
+        const credentials = JSON.parse(secretEntries.get(model.credentialRef!)!) as unknown;
         model.providerNpm = npm;
         if (npm.startsWith("@ai-sdk/google-vertex")) model.baseUrl = undefined;
         model.apiKey =
@@ -275,7 +299,7 @@ describe("providerTransport authentication integration", () => {
               ? JSON.stringify([credentials])
               : form === "bearer-json"
                 ? `Bearer ${JSON.stringify(credentials, null, 2)}`
-                : JSON.stringify(model.apiKey);
+                : JSON.stringify(secretEntries.get(model.credentialRef!));
         const result = await attempt(model);
         const observed = `${result.error?.message}\n${logFileManager.exportLogText()}`;
         expect(observed.includes(privateMarker)).toBe(false);

@@ -1,6 +1,7 @@
 import { isCustomCommandEnabled } from "@/commands/state";
 import { useChatBackendModelOptions } from "@/hooks/useChatBackendModelOptions";
 import { t } from "@/lib/i18n";
+import { SecretStore } from "@/services/secretStore";
 import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { MenuCommandModal, type ContentState } from "@/components/command-ui";
 import { useApp } from "@/context";
@@ -204,10 +205,15 @@ export function CustomCommandChatModalContent({
         new Notice(t("This command is disabled."));
         return;
       }
-      setFinalText("");
-      setEditedText("");
       setIsLoading(true);
       try {
+        if (resolvedModel?.credentialRef)
+          await SecretStore.getInstance(app).withSecret(
+            resolvedModel.credentialRef,
+            async () => undefined
+          );
+        setFinalText("");
+        setEditedText("");
         const result = await runTurn(async (ctx: StreamingChatTurnContext) => {
           if (ctx.signal.aborted) return "";
           const prompt = await getPrompt(ctx);
@@ -220,6 +226,7 @@ export function CustomCommandChatModalContent({
           lastInputPromptRef.current = "";
         }
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
         logError("Error running command prompt:", error);
         if (isMountedRef.current) {
           new Notice(t("Failed to send message. Please try again."));
@@ -230,7 +237,7 @@ export function CustomCommandChatModalContent({
         }
       }
     },
-    [command, runTurn]
+    [app, command, resolvedModel, runTurn]
   );
 
   const enableTemplating = command.enableTemplating !== false;
@@ -270,15 +277,20 @@ export function CustomCommandChatModalContent({
     followUpSubmitLockRef.current = true;
 
     const inputValue = followUpValue;
-    setFollowUpValue("");
 
     try {
       await runPrompt(async (ctx) => {
+        setFollowUpValue((current) => (current === inputValue ? "" : current));
         if (!ctx.isFirstTurn)
           return processCommandPrompt(app, inputValue, originalText, true, enableTemplating);
         setFirstInstruction(inputValue);
         return buildFirstPrompt(inputValue);
       });
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError"))
+        new Notice(
+          error instanceof Error ? error.message : t("Failed to send message. Please try again.")
+        );
     } finally {
       followUpSubmitLockRef.current = false;
     }

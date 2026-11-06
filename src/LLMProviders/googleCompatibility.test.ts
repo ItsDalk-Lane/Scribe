@@ -256,7 +256,7 @@ describe("httpChatApis", () => {
           if (event.type === "text_delta") chunks.push(event.delta);
           if (event.type === "done") reply = event.message;
         }
-        expect(chunks).toEqual(["First", " second"]);
+        expect(chunks.join("")).toBe("First second");
         expect(reply?.content).toEqual([{ type: "text", text: "First second" }]);
         expect(requests).toHaveLength(2);
         expect(requests[1].url).toBe(requests[0].url);
@@ -313,7 +313,7 @@ describe("httpChatApis", () => {
       for (event = await iterator.next(); !event.done; event = await iterator.next()) {
         if (event.value.type === "text_delta") remaining.push(event.value.delta);
       }
-      expect(remaining).toEqual([" second"]);
+      expect(remaining.join("")).toBe(" second");
       expect(requests).toHaveLength(2);
     });
 

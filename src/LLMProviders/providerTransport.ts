@@ -173,7 +173,7 @@ function watsonxRequest(url: URL, body: BodyInit | null | undefined, model: Cust
   return JSON.stringify(payload);
 }
 
-export function createProviderFetch(model: CustomModel): typeof fetch {
+export function createProviderFetch(model: CustomModel, redactionValues?: string[]): typeof fetch {
   const apiKey = model.apiKey?.trim() ?? "";
   const catalogId = model.providerCatalogId;
   const vertex =
@@ -233,7 +233,7 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       return createVertexAccessToken(
         credentials.client_email,
         credentials.private_key,
-        createProviderFetch(model),
+        createProviderFetch(model, redactionValues),
         typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
       );
     })();
@@ -354,6 +354,10 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     ) {
       headers.set("Authorization", `Bearer ${await vertexToken(signal ?? undefined)}`);
     }
+    if (redactionValues)
+      headers.forEach((value, name) => {
+        if (/(?:authorization|api[-_]?key|token|secret)$/i.test(name)) redactionValues.push(value);
+      });
     const options: RequestInit = {
       ...init,
       method,

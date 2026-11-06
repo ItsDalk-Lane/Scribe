@@ -1,65 +1,42 @@
-import { t } from "@/lib/i18n";
-import { formatSkillDisplayName } from "@/agentMode/skills/mergeDiscovery";
-import {
-  buildSkillRepairPrompt,
-  type SkillRepairEvidence,
-} from "@/agentMode/skills/skillRepairPrompt";
-import { listBackendDescriptors } from "@/agentMode/backends/registry";
-import type { AgentBrand } from "@/agentMode/session/types";
+import React from "react";
+import { Notice } from "obsidian";
 import type { AgentExtensionItem } from "@/agentMode/session/extensionInventory";
-import { DeleteConfirmModal } from "./DeleteConfirmDialog";
-import { EmptyPlaceholder } from "./EmptyPlaceholder";
 import {
-  AllSkillsNotLoaded,
-  SkillLoadIssues,
-  SkillLoadIssuesModal,
-  type SkillLoadIssue,
-} from "./SkillLoadIssues";
-import {
-  PropertiesModal,
-  type PropertiesSaveOutcome,
-  type PropertiesSaveRequest,
-} from "./PropertiesDialog";
-import {
-  dismissEpermBanner,
   SkillManager,
-  useEpermSeen,
+  getManagedSkills,
   useManagedSkills,
   useRejectedSkills,
 } from "@/agentMode/skills/SkillManager";
-import { SkillRow } from "./SkillRow";
-import { SkillEditorModal } from "./SkillEditorModal";
-import { type Skill } from "@/agentMode/skills/types";
+import { buildSkillRepairPrompt } from "@/agentMode/skills/skillRepairPrompt";
+import { SKILL_CREATOR_SKILL_NAME } from "@/agentMode/skills/builtinSkills";
+import { pickSkillImport } from "@/agentMode/skills/pickSkillImport";
+import { readSkillPackage } from "@/agentMode/skills/skillImport";
+import type { Skill, RejectedSkill } from "@/agentMode/skills/types";
+import { SkillDetails, clearSkillEditorDraft } from "@/agentMode/skills/ui/SkillDetails";
+import { SkillModal } from "@/agentMode/skills/ui/SkillModal";
+import { SkillRow } from "@/agentMode/skills/ui/SkillRow";
+import {
+  confirmSkillAction,
+  confirmSkillPackage,
+  LocalSkillImportView,
+  SystemSkillSearch,
+  BuiltinSkillRecovery,
+} from "@/agentMode/skills/ui/SkillImportDialogs";
+import { EmptyPlaceholder } from "@/agentMode/skills/ui/EmptyPlaceholder";
 import { AgentConfigurationHeader } from "@/components/ui/AgentConfigurationHeader";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { deriveSkillsFolder } from "@/settings/scribeFolder";
-import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
-import { openVaultPath } from "@/utils/openVaultPath";
-import { revealFolderInExplorer } from "@/utils/revealFolderInExplorer";
-import { getVaultBase, toVaultRelative } from "@/utils/vaultPath";
-import { useSettingsValue } from "@/settings/model";
-import { AlertTriangle, Plus } from "lucide-react";
-import { App, FileSystemAdapter, Notice, TFolder } from "obsidian";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useApp } from "@/context";
 import { usePlugin } from "@/contexts/PluginContext";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-const SYNC_BRANDS: ReadonlyArray<{ substr: string; brand: string }> = [
-  { substr: "onedrive", brand: "OneDrive" },
-  { substr: "icloud", brand: "iCloud" },
-  { substr: "dropbox", brand: "Dropbox" },
-];
-
-export function openNewSkillModal(app: App, onCreated?: () => Promise<void>): void {
-  new SkillEditorModal(app, {
-    onSave: async (name, content) => {
-      const result = await SkillManager.getInstance().createSkill(name, content);
-      if (result.ok) await onCreated?.();
-      return result;
-    },
-  }).open();
-}
+import { t } from "@/lib/i18n";
+import { getEffectiveSkillsFolder } from "@/settings/scribeFolder";
+import { getVaultBase, toVaultRelative } from "@/utils/vaultPath";
+import { Plus, RotateCcw } from "lucide-react";
 
 export interface SkillsSettingsProps {
   embedded?: boolean;
@@ -70,366 +47,381 @@ export interface SkillsSettingsProps {
   onChanged?: () => Promise<void>;
 }
 
-export const SkillsSettings: React.FC<SkillsSettingsProps> = ({
+export function SkillsSettings({
   embedded = false,
   query,
   children,
-  runtimeItems,
-  checking,
   onChanged,
-}) => {
+}: SkillsSettingsProps) {
   const app = useApp();
   const plugin = usePlugin();
-  const settings = useSettingsValue();
-  const skillsFolder = deriveSkillsFolder(settings);
-  const descriptors = useMemo(() => listBackendDescriptors(), []);
-  const agents = useMemo<ReadonlyArray<AgentBrand>>(
-    () =>
-      descriptors.map(({ id, displayName, Icon }) => ({
-        id,
-        displayName,
-        Icon,
-      })),
-    [descriptors]
-  );
   const skills = useManagedSkills();
-  const rejectedSkills = useRejectedSkills();
-  const epermSeen = useEpermSeen();
-
-  const [localSearch, setSearchValue] = useState("");
-  const searchValue = query ?? localSearch;
-  const [refreshError, setRefreshError] = useState<string>();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const [syncBannerDismissed, setSyncBannerDismissed] = useState(false);
-
-  useEffect(() => {
+  const rejected = useRejectedSkills();
+  const [localSearch, setLocalSearch] = React.useState("");
+  const [selectedSkill, setSelectedSkill] = React.useState<Skill | RejectedSkill>();
+  const selectedSkillRef = React.useRef<Skill | RejectedSkill>();
+  const selectSkill = (skill: Skill | RejectedSkill | undefined) => {
+    selectedSkillRef.current = skill;
+    setSelectedSkill(skill);
+  };
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string>();
+  const [builtinAttention, setBuiltinAttention] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const lifecycle = React.useRef<AbortController | null>(null);
+  const refresh = React.useCallback(async () => {
+    if (!SkillManager.hasInstance()) return;
     const manager = SkillManager.getInstance();
-    let active = true;
-    const refresh = async () => {
-      const result = await manager.refresh();
-      if (active) {
-        setRefreshError(
-          result.reconcileError ??
-            result.discoveryError ??
-            (result.reconcileErrorCount > 0
-              ? t("Some skill links could not be updated. Check folder permissions.")
-              : undefined)
+    const result = await manager.refresh(true);
+    if (lifecycle.current?.signal.aborted) return;
+    setError(
+      result.ok
+        ? undefined
+        : t("Could not refresh skills: {reason}", {
+            reason: result.discoveryError ?? t("Please try again."),
+          })
+    );
+    try {
+      const statuses = await manager.getBuiltinStatuses();
+      if (!lifecycle.current?.signal.aborted)
+        setBuiltinAttention(
+          statuses.some((item) => item.status !== "installed" && item.status !== "uninstalled")
         );
-      }
-    };
+    } catch {
+      if (!lifecycle.current?.signal.aborted) setBuiltinAttention(true);
+    }
+  }, []);
+  React.useEffect(() => {
+    lifecycle.current = new AbortController();
     void refresh();
-    const hostWindow = containerRef.current?.win;
-    const handleFocus = (): void => {
+    const hostWindow = containerRef.current?.ownerDocument.defaultView;
+    const focused = () => {
       void refresh();
     };
-    hostWindow?.addEventListener("focus", handleFocus);
+    hostWindow?.addEventListener("focus", focused);
     return () => {
-      active = false;
-      hostWindow?.removeEventListener("focus", handleFocus);
+      lifecycle.current?.abort();
+      hostWindow?.removeEventListener("focus", focused);
     };
-  }, [skillsFolder]);
-
-  const handleEditSkillMd = useCallback(
-    (skill: Skill) => {
-      new SkillEditorModal(app, {
-        skill,
-        onSave: async (_name, content) => {
-          const result = await SkillManager.getInstance().saveContent(skill, content);
-          if (result.ok) await onChanged?.();
-          return result;
-        },
-      }).open();
-    },
-    [app, onChanged]
-  );
-
-  const handleRevealSkillFolder = useCallback(
-    (dirPath: string) => {
-      const folderRel = toVaultRelative(dirPath, getVaultBase(app));
-      if (app.vault.getAbstractFileByPath(folderRel) instanceof TFolder) {
-        revealFolderInExplorer(app, folderRel);
+  }, [refresh]);
+  const changed = async () => {
+    await onChanged?.();
+    await refresh();
+  };
+  const perform = async (action: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await action();
+    } catch (failure) {
+      if (!lifecycle.current?.signal.aborted)
+        setError(
+          t("Could not update skills: {reason}", {
+            reason: failure instanceof Error ? t(failure.message) : t("Please try again."),
+          })
+        );
+    } finally {
+      if (!lifecycle.current?.signal.aborted) setBusy(false);
+    }
+  };
+  const closeSettings = () => {
+    (app as unknown as { setting?: { close: () => void } }).setting?.close();
+  };
+  const launchSkill = async (initial: Skill) => {
+    const skill = getManagedSkills().find((item) => item.filePath === initial.filePath) ?? initial;
+    if (skill.userInvocable === false) return;
+    if (!skill.enabledAgents.includes("native")) {
+      if (
+        !(await confirmSkillAction(app, {
+          title: t("Enable and use skill"),
+          content: t("Enable {name} before opening a chat?", { name: skill.name }),
+          confirmText: t("Enable and use"),
+        }))
+      )
         return;
-      }
-      void openWithSystemDefault(dirPath);
+      const result = await SkillManager.getInstance().toggleAgent(skill, "native", true);
+      if (!result.ok) throw new Error(result.message);
+      await changed();
+    }
+    await plugin.newAgentChatWithDraft(`/${skill.name} `);
+    closeSettings();
+  };
+  const launchSkillAuthoring = async () => {
+    const creator = getManagedSkills().find(
+      (skill) => skill.name === SKILL_CREATOR_SKILL_NAME && skill.userInvocable !== false
+    );
+    if (!creator) {
+      new Notice(t("The built-in skill-creator skill is missing. Restore built-in skills first."));
+      return;
+    }
+    if (!creator.enabledAgents.includes("native")) {
+      if (
+        !(await confirmSkillAction(app, {
+          title: t("Enable and use skill"),
+          content: t("Enable {name} before opening a chat?", { name: creator.name }),
+          confirmText: t("Enable and use"),
+        }))
+      )
+        return;
+      const result = await SkillManager.getInstance().toggleAgent(creator, "native", true);
+      if (!result.ok) throw new Error(result.message);
+      await changed();
+    }
+    await plugin.newSkillAuthoringChat();
+    closeSettings();
+  };
+  const actionsFor = (skill: Skill | RejectedSkill) => ({
+    skill,
+    busy,
+    container: containerRef.current,
+    onUse: () => {
+      const current = selectedSkillRef.current ?? skill;
+      if ("enabledAgents" in current) void perform(() => launchSkill(current));
     },
-    [app]
-  );
-
-  const handleFixWithAgent = useCallback(
-    (issues: readonly SkillRepairEvidence[]): void => {
-      (app as unknown as { setting: { close: () => void } }).setting.close();
-      void plugin.newAgentChatWithDraft(buildSkillRepairPrompt(issues));
+    onToggle: (enabled: boolean) => {
+      const current = selectedSkillRef.current ?? skill;
+      if ("enabledAgents" in current)
+        return perform(async () => {
+          const result = await SkillManager.getInstance().toggleAgent(current, "native", enabled);
+          if (!result.ok) throw new Error(result.message);
+          await changed();
+        });
     },
-    [app, plugin]
-  );
-
-  const loadIssues = useMemo<SkillLoadIssue[]>(() => {
-    const vaultBase = getVaultBase(app);
-    return rejectedSkills.map((skill) => {
-      const folderRel = toVaultRelative(skill.dirPath, vaultBase);
-      const indexed = app.vault.getAbstractFileByPath(folderRel) instanceof TFolder;
-      const evidence: SkillRepairEvidence = {
-        location: toVaultRelative(skill.filePath, vaultBase),
-        reason: skill.reason,
-        offendingText: skill.offendingText,
-      };
-      return {
-        ...evidence,
-        revealLabel: indexed ? "Reveal in vault" : "Show in folder",
-        onFixWithAgent: () => handleFixWithAgent([evidence]),
-        onOpen: () => openVaultPath(app, skill.filePath),
-        onReveal: () => handleRevealSkillFolder(skill.dirPath),
-      };
+    onUninstall: () => {
+      const current = selectedSkillRef.current ?? skill;
+      void perform(async () => {
+        const builtin = current.source?.kind === "builtin";
+        if (
+          !(await confirmSkillAction(app, {
+            title: t("Uninstall {name}?", { name: current.name }),
+            content: t(
+              builtin
+                ? "This removes the built-in skill and supporting files. You can reinstall it with Restore built-in skills."
+                : "This permanently removes the skill folder and all supporting files. The original imported source is kept."
+            ),
+            confirmText: t("Uninstall"),
+          }))
+        )
+          return;
+        const result = await SkillManager.getInstance().deleteSkill(current);
+        if (!result.ok) throw new Error(result.message);
+        clearSkillEditorDraft(current.dirPath);
+        await changed();
+        selectSkill(undefined);
+        new Notice(t("Skill uninstalled"));
+      });
+    },
+  });
+  const importLocalPath = async (path: string) => {
+    const pkg = await readSkillPackage(path, "local", lifecycle.current?.signal);
+    const installed = [...getManagedSkills(), ...rejected];
+    if (!(await confirmSkillPackage(app, pkg, lifecycle.current?.signal, installed))) return;
+    const existing = installed.some(
+      (skill) =>
+        skill.source?.kind === pkg.source.kind &&
+        skill.source?.origin === pkg.source.origin &&
+        Boolean(pkg.source.origin)
+    );
+    const result = await SkillManager.getInstance().installPackage(
+      pkg,
+      existing,
+      lifecycle.current?.signal
+    );
+    if (!result.ok) throw new Error(result.message);
+    await changed();
+    new Notice(t("Skill imported"));
+  };
+  const importLocal = async (kind: "folder" | "zip") => {
+    await perform(async () => {
+      const ownerDocument = containerRef.current?.ownerDocument;
+      if (!ownerDocument) return;
+      const path = await pickSkillImport(kind, ownerDocument);
+      if (!path || lifecycle.current?.signal.aborted) return;
+      await importLocalPath(path);
     });
-  }, [app, handleFixWithAgent, handleRevealSkillFolder, rejectedSkills]);
-
-  const filteredSkills = useMemo(() => filterSkills(skills, searchValue), [skills, searchValue]);
-
-  const displayFolder = skillsFolder;
-
-  const handleEditProperties = useCallback(
-    (skill: Skill) => {
-      new PropertiesModal(
-        app,
-        skill,
-        displayFolder,
-        async (req: PropertiesSaveRequest): Promise<PropertiesSaveOutcome> => {
-          const manager = SkillManager.getInstance();
-          const result = await manager.saveProperties(skill, {
-            newName: req.nameChanged ? req.newName : undefined,
-            patch: req.patch,
-          });
-          if (!result.ok) {
-            if (result.code === "collision") return "collision";
-            if (result.code === "invalid") {
-              return "stay";
+  };
+  const importDropped = async (path: string) => {
+    await perform(async () => {
+      if (lifecycle.current?.signal.aborted) return;
+      await importLocalPath(path);
+    });
+  };
+  const search = (query ?? localSearch).trim().toLowerCase();
+  const entries = [...skills, ...rejected].filter((skill) =>
+    `${skill.name} ${"description" in skill ? skill.description : skill.reason}`
+      .toLowerCase()
+      .includes(search)
+  );
+  if (selectedSkill)
+    return (
+      <div ref={containerRef}>
+        {error && (
+          <p role="alert" className="tw-text-ui-small tw-text-error">
+            {error}
+          </p>
+        )}
+        <SkillDetails
+          {...actionsFor(selectedSkill)}
+          onBack={() => selectSkill(undefined)}
+          onChanged={changed}
+          onSkillChanged={selectSkill}
+          onRestore={() =>
+            new SkillModal(app, t("Restore built-in skills"), () => (
+              <BuiltinSkillRecovery app={app} onChanged={changed} />
+            )).open()
+          }
+          onRepair={() => {
+            if (selectedSkill.source?.kind === "builtin") return;
+            void perform(async () => {
+              await plugin.newAgentChatWithDraft(
+                buildSkillRepairPrompt([
+                  {
+                    location: toVaultRelative(selectedSkill.filePath, getVaultBase(app)),
+                    reason:
+                      "reason" in selectedSkill
+                        ? selectedSkill.reason
+                        : t("Could not load this skill"),
+                    offendingText:
+                      "offendingText" in selectedSkill ? selectedSkill.offendingText : undefined,
+                  },
+                ])
+              );
+              closeSettings();
+            });
+          }}
+        />
+      </div>
+    );
+  const addMenu = (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button disabled={busy}>
+          <Plus className="tw-size-4" />
+          {t("Add skill")}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" container={containerRef.current ?? undefined}>
+        <DropdownMenuItem
+          onSelect={() => {
+            void perform(launchSkillAuthoring);
+          }}
+        >
+          {t("Create with Agent")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            const base = getVaultBase(app);
+            if (!base) {
+              setError(t("The current vault path is unavailable."));
+              return;
             }
-            new Notice(
-              t("Could not update {p0}: {p1}", {
-                p0: req.nameChanged ? req.newName : skill.name,
-                p1: result.message,
-              })
-            );
-            return "stay";
+            new SkillModal(app, t("System search"), () => (
+              <SystemSkillSearch
+                app={app}
+                skillsDirectory={`${base}/${getEffectiveSkillsFolder()}`}
+                onChanged={changed}
+              />
+            )).open();
+          }}
+        >
+          {t("System search")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() =>
+            new SkillModal(app, t("Local import"), (close) => (
+              <LocalSkillImportView
+                onImportPath={(path) => {
+                  close();
+                  void importDropped(path);
+                }}
+                onPickFolder={() => {
+                  close();
+                  void importLocal("folder");
+                }}
+                onPickZip={() => {
+                  close();
+                  void importLocal("zip");
+                }}
+              />
+            )).open()
           }
-          await onChanged?.();
-          return "close";
-        }
-      ).open();
-    },
-    [app, displayFolder, onChanged]
+        >
+          {t("Local import")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
-
-  const handleAskDelete = useCallback(
-    (skill: Skill) => {
-      const manager = SkillManager.getInstance();
-      new DeleteConfirmModal(
-        app,
-        skill,
-        displayFolder,
-        manager.getAgentDirsProjectRel(),
-        async () => {
-          const result = await manager.deleteSkill(skill);
-          if (!result.ok) {
-            new Notice(t("Failed to delete {p0}: {p1}", { p0: skill.name, p1: result.message }));
-            return;
-          }
-          await onChanged?.();
-        }
-      ).open();
-    },
-    [app, displayFolder, onChanged]
+  const restoreButton = (
+    <Button
+      variant="secondary"
+      disabled={busy}
+      onClick={() =>
+        new SkillModal(app, t("Restore built-in skills"), () => (
+          <BuiltinSkillRecovery app={app} onChanged={changed} />
+        )).open()
+      }
+    >
+      <RotateCcw className="tw-size-4" />
+      {t("Restore built-in skills")}
+    </Button>
   );
-
-  const syncBrand = useMemo(() => detectSyncBrand(app), [app]);
-
   return (
     <div ref={containerRef} className="tw-space-y-4">
-      <section>
-        {!embedded && (
-          <AgentConfigurationHeader
-            agents={[{ id: "native", label: "Scribe" }]}
-            selectedAgent="native"
-            query={searchValue}
-            onQueryChange={setSearchValue}
-            searchPlaceholder={t("Search skills…")}
-            label={t("Skills")}
-            count={skills.length}
-          />
-        )}
-
-        {refreshError && (
-          <div role="alert" className="tw-text-ui-smaller tw-text-error">
-            {refreshError}
-          </div>
-        )}
-
-        {(epermSeen || (syncBrand !== null && !syncBannerDismissed)) && (
-          <div className="tw-mt-3 tw-flex tw-flex-col tw-gap-2">
-            {epermSeen && <EpermBanner onDismiss={dismissEpermBanner} />}
-            {syncBrand !== null && !syncBannerDismissed && (
-              <SyncFolderBanner brand={syncBrand} onDismiss={() => setSyncBannerDismissed(true)} />
-            )}
-          </div>
-        )}
-
-        {loadIssues.length > 0 && (
-          <div className="tw-mt-3">
-            <SkillLoadIssues
-              issues={loadIssues}
-              onViewDetails={() =>
-                new SkillLoadIssuesModal(app, loadIssues, () =>
-                  handleFixWithAgent(loadIssues)
-                ).open()
-              }
-            />
-          </div>
-        )}
-
-        {!embedded && (
-          <div className="tw-group/extension-actions tw-mt-4 tw-flex tw-justify-end">
-            <Button onClick={() => openNewSkillModal(app, onChanged)}>
-              <Plus className="tw-mr-2 tw-size-4" />
-              {t("New skill")}
-            </Button>
-          </div>
-        )}
-
-        <div className="tw-mt-4" role="region" aria-label={t("Your skills")}>
-          <div
-            role="heading"
-            aria-level={3}
-            className="tw-mb-3 tw-text-left tw-text-sm tw-font-semibold"
-          >
-            {t("Personally installed skills")}
-          </div>
-          {skills.length === 0 ? (
-            rejectedSkills.length > 0 ? (
-              <AllSkillsNotLoaded />
-            ) : (
-              <EmptyPlaceholder folder={displayFolder} />
-            )
-          ) : (
-            <div className="tw-flex tw-flex-col tw-gap-1.5">
-              {filteredSkills.length === 0 ? (
-                <div className="tw-rounded-md tw-border tw-border-dashed tw-border-border tw-bg-transparent tw-px-3 tw-py-6 tw-text-center tw-text-ui-smaller tw-text-muted">
-                  {t("No skills match “")}
-                  {searchValue}
-                  {t("”.")}
-                </div>
-              ) : (
-                filteredSkills.map((skill) => (
-                  <SkillRow
-                    key={skill.dirPath}
-                    skill={skill}
-                    agents={agents}
-                    agentDirsProjectRel={SkillManager.getInstance().getAgentDirsProjectRel()}
-                    onEditSkillMd={() => handleEditSkillMd(skill)}
-                    onEditProperties={() => handleEditProperties(skill)}
-                    onRevealInVault={() => handleRevealSkillFolder(skill.dirPath)}
-                    onDelete={() => handleAskDelete(skill)}
-                    containerRef={containerRef}
-                    runtimeItems={runtimeItems}
-                    checking={checking}
-                    onChanged={onChanged}
-                  />
-                ))
-              )}
-            </div>
-          )}
+      {!embedded && (
+        <AgentConfigurationHeader
+          agents={[{ id: "native", label: "Scribe" }]}
+          selectedAgent="native"
+          query={query ?? localSearch}
+          onQueryChange={setLocalSearch}
+          searchPlaceholder={t("Search skills…")}
+          label={t("Skills")}
+          count={skills.length + rejected.length}
+          actions={
+            <>
+              {restoreButton}
+              {addMenu}
+            </>
+          }
+        />
+      )}
+      {embedded && (
+        <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2">
+          {restoreButton}
+          {addMenu}
         </div>
+      )}
+      {busy && <p role="status">{t("Updating skills…")}</p>}
+      {error && (
+        <p role="alert" className="tw-text-ui-small tw-text-error">
+          {error}
+        </p>
+      )}
+      {builtinAttention && (
+        <p role="status" className="tw-text-ui-small tw-text-muted">
+          {t(
+            "Some built-in skills need attention. Open Restore built-in skills to review conflicts or local changes."
+          )}
+        </p>
+      )}
+      <section aria-label={t("Your skills")} className="tw-space-y-2">
+        {entries.length === 0 ? (
+          skills.length + rejected.length === 0 ? (
+            <EmptyPlaceholder />
+          ) : (
+            <p>{t("No skills match your search.")}</p>
+          )
+        ) : (
+          entries.map((skill) => (
+            <SkillRow
+              key={skill.dirPath}
+              {...actionsFor(skill)}
+              onOpen={() => selectSkill(skill)}
+            />
+          ))
+        )}
       </section>
       {children}
     </div>
   );
-};
-
-const EpermBanner: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => {
-  return (
-    <div
-      className={cn(
-        "tw-flex tw-items-start tw-gap-2.5 tw-rounded-md tw-border tw-border-solid tw-border-warning/100",
-        "tw-bg-callout-warning/20 tw-px-3.5 tw-py-2.5 tw-text-ui-smaller tw-text-warning"
-      )}
-      role="alert"
-    >
-      <AlertTriangle className="tw-mt-0.5 tw-size-4 tw-shrink-0" aria-hidden="true" />
-      <div className="tw-flex-1">
-        <span className="tw-block tw-font-semibold">
-          {t("Turn on Windows Developer Mode to share skills with your agents.")}
-        </span>
-        <span className="tw-mt-0.5 tw-block tw-text-normal">
-          {t(
-            "Scribe shares a skill by adding a shortcut to each agent’s skills folder, and Windows allows that only for admins or with Developer Mode (Settings → Privacy & security → For developers). Until then, turning a skill on for an agent is saved, but the agent can’t see the skill."
-          )}
-        </span>
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        style={{ appearance: "none", border: 0, background: "transparent", padding: 0 }}
-        className="tw-px-1 tw-text-faint hover:tw-text-normal"
-        aria-label={t("Dismiss")}
-      >
-        ×
-      </button>
-    </div>
-  );
-};
-
-const SyncFolderBanner: React.FC<{ brand: string; onDismiss: () => void }> = ({
-  brand,
-  onDismiss,
-}) => {
-  return (
-    <div
-      className={cn(
-        "tw-flex tw-items-start tw-gap-2.5 tw-rounded-md tw-border tw-border-solid tw-border-blue/80",
-        "tw-bg-blue-rgb/10 tw-px-3.5 tw-py-2.5 tw-text-ui-smaller tw-text-normal"
-      )}
-      role="status"
-    >
-      <div className="tw-flex-1">
-        <span className="tw-block tw-font-semibold">
-          {t("This vault is inside")}
-          {brand}.
-        </span>
-        <span className="tw-mt-0.5 tw-block tw-text-muted">
-          {t(
-            "Sync can break the links Scribe uses to share skills with agents. If a skill disappears from an agent after a sync, turn it off and on again here."
-          )}
-        </span>
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        style={{ appearance: "none", border: 0, background: "transparent", padding: 0 }}
-        className="tw-px-1 tw-text-faint hover:tw-text-normal"
-        aria-label={t("Dismiss")}
-      >
-        ×
-      </button>
-    </div>
-  );
-};
-
-function filterSkills(skills: Skill[], query: string): Skill[] {
-  const trimmed = query.trim().toLowerCase();
-  if (trimmed.length === 0) return skills;
-  return skills.filter(
-    (s) =>
-      formatSkillDisplayName(s).toLowerCase().includes(trimmed) ||
-      s.description.toLowerCase().includes(trimmed)
-  );
-}
-
-function detectSyncBrand(app: App): string | null {
-  const adapter = app.vault.adapter;
-  if (!(adapter instanceof FileSystemAdapter)) return null;
-  const base = adapter.getBasePath().toLowerCase();
-  for (const { substr, brand } of SYNC_BRANDS) {
-    if (base.includes(substr)) return brand;
-  }
-  return null;
 }

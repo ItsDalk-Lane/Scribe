@@ -9,13 +9,13 @@ import {
 } from "@/agentMode/backends/native/nativeModels";
 
 const mockCreate = jest.fn().mockResolvedValue({ model: { id: "chosen" } });
-const mockSecret = jest.fn().mockReturnValue("synthetic-secret");
+const mockSecret = jest.fn().mockReturnValue("available");
 jest.mock("@/LLMProviders/chatModelManager", () => ({
   __esModule: true,
   default: { getInstance: () => ({ createModelInstanceFromBridged: mockCreate }) },
 }));
-jest.mock("@/services/keychainService", () => ({
-  KeychainService: { getInstance: () => ({ getSecretById: mockSecret }) },
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ getStatus: mockSecret }) },
 }));
 jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 
@@ -41,7 +41,7 @@ function settings(): ScribeSettings {
         baseUrl: "https://example.test/custom/v1",
         enableCors: true,
         requiresApiKey: true,
-        apiKeyKeychainId: "saved-key",
+        apiKeyRef: "saved-key",
         origin: { kind: "byok", catalogProviderId: "openai" },
         addedAt: 1,
       },
@@ -158,7 +158,7 @@ describe("nativeModels", () => {
     });
   });
   describe("createNativeModel()", () => {
-    it("reuses the exact BYOK endpoint, transport choice and saved key of the selected model", async () => {
+    it("reuses the selected endpoint and encrypted reference without resolving plaintext", async () => {
       setSettings(settings());
       await createNativeModel({} as App, "reasoning");
       expect(mockSecret).toHaveBeenCalledWith("saved-key");
@@ -168,10 +168,10 @@ describe("nativeModels", () => {
           configuredModelId: "reasoning",
           baseUrl: "https://example.test/custom/v1",
           enableCors: true,
-          apiKey: "synthetic-secret",
+          credentialRef: "saved-key",
         })
       );
-      expect(getSettings().providers.cloud.apiKeyKeychainId).toBe("saved-key");
+      expect(getSettings().providers.cloud.apiKeyRef).toBe("saved-key");
     });
     it("preserves a keyless local endpoint and its compatibility transport", async () => {
       setSettings(settings());

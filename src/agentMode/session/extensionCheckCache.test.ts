@@ -169,7 +169,7 @@ describe("extensionCheckCache", () => {
       expect(readCachedExtensionCheck(null, first)).toBeNull();
       expect(readCachedExtensionCheck(null, newest)).not.toBeNull();
     });
-    it(`answers after a plugin reload from the snapshot saved in local storage`, () => {
+    it(`discards snapshots on reload without saving them to local storage`, () => {
       const { app } = fakeApp();
       const key = extensionCheckCacheKey(
         { backendId: "test-backend-a", scopeKind: "user", cwd: null },
@@ -179,9 +179,7 @@ describe("extensionCheckCache", () => {
 
       resetExtensionCheckCacheForTests();
 
-      expect(readCachedExtensionCheck(app, key)?.mcpServers).toEqual([
-        { name: "notes", status: "connected" },
-      ]);
+      expect(readCachedExtensionCheck(app, key)).toBeNull();
     });
   });
 
@@ -189,14 +187,14 @@ describe("extensionCheckCache", () => {
     it("answers nothing when no page has saved an answer for the scope yet", () => {
       expect(readCachedExtensionView(null, "test-backend-a")).toBeNull();
     });
-    it(`restores the saved answer after a plugin reload`, () => {
+    it(`does not restore old answers after a plugin reload`, () => {
       const { app } = fakeApp();
       const view = { groups, runtimeState: "checked" as const };
       storeCachedExtensionView(app, "test-backend-a", view);
 
       resetExtensionCheckCacheForTests();
 
-      expect(readCachedExtensionView(app, "test-backend-a")).toEqual(view);
+      expect(readCachedExtensionView(app, "test-backend-a")).toBeNull();
     });
     it("ignores a saved payload that does not carry a group list", () => {
       const { app, storage } = fakeApp();

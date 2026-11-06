@@ -11,15 +11,11 @@ import {
   LEGACY_SELECTED_TEXT_PLACEHOLDER,
 } from "@/commands/constants";
 import { CustomCommand } from "@/commands/type";
+import { parseDocument } from "yaml";
 import { logWarn } from "@/logger";
 import { App, Notice, TAbstractFile, TFile, Vault } from "obsidian";
 import { getEffectiveCustomPromptsFolder } from "@/settings/scribeFolder";
-import {
-  updateCachedCommands,
-  getCachedCustomCommands,
-  addPendingFileWrite,
-  removePendingFileWrite,
-} from "./state";
+import { updateCachedCommands, getCachedCustomCommands } from "./state";
 import {
   extractTemplateNoteFiles,
   getFileContent,
@@ -91,39 +87,48 @@ export function isCustomCommandFile(file: TAbstractFile): boolean {
   return true;
 }
 
-export function hasOrderFrontmatter(app: App, file: TFile): boolean {
-  const metadata = app.metadataCache.getFileCache(file);
-  return metadata?.frontmatter?.[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] != null;
-}
-
-export async function parseCustomCommandFile(app: App, file: TFile): Promise<CustomCommand> {
-  const rawContent = await app.vault.read(file);
-  const content = stripFrontmatter(rawContent);
-  const metadata = app.metadataCache.getFileCache(file);
-  const showInContextMenu =
-    metadata?.frontmatter?.[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] ?? EMPTY_COMMAND.showInContextMenu;
-  const showInSlashMenu =
-    metadata?.frontmatter?.[SCRIBE_COMMAND_SLASH_ENABLED] ?? EMPTY_COMMAND.showInSlashMenu;
-  const lastUsedMs = metadata?.frontmatter?.[SCRIBE_COMMAND_LAST_USED] ?? EMPTY_COMMAND.lastUsedMs;
-  const order = metadata?.frontmatter?.[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] ?? EMPTY_COMMAND.order;
-  const modelKey = metadata?.frontmatter?.[SCRIBE_COMMAND_MODEL_KEY] ?? EMPTY_COMMAND.modelKey;
-
+export async function parseCustomCommandFile(
+  app: App,
+  file: Pick<TFile, "path" | "basename">
+): Promise<CustomCommand> {
+  const raw = await app.vault.adapter.read(file.path);
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(raw);
+  const document = parseDocument(match ? match[1] : "{}");
+  if (document.errors.length) throw new Error("指令属性格式不正确，请检查文件。");
+  const value = <T>(key: string, fallback: T): T => {
+    const found: unknown = document.get(key);
+    return typeof found === typeof fallback ? (found as T) : fallback;
+  };
   return {
     title: file.basename,
-    enabled: metadata?.frontmatter?.[SCRIBE_COMMAND_ENABLED] !== false,
-    enableTemplating: metadata?.frontmatter?.[SCRIBE_COMMAND_ENABLE_TEMPLATING] !== false,
-    modelKey,
-    content,
-    showInContextMenu,
-    showInSlashMenu,
-    order,
-    lastUsedMs,
+    content: stripFrontmatter(raw),
+    enabled: value(SCRIBE_COMMAND_ENABLED, true),
+    enableTemplating: value(SCRIBE_COMMAND_ENABLE_TEMPLATING, true),
+    showInContextMenu: value(SCRIBE_COMMAND_CONTEXT_MENU_ENABLED, EMPTY_COMMAND.showInContextMenu),
+    showInSlashMenu: value(SCRIBE_COMMAND_SLASH_ENABLED, EMPTY_COMMAND.showInSlashMenu),
+    lastUsedMs: value(SCRIBE_COMMAND_LAST_USED, EMPTY_COMMAND.lastUsedMs),
+    order: value(SCRIBE_COMMAND_CONTEXT_MENU_ORDER, EMPTY_COMMAND.order),
+    modelKey: value(SCRIBE_COMMAND_MODEL_KEY, EMPTY_COMMAND.modelKey),
   };
 }
 
 export async function fetchAllCustomCommands(app: App): Promise<CustomCommand[]> {
-  const files = app.vault.getFiles().filter((file) => isCustomCommandFile(file));
-  return await Promise.all(files.map((file) => parseCustomCommandFile(app, file)));
+  const folder = getCustomCommandsFolder();
+  if (!(await app.vault.adapter.exists(folder))) return [];
+  const { files } = await app.vault.adapter.list(folder);
+  return Promise.all(
+    files
+      .filter(
+        (path) =>
+          path.endsWith(".md") &&
+          path.startsWith(`${folder}/`) &&
+          !path.slice(folder.length + 1).includes("/")
+      )
+      .sort()
+      .map((path) =>
+        parseCustomCommandFile(app, { path, basename: path.slice(folder.length + 1, -3) })
+      )
+  );
 }
 
 export async function loadAllCustomCommands(app: App): Promise<CustomCommand[]> {
@@ -392,35 +397,4 @@ export function getNextCustomCommandOrder(): number {
     0
   );
   return lastOrder === Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : lastOrder + 10;
-}
-
-export async function ensureCommandFrontmatter(app: App, file: TFile, command: CustomCommand) {
-  try {
-    addPendingFileWrite(file.path);
-    await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-      if (frontmatter[SCRIBE_COMMAND_ENABLED] == null) {
-        frontmatter[SCRIBE_COMMAND_ENABLED] = command.enabled !== false;
-      }
-      if (frontmatter[SCRIBE_COMMAND_ENABLE_TEMPLATING] == null) {
-        frontmatter[SCRIBE_COMMAND_ENABLE_TEMPLATING] = command.enableTemplating !== false;
-      }
-      if (frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] == null) {
-        frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
-      }
-      if (frontmatter[SCRIBE_COMMAND_SLASH_ENABLED] == null) {
-        frontmatter[SCRIBE_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
-      }
-      if (frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] == null) {
-        frontmatter[SCRIBE_COMMAND_CONTEXT_MENU_ORDER] = command.order;
-      }
-      if (frontmatter[SCRIBE_COMMAND_MODEL_KEY] == null) {
-        frontmatter[SCRIBE_COMMAND_MODEL_KEY] = command.modelKey;
-      }
-      if (frontmatter[SCRIBE_COMMAND_LAST_USED] == null) {
-        frontmatter[SCRIBE_COMMAND_LAST_USED] = command.lastUsedMs;
-      }
-    });
-  } finally {
-    removePendingFileWrite(file.path);
-  }
 }

@@ -10,7 +10,8 @@ import React, { useState } from "react";
 interface AgentProjectCreateFormProps {
   title?: string;
   subtitle?: string;
-  onSave: (data: { name: string }) => Promise<void>;
+  onSave: (data: { name: string; workspacePath?: string }) => Promise<void>;
+  onChooseWorkspace?: (select: (path: string) => void) => void;
   onCancel: () => void;
 }
 
@@ -18,9 +19,11 @@ export function AgentProjectCreateForm({
   title,
   subtitle,
   onSave,
+  onChooseWorkspace,
   onCancel,
 }: AgentProjectCreateFormProps): React.ReactElement {
   const [name, setName] = useState("");
+  const [workspacePath, setWorkspacePath] = useState<string | undefined>();
   const [isSaving, setIsSaving] = useState(false);
 
   const canSave = name.trim().length > 0 && !isSaving;
@@ -29,7 +32,10 @@ export function AgentProjectCreateForm({
     if (name.trim().length === 0 || isSaving) return;
     setIsSaving(true);
     try {
-      await onSave({ name: name.trim() });
+      await onSave({
+        name: name.trim(),
+        ...(workspacePath !== undefined ? { workspacePath } : {}),
+      });
     } catch (e) {
       new Notice(err2String(e));
     } finally {
@@ -70,6 +76,39 @@ export function AgentProjectCreateForm({
         </FormField>
       )}
 
+      <FormField
+        label={t("Project workspace")}
+        description={t("Renaming the project does not move this folder.")}
+      >
+        <div className="tw-break-words tw-text-sm tw-text-muted">
+          {workspacePath === undefined
+            ? t("A new folder named after this project")
+            : workspacePath || t("Vault root")}
+        </div>
+        {onChooseWorkspace && (
+          <div className="tw-flex tw-flex-wrap tw-gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onChooseWorkspace(setWorkspacePath)}
+              disabled={isSaving}
+            >
+              {t("Choose folder")}
+            </Button>
+            {workspacePath !== undefined && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setWorkspacePath(undefined)}
+                disabled={isSaving}
+              >
+                {t("Use a new folder")}
+              </Button>
+            )}
+          </div>
+        )}
+      </FormField>
+
       <div className="tw-flex tw-justify-end tw-gap-2">
         <Button variant="secondary" onClick={onCancel} disabled={isSaving}>
           {t("Cancel")}
@@ -82,11 +121,12 @@ export function AgentProjectCreateForm({
   );
 }
 
-export function makeNewProjectConfig(name: string): ProjectConfig {
+export function makeNewProjectConfig(name: string, workspacePath?: string): ProjectConfig {
   const now = Date.now();
   return {
     id: randomUUID(),
     name,
+    ...(workspacePath !== undefined ? { workspacePath } : {}),
     systemPrompt: "",
     contextSource: { inclusions: "", exclusions: "", webUrls: "", youtubeUrls: "" },
     created: now,

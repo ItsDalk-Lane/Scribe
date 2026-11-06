@@ -1,7 +1,10 @@
+import { reviewSkillDraft } from "@/agentMode/skills/ui/SkillDraftModal";
+import { SubagentManager, getSubagents } from "@/agentMode/subagents/SubagentManager";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
+import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
 import { createNativeTools } from "@/agentMode/sdk/nativeTools";
 import { createNativeAdvancedTools } from "@/agentMode/sdk/nativeAdvancedTools";
@@ -26,7 +29,7 @@ import {
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { openScribeSettings } from "@/settings/openSettings";
-import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
+import { getScribeDataPath } from "@/utils/appPaths";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { providerDestination } from "@/modelManagement";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
@@ -143,24 +146,38 @@ export const NativeBackendDescriptor: BackendDescriptor = {
   createBackendProcess({ plugin, app }) {
     if (!isAgentBackendEnabled(getSettings(), "native")) throw new Error("This agent is disabled.");
     const path = requireNodeModule<typeof import("node:path")>("path");
-    const os = requireNodeModule<typeof import("node:os")>("os");
-    const directory = path.join(scribeAppDataDir(os.homedir()), getVaultId(app), "native-agent");
+    const directory = path.join(getScribeDataPath(app), "chats", "v2");
+    const attachments = new NodeAttachmentStorage(path.join(getScribeDataPath(app), "attachments"));
     return new NativeBackendProcess({
+      getSubagents,
+      getManuallyInvokedSkill: (name, cwd) => {
+        const skill = getNativeScopedSkills(cwd).find((entry) => entry.name === name);
+        if (!skill) return null;
+        if (!skill.enabledAgents.includes("native") || skill.userInvocable === false)
+          throw new Error(t("This skill is disabled or does not permit manual use."));
+        return skill;
+      },
       getModels: () => getNativeModelEntries(getSettings()),
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),
       createModel: (id) => createNativeModel(app, id),
-      getSystemPrompt: (input) => buildNativeSystemPrompt(app, input),
+      getSystemPrompt: async (input) => {
+        await SubagentManager.getInstance(app).refresh();
+        return buildNativeSystemPrompt(app, input);
+      },
       createTools(context) {
         const commandTasks = new NativeCommandTasks({
           cwd: context.cwd,
           sessionId: context.sessionId,
           emit: (update) => context.emit(update),
+          flush: () => context.flush?.() ?? Promise.resolve(),
+          beforeStart: (task) => context.beforeTaskStart?.(task) ?? Promise.resolve(),
           getEnv: buildObsidianCommandEnv,
           outputDirectory: path.join(directory, "tasks"),
         });
         const advanced = createNativeAdvancedTools({
           ...context,
           app,
+          reviewSkillDraft: (draft, signal) => reviewSkillDraft(app, draft, signal),
           skills: () =>
             getNativeScopedSkills(context.cwd).filter(
               (skill) => skill.enabledAgents.includes("native") && !skill.disableModelInvocation
@@ -174,7 +191,8 @@ export const NativeBackendDescriptor: BackendDescriptor = {
           shutdown: () => commandTasks.shutdown(),
         };
       },
-      storage: new NodeNativeSessionStorage(path.join(directory, "sessions")),
+      storage: new NodeNativeSessionStorage(directory, attachments),
+      attachments,
       getExtensionRuntime: readNativeExtensionRuntime,
       getVaultConfigDir: () => app.vault.configDir,
       maxSteps: () => getSettings().agentMode.backends.native?.maxSteps,

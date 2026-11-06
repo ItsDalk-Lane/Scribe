@@ -1,18 +1,16 @@
-import { type App, Platform, TFile } from "obsidian";
+import { SubagentManager } from "@/agentMode/subagents/SubagentManager";
+import { type App, Platform } from "obsidian";
 import type ScribePlugin from "@/main";
 import { logError } from "@/logger";
-import { getSettings, subscribeToSettingsChange } from "@/settings/model";
+import { getSettings } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
-import { deriveSkillsFolder } from "@/settings/scribeFolder";
-import { scribeAppDataDir, getVaultId } from "@/utils/appPaths";
+import { getScribeDataPath } from "@/utils/appPaths";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { backendRegistry, listBackendDescriptors } from "./backends/registry";
 import type { BackendId } from "./session/types";
-import { AgentChatPersistenceManager } from "./session/AgentChatPersistenceManager";
 import { AgentModelPreloader } from "./session/AgentModelPreloader";
 import { AgentSessionIndex } from "./session/AgentSessionIndex";
-import { createNodeFileStorage, createNodeSnapshotStorage } from "./session/nodeFileStorage";
-import { AgentSessionSnapshots } from "./session/AgentSessionSnapshots";
+import { createNodeFileStorage } from "./session/nodeFileStorage";
 import { AgentSessionManager } from "./session/AgentSessionManager";
 import { SkillManager } from "./skills";
 import {
@@ -22,9 +20,8 @@ import {
 
 export { backendDisplayOrder, listBackendDescriptors } from "./backends/registry";
 export type { AgentSessionManager } from "./session/AgentSessionManager";
-export { frameSink as acpFrameSink, setFrameSinkVaultBasePath } from "./session/debugSink";
 export type { BackendDescriptor, BackendId, ScribeMode, ModelSelection } from "./session/types";
-export { getManagedSkills, SkillManager, SkillsSettings } from "./skills";
+export { getManagedSkills, SkillManager, SKILL_CREATOR_SKILL_NAME, SkillsSettings } from "./skills";
 export type { Skill } from "./skills";
 export { default as ScribeAgentView } from "./ui/ScribeAgentView";
 export { PlanPreviewView } from "./ui/PlanPreviewView";
@@ -44,9 +41,10 @@ function collectAgentSkillsDirsProjectRel(): Record<string, string> {
 }
 
 export function createAgentSessionManager(app: App, plugin: ScribePlugin): AgentSessionManager {
-  const os = requireNodeModule<typeof import("node:os")>("os");
   const path = requireNodeModule<typeof import("node:path")>("path");
   const skillManager = SkillManager.initialize(app, collectAgentSkillsDirsProjectRel());
+  const subagentManager = SubagentManager.getInstance(app);
+  plugin.register(() => SubagentManager.reset());
   const initializing = new Map<BackendId, Promise<void>>();
   const beforeBackendStart = async (id: BackendId): Promise<void> => {
     await initializing.get(id);
@@ -58,23 +56,8 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
     (id) => backendRegistry[id],
     beforeBackendStart
   );
-  const persistenceManager = new AgentChatPersistenceManager(app);
-  const vaultId = getVaultId(app);
-  const indexPath = path.join(
-    scribeAppDataDir(os.homedir()),
-    "vaults",
-    vaultId,
-    "agent-chat-index.json"
-  );
+  const indexPath = path.join(getScribeDataPath(app), "chats", "v2", "cache", "index.json");
   const sessionIndex = new AgentSessionIndex(createNodeFileStorage(), indexPath);
-  const sessionSnapshots = new AgentSessionSnapshots(
-    createNodeSnapshotStorage(),
-    path.join(path.dirname(indexPath), "agent-chat-snapshots"),
-    (notePath) => {
-      const file = app.vault.getAbstractFileByPath(notePath);
-      return file instanceof TFile ? file : null;
-    }
-  );
   let managerRef: AgentSessionManager | null = null;
   const prompter = createDefaultPermissionPrompter(
     (id) => managerRef?.getSessionByBackendId(id) ?? null
@@ -88,21 +71,12 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
     resolveDescriptor: (id) => backendRegistry[id],
     modelPreloader: preloader,
     beforeBackendStart,
-    persistenceManager,
-    sessionSnapshots,
     sessionIndex,
   });
   managerRef = manager;
   const refreshManagedSkills = async (): Promise<void> => {
     await skillManager.refresh(true);
   };
-  subscribeToSettingsChange((prev, next) => {
-    const prevFolder = deriveSkillsFolder(prev);
-    const nextFolder = deriveSkillsFolder(next);
-    if (prevFolder !== nextFolder) {
-      void refreshManagedSkills().catch((e) => logError("[Skills] Skill refresh failed", e));
-    }
-  });
   for (const descriptor of listBackendDescriptors()) {
     descriptor.subscribeInstallState(plugin, () => {
       if (initializing.has(descriptor.id)) return;
@@ -113,9 +87,15 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
         );
     });
   }
-  const initialSkillsReady = refreshManagedSkills().catch((error) => {
-    logError("[Skills] Initial discovery pass failed", error);
-  });
+  const initialSkillsReady = Promise.all([
+    refreshManagedSkills(),
+    skillManager.syncBuiltins(),
+    subagentManager.refresh(),
+  ])
+    .then(() => undefined)
+    .catch((error) => {
+      logError("[Skills] Initial discovery pass failed", error);
+    });
   for (const descriptor of listBackendDescriptors()) {
     const ready = Promise.resolve()
       .then(() => descriptor.onPluginLoad?.(plugin))

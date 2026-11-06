@@ -25,7 +25,7 @@ const group: ProviderModelGroup = {
     origin: { kind: "byok", catalogProviderId: "anthropic" },
     addedAt: 0,
     requiresApiKey: true,
-    apiKeyKeychainId: "key1",
+    apiKeyRef: "key1",
   },
   verification: { ok: true, checkedAt: 0 },
   models: [
@@ -103,7 +103,7 @@ describe("ProviderModelTable", () => {
 
     it("shows No key instead of Endpoint accessible when verification reports a missing key", () => {
       const noKeyGroup: ProviderModelGroup = {
-        provider: { ...group.provider, apiKeyKeychainId: undefined },
+        provider: { ...group.provider, apiKeyRef: undefined },
         models: group.models,
         verification: { ok: false, code: "missing_api_key", checkedAt: 0 },
       };

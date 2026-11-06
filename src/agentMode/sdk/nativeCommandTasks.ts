@@ -8,6 +8,13 @@ export interface NativeCommandTasksOptions {
   outputDirectory: string;
   getEnv?(): Promise<Readonly<Record<string, string>>>;
   emit(update: SessionUpdate): void;
+  flush?(): Promise<void>;
+  beforeStart?(task: {
+    taskId: string;
+    toolCallId: string;
+    command: string;
+    outputFile: string;
+  }): Promise<void>;
 }
 
 export interface NativeCommandInput {
@@ -104,6 +111,15 @@ export class NativeCommandTasks {
     input.signal?.throwIfAborted();
     const taskId = `command-${uuidv4()}`;
     const outputFile = path.join(this.options.outputDirectory, `${taskId}.output`);
+    if (input.background)
+      await this.options.beforeStart?.({
+        taskId,
+        toolCallId: input.toolCallId,
+        command: input.command,
+        outputFile,
+      });
+    input.signal?.throwIfAborted();
+    input.checkPermission?.();
     const fd = fs.openSync(outputFile, "wx", 0o600);
     let output = "";
     let stopped = false;
@@ -187,9 +203,12 @@ export class NativeCommandTasks {
     child.stdout?.on("data", record);
     child.stderr?.on("data", record);
     let resolveCompletion!: (result: NativeCommandResult) => void;
-    const completion = new Promise<NativeCommandResult>((resolve) => {
+    let rejectCompletion!: (error: unknown) => void;
+    const completion = new Promise<NativeCommandResult>((resolve, reject) => {
       resolveCompletion = resolve;
+      rejectCompletion = reject;
     });
+    void completion.catch(() => {});
     this.tasks.set(taskId, { child, completion, stop });
     child.once("close", (exitCode) => {
       if (killTimer) window.clearTimeout(killTimer);
@@ -224,7 +243,10 @@ export class NativeCommandTasks {
           outputFile,
         });
       }
-      resolveCompletion(result);
+      void (this.options.flush?.() ?? Promise.resolve()).then(
+        () => resolveCompletion(result),
+        rejectCompletion
+      );
     });
     const ready = new Promise<void>((resolve, reject) => {
       child.once("spawn", () => {
@@ -250,6 +272,7 @@ export class NativeCommandTasks {
     input.signal?.addEventListener("abort", abort, { once: true });
     if (input.signal?.aborted) stop();
     await ready;
+    await this.options.flush?.();
     if (input.background) {
       input.signal?.removeEventListener("abort", abort);
       if (stopped) return completion;

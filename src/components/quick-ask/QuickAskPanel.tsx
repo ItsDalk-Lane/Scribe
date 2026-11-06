@@ -89,15 +89,26 @@ export function QuickAskPanel({
     [onResizeStart]
   );
 
+  const submissionPending = useRef(false);
   const handleSubmit = useCallback(async () => {
-    if (!inputText.trim() || isStreaming) return;
+    if (!inputText.trim() || isStreaming || submissionPending.current) return;
     if (!hasModel) {
       new Notice(t("Select a model to continue."));
       return;
     }
     const text = inputText;
-    setInputText("");
-    await sendMessage(text);
+    submissionPending.current = true;
+    try {
+      await sendMessage(text);
+      setInputText((current) => (current === text ? "" : current));
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError"))
+        new Notice(
+          error instanceof Error ? error.message : t("Failed to send message. Please try again.")
+        );
+    } finally {
+      submissionPending.current = false;
+    }
   }, [inputText, isStreaming, sendMessage, hasModel]);
 
   const handleKeyDown = useCallback(

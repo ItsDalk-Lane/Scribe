@@ -23,11 +23,8 @@ export const SCRIBE_AGENT_ICON_SVG = `<g transform="${SCRIBE_AGENT_ICON_TRANSFOR
 export const USER_SENDER = "user";
 export const AI_SENDER = "ai";
 
-export const SCRIBE_FOLDER_ROOT = "scribe";
+export const SCRIBE_FOLDER_ROOT = ".scribe";
 export const DEFAULT_SCRIBE_FOLDER = SCRIBE_FOLDER_ROOT;
-const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-custom-prompts`;
-const DEFAULT_MEMORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/memory`;
-const DEFAULT_PROJECTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/projects`;
 export const DEFAULT_SKILLS_FOLDER = `${SCRIBE_FOLDER_ROOT}/skills`;
 export const DEFAULT_QA_EXCLUSIONS_SETTING = SCRIBE_FOLDER_ROOT;
 export const NOTE_CONTEXT_PROMPT_TAG = "note_context";
@@ -191,7 +188,6 @@ export enum SEND_SHORTCUT {
 
 export const COMMAND_IDS = {
   TRIGGER_QUICK_COMMAND: "trigger-quick-command",
-  CLEAR_SCRIBE_CACHE: "clear-scribe-cache",
   COUNT_WORD_AND_TOKENS_SELECTION: "count-word-and-tokens-selection",
   COUNT_TOTAL_VAULT_TOKENS: "count-total-vault-tokens",
   NEW_AGENT_CHAT: "new-agent-chat",
@@ -210,7 +206,6 @@ export const COMMAND_IDS = {
 
 export const COMMAND_NAMES: Record<CommandId, string> = {
   [COMMAND_IDS.TRIGGER_QUICK_COMMAND]: "Trigger quick command",
-  [COMMAND_IDS.CLEAR_SCRIBE_CACHE]: "Clear Scribe cache",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "Count total tokens in your vault",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "Count words and tokens in selection",
   [COMMAND_IDS.NEW_AGENT_CHAT]: "New Scribe Agent Chat",
@@ -239,7 +234,6 @@ export const COMMAND_ICONS: Partial<Record<CommandId, string>> = {
   [COMMAND_IDS.ADD_WEB_SELECTION_TO_CHAT_CONTEXT]: "globe",
   [COMMAND_IDS.ADD_CUSTOM_COMMAND]: "plus-circle",
   [COMMAND_IDS.APPLY_CUSTOM_COMMAND]: "play-circle",
-  [COMMAND_IDS.CLEAR_SCRIBE_CACHE]: "eraser",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "calculator",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "hash",
   [COMMAND_IDS.OPEN_LOG_FILE]: "file-text",
@@ -253,7 +247,6 @@ export const ALLOWED_NOTE_CONTEXT_EXTENSIONS = [...TEXT_READABLE_EXTENSIONS, "pd
 export const DEFAULT_SETTINGS: ScribeSettings = {
   openAIApiKey: "",
   openAIOrgId: "",
-  huggingfaceApiKey: "",
   cohereApiKey: "",
   anthropicApiKey: "",
   googleApiKey: "",
@@ -263,40 +256,28 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
   deepseekApiKey: "",
   siliconflowApiKey: "",
   defaultModelKey: "",
-  userSystemPrompt: "",
-  openAIProxyBaseUrl: "",
   scribeFolder: DEFAULT_SCRIBE_FOLDER,
   scribeRootHistory: [],
   autoAttachActiveNote: true,
   defaultOpenArea: DEFAULT_OPEN_AREA.VIEW,
   defaultSendShortcut: SEND_SHORTCUT.ENTER,
-  customPromptsFolder: DEFAULT_CUSTOM_PROMPTS_FOLDER,
   qaExclusions: DEFAULT_QA_EXCLUSIONS_SETTING,
   qaInclusions: "",
   debug: false,
   enableInlineCitations: true,
   groqApiKey: "",
   activeModels: [],
-  promptUsageTimestamps: {},
   chatHistorySortStrategy: "recent",
-  projectsFolder: DEFAULT_PROJECTS_FOLDER,
   inlineEditCommands: [],
-  projectList: [],
-  memoryFolderName: DEFAULT_MEMORY_FOLDER,
   quickCommandModelKey: undefined,
   quickCommandIncludeNoteContext: true,
-  defaultSystemPromptTitle: "",
   agentMode: {
-    byok: {},
     activeBackend: "native",
     backends: {},
-    debugFullFrames: true,
     notificationSound: true,
     notificationSoundId: "piano",
     welcomeDismissed: false,
-    skills: {
-      folder: DEFAULT_SKILLS_FOLDER,
-    },
+    skills: {},
   },
   providers: {},
   configuredModels: [],

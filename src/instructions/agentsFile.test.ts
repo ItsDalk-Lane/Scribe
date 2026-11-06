@@ -67,7 +67,13 @@ function makeApp(initialFiles: Record<string, string> = {}, folders: string[] = 
         write: jest.fn(async (path: string, content: string) => {
           state.files.set(diskPath(path) ?? path, content);
         }),
-        stat: jest.fn(async () => ({ ctime: 0, mtime: 0, size: 0 })),
+        stat: jest.fn(async (path: string) =>
+          state.folders.has(path)
+            ? { type: "folder", ctime: 0, mtime: 0, size: 0 }
+            : state.files.has(path)
+              ? { type: "file", ctime: 0, mtime: 0, size: 0 }
+              : null
+        ),
         mkdir: jest.fn(async (path: string) => {
           state.folders.add(path);
         }),
@@ -112,7 +118,7 @@ describe("agentsFile", () => {
       expect(state.files.get("scribe/projects/Research/AGENTS.md")).toBe("Legacy project rules");
     });
 
-    it("converts a generated mirror back to the current project.md instruction body", async () => {
+    it("preserves a generated mirror instead of importing a replacement body", async () => {
       const marker =
         "<!-- scribe:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
       const { app, state } = makeApp({
@@ -121,10 +127,12 @@ describe("agentsFile", () => {
 
       await ensureAgentsFile(app, "Projects/Research", "Fallback rules");
 
-      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("Fallback rules");
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe(
+        `${marker}\n\nExisting instructions`
+      );
     });
 
-    it("keeps a generated mirror's body when there is nothing to replace it with", async () => {
+    it("leaves a generated mirror unchanged when ensuring an existing file", async () => {
       const marker =
         "<!-- scribe:generated-agents-mirror v1 — Auto-generated; do not edit here. -->";
       const { app, state } = makeApp({
@@ -133,7 +141,9 @@ describe("agentsFile", () => {
 
       await ensureAgentsFile(app, "Projects/Research", "");
 
-      expect(state.files.get("Projects/Research/AGENTS.md")).toBe("Existing instructions");
+      expect(state.files.get("Projects/Research/AGENTS.md")).toBe(
+        `${marker}\n\nExisting instructions`
+      );
     });
   });
 

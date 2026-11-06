@@ -1,3 +1,7 @@
+jest.mock("@/agentMode/subagents/SubagentManager", () => ({
+  SubagentManager: { getInstance: () => ({ refresh: async () => [] }), reset: jest.fn() },
+  getSubagents: () => [],
+}));
 import type { App } from "obsidian";
 import { join } from "node:path";
 import type ScribePlugin from "@/main";
@@ -58,8 +62,7 @@ jest.mock("@/agentMode/backends/native/nativeModels", () => ({
   createNativeModel: jest.fn().mockResolvedValue({ model: { id: "manual-model" } }),
 }));
 jest.mock("@/utils/appPaths", () => ({
-  scribeAppDataDir: () => "/synthetic-scribe",
-  getVaultId: () => "vault-scope",
+  getScribeDataPath: () => "/synthetic-vault/.scribe",
 }));
 jest.mock("@/settings/openSettings", () => ({ openScribeSettings: jest.fn() }));
 jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
@@ -351,7 +354,8 @@ describe("nativeDescriptor", () => {
       await options.getExtensionRuntime?.("/vault/project");
       expect(readNativeExtensionRuntime).toHaveBeenCalledWith("/vault/project");
       expect(NodeNativeSessionStorage).toHaveBeenCalledWith(
-        join("/synthetic-scribe", "vault-scope", "native-agent", "sessions")
+        join("/synthetic-vault/.scribe", "chats", "v2"),
+        expect.objectContaining({ directory: join("/synthetic-vault/.scribe", "attachments") })
       );
       const context = {
         sessionId: "native-session",
@@ -394,7 +398,7 @@ describe("nativeDescriptor", () => {
         expect.objectContaining({
           cwd: "/vault/project",
           sessionId: "native-session",
-          outputDirectory: join("/synthetic-scribe", "vault-scope", "native-agent", "tasks"),
+          outputDirectory: join("/synthetic-vault/.scribe", "chats", "v2", "tasks"),
           getEnv: buildObsidianCommandEnv,
         })
       );
@@ -406,6 +410,38 @@ describe("nativeDescriptor", () => {
       expect(mockStop).toHaveBeenCalledWith("command-id");
       expect(mockShutdown).toHaveBeenCalledTimes(1);
     });
+    it("permits explicit manual-only skill references while rejecting disabled or hidden manual references", () => {
+      NativeBackendDescriptor.createBackendProcess({
+        app: {} as App,
+        plugin: {} as ScribePlugin,
+        clientVersion: "test",
+        descriptor: NativeBackendDescriptor,
+      });
+      const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
+      jest.mocked(getNativeScopedSkills).mockReturnValue(
+        [
+          { name: "manual", enabledAgents: ["native"], disableModelInvocation: true },
+          { name: "disabled", enabledAgents: [] },
+          { name: "private", enabledAgents: ["native"], userInvocable: false },
+        ].map((skill) => ({
+          ...skill,
+          description: "Skill",
+          body: "Instructions",
+          filePath: `/skills/${skill.name}/SKILL.md`,
+          dirPath: `/skills/${skill.name}`,
+          location: { kind: "canonical" as const },
+        }))
+      );
+      expect(options.getManuallyInvokedSkill?.("manual", "/vault")).toMatchObject({
+        name: "manual",
+        body: "Instructions",
+        dirPath: "/skills/manual",
+      });
+      expect(() => options.getManuallyInvokedSkill?.("disabled", "/vault")).toThrow("manual use");
+      expect(() => options.getManuallyInvokedSkill?.("private", "/vault")).toThrow("manual use");
+      expect(options.getManuallyInvokedSkill?.("missing", "/vault")).toBeNull();
+    });
+
     it("registers drawing tools when the drawing plugin is available", () => {
       jest.mocked(getExcalidrawApi).mockReturnValue({
         sceneElements: jest.fn(),

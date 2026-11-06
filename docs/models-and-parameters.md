@@ -2,9 +2,7 @@
 
 Scribe 的 Agent Chat、Quick Ask 和 Quick Command 使用同一套模型连接。你可以使用云端供应商、兼容服务或本机模型；模型服务决定访问权限、费用和实际能力。
 
-隔离测试发现，移除供应商、更改或清空密钥可能影响其他供应商或插件使用的共用密钥。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
-
-Isolated tests found that removing a provider, or changing or clearing its key, can affect keys shared with another provider or plugin. Back up your files first, then disable Scribe until this is fixed; pending saves may finish during shutdown. Follow the setup steps below after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
+模型连接配置保留在插件设置中，密钥单独加密保存在当前库内。旧系统钥匙串中的密钥不会自动导入，升级后需要重新填写；详情见[密钥保存方式](llm-providers.md#where-keys-are-stored)。
 
 ## Where models come from
 
@@ -19,7 +17,9 @@ Agent Chat 不再使用外部代理的账号、模型列表或订阅额度。Ant
 - Quick Ask、Quick Command 及选择 **默认模型** 的编辑器指令，使用第一个可用的已配置模型。单条指令指定的模型和弹窗临时选择继续生效。
 - 已有聊天保留自己的选择；旧设置中保存的模型和权限选择继续作为之后新聊天的初值。
 
-本机没有所需密钥的模型不会被自动选中。供应商可能仍因网络、额度或访问权限而拒绝请求；这些需要按实际提示处理。
+没有已保存密钥或密钥文件不可读取的模型不会被自动选中。已保存但尚未用主密码解锁的模型仍可以选择；首次发送时会先请求解锁。取消解锁会保留输入内容，不发送请求。查看模型列表本身不会解密密钥。
+
+供应商可能仍因网络、额度或访问权限而拒绝请求；这些需要按实际提示处理。
 
 ## Choose a model while chatting
 

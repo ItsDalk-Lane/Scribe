@@ -4,9 +4,9 @@ Scribe is built around **Agent Chat**, a desktop workspace where Scribe can read
 
 Agent Chat is available in Obsidian on desktop. Scribe Commands, Quick Command, and Quick Ask remain available for shorter tasks and on mobile.
 
-**Current safety notice:** Isolated tests found risks to existing files during startup migrations, credential changes, skill edits, cache cleanup, and note writes. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. The setup steps below are for use after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
+**Current safety notice:** Isolated tests found risks to existing files during startup migrations, credential changes, cache cleanup, and note writes. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. The setup steps below are for use after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
 
-**当前安全提示：** 隔离测试发现启动迁移、更改密钥、编辑技能、清除缓存和写入笔记时存在文件受损风险。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
+**当前安全提示：** 隔离测试发现启动迁移、更改密钥、清除缓存和写入笔记时存在文件受损风险。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
 
 ## Install Scribe
 
@@ -59,9 +59,9 @@ From Agent Chat Home, open **项目** (**Projects** in English) and select **新
 
 ### Use Skills
 
-在 **Settings → Scribe → 技能** 管理自己的技能，并为 Scribe 启用。输入 `/` 选择允许手动调用的技能；已允许模型调用的技能也可由模型按任务选择。当前版本可能无法自动发现项目目录中的技能。
+在 **Settings → Scribe → 技能** 管理自己的技能，并为 Scribe 启用。输入 `/` 选择允许手动调用的技能；已允许模型调用的技能也可由模型按任务选择。技能统一来自当前库技能目录，可供不同项目使用。
 
-Scribe 不附带或自动安装技能。此前已经保存的技能文件会保留，并作为普通技能管理；你可以新建自己的技能或使用已有的项目技能。更多信息见 [Skills](agent-mode-and-tools.md#skills)。
+Scribe 附带七个只读内置技能，默认启用，可卸载并恢复。通过“添加技能”选择 Agent 创建、系统搜索或本地导入；Agent 创建需你检查完整草稿并确认保存。此前保存的技能按“本地”展示，继续可用。更多信息见 [Skills](agent-mode-and-tools.md#skills)。
 
 ### Reuse Scribe Commands
 

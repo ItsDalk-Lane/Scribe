@@ -46,14 +46,6 @@ export const Checking: StoryObj<SkillRowLayoutProps> = {
     ),
   },
 };
-export const MirroredLocation: StoryObj<SkillRowLayoutProps> = {
-  args: {
-    ...args,
-    annotations: (
-      <span className="tw-truncate tw-text-ui-smaller tw-text-faint">mirrored in .scribe</span>
-    ),
-  },
-};
 export const WaitingForUpdate: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
@@ -74,21 +66,6 @@ export const LongDescription: StoryObj<SkillRowLayoutProps> = {
       "检查项目笔记中的结构、依据和待确认事项。这段较长说明用于检查窄窗口中的换行，确保技能名称和说明清晰可读，右侧操作仍然可用。",
   },
 };
-export const DisabledAgent: StoryObj<SkillRowLayoutProps> = {
-  args: {
-    ...args,
-    controls: (
-      <ExtensionAvailabilitySwitch
-        label="Enable writing-review"
-        state={{
-          checked: false,
-          disabled: true,
-          reason: "Move this skill to the shared folder before changing its availability.",
-        }}
-      />
-    ),
-  },
-};
 export const Unconfirmed: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
@@ -103,45 +80,7 @@ export const Unconfirmed: StoryObj<SkillRowLayoutProps> = {
   },
 };
 
-export const ProjectScopes: StoryObj<SkillRowLayoutProps> = {
-  args,
-  render: () => (
-    <div className="tw-space-y-3">
-      <SkillRowLayout
-        {...args}
-        name="review-notes"
-        description="Alpha project"
-        controls={
-          <ExtensionAvailabilitySwitch
-            label="Enable review-notes in Alpha"
-            state={{
-              checked: true,
-              disabled: true,
-              reason: "Move this skill to the shared folder before changing its availability.",
-            }}
-          />
-        }
-      />
-      <SkillRowLayout
-        {...args}
-        name="review-notes"
-        description="Beta project"
-        controls={
-          <ExtensionAvailabilitySwitch
-            label="Enable review-notes in Beta"
-            state={{
-              checked: false,
-              disabled: true,
-              reason: "Move this skill to the shared folder before changing its availability.",
-            }}
-          />
-        }
-      />
-    </div>
-  ),
-};
-
-export const UnconfirmedProjectPreference: StoryObj<SkillRowLayoutProps> = {
+export const UnconfirmedPreference: StoryObj<SkillRowLayoutProps> = {
   args: {
     ...args,
     controls: (
@@ -159,7 +98,7 @@ export const UnconfirmedProjectPreference: StoryObj<SkillRowLayoutProps> = {
 
 export const PersonalSkillsEmpty: StoryObj<SkillRowLayoutProps> = {
   args,
-  render: () => <EmptyPlaceholder folder="scribe/skills" />,
+  render: () => <EmptyPlaceholder />,
 };
 
 export const LegacyNamedPersonalSkill: StoryObj<SkillRowLayoutProps> = {

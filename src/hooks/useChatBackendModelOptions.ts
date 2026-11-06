@@ -3,7 +3,7 @@ import {
   providerNeedsResolvedApiKey,
   resolveChatModelSelectionId,
 } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { settingsStore } from "@/settings/model";
 import { useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
@@ -26,10 +26,10 @@ export function useChatBackendModelOptions(fallbackToFirst = true): ChatBackendM
       if (entry.state !== "ok") continue;
       // 上次配置留下的密钥引用可能在本机没有实际凭据，默认选择必须跳过它。https://github.com/ItsDalk-Lane/Scribe/issues/31
       if (providerNeedsResolvedApiKey(entry.provider)) {
-        if (!entry.provider.apiKeyKeychainId) continue;
+        if (!entry.provider.apiKeyRef) continue;
         try {
-          if (!KeychainService.getInstance().getSecretById(entry.provider.apiKeyKeychainId)?.trim())
-            continue;
+          const status = SecretStore.getInstance().getStatus(entry.provider.apiKeyRef);
+          if (status === "missing" || status === "unavailable") continue;
         } catch {
           continue;
         }

@@ -16,9 +16,9 @@ interface SapCredentials {
 
 export function createSapLanguageModel(
   model: CustomModel,
-  credentials: SapCredentials
+  credentials: SapCredentials,
+  transport: typeof fetch = createProviderFetch(model)
 ): (options: Pick<ChatStreamOptions, "signal">) => Promise<ProviderStreams["stream"]> {
-  const transport = createProviderFetch(model);
   let cachedToken: { value: string; expiresAt: number } | undefined;
   let pendingToken: Promise<string> | undefined;
   let deploymentId = credentials.deploymentId;

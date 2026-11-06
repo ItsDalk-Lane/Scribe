@@ -1,7 +1,5 @@
 import { t } from "@/lib/i18n";
 import { logFileManager } from "@/logFileManager";
-import { FileCache } from "@/cache/fileCache";
-import { clearLegacyCaches } from "@/cache/legacyCaches";
 import { logError } from "@/logger";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 
@@ -19,7 +17,7 @@ import { ApplyCustomCommandModal } from "@/components/modals/ApplyCustomCommandM
 import type ScribePlugin from "@/main";
 import { getVaultCharacterCount } from "@/search/searchUtils";
 import { WebSelectedTextContext } from "@/types/message";
-import { err2String, isSourceModeOn } from "@/utils";
+import { isSourceModeOn } from "@/utils";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import { Editor, MarkdownView, Notice } from "obsidian";
 import { v4 as uuidv4 } from "uuid";
@@ -160,26 +158,6 @@ export function registerCommands(plugin: ScribePlugin) {
     modal.open();
 
     return true;
-  });
-
-  addCommand(plugin, COMMAND_IDS.CLEAR_SCRIBE_CACHE, async () => {
-    try {
-      const filesCleared = await FileCache.getInstance<string>().clear(plugin.app.vault);
-      const legacyCleared = await clearLegacyCaches(plugin.app);
-
-      new Notice(
-        filesCleared || legacyCleared
-          ? t("Scribe file caches cleared.")
-          : t("No Scribe file caches needed clearing.")
-      );
-    } catch (error) {
-      logError("Error clearing Scribe caches:", error);
-      new Notice(
-        t("Scribe file cache cleanup failed: {p0}", { p0: err2String(error) }) +
-          "\n" +
-          t("Some items may already have been removed. Check the remaining files and retry.")
-      );
-    }
   });
 
   addCommand(plugin, COMMAND_IDS.OPEN_LOG_FILE, async () => {

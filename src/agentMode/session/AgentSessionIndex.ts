@@ -2,6 +2,7 @@ import { logWarn } from "@/logger";
 import type { BackendId } from "./types";
 
 export interface AgentSessionIndexEntry {
+  lastSeq?: number;
   backendId: BackendId;
   sessionId: string;
   title: string | null;
@@ -51,6 +52,10 @@ function sanitizeEntry(raw: unknown): AgentSessionIndexEntry | null {
     createdAtMs: createdAtMs ?? lastAccessedAtMs!,
     lastAccessedAtMs: lastAccessedAtMs ?? createdAtMs!,
     projectId: typeof r.projectId === "string" && r.projectId.trim() ? r.projectId : undefined,
+    lastSeq:
+      typeof r.lastSeq === "number" && Number.isSafeInteger(r.lastSeq) && r.lastSeq >= 0
+        ? r.lastSeq
+        : undefined,
   };
 }
 
@@ -107,6 +112,7 @@ export class AgentSessionIndex {
         existing?.lastAccessedAtMs ?? entry.lastAccessedAtMs
       ),
       projectId: entry.projectId ?? existing?.projectId,
+      lastSeq: entry.lastSeq ?? existing?.lastSeq,
     });
     this.scheduleSave();
   }
@@ -130,13 +136,15 @@ export class AgentSessionIndex {
           existing?.lastAccessedAtMs ?? entry.lastAccessedAtMs
         ),
         projectId: existing?.projectId ?? entry.projectId,
+        lastSeq: entry.lastSeq ?? existing?.lastSeq,
       };
       if (
         !existing ||
         existing.title !== next.title ||
         existing.createdAtMs !== next.createdAtMs ||
         existing.lastAccessedAtMs !== next.lastAccessedAtMs ||
-        existing.projectId !== next.projectId
+        existing.projectId !== next.projectId ||
+        existing.lastSeq !== next.lastSeq
       ) {
         this.entries.set(key, next);
         changed = true;

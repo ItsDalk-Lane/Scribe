@@ -7,16 +7,10 @@ import { createAgentSessionManager } from "@/agentMode";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
 import { SkillManager, getManagedSkills } from "@/agentMode/skills/SkillManager";
+import { SubagentManager } from "@/agentMode/subagents/SubagentManager";
 import { getSettings, setSettings } from "@/settings/model";
 import { __resetVaultBaseCache } from "@/utils/vaultPath";
 
-let mockAppDataRoot: string;
-
-jest.mock("@/utils/appPaths", () => ({
-  ...jest.requireActual("@/utils/appPaths"),
-  scribeAppDataDir: () => mockAppDataRoot,
-  getVaultId: () => "isolated-readiness-vault",
-}));
 jest.mock("@/logger", () => ({
   logInfo: jest.fn(),
   logWarn: jest.fn(),
@@ -84,7 +78,6 @@ describe("agentModeReadiness", () => {
   describe("createAgentSessionManager()", () => {
     it("does not install or recreate skill files during startup and refresh https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
       const root = await disk.mkdtemp(join(tmpdir(), "scribe-no-bundled-skills-"));
-      mockAppDataRoot = join(root, "app-data");
       __resetVaultBaseCache();
       const app = makeApp(root);
       setSettings((current) => ({
@@ -97,13 +90,14 @@ describe("agentModeReadiness", () => {
         app,
         manifest: { version: "test" },
         saveData: async () => undefined,
+        register: jest.fn(),
       } as unknown as ScribePlugin;
       let manager: AgentSessionManager | undefined;
       try {
         manager = createAgentSessionManager(app, plugin);
         const skills = SkillManager.getInstance();
         expect(await skills.refresh()).toMatchObject({ ok: true, skillCount: 0 });
-        const skillsRoot = join(root, "scribe", "skills");
+        const skillsRoot = join(root, ".scribe", "skills");
         await expect(disk.access(skillsRoot)).rejects.toMatchObject({ code: "ENOENT" });
         const file = join(skillsRoot, "formerly-bundled", "SKILL.md");
         const content =
@@ -119,6 +113,7 @@ describe("agentModeReadiness", () => {
         expect(await disk.readdir(skillsRoot)).toEqual([]);
       } finally {
         await manager?.shutdown();
+        SubagentManager.reset();
         SkillManager.resetForTesting();
         __resetVaultBaseCache();
         await disk.rm(root, { recursive: true, force: true });
@@ -127,7 +122,6 @@ describe("agentModeReadiness", () => {
 
     it("retains chat availability, draft and skills when obsolete model switches change https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       const root = await disk.mkdtemp(join(tmpdir(), "scribe-readiness-lifecycle-"));
-      mockAppDataRoot = join(root, "app-data");
       __resetVaultBaseCache();
       const host = window as unknown as { require?: (id: string) => unknown };
       const originalRequire = host.require;
@@ -160,7 +154,7 @@ describe("agentModeReadiness", () => {
           notificationSound: false,
         },
       }));
-      const skillDir = join(root, "scribe", "skills", "retained-skill");
+      const skillDir = join(root, ".scribe", "skills", "retained-skill");
       const skillContent =
         '---\nname: retained-skill\ndescription: Retained user skill\nmetadata:\n  scribe-builtin-version: "1"\n  scribe-enabled-agents: "native"\n  user-metadata: keep\n---\nExisting user-edited instructions';
       await disk.mkdir(skillDir, { recursive: true });
@@ -169,6 +163,7 @@ describe("agentModeReadiness", () => {
         app,
         manifest: { version: "test" },
         saveData: async () => undefined,
+        register: jest.fn(),
       } as unknown as ScribePlugin;
       let sessionManager: AgentSessionManager | undefined;
       try {
@@ -176,12 +171,10 @@ describe("agentModeReadiness", () => {
         await sessionManager.preloadModels("native");
         const skills = SkillManager.getInstance();
         expect(await skills.refresh()).toMatchObject({ ok: true, reconcileErrorCount: 0 });
-        const link = join(root, ".scribe", "skills", "retained-skill");
         const skillFile = join(skillDir, "SKILL.md");
-        expect((await disk.lstat(link)).isSymbolicLink()).toBe(true);
-        const originalLink = await disk.readlink(link);
+        expect((await disk.lstat(skillDir)).isSymbolicLink()).toBe(false);
         const originalSkill = await disk.readFile(skillFile);
-        expect(await disk.readdir(join(root, "scribe", "skills"))).toEqual(["retained-skill"]);
+        expect(await disk.readdir(join(root, ".scribe", "skills"))).toEqual(["retained-skill"]);
         expect(originalSkill.toString()).toBe(skillContent);
         expect(getManagedSkills()[0].enabledAgents).toEqual(["native"]);
         expect(getManagedSkills()[0]).not.toHaveProperty("builtin");
@@ -197,7 +190,7 @@ describe("agentModeReadiness", () => {
           sessionManager.getSessions().some((item) => item.internalId === chat.internalId)
         ).toBe(true);
         expect(sessionManager.drafts.get(chat.chatInputId)?.input).toBe(draft);
-        expect(await disk.readlink(link)).toBe(originalLink);
+        expect((await disk.lstat(skillDir)).isSymbolicLink()).toBe(false);
         expect(await disk.readFile(skillFile)).toEqual(originalSkill);
         expect(NativeBackendDescriptor.getInstallState(getSettings()).kind).toBe("ready");
 
@@ -211,10 +204,11 @@ describe("agentModeReadiness", () => {
         expect(restoredChats[0].projectId).toBe(chat.projectId);
         expect(sessionManager.getActiveSession()?.chatInputId).toBe(chat.chatInputId);
         expect(sessionManager.drafts.get(chat.chatInputId)?.input).toBe(draft);
-        expect(await disk.readlink(link)).toBe(originalLink);
+        expect((await disk.lstat(skillDir)).isSymbolicLink()).toBe(false);
         expect(await disk.readFile(skillFile)).toEqual(originalSkill);
       } finally {
         await sessionManager?.shutdown();
+        SubagentManager.reset();
         SkillManager.resetForTesting();
         __resetVaultBaseCache();
         host.require = originalRequire;

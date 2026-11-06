@@ -1,3 +1,4 @@
+import { SecretStore } from "@/services/secretStore";
 import { looksLikeEmbeddingModel } from "@/modelManagement/catalog/catalogTransform";
 import { listProviderModels } from "@/modelManagement/providers/adapters/listProviderModels";
 import type { ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
@@ -14,6 +15,7 @@ export interface UseModelCandidatePoolArgs {
   existingModels: readonly ConfiguredModel[];
   catalogMetadata: Record<string, ModelInfo>;
   apiKey: string;
+  apiKeyRef?: string;
   extras: Record<string, unknown>;
   requiresApiKey: boolean;
   providerHydrated: boolean;
@@ -42,6 +44,7 @@ export function useModelCandidatePool({
   existingModels,
   catalogMetadata,
   apiKey,
+  apiKeyRef,
   extras,
   requiresApiKey,
   providerHydrated,
@@ -50,7 +53,7 @@ export function useModelCandidatePool({
   const [selectedWireIds, setSelectedWireIds] = useState<Set<string>>(() =>
     mode === "edit" ? new Set(existingModels.map((m) => m.info.id)) : new Set()
   );
-  const connectionKey = JSON.stringify([providerType, effectiveBaseUrl, apiKey, extras]);
+  const connectionKey = JSON.stringify([providerType, effectiveBaseUrl, apiKey, apiKeyRef, extras]);
   const currentConnectionKey = useRef(connectionKey);
   const requestNumber = useRef(0);
   if (currentConnectionKey.current !== connectionKey) {
@@ -139,10 +142,12 @@ export function useModelCandidatePool({
       error: null,
     }));
     try {
-      const result = await listProviderModels(providerType, effectiveBaseUrl, {
-        apiKey: apiKey || null,
-        extras,
-      });
+      const list = async (key: string | null) =>
+        listProviderModels(providerType, effectiveBaseUrl, { apiKey: key, extras });
+      const result =
+        apiKey || !apiKeyRef
+          ? await list(apiKey || null)
+          : await SecretStore.getInstance().withSecret(apiKeyRef, list);
       if (request !== requestNumber.current || currentConnectionKey.current !== connectionKey)
         return;
       setDiscovery((previous) => ({
@@ -160,7 +165,7 @@ export function useModelCandidatePool({
         error: err instanceof Error ? err.message : String(err),
       }));
     }
-  }, [providerType, effectiveBaseUrl, apiKey, extras, connectionKey]);
+  }, [providerType, effectiveBaseUrl, apiKey, apiKeyRef, extras, connectionKey]);
 
   const initialBaseUrlRef = useRef(effectiveBaseUrl);
 
@@ -168,7 +173,8 @@ export function useModelCandidatePool({
   useEffect(() => {
     if (mountFetchedRef.current) return;
     if (!providerType || !effectiveBaseUrl) return;
-    if (mode === "new" && !(autoDiscover ?? !!initialBaseUrlRef.current)) return;
+    if (!(autoDiscover ?? (mode === "new" && !!initialBaseUrlRef.current))) return;
+    if (apiKeyRef && !apiKey) return;
     if (!providerHydrated) return;
     if (mode === "new" && requiresApiKey && !apiKey) return;
     mountFetchedRef.current = true;
@@ -181,6 +187,7 @@ export function useModelCandidatePool({
     effectiveBaseUrl,
     requiresApiKey,
     apiKey,
+    apiKeyRef,
     fetchModels,
   ]);
 

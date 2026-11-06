@@ -141,6 +141,9 @@ export function compactionToPart(
     error: update.error,
     preTokens: update.preTokens,
     postTokens: update.postTokens,
+    ...(update.summary === undefined ? {} : { summary: update.summary }),
+    ...(update.fromIndex === undefined ? {} : { fromIndex: update.fromIndex }),
+    ...(update.toIndex === undefined ? {} : { toIndex: update.toIndex }),
     startedAtMs,
   };
 }

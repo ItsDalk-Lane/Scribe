@@ -1,6 +1,7 @@
 import type {
   Api,
   AssistantMessage,
+  ToolCall,
   AssistantMessageEvent,
   Context,
   Model,
@@ -20,6 +21,7 @@ import {
   waitForProviderRetry,
   type ProviderRequestFailure,
 } from "@/LLMProviders/providerRequestFailure";
+import { RequestRedactor } from "@/LLMProviders/requestRedaction";
 import { isRecord } from "@/utils/obsidianInternals";
 
 export interface ChatStreamOptions {
@@ -42,6 +44,7 @@ export interface ProviderChatModel {
 export interface PiRequest {
   stream: ProviderStreams["stream"];
   options: StreamOptions;
+  redactionValues?: string[];
 }
 
 class PiStreamError extends ProviderRequestError {
@@ -55,14 +58,8 @@ class PiStreamError extends ProviderRequestError {
   }
 }
 
-const NON_SECRET_KEYS = new Set(["keyless-endpoint", "provider-managed-auth", "default-key"]);
-
 function safeModelErrorDetail(detail: string, secrets: string[], status: number | undefined) {
-  let text = detail;
-  for (const secret of secrets) {
-    if (secret.length >= 8 && !NON_SECRET_KEYS.has(secret))
-      text = text.split(secret).join("[redacted]");
-  }
+  let text = new RequestRedactor(secrets).redact(detail);
   if (status !== undefined && !text.includes(String(status))) text = `HTTP ${status}: ${text}`;
   return text.length > 600 ? `${text.slice(0, 600)}[truncated]` : text;
 }
@@ -111,6 +108,7 @@ export function createPiChatModel(
     setRetryBudget: (budget: number) => void
   ): AsyncGenerator<AssistantMessageEvent> {
     let errorSecrets: string[] = [];
+    let redactor = new RequestRedactor(errorSecrets);
     let failureStatus: number | undefined;
     let capturedFailure: ProviderRequestFailure | undefined;
     const controller = new AbortController();
@@ -132,12 +130,14 @@ export function createPiChatModel(
         throw error;
       }
       setRetryBudget(options.maxRetries ?? request.options.maxRetries ?? 0);
-      errorSecrets = [
+      errorSecrets = request.redactionValues ?? [];
+      errorSecrets.push(
         ...(typeof request.options.apiKey === "string" ? [request.options.apiKey] : []),
         ...Object.values(request.options.headers ?? {}).filter(
           (value): value is string => typeof value === "string"
-        ),
-      ];
+        )
+      );
+      redactor = new RequestRedactor(errorSecrets);
       const transport = request.options.fetch;
       if (!transport) throw new Error("A provider transport is required.");
       const requestFetch: typeof fetch = async (input, init) => {
@@ -162,14 +162,30 @@ export function createPiChatModel(
       const initialText: string[] = [];
       let structuredRefusal = false;
       const textByIndex = new Map<number, string>();
+      const thinkingByIndex = new Map<number, string>();
+      const toolSnapshot = (part: ToolCall): ToolCall => ({
+        ...part,
+        arguments: redactor.structured(part.arguments),
+        ...(part.argumentsError ? { argumentsError: redactor.redact(part.argumentsError) } : {}),
+      });
       const textSnapshot = (message: AssistantMessage): AssistantMessage => ({
         ...message,
+        ...(message.errorMessage ? { errorMessage: redactor.redact(message.errorMessage) } : {}),
         ...(structuredRefusal ? { rawStopReason: "refusal" } : {}),
-        content: message.content.map((part, index) =>
-          part.type === "text" && textByIndex.has(index)
-            ? { ...part, text: textByIndex.get(index)! }
-            : part
-        ),
+        content: message.content.map((part, index) => {
+          if (part.type === "text")
+            return {
+              ...part,
+              text: textByIndex.get(index) ?? redactor.redact(part.text),
+            };
+          if (part.type === "thinking")
+            return {
+              ...part,
+              thinking: thinkingByIndex.get(index) ?? redactor.redact(part.thinking),
+            };
+          if (part.type === "toolCall") return toolSnapshot(part);
+          return part;
+        }),
       });
       const source = request.stream(model, normalizeContext(context), {
         ...request.options,
@@ -272,7 +288,7 @@ export function createPiChatModel(
             );
           }
           if (event.type === "text_start") {
-            const text = initialText.shift() ?? "";
+            const text = redactor.push(event.contentIndex, initialText.shift() ?? "");
             textByIndex.set(event.contentIndex, text);
             yield { ...event, partial: textSnapshot(event.partial) };
             if (text && !controller.signal.aborted)
@@ -284,16 +300,51 @@ export function createPiChatModel(
               };
             continue;
           }
-          if (event.type === "text_delta") {
-            const delta = visibleText(event.delta);
-            textByIndex.set(
-              event.contentIndex,
-              (textByIndex.get(event.contentIndex) ?? "") + delta
-            );
+          if (event.type === "thinking_start") thinkingByIndex.set(event.contentIndex, "");
+          if (
+            event.type === "text_delta" ||
+            event.type === "thinking_delta" ||
+            event.type === "toolcall_delta"
+          ) {
+            const delta = redactor.push(event.contentIndex, visibleText(event.delta));
+            if (event.type !== "toolcall_delta") {
+              const parts = event.type === "text_delta" ? textByIndex : thinkingByIndex;
+              parts.set(event.contentIndex, (parts.get(event.contentIndex) ?? "") + delta);
+            }
             event = { ...event, delta };
           }
-          if (event.type === "text_end")
-            event = { ...event, content: textByIndex.get(event.contentIndex) ?? event.content };
+          if (
+            event.type === "text_end" ||
+            event.type === "thinking_end" ||
+            event.type === "toolcall_end"
+          ) {
+            const delta = redactor.flush(event.contentIndex);
+            const parts = event.type === "text_end" ? textByIndex : thinkingByIndex;
+            if (event.type !== "toolcall_end")
+              parts.set(event.contentIndex, (parts.get(event.contentIndex) ?? "") + delta);
+            if (delta)
+              yield {
+                type:
+                  event.type === "text_end"
+                    ? "text_delta"
+                    : event.type === "thinking_end"
+                      ? "thinking_delta"
+                      : "toolcall_delta",
+                contentIndex: event.contentIndex,
+                delta,
+                partial: textSnapshot(event.partial),
+              };
+            if (event.type === "toolcall_end")
+              event = {
+                ...event,
+                toolCall: toolSnapshot(event.toolCall),
+              };
+            else
+              event = {
+                ...event,
+                content: parts.get(event.contentIndex) ?? redactor.redact(event.content),
+              };
+          }
           if (event.type === "done") {
             completed = true;
             event = { ...event, message: textSnapshot(event.message) };
@@ -307,10 +358,14 @@ export function createPiChatModel(
         await iterator.return?.();
       }
     } catch (error) {
-      const failure =
+      const classified =
         controller.signal.aborted && options.signal?.aborted
           ? { kind: "cancelled" as const }
           : (capturedFailure ?? classifyProviderFailure({ status: failureStatus, cause: error }));
+      const failure = {
+        ...classified,
+        ...(classified.code ? { code: redactor.redact(classified.code) } : {}),
+      };
       const safe = new Error(
         safeModelErrorDetail(
           error instanceof Error ? error.message : String(error),

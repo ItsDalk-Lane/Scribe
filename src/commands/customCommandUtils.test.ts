@@ -761,7 +761,7 @@ describe("customCommandUtils", () => {
       frontmatter: MockFrontmatter;
     }
     interface MockAppLike {
-      vault: { read: jest.Mock };
+      vault: { adapter: { read: jest.Mock } };
       metadataCache: { getFileCache: jest.Mock };
     }
     type AppRef = { app: unknown };
@@ -783,11 +783,14 @@ describe("customCommandUtils", () => {
       mockMetadata = { frontmatter: mockFrontmatter };
       const mockedApp: MockAppLike = {
         vault: {
-          read: jest
-            .fn()
-            .mockResolvedValue(
-              "---\nscribe-command-context-menu-enabled: true\nscribe-command-slash-enabled: false\nscribe-command-context-menu-order: 42\nscribe-command-model-key: gpt-4\nscribe-command-last-used: 1234567890\n---\nPrompt content here."
+          adapter: {
+            read: jest.fn(
+              async () =>
+                `---\n${Object.entries(mockFrontmatter)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join("\n")}\n---\nPrompt content here.`
             ),
+          },
         },
         metadataCache: {
           getFileCache: jest.fn().mockReturnValue(mockMetadata),
@@ -819,8 +822,8 @@ describe("customCommandUtils", () => {
         order: 42,
         lastUsedMs: 1234567890,
       });
-      expect(app.vault.read).toHaveBeenCalledWith(mockFile);
-      expect(app.metadataCache.getFileCache).toHaveBeenCalledWith(mockFile);
+      expect(app.vault.adapter.read).toHaveBeenCalledWith(mockFile.path);
+      expect(app.metadataCache.getFileCache).not.toHaveBeenCalled();
     });
 
     it("preserves a disabled command and both saved menu preferences", async () => {
@@ -840,7 +843,7 @@ describe("customCommandUtils", () => {
     });
 
     it("uses EMPTY_COMMAND defaults if frontmatter is missing", async () => {
-      (window.app.vault as unknown as { read: jest.Mock }).read.mockResolvedValue(
+      (window.app.vault.adapter as unknown as { read: jest.Mock }).read.mockResolvedValue(
         "Prompt content only, no frontmatter."
       );
       (

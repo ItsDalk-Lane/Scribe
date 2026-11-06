@@ -34,12 +34,20 @@ describe("AboutSettingsPanel", () => {
         confirmReset = undefined;
       });
 
-      it("shows the plugin version together with notification and support settings on one page", () => {
+      it("orders notifications and support before reset and the plugin version", () => {
         render(<AboutSettingsPanel />);
 
-        expect(screen.getByText("4.0.17")).toBeTruthy();
-        expect(screen.getByText("notification-content")).toBeTruthy();
-        expect(screen.getByText("advanced-content")).toBeTruthy();
+        const ordered = [
+          screen.getByText("notification-content"),
+          screen.getByText("advanced-content"),
+          screen.getByRole("button", { name: "Reset settings" }),
+          screen.getByText("4.0.17"),
+        ];
+        ordered.slice(1).forEach((element, index) => {
+          expect(ordered[index].compareDocumentPosition(element)).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING
+          );
+        });
       });
 
       it("resets settings only after the confirmation is accepted", () => {

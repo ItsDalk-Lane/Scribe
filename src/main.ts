@@ -2,7 +2,7 @@ import { t } from "@/lib/i18n";
 import { initializeInterfaceLanguage } from "@/services/interfaceLanguage";
 import { releaseCursorAssociation } from "@/editor/releaseCursorAssociation";
 import { registerNoteHeaderAction } from "@/editor/registerNoteHeaderAction";
-import type { AgentSessionManager, SkillManager } from "@/agentMode";
+import { SKILL_CREATOR_SKILL_NAME, type AgentSessionManager, type SkillManager } from "@/agentMode";
 import { isNativeChatId, parseNativeChatId } from "@/utils/nativeChatId";
 import {
   buildChatDeepLink,
@@ -18,8 +18,6 @@ import { ConfirmModal } from "@/components/modals/ConfirmModal";
 
 import { registerContextMenu } from "@/commands/contextMenu";
 import { CustomCommandRegister } from "@/commands/customCommandRegister";
-import { migrateCommands } from "@/commands/migrator";
-import { migrateSystemPromptsFromSettings } from "@/system-prompts/migration";
 import { ProjectRegister } from "@/projects/projectRegister";
 import {
   AGENT_CHAT_MODE,
@@ -33,13 +31,14 @@ import {
   SHARED_VIEW_TYPES,
 } from "@/constants";
 import { logError, logFatalError, logInfo, logWarn } from "@/logger";
+import { SecretStore } from "@/services/secretStore";
+import { assertScribePath } from "@/utils/vaultFileStore";
 import { logFileManager } from "@/logFileManager";
 import { createModelManagement, type ModelManagementApi } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
-import { backupLegacyCredentials } from "@/services/legacyCredentialBackup";
 import {
   persistSettings,
-  loadSettingsWithKeychain,
+  loadStoredSettings,
+  suppressNextPersistOnce,
   flushPersistence,
   resetPersistenceState,
 } from "@/services/settingsPersistence";
@@ -48,15 +47,8 @@ import {
   startActiveWebTabTracking,
 } from "@/services/webViewerService/webViewerServiceSingleton";
 import { WebSelectionTracker } from "@/services/webViewerService/webViewerServiceSelection";
-import { runSettingsMigrations } from "@/settings/migrations";
 import { ScribeSettingTab } from "@/settings/SettingsPage";
-import {
-  getSettings,
-  setSettings,
-  subscribeToSettingsChange,
-  updateSetting,
-} from "@/settings/model";
-import { getDeviceId } from "@/utils/deviceId";
+import { getSettings, setSettings, subscribeToSettingsChange } from "@/settings/model";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import { disposeNotificationSound } from "@/utils/notificationSound";
 import { installRendererEventsShim } from "@/utils/rendererEventsShim";
@@ -71,7 +63,6 @@ import {
 } from "@/editor";
 import {
   addIcon,
-  FileSystemAdapter,
   MarkdownView,
   Menu,
   Notice,
@@ -84,7 +75,6 @@ import {
 import {
   formatStartupMigrationSummary,
   runStartupMigrationSummary,
-  shouldClearCredentialRecovery,
   type StartupMigrationItem,
   type StartupMigrationTask,
 } from "@/services/startupMigration";
@@ -171,8 +161,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     await this.waitForPreviousTeardown();
     if (!this.pluginLifecycleActive) return;
     resetPersistenceState();
-    KeychainService.resetInstance();
-    KeychainService.getInstance(this.app);
+    SecretStore.resetInstance();
     await this.loadSettings();
     if (!this.pluginLifecycleActive) return;
     this.modelManagement = createModelManagement({
@@ -192,7 +181,22 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         }
       })();
     });
-    await runSettingsMigrations(this.modelManagement);
+    await assertScribePath(this.app.vault, ".scribe/chats");
+    await SecretStore.getInstance(this.app, {
+      onReset: async () => {
+        const current = getSettings();
+        const providers = Object.fromEntries(
+          Object.entries(current.providers).map(([id, provider]) => [
+            id,
+            { ...provider, apiKeyRef: null },
+          ])
+        );
+        const next = { ...current, providers };
+        await persistSettings(next, (data) => super.saveData(data));
+        suppressNextPersistOnce();
+        setSettings(next);
+      },
+    }).initialize();
     const agentMode = isDesktopRuntime() ? await import("@/agentMode") : null;
     if (!this.pluginLifecycleActive) return;
 
@@ -207,9 +211,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         closeAgentDetailModals,
         closeRestoredTurnDiffs,
         registerTurnDiffCommands,
-        acpFrameSink,
         createAgentSessionManager,
-        setFrameSinkVaultBasePath,
         SkillManager,
       } = agentMode;
       this.ScribeAgentView = ScribeAgentView;
@@ -217,12 +219,6 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
       closeRestoredTurnDiffs(this.app.workspace);
       this.register(() => closeAgentDetailModals(this.app));
       registerTurnDiffCommands(this);
-
-      const adapter = this.app.vault.adapter;
-      setFrameSinkVaultBasePath(
-        adapter instanceof FileSystemAdapter ? adapter.getBasePath() : null
-      );
-      void acpFrameSink.narrowLegacyLogs();
 
       this.agentSessionManager = createAgentSessionManager(this.app, this);
       this.skills = SkillManager.getInstance();
@@ -355,9 +351,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
       t("Failed to load projects. Check available logs.")
     );
     const commandsTask = task(
-      this.customCommandRegister
-        .initialize()
-        .then(() => this.runUnlessUnloaded(() => migrateCommands(this.app))),
+      this.customCommandRegister.initialize().then(() => null),
       {
         id: "custom-commands",
         title: t("Custom commands"),
@@ -367,17 +361,14 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
         ),
       }
     );
-    const promptsTask = task(
-      this.runUnlessUnloaded(() => migrateSystemPromptsFromSettings(this.app)),
-      {
-        id: "system-prompt",
-        title: t("System prompt"),
-        status: "error",
-        summary: t(
-          "System prompts could not be loaded or migrated. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
-        ),
-      }
-    );
+    const promptsTask = task(Promise.resolve(null), {
+      id: "system-prompt",
+      title: t("System prompt"),
+      status: "error",
+      summary: t(
+        "System prompts could not be loaded or migrated. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs."
+      ),
+    });
     await runStartupMigrationSummary({
       initialItems: this.startupMigrationItems,
       tasks: [projectTask, commandsTask, promptsTask],
@@ -391,26 +382,10 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
           ""
         ).open();
       },
-      acknowledge: (items) => {
+      acknowledge: () => {
         this.startupMigrationItems = [];
-        const pendingCredentialRecovery = getSettings()._pendingCredentialRecovery;
-        if (
-          shouldClearCredentialRecovery(
-            items,
-            pendingCredentialRecovery?.deviceId,
-            getDeviceId(this.app)
-          )
-        ) {
-          updateSetting("_pendingCredentialRecovery", undefined);
-        }
       },
     });
-  }
-
-  private async runUnlessUnloaded(
-    migrate: () => Promise<StartupMigrationItem | null>
-  ): Promise<StartupMigrationItem | null> {
-    return this.pluginLifecycleActive ? migrate() : null;
   }
 
   private safeRegisterView(type: string, viewCreator: ViewCreator): void {
@@ -423,6 +398,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
 
   onunload(): void {
     this.pluginLifecycleActive = false;
+    SecretStore.resetInstance();
     disposeNotificationSound();
     const handoff = window as TeardownHandoff;
     const teardown = this.teardown().catch((error) => {
@@ -602,10 +578,28 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     const manager = this.requireAgentView();
     if (!manager) return;
     try {
-      await manager.createGlobalSessionWithDraft(initialDraft);
+      const session = await manager.createGlobalSessionWithDraft(initialDraft);
+      await session.ready;
       await this.activateAgentView();
     } catch (error) {
       logWarn("[ScribePlugin] Failed to create agent session with draft", error);
+      new Notice(t("Failed to start a new chat. Check the Scribe log."));
+    }
+  }
+
+  async newSkillAuthoringChat(): Promise<void> {
+    const manager = this.requireAgentView();
+    if (!manager) return;
+    try {
+      const session = await manager.createSkillAuthoringSession(
+        `/${SKILL_CREATOR_SKILL_NAME} ${t(
+          "Describe the workflow you want to turn into a skill. Discuss it with me, show the complete name, description and instructions, then submit the complete draft for my review and confirmation. Do not save files or run commands directly."
+        )}`
+      );
+      await session.ready;
+      await this.activateAgentView();
+    } catch (error) {
+      logWarn("[ScribePlugin] Failed to create skill authoring chat", error);
       new Notice(t("Failed to start a new chat. Check the Scribe log."));
     }
   }
@@ -654,18 +648,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
 
   async loadSettings() {
     const rawData = (await this.loadData()) as unknown;
-    const settings = await loadSettingsWithKeychain(
-      this.app,
-      rawData,
-      (d) => super.saveData(d),
-      (raw) =>
-        backupLegacyCredentials(raw, this.manifest.dir ?? "", {
-          exists: (path) => this.app.vault.adapter.exists(path),
-          write: (path, contents) => this.app.vault.adapter.write(path, contents),
-          rename: (from, to) => this.app.vault.adapter.rename(from, to),
-        }),
-      (item) => this.startupMigrationItems.push(item)
-    );
+    const settings = await loadStoredSettings(rawData, (data) => super.saveData(data));
     setSettings(settings);
   }
 

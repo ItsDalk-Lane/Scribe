@@ -12,7 +12,7 @@ import { configuredModelsAtom, visibleByokProvidersAtom } from "@/modelManagemen
 import type { CatalogProvider } from "@/modelManagement/types/catalog";
 import type { VerificationResult } from "@/modelManagement/types/runtime";
 import { ProviderVerificationProgress } from "@/modelManagement/ui/components/ProviderVerificationStatus";
-import type { ConfiguredModel } from "@/modelManagement/types/persisted";
+import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import { useModelManagement } from "@/modelManagement/ui/ModelManagementContext";
 import {
   ProviderModelTable,
@@ -26,8 +26,14 @@ import { Plus } from "lucide-react";
 import { Notice } from "obsidian";
 import React, { useEffect, useMemo, useState } from "react";
 
+const UNVERIFIED: VerificationResult = Object.freeze({
+  ok: false,
+  code: "verification_unavailable",
+  checkedAt: 0,
+});
 const EMPTY_VERIFICATION: Readonly<Record<string, VerificationResult>> = Object.freeze({});
 const EMPTY_CATALOG: readonly CatalogProvider[] = Object.freeze([]);
+const EMPTY_PROVIDERS: readonly Provider[] = Object.freeze([]);
 const EMPTY_MODELS: readonly ConfiguredModel[] = Object.freeze([]);
 
 export const ModelsAndProvidersPanel: React.FC = () => {
@@ -42,9 +48,7 @@ export const ModelsAndProvidersPanel: React.FC = () => {
   const [query, setQuery] = useState("");
   const [verification, setVerification] =
     useState<Readonly<Record<string, VerificationResult>>>(EMPTY_VERIFICATION);
-  const [verificationProviders, setVerificationProviders] = useState(() =>
-    api.providerRegistry.listByOrigin("byok")
-  );
+  const [verificationProviders, setVerificationProviders] = useState(EMPTY_PROVIDERS);
   const pendingChecks = verificationProviders.length - Object.keys(verification).length;
   const refreshVerification = (): void => {
     setVerification(EMPTY_VERIFICATION);
@@ -105,12 +109,17 @@ export const ModelsAndProvidersPanel: React.FC = () => {
     const q = query.trim().toLowerCase();
     return providers
       .map((provider) => {
+        const result =
+          verification[provider.providerId] ??
+          (verificationProviders.some((pending) => pending.providerId === provider.providerId)
+            ? undefined
+            : UNVERIFIED);
         const all = byProvider.get(provider.providerId) ?? (EMPTY_MODELS as ConfiguredModel[]);
         if (!q || provider.displayName.toLowerCase().includes(q)) {
           return {
             provider,
             models: all,
-            verification: verification[provider.providerId],
+            verification: result,
           };
         }
         const models = all.filter(
@@ -119,11 +128,11 @@ export const ModelsAndProvidersPanel: React.FC = () => {
         return {
           provider,
           models,
-          verification: verification[provider.providerId],
+          verification: result,
         };
       })
       .filter((g) => !q || g.models.length > 0 || g.provider.displayName.toLowerCase().includes(q));
-  }, [providers, configuredModels, query, verification]);
+  }, [providers, configuredModels, query, verification, verificationProviders]);
 
   const handleAddProvider = (): void => {
     new AddProviderModal(app, {

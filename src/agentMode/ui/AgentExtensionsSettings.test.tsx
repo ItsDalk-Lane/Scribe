@@ -9,6 +9,10 @@ import { AgentExtensionsSettings, EXTENSION_KINDS } from "@/agentMode/ui/AgentEx
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
+jest.mock("@/agentMode/subagents/ui/SubagentsSettings", () => ({
+  SubagentsSettings: () => <section aria-label="Custom subagent management" />,
+}));
+
 const expandAllSections = async () => {
   await waitFor(() => {
     const triggers = screen
@@ -177,12 +181,19 @@ describe("AgentExtensionsSettings", () => {
         })
       );
     });
-    it("offers the new-skill action beside refresh on the skills page", async () => {
+    it("routes skills to the single managed page without blank creation or a second runtime list", () => {
       render(<AgentExtensionsSettings kind="skill" />);
-      fireEvent.click(await screen.findByRole("button", { name: "New skill" }));
-      expect(mockOpenNewSkill).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Managed skill items")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "New skill" })).toBeNull();
+      expect(mockList).not.toHaveBeenCalled();
+      expect(mockCheck).not.toHaveBeenCalled();
     });
-    it.each(["plugin", "skill", "command", "hook", "mcp", "subagent"] as const)(
+    it("routes the subagent settings page to custom management", () => {
+      render(<AgentExtensionsSettings kind="subagent" />);
+      expect(screen.getByRole("region", { name: "Custom subagent management" })).toBeTruthy();
+      expect(mockCheck).not.toHaveBeenCalled();
+    });
+    it.each(["plugin", "command", "hook", "mcp"] as const)(
       "checks %s on entry without repeating on search",
       async (kind) => {
         render(<AgentExtensionsSettings kind={kind} />);
@@ -263,7 +274,7 @@ describe("AgentExtensionsSettings", () => {
       fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
     });
-    it("shows the saved answer immediately after a plugin reload instead of a loading state and starts no check", async () => {
+    it("starts a fresh check after a plugin reload without restoring an old local-storage answer", async () => {
       const first = render(<AgentExtensionsSettings kind="mcp" />);
       await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(1));
       await expandAllSections();
@@ -271,13 +282,14 @@ describe("AgentExtensionsSettings", () => {
       resetExtensionCheckCacheForTests();
 
       render(<AgentExtensionsSettings kind="mcp" />);
-      expect(screen.queryByText("Loading extensions…")).toBeNull();
+      expect(screen.getByText("Loading extensions…")).not.toBeNull();
       await expandAllSections();
       expect(
         screen.getByRole("switch", { name: "Enable notes" }).getAttribute("aria-checked")
       ).toBe("true");
       await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2 * LISTS_PER_LOAD));
-      expect(mockCheck).toHaveBeenCalledTimes(1);
+      expect(mockCheck).toHaveBeenCalledTimes(2);
+      expect(mockLocalStorage.size).toBe(0);
     });
     it("checks again when the saved answer no longer matches the configuration", async () => {
       const first = render(<AgentExtensionsSettings kind="mcp" />);
@@ -440,118 +452,14 @@ describe("AgentExtensionsSettings", () => {
       expect(screen.getByText("No entries found in the checked sources.")).toBeTruthy();
     });
 
-    it("does not show a second empty list below the current vault's existing skill groups", async () => {
-      mockList.mockResolvedValue([]);
-      mockRead.mockResolvedValue([{ kind: "skill", status: "partial", warnings: [], items: [] }]);
+    it("does not expose external or runtime-only skills through a second management interface", () => {
+      mockList.mockResolvedValue([
+        { ...mockItem, kind: "skill", source: "runtime", name: "external-only" },
+      ]);
       render(<AgentExtensionsSettings kind="skill" />);
-      await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
       expect(screen.getByText("Managed skill items")).toBeTruthy();
-      expect(screen.queryByText("No entries found in the checked sources.")).toBeNull();
-    });
-
-    it("keeps an externally linked vault skill visible after Claude confirms it loaded", async () => {
-      const skill: AgentExtensionItem = {
-        ...mockItem,
-        kind: "skill",
-        id: "/external/linked-skill/SKILL.md",
-        name: "linked-skill",
-        location: "/external/linked-skill/SKILL.md",
-        target: {
-          path: "/external/linked-skill/SKILL.md",
-          format: "markdown",
-          scope: { kind: "project", cwd: "/vault" },
-        },
-      };
-      mockList.mockResolvedValue([skill]);
-      mockRead.mockResolvedValue([
-        { kind: "skill", status: "partial", warnings: [], items: [skill] },
-      ]);
-      mockCheck.mockResolvedValue({
-        skills: ["linked-skill"],
-        commands: [],
-        plugins: [],
-        failedPlugins: [],
-        mcpServers: [],
-      });
-      render(<AgentExtensionsSettings kind="skill" />);
-      await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
-      await expandAllSections();
-      expect(screen.getByRole("article", { name: "linked-skill" })).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: "Refresh and check" }));
-      await waitFor(() =>
-        expect(
-          screen.getByRole("switch", { name: "Enable linked-skill" }).getAttribute("aria-checked")
-        ).toBe("true")
-      );
-      expect(screen.getByRole("article", { name: "linked-skill" })).toBeTruthy();
-    });
-
-    it.each([
-      {
-        condition: "keeps a former built-in name when no managed file exists",
-        managed: false,
-        visible: 1,
-      },
-      {
-        condition: "hides a runtime duplicate only when its managed file exists",
-        managed: true,
-        visible: 0,
-      },
-    ])(
-      "$condition https://github.com/ItsDalk-Lane/Scribe/issues/32",
-      async ({ managed, visible }) => {
-        const skill: AgentExtensionItem = {
-          ...mockItem,
-          kind: "skill",
-          id: "runtime:obsidian-markdown",
-          name: "obsidian-markdown",
-          source: "runtime",
-          target: undefined,
-        };
-        if (managed) {
-          mockManagedSkills.push({
-            name: skill.name,
-            filePath: "/vault/scribe/skills/obsidian-markdown/SKILL.md",
-          });
-        }
-        mockList.mockResolvedValue([skill]);
-        mockRead.mockResolvedValue([
-          { kind: "skill", status: "partial", warnings: [], items: [skill] },
-        ]);
-        render(<AgentExtensionsSettings kind="skill" />);
-        await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
-        if (visible) await expandAllSections();
-        expect(screen.queryAllByRole("article", { name: skill.name })).toHaveLength(visible);
-      }
-    );
-
-    it("hides only skills already shown by the managed list, preserving another file with the same name", async () => {
-      const managedPath = "/vault/scribe/skills/review/SKILL.md";
-      mockManagedSkills.push({ name: "review", filePath: managedPath });
-      const skills: AgentExtensionItem[] = [managedPath, "/external/review/SKILL.md"].map(
-        (path) => ({
-          ...mockItem,
-          kind: "skill",
-          id: path,
-          name: "review",
-          location: path,
-          target: { path, format: "markdown", scope: { kind: "project", cwd: "/vault" } },
-        })
-      );
-      mockList.mockResolvedValue(skills);
-      mockRead.mockResolvedValue([
-        { kind: "skill", status: "partial", warnings: [], items: skills },
-      ]);
-      render(<AgentExtensionsSettings kind="skill" />);
-      await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
-      await expandAllSections();
-      expect(screen.getAllByRole("article", { name: "review" })).toHaveLength(1);
-      fireEvent.click(screen.getByRole("article", { name: "review" }));
-      await waitFor(() =>
-        expect(mockDetails).toHaveBeenCalledWith(
-          expect.objectContaining({ location: "/external/review/SKILL.md" })
-        )
-      );
+      expect(screen.queryByText("external-only")).toBeNull();
+      expect(mockList).not.toHaveBeenCalled();
     });
 
     it("keeps entries from different scopes side by side", async () => {

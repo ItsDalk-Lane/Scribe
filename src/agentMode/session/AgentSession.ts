@@ -1,13 +1,16 @@
 import { AI_SENDER, USER_SENDER } from "@/constants";
 import { logInfo, logWarn } from "@/logger";
+import { t } from "@/lib/i18n";
 import { AgentMessageStore } from "@/agentMode/session/AgentMessageStore";
 import { GLOBAL_SCOPE, type ProjectScopeId } from "@/agentMode/session/scope";
 import {
   AgentChatMessage,
   AgentMcpServer,
   AgentMessagePart,
+  AgentDisplayFact,
   AgentToolKind,
   AgentQuestionAnswers,
+  AgentSessionPurpose,
   AgentTodoListEntry,
   AskUserQuestionPrompt,
   BackendDescriptor,
@@ -39,7 +42,7 @@ import {
 } from "@/agentMode/session/types";
 import { MessageContext } from "@/types/message";
 import { err2String, formatDateTime } from "@/utils";
-import type { App, DataAdapter } from "obsidian";
+import { Notice, TFile, type App, type DataAdapter } from "obsidian";
 import { MethodUnsupportedError } from "@/agentMode/session/errors";
 import {
   diffTargetPaths,
@@ -93,6 +96,10 @@ import { UsageTracker } from "@/agentMode/session/UsageTracker";
 import { replayPersistedMode } from "@/agentMode/session/replayPersistedMode";
 import type { SavedAgentTask } from "@/agentMode/session/AgentSessionSnapshots";
 import type { TaskOutputSnapshot } from "@/agentMode/session/taskOutputTail";
+import {
+  projectDisplayFacts,
+  serializeDisplayMessage,
+} from "@/agentMode/session/AgentDisplayFacts";
 
 export const DEFAULT_TITLE_PREFIX = "New session";
 const EMPTY_TASKS: readonly AgentTask[] = Object.freeze([]);
@@ -191,6 +198,7 @@ export interface ProjectContextUpdatesHooks {
 }
 
 export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
+  purpose?: AgentSessionPurpose;
   beforePrompt?: () => void;
   backend: BackendProcess;
   cwd: string;
@@ -208,6 +216,7 @@ export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
 }
 
 export interface AgentSessionStateOptions extends ProjectContextUpdatesHooks {
+  purpose?: AgentSessionPurpose;
   beforePrompt?: () => void;
   backend: BackendProcess;
   backendSessionId: SessionId;
@@ -226,13 +235,19 @@ export interface AgentSessionStateOptions extends ProjectContextUpdatesHooks {
 export class AgentSession {
   readonly store = new AgentMessageStore();
   readonly internalId: string;
-  readonly chatInputId: string;
+  private inputIdentity: string;
   readonly backendId: BackendId;
   readonly planFeedbackDelivery: "permission" | "next_turn";
   readonly projectId: ProjectScopeId;
+  purpose?: AgentSessionPurpose;
   readonly ready: Promise<void>;
   private backendSessionId: SessionId | null = null;
   private backend: BackendProcess;
+  private displayFactWrite: Promise<void> = Promise.resolve();
+  private savedDisplayLabel: string | null | undefined;
+  private savedDisplayBranch: AgentBranchState | null | undefined;
+  private savedTaskOutputs = new Map<string, TaskOutputSnapshot>();
+  private historyReadOnly = false;
   private backendSuspended = false;
   private readonly beforePrompt: (() => void) | undefined;
   readonly cwd: string | null;
@@ -281,7 +296,7 @@ export class AgentSession {
     this.beforePrompt = opts.beforePrompt;
     this.backend = opts.backend;
     this.internalId = opts.internalId;
-    this.chatInputId = opts.chatInputId ?? uuidv4();
+    this.inputIdentity = opts.chatInputId ?? uuidv4();
     this.backendId = opts.backendId;
     this.turns = new TurnTracker({
       store: this.store,
@@ -290,7 +305,19 @@ export class AgentSession {
         if (this.isOnModelNotEnabled()) {
           return Promise.reject(noEnabledModelError(this.displayNameFor(this.backendId)));
         }
-        return this.backend.prompt({ sessionId: this.backendSessionId!, ...input });
+        const queued = this.turns.getQueuedPrompts().find((item) => item.id === input.promptId);
+        const message =
+          this.store.getMessage(input.promptId) ??
+          (queued
+            ? buildUserMessage(queued.id, queued.text, queued.context, queued.promptContent)
+            : undefined);
+        return this.backend.prompt({
+          sessionId: this.backendSessionId!,
+          ...input,
+          ...(message && this.backend.appendDisplayFacts
+            ? { displayMessage: serializeDisplayMessage({ ...message, id: input.promptId }) }
+            : {}),
+        });
       },
       notifyMessages: () => this.notifyMessages(),
       notifyQueuedPrompts: () => this.notifyQueuedPromptsChanged(),
@@ -313,6 +340,7 @@ export class AgentSession {
     });
     this.planFeedbackDelivery = opts.getDescriptor?.()?.planFeedbackDelivery ?? "permission";
     this.projectId = opts.projectId ?? GLOBAL_SCOPE;
+    this.purpose = opts.purpose;
     this.cwd = opts.cwd ?? null;
     this.getDescriptor = opts.getDescriptor ?? null;
     this.getDisplayName = opts.getDisplayName ?? null;
@@ -353,7 +381,8 @@ export class AgentSession {
     }
   }
 
-  completeResume(state: BackendState | null): void {
+  completeResume(state: BackendState | null, purpose?: AgentSessionPurpose): void {
+    this.purpose = purpose;
     this.historyReplay.end();
     const lastMessage = this.store.getDisplayMessages().at(-1);
     this.turns.restoreLastTurnFailure(
@@ -392,6 +421,7 @@ export class AgentSession {
     try {
       const resp = await backend.newSession({
         cwd,
+        ...(opts.purpose ? { purpose: opts.purpose } : {}),
         ...(defaultModelSelection ? { modelId: defaultModelSelection.baseModelId } : {}),
         projectId: this.projectId,
         mcpServers: opts.mcpServers,
@@ -644,6 +674,80 @@ export class AgentSession {
     this.notifyMessages();
   }
 
+  supportsDisplayFacts(): boolean {
+    return (
+      this.backend.appendDisplayFacts !== undefined && this.backend.readDisplayFacts !== undefined
+    );
+  }
+
+  get chatInputId(): string {
+    return this.inputIdentity;
+  }
+
+  setHistoryReadOnly(readOnly: boolean): void {
+    this.historyReadOnly = readOnly;
+  }
+
+  persistDisplayFacts(additional: AgentDisplayFact[] = []): Promise<void> {
+    if (!this.backend.appendDisplayFacts || !this.backendSessionId || this.historyReadOnly)
+      return Promise.resolve();
+    const sessionId = this.backendSessionId;
+    const save = this.displayFactWrite
+      .catch(() => {})
+      .then(async () => {
+        const facts = [...this.store.takeDisplayFacts(), ...additional];
+        const label = this.getLabel();
+        if (this.savedDisplayLabel !== label)
+          facts.push({ kind: "session_metadata", chatId: this.chatInputId, label });
+        if (this.savedDisplayBranch !== this.branchState)
+          facts.push({ kind: "branch", branch: this.branchState });
+        for (const task of this.getTasks()) {
+          if (task.savedOutput && this.savedTaskOutputs.get(task.toolCallId) !== task.savedOutput)
+            facts.push({ kind: "task", task, messages: [] });
+        }
+        if (!facts.length) return;
+        try {
+          await this.backend.appendDisplayFacts!({ sessionId, facts });
+        } catch (error) {
+          this.store.restoreDisplayFacts(facts);
+          throw error;
+        }
+        this.savedDisplayLabel = label;
+        this.savedDisplayBranch = this.branchState;
+        for (const task of this.getTasks())
+          if (task.savedOutput) this.savedTaskOutputs.set(task.toolCallId, task.savedOutput);
+      });
+    this.displayFactWrite = save;
+    return save;
+  }
+
+  async restorePersistedDisplayFacts(): Promise<void> {
+    if (!this.backend.readDisplayFacts || !this.backendSessionId) return;
+    const facts = await this.backend.readDisplayFacts({ sessionId: this.backendSessionId });
+    const projection = projectDisplayFacts(this.store.getDisplayMessages(), facts, (path) => {
+      const file = this.getApp?.()?.vault.getAbstractFileByPath(path);
+      return file instanceof TFile ? file : null;
+    });
+    this.loadDisplayMessages(projection.messages);
+    if (projection.chatId) this.inputIdentity = projection.chatId;
+    if (projection.warnings.length) {
+      logWarn(
+        "[AgentMode] Uninterpreted display records were preserved",
+        projection.warnings.length
+      );
+      new Notice(t(projection.warnings[0]));
+    }
+    if (projection.branch !== undefined) this.restoreBranchState(projection.branch);
+    if (projection.label !== undefined) this.setLabel(projection.label);
+    for (const entry of projection.tasks) {
+      if (entry.task.savedOutput)
+        this.rememberTaskOutput(entry.task.toolCallId, entry.task.savedOutput);
+    }
+    this.savedDisplayLabel = this.getLabel();
+    this.savedDisplayBranch = this.branchState;
+    this.store.takeDisplayFacts();
+  }
+
   getBranchState(): AgentBranchState | null {
     return this.branchState ? { ...this.branchState } : null;
   }
@@ -710,6 +814,12 @@ export class AgentSession {
     context?: MessageContext,
     promptContent?: PromptContent[]
   ): { userMessageId: string; turn: Promise<StopReason> } {
+    if (this.historyReadOnly)
+      throw new Error(
+        t(
+          "This chat is read-only because its history needs repair. Your saved records have been preserved."
+        )
+      );
     if (!isAgentBackendEnabled(getSettings(), this.backendId) || this.backendSuspended) {
       throw new Error("This agent is unavailable. Check its model configuration in Models.");
     }
@@ -1151,18 +1261,31 @@ export class AgentSession {
   }
 
   private handleSessionEvent(event: SessionEvent): void {
+    this.store.withRecordedTime(event.occurredAt, () => this.applySessionEvent(event));
+  }
+
+  private applySessionEvent(event: SessionEvent): void {
     const update = event.update;
     if (event.taskToolCallId !== undefined && !isTaskLifecycleUpdate(update)) {
-      this.applyTaskContent(event.taskToolCallId, update);
+      this.applyTaskContent(event.taskToolCallId, event);
       return;
     }
     if (update.sessionUpdate === "user_message_chunk" && !this.historyReplay.isOpen()) return;
-    if (this.historyReplay.append(update, event.occurredAt)) {
+    if (this.historyReplay.append(update, event.occurredAt, event.seq, event.origin)) {
       return;
     }
     switch (update.sessionUpdate) {
       case "message_delivered":
-        this.turns.deliverPrompt(update.promptId);
+        this.turns.deliverPrompt(update.promptId, event.occurredAt);
+        if (event.seq !== undefined) {
+          const replyId = `assistant:${update.promptId}`;
+          this.store.identifyMessage(replyId, replyId, event.seq, event.occurredAt);
+          this.scheduleNotifyMessages();
+        }
+        if (update.messageSeq !== undefined) {
+          this.store.identifyMessage(update.promptId, update.promptId, update.messageSeq);
+          this.scheduleNotifyMessages();
+        }
         return;
       case "messages_withdrawn":
         this.turns.withdrawPrompts(update.promptIds);
@@ -1185,10 +1308,10 @@ export class AgentSession {
         this.applyTaskUpdate(update);
         return;
       case "turn_started":
-        this.turns.startTurn(update.turnId, update.startedAt);
+        this.turns.startTurn(update.turnId, update.startedAt, event.seq);
         return;
       case "turn_ended":
-        this.turns.endTurn(update);
+        this.turns.endTurn(update, event.occurredAt);
         return;
       case "busy_changed":
         this.agentBusy = update.busy;
@@ -1206,9 +1329,18 @@ export class AgentSession {
       toolOwnerMessageId !== undefined &&
       toolOwnerStopReason !== undefined &&
       toolOwnerStopReason !== "cancelled";
+    const segmentOwnerMessageId =
+      update.sessionUpdate === "agent_segment_finalized"
+        ? this.store.findMessageIdWithSegment(update.segmentSeq)
+        : undefined;
 
     if (this.turns.isStopping()) {
       switch (update.sessionUpdate) {
+        case "agent_segment_started":
+          return;
+        case "agent_segment_finalized":
+          if (!segmentOwnerMessageId) return;
+          break;
         case "agent_message_chunk":
         case "agent_thought_chunk":
           this.turns.dropStoppedContent(update.messageId);
@@ -1275,24 +1407,58 @@ export class AgentSession {
       }
       const appended =
         update.sessionUpdate === "agent_message_chunk"
-          ? this.store.appendAgentText(target, text)
-          : this.store.appendAgentThought(target, text);
+          ? this.store.appendAgentText(
+              target,
+              text,
+              event.seq,
+              event.origin === "synthetic",
+              update.segmentSeq,
+              update.contentIndex
+            )
+          : this.store.appendAgentThought(
+              target,
+              text,
+              event.seq,
+              event.origin === "synthetic",
+              update.segmentSeq,
+              update.contentIndex
+            );
       if (appended) {
-        this.turns.extendSettledTurn(target);
+        this.turns.extendSettledTurn(target, event.occurredAt);
         this.scheduleNotifyMessages();
       }
       return;
     }
 
-    const targetMessageId = this.turns.resolveToolTarget(
-      isPriorToolUpdate ? toolOwnerMessageId : undefined
-    );
+    const targetMessageId =
+      segmentOwnerMessageId ??
+      this.turns.resolveToolTarget(isPriorToolUpdate ? toolOwnerMessageId : undefined);
     if (!targetMessageId) {
       logWarn(`[AgentMode] dropping session/update — no placeholder for ${this.internalId}`);
       return;
     }
+    const eventPart = (part: AgentMessagePart): AgentMessagePart => ({
+      ...part,
+      ...(part.seq === undefined && event.seq !== undefined ? { seq: event.seq } : {}),
+      ...(event.origin === "synthetic" ? { synthetic: true } : {}),
+    });
 
     switch (update.sessionUpdate) {
+      case "agent_segment_started":
+        if (event.seq !== undefined) this.store.startAgentSegment(targetMessageId, event.seq);
+        return;
+      case "agent_segment_finalized":
+        if (
+          this.store.finalizeAgentSegment(
+            targetMessageId,
+            update.segmentSeq,
+            update.blocks,
+            event.seq,
+            event.origin === "synthetic"
+          )
+        )
+          this.scheduleNotifyMessages();
+        return;
       case "tool_call": {
         this.observeToolCall(this.turns.getTurnFiles(), update.kind, toolCallTarget(update));
         const exitPlan = tryReadExitPlanModeCall({
@@ -1302,12 +1468,12 @@ export class AgentSession {
         });
         if (exitPlan) {
           this.requests.publishGatedPlan(update.toolCallId, exitPlan);
-          if (this.store.upsertAgentPart(targetMessageId, toolCallToPart(update))) {
+          if (this.store.upsertAgentPart(targetMessageId, eventPart(toolCallToPart(update)))) {
             this.scheduleNotifyMessages();
           }
           return;
         }
-        if (this.store.upsertAgentPart(targetMessageId, toolCallToPart(update))) {
+        if (this.store.upsertAgentPart(targetMessageId, eventPart(toolCallToPart(update)))) {
           this.scheduleNotifyMessages();
         }
         return;
@@ -1326,7 +1492,7 @@ export class AgentSession {
             this.requests.publishGatedPlan(merged.id, exitPlan);
           }
         }
-        if (this.store.upsertAgentPart(targetMessageId, merged)) {
+        if (this.store.upsertAgentPart(targetMessageId, eventPart(merged))) {
           this.scheduleNotifyMessages();
         }
         this.endUnstartedTasks();
@@ -1511,54 +1677,84 @@ export class AgentSession {
     }
   }
 
-  private applyTaskContent(toolCallId: string, update: SessionEvent["update"]): void {
+  private applyTaskContent(toolCallId: string, event: SessionEvent): void {
+    const update = event.update;
     let store = this.taskContent.get(toolCallId);
     if (!store) {
       store = new AgentMessageStore();
       this.taskContent.set(toolCallId, store);
     }
-    const messageId =
-      store.getDisplayMessages()[0]?.id ??
-      store.addMessage({
-        message: "",
-        sender: AI_SENDER,
-        timestamp: formatDateTime(new Date()),
-        isVisible: true,
-        parts: [],
-      });
-    let changed: boolean;
-    switch (update.sessionUpdate) {
-      case "agent_message_chunk":
-        changed = store.appendAgentText(messageId, extractText(update.content));
-        break;
-      case "agent_thought_chunk":
-        changed = store.appendAgentThought(messageId, extractText(update.content));
-        break;
-      case "tool_call":
-        this.observeToolCall(this.filesOfTask(toolCallId), update.kind, toolCallTarget(update));
-        changed = store.upsertAgentPart(messageId, toolCallToPart(update));
-        break;
-      case "tool_call_update": {
-        const existing = store
-          .getMessage(messageId)
-          ?.parts?.find((part) => part.kind === "tool_call" && part.id === update.toolCallId);
-        const cutShort =
-          existing?.kind === "tool_call" &&
-          existing.status === "cancelled" &&
-          update.status === "failed";
-        const merged = mergeToolCallUpdate(
-          existing,
-          cutShort ? { ...update, status: "cancelled" } : this.withEndedTaskStatus(update)
-        );
-        this.observeToolResult(this.filesOfTask(toolCallId), merged, update);
-        changed = store.upsertAgentPart(messageId, merged);
-        this.endUnstartedTasks();
-        break;
+    const content = store;
+    content.withRecordedTime(event.occurredAt, () => {
+      const messageId =
+        store.getDisplayMessages()[0]?.id ??
+        store.addMessage({
+          message: "",
+          sender: AI_SENDER,
+          timestamp: formatDateTime(new Date(event.occurredAt ?? Date.now())),
+          isVisible: true,
+          parts: [],
+        });
+      let changed: boolean;
+      switch (update.sessionUpdate) {
+        case "agent_segment_started":
+          if (event.seq !== undefined) content.startAgentSegment(messageId, event.seq);
+          return;
+        case "agent_segment_finalized":
+          changed = content.finalizeAgentSegment(
+            messageId,
+            update.segmentSeq,
+            update.blocks,
+            event.seq,
+            event.origin === "synthetic"
+          );
+          break;
+        case "agent_message_chunk":
+          changed = content.appendAgentText(
+            messageId,
+            extractText(update.content),
+            event.seq,
+            event.origin === "synthetic",
+            update.segmentSeq,
+            update.contentIndex
+          );
+          break;
+        case "agent_thought_chunk":
+          changed = content.appendAgentThought(
+            messageId,
+            extractText(update.content),
+            event.seq,
+            event.origin === "synthetic",
+            update.segmentSeq,
+            update.contentIndex
+          );
+          break;
+        case "tool_call":
+          this.observeToolCall(this.filesOfTask(toolCallId), update.kind, toolCallTarget(update));
+          changed = store.upsertAgentPart(messageId, toolCallToPart(update));
+          break;
+        case "tool_call_update": {
+          const existing = store
+            .getMessage(messageId)
+            ?.parts?.find((part) => part.kind === "tool_call" && part.id === update.toolCallId);
+          const cutShort =
+            existing?.kind === "tool_call" &&
+            existing.status === "cancelled" &&
+            update.status === "failed";
+          const merged = mergeToolCallUpdate(
+            existing,
+            cutShort ? { ...update, status: "cancelled" } : this.withEndedTaskStatus(update)
+          );
+          this.observeToolResult(this.filesOfTask(toolCallId), merged, update);
+          changed = store.upsertAgentPart(messageId, merged);
+          this.endUnstartedTasks();
+          break;
+        }
+        default:
+          return;
       }
-      default:
-        return;
-    }
-    if (changed) this.notifyTasks();
+      if (changed) this.notifyTasks();
+    });
   }
 
   private publishTasks(): void {

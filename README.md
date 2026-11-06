@@ -35,14 +35,14 @@ Agent Chat and Quick tools use the providers, API keys, connection addresses, or
 ## Built around your vault
 
 - **Projects:** Give ongoing work its own instructions, reusable context, and chat history. [Learn about Projects](./docs/projects.md).
-- **Skills:** Create and manage your own reusable instructions and project workflows. Scribe does not bundle, install, or update skills; existing skill files stay available as ordinary skills. [Learn about Skills](./docs/agent-mode-and-tools.md#skills).
+- **Skills:** Start with seven bundled skills, create reviewed drafts with the Agent, or import skills from supported desktop tools, folders, and ZIP files. Built-in skills are read-only, can be switched off or uninstalled, and can be restored. Existing skill files stay available as local skills. [Learn about Skills](./docs/agent-mode-and-tools.md#skills).
 - **Commands:** Save repeatable prompts, run them with `/` in Agent Chat, or expose them in the editor and Command palette. [Create a Command](./docs/custom-commands.md).
 - **Quick Ask:** Ask about a selection without leaving the note. Continue the conversation, replace text, insert the answer, or copy it. Quick tools use the first configured model by default. [Set up Quick Ask](./docs/custom-commands.md#quick-ask).
 - **Multiple sessions:** Keep separate Agent Chat tabs open for different tasks.
 
 ## Use your own keys or local models
 
-Add a cloud, local, or compatible provider under **Settings → Scribe → 模型** (**Settings → Scribe → Models** in English). Scribe stores configured API keys in this device's Obsidian Keychain; older installations may also have credential backups that require careful handling. Agent Chat and Quick tools share these configured models. Choose a chat model and permission mode in the chat; new chats remember the last manual choices.
+Add a cloud, local, or compatible provider under **Settings → Scribe → 模型** (**Settings → Scribe → Models** in English). Scribe encrypts service keys inside the current vault’s `.scribe` folder using a master password that is never saved. The old system keychain is not imported or changed; enter service keys again when adopting the new storage. Agent Chat and Quick tools share these configured models. Choose a chat model and permission mode in the chat; new chats remember the last manual choices.
 
 Your chosen route determines where prompts and included context are processed. Read [Models and providers](./docs/llm-providers.md) for setup and data-routing details.
 

@@ -1,3 +1,7 @@
+jest.mock("@/agentMode/subagents/SubagentManager", () => ({
+  SubagentManager: { getInstance: () => ({ refresh: async () => [] }), reset: jest.fn() },
+  getSubagents: () => [],
+}));
 import type { App } from "obsidian";
 import type ScribePlugin from "@/main";
 import type { ScribeSettings } from "@/settings/model";
@@ -20,8 +24,7 @@ jest.mock("@/settings/scribeFolder", () => ({
   deriveSkillsFolder: (settings: ScribeSettings) => `${settings.scribeFolder}/skills`,
 }));
 jest.mock("@/utils/appPaths", () => ({
-  scribeAppDataDir: () => "/tmp/scribe",
-  getVaultId: () => "test-vault",
+  getScribeDataPath: () => "/test-vault/.scribe",
 }));
 jest.mock("./backends/registry", () => ({
   backendRegistry: {},
@@ -55,7 +58,6 @@ jest.mock("./ui/ScribeAgentView", () => ({}));
 jest.mock("./ui/AgentExtensionsSettings", () => ({}));
 jest.mock("./ui/useBackendDescriptor", () => ({}));
 jest.mock("./ui/PlanPreviewView", () => ({}));
-jest.mock("./session/debugSink", () => ({}));
 jest.mock("./session/useBackendAuthState", () => ({}));
 
 const RELOAD_ISSUE = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
@@ -82,7 +84,10 @@ const mockManager = {
   onInstallStateChanged: jest.fn(async (_id: string) => {}),
 };
 let plugin: ScribePlugin;
-const mockInitialize = jest.fn((..._args: unknown[]) => ({ refresh: mockRefresh }));
+const mockInitialize = jest.fn((..._args: unknown[]) => ({
+  refresh: mockRefresh,
+  syncBuiltins: async () => undefined,
+}));
 
 function emitSettingsChange(next: ScribeSettings): void {
   const prev = mockSettings;
@@ -119,7 +124,7 @@ describe("agentMode", () => {
         configuredModels: [],
         backends: { native: { enabledModels: ["native-haiku"] } },
       } as unknown as ScribeSettings;
-      plugin = {} as ScribePlugin;
+      plugin = { register: jest.fn() } as unknown as ScribePlugin;
     });
 
     afterEach(async () => {
@@ -218,16 +223,10 @@ describe("agentMode", () => {
       expect(mockManager.onInstallStateChanged).toHaveBeenCalledWith("native");
     });
 
-    it(`refreshes skills after the shared folder changes without restarting Scribe ${RELOAD_ISSUE}`, async () => {
+    it("does not scan a legacy data root when old settings change", async () => {
       await startManager();
-      const refreshed = deferred();
-      mockRefresh.mockImplementationOnce(async () => refreshed.resolve());
-
       emitSettingsChange({ ...mockSettings, scribeFolder: "shared-scribe" });
-
-      await refreshed.promise;
-      expect(mockRefresh).toHaveBeenCalledTimes(2);
-      expect(mockManager.noteSpawnConfigChanged).not.toHaveBeenCalled();
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
     });
 
     it(`does not restart Scribe for model lists ${RELOAD_ISSUE}`, async () => {

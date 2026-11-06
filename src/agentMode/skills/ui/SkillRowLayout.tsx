@@ -24,7 +24,11 @@ export function SkillRowLayout({
     <div
       data-menu-open={menuOpen ? "true" : undefined}
       onClick={(event) => {
-        if (!(event.target as HTMLElement).closest("button, [role=switch]")) onOpen?.();
+        if (!event.currentTarget.contains(event.target as Node)) return;
+        if (
+          !(event.target as Element).closest("button, [role=switch], [role=menuitem], [role=menu]")
+        )
+          onOpen?.();
       }}
       className={cn(
         "tw-group/settings tw-flex tw-flex-wrap tw-items-center tw-gap-x-4 tw-gap-y-2",

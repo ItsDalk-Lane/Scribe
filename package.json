@@ -66,6 +66,7 @@
     "@types/react-dom": "^18.0.11",
     "@types/turndown": "^5.0.6",
     "@types/uuid": "^10.0.0",
+    "@types/yauzl": "^3.4.0",
     "@typescript-eslint/parser": "8.59.3",
     "esbuild": "^0.25.0",
     "eslint": "^9.18.0",
@@ -128,6 +129,7 @@
     "tailwind-merge": "^2.5.5",
     "turndown": "^7.2.2",
     "uuid": "^11.1.0",
+    "yauzl": "3.4.0",
     "zod": "^4.4.2"
   },
   "overrides": {

@@ -103,6 +103,80 @@ describe("nativeAdvancedTools", () => {
       expect(options.fetch).not.toHaveBeenCalled();
     });
 
+    it("shows the full proposed draft to the review callback and returns only the confirmed saved name", async () => {
+      const draft = {
+        name: "note-review",
+        description: "Review notes",
+        body: "Check every claim.",
+      };
+      const review = jest.fn(async () => ({ name: "reviewed-name" }));
+      Object.assign(options, { reviewSkillDraft: review });
+      const controller = new AbortController();
+      const result = await execute("propose_skill", draft, "proposal-one", controller.signal);
+      expect(review).toHaveBeenCalledWith(draft, controller.signal);
+      expect(result.details).toEqual({ name: "reviewed-name", saved: true });
+      expect(options.requestPermission).not.toHaveBeenCalled();
+    });
+
+    it("does not open draft review when the calling operation has already stopped", async () => {
+      const review = jest.fn(async () => ({ name: "review" }));
+      Object.assign(options, { reviewSkillDraft: review });
+      const controller = new AbortController();
+      controller.abort();
+      await expect(
+        execute(
+          "propose_skill",
+          { name: "review", description: "Review notes", body: "Read each note." },
+          "stopped",
+          controller.signal
+        )
+      ).rejects.toThrow();
+      expect(review).not.toHaveBeenCalled();
+    });
+
+    it("reports a review failure without returning a successful save result", async () => {
+      Object.assign(options, {
+        reviewSkillDraft: jest.fn(async () => {
+          throw new Error("Review unavailable");
+        }),
+      });
+      await expect(
+        execute("propose_skill", {
+          name: "review",
+          description: "Review notes",
+          body: "Read each note.",
+        })
+      ).rejects.toThrow("Review unavailable");
+    });
+
+    it("returns cancellation without claiming a skill was saved", async () => {
+      Object.assign(options, { reviewSkillDraft: jest.fn(async () => null) });
+      const result = await execute("propose_skill", {
+        name: "review",
+        description: "Review notes",
+        body: "Read the note.",
+      });
+      expect(result.details).toEqual({ saved: false });
+    });
+
+    it("includes the registered skill catalog and support-file directory in skill invocation", async () => {
+      options.skills = () => [
+        {
+          name: "note-format",
+          description: "Format notes",
+          body: "Read references.",
+          dirPath: root,
+        },
+      ];
+      const tool = createNativeAdvancedTools(options).find(
+        (entry) => entry.name === "invoke_skill"
+      )!;
+      expect(tool.description).toContain("note-format: Format notes");
+      const result = await tool.execute("with-directory", { name: "note-format" });
+      expect(result.content).toContainEqual({ type: "text", text: expect.stringContaining(root) });
+      expect(result.details).toEqual({ name: "note-format", directory: root });
+    });
+
     it("does not advertise a feedback tool https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       expect(createNativeAdvancedTools(options).map((tool) => tool.name)).not.toContain(
         "send_feedback"

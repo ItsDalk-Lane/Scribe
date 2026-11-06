@@ -42,10 +42,8 @@ jest.mock("@/modelManagement", () => ({
     "@/modelManagement/chatModel/chatModelSelection"
   ),
   chatBackendPickerAtom: "chat",
-  providerNeedsResolvedApiKey: (provider: {
-    requiresApiKey?: boolean;
-    apiKeyKeychainId?: string;
-  }) => (provider.requiresApiKey ?? true) || !!provider.apiKeyKeychainId,
+  providerNeedsResolvedApiKey: (provider: { requiresApiKey?: boolean; apiKeyRef?: string }) =>
+    (provider.requiresApiKey ?? true) || !!provider.apiKeyRef,
   configuredModelToCustomModel: ({
     configuredModel,
   }: {
@@ -57,29 +55,29 @@ jest.mock("@/modelManagement", () => ({
 }));
 jest.mock("@/settings/model", () => ({ settingsStore: {} }));
 const mockSecret = jest.fn();
-jest.mock("@/services/keychainService", () => ({
-  KeychainService: { getInstance: () => ({ getSecretById: mockSecret }) },
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ getStatus: mockSecret }) },
 }));
 
 describe("useChatBackendModelOptions", () => {
   describe("useChatBackendModelOptions", () => {
     it("omits a saved key reference whose credential is unavailable on this device https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const provider = mockEntries[1].provider as (typeof mockEntries)[1]["provider"] & {
-        apiKeyKeychainId?: string;
+        apiKeyRef?: string;
       };
-      provider.apiKeyKeychainId = "missing-on-device";
-      mockSecret.mockReturnValue(undefined);
+      provider.apiKeyRef = "missing-on-device";
+      mockSecret.mockReturnValue("missing");
       try {
         const { result } = renderHook(() => useChatBackendModelOptions());
         expect(result.current.options.map((option) => option.value)).toEqual(["model-a"]);
-        mockSecret.mockReturnValue("usable-key");
+        mockSecret.mockReturnValue("locked");
         const available = renderHook(() => useChatBackendModelOptions());
         expect(available.result.current.options.map((option) => option.value)).toEqual([
           "model-a",
           "model-keyless",
         ]);
       } finally {
-        delete provider.apiKeyKeychainId;
+        delete provider.apiKeyRef;
       }
     });
 

@@ -1,5 +1,4 @@
-import { t } from "@/lib/i18n";
-import { CustomModel, ProjectConfig } from "@/aiParams";
+import { CustomModel } from "@/aiParams";
 import { atom, createStore, useAtomValue } from "jotai";
 
 import type { ScribeMode, ModelSelection } from "@/agentMode";
@@ -11,7 +10,6 @@ import {
   DEFAULT_OPEN_AREA,
   DEFAULT_QA_EXCLUSIONS_SETTING,
   DEFAULT_SETTINGS,
-  DEFAULT_SKILLS_FOLDER,
   SEND_SHORTCUT,
 } from "@/constants";
 
@@ -30,7 +28,6 @@ export interface LegacyCommandSettings {
 export interface ScribeSettings {
   openAIApiKey: string;
   openAIOrgId: string;
-  huggingfaceApiKey: string;
   cohereApiKey: string;
   anthropicApiKey: string;
   googleApiKey: string;
@@ -40,44 +37,35 @@ export interface ScribeSettings {
   deepseekApiKey: string;
   siliconflowApiKey: string;
   defaultModelKey: string;
-  userSystemPrompt: string;
-  openAIProxyBaseUrl: string;
   scribeFolder: string;
   scribeRootHistory: string[];
   autoAttachActiveNote: boolean;
-  customPromptsFolder: string;
   debug: boolean;
   enableInlineCitations: boolean;
   qaExclusions: string;
   qaInclusions: string;
   groqApiKey: string;
   activeModels: Array<CustomModel>;
-  promptUsageTimestamps: Record<string, number>;
   chatHistorySortStrategy: SortStrategy;
-  projectsFolder: string;
   defaultOpenArea: DEFAULT_OPEN_AREA;
   defaultSendShortcut: SEND_SHORTCUT;
   inlineEditCommands: LegacyCommandSettings[] | undefined;
-  projectList: Array<ProjectConfig>;
-  memoryFolderName: string;
   quickCommandModelKey: string | undefined;
   quickCommandIncludeNoteContext: boolean;
-  defaultSystemPromptTitle: string;
   _keychainVaultId?: string;
   _pendingCredentialRecovery?: { deviceId: string; path: string; encrypted: boolean };
   settingsVersion?: number;
+  storageId?: string;
+  homeShelfTabs?: Record<string, string>;
   agentMode: {
-    byok: { anthropic?: string; openai?: string; google?: string };
     activeBackend: string;
     backends: {
       native?: NativeBackendSettings;
     };
-    debugFullFrames: boolean;
     notificationSound: boolean;
     notificationSoundId: NotificationSoundId;
     welcomeDismissed: boolean;
     skills: {
-      folder: string;
       suppressMigrationConfirm?: boolean;
     };
   };
@@ -100,32 +88,6 @@ const EMPTY_PROVIDERS = Object.freeze({}) as unknown as Record<string, Provider>
 const EMPTY_CONFIGURED_MODELS = Object.freeze([]) as unknown as ConfiguredModel[];
 const EMPTY_BACKENDS = Object.freeze({}) as unknown as Partial<Record<BackendType, BackendConfig>>;
 const EMPTY_SCRIBE_ROOT_HISTORY = Object.freeze([]) as unknown as string[];
-
-export function normalizeRootFolders(input: readonly (string | undefined)[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const raw of input) {
-    if (typeof raw !== "string") continue;
-    const normalized = raw
-      .trim()
-      .replace(/\\/g, "/")
-      .replace(/\/+/g, "/")
-      .split("/")
-      .filter((segment) => segment !== ".")
-      .join("/")
-      .replace(/\/+$/, "");
-    if (normalized.length === 0) continue;
-    const escapesVault =
-      /(^|\/)\.\.(\/|$)/.test(normalized) ||
-      /^[a-zA-Z]:/.test(normalized) ||
-      normalized.startsWith("/");
-    if (escapesVault) continue;
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    result.push(normalized);
-  }
-  return result.length > 0 ? result : EMPTY_SCRIBE_ROOT_HISTORY;
-}
 
 export function setSettings(
   settings: Partial<ScribeSettings> | ((current: ScribeSettings) => Partial<ScribeSettings>)
@@ -209,9 +171,7 @@ function carriesConfiguration(field: string, value: unknown): boolean {
 function preserveProvidersWithCredentials(
   providers: Record<string, Provider> | undefined
 ): Record<string, Provider> {
-  const preserved = Object.entries(providers ?? {}).filter(
-    ([, provider]) => !!provider?.apiKeyKeychainId
-  );
+  const preserved = Object.entries(providers ?? {}).filter(([, provider]) => !!provider?.apiKeyRef);
   return preserved.length > 0 ? Object.fromEntries(preserved) : EMPTY_PROVIDERS;
 }
 
@@ -229,10 +189,6 @@ function preserveConfiguredModelsForProviders(
 export function resetSettings(): void {
   const current = getSettings();
   const currentRecord = current as unknown as Record<string, unknown>;
-  const preservedRootHistory = normalizeRootFolders([
-    ...(Array.isArray(current.scribeRootHistory) ? current.scribeRootHistory : []),
-    current.scribeFolder,
-  ]);
   const preservedTopLevelSecrets: Record<string, unknown> = {};
   for (const field of TOP_LEVEL_CREDENTIAL_BUNDLE_FIELDS) {
     const value = currentRecord[field];
@@ -251,7 +207,8 @@ export function resetSettings(): void {
       current.configuredModels,
       preservedProviderIds
     ),
-    scribeRootHistory: preservedRootHistory,
+    storageId: current.storageId,
+    homeShelfTabs: current.homeShelfTabs,
   };
   setSettings(resetValues);
 }
@@ -291,13 +248,6 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
     sanitizedSettings.enableInlineCitations = DEFAULT_SETTINGS.enableInlineCitations;
   }
 
-  if (
-    !sanitizedSettings.memoryFolderName ||
-    typeof sanitizedSettings.memoryFolderName !== "string"
-  ) {
-    sanitizedSettings.memoryFolderName = DEFAULT_SETTINGS.memoryFolderName;
-  }
-
   if (typeof sanitizedSettings.autoAttachActiveNote !== "boolean") {
     sanitizedSettings.autoAttachActiveNote = DEFAULT_SETTINGS.autoAttachActiveNote;
   }
@@ -318,34 +268,8 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
     sanitizedSettings.defaultSendShortcut = DEFAULT_SETTINGS.defaultSendShortcut;
   }
 
-  const scribeFolderValidation = validateScribeFolder(
-    typeof settingsToSanitize.scribeFolder === "string"
-      ? toVisibleScribeFolder(settingsToSanitize.scribeFolder)
-      : ""
-  );
-  sanitizedSettings.scribeFolder = scribeFolderValidation.ok
-    ? scribeFolderValidation.folder
-    : DEFAULT_SETTINGS.scribeFolder;
-
-  const rawRootHistory = Array.isArray(settingsToSanitize.scribeRootHistory)
-    ? settingsToSanitize.scribeRootHistory
-    : [];
-  sanitizedSettings.scribeRootHistory = normalizeRootFolders([
-    ...rawRootHistory,
-    sanitizedSettings.scribeFolder,
-  ]);
-
-  const promptsFolder = (settingsToSanitize.customPromptsFolder || "").trim();
-  sanitizedSettings.customPromptsFolder =
-    promptsFolder.length > 0 ? promptsFolder : DEFAULT_SETTINGS.customPromptsFolder;
-
-  const projectsFolder = (settingsToSanitize.projectsFolder || "").trim();
-  const hasTraversal =
-    /(^|[/\\])\.\.[/\\]?/.test(projectsFolder) ||
-    /^[a-zA-Z]:/.test(projectsFolder) ||
-    /^[/\\]/.test(projectsFolder);
-  sanitizedSettings.projectsFolder =
-    projectsFolder.length > 0 && !hasTraversal ? projectsFolder : DEFAULT_SETTINGS.projectsFolder;
+  sanitizedSettings.scribeFolder = DEFAULT_SETTINGS.scribeFolder;
+  sanitizedSettings.scribeRootHistory = EMPTY_SCRIBE_ROOT_HISTORY;
 
   if (
     !isSortStrategy(sanitizedSettings.chatHistorySortStrategy) ||
@@ -374,6 +298,17 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
     Array.isArray(sanitizedSettings.backends)
   ) {
     sanitizedSettings.backends = EMPTY_BACKENDS;
+  }
+
+  const providerRows = Object.entries(sanitizedSettings.providers);
+  if (providerRows.some(([, row]) => "apiKeyKeychainId" in row)) {
+    sanitizedSettings.providers = Object.fromEntries(
+      providerRows.map(([id, row]) => {
+        const copy = { ...row } as Provider & { apiKeyKeychainId?: unknown };
+        delete copy.apiKeyKeychainId;
+        return [id, copy];
+      })
+    );
   }
 
   const providerEntries = Object.entries(sanitizedSettings.providers);
@@ -425,21 +360,12 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     return { ...DEFAULT_SETTINGS.agentMode };
   }
   const r = raw as Record<string, unknown>;
-  const byok =
-    r.byok && typeof r.byok === "object"
-      ? (r.byok as { anthropic?: string; openai?: string; google?: string })
-      : {};
   const activeBackend = DEFAULT_SETTINGS.agentMode.activeBackend;
 
   const backendsRaw =
     r.backends && typeof r.backends === "object" ? (r.backends as Record<string, unknown>) : {};
   const backends: ScribeSettings["agentMode"]["backends"] = {};
   if (backendsRaw.native) backends.native = sanitizeNativeBackendSettings(backendsRaw.native);
-
-  const debugFullFrames =
-    typeof r.debugFullFrames === "boolean"
-      ? r.debugFullFrames
-      : DEFAULT_SETTINGS.agentMode.debugFullFrames;
 
   const notificationSound =
     typeof r.notificationSound === "boolean"
@@ -457,145 +383,22 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
 
   const skillsRaw =
     r.skills && typeof r.skills === "object" ? (r.skills as Record<string, unknown>) : null;
-  const skillsFolderRaw = skillsRaw && typeof skillsRaw.folder === "string" ? skillsRaw.folder : "";
-  const skillsValidation = validateSkillsFolder(skillsFolderRaw);
   const suppressMigrationConfirm =
     skillsRaw && typeof skillsRaw.suppressMigrationConfirm === "boolean"
       ? skillsRaw.suppressMigrationConfirm
       : undefined;
   const skills: ScribeSettings["agentMode"]["skills"] = {
-    folder: skillsValidation.ok
-      ? skillsValidation.folder
-      : DEFAULT_SETTINGS.agentMode.skills.folder,
     ...(suppressMigrationConfirm !== undefined ? { suppressMigrationConfirm } : {}),
   };
 
   return {
-    byok,
     activeBackend,
     backends,
-    debugFullFrames,
     notificationSound,
     notificationSoundId,
     welcomeDismissed,
     skills,
   };
-}
-
-const WINDOWS_RESERVED_NAME_RE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
-
-// eslint-disable-next-line no-control-regex -- settings paths must reject embedded control bytes
-const CONTROL_CHAR_RE = /[\u0000-\u001f\u007f]/;
-
-function validateSkillsFolder(
-  value: string
-): { ok: true; folder: string } | { ok: false; reason: string } {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return { ok: true, folder: DEFAULT_SKILLS_FOLDER };
-  }
-
-  let cleaned = value.trim().replace(/\\/g, "/");
-
-  while (cleaned.startsWith("./")) {
-    cleaned = cleaned.slice(2);
-  }
-  if (cleaned.startsWith("/")) {
-    cleaned = cleaned.replace(/^\/+/, "");
-  }
-  cleaned = cleaned.replace(/\/+$/, "");
-
-  if (cleaned.length === 0) {
-    return { ok: true, folder: DEFAULT_SKILLS_FOLDER };
-  }
-
-  const segments = cleaned.split("/");
-  for (const segment of segments) {
-    if (segment.length === 0) {
-      return { ok: false, reason: t("Folder path cannot contain empty segments (//).") };
-    }
-    if (segment === "..") {
-      return { ok: false, reason: t('Folder path cannot contain ".." segments.') };
-    }
-    if (segment === ".") {
-      return { ok: false, reason: t('Folder path cannot contain "." segments.') };
-    }
-    if (CONTROL_CHAR_RE.test(segment)) {
-      return { ok: false, reason: t("Folder path contains illegal control characters.") };
-    }
-    if (/[<>:"|?*]/.test(segment)) {
-      return {
-        ok: false,
-        reason: t('Folder path contains characters not allowed in folder names (< > : " | ? *).'),
-      };
-    }
-  }
-
-  return { ok: true, folder: cleaned };
-}
-
-export function toVisibleScribeFolder(folder: string): string {
-  return folder.trim().replace(/(^|[\\/])\.+/g, "$1");
-}
-
-export function validateScribeFolder(
-  value: string,
-  configDir?: string
-): { ok: true; folder: string } | { ok: false; reason: string } {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return { ok: false, reason: t("Folder name cannot be empty.") };
-  }
-  const trimmed = value.trim();
-  if (/^[/\\]/.test(trimmed) || /^[a-zA-Z]:/.test(trimmed)) {
-    return { ok: false, reason: t("Folder path must be relative to the vault root.") };
-  }
-  const cleaned = trimmed.replace(/\\/g, "/").replace(/\/+$/, "");
-  if (cleaned.length === 0) {
-    return { ok: false, reason: t("Folder name cannot be empty.") };
-  }
-  const normalizedConfigDir = configDir
-    ?.trim()
-    .replace(/\\/g, "/")
-    .replace(/^\/+|\/+$/g, "")
-    .toLowerCase();
-  const cleanedLower = cleaned.toLowerCase();
-  if (
-    normalizedConfigDir &&
-    (cleanedLower === normalizedConfigDir ||
-      cleanedLower.startsWith(`${normalizedConfigDir}/`) ||
-      normalizedConfigDir.startsWith(`${cleanedLower}/`))
-  ) {
-    return {
-      ok: false,
-      reason: t("Folder path cannot use the Obsidian config folder."),
-    };
-  }
-  for (const segment of cleaned.split("/")) {
-    if (segment.length === 0) {
-      return { ok: false, reason: t("Folder path cannot contain empty segments (//).") };
-    }
-    if (segment === "..") {
-      return { ok: false, reason: t('Folder path cannot contain ".." segments.') };
-    }
-    if (segment.startsWith(".")) {
-      return { ok: false, reason: t("Folder names cannot start with a dot.") };
-    }
-    if (CONTROL_CHAR_RE.test(segment)) {
-      return { ok: false, reason: t("Folder path contains illegal control characters.") };
-    }
-    if (/[<>:"|?*]/.test(segment)) {
-      return {
-        ok: false,
-        reason: t('Folder path contains characters not allowed in folder names (< > : " | ? *).'),
-      };
-    }
-    if (/[. ]$/.test(segment)) {
-      return { ok: false, reason: t("Folder names cannot end with a dot or space.") };
-    }
-    if (WINDOWS_RESERVED_NAME_RE.test(segment)) {
-      return { ok: false, reason: t('"{segment}" is a name reserved by Windows.', { segment }) };
-    }
-  }
-  return { ok: true, folder: cleaned };
 }
 
 function sanitizeDefaultModel(raw: unknown): ModelSelection | undefined {

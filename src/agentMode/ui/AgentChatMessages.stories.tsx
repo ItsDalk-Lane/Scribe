@@ -126,6 +126,30 @@ const meta = {
 } satisfies Meta<AgentChatMessagesProps>;
 export default meta;
 
+export const LongHistoryPaging: StoryObj<AgentChatMessagesProps> = {
+  args: {
+    ...actionRailArgs,
+    isLoading: false,
+    pendingAskUserQuestions: [],
+    pendingToolPermissions: [],
+    messages: Array.from({ length: 65 }, (_, index) => [
+      {
+        ...message,
+        id: `history-user-${index}`,
+        sender: "user",
+        message: `第 ${index + 1} 轮：整理本周笔记。`,
+      },
+      {
+        ...message,
+        id: `history-reply-${index}`,
+        message: `第 ${index + 1} 轮已整理完成，原始内容已保留。`,
+        turnStopReason: "end_turn" as const,
+      },
+    ]).flat(),
+  },
+  render: (props) => <QueuedActionsDemo {...actionRailArgs} {...props} />,
+};
+
 export const QueuedActions: StoryObj<AgentChatMessagesProps> = {
   render: () => <QueuedActionsDemo {...actionRailArgs} />,
 };

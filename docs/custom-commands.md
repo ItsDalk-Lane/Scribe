@@ -87,13 +87,13 @@ Quick Command is also unavailable in Source mode.
 
 ## Where commands are stored
 
-Each command is a Markdown file in `<Scribe folder>/scribe-custom-prompts/`. The filename is the command name, and **命令** 页与 **我的指令** 共用同一份命令文件. Deleting a command in either place removes it from the shared list and its shortcuts, and sends its file to the location configured by Obsidian for deleted files. Change the root under [**Settings → Scribe → Agent 配置 → Scribe 文件夹位置**](settings.md#agent-配置).
+Each command is a Markdown file in the fixed vault-root `.scribe/scribe-custom-prompts/` folder. The filename is the command name, and **命令** and **我的指令** share the same files. Deleting a command removes it from the list and shortcuts and moves its file to Scribe’s trash inside `.scribe`.
 
 Isolated tests found that changing a command's enabled state or recording its use can alter high-precision numbers in additional properties in its file. Back up your files first and disable Scribe until this and the other [file safety issues](troubleshooting-and-faq.md) are fixed; pending saves may finish during shutdown.
 
 隔离测试发现，切换指令的启用状态或记录使用情况时，指令文件中额外属性的高精度数字可能被改写。请先备份现有文件，再暂时停用 Scribe，直到此问题及其他[文件安全问题](troubleshooting-and-faq.md)修复；关闭时程序可能完成之前排队的保存。
 
-When upgrading from older command settings, Scribe migrates supported commands to these files. If a name cannot be migrated, Scribe keeps it under the `unsupported/` subfolder and shows a startup notice.
+Old command settings and files in previous locations are not imported or modified. Create or save commands in the new location to use them.
 
 ## Related
 

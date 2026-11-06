@@ -15,6 +15,7 @@ import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { useApp } from "@/context";
 import { useResolvedChatBackendModel } from "@/hooks/useResolvedChatBackendModel";
 import { logError } from "@/logger";
+import { SecretStore } from "@/services/secretStore";
 import type { QuickAskMessage } from "./types";
 
 interface UseQuickAskSessionParams {
@@ -72,6 +73,11 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
   const sendMessage = useCallback(
     async (input: string) => {
       if (!input.trim()) return;
+      if (resolvedModel?.credentialRef)
+        await SecretStore.getInstance(app).withSecret(
+          resolvedModel.credentialRef,
+          async () => undefined
+        );
 
       const userMessage: QuickAskMessage = {
         id: uuidv4(),
@@ -121,7 +127,7 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
         });
       }
     },
-    [app, includeNoteContext, runTurn, selectedText]
+    [app, includeNoteContext, runTurn, selectedText, resolvedModel]
   );
 
   const stop = useCallback(() => {

@@ -5,14 +5,11 @@ import {
   SEND_SHORTCUT,
 } from "@/constants";
 import {
-  normalizeRootFolders,
   resetSettings,
   sanitizeQaExclusions,
   sanitizeSettings,
   settingsAtom,
   settingsStore,
-  toVisibleScribeFolder,
-  validateScribeFolder,
   ScribeSettings,
 } from "@/settings/model";
 import { CustomModel } from "@/aiParams";
@@ -267,16 +264,12 @@ describe("model", () => {
         agentMode: undefined as unknown as never,
       });
       expect(sanitized.agentMode).toEqual({
-        byok: {},
         activeBackend: "native",
         backends: {},
-        debugFullFrames: true,
         notificationSound: true,
         notificationSoundId: "piano",
         welcomeDismissed: false,
-        skills: {
-          folder: "scribe/skills",
-        },
+        skills: {},
       });
     });
 
@@ -284,7 +277,6 @@ describe("model", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
-          byok: {},
           activeBackend: "native",
           backends: {},
         },
@@ -296,7 +288,6 @@ describe("model", () => {
       const chosen = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
-          byok: {},
           activeBackend: "native",
           backends: {},
           notificationSoundId: "doorbell",
@@ -307,7 +298,6 @@ describe("model", () => {
       const removed = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
-          byok: {},
           activeBackend: "native",
           backends: {},
           notificationSoundId: "removed-sound",
@@ -322,7 +312,6 @@ describe("model", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
-          byok: {},
           activeBackend: "native",
           backends: {},
           notificationSound: false,
@@ -331,36 +320,10 @@ describe("model", () => {
       expect(sanitized.agentMode.notificationSound).toBe(false);
     });
 
-    it("preserves an explicit debugFullFrames=false (a user who turned it off stays off)", () => {
-      const sanitized = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        agentMode: {
-          byok: {},
-          activeBackend: "native",
-          backends: {},
-          debugFullFrames: false,
-        },
-      } as unknown as ScribeSettings);
-      expect(sanitized.agentMode.debugFullFrames).toBe(false);
-    });
-
-    it("falls back to debugFullFrames=true when the persisted value is not a boolean", () => {
-      const sanitized = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        agentMode: {
-          byok: {},
-          activeBackend: "native",
-          backends: {},
-          debugFullFrames: "yes" as unknown as boolean,
-        },
-      } as unknown as ScribeSettings);
-      expect(sanitized.agentMode.debugFullFrames).toBe(true);
-    });
-
     it("leaves backends empty when no legacy fields and no existing slice", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        agentMode: { enabled: true, byok: {} },
+        agentMode: { enabled: true },
       } as unknown as ScribeSettings);
       expect(sanitized.agentMode.backends).toEqual({});
     });
@@ -368,7 +331,7 @@ describe("model", () => {
     it("defaults agentMode.welcomeDismissed to false when absent", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
-        agentMode: { byok: {} } as unknown as ScribeSettings["agentMode"],
+        agentMode: {} as unknown as ScribeSettings["agentMode"],
       });
       expect(sanitized.agentMode.welcomeDismissed).toBe(false);
     });
@@ -377,7 +340,6 @@ describe("model", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
-          byok: {},
           welcomeDismissed: true,
         } as unknown as ScribeSettings["agentMode"],
       });
@@ -388,14 +350,13 @@ describe("model", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
-          byok: {},
           welcomeDismissed: "yes",
         } as unknown as ScribeSettings["agentMode"],
       });
       expect(sanitized.agentMode.welcomeDismissed).toBe(false);
     });
 
-    it("loads old built-in preferences without retaining the removed feature and keeps the skill folder (https://github.com/ItsDalk-Lane/Scribe/issues/32)", () => {
+    it("loads old built-in preferences without retaining the removed feature or obsolete skill folder (https://github.com/ItsDalk-Lane/Scribe/issues/32)", () => {
       const result = sanitizeSettings({
         ...DEFAULT_SETTINGS,
         agentMode: {
@@ -411,7 +372,7 @@ describe("model", () => {
         },
       } as unknown as ScribeSettings);
       expect(result.agentMode.skills).not.toHaveProperty("builtinPreferences");
-      expect(result.agentMode.skills.folder).toBe("scribe/skills");
+      expect(result.agentMode.skills).not.toHaveProperty("folder");
     });
 
     it("auto-attaches the active note for settings written before the field existed", () => {
@@ -489,184 +450,21 @@ describe("model", () => {
       expect(sanitized).toMatchObject(storedFields);
     });
 
-    it("falls back to the default scribeFolder when it is whitespace-only", () => {
-      const out = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "   ",
-      });
-      expect(out.scribeFolder).toBe(DEFAULT_SETTINGS.scribeFolder);
-    });
-
-    it("trims surrounding whitespace from a custom scribeFolder", () => {
-      const out = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "  my-ai  ",
-      });
-      expect(out.scribeFolder).toBe("my-ai");
-    });
-
-    it("keeps a nested custom scribeFolder", () => {
-      const out = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "notes/ai",
-      });
-      expect(out.scribeFolder).toBe("notes/ai");
-    });
-
-    it("loads a hidden scribeFolder as its visible name so every feature can index it", () => {
-      for (const [hidden, visible] of [
-        [".scribe", "scribe"],
-        ["notes/.ai/", "notes/ai"],
-      ]) {
-        const out = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: hidden });
-        expect(out.scribeFolder).toBe(visible);
-        expect(out.scribeRootHistory).toContain(visible);
+    it("uses only the fixed hidden folder and ignores old folder settings and history", () => {
+      for (const folder of ["scribe", "team/ai", ".scribe", "../escape", ""]) {
+        const settings = sanitizeSettings({
+          ...DEFAULT_SETTINGS,
+          scribeFolder: folder,
+          scribeRootHistory: ["old-folder"],
+        });
+        expect(settings.scribeFolder).toBe(".scribe");
+        expect(settings.scribeRootHistory).toEqual([]);
       }
-    });
-
-    it("unions the active root into a normalized, deduped scribeRootHistory", () => {
-      const out = sanitizeSettings({
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "team-ai",
-        scribeRootHistory: ["scribe", "ai", "scribe"],
-      });
-      expect(new Set(out.scribeRootHistory)).toEqual(new Set(["scribe", "ai", "team-ai"]));
-    });
-
-    it("adds the active root to scribeRootHistory even when the history is missing", () => {
-      const raw = { ...DEFAULT_SETTINGS, scribeFolder: "ai" } as unknown as Record<string, unknown>;
-      delete raw.scribeRootHistory;
-      const out = sanitizeSettings(raw as unknown as ScribeSettings);
-      expect(out.scribeRootHistory).toContain("ai");
-    });
-
-    it("falls back to the default scribeFolder for every path validateScribeFolder rejects and keeps a valid nested folder", () => {
-      for (const value of ["../escape", "/etc/passwd", "C:/x", "", "NUL", "scribe."]) {
-        const out = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: value });
-        expect(out.scribeFolder).toBe(DEFAULT_SETTINGS.scribeFolder);
-      }
-      const kept = sanitizeSettings({ ...DEFAULT_SETTINGS, scribeFolder: "team/ai" });
-      expect(kept.scribeFolder).toBe("team/ai");
-    });
-  });
-
-  describe("validateScribeFolder", () => {
-    it("rejects empty and whitespace-only values", () => {
-      expect(validateScribeFolder("").ok).toBe(false);
-      expect(validateScribeFolder("   ").ok).toBe(false);
-    });
-
-    it("accepts a simple relative folder and trims it", () => {
-      expect(validateScribeFolder("  my-ai  ")).toEqual({ ok: true, folder: "my-ai" });
-    });
-
-    it("accepts a nested relative folder and strips a trailing slash", () => {
-      expect(validateScribeFolder("notes/ai/")).toEqual({ ok: true, folder: "notes/ai" });
-    });
-
-    it("rejects parent-traversal, absolute, and drive-letter paths", () => {
-      expect(validateScribeFolder("../escape").ok).toBe(false);
-      expect(validateScribeFolder("a/../b").ok).toBe(false);
-      expect(validateScribeFolder("/etc/passwd").ok).toBe(false);
-      expect(validateScribeFolder("C:/Users/evil").ok).toBe(false);
-    });
-
-    it("rejects any segment that starts with a dot, because Obsidian does not index hidden folders", () => {
-      expect(validateScribeFolder(".scribe")).toEqual({
-        ok: false,
-        reason: "Folder names cannot start with a dot.",
-      });
-      expect(validateScribeFolder("notes/.ai").ok).toBe(false);
-      expect(validateScribeFolder("a/./b").ok).toBe(false);
-      expect(validateScribeFolder("notes.ai/scribe").ok).toBe(true);
-    });
-
-    it("rejects roots that overlap the active config folder at a segment boundary", () => {
-      const configDir = ".vault-config";
-      expect(validateScribeFolder(configDir, configDir).ok).toBe(false);
-      expect(validateScribeFolder(`${configDir.toUpperCase()}/plugins`, configDir).ok).toBe(false);
-      expect(validateScribeFolder("scribe", "scribe/system-prompts").ok).toBe(false);
-      expect(validateScribeFolder("scribe-data", "scribe/system-prompts").ok).toBe(true);
-    });
-
-    it("rejects Windows-illegal characters in any segment", () => {
-      expect(validateScribeFolder("a/b<c").ok).toBe(false);
-      expect(validateScribeFolder('a/b"c').ok).toBe(false);
-      expect(validateScribeFolder("a/b|c").ok).toBe(false);
-    });
-
-    it("rejects Windows-reserved device names in any segment, any case, with or without extension", () => {
-      expect(validateScribeFolder("NUL").ok).toBe(false);
-      expect(validateScribeFolder("team/CON").ok).toBe(false);
-      expect(validateScribeFolder("con.md").ok).toBe(false);
-      expect(validateScribeFolder("Com1").ok).toBe(false);
-      expect(validateScribeFolder("console").ok).toBe(true);
-      expect(validateScribeFolder("nul-notes").ok).toBe(true);
-    });
-
-    it("rejects segments ending with a dot or space on every platform", () => {
-      expect(validateScribeFolder("scribe.").ok).toBe(false);
-      expect(validateScribeFolder("team /ai").ok).toBe(false);
-      expect(validateScribeFolder("team./ai").ok).toBe(false);
-    });
-  });
-
-  describe("toVisibleScribeFolder", () => {
-    it("drops the leading dots of every segment and keeps visible paths unchanged", () => {
-      expect(toVisibleScribeFolder(" .scribe ")).toBe("scribe");
-      expect(toVisibleScribeFolder("..a\\.b/c.d")).toBe("a\\b/c.d");
-      expect(toVisibleScribeFolder("notes/ai")).toBe("notes/ai");
-    });
-
-    it("turns traversal segments into empty segments that validation still rejects", () => {
-      expect(validateScribeFolder(toVisibleScribeFolder("../escape")).ok).toBe(false);
-      expect(validateScribeFolder(toVisibleScribeFolder("a/../b")).ok).toBe(false);
-    });
-  });
-
-  describe("normalizeRootFolders", () => {
-    it("preserves case and strips trailing slashes without lowercasing", () => {
-      expect(normalizeRootFolders(["Scribe/", "ai//"])).toEqual(["Scribe", "ai"]);
-    });
-
-    it("dedupes case-sensitively, preserving first-seen order", () => {
-      expect(normalizeRootFolders(["scribe", "ai", "scribe", "Scribe"])).toEqual([
-        "scribe",
-        "ai",
-        "Scribe",
-      ]);
-    });
-
-    it("drops empty, non-string, and vault-escaping entries", () => {
-      expect(
-        normalizeRootFolders([
-          "",
-          "   ",
-          undefined,
-          "../escape",
-          "a/../b",
-          "/etc",
-          "C:\\Users\\Josh",
-          "notes/ai",
-        ])
-      ).toEqual(["notes/ai"]);
-    });
-
-    it("collapses interior duplicate slashes into the matcher's canonical form", () => {
-      expect(normalizeRootFolders(["a//b"])).toEqual(["a/b"]);
-    });
-
-    it("strips interior single-dot segments into the matcher's canonical form", () => {
-      expect(normalizeRootFolders(["a/./b"])).toEqual(["a/b"]);
-    });
-
-    it("canonicalizes before deduping and traversal filtering", () => {
-      expect(normalizeRootFolders(["a//b", "a/./b", "x/../y", "a/b"])).toEqual(["a/b"]);
     });
   });
 
   describe("resetSettings", () => {
-    it("preserves historical roots and folds in the pre-reset active root", () => {
+    it("restores the fixed data root without retaining old directory history", () => {
       settingsStore.set(settingsAtom, {
         ...DEFAULT_SETTINGS,
         scribeFolder: "team-ai",
@@ -677,7 +475,7 @@ describe("model", () => {
 
       const after = settingsStore.get(settingsAtom);
       expect(after.scribeFolder).toBe(DEFAULT_SETTINGS.scribeFolder);
-      expect(new Set(after.scribeRootHistory)).toEqual(new Set(["scribe", "ai", "team-ai"]));
+      expect(after.scribeRootHistory).toEqual([]);
     });
 
     it("preserves every custom model, including rows that carry no key", () => {
@@ -761,7 +559,7 @@ describe("model", () => {
             providerId: providerId1,
             providerType: "openai-compatible",
             displayName: "Provider With Key",
-            apiKeyKeychainId: "kc-123",
+            apiKeyRef: "kc-123",
             origin: { kind: "byok" },
             addedAt: Date.now(),
           },
@@ -793,7 +591,7 @@ describe("model", () => {
 
       const after = settingsStore.get(settingsAtom);
       expect(after.providers[providerId1]).toBeDefined();
-      expect(after.providers[providerId1].apiKeyKeychainId).toBe("kc-123");
+      expect(after.providers[providerId1].apiKeyRef).toBe("kc-123");
       expect(after.providers[providerId2]).toBeUndefined();
       expect(after.configuredModels.length).toBe(1);
       expect(after.configuredModels[0].configuredModelId).toBe("model-1");
@@ -808,7 +606,7 @@ describe("model", () => {
             providerId: "prov1",
             providerType: "openai-compatible",
             displayName: "Provider",
-            apiKeyKeychainId: "kc-123",
+            apiKeyRef: "kc-123",
             origin: { kind: "byok" },
             addedAt: Date.now(),
           },

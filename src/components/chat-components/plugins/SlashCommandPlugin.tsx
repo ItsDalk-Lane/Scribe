@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getSelection, $isRangeSelection, TextNode } from "lexical";
+import { $getSelection, $isRangeSelection } from "lexical";
 
 import { logError } from "@/logger";
 import { useSettingsValue } from "@/settings/model";
@@ -11,6 +11,9 @@ import {
   useTypeaheadPlugin,
   TypeaheadState,
 } from "@/components/chat-components/hooks/useTypeaheadPlugin";
+import { $applyLeadingCommandChip } from "@/components/chat-components/pills/CommandPillNode";
+import { $replaceTriggeredTextWithPill } from "@/components/chat-components/utils/lexicalTextUtils";
+import { VALUE_SYNC_TAG } from "@/components/chat-components/plugins/ValueSyncPlugin";
 import type { BackendId, Skill } from "@/agentMode";
 
 import {
@@ -124,23 +127,16 @@ export function SlashCommandPlugin({ skills }: SlashCommandPluginProps): JSX.Ele
     [allOptions, currentQuery]
   );
 
-  const replaceSlashWithName = useCallback(
-    (name: string) => {
+  const insertCommandChip = useCallback(
+    (item: SlashMenuItem) => {
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
-        const anchor = selection.anchor;
-        const anchorNode = anchor.getNode();
-        if (!(anchorNode instanceof TextNode)) return;
-        const textContent = anchorNode.getTextContent();
-        const slashIndex = textContent.lastIndexOf("/", anchor.offset);
-        if (slashIndex === -1) return;
-        const before = textContent.slice(0, slashIndex);
-        const after = textContent.slice(anchor.offset);
-        const insert = `/${name} `;
-        anchorNode.setTextContent(before + insert + after);
-        const newOffset = before.length + insert.length;
-        anchorNode.select(newOffset, newOffset);
+        $replaceTriggeredTextWithPill("/", {
+          type: "command",
+          title: item.name,
+          data: item.kind,
+        });
       });
     },
     [editor]
@@ -148,10 +144,37 @@ export function SlashCommandPlugin({ skills }: SlashCommandPluginProps): JSX.Ele
 
   const handleSelect = useCallback(
     (option: SlashCommandOption) => {
-      replaceSlashWithName(option.item.name);
+      insertCommandChip(option.item);
     },
-    [replaceSlashWithName]
+    [insertCommandChip]
   );
+
+  const commandKinds = useMemo(() => {
+    const kinds = new Map<string, string>();
+    for (const item of composeSlashMenuItems(
+      skills ?? agentSlashData.skills,
+      activeBackend,
+      true
+    )) {
+      kinds.set(item.name, item.kind);
+    }
+    return kinds;
+  }, [skills, agentSlashData.skills, activeBackend]);
+
+  useEffect(() => {
+    // Chips form only for seeded drafts: on value sync, and once when the command table arrives
+    // after the mount sync already fired. Hand-typed text is never chipped while typing.
+    // https://github.com/ItsDalk-Lane/Scribe/issues/35
+    const applyToCurrent = () =>
+      editor.update(() => {
+        $applyLeadingCommandChip(commandKinds);
+      });
+    applyToCurrent();
+    return editor.registerUpdateListener(({ tags }) => {
+      if (!tags.has(VALUE_SYNC_TAG)) return;
+      applyToCurrent();
+    });
+  }, [editor, commandKinds]);
 
   const { state, handleHighlight } = useTypeaheadPlugin({
     triggerConfig: {

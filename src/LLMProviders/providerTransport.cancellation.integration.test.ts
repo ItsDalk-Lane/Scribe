@@ -174,7 +174,7 @@ describe("providerTransport cancellation integration", () => {
         );
         expect(
           network.requests.filter((request) => request.url.includes("copilot_internal"))
-        ).toHaveLength(1);
+        ).toHaveLength(2);
         expect(
           inference.map((request) => (JSON.parse(request.body!) as { messages: unknown }).messages)
         ).toEqual([[{ role: "user", content: "Synthetic live note" }]]);

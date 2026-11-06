@@ -23,7 +23,8 @@ import type { PromptContent, QueuedPrompt } from "@/agentMode/session/types";
 import type ScribePlugin from "@/main";
 import { buildWebTabsWithActiveSnapshot } from "@/services/webViewerService/activeWebTabSnapshot";
 import type { MessageContext, SelectedTextContext, WebTabContext } from "@/types/message";
-import { getModelKeyFromModel } from "@/settings/model";
+import { getModelKeyFromModel, getSettings } from "@/settings/model";
+import { SecretStore } from "@/services/secretStore";
 import { modelSupportsVision } from "@/utils";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/utils/base64";
 import { mergeWebTabContexts } from "@/utils/urlNormalization";
@@ -315,6 +316,7 @@ export const AgentChatInput = memo(function AgentChatInput({
     [backend, restoreToComposer, updateUserMessageHistory]
   );
 
+  const unlocking = useRef(false);
   const handleSendMessage = useCallback(
     async (webTabs?: WebTabContext[]) => {
       if (disabled || sendDisabled) return;
@@ -351,6 +353,29 @@ export const AgentChatInput = memo(function AgentChatInput({
         return;
       }
 
+      if (unlocking.current) return;
+      const settings = getSettings();
+      const selectedModelId = backend.getBackendState()?.model?.current.baseModelId;
+      const selectedModel = settings.configuredModels.find(
+        (model) => model.configuredModelId === selectedModelId
+      );
+      const reference = selectedModel && settings.providers[selectedModel.providerId]?.apiKeyRef;
+      if (reference) {
+        unlocking.current = true;
+        try {
+          await SecretStore.getInstance(app).withSecret(reference, async () => undefined);
+        } catch (error) {
+          if (!(error instanceof Error && error.name === "AbortError"))
+            new Notice(
+              error instanceof Error
+                ? error.message
+                : t("Failed to send message. Please try again.")
+            );
+          return;
+        } finally {
+          unlocking.current = false;
+        }
+      }
       resetCompose();
       clearSelection();
 

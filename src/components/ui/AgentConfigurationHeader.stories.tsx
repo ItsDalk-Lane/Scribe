@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import React from "react";
 import {
   AgentConfigurationHeader,
@@ -33,13 +33,13 @@ export const ConfigurationActions: StoryObj<AgentConfigurationHeaderProps> = {
     ...Skills.args,
     actions: (
       <>
-        <Button size="icon" variant="secondary" aria-label="刷新并检查">
-          <RefreshCw className="tw-size-4" />
+        <Button variant="secondary">
+          <RotateCcw className="tw-size-4" />
+          恢复内置技能
         </Button>
-        <Button variant="secondary">导入</Button>
         <Button>
           <Plus className="tw-size-4" />
-          新建
+          添加技能
         </Button>
       </>
     ),

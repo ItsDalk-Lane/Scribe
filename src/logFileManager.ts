@@ -1,5 +1,7 @@
+import { writeVaultFile } from "@/utils/vaultFileStore";
+import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
 import { err2String } from "@/lib/errorFormat";
-import { App, Notice, TFile } from "obsidian";
+import { App, Notice, FileSystemAdapter } from "obsidian";
 import { ensureFolderExists } from "@/utils";
 import { getSettings } from "@/settings/model";
 import { getEffectiveScribeFolder } from "@/settings/scribeFolder";
@@ -95,7 +97,7 @@ class LogFileManager {
       const path = this.getLogPath();
       if (await app.vault.adapter.exists(path)) {
         const content = this.buffer.join("\n") + (this.buffer.length ? "\n" : "");
-        await app.vault.adapter.write(path, content);
+        await writeVaultFile(app.vault, path, content);
       }
     } catch {
       return;
@@ -182,25 +184,14 @@ class LogFileManager {
         await ensureFolderExists(app.vault, folder);
       }
 
-      const fileExists = await app.vault.adapter.exists(path);
-      if (fileExists) {
-        await app.vault.adapter.write(path, content);
-      } else {
-        await app.vault.create(path, content);
-      }
+      await writeVaultFile(app.vault, path, content);
     } catch (error) {
       new Notice(`Could not write the Scribe log file: ${String(error)}`);
     }
 
-    const abstract = app.vault.getAbstractFileByPath(path);
-    const file = abstract instanceof TFile ? abstract : null;
-    try {
-      if (file) {
-        const leaf = app.workspace.getLeaf(true);
-        await leaf.openFile(file);
-      }
-    } catch {
-      return;
+    const adapter = app.vault.adapter;
+    if (adapter instanceof FileSystemAdapter) {
+      await openWithSystemDefault(`${adapter.getBasePath()}/${path}`);
     }
   }
 }

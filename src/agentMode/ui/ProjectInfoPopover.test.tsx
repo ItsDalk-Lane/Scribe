@@ -32,11 +32,11 @@ const openAgentsFile = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/instructions/agentsFile", () => ({
   openAgentsFile: (...args: unknown[]) => openAgentsFile(...args),
 }));
-const moveProjectPromptToAgentsFile = jest.fn().mockResolvedValue(undefined);
-jest.mock("@/projects/moveProjectPrompt", () => ({
-  moveProjectPromptToAgentsFile: (...args: unknown[]) => moveProjectPromptToAgentsFile(...args),
+jest.mock("@/projects/projectWorkspace", () => ({
+  validateProjectWorkspace: jest.fn(async (_app: unknown, path: string) => path),
 }));
 
+import { validateProjectWorkspace } from "@/projects/projectWorkspace";
 import { TFile, TFolder } from "obsidian";
 import { ProjectInfoPopover } from "@/agentMode/ui/ProjectInfoPopover";
 import type { AgentTodoListEntry } from "@/agentMode/session/types";
@@ -45,16 +45,15 @@ import type { ProjectConfig } from "@/aiParams";
 const PROJECT = {
   id: "proj-1",
   name: "My Research",
+  workspacePath: "Research Workspace",
   systemPrompt: "be helpful",
   contextSource: {},
 } as unknown as ProjectConfig;
 
 function makeFolder(names: string[]) {
-  const folder = new (TFolder as unknown as new (path: string) => TFolder)(
-    "scribe/projects/proj-1"
-  );
+  const folder = new (TFolder as unknown as new (path: string) => TFolder)("Research Workspace");
   (folder as unknown as { children: unknown[] }).children = names.map(
-    (n) => new (TFile as unknown as new (path: string) => TFile)(`scribe/projects/proj-1/${n}`)
+    (n) => new (TFile as unknown as new (path: string) => TFile)(`Research Workspace/${n}`)
   );
   return folder;
 }
@@ -66,7 +65,7 @@ function renderPopover(
 ) {
   getCachedProjectRecordById.mockReturnValue({
     folderName: "proj-1",
-    filePath: "scribe/projects/proj-1/project.md",
+    filePath: "Research Workspace/project.md",
     project: PROJECT,
   });
   const openFile = jest.fn().mockResolvedValue(undefined);
@@ -84,6 +83,14 @@ function renderPopover(
 
 describe("ProjectInfoPopover", () => {
   beforeEach(() => jest.clearAllMocks());
+
+  it("does not enumerate or open workspace files when the actual workspace is unsafe", async () => {
+    (validateProjectWorkspace as jest.Mock).mockRejectedValueOnce(new Error("Outside vault"));
+    const { openFile } = renderPopover(null, ["private.md"]);
+    await waitFor(() => expect(validateProjectWorkspace).toHaveBeenCalled());
+    expect(screen.queryByText("private.md")).toBeNull();
+    expect(openFile).not.toHaveBeenCalled();
+  });
 
   it("renders the project name and canonical AGENTS.md row", async () => {
     renderPopover(null, ["project.md", "AGENTS.md", "notes.md"]);
@@ -123,24 +130,20 @@ describe("ProjectInfoPopover", () => {
     expect(await screen.findByText("CLAUDE.md")).toBeTruthy();
   });
 
-  it("lists folder files but excludes project.md and a duplicate AGENTS.md row", async () => {
+  it("lists workspace files including ordinary project.md and excludes a duplicate AGENTS.md row", async () => {
     renderPopover(null, ["project.md", "AGENTS.md", "guide.pdf", "draft.md"]);
     expect(await screen.findByText("guide.pdf")).toBeTruthy();
     expect(screen.getByText("draft.md")).toBeTruthy();
-    expect(screen.queryByText("project.md")).toBeNull();
+    expect(screen.getByText("project.md")).toBeTruthy();
     expect(screen.getAllByText("AGENTS.md")).toHaveLength(1);
   });
 
-  it("moves any legacy project.md text in before opening the file", async () => {
+  it("opens instructions from the workspace instead of the hidden configuration directory", async () => {
     renderPopover(null);
     fireEvent.click(await screen.findByText("AGENTS.md"));
 
     await waitFor(() => expect(openAgentsFile).toHaveBeenCalled());
-    expect(moveProjectPromptToAgentsFile).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ folderName: "proj-1" })
-    );
-    expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), "scribe/projects/proj-1");
+    expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), "Research Workspace");
   });
 
   it("reveals the project folder from the header button", async () => {

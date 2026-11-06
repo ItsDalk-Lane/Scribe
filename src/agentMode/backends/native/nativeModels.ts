@@ -14,9 +14,10 @@ import {
   type ConfiguredModel,
   type Provider,
 } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { getSettings, type ScribeSettings } from "@/settings/model";
 import { t } from "@/lib/i18n";
+import { MissingApiKeyError } from "@/error";
 
 const EMPTY_MODELS: ConfiguredModel[] = Object.freeze([]) as unknown as ConfiguredModel[];
 const EMPTY_MODEL_ENTRIES: ModelEntry[] = Object.freeze([]) as unknown as ModelEntry[];
@@ -79,10 +80,14 @@ export function getNativeModelEntries(settings: ScribeSettings): ModelEntry[] {
 
 function credentialState(provider: Provider): EnabledModelCredentialState {
   if (!providerNeedsResolvedApiKey(provider)) return "ok";
-  if (!provider.apiKeyKeychainId) return "missing_key";
+  if (!provider.apiKeyRef) return "missing_key";
   try {
-    const value = KeychainService.getInstance().getSecretById(provider.apiKeyKeychainId);
-    return value?.trim() ? "ok" : "missing_key";
+    const status = SecretStore.getInstance().getStatus(provider.apiKeyRef);
+    return status === "missing"
+      ? "missing_key"
+      : status === "unavailable"
+        ? "unavailable_key"
+        : "ok";
   } catch {
     return "unavailable_key";
   }
@@ -123,10 +128,10 @@ export async function createNativeModel(app: App, modelId: string): Promise<Prov
       `The selected native agent model is unavailable: ${modelId}. Choose it in the existing model settings.`
     );
   const provider = settings.providers[model.providerId];
-  const apiKey = provider.apiKeyKeychainId
-    ? KeychainService.getInstance(app).getSecretById(provider.apiKeyKeychainId)
-    : null;
+  SecretStore.getInstance(app);
+  if (credentialState(provider) !== "ok")
+    throw new MissingApiKeyError(t("Provider credentials are missing."));
   return ChatModelManager.getInstance().createModelInstanceFromBridged(
-    configuredModelToCustomModel({ provider, configuredModel: model, apiKey })
+    configuredModelToCustomModel({ provider, configuredModel: model })
   );
 }

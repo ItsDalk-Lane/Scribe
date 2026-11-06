@@ -1,367 +1,89 @@
-import { App, Plugin, Vault } from "obsidian";
-import { CustomCommandRegister } from "@/commands/customCommandRegister";
-import type { CustomCommand } from "@/commands/type";
-import type { ScribeSettings } from "@/settings/model";
-
-jest.mock("obsidian", () => ({
-  Plugin: jest.fn(),
-  Vault: jest.fn(),
-  TFile: jest.fn(),
-  normalizePath: (path: string) => path.replace(/\/+/g, "/").replace(/^\/|\/$/g, ""),
-}));
-
-jest.mock("@/logger", () => ({
-  logError: jest.fn(),
-}));
-
-jest.mock("@/commands/CustomCommandChatModal", () => ({
-  CustomCommandChatModal: jest.fn().mockImplementation(() => ({ open: jest.fn() })),
-}));
-
-jest.mock("@/commands/customCommandManager", () => ({
-  CustomCommandManager: {
-    getInstance: jest.fn(() => ({ recordUsage: jest.fn().mockResolvedValue(undefined) })),
-  },
-}));
+import type { App, Plugin } from "obsidian";
+import { CustomCommandRegister } from "./customCommandRegister";
+import { updateCachedCommands } from "./state";
+import { EMPTY_COMMAND } from "./constants";
+import { loadAllCustomCommands } from "./customCommandUtils";
+import { CustomCommandChatModal } from "./CustomCommandChatModal";
 
 jest.mock("@/commands/customCommandUtils", () => ({
-  getCommandId: (title: string) => `scribe-command-${title}`,
-  getCommandFilePath: (title: string) => `scribe/scribe-custom-prompts/${title}.md`,
-  isCustomCommandFile: jest.fn(() => true),
+  getCommandId: (title: string) => title.toLowerCase(),
   loadAllCustomCommands: jest.fn().mockResolvedValue([]),
-  fetchAllCustomCommands: jest.fn(),
-  parseCustomCommandFile: jest.fn(),
-  getNextCustomCommandOrder: jest.fn(() => 0),
-  ensureCommandFrontmatter: jest.fn(),
-  hasOrderFrontmatter: jest.fn(() => true),
 }));
-
-jest.mock("@/commands/state", () => ({
-  isCustomCommandEnabled: (command: CustomCommand) => command.enabled !== false,
-  subscribeToCustomCommands: jest.fn(() => () => {}),
-  deleteCachedCommand: jest.fn(),
-  getCachedCustomCommands: jest.fn(() => []),
-  isFileWritePending: jest.fn(() => false),
-  updateCachedCommand: jest.fn(),
-  updateCachedCommands: jest.fn(),
+jest.mock("@/commands/CustomCommandChatModal", () => ({
+  CustomCommandChatModal: jest.fn(() => ({ open: jest.fn() })),
 }));
-
-jest.mock("@/settings/model", () => ({
-  getSettings: jest.fn(() => ({ scribeFolder: "scribe" })),
-  subscribeToSettingsChange: jest.fn().mockReturnValue(() => {}),
+jest.mock("@/commands/customCommandManager", () => ({
+  CustomCommandManager: {
+    getInstance: () => ({ recordUsage: jest.fn().mockResolvedValue(undefined) }),
+  },
 }));
+jest.mock("@/logger", () => ({ logError: jest.fn() }));
 
-function command(title: string): CustomCommand {
-  return {
-    title,
-    content: "",
-    modelKey: "",
-    showInContextMenu: false,
-    showInSlashMenu: false,
-    order: 0,
-    lastUsedMs: 0,
-  };
-}
-
-function settingsWithRoot(scribeFolder: string): ScribeSettings {
-  return { scribeFolder } as ScribeSettings;
+function setup() {
+  const app = {
+    vault: {
+      getFiles: jest.fn(() => {
+        throw new Error("Hidden data is not indexed");
+      }),
+    },
+  } as unknown as App;
+  const addCommand = jest.fn();
+  const removeCommand = jest.fn();
+  const plugin = { app, addCommand, removeCommand } as unknown as Plugin;
+  return { app, addCommand, removeCommand, register: new CustomCommandRegister(plugin, app) };
 }
 
 describe("customCommandRegister", () => {
   describe("CustomCommandRegister", () => {
-    describe("handleSettingsChange", () => {
-      let settingsChangeHandler: (prev: ScribeSettings, next: ScribeSettings) => void;
-      let unsubscribe: jest.Mock;
-      let addCommand: jest.Mock;
-      let removeCommand: jest.Mock;
-      let fetchAllCustomCommands: jest.Mock;
-      let getCachedCustomCommands: jest.Mock;
-      let updateCachedCommands: jest.Mock;
-
-      beforeEach(() => {
-        jest.clearAllMocks();
-        jest.useFakeTimers();
-
-        ({ fetchAllCustomCommands } = jest.requireMock("@/commands/customCommandUtils"));
-        ({ getCachedCustomCommands, updateCachedCommands } = jest.requireMock("@/commands/state"));
-
-        unsubscribe = jest.fn();
-        const { subscribeToSettingsChange } = jest.requireMock<{
-          subscribeToSettingsChange: jest.Mock;
-        }>("@/settings/model");
-        subscribeToSettingsChange.mockReturnValue(unsubscribe);
-
-        addCommand = jest.fn();
-        removeCommand = jest.fn();
-        const mockPlugin = { addCommand, removeCommand, app: {} } as unknown as Plugin;
-        const mockVault = { on: jest.fn(), off: jest.fn() } as unknown as Vault;
-
-        new CustomCommandRegister(mockPlugin, { vault: mockVault } as unknown as App);
-
-        settingsChangeHandler = subscribeToSettingsChange.mock
-          .calls[0][0] as typeof settingsChangeHandler;
-      });
-
-      afterEach(() => {
-        jest.useRealTimers();
-      });
-
-      it("reloads registrations when the derived folder changes because the root changed", async () => {
-        getCachedCustomCommands.mockReturnValue([command("Old")]);
-        fetchAllCustomCommands.mockResolvedValue([command("New")]);
-
-        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
-        await jest.advanceTimersByTimeAsync(0);
-
-        expect(removeCommand).toHaveBeenCalledWith("scribe-command-Old");
-        expect(addCommand).toHaveBeenCalledWith(
-          expect.objectContaining({ id: "scribe-command-New", name: "New" })
+    beforeEach(() => {
+      updateCachedCommands([]);
+      jest.clearAllMocks();
+    });
+    describe("initialize()", () => {
+      it("loads hidden files and registers enabled commands without scanning indexed notes", async () => {
+        const fixture = setup();
+        updateCachedCommands([
+          { ...EMPTY_COMMAND, title: "Review" },
+          { ...EMPTY_COMMAND, title: "Disabled", enabled: false },
+        ]);
+        await fixture.register.initialize();
+        expect(loadAllCustomCommands).toHaveBeenCalledWith(fixture.app);
+        expect(fixture.addCommand).toHaveBeenLastCalledWith(
+          expect.objectContaining({ id: "review", name: "Review" })
         );
-        expect(updateCachedCommands).toHaveBeenCalledWith([command("New")]);
+        expect(fixture.app.vault.getFiles).not.toHaveBeenCalled();
+        const command = fixture.addCommand.mock.calls.at(-1)![0] as {
+          editorCallback: (editor: { getSelection: () => string }) => void;
+        };
+        command.editorCallback({ getSelection: () => "selected note" });
+        expect(CustomCommandChatModal).toHaveBeenCalledWith(
+          fixture.app,
+          expect.objectContaining({ selectedText: "selected note" })
+        );
+        fixture.register.cleanup();
       });
-
-      it("starts the reload without waiting, so no timer delay keeps old commands live", () => {
-        fetchAllCustomCommands.mockResolvedValue([]);
-
-        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
-
-        expect(fetchAllCustomCommands).toHaveBeenCalledTimes(1);
-      });
-
-      it("does not reload when the root — and thus the derived folder — is unchanged", async () => {
-        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("scribe"));
-        await jest.advanceTimersByTimeAsync(1000);
-
-        expect(fetchAllCustomCommands).not.toHaveBeenCalled();
-      });
-
-      it("discards a superseded reload so its stale commands never reach the cache", async () => {
-        let resolveStale: (value: CustomCommand[]) => void = () => {};
-        const stalePromise = new Promise<CustomCommand[]>((r) => {
-          resolveStale = r;
-        });
-        fetchAllCustomCommands
-          .mockReturnValueOnce(stalePromise)
-          .mockResolvedValueOnce([command("Fresh")]);
-
-        settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("a"));
-        await jest.advanceTimersByTimeAsync(0);
-
-        settingsChangeHandler(settingsWithRoot("a"), settingsWithRoot("b"));
-        await jest.advanceTimersByTimeAsync(0);
-
-        expect(updateCachedCommands).toHaveBeenCalledWith([command("Fresh")]);
-        updateCachedCommands.mockClear();
-
-        resolveStale([command("Stale")]);
-        await Promise.resolve();
-        await Promise.resolve();
-
-        expect(updateCachedCommands).not.toHaveBeenCalled();
+      it("updates registered commands when saved state changes", async () => {
+        const fixture = setup();
+        updateCachedCommands([{ ...EMPTY_COMMAND, title: "Before" }]);
+        await fixture.register.initialize();
+        updateCachedCommands([{ ...EMPTY_COMMAND, title: "After" }]);
+        expect(fixture.removeCommand).toHaveBeenCalledWith("before");
+        expect(fixture.addCommand).toHaveBeenLastCalledWith(
+          expect.objectContaining({ id: "after" })
+        );
+        fixture.register.cleanup();
       });
     });
-
-    describe("initialize", () => {
-      it("unregisters a disabled command as soon as the shared command state changes", async () => {
-        const state = jest.requireMock<{
-          getCachedCustomCommands: jest.Mock;
-          subscribeToCustomCommands: jest.Mock;
-        }>("@/commands/state");
-        const addCommand = jest.fn();
-        const removeCommand = jest.fn();
-        const active = command("Review");
-        state.getCachedCustomCommands.mockReturnValue([active]);
-        let changed!: () => void;
-        state.subscribeToCustomCommands.mockImplementation((listener: () => void) => {
-          changed = listener;
-          return () => {};
-        });
-        const register = new CustomCommandRegister(
-          { addCommand, removeCommand, app: {} } as unknown as Plugin,
-          { vault: { on: jest.fn(), off: jest.fn() } } as unknown as App
-        );
-        await register.initialize();
-        expect(addCommand).toHaveBeenCalledWith(expect.objectContaining({ name: "Review" }));
-        addCommand.mockClear();
-        removeCommand.mockClear();
-
-        state.getCachedCustomCommands.mockReturnValue([{ ...active, enabled: false }]);
-        changed();
-
-        expect(removeCommand).toHaveBeenCalledWith("scribe-command-Review");
-        expect(addCommand).not.toHaveBeenCalled();
-        register.cleanup();
-      });
-
-      it("registers every loaded custom command with the plugin", async () => {
-        jest.clearAllMocks();
-        const { getCachedCustomCommands } = jest.requireMock<{
-          getCachedCustomCommands: jest.Mock;
-        }>("@/commands/state");
-        getCachedCustomCommands.mockReturnValue([command("Summarize")]);
-        const addCommand = jest.fn();
-        const mockPlugin = { addCommand, removeCommand: jest.fn(), app: {} } as unknown as Plugin;
-        const mockVault = { on: jest.fn(), off: jest.fn() } as unknown as Vault;
-        const register = new CustomCommandRegister(mockPlugin, {
-          vault: mockVault,
-        } as unknown as App);
-
-        await register.initialize();
-
-        expect(addCommand).toHaveBeenCalledWith(
-          expect.objectContaining({ id: "scribe-command-Summarize", name: "Summarize" })
-        );
-      });
-
-      it("registers nothing when cleanup runs while commands are still loading", async () => {
-        jest.clearAllMocks();
-        const { loadAllCustomCommands } = jest.requireMock<{ loadAllCustomCommands: jest.Mock }>(
-          "@/commands/customCommandUtils"
-        );
-        const { getCachedCustomCommands } = jest.requireMock<{
-          getCachedCustomCommands: jest.Mock;
-        }>("@/commands/state");
-        getCachedCustomCommands.mockReturnValue([command("Late")]);
-        let finishLoading: () => void = () => undefined;
-        loadAllCustomCommands.mockReturnValueOnce(
-          new Promise<void>((resolve) => (finishLoading = resolve))
-        );
-        const addCommand = jest.fn();
-        const mockPlugin = { addCommand, removeCommand: jest.fn(), app: {} } as unknown as Plugin;
-        const mockVault = { on: jest.fn(), off: jest.fn() } as unknown as Vault;
-        const register = new CustomCommandRegister(mockPlugin, {
-          vault: mockVault,
-        } as unknown as App);
-
-        const initialized = register.initialize();
-        register.cleanup();
-        finishLoading();
-        await initialized;
-
-        expect(addCommand).not.toHaveBeenCalled();
-      });
-    });
-
-    describe("handleFileRename", () => {
-      it.each([
-        ["scribe/scribe-custom-prompts/Summarize.md", true],
-        ["notes/Summarize.md", false],
-        ["scribe/scribe-custom-prompts/archive/Summarize.md", false],
-        ["scribe/scribe-custom-prompts/Summarize", false],
-      ])(
-        "unregisters a renamed file from %s only when it was a command (%p)",
-        async (oldPath, wasCommand) => {
-          jest.clearAllMocks();
-          const utils = jest.requireMock<{ isCustomCommandFile: jest.Mock }>(
-            "@/commands/customCommandUtils"
-          );
-          const state = jest.requireMock<{
-            getCachedCustomCommands: jest.Mock;
-            deleteCachedCommand: jest.Mock;
-          }>("@/commands/state");
-          utils.isCustomCommandFile.mockReturnValue(false);
-          state.getCachedCustomCommands.mockReturnValue([command("Summarize")]);
-          const removeCommand = jest.fn();
-          const on = jest.fn();
-          const register = new CustomCommandRegister(
-            { addCommand: jest.fn(), removeCommand, app: {} } as unknown as Plugin,
-            { vault: { on, off: jest.fn() } } as unknown as App
-          );
-          const renamed = on.mock.calls.find(([event]) => event === "rename")![1] as (
-            file: { path: string; basename: string; extension: string },
-            oldPath: string
-          ) => Promise<void>;
-          await renamed(
-            { path: "notes/Renamed.md", basename: "Renamed", extension: "md" },
-            oldPath
-          );
-          if (wasCommand) {
-            expect(removeCommand).toHaveBeenCalledWith("scribe-command-Summarize");
-            expect(state.deleteCachedCommand).toHaveBeenCalledWith("Summarize");
-          } else {
-            expect(removeCommand).not.toHaveBeenCalled();
-            expect(state.deleteCachedCommand).not.toHaveBeenCalled();
-          }
-          register.cleanup();
-        }
-      );
-    });
-
-    describe("cleanup", () => {
-      it("unsubscribes from settings changes on teardown", () => {
-        const unsubscribe = jest.fn();
-        const { subscribeToSettingsChange } = jest.requireMock<{
-          subscribeToSettingsChange: jest.Mock;
-        }>("@/settings/model");
-        subscribeToSettingsChange.mockReturnValue(unsubscribe);
-
-        const mockPlugin = {
-          addCommand: jest.fn(),
-          removeCommand: jest.fn(),
-          app: {},
-        } as unknown as Plugin;
-        const mockVault = { on: jest.fn(), off: jest.fn() } as unknown as Vault;
-        const register = new CustomCommandRegister(mockPlugin, {
-          vault: mockVault,
-        } as unknown as App);
-
-        register.cleanup();
-
-        expect(unsubscribe).toHaveBeenCalledTimes(1);
-      });
-
-      it("discards an in-flight reload that resolves after teardown so it never registers commands or writes the cache", async () => {
-        jest.clearAllMocks();
-        jest.useFakeTimers();
-        try {
-          const { fetchAllCustomCommands } = jest.requireMock<{
-            fetchAllCustomCommands: jest.Mock;
-          }>("@/commands/customCommandUtils");
-          const { getCachedCustomCommands, updateCachedCommands } = jest.requireMock<{
-            getCachedCustomCommands: jest.Mock;
-            updateCachedCommands: jest.Mock;
-          }>("@/commands/state");
-          getCachedCustomCommands.mockReturnValue([]);
-
-          let resolveFetch: (value: CustomCommand[]) => void = () => {};
-          fetchAllCustomCommands.mockReturnValue(
-            new Promise<CustomCommand[]>((r) => {
-              resolveFetch = r;
-            })
-          );
-
-          const { subscribeToSettingsChange } = jest.requireMock<{
-            subscribeToSettingsChange: jest.Mock;
-          }>("@/settings/model");
-          subscribeToSettingsChange.mockReturnValue(() => {});
-
-          const addCommand = jest.fn();
-          const removeCommand = jest.fn();
-          const mockPlugin = { addCommand, removeCommand, app: {} } as unknown as Plugin;
-          const mockVault = { on: jest.fn(), off: jest.fn() } as unknown as Vault;
-          const register = new CustomCommandRegister(mockPlugin, {
-            vault: mockVault,
-          } as unknown as App);
-
-          const settingsChangeHandler = subscribeToSettingsChange.mock.calls[0][0] as (
-            prev: ScribeSettings,
-            next: ScribeSettings
-          ) => void;
-
-          settingsChangeHandler(settingsWithRoot("scribe"), settingsWithRoot("team/ai"));
-          await jest.advanceTimersByTimeAsync(0);
-
-          register.cleanup();
-
-          resolveFetch([command("Late")]);
-          await Promise.resolve();
-          await Promise.resolve();
-
-          expect(addCommand).not.toHaveBeenCalled();
-          expect(updateCachedCommands).not.toHaveBeenCalled();
-        } finally {
-          jest.useRealTimers();
-        }
+    describe("cleanup()", () => {
+      it("unregisters commands and ignores later state updates", async () => {
+        const fixture = setup();
+        updateCachedCommands([{ ...EMPTY_COMMAND, title: "Review" }]);
+        await fixture.register.initialize();
+        fixture.register.cleanup();
+        expect(fixture.removeCommand).toHaveBeenCalledWith("review");
+        fixture.addCommand.mockClear();
+        updateCachedCommands([{ ...EMPTY_COMMAND, title: "Later" }]);
+        expect(fixture.addCommand).not.toHaveBeenCalled();
       });
     });
   });

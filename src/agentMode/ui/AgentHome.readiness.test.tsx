@@ -6,7 +6,7 @@ import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import { AgentHome } from "@/agentMode/ui/AgentHome";
 import type ScribePlugin from "@/main";
 import { getModelKeyFromModel, getSettings, resetSettings, setSettings } from "@/settings/model";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { App } from "obsidian";
 import React from "react";
 import type { AgentModelPickerOverride } from "@/agentMode/ui/useAgentModelPicker";
@@ -25,6 +25,9 @@ jest.mock("@/agentMode/ui/AgentChatControls", () => ({ AgentChatControls: () => 
 jest.mock("@/agentMode/ui/AgentContextMeter", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/agentMode/ui/AgentModeStatus", () => ({ AgentModeStatus: () => null }));
 jest.mock("@/agentMode/ui/AgentProjectHeader", () => ({ AgentProjectHeader: () => null }));
+jest.mock("@/agentMode/ui/GlobalRecentChatsSection", () => ({
+  GlobalRecentChatsSection: () => null,
+}));
 jest.mock("@/agentMode/ui/AgentTabStrip", () => ({ AgentTabStrip: () => null }));
 jest.mock("@/agentMode/ui/hooks/useAgentChatRuntimeState", () => ({
   // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes the peripheral runtime hook
@@ -67,8 +70,18 @@ jest.mock("@/projects/state", () => ({
   useProjects: () => [],
   getCachedProjectRecordById: () => null,
 }));
+const mockFetchProjects = jest.fn(async () => []);
 jest.mock("@/projects/ProjectFileManager", () => ({
-  ProjectFileManager: { getInstance: () => ({ getProjectUsageTimestampsManager: () => ({}) }) },
+  ProjectFileManager: {
+    getInstance: () => ({
+      getProjectUsageTimestampsManager: () => ({
+        getRevision: () => 0,
+        subscribe: () => () => {},
+        getEffectiveLastUsedAt: () => 0,
+      }),
+      fetchProjects: mockFetchProjects,
+    }),
+  },
 }));
 
 describe("AgentHome", () => {
@@ -77,6 +90,59 @@ describe("AgentHome", () => {
       cleanup();
       resetSettings();
       mockModelPicker = null;
+    });
+
+    it("refreshes projects when the list opens, is clicked again, and is reopened", async () => {
+      resetSettings();
+      setSettings({
+        homeShelfTabs: { "scribe:home-shelf-tab:v1": "projects" },
+        agentMode: { ...getSettings().agentMode, welcomeDismissed: true },
+      });
+      mockFetchProjects.mockClear();
+      const app = { workspace: { getActiveFile: () => null } } as unknown as App;
+      const session = {
+        internalId: "chat",
+        backendId: "native",
+        cwd: "/vault",
+        hasUserVisibleMessages: () => false,
+      };
+      const noIds = new Set<string>();
+      const manager = {
+        drafts: new AgentInputDraftStore(app, () => true),
+        subscribe: () => () => {},
+        getStartingBackendId: () => null,
+        getActiveSession: () => session,
+        getSession: () => session,
+        getActiveProjectId: () => GLOBAL_SCOPE,
+        getSessionSourcePath: () => null,
+        getOpenChatIds: () => noIds,
+        getRunningChatIds: () => noIds,
+        getAttentionChatIds: () => noIds,
+      } as unknown as AgentSessionManager;
+      const backend = {
+        acceptsMidTurnMessages: () => false,
+        canStopTasks: () => false,
+      } as unknown as AgentChatBackend;
+      const tree = (
+        <AgentHome
+          backend={backend}
+          sessionId="chat"
+          chatInputId="input"
+          manager={manager}
+          plugin={{ app } as ScribePlugin}
+          updateUserMessageHistory={() => undefined}
+        />
+      );
+      const view = render(tree);
+      await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getByRole("tab", { name: /Projects/ }));
+      await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(2));
+      fireEvent.click(screen.getByRole("tab", { name: /Recent chats/ }));
+      fireEvent.click(screen.getByRole("tab", { name: /Projects/ }));
+      await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(3));
+      view.unmount();
+      render(tree);
+      await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(4));
     });
 
     it("ignores obsolete enable switches and preserves the draft when configured models or the selected model are unavailable https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {

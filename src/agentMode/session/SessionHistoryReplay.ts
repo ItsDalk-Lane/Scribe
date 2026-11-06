@@ -27,6 +27,10 @@ export class SessionHistoryReplay {
   private user: { wireId: string | undefined; raw: string; occurredAt?: number } | null = null;
   private aiId: string | null = null;
   private turnStartedAt: number | undefined;
+  private promptId: string | undefined;
+  private seq: number | undefined;
+  private synthetic = false;
+  private deliveredSequences = new Map<string, { seq?: number; occurredAt?: number }>();
 
   constructor(private readonly deps: SessionHistoryReplayDeps) {}
 
@@ -38,14 +42,50 @@ export class SessionHistoryReplay {
     return this.open;
   }
 
-  append(update: SessionEvent["update"], occurredAt: number | undefined): boolean {
-    if (!this.open || !this.appendFrame(update, occurredAt)) return false;
-    this.extendTurn(occurredAt);
-    return true;
+  append(
+    update: SessionEvent["update"],
+    occurredAt: number | undefined,
+    seq?: number,
+    origin?: SessionEvent["origin"]
+  ): boolean {
+    this.seq = seq;
+    this.synthetic = origin === "synthetic";
+    return this.deps.store.withRecordedTime(occurredAt, () => {
+      if (!this.open || !this.appendFrame(update, occurredAt)) return false;
+      this.extendTurn(occurredAt);
+      return true;
+    });
   }
 
   private appendFrame(update: SessionEvent["update"], occurredAt: number | undefined): boolean {
     switch (update.sessionUpdate) {
+      case "agent_segment_started":
+        if (this.seq !== undefined)
+          this.deps.store.startAgentSegment(this.aiBubbleId(occurredAt), this.seq);
+        return true;
+      case "agent_segment_finalized": {
+        const id =
+          this.deps.store.findMessageIdWithSegment(update.segmentSeq) ??
+          this.aiBubbleId(occurredAt);
+        if (
+          this.deps.store.finalizeAgentSegment(
+            id,
+            update.segmentSeq,
+            update.blocks,
+            this.seq,
+            this.synthetic
+          )
+        )
+          this.deps.scheduleNotifyMessages();
+        return true;
+      }
+      case "message_delivered":
+        this.deliveredSequences.set(update.promptId, { seq: this.seq, occurredAt });
+        return true;
+      case "turn_started":
+        this.promptId = update.turnId;
+        this.turnStartedAt = update.startedAt ?? occurredAt;
+        return true;
       case "user_message_chunk": {
         const text = extractText(update.content);
         const current = this.user;
@@ -54,10 +94,15 @@ export class SessionHistoryReplay {
           return true;
         }
         if (!text.trim()) return true;
+        const deliveredAt =
+          update.messageId === undefined
+            ? undefined
+            : this.deliveredSequences.get(update.messageId)?.occurredAt;
         this.flushUser();
-        this.closeTurn();
+        this.closeTurn(deliveredAt);
         this.user = { wireId: update.messageId, raw: text, occurredAt };
-        this.turnStartedAt = occurredAt;
+        this.promptId = update.messageId ?? this.promptId;
+        this.turnStartedAt = deliveredAt ?? occurredAt;
         return true;
       }
       case "turn_ended": {
@@ -78,7 +123,7 @@ export class SessionHistoryReplay {
         }
         // 后台记录可能是唯一恢复来源，未产生正文的停止也必须恢复其可见原因。https://github.com/ItsDalk-Lane/Scribe/issues/31
         if (
-          update.stopReason !== "end_turn" &&
+          (update.stopReason !== "end_turn" || this.aiId !== null) &&
           this.deps.store.markTurnComplete(this.aiBubbleId(occurredAt), update.stopReason, elapsed)
         ) {
           this.deps.scheduleNotifyMessages();
@@ -94,13 +139,33 @@ export class SessionHistoryReplay {
         const id = this.aiBubbleId(occurredAt);
         const appended =
           update.sessionUpdate === "agent_message_chunk"
-            ? this.deps.store.appendAgentText(id, text)
-            : this.deps.store.appendAgentThought(id, text);
+            ? this.deps.store.appendAgentText(
+                id,
+                text,
+                this.seq,
+                this.synthetic,
+                update.segmentSeq,
+                update.contentIndex
+              )
+            : this.deps.store.appendAgentThought(
+                id,
+                text,
+                this.seq,
+                this.synthetic,
+                update.segmentSeq,
+                update.contentIndex
+              );
         if (appended) this.deps.scheduleNotifyMessages();
         return true;
       }
       case "tool_call":
-        if (this.deps.store.upsertAgentPart(this.aiBubbleId(occurredAt), toolCallToPart(update))) {
+        if (
+          this.deps.store.upsertAgentPart(this.aiBubbleId(occurredAt), {
+            ...toolCallToPart(update),
+            ...(this.seq === undefined ? {} : { seq: this.seq }),
+            ...(this.synthetic ? { synthetic: true } : {}),
+          })
+        ) {
           this.deps.scheduleNotifyMessages();
         }
         return true;
@@ -112,6 +177,7 @@ export class SessionHistoryReplay {
           findToolCallPart(this.deps.store, id, update.toolCallId),
           update
         );
+        if (this.synthetic) merged.synthetic = true;
         if (this.deps.store.upsertAgentPart(id, merged)) this.deps.scheduleNotifyMessages();
         return true;
       }
@@ -140,6 +206,7 @@ export class SessionHistoryReplay {
     if (!pending) return;
     if (stripUserMessageWrapper(pending.raw).trim() === OUTPUT_LIMIT_CONTINUATION_PROMPT) return;
     this.deps.store.addMessage({
+      ...(pending.wireId === undefined ? {} : { id: pending.wireId }),
       message: stripUserMessageWrapper(pending.raw),
       sender: USER_SENDER,
       timestamp: historyTimestamp(pending.occurredAt),
@@ -152,10 +219,14 @@ export class SessionHistoryReplay {
     if (this.aiId) return this.aiId;
     this.flushUser();
     const startedAt = this.turnStartedAt;
+    const delivery =
+      this.promptId === undefined ? undefined : this.deliveredSequences.get(this.promptId);
     this.aiId = this.deps.store.addMessage({
+      ...(this.promptId === undefined ? {} : { id: `assistant:${this.promptId}` }),
+      ...(delivery?.seq === undefined ? {} : { seq: delivery.seq }),
       message: "",
       sender: AI_SENDER,
-      timestamp: historyTimestamp(occurredAt),
+      timestamp: historyTimestamp(delivery?.occurredAt ?? occurredAt),
       isVisible: true,
       parts: [],
       turnDurationMs:
@@ -181,11 +252,17 @@ export class SessionHistoryReplay {
     this.turnStartedAt = undefined;
   }
 
-  private closeTurn(): void {
+  private closeTurn(endedAt?: number): void {
+    if (this.aiId && endedAt !== undefined && this.turnStartedAt !== undefined) {
+      this.deps.store.withRecordedTime(endedAt, () =>
+        this.deps.store.markTurnComplete(this.aiId!, "end_turn", endedAt - this.turnStartedAt!)
+      );
+    }
     if (this.aiId && this.deps.store.settleOpenParts(this.aiId)) {
       this.deps.scheduleNotifyMessages();
     }
     this.aiId = null;
+    this.promptId = undefined;
   }
 }
 

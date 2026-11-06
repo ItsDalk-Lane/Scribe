@@ -19,7 +19,7 @@ export interface Provider {
   displayName: string;
   baseUrl?: string;
   enableCors?: boolean;
-  apiKeyKeychainId?: string | null;
+  apiKeyRef?: string | null;
   requiresApiKey?: boolean;
   extras?: Record<string, unknown>;
   origin: ProviderOrigin;

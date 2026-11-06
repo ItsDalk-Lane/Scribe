@@ -74,3 +74,12 @@ export const KeylessRemote: StoryObj<Props> = {
   },
 };
 export const Empty: StoryObj<Props> = { args: { groups: [] } };
+
+export const NotChecked: StoryObj<Props> = {
+  ...Providers,
+  args: {
+    groups: [
+      { ...group, verification: { ok: false, code: "verification_unavailable", checkedAt: 0 } },
+    ],
+  },
+};

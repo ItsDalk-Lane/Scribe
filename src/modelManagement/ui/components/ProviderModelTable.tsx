@@ -165,19 +165,20 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
               )}
               aria-hidden="true"
             />
-            <div className="tw-flex tw-min-w-0 tw-flex-col tw-gap-1">
+            <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-1">
               <span className="tw-flex tw-min-w-0 tw-items-center tw-gap-1">
                 <span className="tw-break-words tw-text-sm tw-font-medium tw-text-normal">
                   {provider.displayName}
                 </span>
                 <DestinationIcon destination={providerDestination(provider)} />
               </span>
-              <span className="tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
-                {getSubLine()}
-              </span>
+              <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-x-2 tw-gap-y-1">
+                <span className="tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
+                  {getSubLine()}
+                </span>
+                <ProviderVerificationStatus result={group.verification} />
+              </div>
             </div>
-            <div className="tw-flex-1" />
-            <ProviderVerificationStatus result={group.verification} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

@@ -7,6 +7,12 @@ jest.mock("@/modelManagement/providers/adapters/listProviderModels", () => ({
   listProviderModels: jest.fn(),
 }));
 
+const mockWithSecret = jest.fn(async (_id: string, execute: (value: string) => Promise<unknown>) =>
+  execute("synthetic-saved-key")
+);
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ withSecret: mockWithSecret }) },
+}));
 const listModels = jest.mocked(listProviderModels);
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 
@@ -121,23 +127,25 @@ describe("useModelCandidatePool", () => {
       });
     });
 
-    it("can automatically list an edited provider with a required key left empty", async () => {
-      renderHook(() =>
+    it("keeps saved credentials encrypted when opening an edited provider and resolves them only for manual discovery", async () => {
+      const { result } = renderHook(() =>
         useModelCandidatePool(
           args({
             mode: "edit",
             effectiveBaseUrl: "https://fixture.invalid/v1",
             requiresApiKey: true,
             apiKey: "",
+            apiKeyRef: "saved-reference",
+            autoDiscover: true,
           })
         )
       );
-      expect(listModels).toHaveBeenCalledTimes(1);
-      await act(async () => {
-        await listModels.mock.results[0].value;
-      });
+      expect(listModels).not.toHaveBeenCalled();
+      expect(mockWithSecret).not.toHaveBeenCalled();
+      await act(() => result.current.fetchModels());
+      expect(mockWithSecret).toHaveBeenCalledWith("saved-reference", expect.any(Function));
       expect(listModels).toHaveBeenCalledWith("openai-compatible", "https://fixture.invalid/v1", {
-        apiKey: null,
+        apiKey: "synthetic-saved-key",
         extras: {},
       });
     });

@@ -62,7 +62,7 @@ describe("agentSystemPrompt", () => {
       expect(buildAgentSystemPrompt(AGENT, APP)).not.toContain("send_feedback");
     });
 
-    it("does not advertise skills that are no longer bundled (https://github.com/ItsDalk-Lane/Scribe/issues/32)", () => {
+    it("keeps the shared prompt independent of dynamically installed skill names (https://github.com/ItsDalk-Lane/Scribe/issues/32)", () => {
       expect(buildAgentSystemPrompt(AGENT, APP)).not.toMatch(
         /obsidian-markdown|obsidian-bases|json-canvas|obsidian-cli/
       );
@@ -71,7 +71,7 @@ describe("agentSystemPrompt", () => {
     it("keeps shared instructions independent of model and data-folder choices", () => {
       const baseline = buildAgentSystemPrompt(AGENT, APP);
       updateSetting("defaultModelKey", "some-other-model|anthropic");
-      updateSetting("projectsFolder", "vault-b/projects");
+      updateSetting("scribeFolder", "vault-b");
       expect(buildAgentSystemPrompt(AGENT, APP)).toBe(baseline);
     });
 

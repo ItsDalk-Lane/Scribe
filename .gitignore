@@ -36,12 +36,8 @@ data/
 # Development session tracking
 TODO.md
 
-# ACP full-frame debug log (vault sidecar, may contain prompt/tool data)
-.obsidian-scribe/acp-frames.ndjson
-.obsidian-scribe/acp-frames.old.ndjson
-
-# Models.dev catalog cache (disposable runtime cache under .obsidian-scribe/)
-.obsidian-scribe/model-catalog-cache.json
+# Models.dev catalog cache
+.scribe/model-catalog-cache.json
 .otacon/
 
 # Local AOCI tooling and cognition workspace

@@ -1,4 +1,6 @@
-import { parseTextForPills } from "./lexicalTextUtils";
+import { parseTextForPills, $replaceTriggeredTextWithPill } from "./lexicalTextUtils";
+import { $createParagraphNode, $createTextNode, $getRoot, createEditor, TextNode } from "lexical";
+import { CommandPillNode } from "@/components/chat-components/pills/CommandPillNode";
 import { App, TFile } from "obsidian";
 import { mockTFolder } from "@/__tests__/mockObsidian";
 
@@ -124,6 +126,36 @@ describe("lexicalTextUtils", () => {
         text("[[Note with [brackets]]"),
         text("]"),
       ]);
+    });
+  });
+  describe("$replaceTriggeredTextWithPill()", () => {
+    it("replaces typed slash text with a command chip that keeps the exact slash text content (https://github.com/ItsDalk-Lane/Scribe/issues/35)", () => {
+      const editor = createEditor({
+        namespace: "command-chip-insert",
+        nodes: [CommandPillNode],
+        onError: (error) => {
+          throw error;
+        },
+      });
+      editor.setRootElement(document.body.createDiv());
+      editor.update(
+        () => {
+          const paragraph = $createParagraphNode();
+          paragraph.append($createTextNode("/rev"));
+          $getRoot().clear();
+          $getRoot().append(paragraph);
+          const textNode = $getRoot().getFirstDescendant();
+          (textNode as TextNode).select(4, 4);
+          $replaceTriggeredTextWithPill("/", {
+            type: "command",
+            title: "review-notes",
+            data: "skill",
+          });
+          expect($getRoot().getTextContent()).toBe("/review-notes ");
+        },
+        { discrete: true }
+      );
+      expect(editor.getRootElement()?.querySelector(".command-pill-wrapper")).toBeTruthy();
     });
   });
 });

@@ -5,6 +5,12 @@ import { EMPTY_COMMAND } from "@/commands/constants";
 import type { CustomCommand } from "@/commands/type";
 import { CommandSettings } from "./CommandSettings";
 
+jest.mock("@/commands/customCommandUtils", () => ({
+  ...jest.requireActual<typeof import("@/commands/customCommandUtils")>(
+    "@/commands/customCommandUtils"
+  ),
+  loadAllCustomCommands: jest.fn().mockResolvedValue([]),
+}));
 let mockCommands: CustomCommand[] = [];
 const mockUpdate = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/commands/state", () => ({

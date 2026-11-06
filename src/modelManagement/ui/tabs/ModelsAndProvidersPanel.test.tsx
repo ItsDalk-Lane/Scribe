@@ -125,6 +125,18 @@ describe("ModelsAndProvidersPanel", () => {
       }
     );
 
+    it("browses providers and reopens settings without credential checks or network verification", async () => {
+      const first = render(<ModelsAndProvidersPanel />);
+      await waitFor(() => expect(mockEnsureLoaded).toHaveBeenCalled());
+      expect(mockVerify).not.toHaveBeenCalled();
+      expect(screen.queryByText("Checking…")).toBeNull();
+      expect(screen.getAllByText("Not verified")).toHaveLength(2);
+      first.unmount();
+      render(<ModelsAndProvidersPanel />);
+      await waitFor(() => expect(mockEnsureLoaded).toHaveBeenCalledTimes(2));
+      expect(mockVerify).not.toHaveBeenCalled();
+    });
+
     it("renders configured providers and their models after the catalog loads", async () => {
       render(<ModelsAndProvidersPanel />);
       const providerCard = await screen.findByText("Anthropic");
@@ -154,6 +166,7 @@ describe("ModelsAndProvidersPanel", () => {
       );
       render(<ModelsAndProvidersPanel />);
       await screen.findByText("Anthropic");
+      act(() => completeProviderSave());
       expect(mockListByOrigin).toHaveBeenCalledWith("byok");
       expect(mockVerify.mock.calls).toEqual([["p1"], ["p2"]]);
       expect(screen.getAllByText("Checking…")).toHaveLength(2);
@@ -181,6 +194,7 @@ describe("ModelsAndProvidersPanel", () => {
       );
       render(<ModelsAndProvidersPanel />);
       await screen.findByText("Anthropic");
+      act(() => completeProviderSave());
       mockVerify.mockResolvedValue({ ok: false, code: "missing_api_key", checkedAt: 1 });
       await act(async () => {
         completeProviderSave();
@@ -196,6 +210,7 @@ describe("ModelsAndProvidersPanel", () => {
 
     it("clears an earlier success while checking edited providers and shows rejected checks", async () => {
       render(<ModelsAndProvidersPanel />);
+      act(() => completeProviderSave());
       await screen.findAllByText("Endpoint accessible");
       let rejectCheck!: (error: Error) => void;
       mockListByOrigin.mockReturnValue([{ providerId: "p1" }]);
@@ -216,28 +231,13 @@ describe("ModelsAndProvidersPanel", () => {
       expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("runs fresh checks when the tab remounts", async () => {
-      const first = render(<ModelsAndProvidersPanel />);
-      await screen.findAllByText("Endpoint accessible");
-      first.unmount();
-      expect(mockSubscribe).not.toHaveBeenCalled();
-      mockVerify.mockResolvedValue({ ok: false, code: "invalid_api_key", checkedAt: 1 });
-      render(<ModelsAndProvidersPanel />);
-      await screen.findAllByText("Invalid key");
-      expect(mockVerify).toHaveBeenCalledTimes(4);
-    });
-
     it("does not probe intermediate registry mutations before a save completes", async () => {
       render(<ModelsAndProvidersPanel />);
-      await screen.findAllByText("Endpoint accessible");
-      act(() => {
-        mockProviderListener?.();
-      });
+      await screen.findByText("Anthropic");
+      act(() => mockProviderListener?.());
+      expect(mockVerify).not.toHaveBeenCalled();
+      await act(async () => completeProviderSave());
       expect(mockVerify).toHaveBeenCalledTimes(2);
-      await act(async () => {
-        completeProviderSave();
-      });
-      expect(mockVerify).toHaveBeenCalledTimes(4);
     });
 
     it("finishes without a progress banner when there are no providers", async () => {
@@ -247,11 +247,11 @@ describe("ModelsAndProvidersPanel", () => {
       expect(mockVerify).not.toHaveBeenCalled();
       expect(screen.queryByRole("status")).toBeNull();
     });
-    it("shows current provider health while the catalog is still loading", async () => {
+    it("shows configured providers without credential checks while the catalog is loading", async () => {
       mockEnsureLoaded.mockReturnValue(new Promise(() => {}));
       render(<ModelsAndProvidersPanel />);
       expect(screen.getByText("Anthropic")).toBeTruthy();
-      await screen.findAllByText("Endpoint accessible");
+      expect(mockVerify).not.toHaveBeenCalled();
     });
 
     it("discards in-flight results after leaving and reopening the tab", async () => {
@@ -263,9 +263,11 @@ describe("ModelsAndProvidersPanel", () => {
           })
       );
       const first = render(<ModelsAndProvidersPanel />);
+      act(() => completeProviderSave());
       first.unmount();
       mockVerify.mockResolvedValue({ ok: false, code: "invalid_api_key", checkedAt: 1 });
       render(<ModelsAndProvidersPanel />);
+      act(() => completeProviderSave());
       await screen.findAllByText("Invalid key");
       await act(async () => {
         oldResolvers.forEach((resolve) => resolve({ ok: true, checkedAt: 0 }));

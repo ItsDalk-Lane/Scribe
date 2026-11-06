@@ -214,7 +214,7 @@ describe("createProviderChatModel", () => {
         await createProviderChatModel(configured);
         expect(nativeFactory.mock.calls[0][0]).toMatchObject(configured);
         expect(nativeFactory.mock.calls[0][1]).toMatchObject({ id: configured.name });
-        expect(nativeFactory.mock.calls[0][2].fetch).toBeInstanceOf(Function);
+        expect(nativeFactory.mock.calls[0][2].fetch).toBeUndefined();
         expect(requests).toHaveLength(0);
       }
     );

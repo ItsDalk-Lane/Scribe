@@ -42,6 +42,17 @@ describe("skillFormat", () => {
       expect(parsed.body).toBe("body text");
     });
 
+    it("validates the descriptor name itself when parsing a complete draft without a folder", () => {
+      expect(parseSkillFile(minimalSkill()).frontmatter.name).toBe("review-prose");
+      expect(() => parseSkillFile(minimalSkill({ name: "Invalid Name" }))).toThrow(
+        SkillFormatError
+      );
+      expect(() => parseSkillFile(minimalSkill({ name: "a".repeat(65) }))).toThrow(
+        SkillFormatError
+      );
+      expect(() => parseSkillFile(minimalSkill(), "different-folder")).toThrow(SkillFormatError);
+    });
+
     it("reads Claude-only top-level flags", () => {
       const parsed = parseSkillFile(
         frontmatterOf(
@@ -232,6 +243,45 @@ describe("skillFormat", () => {
       expect(out).toContain("another-foreign: 42");
     });
 
+    it("edits optional metadata and flow mappings without changing unrelated number spelling", () => {
+      const original =
+        "---\nname: test\ndescription: Test\nmetadata: { author: Jane, revision: 900719925474099312345 }\n---\nBody";
+      const parsed = parseSkillFile(original, "test");
+      const result = serializeSkillFile(parsed, {
+        author: "Jill",
+        version: "1.2",
+        tags: ["writing"],
+        enabledAgents: ["native"],
+      });
+      expect(result).toContain("900719925474099312345");
+      expect(parseSkillFile(result, "test").doc.getIn(["metadata", "author"])).toBe("Jill");
+      expect(parseSkillFile(result, "test").frontmatter.enabledAgents).toEqual(["native"]);
+    });
+    it("removes an optional flow field and fills a null optional field without invalidating other properties", () => {
+      const flow =
+        "---\n{name: test, description: Test, model: old, custom: 12345678901234567890}\n---\nBody";
+      const removed = serializeSkillFile(parseSkillFile(flow, "test"), { model: undefined });
+      expect(parseSkillFile(removed, "test").frontmatter.model).toBeUndefined();
+      expect(removed).toContain("12345678901234567890");
+      const empty = "---\nname: test\ndescription: Test\nmodel:\n---\nBody";
+      expect(
+        parseSkillFile(
+          serializeSkillFile(parseSkillFile(empty, "test"), { model: "chosen" }),
+          "test"
+        ).frontmatter.model
+      ).toBe("chosen");
+    });
+    it("preserves high-precision unknown numbers when enablement changes", () => {
+      const original =
+        "---\nname: test\ndescription: Test\nmetadata:\n  revision: 900719925474099312345\n  fraction: 1.234567890123456789\n---\nBody";
+      const parsed = parseSkillFile(original, "test");
+      expect(serializeSkillFile(parsed, { enabledAgents: ["native"] })).toContain(
+        "900719925474099312345"
+      );
+      expect(serializeSkillFile(parsed, { enabledAgents: ["native"] })).toContain(
+        "1.234567890123456789"
+      );
+    });
     it("preserves unknown metadata keys", () => {
       const parsed = parseSkillFile(
         frontmatterOf(

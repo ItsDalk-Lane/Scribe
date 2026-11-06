@@ -1,11 +1,6 @@
 import { DEFAULT_SETTINGS } from "@/constants";
 import type { ScribeSettings } from "@/settings/model";
-import {
-  cleanupLegacyFields,
-  hasPersistedSecrets,
-  isSensitiveKey,
-  stripKeychainFields,
-} from "@/services/settingsSecretTransforms";
+import { cleanupLegacyFields, isSensitiveKey } from "@/services/settingsSecretTransforms";
 
 function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
   return {
@@ -16,12 +11,18 @@ function makeSettings(overrides: Partial<ScribeSettings> = {}): ScribeSettings {
 
 describe("settingsSecretTransforms", () => {
   describe("isSensitiveKey", () => {
-    it.each(["openAIApiKey", "api_key", "accessToken", "clientSecret", "password"])(
-      "recognizes %s as sensitive",
-      (key) => {
-        expect(isSensitiveKey(key)).toBe(true);
-      }
-    );
+    it.each([
+      "openAIApiKey",
+      "api_key",
+      "accessToken",
+      "clientSecret",
+      "password",
+      "private_key",
+      "Authorization",
+      "Proxy_Authorization",
+    ])("recognizes %s as sensitive", (key) => {
+      expect(isSensitiveKey(key)).toBe(true);
+    });
 
     it.each(["defaultModelKey", "temperature", "displayName", "apiVersion"])(
       "does not classify %s as sensitive",
@@ -29,163 +30,6 @@ describe("settingsSecretTransforms", () => {
         expect(isSensitiveKey(key)).toBe(false);
       }
     );
-  });
-
-  describe("hasPersistedSecrets", () => {
-    it("detects nested retired runtime secrets so the existing backup runs before their settings are removed", () => {
-      expect(
-        hasPersistedSecrets({
-          agentMode: { backends: { retired: { envOverrides: { API_TOKEN: "retired-secret" } } } },
-        })
-      ).toBe(true);
-      expect(
-        hasPersistedSecrets({
-          agentMode: { retired: [{ API_KEY: "" }, { name: "Not a credential" }] },
-        })
-      ).toBe(false);
-    });
-
-    it("detects a credential pair whose only marker is a sensitive name, and ignores benign pairs (https://github.com/ItsDalk-Lane/Scribe/issues/17)", () => {
-      expect(
-        hasPersistedSecrets({
-          agentMode: {
-            mcpServers: [
-              {
-                name: "private",
-                transport: "http",
-                headers: [{ name: "Authorization", value: "Bearer synthetic" }],
-              },
-            ],
-          },
-        })
-      ).toBe(true);
-      expect(
-        hasPersistedSecrets({
-          agentMode: {
-            mcpServers: [
-              {
-                name: "private",
-                transport: "http",
-                headers: [
-                  { name: "X-Custom-Header", value: "not-a-secret" },
-                  { name: "Authorization", value: "" },
-                ],
-              },
-            ],
-          },
-        })
-      ).toBe(false);
-    });
-
-    it.each([
-      {
-        name: "detects a top-level secret",
-        rawData: { openAIApiKey: "sk-123", temperature: 0.7 },
-        expected: true,
-      },
-      {
-        name: "ignores an empty top-level secret",
-        rawData: { openAIApiKey: "", temperature: 0.7 },
-        expected: false,
-      },
-      {
-        name: "detects a chat-model secret",
-        rawData: { activeModels: [{ name: "gpt-4", provider: "openai", apiKey: "secret" }] },
-        expected: true,
-      },
-      {
-        name: "detects a secret in a retired model list (https://github.com/ItsDalk-Lane/Scribe/issues/1)",
-        rawData: {
-          retiredModels: [{ name: "embed", provider: "openai", apiKey: "secret" }],
-        },
-        expected: true,
-      },
-      {
-        name: "ignores malformed model entries and non-secret fields",
-        rawData: {
-          activeModels: [null, "bad-entry", { name: "gpt-4", provider: "openai" }],
-          retiredModels: [{ name: "embed", provider: "openai", apiKey: "" }],
-        },
-        expected: false,
-      },
-    ])("$name", ({ rawData, expected }) => {
-      expect(hasPersistedSecrets(rawData as Record<string, unknown>)).toBe(expected);
-    });
-  });
-
-  describe("stripKeychainFields", () => {
-    it("blanks secrets in unknown nested agent settings without changing native choices or the input", () => {
-      const settings = makeSettings({
-        agentMode: {
-          ...DEFAULT_SETTINGS.agentMode,
-          backends: { native: { defaultModel: { baseModelId: "chosen-model", effort: "high" } } },
-          retiredConfiguration: {
-            entries: [{ apiKey: "synthetic-secret", name: "Preserved" }],
-            password: "secret",
-            empty: [],
-          },
-        } as unknown as ScribeSettings["agentMode"],
-      });
-      const result = stripKeychainFields(settings);
-      expect(JSON.stringify(result)).not.toContain("synthetic-secret");
-      expect(JSON.stringify(result)).not.toContain('"password":"secret"');
-      expect(JSON.stringify(settings)).toContain("synthetic-secret");
-      expect(result.agentMode.backends.native?.defaultModel).toEqual({
-        baseModelId: "chosen-model",
-        effort: "high",
-      });
-    });
-
-    it("blanks credential pairs in nested agent settings while leaving benign pairs intact (https://github.com/ItsDalk-Lane/Scribe/issues/17)", () => {
-      const settings = makeSettings({
-        agentMode: {
-          ...DEFAULT_SETTINGS.agentMode,
-          mcpServers: [
-            {
-              name: "private",
-              transport: "http",
-              headers: [
-                { name: "Authorization", value: "Bearer synthetic" },
-                { name: "X-Custom-Header", value: "kept" },
-              ],
-            },
-          ],
-        } as unknown as ScribeSettings["agentMode"],
-      });
-      const result = stripKeychainFields(settings);
-      const headers = (
-        (result.agentMode as unknown as Record<string, unknown>).mcpServers as {
-          headers: { name: string; value: string }[];
-        }[]
-      )[0].headers;
-      expect(headers[0]).toEqual({ name: "Authorization", value: "" });
-      expect(headers[1]).toEqual({ name: "X-Custom-Header", value: "kept" });
-    });
-
-    it("clears top-level and model secrets without mutating the input", () => {
-      const settings = makeSettings({
-        openAIApiKey: "sk-123",
-        defaultModelKey: "gpt-4|openai",
-        activeModels: [{ name: "gpt-4", provider: "openai", apiKey: "chat-secret", enabled: true }],
-      });
-
-      const result = stripKeychainFields(settings);
-
-      expect(result).not.toBe(settings);
-      expect(result.openAIApiKey).toBe("");
-      expect(result.defaultModelKey).toBe("gpt-4|openai");
-      expect(result.activeModels[0].apiKey).toBe("");
-      expect(settings.openAIApiKey).toBe("sk-123");
-      expect(settings.activeModels[0].apiKey).toBe("chat-secret");
-    });
-
-    it("preserves sparse settings without adding model arrays", () => {
-      const result = stripKeychainFields({ openAIApiKey: "secret" } as ScribeSettings);
-      const record = result as unknown as Record<string, unknown>;
-
-      expect(record.openAIApiKey).toBe("");
-      expect(record.activeModels).toBeUndefined();
-    });
   });
 
   describe("cleanupLegacyFields", () => {
@@ -206,7 +50,7 @@ describe("settingsSecretTransforms", () => {
             providerId: "saved",
             providerType: "google",
             displayName: "Saved",
-            apiKeyKeychainId: "existing-key",
+            apiKeyRef: "existing-key",
             origin: { kind: "byok" },
             addedAt: 1,
           },
@@ -217,7 +61,7 @@ describe("settingsSecretTransforms", () => {
       expect("claudeCli" in result.agentMode).toBe(false);
       expect("deviceProfiles" in result.agentMode).toBe(false);
       expect("byok" in result.agentMode).toBe(false);
-      expect(result.providers.saved.apiKeyKeychainId).toBe("existing-key");
+      expect(result.providers.saved.apiKeyRef).toBe("existing-key");
       expect(JSON.stringify(settings)).toContain("retired-secret");
     });
 

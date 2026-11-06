@@ -45,14 +45,6 @@ export function formatStartupMigrationSummary(items: readonly StartupMigrationIt
   return [t("Scribe startup report."), ...sections].join("\n\n");
 }
 
-export function shouldClearCredentialRecovery(
-  items: readonly StartupMigrationItem[],
-  recoveryDeviceId: string | undefined,
-  currentDeviceId: string
-): boolean {
-  return recoveryDeviceId === currentDeviceId && items.some(({ id }) => id === "credentials");
-}
-
 export async function runStartupMigrationSummary(plan: StartupMigrationPlan): Promise<void> {
   const settled = await Promise.all(
     plan.tasks.map(async (task) => {

@@ -2,9 +2,7 @@
 
 Scribe 的 Agent Chat 和快捷工具共用现有的供应商、密钥及连接地址。你可以连接云端模型、兼容网关或本机服务，费用由对应模型服务收取。
 
-隔离测试发现，移除供应商、更改或清空密钥可能影响其他供应商或插件使用的共用密钥。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。以下设置步骤应在修复后执行，详见[故障排查](troubleshooting-and-faq.md)。
-
-Isolated tests found that removing a provider, or changing or clearing its key, can affect keys shared with another provider or plugin. Back up your files first, then disable Scribe until this is fixed; pending saves may finish during shutdown. Follow the setup steps below after the fixes. See [Troubleshooting](troubleshooting-and-faq.md).
+密钥现在由当前库的主密码保护，保存在库内的加密文件中，不再使用系统钥匙串。已有模型和连接配置会保留；旧位置的密钥和资料不会自动导入，需要重新填写密钥。
 
 ## Choose a model source
 
@@ -37,9 +35,9 @@ Scribe. The selected model depends on the tool or chat you are using.
    to test. This sends one short message and may use the provider's quota.
 7. Click **保存** (**Save**). Opening or saving the form never sends a chat test.
 
-When adding a provider with a default address or editing a provider, the form may request the model list using current inputs or a default address before saving. For a new provider that requires a key, automatic discovery waits until the key field is nonempty; an edit may trigger discovery even with an empty key. Address and other parameters also affect the request. It does not send a chat test.
+新建供应商时，表单可能根据当前输入自动获取模型列表；需要密钥时，会等你填写后再请求。编辑供应商不会自动读取已保存的密钥或自动请求模型列表。主动点击 **获取模型列表** 或 **测试聊天连接** 时，如果密钥尚未解锁，会先显示主密码窗口。
 
-新建带默认地址的供应商或编辑供应商时，表单可能根据当前输入或默认地址自动请求模型列表，无需先保存。新建需要密钥的供应商时，密钥字段非空后才会自动请求；编辑时即使密钥为空也可能请求。请求还取决于地址和其他参数，且不会发送聊天测试。
+Opening an existing provider never fills its saved key into the form or unlocks it. Use **Fetch models** or **Test chat connection** to make a request with the saved key. If needed, Scribe asks for the vault's master password first. New-provider discovery may use credentials you have just entered.
 
 **获取模型列表** (**Fetch models**) only reads a directory. It does not prove permission to use a
 model. **测试聊天连接** (**Test chat connection**) uses the current, unsaved key, address, parameters,
@@ -48,7 +46,8 @@ text reply shows **聊天连接验证通过** (**Chat connection verified**). Ch
 old chat result; a late result from an earlier check cannot verify the new inputs.
 
 Each time you open **模型与供应商** (**Models and providers**), Scribe also checks your configured providers' directory
-or key endpoint. The small “Verifying providers…” indicator reports these checks.
+or key endpoint when credentials are already unlocked. Locked credentials are left untouched;
+background checks never open the password window. The small “Verifying providers…” indicator reports these checks.
 **接口可访问** (**Endpoint accessible**) means that endpoint returned the expected data, not that
 chat has been tested. **未设置密钥** (**No key**) or **密钥无效** (**Invalid key**) indicates a missing or rejected
 credential. **访问受限** (**Access restricted**) can mean the account lacks permission; read the
@@ -77,9 +76,9 @@ request already sent to the server; provider-side work or billing may continue.
 Accepted partial text remains available for follow-up questions.
 
 If you press **Stop** while a provider is authenticating a chat, Scribe does not
-send that chat's note content after authentication finishes. Some providers share
-an authentication request between chats; stopping one chat does not cancel the
-request needed by another. Leaving reasoning effort unset uses the provider's default.
+send that chat's note content after authentication finishes. Each chat request prepares
+its own credentials; stopping one chat does not stop a live sibling request.
+Leaving reasoning effort unset uses the provider's default.
 
 Google model IDs can be entered with or without the `models/` prefix. Gemma
 receives the same instructions within the conversation, and supported Google
@@ -138,8 +137,10 @@ requirements.
   the required address is filled in.
 
 SAP AI Core, GitLab, and Google Vertex connections can also be configured and
-tested on mobile. Credentials are stored on each device, so syncing a saved
-configuration alone does not copy its secret to another device.
+tested on mobile. Moving only the settings file does not copy the encrypted credentials.
+To use saved keys on another device, transfer the vault's `.scribe` data and plugin
+settings together, then unlock them with the same master password. Check that your
+sync tool includes hidden folders; Scribe does not transfer these files for you.
 
 ### Privatemode and Tinfoil privacy setup
 
@@ -187,35 +188,40 @@ Agent Chat 使用你在 **模型** 中配置并在聊天中选择的模型。模
 
 ## Where keys are stored
 
-Scribe stores configured provider API keys in this device's
-**Obsidian 钥匙串** (**Obsidian Keychain**) rather than the current settings file. Keychain entries are
-device-specific; syncing a vault does not copy the Keychain itself. Backups made
-from older settings are not deleted automatically; they can
-retain unencrypted keys inside the vault and may be copied by vault sync. An isolated
-test found that an existing backup with the expected name is accepted without checking
-whether its contents match the settings. Keep the original files and backups private,
-and do not assume a backup contains the current settings.
+密钥保存到当前库根目录 `.scribe/secrets` 内的加密 JSON 文件。插件设置文件只保留密钥引用，不保存密钥明文。普通 API 密钥、访问令牌、包含私钥的服务账号 JSON 都按同一规则保存；主密码本身不会写入磁盘。
 
-钥匙串条目只在本机，资料库同步不会复制钥匙串本身。旧设置生成的备份不会自动删除，可能在资料库内保留明文密钥，并可能随资料库同步。隔离测试发现，程序会直接接受已有同名备份，而不检查其内容是否与设置一致。请妥善保管原文件和备份，不要假设备份一定包含当前设置。
+首次保存密钥时设置并确认主密码。每次打开库后，首次主动使用已保存密钥时解锁一次；关闭库或停用插件后需要重新解锁。查看设置和切换模型不会解密密钥，发送请求时只解密对应服务商需要的内容。
 
-If a provider echoes a key, isolated tests show that some connection or chat errors can expose it, and an unusual chat response can save it in a session record. Review chat records, screenshots, and diagnostic reports for secrets before sharing them. The tests used simulated responses, not a real provider account.
+编辑供应商时，密钥栏会显示 **已保存密钥**，输入框保持空白。留空并保存会保留原密钥；填写新内容会替换它；点击 **清除** 后保存才会移除。取消主密码窗口不会发送请求，也不会清空聊天问题或指令草稿。
 
-隔离测试发现，如果供应商在回复中回显密钥，某些连接或聊天错误可能暴露密钥，异常聊天回复也可能将密钥写入会话记录。分享聊天记录、截图或诊断报告前，请检查其中是否包含密钥。测试使用模拟回复，没有使用真实供应商账户。
+Scribe stores each provider's credential in an encrypted JSON file inside the current
+vault's `.scribe/secrets` folder. The settings file keeps only a reference. Your master
+password is never saved. Viewing settings does not decrypt saved credentials; only
+an outgoing request resolves the selected provider's secret.
 
-Isolated tests of credential management found that removing a provider, or changing
-or clearing its key, can affect a shared key used by another provider. Changing or
-clearing a key can also affect a key belonging to another plugin. Back up your files
-first and disable Scribe until these issues are fixed; pending saves may finish while
-it shuts down. Do not remove providers or change or clear provider keys to troubleshoot. The tests used a
-simulated host, not the actual interface or a real device's credentials.
+The credential field stays empty when you edit a provider. Leave it blank to keep the
+saved key, enter a replacement, or explicitly clear it and save. Cancelling the
+master-password prompt leaves your draft intact and sends no request.
 
-When two vaults on one device share a Scribe key-storage identifier, isolated tests also
-found that deleting all keys in one can remove the other's keys. Do not use **删除所有密钥** (**Delete All Keys**)
-until this is fixed.
+忘记主密码无法恢复原密钥。解锁窗口提供重置入口，需要明确确认；重置只移除新密钥存储及其引用，之后重新填写密钥。聊天、技能、项目说明和普通笔记不会因此删除。不要把主密码和加密资料一起分享。
 
-隔离测试发现，移除供应商、更改或清空其密钥可能影响其他供应商使用的共用密钥；更改或清空密钥还可能影响其他插件的密钥。如果同一设备上的两个资料库共用 Scribe 密钥存储标识，在一个库中删除全部密钥也可能移除另一个库的密钥。请先备份现有文件，再暂时停用 Scribe，直到这些问题修复；关闭时程序可能完成之前排队的保存。不要通过移除供应商、更改或清空密钥排查问题，也不要使用 **删除所有密钥**。测试使用的是替身宿主，没有操作真实界面或设备密钥。
+旧系统钥匙串和旧位置文件不会被读取、导入或清理。若旧备份含有明文密钥，它们仍需要自行妥善保管。新加密方式不能保护旧备份，也不能承诺请求期间的内存明文会立即物理清零。
 
-After these issues are fixed, to remove stored credentials, open **Settings → Scribe → 关于 → API 密钥存储** (**Settings → Scribe → About → API key storage** in English) and click **删除所有密钥** (**Delete All Keys**).
+Scribe masks this request's known credential values in replies, thinking, tool inputs,
+model-list results and errors before they enter chat records or diagnostic output.
+This includes the entered key, private keys and tokens inside service-account JSON,
+and the request's derived authorization token. Split response chunks are checked
+before they are joined. Opening or reopening settings does not run credential checks;
+connection tests and model queries are explicit actions.
+
+Only known original values are covered. Unknown transformations, encoded variants,
+and secrets that you type directly into your notes or questions may remain. Review
+chat records, screenshots and diagnostic reports before sharing them. These checks
+use simulated responses, not real provider accounts.
+
+Scribe 会在回复、思考内容、工具输入、模型查询结果和错误进入聊天记录或诊断输出前，遮盖本次请求已知的密钥原值，包括服务账号 JSON 中的私钥和令牌，以及认证后取得的本次访问令牌。分段回复会在合并前检查。打开或重新打开设置不会检查已保存密钥；连接测试和模型查询需要主动操作。
+
+这只覆盖已知原值，不能识别所有未知变形或编码形式，也不能替你清除自己写进笔记或问题中的秘密。分享记录、截图或诊断资料前仍需检查。验证使用模拟回复，没有使用真实服务商账户。
 
 ## Related
 

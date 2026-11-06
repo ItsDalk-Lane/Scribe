@@ -1,5 +1,5 @@
 import * as agentWelcomeStories from "@/agentMode/ui/AgentWelcomeCard.stories";
-import * as projectSkillStories from "@/agentMode/skills/ui/SkillRowLayout.stories";
+import * as skillStories from "@/agentMode/skills/ui/SkillRowLayout.stories";
 import * as galleryHostStories from "@/components/gallery-hosts.stories";
 import * as badgeStories from "@/components/ui/badge.stories";
 import * as buttonStories from "@/components/ui/button.stories";
@@ -787,26 +787,43 @@ describe("Gallery", () => {
       expect(gallery.queryByText("Settings example")).toBeNull();
     });
 
-    it("renders independent project skill states in the settings gallery at each preset width (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+    it("renders independent canonical skill enabled, unconfirmed and error states at each preset width (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
       const catalog = createGalleryCatalog(
-        [{ componentId: "@/agentMode/skills/ui/SkillRowLayout", storyModule: projectSkillStories }],
+        [{ componentId: "@/agentMode/skills/ui/SkillRowLayout", storyModule: skillStories }],
         1
       );
       const gallery = render(<GalleryHarness catalog={catalog} />);
-      selectStoryInTree(gallery, "Skills/Custom skill row/ProjectScopes");
+      selectStoryInTree(gallery, "Skills/Custom skill row/Canonical");
 
       for (const width of ["300", "340", "400", "600"]) {
         fireEvent.click(gallery.getByRole("button", { name: width }));
-        expect(
-          gallery
-            .getByRole("switch", { name: "Enable review-notes in Alpha" })
-            .getAttribute("aria-checked")
-        ).toBe("true");
-        expect(
-          gallery
-            .getByRole("switch", { name: "Enable review-notes in Beta" })
-            .getAttribute("aria-checked")
-        ).toBe("false");
+        const canvas = gallery.container.querySelector<HTMLElement>(".scribe-gallery-canvas");
+        expect(canvas?.dataset.galleryWidth).toBe(width);
+        expect(canvas?.style.width).toBe(`${width}px`);
+
+        selectStoryInTree(gallery, "Skills/Custom skill row/Canonical");
+        const enabled = gallery.getByRole("switch", { name: "Enable writing-review" });
+        expect(enabled.getAttribute("aria-checked")).toBe("true");
+        expect(enabled.getAttribute("aria-disabled")).toBe("false");
+        expect(gallery.queryByRole("alert")).toBeNull();
+
+        selectStoryInTree(gallery, "Skills/Custom skill row/UnconfirmedPreference");
+        const unconfirmed = gallery.getByRole("switch", { name: "Enable writing-review" });
+        expect(unconfirmed.getAttribute("aria-checked")).toBe("true");
+        expect(unconfirmed.getAttribute("aria-disabled")).toBe("true");
+        expect(unconfirmed.getAttribute("aria-description")).toBe(
+          "Availability could not be confirmed. Check again."
+        );
+        expect(gallery.queryByRole("alert")).toBeNull();
+
+        selectStoryInTree(gallery, "Skills/Custom skill row/PersonalSkillsWithLoadError");
+        const loadError = gallery.getByRole("alert", { name: "1 skill could not be loaded" });
+        expect(within(loadError).getByText("The skills have format errors.")).toBeTruthy();
+        expect(within(loadError).getByRole("button", { name: "View details" })).toBeTruthy();
+        const disabled = gallery.getByRole("switch", { name: "Enable obsidian-markdown" });
+        expect(disabled.getAttribute("aria-checked")).toBe("false");
+        expect(disabled.getAttribute("aria-disabled")).toBe("false");
+        expect(gallery.queryByRole("switch", { name: "Enable writing-review" })).toBeNull();
       }
     });
 

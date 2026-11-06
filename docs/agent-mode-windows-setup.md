@@ -17,8 +17,8 @@ Isolated macOS tests found file-safety risks during startup migrations, credenti
 
 ## Skills
 
-在 **Settings → Scribe → 技能** 启用 Scribe 技能，输入 `/` 选择允许手动调用的条目。当前版本可能无法自动发现项目目录中的技能。
+在 **Settings → Scribe → 技能** 启用 Scribe 技能，输入 `/` 选择允许手动调用的条目。所有项目使用当前库统一管理的技能。
 
-Scribe 不附带或自动安装技能。个人或项目技能需要的其他程序和 Obsidian 功能，应按该技能的说明准备；此前保存的技能文件会保留并作为普通技能管理。
+Scribe 附带七个只读内置技能，可启用、停用、卸载和恢复。添加技能有 Agent 创建、系统搜索和本地文件夹／ZIP 导入三种方式；不会自动安装技能需要的其他程序或更改 Obsidian 功能设置。此前保存的技能保留并按“本地”管理。
 
 更多说明见 [Agent Chat](agent-mode-and-tools.md)、[Models and providers](llm-providers.md)。

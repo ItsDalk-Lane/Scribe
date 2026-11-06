@@ -1,4 +1,41 @@
 export const settingsTranslations: Record<string, string> = {
+  "Model list contains credential values and was not loaded.":
+    "服务商返回的模型列表包含密钥内容，已停止读取。",
+  "Failed to load commands.": "无法加载指令。",
+  "Saved key": "已保存密钥",
+  "Saved key — leave blank to keep it": "已保存密钥，留空即可保留",
+  "The saved key will be removed when you save.": "保存后将清除已保存的密钥。",
+  "Unlock your saved key with a connection test before checking this provider.":
+    "请先通过连接测试解锁已保存的密钥。",
+  'Are you sure you want to delete the command "{title}"? Its file will be moved to Scribe’s trash.':
+    "确定要删除指令“{title}”吗？对应文件会移至 Scribe 的回收区。",
+  "Project workspace": "项目工作位置",
+  "Renaming the project does not move this folder.": "修改项目名称不会移动这个文件夹。",
+  "A new folder named after this project": "在库根新建与项目同名的文件夹",
+  "Vault root": "库根目录",
+  "Choose folder": "选择文件夹",
+  "Use a new folder": "改为新建文件夹",
+  "Project created. Workspace: {path}": "项目已创建，工作位置：{path}",
+  'Delete project "{p0}"? Only its Scribe configuration will be removed. The workspace, AGENTS.md, and all notes will stay where they are.':
+    "要删除项目“{p0}”吗？只会移除 Scribe 中的项目配置，工作文件夹、AGENTS.md 和所有笔记都会保留在原处。",
+  "Master password": "主密码",
+  "Confirm master password": "确认主密码",
+  "Set master password": "设置主密码",
+  "Unlock service keys": "解锁服务商密钥",
+  "Set password": "设置密码",
+  Unlock: "解锁",
+  "Reset saved keys": "重置已保存的密钥",
+  "Reset saved keys?": "重置已保存的密钥？",
+  "Use at least 12 characters for your master password.": "主密码至少需要 12 个字符。",
+  "The passwords do not match.": "两次输入的密码不一致。",
+  "Could not unlock the saved keys.": "无法解锁已保存的密钥。",
+  "Could not reset the saved keys. Please retry.": "无法重置已保存的密钥，请重试。",
+  "Set a master password to encrypt your service keys. Scribe does not save this password. If you forget it, you will need to reset the saved keys and enter them again.":
+    "请设置主密码来加密服务商密钥。Scribe 不会保存此密码；若忘记，需要重置密钥存储并重新填写服务商密钥。",
+  "Unlock your saved service keys for this vault. They stay locked until a request needs them, and your password is never saved.":
+    "解锁当前库的服务商密钥。只有发送请求时才读取所需密钥，主密码不会被保存。",
+  "This permanently removes the service keys saved by the new storage system. Other files and the old system keychain are kept. You will need to enter your service keys again.":
+    "这会永久移除新存储系统中保存的服务商密钥。其他文件和旧系统钥匙串中的内容会保留，之后需要重新填写服务商密钥。",
   "Your configured chat models are listed here. Choose the default model below.":
     "这里列出已配置的聊天模型。可在下方选择默认模型。",
   "No chat models configured. Add one under Models and providers.":
@@ -196,7 +233,8 @@ export const settingsTranslations: Record<string, string> = {
   "command in chat.": "指令触发。",
   "Commands load automatically from the Markdown files in your custom commands folder":
     "指令会自动从自定义指令文件夹中的 Markdown 文件加载：",
-  ". Editing a file updates its command.": "。编辑文件后，对应指令会自动更新。",
+  ". Reopen this page to reload files edited outside Scribe.":
+    "。在插件外编辑文件后，重新打开此页面即可读取更新。",
   "Command templating": "指令变量替换",
   "Fill in variables like {activenote}, {foldername}, or {#tag} in commands. Turn off to send commands exactly as written.":
     "自动填入指令中的 {activenote}、{foldername} 或 {#tag} 等变量。关闭后会原样发送指令。",
@@ -228,7 +266,6 @@ export const settingsTranslations: Record<string, string> = {
     "无法更改 Scribe 文件夹，请查看 Scribe 日志。",
   "Use folder": "使用此文件夹",
   "Change folder": "更改文件夹",
-  General: "常规",
   "Open plugin in": "插件打开位置",
   "Choose where to open the plugin.": "选择插件的打开位置。",
   "Sidebar view": "侧边栏",
@@ -249,11 +286,6 @@ export const settingsTranslations: Record<string, string> = {
   "Apply Scribe folder": "应用 Scribe 文件夹",
   Apply: "应用",
   "Open Scribe folder": "打开 Scribe 文件夹",
-  "Custom instructions": "自定义说明",
-  "The agent activity log is available on desktop only.": "代理活动日志仅支持桌面端。",
-  "Failed to open the agent activity log.": "无法打开代理活动日志。",
-  "Agent activity log cleared.": "已清空代理活动日志。",
-  "Failed to clear the agent activity log.": "无法清空代理活动日志。",
   "⚠️ Forget All Secrets": "⚠️ 删除所有密钥",
   Remove: "移除",
   "Failed to remove API keys. Back up your files, then disable Scribe until file-safety issues are fixed. Check available logs.":
@@ -277,7 +309,6 @@ export const settingsTranslations: Record<string, string> = {
   "Default agent": "默认代理",
   "The agent new chats start with. Picking another agent's model in a chat also changes this.":
     "新聊天默认使用的代理。在聊天中选择其他代理的模型时，也会更新此设置。",
-  "Debugging & support": "调试与支持",
   "Prepare a zip from your description and selected attachments for review. You can choose whether to upload it; a GitHub issue draft may open afterward.":
     "根据您的描述和所选附件准备压缩包供检查。您可以选择是否上传，之后可能打开 GitHub 问题草稿。",
   "Offer feedback reports in Agent Chat": "在代理聊天中提供反馈报告",
@@ -286,9 +317,6 @@ export const settingsTranslations: Record<string, string> = {
   "Debug mode": "调试模式",
   "Logs Scribe chat activity to the developer console (View → Toggle Developer Tools).":
     "将 Scribe 聊天活动记录到开发者控制台（视图 → 切换开发者工具）。",
-  "Agent activity log": "代理活动日志",
-  "Holds the behind-the-scenes activity that earlier Scribe versions recorded. Current native chats are not recorded. Stored on this device only, outside your vault ({frameLogPath}), and can include your prompts and note contents in plain text.":
-    "保存较早版本 Scribe 记录的后台活动。当前原生聊天不会写入记录。仅保存在此设备上、库外的位置（{frameLogPath}），可能包含明文的提示词和笔记内容。",
   Open: "打开",
   Clear: "清空",
   "Custom vault instructions": "库的自定义说明",
@@ -408,7 +436,6 @@ export const settingsTranslations: Record<string, string> = {
     "例如 lmstudio-community/Qwen2.5-7B-Instruct-GGUF",
   "e.g. gpt-5.5": "例如 gpt-5.5",
   "Custom OpenAI-compatible": "自定义兼容 OpenAI 的服务",
-  "(the agent activity log is desktop-only)": "（代理活动日志仅支持桌面端）",
   "This removes Scribe API keys for this vault from the Obsidian Keychain, data.json, and memory. You may need to enter them again. Existing credential backups may remain; review them separately.":
     "这会从 Obsidian 钥匙串、data.json 和内存中移除此库的 Scribe API 密钥。之后可能需要重新输入。已有的凭据备份可能仍然保留，请另行检查。",
   "A server on this computer": "此电脑上的服务",

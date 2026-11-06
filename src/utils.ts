@@ -202,9 +202,9 @@ export async function ensureFolderExists(vault: Vault, folderPath: string): Prom
   for (const part of parts) {
     current = current ? `${current}/${part}` : part;
 
-    const existing = vault.getAbstractFileByPath(current);
+    const existing = await vault.adapter.stat(current);
     if (existing) {
-      if (existing instanceof TFile) {
+      if (existing.type !== "folder") {
         throw new Error(`Path conflict: "${current}" exists as a file, expected folder.`);
       }
       continue;

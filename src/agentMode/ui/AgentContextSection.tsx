@@ -94,7 +94,11 @@ export default function AgentContextSection({
       return;
     }
     ProjectFileManager.getInstance(app)
-      .updateProject(projectId, { ...base, contextSource: { ...base.contextSource, ...patch } })
+      .updateProject(
+        projectId,
+        { ...base, contextSource: { ...base.contextSource, ...patch } },
+        base
+      )
       .catch((err) => {
         logWarn("[project-context] failed to save context changes", err);
         new Notice(t("Failed to save project context. Check the result and try again."));
@@ -126,16 +130,20 @@ export default function AgentContextSection({
       app,
       (updated) => {
         const current = getCachedProjectRecordById(projectId)?.project ?? updated;
-        return ProjectFileManager.getInstance(app).updateProject(projectId, {
-          ...current,
-          contextSource: {
-            ...current.contextSource,
-            inclusions: updated.contextSource.inclusions,
-            exclusions: updated.contextSource.exclusions,
-            webUrls: updated.contextSource.webUrls,
-            youtubeUrls: updated.contextSource.youtubeUrls,
+        return ProjectFileManager.getInstance(app).updateProject(
+          projectId,
+          {
+            ...current,
+            contextSource: {
+              ...current.contextSource,
+              inclusions: updated.contextSource.inclusions,
+              exclusions: updated.contextSource.exclusions,
+              webUrls: updated.contextSource.webUrls,
+              youtubeUrls: updated.contextSource.youtubeUrls,
+            },
           },
-        });
+          project
+        );
       },
       project
     );

@@ -1,4 +1,5 @@
-import { App, TFile } from "obsidian";
+import { v4 as uuidv4 } from "uuid";
+import { App } from "obsidian";
 import { isMap, parseDocument } from "yaml";
 import {
   getCommandFilePath,
@@ -24,7 +25,7 @@ import {
   updateCachedCommand,
 } from "./state";
 import { ensureFolderExists } from "@/utils";
-import { trashFile } from "@/utils/vaultAdapterUtils";
+import { assertScribePath, writeVaultFile } from "@/utils/vaultFileStore";
 
 const METADATA_FIELDS = {
   enabled: SCRIBE_COMMAND_ENABLED,
@@ -106,7 +107,7 @@ export class CustomCommandManager {
   async updateCommands(commands: CustomCommand[]): Promise<void> {
     await this.enqueue(async () => {
       for (const command of commands) {
-        if (this.app.vault.getAbstractFileByPath(getCommandFilePath(command.title))) {
+        if (await this.app.vault.adapter.exists(getCommandFilePath(command.title))) {
           await this.update(command.title, command.title, command);
         } else {
           await this.create(command);
@@ -128,8 +129,14 @@ export class CustomCommandManager {
       const filePath = getCommandFilePath(command.title);
       addPendingFileWrite(filePath);
       try {
-        const file = this.app.vault.getAbstractFileByPath(filePath);
-        if (file instanceof TFile) await trashFile(this.app, file);
+        if (await this.app.vault.adapter.exists(filePath)) {
+          const trashFolder = ".scribe/trash/commands";
+          const destination = `${trashFolder}/${command.title}-${uuidv4()}.md`;
+          await assertScribePath(this.app.vault, filePath);
+          await assertScribePath(this.app.vault, destination);
+          await ensureFolderExists(this.app.vault, trashFolder);
+          await this.app.vault.adapter.rename(filePath, destination);
+        }
         deleteCachedCommand(command.title);
       } finally {
         removePendingFileWrite(filePath);
@@ -147,11 +154,11 @@ export class CustomCommandManager {
     const filePath = getCommandFilePath(command.title);
     addPendingFileWrite(filePath);
     try {
-      if (this.app.vault.getAbstractFileByPath(filePath))
+      if (await this.app.vault.adapter.exists(filePath))
         throw new Error("同名指令已存在，未覆盖现有文件。");
       const saved = this.patchDocument("", command.title, command);
       await ensureFolderExists(this.app.vault, getCustomCommandsFolder());
-      await this.app.vault.create(filePath, saved.text);
+      await writeVaultFile(this.app.vault, filePath, saved.text, null);
       if (!skipStoreUpdate) updateCachedCommand(saved.command, command.title);
     } finally {
       removePendingFileWrite(filePath);
@@ -159,7 +166,7 @@ export class CustomCommandManager {
   }
 
   private async patchExisting(title: string, changes: CommandChanges): Promise<void> {
-    if (!(this.app.vault.getAbstractFileByPath(getCommandFilePath(title)) instanceof TFile)) return;
+    if (!(await this.app.vault.adapter.exists(getCommandFilePath(title)))) return;
     await this.update(title, title, changes);
   }
 
@@ -173,38 +180,26 @@ export class CustomCommandManager {
     const oldPath = getCommandFilePath(previousTitle);
     const newPath = getCommandFilePath(title);
     const renamed = oldPath !== newPath;
-    const file = this.app.vault.getAbstractFileByPath(oldPath);
-    if (!(file instanceof TFile)) throw new Error("指令文件已变化，请重新打开后编辑。");
+    const adapter = this.app.vault.adapter;
+    if (!(await adapter.exists(oldPath))) throw new Error("指令文件已变化，请重新打开后编辑。");
+    const original = await adapter.read(oldPath);
+    const saved = this.patchDocument(original, title, changes, baseline);
     addPendingFileWrite(oldPath);
     if (renamed) addPendingFileWrite(newPath);
     try {
+      await writeVaultFile(this.app.vault, newPath, saved.text, renamed ? null : original);
       if (renamed) {
-        if (this.app.vault.getAbstractFileByPath(newPath))
-          throw new Error("同名指令已存在，未覆盖现有文件。");
-        await this.app.vault.rename(file, newPath);
-      }
-      let saved: CustomCommand | undefined;
-      try {
-        await this.app.vault.process(file, (current) => {
-          const result = this.patchDocument(current, title, changes, baseline);
-          saved = result.command;
-          return result.text;
-        });
-      } catch (error) {
-        if (renamed) {
-          try {
-            await this.app.vault.rename(file, oldPath);
-          } catch {
-            const actual = this.patchDocument(await this.app.vault.read(file), title, {}).command;
-            updateCachedCommand(actual, previousTitle);
-            throw new Error(
-              `保存失败，无法恢复原文件名；原内容仍保存在 ${file.path}。请刷新列表后重试。`
-            );
+        try {
+          if ((await adapter.read(oldPath)) !== original) {
+            throw new Error("指令已被其他操作修改，请刷新后重试。");
           }
+          await adapter.remove(oldPath);
+        } catch (error) {
+          if ((await adapter.read(newPath)) === saved.text) await adapter.remove(newPath);
+          throw error;
         }
-        throw error;
       }
-      if (!skipStoreUpdate && saved) updateCachedCommand(saved, previousTitle);
+      if (!skipStoreUpdate) updateCachedCommand(saved.command, previousTitle);
     } finally {
       removePendingFileWrite(oldPath);
       if (renamed) removePendingFileWrite(newPath);

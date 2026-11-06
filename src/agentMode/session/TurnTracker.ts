@@ -276,18 +276,24 @@ export class TurnTracker {
     this.currentMessageIds = new Set();
   }
 
-  startTurn(turnId: string, startedAt?: number): void {
+  startTurn(turnId: string, startedAt?: number, seq?: number): void {
     if (this.stopDrain) return;
     if (this.sendController?.signal.aborted) this.sendController = null;
     this.openTurnId = turnId;
     if (!this.placeholderId) this.openReply(false, startedAt);
+    if (seq !== undefined && this.placeholderId) {
+      const nextId = `assistant:${turnId}`;
+      this.deps.store.identifyMessage(this.placeholderId, nextId);
+      this.placeholderId = nextId;
+    }
     this.deps.notifyStatus();
   }
 
-  deliverPrompt(promptId: string): void {
+  deliverPrompt(promptId: string, occurredAt?: number): void {
     const prompt = this.pendingPrompts.get(promptId);
     if (prompt) prompt.delivered = true;
-    this.showDeliveredPrompt(promptId);
+    this.showDeliveredPrompt(promptId, occurredAt);
+    if (occurredAt !== undefined) this.replyStartedAtMs = occurredAt;
   }
 
   withdrawPrompts(promptIds: readonly string[]): void {
@@ -312,7 +318,7 @@ export class TurnTracker {
     this.withdrawPrompts([...this.pendingPrompts.keys()]);
   }
 
-  endTurn(end: TurnEnd): void {
+  endTurn(end: TurnEnd, endedAt = Date.now()): void {
     if (this.stopDrain) {
       this.endStopDrain();
       return;
@@ -331,13 +337,9 @@ export class TurnTracker {
     };
     if (end.error !== undefined) {
       const replyId = this.placeholderId;
-      this.failReply(end.error);
+      this.failReply(end.error, endedAt);
       if (replyId && end.stopReason !== "end_turn")
-        this.deps.store.markTurnComplete(
-          replyId,
-          end.stopReason,
-          Date.now() - this.replyStartedAtMs
-        );
+        this.deps.store.markTurnComplete(replyId, end.stopReason, endedAt - this.replyStartedAtMs);
       return settle();
     }
     if (end.stopReason === "max_tokens" && prompts.some((p) => p.continuesAtOutputLimit)) {
@@ -346,16 +348,16 @@ export class TurnTracker {
       }
       return settle();
     }
-    void this.finalizeReply(end.stopReason, end.turnDiff).then(settle);
+    void this.finalizeReply(end.stopReason, end.turnDiff, endedAt).then(settle);
   }
 
-  failReply(err: unknown): void {
+  failReply(err: unknown, occurredAt = Date.now()): void {
     logWarn(`[AgentMode] prompt failed`, err);
     const placeholderId = this.placeholderId ?? this.openReply();
     this.deps.store.settleOpenParts(placeholderId, "failed");
     this.deps.endLaunches("failed");
     const errorText = formatPromptFailure(err);
-    this.deps.store.markMessageError(placeholderId, errorText, Date.now() - this.replyStartedAtMs);
+    this.deps.store.markMessageError(placeholderId, errorText, occurredAt - this.replyStartedAtMs);
     this.placeholderId = null;
     this.currentMessageIds = new Set();
     this.lastTurnFailed = true;
@@ -379,9 +381,9 @@ export class TurnTracker {
     if (messageId) this.cancelledMessageIds.add(messageId);
   }
 
-  extendSettledTurn(replyId: string): void {
+  extendSettledTurn(replyId: string, occurredAt = Date.now()): void {
     if (replyId !== this.settledStream?.placeholderId) return;
-    this.deps.store.extendTurnDuration(replyId, Date.now() - this.settledStream.turnStartedAtMs);
+    this.deps.store.extendTurnDuration(replyId, occurredAt - this.settledStream.turnStartedAtMs);
   }
 
   resolveToolTarget(ownerMessageId: string | undefined): string | null {
@@ -413,14 +415,14 @@ export class TurnTracker {
     this.setQueuedPrompts(this.queuedPrompts.filter((p) => !ids.has(p.id)));
   }
 
-  private showDeliveredPrompt(promptId: string): void {
+  private showDeliveredPrompt(promptId: string, occurredAt = Date.now()): void {
     const prompt = this.queuedPrompts.find((p) => p.id === promptId);
     if (!prompt) return;
     this.removeQueuedPrompts([promptId]);
     const { store } = this.deps;
     const reply = this.placeholderId;
     if (reply && store.hasAssistantActivity(reply)) {
-      store.markTurnComplete(reply, "end_turn", Date.now() - this.replyStartedAtMs);
+      store.markTurnComplete(reply, "end_turn", occurredAt - this.replyStartedAtMs);
       this.showedActivityElsewhere = true;
     } else if (reply) {
       store.deleteMessage(reply);
@@ -428,8 +430,12 @@ export class TurnTracker {
     store.addMessage(
       buildUserMessage(prompt.id, prompt.text, prompt.context, prompt.promptContent)
     );
-    if (reply) this.openReply(true);
-    else this.deps.notifyMessages();
+    if (reply) {
+      this.openReply(true, occurredAt);
+      const nextId = `assistant:${promptId}`;
+      this.deps.store.identifyMessage(this.placeholderId!, nextId);
+      this.placeholderId = nextId;
+    } else this.deps.notifyMessages();
   }
 
   private endStopDrain(): void {
@@ -437,7 +443,11 @@ export class TurnTracker {
     this.stopDrain = null;
   }
 
-  private async finalizeReply(stopReason: StopReason, turnDiff?: TurnDiff): Promise<void> {
+  private async finalizeReply(
+    stopReason: StopReason,
+    turnDiff?: TurnDiff,
+    endedAt = Date.now()
+  ): Promise<void> {
     const placeholderId = this.placeholderId;
     if (!placeholderId) return;
     const { store, backendId } = this.deps;
@@ -473,7 +483,11 @@ export class TurnTracker {
         return false;
       });
     if (filesChanged) this.deps.notifyMessages();
-    if (store.markTurnComplete(placeholderId, stopReason, Date.now() - turnStartedAtMs)) {
+    if (
+      store.withRecordedTime(endedAt, () =>
+        store.markTurnComplete(placeholderId, stopReason, endedAt - turnStartedAtMs)
+      )
+    ) {
       this.deps.notifyMessages();
     }
     this.lastTurnFailed =

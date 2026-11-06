@@ -65,7 +65,7 @@ function extraString(extras: Record<string, unknown>, key: string): string | und
 export function configuredModelToCustomModel(params: {
   provider: Provider;
   configuredModel: ConfiguredModel;
-  apiKey: string | null;
+  apiKey?: string | null;
 }): CustomModel {
   const { provider, configuredModel, apiKey } = params;
   const info = configuredModel.info;
@@ -103,6 +103,7 @@ export function configuredModelToCustomModel(params: {
     enabled: true,
     baseUrl: connection.baseUrl,
     apiKey: trimmedKey,
+    credentialRef: trimmedKey ? undefined : (provider.apiKeyRef ?? undefined),
     requiresApiKey,
     enableCors: provider.enableCors ?? true,
     capabilities,

@@ -1,16 +1,11 @@
 import { type App, FileSystemAdapter } from "obsidian";
+import { DEFAULT_SCRIBE_FOLDER } from "@/constants";
 import { requireNodeModule } from "@/utils/desktopRuntime";
-import { md5 } from "@/utils/hash";
 
-const SCRIBE_APP_DIR_NAME = ".obsidian-scribe";
-
-export function scribeAppDataDir(homeDir: string): string {
+export function getScribeDataPath(app: App): string {
+  if (!(app.vault.adapter instanceof FileSystemAdapter)) {
+    throw new Error("The native agent requires a desktop vault.");
+  }
   const path = requireNodeModule<typeof import("node:path")>("path");
-  return path.join(homeDir, SCRIBE_APP_DIR_NAME);
-}
-
-export function getVaultId(app: App): string {
-  const adapter = app.vault.adapter;
-  const vaultBasePath = adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
-  return vaultBasePath ? md5(vaultBasePath).slice(0, 8) : "default";
+  return path.join(app.vault.adapter.getBasePath(), DEFAULT_SCRIBE_FOLDER);
 }

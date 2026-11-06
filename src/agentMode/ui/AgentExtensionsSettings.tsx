@@ -1,3 +1,4 @@
+import { SubagentsSettings } from "@/agentMode/subagents/ui/SubagentsSettings";
 import { backendDisplayOrder } from "@/agentMode/backends/registry";
 import type {
   AgentExtensionGroup,
@@ -20,8 +21,7 @@ import {
   storeCachedExtensionView,
 } from "@/agentMode/session/extensionCheckCache";
 import { resolveScopeCwd } from "@/agentMode/session/sessionScope";
-import { useManagedSkills } from "@/agentMode/skills/SkillManager";
-import { openNewSkillModal, SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
+import { SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
 import { AgentExtensionsPanel, EXTENSION_LABELS } from "@/agentMode/ui/AgentExtensionsPanel";
 import { ExtensionEditor } from "@/agentMode/ui/ExtensionEditor";
 import { ExtensionDetailsView, ExtensionModal } from "@/agentMode/ui/ExtensionDialogs";
@@ -35,7 +35,7 @@ import { useProjects } from "@/projects/state";
 import { useSettingsValue } from "@/settings/model";
 import { getVaultBase } from "@/utils/vaultPath";
 import { normalizeAbsPath } from "@/utils/pathUtils";
-import { Plus, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Notice, type App } from "obsidian";
 import React from "react";
 
@@ -93,11 +93,16 @@ function mergeScopeInventories(
   });
 }
 
-export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsProps) {
+export function AgentExtensionsSettings(props: AgentExtensionsSettingsProps) {
+  if (props.kind === "subagent") return <SubagentsSettings />;
+  if (!props.kind || props.kind === "skill") return <SkillsSettings />;
+  return <RuntimeExtensionsSettings {...props} />;
+}
+
+function RuntimeExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsProps) {
   const plugin = usePlugin();
   const settings = useSettingsValue();
   const projects = useProjects();
-  const managedSkills = useManagedSkills();
   const descriptors = backendDisplayOrder();
   const [selectedAgent, setSelectedAgent] = React.useState(descriptors[0].id);
   const descriptor = descriptors.find((item) => item.id === selectedAgent) ?? descriptors[0];
@@ -442,34 +447,19 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           loading: true,
           runtimeState: "not_started" as const,
         });
-  const managedFiles = new Set(managedSkills.map((item) => normalizeAbsPath(item.filePath)));
-  // 旧内置名称不再保留，只排除当前个人列表里实际显示的技能。https://github.com/ItsDalk-Lane/Scribe/issues/32
-  const managedNames = new Set(managedSkills.map((item) => item.name));
   const groups =
     currentState.groups
       ?.filter((group) => group.kind === kind)
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => {
-          if (kind === "skill" && !item.parentPluginId && item.source !== "plugin") {
-            if (managedFiles.has(normalizeAbsPath(item.target?.path ?? item.location ?? "")))
-              return false;
-            if (item.source === "runtime" && managedNames.has(item.name)) return false;
-          }
-          return `${item.name} ${item.description ?? ""} ${item.parentPluginId ?? ""}`
+        items: group.items.filter((item) =>
+          `${item.name} ${item.description ?? ""} ${item.parentPluginId ?? ""}`
             .toLowerCase()
-            .includes(q);
-        }),
+            .includes(q)
+        ),
       })) ?? null;
   const inactive = enabled ? {} : { inert: "" };
-  const ownsSkills = kind === "skill";
-  const hideEmpty =
-    ownsSkills &&
-    !currentState.loading &&
-    !currentState.error &&
-    currentState.runtimeState !== "error" &&
-    groups?.every((group) => group.items.length === 0 && group.warnings.length === 0);
-  const content = hideEmpty ? null : (
+  const content = (
     <div {...inactive} aria-disabled={!enabled} className={enabled ? undefined : "tw-opacity-50"}>
       <AgentExtensionsPanel
         agentName={descriptor.displayName}
@@ -514,15 +504,6 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
             >
               <RefreshCw className="tw-size-4" />
             </Button>
-            {ownsSkills ? (
-              <Button
-                disabled={busy || pending || !enabled}
-                onClick={() => openNewSkillModal(plugin.app, () => loadRef.current())}
-              >
-                <Plus className="tw-size-4" />
-                {t("New skill")}
-              </Button>
-            ) : null}
           </>
         }
       />
@@ -533,25 +514,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           )}
         </p>
       )}
-      {ownsSkills ? (
-        <div {...inactive} aria-disabled={!enabled}>
-          <SkillsSettings
-            embedded
-            query={query}
-            runtimeItems={
-              currentState.runtimeState === "error" || currentState.runtimeState === "not_started"
-                ? undefined
-                : currentState.groups?.find((group) => group.kind === "skill")?.items
-            }
-            checking={currentState.loading || busy || pending}
-            onChanged={() => mutate(async () => {})}
-          >
-            {content}
-          </SkillsSettings>
-        </div>
-      ) : (
-        content
-      )}
+      {content}
       <details className="tw-text-ui-smaller tw-leading-normal tw-text-muted">
         <summary>{t("About checking and configuration changes")}</summary>
         <div className="tw-space-y-2 tw-pt-2">

@@ -1,25 +1,24 @@
 import { logWarn } from "@/logger";
 import { ensureFolderExists } from "@/utils";
 import { hasCaseInsensitiveFilesystem } from "@/utils/vaultAdapterUtils";
-import { App, normalizePath, TFile, TFolder } from "obsidian";
+import { validateProjectWorkspace } from "@/projects/projectWorkspace";
+import { requireNodeModule } from "@/utils/desktopRuntime";
+import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
+import { t } from "@/lib/i18n";
+import { App, FileSystemAdapter, Notice, normalizePath, TFile, TFolder } from "obsidian";
 
 export const AGENTS_FILE_NAME = "AGENTS.md";
 const GENERATED_MIRROR_HEADER =
   /^(\uFEFF?)<!-- scribe:generated-agents-mirror [^\r\n]* -->\r?\n\r?\n/;
 
 export async function agentsFileIsUninitialized(app: App, folderPath: string): Promise<boolean> {
-  const agentsPath = childPath(folderPath, AGENTS_FILE_NAME);
-  const file = findCachedInstructionFile(app, agentsPath);
-  if (!file) return true;
-  return GENERATED_MIRROR_HEADER.test(await app.vault.read(file));
+  const content = await readIfPresent(app, childPath(folderPath, AGENTS_FILE_NAME));
+  return content === null || GENERATED_MIRROR_HEADER.test(content);
 }
 
 export async function readAgentsFile(app: App, folderPath: string): Promise<string> {
-  const agentsPath = childPath(folderPath, AGENTS_FILE_NAME);
-  const file = findCachedInstructionFile(app, agentsPath);
-  if (!file) return "";
-  const content = await app.vault.read(file);
-  return content.replace(GENERATED_MIRROR_HEADER, "$1");
+  const content = await readIfPresent(app, childPath(folderPath, AGENTS_FILE_NAME));
+  return (content ?? "").replace(GENERATED_MIRROR_HEADER, "$1");
 }
 
 export async function writeAgentsFile(
@@ -29,28 +28,35 @@ export async function writeAgentsFile(
   expectedContent?: string
 ): Promise<void> {
   const agentsPath = childPath(folderPath, AGENTS_FILE_NAME);
-  if (expectedContent !== undefined) {
-    const existing = findCachedInstructionFile(app, agentsPath);
-    const conflict = "项目说明已被其他窗口或同步更新，请核对后重试。";
-    if (existing) {
+  const existing = findCachedInstructionFile(app, agentsPath);
+  const conflict = "项目说明已被其他窗口或同步更新，请核对后重试。";
+  if (existing) {
+    if (expectedContent !== undefined) {
       await app.vault.process(existing, (current) => {
-        if (current.replace(GENERATED_MIRROR_HEADER, "$1") !== expectedContent) {
+        if (current.replace(GENERATED_MIRROR_HEADER, "$1") !== expectedContent)
           throw new Error(conflict);
-        }
         return content;
       });
-    } else {
-      if (expectedContent !== "") throw new Error(conflict);
-      if (!content.trim()) return;
-      if (folderPath) await ensureFolderExists(app.vault, folderPath);
-      await app.vault.create(agentsPath, content);
+    } else if ((await app.vault.read(existing)) !== content) {
+      await app.vault.modify(existing, content);
     }
     return;
   }
-  if (!findCachedInstructionFile(app, agentsPath) && !content.trim()) return;
-  const file = await ensureAgentsFile(app, folderPath, content);
-  if ((await app.vault.read(file)) === content) return;
-  await app.vault.modify(file, content);
+  const previous = await readIfPresent(app, agentsPath);
+  if (previous !== null) {
+    await app.vault.adapter.process(agentsPath, (current) => {
+      if (
+        expectedContent !== undefined &&
+        current.replace(GENERATED_MIRROR_HEADER, "$1") !== expectedContent
+      )
+        throw new Error(conflict);
+      return content;
+    });
+    return;
+  }
+  if (expectedContent !== undefined && expectedContent !== "") throw new Error(conflict);
+  if (!content.trim()) return;
+  await ensureFile(app, agentsPath, content, true);
 }
 
 export interface InstructionFilesSnapshot {
@@ -73,39 +79,49 @@ export async function restoreInstructionFiles(
   writtenContent: string
 ): Promise<void> {
   if (snapshot.agents === null) return;
-  const file = findCachedInstructionFile(app, childPath(folderPath, AGENTS_FILE_NAME));
-  if (!file) return;
+  const filePath = childPath(folderPath, AGENTS_FILE_NAME);
+  const file = findCachedInstructionFile(app, filePath);
   const restore = (current: string): string => {
-    if (current !== writtenContent) {
+    if (current !== writtenContent)
       throw new Error("项目说明已被其他窗口或同步更新，已保留最新内容，请核对后重试。");
-    }
     return snapshot.agents ?? "";
   };
-  await app.vault.process(file, restore);
+  if (file) await app.vault.process(file, restore);
+  else if ((await readIfPresent(app, filePath)) !== null)
+    await app.vault.adapter.process(filePath, restore);
 }
 
 async function readIfPresent(app: App, filePath: string): Promise<string | null> {
   const file = findCachedInstructionFile(app, filePath);
-  return file ? await app.vault.read(file) : null;
+  if (file) return app.vault.read(file);
+  if (!(await app.vault.adapter.exists(filePath))) return null;
+  if (app.vault.adapter instanceof FileSystemAdapter) {
+    const folderPath = filePath.split("/").slice(0, -1).join("/");
+    await validateProjectWorkspace(app, folderPath);
+    const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+    const path = requireNodeModule<typeof import("node:path")>("path");
+    const root = await fs.realpath(app.vault.adapter.getBasePath());
+    const target = await fs.realpath(app.vault.adapter.getFullPath(filePath));
+    const relative = path.relative(root, target);
+    if (path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`))
+      throw new Error("项目说明文件不能通过链接指向库外。");
+  }
+  return app.vault.adapter.read(filePath);
 }
 
 export async function ensureAgentsFile(
   app: App,
   folderPath: string,
   initialContent: string
-): Promise<TFile> {
+): Promise<TFile | null> {
   const agentsPath = childPath(folderPath, AGENTS_FILE_NAME);
-  const agentsFile = await ensureFile(app, agentsPath, initialContent);
-  await convertLegacyGeneratedFile(app, agentsFile, initialContent);
-  return agentsFile;
+  return ensureFile(app, agentsPath, initialContent);
 }
 
 export async function ensureAgentsFileForDiscovery(app: App, folderPath: string): Promise<void> {
   try {
     const agentsPath = childPath(folderPath, AGENTS_FILE_NAME);
-    const existing = findCachedInstructionFile(app, agentsPath);
-    if (!existing) return;
-    await ensureAgentsFile(app, folderPath, "");
+    await readIfPresent(app, agentsPath);
   } catch (error) {
     logWarn(
       `[Instructions] Failed to ensure AGENTS.md for "${folderPath || "<vault root>"}"`,
@@ -116,7 +132,17 @@ export async function ensureAgentsFileForDiscovery(app: App, folderPath: string)
 
 export async function openAgentsFile(app: App, folderPath: string): Promise<void> {
   const file = await ensureAgentsFile(app, folderPath, "");
-  await app.workspace.getLeaf(true).openFile(file);
+  if (file) {
+    await app.workspace.getLeaf(true).openFile(file);
+  } else if (app.vault.adapter instanceof FileSystemAdapter) {
+    await openWithSystemDefault(
+      app.vault.adapter.getFullPath(childPath(folderPath, AGENTS_FILE_NAME))
+    );
+  } else {
+    new Notice(
+      t("Open this file manually: {path}", { path: childPath(folderPath, AGENTS_FILE_NAME) })
+    );
+  }
 }
 
 function childPath(folderPath: string, fileName: string): string {
@@ -142,26 +168,33 @@ function findCasedSibling(app: App, filePath: string): TFile | null {
   );
 }
 
-async function ensureFile(app: App, filePath: string, content: string): Promise<TFile> {
-  const existing = findCachedInstructionFile(app, filePath);
-  if (existing) return existing;
-
-  const folderPath = filePath.split("/").slice(0, -1).join("/");
-  if (folderPath) await ensureFolderExists(app.vault, folderPath);
-  return await app.vault.create(filePath, content);
-}
-
-async function convertLegacyGeneratedFile(
+async function ensureFile(
   app: App,
-  file: TFile,
-  initialContent: string
-): Promise<void> {
-  const content = await app.vault.read(file);
-  const match = content.match(GENERATED_MIRROR_HEADER);
-  if (!match) return;
-
-  const nextContent = initialContent
-    ? `${match[1]}${initialContent}`
-    : `${match[1]}${content.slice(match[0].length)}`;
-  await app.vault.modify(file, nextContent);
+  filePath: string,
+  content: string,
+  requireMissing = false
+): Promise<TFile | null> {
+  const existing = findCachedInstructionFile(app, filePath);
+  const adapter = app.vault.adapter;
+  if (existing || (await adapter.exists(filePath))) {
+    if (requireMissing) throw new Error("项目说明已由其他操作创建，请重新打开后核对。");
+    if (!existing) await readIfPresent(app, filePath);
+    return existing;
+  }
+  const folderPath = filePath.split("/").slice(0, -1).join("/");
+  if (adapter instanceof FileSystemAdapter) await validateProjectWorkspace(app, folderPath, true);
+  if (folderPath) await ensureFolderExists(app.vault, folderPath);
+  const hidden = folderPath.split("/").some((segment) => segment.startsWith("."));
+  if (!hidden) return app.vault.create(filePath, content);
+  if (adapter instanceof FileSystemAdapter) {
+    const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+    await fs.writeFile(adapter.getFullPath(filePath), content, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+  } else {
+    await adapter.write(filePath, content);
+  }
+  return null;
 }

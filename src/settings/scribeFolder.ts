@@ -1,91 +1,62 @@
 import { DEFAULT_SCRIBE_FOLDER } from "@/constants";
 import { logWarn } from "@/logger";
-import { getSettings, type ScribeSettings } from "@/settings/model";
 import { ensureFolderExists } from "@/utils";
 import { normalizePath, type Vault } from "obsidian";
 
 export const SCRIBE_SUBFOLDER = Object.freeze({
-  conversations: "scribe-conversations",
+  conversations: "chats",
   customPrompts: "scribe-custom-prompts",
-  systemPrompts: "system-prompts",
   skills: "skills",
-  memory: "memory",
   projects: "projects",
 } as const);
 
-type FolderSettings = Pick<ScribeSettings, "scribeFolder">;
+type FolderSettings = unknown;
 
-function scribeRoot(settings: FolderSettings): string {
-  return (settings.scribeFolder || "").trim() || DEFAULT_SCRIBE_FOLDER;
+function deriveSubfolder(_settings: FolderSettings, subfolder: string): string {
+  return normalizePath(`${DEFAULT_SCRIBE_FOLDER}/${subfolder}`);
 }
 
-function deriveSubfolder(settings: FolderSettings, subfolder: string): string {
-  return normalizePath(`${scribeRoot(settings)}/${subfolder}`);
-}
-
-export function deriveConversationsFolder(settings: FolderSettings): string {
+export function deriveConversationsFolder(settings?: FolderSettings): string {
   return deriveSubfolder(settings, SCRIBE_SUBFOLDER.conversations);
 }
 
-export function deriveCustomPromptsFolder(settings: FolderSettings): string {
+export function deriveCustomPromptsFolder(settings?: FolderSettings): string {
   return deriveSubfolder(settings, SCRIBE_SUBFOLDER.customPrompts);
 }
 
-export function deriveSystemPromptsFolder(settings: FolderSettings): string {
-  return deriveSubfolder(settings, SCRIBE_SUBFOLDER.systemPrompts);
-}
-
-export function deriveSkillsFolder(settings: FolderSettings): string {
+export function deriveSkillsFolder(settings?: FolderSettings): string {
   return deriveSubfolder(settings, SCRIBE_SUBFOLDER.skills);
 }
 
-export function deriveMemoryFolder(settings: FolderSettings): string {
-  return deriveSubfolder(settings, SCRIBE_SUBFOLDER.memory);
-}
-
-export function deriveProjectsFolder(settings: FolderSettings): string {
+export function deriveProjectsFolder(settings?: FolderSettings): string {
   return deriveSubfolder(settings, SCRIBE_SUBFOLDER.projects);
 }
 
 export function getEffectiveScribeFolder(): string {
-  return normalizePath(scribeRoot(getSettings()));
+  return normalizePath(DEFAULT_SCRIBE_FOLDER);
 }
 
 export function getEffectiveConversationsFolder(): string {
-  return deriveConversationsFolder(getSettings());
+  return deriveConversationsFolder();
 }
 
 export function getEffectiveCustomPromptsFolder(): string {
-  return deriveCustomPromptsFolder(getSettings());
-}
-
-export function getEffectiveSystemPromptsFolder(): string {
-  return deriveSystemPromptsFolder(getSettings());
+  return deriveCustomPromptsFolder();
 }
 
 export function getEffectiveSkillsFolder(): string {
-  return deriveSkillsFolder(getSettings());
-}
-
-export function getEffectiveMemoryFolder(): string {
-  return deriveMemoryFolder(getSettings());
+  return deriveSkillsFolder();
 }
 
 export function getEffectiveProjectsFolder(): string {
-  return deriveProjectsFolder(getSettings());
+  return deriveProjectsFolder();
 }
 
 export async function ensureScribeSubfolders(
   vault: Vault,
-  settings: FolderSettings
+  settings?: FolderSettings
 ): Promise<void> {
-  const derivers = [
-    deriveCustomPromptsFolder,
-    deriveSystemPromptsFolder,
-    deriveSkillsFolder,
-    deriveMemoryFolder,
-    deriveProjectsFolder,
-  ];
+  const derivers = [deriveCustomPromptsFolder, deriveSkillsFolder, deriveProjectsFolder];
   for (const derive of derivers) {
     const folder = derive(settings);
     try {

@@ -15,7 +15,7 @@ function provider(id: string, overrides: Partial<Provider> = {}): Provider {
     displayName: id,
     origin: { kind: "byok", catalogProviderId: "openai" },
     addedAt: 0,
-    apiKeyKeychainId: null,
+    apiKeyRef: null,
     ...overrides,
   };
 }

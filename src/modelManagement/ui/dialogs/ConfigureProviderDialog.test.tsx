@@ -25,7 +25,7 @@ const mockApi = {
   providerRegistry: {
     setApiKey: mockSetApiKey,
     clearApiKey: mockClearApiKey,
-    getApiKey: mockGetApiKey,
+    getApiKeyStatus: jest.fn().mockReturnValue("locked"),
     update: mockUpdate,
   },
   configuredModelRegistry: { bulkSet: mockBulkSet },
@@ -53,6 +53,7 @@ jest.mock("@/modelManagement/state/atoms", () => {
     byokProvidersAtom: jotai.atom([
       {
         providerId: "p1",
+        apiKeyRef: "saved-p1",
         providerType: "anthropic",
         displayName: "Anthropic",
         baseUrl: "https://api.anthropic.com",
@@ -61,6 +62,7 @@ jest.mock("@/modelManagement/state/atoms", () => {
       },
       {
         providerId: "p-custom",
+        apiKeyRef: "saved-custom",
         providerType: "openai-compatible",
         displayName: "Custom",
         baseUrl: "https://proxy.example/v1",
@@ -72,6 +74,7 @@ jest.mock("@/modelManagement/state/atoms", () => {
       },
       {
         providerId: "p-catalog-proxy",
+        apiKeyRef: "saved-proxy",
         providerType: "anthropic",
         displayName: "Private Anthropic",
         baseUrl: "https://my-proxy.example/v1",
@@ -922,14 +925,15 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`prefills the stored key and preserves custom endpoint, unknown extras and an explicit transport choice`, async () => {
+    it(`keeps the stored key encrypted while preserving the custom endpoint, extras and transport choice`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "edit", providerId: "p-custom" }}
           onClose={jest.fn()}
         />
       );
-      expect((await screen.findByTestId<HTMLInputElement>("api-key")).value).toBe("existing-key");
+      expect((await screen.findByTestId<HTMLInputElement>("api-key")).value).toBe("");
+      expect(mockGetApiKey).not.toHaveBeenCalled();
       expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
       fireEvent.click(saveButton());
       await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
@@ -1035,7 +1039,7 @@ describe("ConfigureProviderDialog", () => {
       );
       fireEvent.click(saveButton());
       await waitFor(() => expect(mockClearApiKey).toHaveBeenCalledWith("p-custom"));
-      expect(mockGetApiKey).toHaveBeenCalledTimes(1);
+      expect(mockGetApiKey).not.toHaveBeenCalled();
     });
 
     it(`disables all connection inputs while their save is pending`, async () => {

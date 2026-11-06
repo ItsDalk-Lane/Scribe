@@ -423,6 +423,110 @@ function sonnetAndGpt5State(): BackendState {
 
 describe("AgentSession", () => {
   describe("AgentSession", () => {
+    describe("supportsDisplayFacts()", () => {
+      it("requires both fact writing and reading to use the journal presentation path", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        expect(session.supportsDisplayFacts()).toBe(false);
+        mock.asBackend.appendDisplayFacts = jest.fn(async () => undefined);
+        expect(session.supportsDisplayFacts()).toBe(false);
+        mock.asBackend.readDisplayFacts = jest.fn(async () => []);
+        expect(session.supportsDisplayFacts()).toBe(true);
+      });
+    });
+
+    describe("persistDisplayFacts()", () => {
+      it("writes new metadata once and leaves an unchanged chat without another write", async () => {
+        const mock = makeMockBackend();
+        const append = jest.fn(async () => undefined);
+        mock.asBackend.appendDisplayFacts = append;
+        const session = makeSession(mock);
+        const id = session.store.addMessage({
+          id: "assistant:request",
+          sender: AI_SENDER,
+          message: "Done",
+          timestamp: null,
+          isVisible: true,
+        });
+        session.store.setFileChanges(id, []);
+        await session.persistDisplayFacts();
+        await session.persistDisplayFacts();
+        expect(append).toHaveBeenCalledTimes(1);
+        expect(append).toHaveBeenCalledWith({
+          sessionId: "session-1",
+          facts: expect.arrayContaining([
+            { kind: "message_metadata", messageId: id, metadata: { fileChanges: [] } },
+          ]),
+        });
+      });
+
+      it("retains a failed fact batch for the next successful save", async () => {
+        const mock = makeMockBackend();
+        const append = jest
+          .fn()
+          .mockRejectedValueOnce(new Error("disk full"))
+          .mockResolvedValue(undefined);
+        mock.asBackend.appendDisplayFacts = append;
+        const session = makeSession(mock);
+        await expect(session.persistDisplayFacts([{ kind: "messages_cleared" }])).rejects.toThrow(
+          "disk full"
+        );
+        await session.persistDisplayFacts();
+        expect(append.mock.calls[1][0].facts).toEqual(
+          expect.arrayContaining([{ kind: "messages_cleared" }])
+        );
+      });
+    });
+
+    describe("restorePersistedDisplayFacts()", () => {
+      it("restores original accepted text and stable chat identity entirely from journal facts", async () => {
+        const mock = makeMockBackend();
+        mock.asBackend.readDisplayFacts = jest.fn(async () => [
+          {
+            seq: 0,
+            payload: {
+              kind: "session_metadata" as const,
+              chatId: "stable-chat",
+              label: "My notes",
+            },
+          },
+          {
+            seq: 1,
+            payload: {
+              kind: "user_message" as const,
+              message: {
+                id: "request",
+                sender: USER_SENDER,
+                message: "The original request",
+                timestamp: null,
+                isVisible: true,
+              },
+            },
+          },
+        ]);
+        const session = makeSession(mock);
+        await session.restorePersistedDisplayFacts();
+        expect(session.chatInputId).toBe("stable-chat");
+        expect(session.getLabel()).toBe("My notes");
+        expect(session.store.getDisplayMessages()).toEqual([
+          expect.objectContaining({ id: "request", message: "The original request", seq: 1 }),
+        ]);
+      });
+    });
+
+    describe("setHistoryReadOnly()", () => {
+      it("preserves readable history and refuses new operations until the read-only state is cleared", async () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        session.setHistoryReadOnly(true);
+        expect(() => session.sendPrompt("Continue")).toThrow("read-only");
+        expect(mock.prompt).not.toHaveBeenCalled();
+        session.setHistoryReadOnly(false);
+        await session.sendPrompt("Continue").turn;
+        expect(mock.prompt).toHaveBeenCalledTimes(1);
+      });
+    });
+
     describe("getBranchState", () => {
       it("returns no branch state for an ordinary chat and a detached copy for a branch", () => {
         const session = makeSession(makeMockBackend());
@@ -777,6 +881,14 @@ describe("AgentSession", () => {
     });
 
     describe("completeResume", () => {
+      it("retains the backend-reported authoring purpose for a resumed chat", async () => {
+        const mock = makeMockBackend();
+        const session = makeAwaitingResumeSession(mock);
+        session.completeResume(emptyState(), "skill-authoring");
+        await session.ready;
+        expect(session.purpose).toBe("skill-authoring");
+      });
+
       it("keeps a newer user turn unconfirmed instead of reusing an earlier failed reply on resume", async () => {
         const mock = makeMockBackend();
         const session = makeAwaitingResumeSession(mock);
@@ -903,6 +1015,16 @@ describe("AgentSession", () => {
     });
 
     describe("start", () => {
+      it("passes the authoring purpose to the backend while retaining it for safe chat replacement", async () => {
+        const mock = makeMockBackend();
+        const session = startSession(mock, { purpose: "skill-authoring" });
+        await session.ready;
+        expect(mock.newSession).toHaveBeenCalledWith(
+          expect.objectContaining({ purpose: "skill-authoring" })
+        );
+        expect(session.purpose).toBe("skill-authoring");
+      });
+
       it("exposes the model catalog reported by newSession through getState", async () => {
         const mock = makeMockBackend();
         const stateWithModel = sonnetAndGpt5State();
@@ -1476,6 +1598,264 @@ describe("AgentSession", () => {
     });
 
     describe("sendPrompt", () => {
+      it.each(["main", "child"] as const)(
+        "uses exact finalized segment blocks for %s content live and after replay",
+        async (target) => {
+          const mock = makeMockBackend();
+          const sent = recordPrompts(mock);
+          const session = makeSession(mock);
+          const first = session.sendPrompt("Review notes");
+          await waitFor(() => expect(sent).toHaveLength(1));
+          const events: SessionEvent[] = [];
+          const emit = (seq: number, update: SessionEvent["update"], child = false) => {
+            const event: SessionEvent = {
+              sessionId: "session-1",
+              seq,
+              occurredAt: seq * 1000,
+              update,
+              ...(child ? { taskToolCallId: "launch" } : {}),
+            };
+            events.push(event);
+            mock.emit(event);
+          };
+          emit(1, { sessionUpdate: "turn_started", turnId: first.userMessageId });
+          emit(2, {
+            sessionUpdate: "message_delivered",
+            promptId: first.userMessageId,
+            messageSeq: 0,
+          });
+          emit(3, replayText("user_message_chunk", "Review notes", first.userMessageId));
+          const child = target === "child";
+          if (child)
+            emit(4, {
+              sessionUpdate: "task_started",
+              taskId: "child-1",
+              toolCallId: "launch",
+              kind: "subagent",
+              description: "Review the notes",
+            });
+          emit(10, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            11,
+            {
+              ...replayText("agent_thought_chunk", "Plan"),
+              segmentSeq: 10,
+              contentIndex: 0,
+            } as SessionEvent["update"],
+            child
+          );
+          emit(
+            12,
+            {
+              ...replayText("agent_message_chunk", "A long provisional answer"),
+              segmentSeq: 10,
+              contentIndex: 1,
+            } as SessionEvent["update"],
+            child
+          );
+          emit(
+            13,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [
+                { kind: "thought", text: "Confirmed thought", contentIndex: 0 },
+                { kind: "text", text: "Yes", contentIndex: 1 },
+              ],
+            },
+            child
+          );
+          emit(
+            14,
+            {
+              sessionUpdate: "tool_call",
+              toolCallId: "read",
+              title: "Read notes",
+              status: "completed",
+            },
+            child
+          );
+          emit(20, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            21,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 20,
+              blocks: [{ kind: "text", text: " Done-only.", contentIndex: 0 }],
+            },
+            child
+          );
+          emit(30, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            31,
+            {
+              ...replayText("agent_message_chunk", "Discard me"),
+              segmentSeq: 30,
+              contentIndex: 0,
+            } as SessionEvent["update"],
+            child
+          );
+          emit(32, { sessionUpdate: "agent_segment_finalized", segmentSeq: 30, blocks: [] }, child);
+          if (child)
+            emit(39, { sessionUpdate: "task_ended", taskId: "child-1", status: "completed" });
+          emit(40, {
+            sessionUpdate: "turn_ended",
+            turnId: first.userMessageId,
+            stopReason: "end_turn",
+          });
+          await first.turn;
+
+          const replayBackend = makeMockBackend();
+          const reopened = makeAwaitingResumeSession(replayBackend);
+          for (const event of events) replayBackend.emit(event);
+          reopened.completeResume(emptyState());
+          await reopened.ready;
+          const live = child ? session.getTaskMessages("launch")[0] : aiMessages(session)[0];
+          const historical = child
+            ? reopened.getTaskMessages("launch")[0]
+            : aiMessages(reopened)[0];
+          expect(live.message).toBe("Yes Done-only.");
+          expect(live.parts?.map((part) => part.kind)).toEqual([
+            "thought",
+            "text",
+            "tool_call",
+            "text",
+          ]);
+          expect(live.parts?.[0]).toMatchObject({
+            text: "Confirmed thought",
+            segmentSeq: 10,
+            contentIndex: 0,
+          });
+          expect(live.parts?.[3]).toMatchObject({
+            text: " Done-only.",
+            segmentSeq: 20,
+            contentIndex: 0,
+            seq: 21,
+          });
+          expect(historical.message).toBe(live.message);
+          expect(historical.parts).toEqual(live.parts);
+        }
+      );
+      it.each([
+        ["one request", false, [5]],
+        ["a mid-turn queued request", true, [5, 13]],
+      ] as const)(
+        "keeps assistant sequences, timestamps and thought durations identical live and after replay for %s",
+        async (_label, queueAnother, expectedSequences) => {
+          const clock = jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+          try {
+            const mock = makeMockBackend();
+            const sent = recordPrompts(mock);
+            const session = makeSession(mock, { getDescriptor: midTurnDescriptor });
+            const first = session.sendPrompt("First request");
+            await waitFor(() => expect(sent).toHaveLength(1));
+            const events: SessionEvent[] = [];
+            const emit = (seq: number, update: SessionEvent["update"]) => {
+              const event = { sessionId: "session-1", seq, update, occurredAt: seq * 1000 };
+              events.push(event);
+              mock.emit(event);
+            };
+            emit(3, { sessionUpdate: "turn_started", turnId: first.userMessageId });
+            emit(5, {
+              sessionUpdate: "message_delivered",
+              promptId: first.userMessageId,
+              messageSeq: 1,
+            });
+            emit(7, replayText("user_message_chunk", "First request", first.userMessageId));
+            emit(8, replayText("agent_thought_chunk", "First thought"));
+            emit(9, replayText("agent_message_chunk", "First answer"));
+            let queued: ReturnType<AgentSession["sendPrompt"]> | undefined;
+            if (queueAnother) {
+              queued = session.sendPrompt("Queued request");
+              await waitFor(() => expect(sent).toHaveLength(2));
+              emit(13, {
+                sessionUpdate: "message_delivered",
+                promptId: queued.userMessageId,
+                messageSeq: 11,
+              });
+              emit(15, replayText("user_message_chunk", "Queued request", queued.userMessageId));
+              emit(16, replayText("agent_thought_chunk", "Queued thought"));
+              emit(17, replayText("agent_message_chunk", "Queued answer"));
+            }
+            emit(18, replayText("agent_thought_chunk", "Final thought"));
+            emit(19, {
+              sessionUpdate: "turn_ended",
+              turnId: first.userMessageId,
+              stopReason: "end_turn",
+            });
+            await first.turn;
+            if (queued) await queued.turn;
+
+            clock.mockReturnValue(9_000_000);
+            const replayBackend = makeMockBackend();
+            const reopened = makeAwaitingResumeSession(replayBackend);
+            for (const event of events) replayBackend.emit(event);
+            reopened.completeResume(emptyState());
+            await reopened.ready;
+
+            expect(aiMessages(session).map((message) => message.seq)).toEqual(expectedSequences);
+            expect(aiMessages(session).map((message) => message.timestamp?.epoch)).toEqual(
+              queueAnother ? [5000, 13000] : [5000]
+            );
+            expect(aiMessages(session).at(-1)?.parts?.at(-1)).toMatchObject({
+              kind: "thought",
+              startedAtMs: 18000,
+              durationMs: 1000,
+            });
+            expect(
+              aiMessages(reopened).map((message) => ({
+                id: message.id,
+                seq: message.seq,
+                message: message.message,
+                timestamp: message.timestamp,
+                parts: message.parts,
+                turnDurationMs: message.turnDurationMs,
+                turnStopReason: message.turnStopReason,
+              }))
+            ).toEqual(
+              aiMessages(session).map((message) => ({
+                id: message.id,
+                seq: message.seq,
+                message: message.message,
+                timestamp: message.timestamp,
+                parts: message.parts,
+                turnDurationMs: message.turnDurationMs,
+                turnStopReason: message.turnStopReason,
+              }))
+            );
+          } finally {
+            clock.mockRestore();
+          }
+        }
+      );
+      it.each([7, undefined])(
+        "uses the accepted message sequence %s without borrowing the delivery event sequence",
+        async (messageSeq) => {
+          const mock = makeMockBackend();
+          const sent = recordPrompts(mock);
+          const session = makeSession(mock);
+          const first = session.sendPrompt("Keep this request");
+          await waitFor(() => expect(sent).toHaveLength(1));
+          mock.emit({
+            sessionId: "session-1",
+            seq: 12,
+            update: {
+              sessionUpdate: "message_delivered",
+              promptId: first.userMessageId,
+              messageSeq,
+            },
+          });
+          expect(session.store.getMessage(first.userMessageId)?.seq).toBe(messageSeq);
+          mock.emitUpdate({ sessionUpdate: "turn_started", turnId: first.userMessageId });
+          mock.emitUpdate(replayText("agent_message_chunk", "Saved reply"));
+          mock.emitUpdate({
+            sessionUpdate: "turn_ended",
+            turnId: first.userMessageId,
+            stopReason: "end_turn",
+          });
+          await first.turn;
+        }
+      );
       it("prepares updated configuration before sending a natural prompt", async () => {
         const mock = makeMockBackend();
         const order: string[] = [];
@@ -2355,7 +2735,16 @@ describe("AgentSession", () => {
         const steer = session.sendPrompt("only do the first two");
         await waitFor(() => expect(sent).toHaveLength(2));
 
-        emit({ sessionUpdate: "message_delivered", promptId: steer.userMessageId });
+        mock.emit({
+          sessionId: "session-1",
+          seq: 99,
+          update: {
+            sessionUpdate: "message_delivered",
+            promptId: steer.userMessageId,
+            messageSeq: 42,
+          },
+        });
+        expect(session.store.getMessage(steer.userMessageId)?.seq).toBe(42);
         emit(replayText("agent_message_chunk", "Beta: about B. Stopping there."));
 
         expect(session.getQueuedPrompts()).toEqual([]);
