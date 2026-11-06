@@ -1,6 +1,7 @@
 import { reviewSkillDraft } from "@/agentMode/skills/ui/SkillDraftModal";
 import { publishSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
-import { SkillManager } from "@/agentMode/skills/SkillManager";
+import { checkSkillDependencies } from "@/agentMode/skills/skillDependencyCheck";
+import { SkillManager, getManagedSkills } from "@/agentMode/skills/SkillManager";
 import { SubagentManager, getSubagents } from "@/agentMode/subagents/SubagentManager";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
@@ -12,6 +13,7 @@ import { createNativeTools } from "@/agentMode/sdk/nativeTools";
 import { createNativeAdvancedTools } from "@/agentMode/sdk/nativeAdvancedTools";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
+import type { App } from "obsidian";
 import type { BackendDescriptor, InstallState } from "@/agentMode/session/types";
 import {
   createNativeModel,
@@ -34,6 +36,7 @@ import { openScribeSettings } from "@/settings/openSettings";
 import { getScribeDataPath } from "@/utils/appPaths";
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { providerDestination } from "@/modelManagement";
+import { isRecord } from "@/utils/obsidianInternals";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
 
 const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
@@ -53,6 +56,15 @@ function skillToolEntries(cwd: string) {
         : ("available" as const),
     ...(skill.source?.kind === "builtin" ? { builtin: true } : {}),
   }));
+}
+
+// Obsidian 插件版本经清单只读探测，避免依赖未公开类型。https://github.com/ItsDalk-Lane/Scribe/issues/46
+function readPluginVersion(app: App, id: string): string | undefined {
+  const plugins = (app as unknown as { plugins?: unknown }).plugins;
+  const manifests = isRecord(plugins) ? plugins.manifests : undefined;
+  const manifest = isRecord(manifests) ? manifests[id] : undefined;
+  const version = isRecord(manifest) ? manifest.version : undefined;
+  return typeof version === "string" ? version : undefined;
 }
 
 // 无模型错误走 t()：英文界面不再显示中文提示。
@@ -175,6 +187,17 @@ export const NativeBackendDescriptor: BackendDescriptor = {
         if (!skill.enabledAgents.includes("native") || skill.userInvocable === false)
           throw new Error(t("This skill is disabled or does not permit manual use."));
         return skill;
+      },
+      // 依赖就绪解析只做只读检测并按依赖缓存，绝不触发安装。https://github.com/ItsDalk-Lane/Scribe/issues/46
+      resolveSkillDependencies: async (name) => {
+        const skill = SkillManager.hasInstance()
+          ? getManagedSkills().find((entry) => entry.name === name)
+          : undefined;
+        if (!skill?.dependencies?.length) return [];
+        const readings = await checkSkillDependencies(skill.dependencies, {
+          pluginVersion: (id) => readPluginVersion(app, id),
+        });
+        return readings.map((reading) => ({ ...reading }));
       },
       getModels: () => getNativeModelEntries(getSettings()),
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),

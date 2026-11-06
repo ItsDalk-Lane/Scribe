@@ -4,7 +4,10 @@ import { SkillManager, getManagedSkills, useManagedSkills } from "@/agentMode/sk
 import { parseSkillFile } from "@/agentMode/skills/skillFormat";
 import type { Skill } from "@/agentMode/skills/types";
 import { SkillEditorForm } from "@/agentMode/skills/ui/SkillEditorForm";
+import { SkillDependencyPanel } from "@/agentMode/skills/ui/SkillDependencyPanel";
+import { SkillUiMetadataForm } from "@/agentMode/skills/ui/SkillUiMetadataForm";
 import { SkillSourceBadge, type SkillActionsProps } from "@/agentMode/skills/ui/SkillRow";
+import { useSkillIcon } from "@/agentMode/skills/ui/useSkillIcon";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { SettingSwitch } from "@/components/ui/setting-switch";
@@ -40,6 +43,13 @@ export interface SkillDetailsViewProps extends SkillActionsProps {
   onSave: (content: string, name: string, expectedContent?: string) => Promise<string | undefined>;
   onReadFile?: (path: string) => Promise<string>;
   onSaveFile?: (path: string, content: string, expected: string) => Promise<string | undefined>;
+  onSaveUiMetadata?: (patch: {
+    displayName?: string;
+    shortDescription?: string;
+    icon?: string;
+    brandColor?: string;
+    defaultPrompt?: string;
+  }) => Promise<void>;
   onRepair: () => void;
   onRestore?: () => void;
 }
@@ -123,6 +133,7 @@ export function SkillDetailsView({
   onSave,
   onReadFile,
   onSaveFile,
+  onSaveUiMetadata,
   onBack,
   onRepair,
   onRestore,
@@ -134,6 +145,7 @@ export function SkillDetailsView({
 }: SkillDetailsViewProps) {
   const builtin = skill.source?.kind === "builtin";
   const valid = "enabledAgents" in skill;
+  const iconUrl = useSkillIcon(skill);
   const recovery = React.useRef(skillEditRecovery.get(skill.dirPath)).current;
   const recoveryIdentity = React.useRef(skill.dirPath);
   const [selectedFile, setSelectedFile] = React.useState(recovery?.selectedFile ?? "SKILL.md");
@@ -348,7 +360,12 @@ export function SkillDetailsView({
         </Button>
         <div className="tw-min-w-0 tw-space-y-1">
           <div className="tw-flex tw-min-w-0 tw-flex-wrap tw-items-center tw-gap-2">
-            <h3 className="tw-m-0 tw-break-words tw-text-lg tw-font-semibold">{skill.name}</h3>
+            {iconUrl && (
+              <img src={iconUrl} alt="" aria-hidden="true" className="tw-size-5 tw-rounded-sm" />
+            )}
+            <h3 className="tw-m-0 tw-break-words tw-text-lg tw-font-semibold">
+              {("uiMetadata" in skill && skill.uiMetadata?.displayName) || skill.name}
+            </h3>
             {valid && skill.version && (
               <span className="tw-text-ui-smaller tw-text-muted">{skill.version}</span>
             )}
@@ -382,7 +399,7 @@ export function SkillDetailsView({
           </div>
           {valid && (
             <p className="tw-m-0 tw-line-clamp-2 tw-text-ui-small tw-leading-relaxed tw-text-muted">
-              {skill.description}
+              {("uiMetadata" in skill && skill.uiMetadata?.shortDescription) || skill.description}
             </p>
           )}
           {valid && (skill.author || skill.tags?.length) && (
@@ -427,6 +444,12 @@ export function SkillDetailsView({
           </DropdownMenu>
         </div>
       </div>
+      {valid && skill.dependencies?.length ? (
+        <SkillDependencyPanel dependencies={skill.dependencies} />
+      ) : null}
+      {valid && !builtin && onSaveUiMetadata ? (
+        <SkillUiMetadataForm skill={skill} disabled={busy} onSaveUiMetadata={onSaveUiMetadata} />
+      ) : null}
       {recovery && dirty && (
         <p role="status" className="tw-m-0 tw-text-ui-small tw-text-muted">
           {t("Restored your unsaved edits.")}
@@ -640,6 +663,21 @@ export function SkillDetails({ onChanged, onSkillChanged, ...props }: SkillDetai
         }
         await onChanged?.();
         return undefined;
+      }}
+      onSaveUiMetadata={async (patch) => {
+        if (!("enabledAgents" in openingRef.current))
+          throw new Error(t("Could not load this skill"));
+        const result = await SkillManager.getInstance().saveProperties(openingRef.current, {
+          patch: { uiMetadata: patch },
+        });
+        if (!result.ok) throw new Error(t(result.message));
+        const updated = getManagedSkills().find((item) => item.name === openingRef.current.name);
+        if (updated) {
+          openingRef.current = updated;
+          setOpeningSkill(updated);
+          onSkillChanged?.(updated);
+        }
+        await onChanged?.();
       }}
       onSave={async (next, name, expected) => {
         if (!("enabledAgents" in openingRef.current) || (expected ?? content) === undefined)

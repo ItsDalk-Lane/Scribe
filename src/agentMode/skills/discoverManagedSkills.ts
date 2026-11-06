@@ -116,6 +116,8 @@ export async function discoverManagedSkills(
         disableModelInvocation: fm.disableModelInvocation,
         userInvocable: fm.userInvocable,
         enabledAgents: fm.enabledAgents,
+        dependencies: fm.dependencies,
+        uiMetadata: fm.uiMetadata,
         location: { kind: "canonical" },
       };
     }

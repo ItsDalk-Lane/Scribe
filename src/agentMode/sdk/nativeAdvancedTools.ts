@@ -8,9 +8,11 @@ import { resolveNativeVaultPath, withNativeWriteLock } from "@/agentMode/sdk/nat
 import {
   buildEmptySkillCatalog,
   buildSkillCatalog,
+  buildSkillDependencyBlock,
   deliverSkillText,
   resolveSkillCatalogBudget,
   type SkillCatalogBuildStatus,
+  type SkillDependencyDeliveryReading,
 } from "@/agentMode/sdk/skillCatalog";
 import {
   createExcalidrawTools,
@@ -54,6 +56,7 @@ export interface NativeAdvancedToolsOptions extends NativeToolContext {
   catalogBudget?: { contextWindow?: number; percent?: number; maxTokens?: number };
   skillCatalogLifecycle?: { everPublished(): boolean; markPublished(): void };
   onCatalogBuilt?: (status: SkillCatalogBuildStatus) => void;
+  resolveSkillDependencies?: (name: string) => Promise<readonly SkillDependencyDeliveryReading[]>;
   fetch?: typeof safeFetchNoThrow;
   searchUrlTemplate?: string;
 }
@@ -196,7 +199,13 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
                   },
                 };
               }
-              const delivered = deliverSkillText(skillInvocationText(entry));
+              // 正文投递前置本机实际依赖状态（内容级就绪注入）。https://github.com/ItsDalk-Lane/Scribe/issues/46
+              const dependencyReadings = options.resolveSkillDependencies
+                ? await options.resolveSkillDependencies(entry.name)
+                : [];
+              const delivered = deliverSkillText(
+                buildSkillDependencyBlock(dependencyReadings) + skillInvocationText(entry)
+              );
               return {
                 content: [{ type: "text", text: delivered.text }],
                 details: {

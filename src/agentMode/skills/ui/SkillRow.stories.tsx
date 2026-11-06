@@ -23,6 +23,18 @@ const meta = {
 } satisfies Meta<SkillRowProps>;
 export default meta;
 export const Local: StoryObj<SkillRowProps> = {};
+// 存在界面元数据时优先渲染显示名与短描述。https://github.com/ItsDalk-Lane/Scribe/issues/47
+export const WithInterfaceMetadata: StoryObj<SkillRowProps> = {
+  args: {
+    skill: {
+      ...meta.args.skill,
+      uiMetadata: {
+        displayName: "Review Notes",
+        shortDescription: "Structure, clarity, evidence.",
+      },
+    },
+  },
+};
 export const Builtin: StoryObj<SkillRowProps> = {
   args: { skill: { ...meta.args.skill, source: { kind: "builtin" } } },
 };

@@ -1,6 +1,8 @@
 import type { BackendId } from "@/agentMode/session/types";
+import type { SkillDependency, SkillUiMetadata } from "@/agentMode/skills/skillFormat";
 
 export type { BackendId };
+export type { SkillDependency, SkillUiMetadata };
 
 export type SkillLocation = { kind: "canonical" } | { kind: "project"; agentDirs: BackendId[] };
 
@@ -64,6 +66,8 @@ export interface Skill {
   author?: string;
   version?: string;
   tags?: string[];
+  dependencies?: SkillDependency[];
+  uiMetadata?: SkillUiMetadata;
 }
 
 export interface RejectedSkill {

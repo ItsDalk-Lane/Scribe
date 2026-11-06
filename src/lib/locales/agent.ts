@@ -792,6 +792,23 @@ export const agentTranslations: Record<string, string> = {
   "{count} lines will be adjusted automatically; review the changes before importing.":
     "导入时将自动调整 {count} 行，请先查看改动再导入。",
   "Import Markdown file": "导入 Markdown 文件",
+  "Skill dependencies": "技能依赖",
+  "Recheck dependencies": "重新检测依赖",
+  "Not ready": "未就绪",
+  "Checking dependencies…": "正在检测依赖…",
+  "Install this command-line tool yourself before using the skill.":
+    "请先自行安装该命令行工具，再使用此技能。",
+  "Install this community plugin from Obsidian settings yourself.":
+    "请自行从 Obsidian 设置安装该社区插件。",
+  "Install this Python package yourself before using the skill.":
+    "请先自行安装该 Python 包，再使用此技能。",
+  "Interface metadata": "界面元数据",
+  "Display name": "显示名",
+  "Short description": "短描述",
+  "Icon file (inside the skill folder)": "图标文件（技能文件夹内）",
+  "Brand color (#RRGGBB)": "品牌色（#RRGGBB）",
+  "Default prompt for Use now": "“立即使用”的默认提示语",
+  "Save interface metadata": "保存界面元数据",
   "Could not import this skill: {reason}": "无法导入此技能：{reason}",
   "Builtin skills are read-only. Restore the builtin version instead.":
     "内置技能为只读，请通过恢复内置技能重置。",

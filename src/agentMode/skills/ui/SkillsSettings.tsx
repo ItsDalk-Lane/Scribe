@@ -151,7 +151,8 @@ export function SkillsSettings({
       if (!result.ok) throw new Error(result.message);
       await changed();
     }
-    await plugin.newAgentChatWithDraft(`/${skill.name} `);
+    // 「立即使用」优先使用技能自带默认提示语作为聊天草稿。https://github.com/ItsDalk-Lane/Scribe/issues/47
+    await plugin.newAgentChatWithDraft(skill.uiMetadata?.defaultPrompt ?? `/${skill.name} `);
     closeSettings();
   };
   const launchSkillAuthoring = async () => {

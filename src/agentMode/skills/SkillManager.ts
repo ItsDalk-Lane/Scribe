@@ -250,6 +250,12 @@ export class SkillManager {
     }
   }
 
+  // 界面元数据的图标资产读取：仍受技能目录路径约束。https://github.com/ItsDalk-Lane/Scribe/issues/47
+  async readSkillAsset(skill: Skill, relativePath: string): Promise<Uint8Array> {
+    const path = await this.skillFilePath(skill, relativePath);
+    return new Uint8Array(await this.app.vault.adapter.readBinary(path));
+  }
+
   async saveSkillFile(
     skill: Skill,
     relativePath: string,

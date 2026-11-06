@@ -319,6 +319,27 @@ describe("nativeAdvancedTools", () => {
       expect(result.details).toMatchObject({ truncated: true });
     });
 
+    // 内容级就绪注入：正文前置本机实际依赖状态。https://github.com/ItsDalk-Lane/Scribe/issues/46
+    it("prepends resolved dependency readiness to the delivered skill body", async () => {
+      options.resolveSkillDependencies = async () => [
+        { type: "command", name: "ffmpeg", ready: true, detail: "/opt/homebrew/bin/ffmpeg" },
+        {
+          type: "python-package",
+          name: "pandas",
+          ready: false,
+          detail: "python package not found",
+        },
+      ];
+      const result = await execute("invoke_skill", { name: "note-format" });
+      const text = (result.content[0] as { type: string; text: string }).text;
+      expect(text).toContain("Skill dependencies on this computer:");
+      expect(text).toContain("ffmpeg (command): ready — /opt/homebrew/bin/ffmpeg");
+      expect(text).toContain(
+        "pandas (python-package): not available on this computer — python package not found"
+      );
+      expect(text).toContain("Keep frontmatter and use headings.");
+    });
+
     it("does not advertise a feedback tool https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       expect(createNativeAdvancedTools(options).map((tool) => tool.name)).not.toContain(
         "send_feedback"

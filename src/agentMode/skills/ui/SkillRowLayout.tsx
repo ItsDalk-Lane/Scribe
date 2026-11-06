@@ -4,6 +4,7 @@ import React from "react";
 export interface SkillRowLayoutProps {
   name: string;
   description: string;
+  iconUrl?: string | null;
   annotations?: React.ReactNode;
   controls: React.ReactNode;
   actions: React.ReactNode;
@@ -14,6 +15,7 @@ export interface SkillRowLayoutProps {
 export function SkillRowLayout({
   name,
   description,
+  iconUrl,
   annotations,
   controls,
   actions,
@@ -46,6 +48,14 @@ export function SkillRowLayout({
           className="!tw-block !tw-h-auto tw-w-full !tw-border-0 !tw-bg-transparent !tw-p-0 tw-text-left !tw-shadow-none focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-ring"
         >
           <div className="tw-group/settings tw-flex tw-items-center tw-gap-2">
+            {iconUrl && (
+              <img
+                src={iconUrl}
+                alt=""
+                aria-hidden="true"
+                className="tw-size-4 tw-shrink-0 tw-rounded-sm"
+              />
+            )}
             <span
               title={name}
               className="tw-min-w-0 tw-truncate tw-text-ui-small tw-font-medium tw-text-normal"

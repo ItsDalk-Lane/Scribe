@@ -240,3 +240,27 @@ export function deliverSkillText(
   if (text.length <= max) return { text, truncated: false };
   return { text: `${text.slice(0, max)}\n\n[Output truncated]`, truncated: true };
 }
+
+// 内容级就绪注入：投递正文前置本机实际依赖状态，就绪注入实际路径或版本，
+// 未就绪注入明确不可用说明。https://github.com/ItsDalk-Lane/Scribe/issues/46
+export interface SkillDependencyDeliveryReading {
+  type: "command" | "obsidian-plugin" | "python-package";
+  name: string;
+  ready: boolean;
+  detail: string;
+}
+
+export function buildSkillDependencyBlock(
+  readings: readonly SkillDependencyDeliveryReading[]
+): string {
+  if (!readings.length) return "";
+  const lines = readings.map(
+    (reading) =>
+      `- ${reading.name} (${reading.type}): ${
+        reading.ready
+          ? `ready — ${reading.detail}`
+          : `not available on this computer — ${reading.detail}`
+      }`
+  );
+  return `Skill dependencies on this computer:\n${lines.join("\n")}\n\n`;
+}

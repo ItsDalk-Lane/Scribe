@@ -1,6 +1,7 @@
 import React from "react";
 import type { Skill, RejectedSkill, SkillSource } from "@/agentMode/skills/types";
 import { SkillRowLayout } from "@/agentMode/skills/ui/SkillRowLayout";
+import { useSkillIcon } from "@/agentMode/skills/ui/useSkillIcon";
 import { Button } from "@/components/ui/button";
 import { SettingSwitch } from "@/components/ui/setting-switch";
 import {
@@ -89,10 +90,21 @@ export interface SkillRowProps extends SkillActionsProps {
 }
 
 export function SkillRow({ skill, onOpen, ...actions }: SkillRowProps) {
+  // 存在界面元数据时优先渲染显示名与图标，缺失时回退现状。https://github.com/ItsDalk-Lane/Scribe/issues/47
+  const iconUrl = useSkillIcon(skill);
   return (
     <SkillRowLayout
-      name={skill.name}
-      description={"description" in skill ? skill.description : t("Could not load this skill")}
+      name={
+        "uiMetadata" in skill && skill.uiMetadata?.displayName
+          ? skill.uiMetadata.displayName
+          : skill.name
+      }
+      description={
+        "description" in skill
+          ? (skill.uiMetadata?.shortDescription ?? skill.description)
+          : t("Could not load this skill")
+      }
+      iconUrl={iconUrl}
       annotations={<SkillSourceBadge source={skill.source} />}
       controls={null}
       actions={<SkillActions skill={skill} {...actions} />}

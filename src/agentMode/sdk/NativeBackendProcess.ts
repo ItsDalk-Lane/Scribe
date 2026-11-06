@@ -9,7 +9,11 @@ import {
 } from "@earendil-works/pi-agent-core";
 import type { JournalRecord } from "@/agentMode/sdk/JournalStorage";
 import type { CompactionProjection } from "@/agentMode/sdk/compactionProjection";
-import { deliverSkillText } from "@/agentMode/sdk/skillCatalog";
+import {
+  buildSkillDependencyBlock,
+  deliverSkillText,
+  type SkillDependencyDeliveryReading,
+} from "@/agentMode/sdk/skillCatalog";
 import {
   parseCompactionProjection,
   projectCompactedContext,
@@ -124,6 +128,7 @@ export interface NativeToolContext {
   // 目录预算按当前模型上下文窗口折算；未知窗口时退化为绝对上限。https://github.com/ItsDalk-Lane/Scribe/issues/40
   contextWindow?: number;
   skillCatalog?: { everPublished(): boolean; markPublished(): void };
+  resolveSkillDependencies?: (name: string) => Promise<readonly SkillDependencyDeliveryReading[]>;
   getMode(): ScribeMode;
   emit(update: SessionUpdate): void;
   requestPermission(prompt: PermissionPrompt): Promise<PermissionDecision>;
@@ -159,6 +164,9 @@ export interface NativeBackendProcessOptions {
     body: string;
     dirPath?: string;
   } | null;
+  // 手动注入与工具投递共用同一依赖就绪解析，注入块由 skillCatalog 构建。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/46
+  resolveSkillDependencies?: (name: string) => Promise<readonly SkillDependencyDeliveryReading[]>;
   getSubagents?(): readonly {
     id: string;
     name: string;
@@ -479,6 +487,7 @@ export class NativeBackendProcess implements BackendProcess {
           session.catalogEverPublished = true;
         },
       },
+      resolveSkillDependencies: this.options.resolveSkillDependencies,
       getMode: () => session.record.mode,
       emit,
       requestPermission: async (prompt) => {
@@ -760,9 +769,17 @@ export class NativeBackendProcess implements BackendProcess {
               ? this.options.getManuallyInvokedSkill(name, session.record.cwd)
               : null;
             if (skill) {
-              // 手动注入与工具投递共用统一上限与纪律；正文超限截断并带标记。https://github.com/ItsDalk-Lane/Scribe/issues/41
+              // 手动注入与工具投递共用统一上限、纪律与依赖就绪注入。https://github.com/ItsDalk-Lane/Scribe/issues/41
+              // https://github.com/ItsDalk-Lane/Scribe/issues/46
+              const dependencyReadings = this.options.resolveSkillDependencies
+                ? await this.options.resolveSkillDependencies(skill.name)
+                : [];
               const delivered = deliverSkillText(
-                `${skill.dirPath ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n\n` : ""}${skill.body}`
+                `${buildSkillDependencyBlock(dependencyReadings)}${
+                  skill.dirPath
+                    ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n\n`
+                    : ""
+                }${skill.body}`
               );
               const instruction = `The user explicitly selected skill ${skill.name}. Follow its instructions yourself, reuse its bundled scripts and assets instead of rewriting them, and if it does not fit the task, say so briefly and continue with the next best approach.\n${delivered.text}`;
               requestMessages = messages.map((entry, position) =>
