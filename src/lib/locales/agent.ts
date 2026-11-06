@@ -809,6 +809,18 @@ export const agentTranslations: Record<string, string> = {
   "Brand color (#RRGGBB)": "品牌色（#RRGGBB）",
   "Default prompt for Use now": "“立即使用”的默认提示语",
   "Save interface metadata": "保存界面元数据",
+  "List sorting": "列表排序",
+  "By name": "按名称",
+  "By recent use": "按最近使用",
+  "Used {count} times, last {when}": "已使用 {count} 次，最近 {when}",
+  "These skills have not been used in over {days} days: {names}":
+    "以下技能已超过 {days} 天未使用：{names}",
+  "This scan is incomplete: only confirmed candidates are listed. Retry to cover the failed sources.":
+    "本次扫描不完整：仅列出已确认的候选。重新扫描可覆盖失败的来源。",
+  "{root}: {reason}": "{root}：{reason}",
+  "Login shell environment": "登录 shell 环境",
+  "Could not read the login shell environment; inherited environment was used.":
+    "无法读取登录 shell 环境，已改用继承的环境变量。",
   "Could not import this skill: {reason}": "无法导入此技能：{reason}",
   "Builtin skills are read-only. Restore the builtin version instead.":
     "内置技能为只读，请通过恢复内置技能重置。",

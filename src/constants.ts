@@ -285,6 +285,7 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
     skills: {
       catalogBudgetPercent: DEFAULT_SKILL_CATALOG_BUDGET_PERCENT,
       catalogBudgetMaxTokens: DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS,
+      sortStrategy: "name",
     },
   },
   providers: {},

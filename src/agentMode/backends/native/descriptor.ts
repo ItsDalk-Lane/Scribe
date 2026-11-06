@@ -1,6 +1,7 @@
 import { reviewSkillDraft } from "@/agentMode/skills/ui/SkillDraftModal";
 import { publishSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
 import { checkSkillDependencies } from "@/agentMode/skills/skillDependencyCheck";
+import { recordSkillUsage } from "@/agentMode/skills/skillUsageStore";
 import { SkillManager, getManagedSkills } from "@/agentMode/skills/SkillManager";
 import { SubagentManager, getSubagents } from "@/agentMode/subagents/SubagentManager";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
@@ -199,6 +200,8 @@ export const NativeBackendDescriptor: BackendDescriptor = {
         });
         return readings.map((reading) => ({ ...reading }));
       },
+      // 两条投递路径分别计入台账来源：模型自动与用户手动。https://github.com/ItsDalk-Lane/Scribe/issues/48
+      onManualSkillInvoked: (name) => recordSkillUsage(app, name, "user"),
       getModels: () => getNativeModelEntries(getSettings()),
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),
       createModel: (id) => createNativeModel(app, id),
@@ -235,6 +238,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
             maxTokens: getSettings().agentMode.skills.catalogBudgetMaxTokens,
           },
           onCatalogBuilt: (status) => publishSkillCatalogStatus(status),
+          onSkillInvoked: (name) => recordSkillUsage(app, name, "model"),
         }).filter(
           (tool) => !EXCALIDRAW_TOOL_NAMES.has(tool.name) || getExcalidrawApi(app) !== null
         );

@@ -57,6 +57,28 @@ describe("model", () => {
   });
 
   describe("sanitizeSettings", () => {
+    it("keeps the skill list sort strategy and falls back to name for invalid ones https://github.com/ItsDalk-Lane/Scribe/issues/48", () => {
+      const sanitized = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          skills: { ...DEFAULT_SETTINGS.agentMode.skills, sortStrategy: "recent" },
+        },
+      });
+      expect(sanitized.agentMode.skills.sortStrategy).toBe("recent");
+      const invalid = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          skills: {
+            ...DEFAULT_SETTINGS.agentMode.skills,
+            sortStrategy: "manual" as unknown as "recent",
+          },
+        },
+      });
+      expect(invalid.agentMode.skills.sortStrategy).toBe("name");
+    });
+
     it("keeps valid skill catalog budget overrides and falls back to defaults for invalid ones https://github.com/ItsDalk-Lane/Scribe/issues/40", () => {
       const sanitized = sanitizeSettings({
         ...DEFAULT_SETTINGS,

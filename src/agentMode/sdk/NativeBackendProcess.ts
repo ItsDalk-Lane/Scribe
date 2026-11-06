@@ -167,6 +167,8 @@ export interface NativeBackendProcessOptions {
   // 手动注入与工具投递共用同一依赖就绪解析，注入块由 skillCatalog 构建。
   // https://github.com/ItsDalk-Lane/Scribe/issues/46
   resolveSkillDependencies?: (name: string) => Promise<readonly SkillDependencyDeliveryReading[]>;
+  // 手动调用（斜杠/立即使用）计入本地使用台账。https://github.com/ItsDalk-Lane/Scribe/issues/48
+  onManualSkillInvoked?: (name: string) => void;
   getSubagents?(): readonly {
     id: string;
     name: string;
@@ -771,6 +773,7 @@ export class NativeBackendProcess implements BackendProcess {
             if (skill) {
               // 手动注入与工具投递共用统一上限、纪律与依赖就绪注入。https://github.com/ItsDalk-Lane/Scribe/issues/41
               // https://github.com/ItsDalk-Lane/Scribe/issues/46
+              this.options.onManualSkillInvoked?.(skill.name);
               const dependencyReadings = this.options.resolveSkillDependencies
                 ? await this.options.resolveSkillDependencies(skill.name)
                 : [];

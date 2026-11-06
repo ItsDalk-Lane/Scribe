@@ -344,6 +344,44 @@ describe("SkillImportDialogs", () => {
       ).toBe(false);
       expect(screen.getByText(/1 lines will be adjusted automatically/)).toBeTruthy();
     });
+
+    // 扫描不完整时结果页出现明确标记与原因摘要。https://github.com/ItsDalk-Lane/Scribe/issues/49
+    it("announces an incomplete scan with its failure summaries and retry guidance", () => {
+      render(
+        <SystemSkillSearchView
+          candidates={[candidate("readable")]}
+          warnings={[]}
+          incomplete
+          failures={[{ root: "Cursor", reason: "EACCES: permission denied" }]}
+          selected={new Set()}
+          results={{}}
+          loading={false}
+          busy={false}
+          onRefresh={jest.fn()}
+          onImport={jest.fn()}
+          onSelect={jest.fn()}
+        />
+      );
+      expect(screen.getByText(/This scan is incomplete/)).toBeTruthy();
+      expect(screen.getByText("Cursor: EACCES: permission denied")).toBeTruthy();
+    });
+
+    it("does not show an incompleteness banner for a complete scan", () => {
+      render(
+        <SystemSkillSearchView
+          candidates={[candidate("readable")]}
+          warnings={[]}
+          selected={new Set()}
+          results={{}}
+          loading={false}
+          busy={false}
+          onRefresh={jest.fn()}
+          onImport={jest.fn()}
+          onSelect={jest.fn()}
+        />
+      );
+      expect(screen.queryByText(/This scan is incomplete/)).toBeNull();
+    });
   });
   describe("SystemSkillSearch()", () => {
     it("imports selected valid candidates independently and reports partial failure", async () => {

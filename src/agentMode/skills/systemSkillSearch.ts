@@ -119,9 +119,23 @@ async function readLoginSkillEnvironment(signal?: AbortSignal): Promise<NodeJS.P
   }
 }
 
+// 扫描完整性契约：部分失败显式标记，结果仅含已确认候选且可重试。
+// https://github.com/ItsDalk-Lane/Scribe/issues/49
+export interface SystemSkillSearchFailure {
+  root: string;
+  reason: string;
+}
+
+export interface SystemSkillSearchResult {
+  candidates: SkillImportCandidate[];
+  warnings: string[];
+  incomplete: boolean;
+  failures: SystemSkillSearchFailure[];
+}
+
 export async function searchSystemSkills(
   options: SystemSkillSearchOptions
-): Promise<{ candidates: SkillImportCandidate[]; warnings: string[] }> {
+): Promise<SystemSkillSearchResult> {
   const { installed, signal } = options;
   signal?.throwIfAborted();
   const fs = requireNodeModule<typeof import("node:fs")>("fs");
@@ -129,8 +143,18 @@ export async function searchSystemSkills(
   const os = requireNodeModule<typeof import("node:os")>("os");
   const home = os.homedir();
   if (!home || !path.isAbsolute(home)) throw new Error(t("Could not determine your home folder."));
-  const environment = await readLoginSkillEnvironment(signal);
+  let loginEnvironmentFailed = false;
+  const environment = await readLoginSkillEnvironment(signal).catch(() => {
+    loginEnvironmentFailed = true;
+    return { ...process.env };
+  });
   const roots = resolveSystemSkillRoots(home, environment);
+  const failures: SystemSkillSearchFailure[] = [];
+  if (loginEnvironmentFailed)
+    failures.push({
+      root: t("Login shell environment"),
+      reason: t("Could not read the login shell environment; inherited environment was used."),
+    });
   const library = await fs.promises
     .realpath(options.skillsDirectory)
     .catch(() => path.resolve(options.skillsDirectory));
@@ -255,8 +279,18 @@ export async function searchSystemSkills(
         }
       } catch (error) {
         signal?.throwIfAborted();
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+        // ENOENT 是竞态删除，静默跳过；其余失败进入结构化不完整标记。
+        // https://github.com/ItsDalk-Lane/Scribe/issues/49
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           warnings.add(t("Could not read a system skill folder: {path}", { path: directory }));
+          failures.push({
+            root: root.name,
+            reason:
+              error instanceof Error
+                ? `${(error as NodeJS.ErrnoException).code ?? error.name}: ${error.message}`
+                : String(error),
+          });
+        }
       }
     };
     await visit(root.path, 0);
@@ -265,5 +299,7 @@ export async function searchSystemSkills(
   return {
     candidates: [...candidates.values()].sort((a, b) => a.name.localeCompare(b.name)),
     warnings: [...warnings],
+    incomplete: failures.length > 0,
+    failures,
   };
 }

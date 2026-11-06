@@ -57,6 +57,7 @@ export interface NativeAdvancedToolsOptions extends NativeToolContext {
   skillCatalogLifecycle?: { everPublished(): boolean; markPublished(): void };
   onCatalogBuilt?: (status: SkillCatalogBuildStatus) => void;
   resolveSkillDependencies?: (name: string) => Promise<readonly SkillDependencyDeliveryReading[]>;
+  onSkillInvoked?: (name: string) => void;
   fetch?: typeof safeFetchNoThrow;
   searchUrlTemplate?: string;
 }
@@ -206,6 +207,8 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
               const delivered = deliverSkillText(
                 buildSkillDependencyBlock(dependencyReadings) + skillInvocationText(entry)
               );
+              // 模型侧技能投递计入本地使用台账。https://github.com/ItsDalk-Lane/Scribe/issues/48
+              options.onSkillInvoked?.(entry.name);
               return {
                 content: [{ type: "text", text: delivered.text }],
                 details: {

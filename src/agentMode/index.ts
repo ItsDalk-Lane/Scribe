@@ -1,4 +1,5 @@
 import { SubagentManager } from "@/agentMode/subagents/SubagentManager";
+import { initializeSkillUsageStore } from "@/agentMode/skills/skillUsageStore";
 import { type App, Platform } from "obsidian";
 import type ScribePlugin from "@/main";
 import { logError } from "@/logger";
@@ -22,6 +23,7 @@ export { backendDisplayOrder, listBackendDescriptors } from "./backends/registry
 export type { AgentSessionManager } from "./session/AgentSessionManager";
 export type { BackendDescriptor, BackendId, ScribeMode, ModelSelection } from "./session/types";
 export { getManagedSkills, SkillManager, SKILL_CREATOR_SKILL_NAME, SkillsSettings } from "./skills";
+export { flushSkillUsageStore } from "./skills/skillUsageStore";
 export type { Skill } from "./skills";
 export { default as ScribeAgentView } from "./ui/ScribeAgentView";
 export { PlanPreviewView } from "./ui/PlanPreviewView";
@@ -43,6 +45,8 @@ function collectAgentSkillsDirsProjectRel(): Record<string, string> {
 export function createAgentSessionManager(app: App, plugin: ScribePlugin): AgentSessionManager {
   const path = requireNodeModule<typeof import("node:path")>("path");
   const skillManager = SkillManager.initialize(app, collectAgentSkillsDirsProjectRel());
+  // 台账存储随技能管理器生命周期初始化。https://github.com/ItsDalk-Lane/Scribe/issues/48
+  initializeSkillUsageStore(app);
   const subagentManager = SubagentManager.getInstance(app);
   plugin.register(() => SubagentManager.reset());
   const initializing = new Map<BackendId, Promise<void>>();

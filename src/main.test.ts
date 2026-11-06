@@ -71,6 +71,7 @@ jest.mock("@/agentMode", () => ({
   ScribeAgentView: class {},
   PlanPreviewView: class {},
   closeAgentDetailModals: jest.fn(),
+  flushSkillUsageStore: jest.fn(async () => undefined),
 }));
 
 import ScribePlugin from "@/main";

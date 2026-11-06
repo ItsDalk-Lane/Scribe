@@ -340,6 +340,17 @@ describe("nativeAdvancedTools", () => {
       expect(text).toContain("Keep frontmatter and use headings.");
     });
 
+    // 模型侧技能投递计入本地使用台账。https://github.com/ItsDalk-Lane/Scribe/issues/48
+    it("reports each delivered skill body to the usage callback", async () => {
+      const invoked = jest.fn();
+      options.onSkillInvoked = invoked;
+      await execute("invoke_skill", { name: "note-format" });
+      await execute("invoke_skill", {});
+      await execute("invoke_skill", { name: "unregistered" }).catch(() => undefined);
+      expect(invoked).toHaveBeenCalledTimes(1);
+      expect(invoked).toHaveBeenCalledWith("note-format");
+    });
+
     it("does not advertise a feedback tool https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       expect(createNativeAdvancedTools(options).map((tool) => tool.name)).not.toContain(
         "send_feedback"

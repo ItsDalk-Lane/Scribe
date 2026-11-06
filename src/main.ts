@@ -2,7 +2,12 @@ import { t } from "@/lib/i18n";
 import { initializeInterfaceLanguage } from "@/services/interfaceLanguage";
 import { releaseCursorAssociation } from "@/editor/releaseCursorAssociation";
 import { registerNoteHeaderAction } from "@/editor/registerNoteHeaderAction";
-import { SKILL_CREATOR_SKILL_NAME, type AgentSessionManager, type SkillManager } from "@/agentMode";
+import {
+  SKILL_CREATOR_SKILL_NAME,
+  flushSkillUsageStore,
+  type AgentSessionManager,
+  type SkillManager,
+} from "@/agentMode";
 import { isNativeChatId, parseNativeChatId } from "@/utils/nativeChatId";
 import {
   buildChatDeepLink,
@@ -427,6 +432,8 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     this.projectRegister?.cleanup();
     this.settingsUnsubscriber?.();
     await flushPersistence();
+    // 卸载前冲刷本地使用台账，避免丢失最近计数。https://github.com/ItsDalk-Lane/Scribe/issues/48
+    await flushSkillUsageStore();
 
     if (isDesktopRuntime()) {
       const { SkillManager } = await import("@/agentMode");

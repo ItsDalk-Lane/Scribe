@@ -14,6 +14,7 @@ import { discoverManagedSkills } from "./discoverManagedSkills";
 import { compareSkills } from "./mergeDiscovery";
 import type { MigrateSkillResult } from "./migrateProjectSkill";
 import { suffixOnCollision } from "./suffixOnCollision";
+import { forgetSkillUsage } from "./skillUsageStore";
 import {
   parseSkillFile,
   serializeSkillFile,
@@ -564,6 +565,8 @@ export class SkillManager {
             };
         }
         await this.library.remove(skill.name);
+        // 删除技能时一并清除其使用台账记录。https://github.com/ItsDalk-Lane/Scribe/issues/48
+        forgetSkillUsage(skill.name);
         await this.refresh(true);
         return { ok: true };
       } catch (error) {

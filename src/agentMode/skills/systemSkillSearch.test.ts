@@ -281,6 +281,42 @@ describe("systemSkillSearch", () => {
       }
     });
 
+    // 完整性契约：部分失败显式标记并给出原因摘要，ENOENT 仍静默。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/49
+    it("marks the scan incomplete with per-source failure summaries", async () => {
+      await skill(".agents/skills/readable");
+      const denied = join(root, ".cursor/skills/denied");
+      await mkdir(denied, { recursive: true });
+      const originalReaddir = fs.promises.readdir.bind(fs.promises);
+      const spy = jest.spyOn(fs.promises, "readdir").mockImplementation((async (path, options) => {
+        if (path === denied)
+          throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+        return originalReaddir(path, options);
+      }) as typeof fs.promises.readdir);
+      try {
+        const result = await searchSystemSkills({
+          skillsDirectory: join(root, ".scribe/skills"),
+          installed: [],
+        });
+        expect(result.incomplete).toBe(true);
+        expect(result.failures).toEqual([
+          expect.objectContaining({ root: "Cursor", reason: expect.stringContaining("EACCES") }),
+        ]);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("marks a complete scan with no failures as not incomplete", async () => {
+      await skill(".agents/skills/readable");
+      const result = await searchSystemSkills({
+        skillsDirectory: join(root, ".scribe/skills"),
+        installed: [],
+      });
+      expect(result.incomplete).toBe(false);
+      expect(result.failures).toEqual([]);
+    });
+
     it("stops at the global directory budget and explains that results are partial", async () => {
       const source = join(root, ".agents/skills");
       await mkdir(source, { recursive: true });

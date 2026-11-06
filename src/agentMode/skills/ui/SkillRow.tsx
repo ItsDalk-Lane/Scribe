@@ -87,9 +87,10 @@ export function SkillActions({
 
 export interface SkillRowProps extends SkillActionsProps {
   onOpen: () => void;
+  usageNote?: string;
 }
 
-export function SkillRow({ skill, onOpen, ...actions }: SkillRowProps) {
+export function SkillRow({ skill, onOpen, usageNote, ...actions }: SkillRowProps) {
   // 存在界面元数据时优先渲染显示名与图标，缺失时回退现状。https://github.com/ItsDalk-Lane/Scribe/issues/47
   const iconUrl = useSkillIcon(skill);
   return (
@@ -105,6 +106,7 @@ export function SkillRow({ skill, onOpen, ...actions }: SkillRowProps) {
           : t("Could not load this skill")
       }
       iconUrl={iconUrl}
+      meta={usageNote}
       annotations={<SkillSourceBadge source={skill.source} />}
       controls={null}
       actions={<SkillActions skill={skill} {...actions} />}

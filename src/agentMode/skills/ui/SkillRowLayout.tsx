@@ -5,6 +5,7 @@ export interface SkillRowLayoutProps {
   name: string;
   description: string;
   iconUrl?: string | null;
+  meta?: string;
   annotations?: React.ReactNode;
   controls: React.ReactNode;
   actions: React.ReactNode;
@@ -16,6 +17,7 @@ export function SkillRowLayout({
   name,
   description,
   iconUrl,
+  meta,
   annotations,
   controls,
   actions,
@@ -72,6 +74,7 @@ export function SkillRowLayout({
               {description}
             </div>
           )}
+          {meta && <div className="tw-mt-0.5 tw-text-ui-smaller tw-text-faint">{meta}</div>}
         </button>
       </div>
       {controls}

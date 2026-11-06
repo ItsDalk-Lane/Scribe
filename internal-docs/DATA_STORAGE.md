@@ -17,6 +17,7 @@
 | 技能整包事务       | `.scribe/skills/.operations/<标识>/`；暂存完整包、原件备份和事务记录；SkillLibrary 在重开时按登记状态完成清理或安全回滚，不能确认内容归属时保留两份并报错                                      |
 | 技能评估工作资料   | `.scribe/skills/.workspaces/<技能名称>/`；仅在用户明确执行兼容的评估任务时使用，不自动运行上游评估脚本；技能扫描跳过内部隐藏文件夹                                                             |
 | 技能               | `.scribe/skills/<技能名称>/SKILL.md` 及同目录附加文件；直接读取，不在工作文件夹创建链接                                                                                                        |
+| 技能使用台账       | `.scribe/skills/.usage.json`；按技能名记录次数、最近使用时间与调用来源，纯本地不外传；写入节流且失败不影响投递，删除技能时一并清除（https://github.com/ItsDalk-Lane/Scribe/issues/48）         |
 | 命令／我的指令     | `.scribe/scribe-custom-prompts/<名称>.md`；两个页面共享同一份文件                                                                                                                              |
 | 自定义子 Agent     | `.scribe/subagents/<稳定标识>.json`；定义正文独立保存，列表与委派执行读取同一份定义                                                                                                            |
 | 项目配置           | `.scribe/projects/<稳定项目标识>/project.md`；实际工作位置单独记录为 `workspacePath`                                                                                                           |

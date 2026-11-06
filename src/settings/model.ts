@@ -70,6 +70,7 @@ export interface ScribeSettings {
       suppressMigrationConfirm?: boolean;
       catalogBudgetPercent?: number;
       catalogBudgetMaxTokens?: number;
+      sortStrategy?: "name" | "recent";
     };
   };
   providers: Record<string, Provider>;
@@ -411,9 +412,15 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     skillsRaw.catalogBudgetMaxTokens > 0
       ? skillsRaw.catalogBudgetMaxTokens
       : DEFAULT_SETTINGS.agentMode.skills.catalogBudgetMaxTokens;
+  const sortStrategy: ScribeSettings["agentMode"]["skills"]["sortStrategy"] =
+    skillsRaw && (skillsRaw.sortStrategy === "recent" || skillsRaw.sortStrategy === "name")
+      ? skillsRaw.sortStrategy
+      : // 列表排序偏好；非法值回退默认按名称。https://github.com/ItsDalk-Lane/Scribe/issues/48
+        "name";
   const skills: ScribeSettings["agentMode"]["skills"] = {
     catalogBudgetPercent,
     catalogBudgetMaxTokens,
+    sortStrategy,
     ...(suppressMigrationConfirm !== undefined ? { suppressMigrationConfirm } : {}),
   };
 

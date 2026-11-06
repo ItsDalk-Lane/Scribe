@@ -131,6 +131,8 @@ export function SystemSkillSearch({ app, skillsDirectory, onChanged }: SystemSki
   rejectedRef.current = rejected;
   const [candidates, setCandidates] = React.useState<SkillImportCandidate[]>([]);
   const [warnings, setWarnings] = React.useState<string[]>([]);
+  const [incomplete, setIncomplete] = React.useState(false);
+  const [failures, setFailures] = React.useState<{ root: string; reason: string }[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
   const [results, setResults] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(true);
@@ -142,6 +144,8 @@ export function SystemSkillSearch({ app, skillsDirectory, onChanged }: SystemSki
     controller.current = abort;
     setLoading(true);
     setWarnings([]);
+    setIncomplete(false);
+    setFailures([]);
     setSelected(new Set());
     setResults({});
     try {
@@ -153,6 +157,8 @@ export function SystemSkillSearch({ app, skillsDirectory, onChanged }: SystemSki
       if (!abort.signal.aborted) {
         setCandidates(found.candidates);
         setWarnings(found.warnings);
+        setIncomplete(found.incomplete);
+        setFailures(found.failures);
       }
     } catch (error) {
       if (!abort.signal.aborted)
@@ -222,6 +228,8 @@ export function SystemSkillSearch({ app, skillsDirectory, onChanged }: SystemSki
     <SystemSkillSearchView
       candidates={candidates}
       warnings={warnings}
+      incomplete={incomplete}
+      failures={failures}
       selected={selected}
       results={results}
       loading={loading}
@@ -243,6 +251,8 @@ export function SystemSkillSearch({ app, skillsDirectory, onChanged }: SystemSki
 export interface SystemSkillSearchViewProps {
   candidates: SkillImportCandidate[];
   warnings: string[];
+  incomplete?: boolean;
+  failures?: readonly { root: string; reason: string }[];
   selected: ReadonlySet<string>;
   results: Readonly<Record<string, string>>;
   loading: boolean;
@@ -255,6 +265,8 @@ export interface SystemSkillSearchViewProps {
 export function SystemSkillSearchView({
   candidates,
   warnings,
+  incomplete,
+  failures,
   selected,
   results,
   loading,
@@ -286,6 +298,24 @@ export function SystemSkillSearchView({
         </Button>
       </div>
       {loading && <p role="status">{t("Searching for skills…")}</p>}
+      {/* 扫描不完整时明确标记，不得把部分结果表述为完整列表。https://github.com/ItsDalk-Lane/Scribe/issues/49 */}
+      {!loading && incomplete && (
+        <div role="alert" className="tw-space-y-1">
+          <p className="tw-text-ui-small tw-text-warning">
+            {t(
+              "This scan is incomplete: only confirmed candidates are listed. Retry to cover the failed sources."
+            )}
+          </p>
+          {(failures ?? []).map((failure) => (
+            <p
+              key={`${failure.root}:${failure.reason}`}
+              className="tw-text-ui-smaller tw-text-muted"
+            >
+              {t("{root}: {reason}", { root: failure.root, reason: failure.reason })}
+            </p>
+          ))}
+        </div>
+      )}
       {warnings.map((warning) => (
         <p role="alert" key={warning} className="tw-text-ui-small tw-text-error">
           {warning}
