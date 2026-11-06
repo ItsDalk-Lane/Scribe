@@ -246,6 +246,30 @@ describe("NativeBackendProcess integration", () => {
     }
 
     describe("prompt", () => {
+      it("rebuilds tools with the model context window and the catalog lifecycle each turn https://github.com/ItsDalk-Lane/Scribe/issues/42", async () => {
+        const seen: Array<{ contextWindow?: number; everPublished: boolean }> = [];
+        const { open, send } = fixture(() => response("ok"), undefined, undefined, {
+          getSubagents: () => [],
+          createTools: (context) => {
+            seen.push({
+              contextWindow: context.contextWindow,
+              everPublished: context.skillCatalog?.everPublished() ?? false,
+            });
+            context.skillCatalog?.markPublished();
+            return { tools: [] };
+          },
+        });
+        const sessionId = await open();
+        await send(sessionId, "first turn");
+        await send(sessionId, "second turn");
+        expect(seen.length).toBeGreaterThanOrEqual(2);
+        expect(seen.map((entry) => entry.contextWindow)).toEqual(
+          seen.map(() => MODEL.contextWindow)
+        );
+        expect(seen[0].everPublished).toBe(false);
+        expect(seen.slice(1).every((entry) => entry.everPublished)).toBe(true);
+      });
+
       it("does not let a late failed save for an ended turn settle the next real-session reply", async () => {
         const storage = new NodeNativeSessionStorage(join(data, "late-save"));
         const failOldSave = deferred<void>();

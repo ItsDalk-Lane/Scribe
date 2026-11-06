@@ -8,6 +8,11 @@ import {
   useRejectedSkills,
 } from "@/agentMode/skills/SkillManager";
 import { buildSkillRepairPrompt } from "@/agentMode/skills/skillRepairPrompt";
+import { useSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
+import {
+  SkillCatalogBudgetNotice,
+  SkillCatalogBudgetSettings,
+} from "@/agentMode/skills/ui/SkillCatalogBudget";
 import { SKILL_CREATOR_SKILL_NAME } from "@/agentMode/skills/builtinSkills";
 import { pickSkillImport } from "@/agentMode/skills/pickSkillImport";
 import { readSkillPackage } from "@/agentMode/skills/skillImport";
@@ -35,6 +40,7 @@ import { useApp } from "@/context";
 import { usePlugin } from "@/contexts/PluginContext";
 import { t } from "@/lib/i18n";
 import { getEffectiveSkillsFolder } from "@/settings/scribeFolder";
+import { getSettings } from "@/settings/model";
 import { getVaultBase, toVaultRelative } from "@/utils/vaultPath";
 import { Plus, RotateCcw } from "lucide-react";
 
@@ -57,6 +63,7 @@ export function SkillsSettings({
   const plugin = usePlugin();
   const skills = useManagedSkills();
   const rejected = useRejectedSkills();
+  const catalogStatus = useSkillCatalogStatus();
   const [localSearch, setLocalSearch] = React.useState("");
   const [selectedSkill, setSelectedSkill] = React.useState<Skill | RejectedSkill>();
   const selectedSkillRef = React.useRef<Skill | RejectedSkill>();
@@ -404,6 +411,7 @@ export function SkillsSettings({
           )}
         </p>
       )}
+      <SkillCatalogBudgetNotice status={catalogStatus} />
       <section aria-label={t("Your skills")} className="tw-space-y-2">
         {entries.length === 0 ? (
           skills.length + rejected.length === 0 ? (
@@ -421,6 +429,10 @@ export function SkillsSettings({
           ))
         )}
       </section>
+      <SkillCatalogBudgetSettings
+        percent={getSettings().agentMode.skills.catalogBudgetPercent}
+        maxTokens={getSettings().agentMode.skills.catalogBudgetMaxTokens}
+      />
       {children}
     </div>
   );

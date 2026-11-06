@@ -68,6 +68,8 @@ export interface ScribeSettings {
     welcomeDismissed: boolean;
     skills: {
       suppressMigrationConfirm?: boolean;
+      catalogBudgetPercent?: number;
+      catalogBudgetMaxTokens?: number;
     };
   };
   providers: Record<string, Provider>;
@@ -392,7 +394,26 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     skillsRaw && typeof skillsRaw.suppressMigrationConfirm === "boolean"
       ? skillsRaw.suppressMigrationConfirm
       : undefined;
+  // 目录预算字段是轻量数值偏好；非法值回落默认而非拒收整个设置。
+  // https://github.com/ItsDalk-Lane/Scribe/issues/40
+  const catalogBudgetPercent =
+    skillsRaw &&
+    typeof skillsRaw.catalogBudgetPercent === "number" &&
+    Number.isFinite(skillsRaw.catalogBudgetPercent) &&
+    skillsRaw.catalogBudgetPercent > 0 &&
+    skillsRaw.catalogBudgetPercent <= 100
+      ? skillsRaw.catalogBudgetPercent
+      : DEFAULT_SETTINGS.agentMode.skills.catalogBudgetPercent;
+  const catalogBudgetMaxTokens =
+    skillsRaw &&
+    typeof skillsRaw.catalogBudgetMaxTokens === "number" &&
+    Number.isSafeInteger(skillsRaw.catalogBudgetMaxTokens) &&
+    skillsRaw.catalogBudgetMaxTokens > 0
+      ? skillsRaw.catalogBudgetMaxTokens
+      : DEFAULT_SETTINGS.agentMode.skills.catalogBudgetMaxTokens;
   const skills: ScribeSettings["agentMode"]["skills"] = {
+    catalogBudgetPercent,
+    catalogBudgetMaxTokens,
     ...(suppressMigrationConfirm !== undefined ? { suppressMigrationConfirm } : {}),
   };
 

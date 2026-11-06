@@ -26,6 +26,10 @@ export const AI_SENDER = "ai";
 export const SCRIBE_FOLDER_ROOT = ".scribe";
 export const DEFAULT_SCRIBE_FOLDER = SCRIBE_FOLDER_ROOT;
 export const DEFAULT_SKILLS_FOLDER = `${SCRIBE_FOLDER_ROOT}/skills`;
+// 模型可见技能目录的预算默认值（百分比与绝对上限均可被设置覆盖）。
+// https://github.com/ItsDalk-Lane/Scribe/issues/40
+export const DEFAULT_SKILL_CATALOG_BUDGET_PERCENT = 2;
+export const DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS = 10000;
 export const DEFAULT_QA_EXCLUSIONS_SETTING = SCRIBE_FOLDER_ROOT;
 export const NOTE_CONTEXT_PROMPT_TAG = "note_context";
 export const SELECTED_TEXT_TAG = "selected_text";
@@ -278,7 +282,10 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
     notificationSound: true,
     notificationSoundId: "piano",
     welcomeDismissed: false,
-    skills: {},
+    skills: {
+      catalogBudgetPercent: DEFAULT_SKILL_CATALOG_BUDGET_PERCENT,
+      catalogBudgetMaxTokens: DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS,
+    },
   },
   providers: {},
   configuredModels: [],

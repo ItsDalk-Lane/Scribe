@@ -1,4 +1,6 @@
 import { reviewSkillDraft } from "@/agentMode/skills/ui/SkillDraftModal";
+import { publishSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
+import { SkillManager } from "@/agentMode/skills/SkillManager";
 import { SubagentManager, getSubagents } from "@/agentMode/subagents/SubagentManager";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
@@ -35,6 +37,23 @@ import { providerDestination } from "@/modelManagement";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
 
 const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
+
+// 目录条目按调用资格标注状态：目录过滤与可改道错误共用同一判定。
+// https://github.com/ItsDalk-Lane/Scribe/issues/41
+function skillToolEntries(cwd: string) {
+  return getNativeScopedSkills(cwd).map((skill) => ({
+    name: skill.name,
+    description: skill.description,
+    body: skill.body,
+    ...(skill.dirPath ? { dirPath: skill.dirPath } : {}),
+    status: !skill.enabledAgents.includes("native")
+      ? ("disabled" as const)
+      : skill.disableModelInvocation
+        ? ("manual-only" as const)
+        : ("available" as const),
+    ...(skill.source?.kind === "builtin" ? { builtin: true } : {}),
+  }));
+}
 
 // 无模型错误走 t()：英文界面不再显示中文提示。
 // https://github.com/ItsDalk-Lane/Scribe/issues/28
@@ -178,10 +197,21 @@ export const NativeBackendDescriptor: BackendDescriptor = {
           ...context,
           app,
           reviewSkillDraft: (draft, signal) => reviewSkillDraft(app, draft, signal),
-          skills: () =>
-            getNativeScopedSkills(context.cwd).filter(
-              (skill) => skill.enabledAgents.includes("native") && !skill.disableModelInvocation
-            ),
+          skills: () => skillToolEntries(context.cwd),
+          readSkillFile: (name, relativePath) => {
+            const skill = getNativeScopedSkills(context.cwd).find((entry) => entry.name === name);
+            if (!skill)
+              throw new Error(
+                `The skill is not registered in this session: ${name}. Call invoke_skill with no arguments to list every registered skill.`
+              );
+            return SkillManager.getInstance().readSkillFile(skill, relativePath);
+          },
+          catalogBudget: {
+            contextWindow: context.contextWindow,
+            percent: getSettings().agentMode.skills.catalogBudgetPercent,
+            maxTokens: getSettings().agentMode.skills.catalogBudgetMaxTokens,
+          },
+          onCatalogBuilt: (status) => publishSkillCatalogStatus(status),
         }).filter(
           (tool) => !EXCALIDRAW_TOOL_NAMES.has(tool.name) || getExcalidrawApi(app) !== null
         );

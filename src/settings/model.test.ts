@@ -57,6 +57,34 @@ describe("model", () => {
   });
 
   describe("sanitizeSettings", () => {
+    it("keeps valid skill catalog budget overrides and falls back to defaults for invalid ones https://github.com/ItsDalk-Lane/Scribe/issues/40", () => {
+      const sanitized = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          skills: { catalogBudgetPercent: 5, catalogBudgetMaxTokens: 2000 },
+        },
+      });
+      expect(sanitized.agentMode.skills.catalogBudgetPercent).toBe(5);
+      expect(sanitized.agentMode.skills.catalogBudgetMaxTokens).toBe(2000);
+      const invalid = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          skills: {
+            catalogBudgetPercent: Number.NaN,
+            catalogBudgetMaxTokens: -1,
+          },
+        },
+      });
+      expect(invalid.agentMode.skills.catalogBudgetPercent).toBe(
+        DEFAULT_SETTINGS.agentMode.skills.catalogBudgetPercent
+      );
+      expect(invalid.agentMode.skills.catalogBudgetMaxTokens).toBe(
+        DEFAULT_SETTINGS.agentMode.skills.catalogBudgetMaxTokens
+      );
+    });
+
     it("keeps missing limits unlimited, preserves an explicit 50 and accepts limits above 1000 https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       for (const maxSteps of [undefined, 50, 1001]) {
         const sanitized = sanitizeSettings({
@@ -280,7 +308,7 @@ describe("model", () => {
         notificationSound: true,
         notificationSoundId: "piano",
         welcomeDismissed: false,
-        skills: {},
+        skills: DEFAULT_SETTINGS.agentMode.skills,
       });
     });
 

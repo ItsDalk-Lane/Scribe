@@ -155,7 +155,6 @@ export const agentTranslations: Record<string, string> = {
   Description: "说明",
   "Allowed tools": "允许的工具",
   "Model override": "指定模型",
-  "Hide from slash menu": "从斜杠菜单中隐藏",
   Save: "保存",
   "Name is required.": "请填写名称。",
   "Lowercase a–z, 0–9, and hyphens only — no leading, trailing, or consecutive hyphens.":
@@ -193,7 +192,6 @@ export const agentTranslations: Record<string, string> = {
   "Disable skill": "停用技能",
   "Enable skill": "启用技能",
   "manual only": "仅手动调用",
-  "hidden from slash menu": "已从斜杠菜单隐藏",
   "Editing one copy would silently diverge from the others. ":
     "只编辑一个副本会使其与其他副本不一致。",
   "Migrate it to your shared folder first to enable edits.": "请先迁移到共享文件夹，再进行编辑。",
@@ -743,6 +741,19 @@ export const agentTranslations: Record<string, string> = {
   "Updating skills…": "正在更新技能…",
   "Some built-in skills need attention. Open Restore built-in skills to review conflicts or local changes.":
     "部分内置技能需要处理。打开“恢复内置技能”可查看名称冲突或本地修改。",
+  "Skill catalog budget: normal ({count} skills listed).":
+    "技能目录预算：正常（已列入 {count} 项技能）。",
+  "Skill catalog budget: {omitted} of {total} skills are not in the model-visible list: {names}.":
+    "技能目录预算：{total} 项技能中有 {omitted} 项未进入模型可见列表：{names}。",
+  "Skill catalog budget: degraded to skill names only; {count} skill descriptions are not in the model-visible list.":
+    "技能目录预算：已降级为仅技能名，{count} 项技能描述未进入模型可见列表。",
+  "Skill catalog budget": "技能目录预算",
+  "Context share (percent)": "上下文占比（百分比）",
+  "The model-visible skill list is capped by this share of the model context window. Default is {default}.":
+    "模型可见技能列表以模型上下文窗口的该比例封顶。默认值为 {default}。",
+  "Absolute token maximum": "绝对 token 上限",
+  "The catalog never exceeds this token count even for large context windows. Default is {default}.":
+    "即使上下文窗口很大，目录也不超过该 token 数。默认值为 {default}。",
   "No skills match your search.": "没有符合搜索条件的技能。",
   "The selected file has no accessible local path. Try choosing it again.":
     "无法取得所选文件的本地位置，请重新选择。",

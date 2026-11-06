@@ -71,6 +71,7 @@ describe("nativeAdvancedTools", () => {
             name: "note-format",
             description: "Format notes",
             body: "Keep frontmatter and use headings.",
+            status: "available" as const,
           },
         ],
         fetch: jest.fn(
@@ -166,6 +167,7 @@ describe("nativeAdvancedTools", () => {
           description: "Format notes",
           body: "Read references.",
           dirPath: root,
+          status: "available" as const,
         },
       ];
       const tool = createNativeAdvancedTools(options).find(
@@ -174,7 +176,147 @@ describe("nativeAdvancedTools", () => {
       expect(tool.description).toContain("note-format: Format notes");
       const result = await tool.execute("with-directory", { name: "note-format" });
       expect(result.content).toContainEqual({ type: "text", text: expect.stringContaining(root) });
-      expect(result.details).toEqual({ name: "note-format", directory: root });
+      expect(result.details).toMatchObject({ name: "note-format", directory: root });
+    });
+
+    // 目录预算与生命周期 https://github.com/ItsDalk-Lane/Scribe/issues/40
+    // https://github.com/ItsDalk-Lane/Scribe/issues/42
+    it("prunes the catalog to the configured budget and reports the omitted skill names", () => {
+      options.skills = () => [
+        { name: "aaa", description: "a".repeat(400), body: "", status: "available" as const },
+        { name: "bbb", description: "b".repeat(400), body: "", status: "available" as const },
+        { name: "ccc", description: "Use tables", body: "", status: "available" as const },
+      ];
+      options.catalogBudget = { contextWindow: 0, percent: 2, maxTokens: 600 };
+      const built = jest.fn();
+      options.onCatalogBuilt = built;
+      const tool = createNativeAdvancedTools(options).find(
+        (entry) => entry.name === "invoke_skill"
+      )!;
+      expect(tool.description).not.toContain("a".repeat(50));
+      expect(built).toHaveBeenCalledWith({
+        mode: "pruned",
+        includedNames: ["ccc"],
+        omittedNames: ["aaa", "bbb"],
+      });
+    });
+
+    it("does not register the skill tool when no skill is available and no catalog was ever published", () => {
+      options.skills = () => [
+        {
+          name: "note-format",
+          description: "Format notes",
+          body: "Keep frontmatter and use headings.",
+          status: "disabled" as const,
+        },
+      ];
+      options.skillCatalogLifecycle = { everPublished: () => false, markPublished: jest.fn() };
+      expect(
+        createNativeAdvancedTools(options).some((entry) => entry.name === "invoke_skill")
+      ).toBe(false);
+    });
+
+    it("publishes an empty catalog with do-not-guess discipline after a catalog was published before", () => {
+      options.skills = () => [];
+      options.skillCatalogLifecycle = { everPublished: () => true, markPublished: jest.fn() };
+      const tool = createNativeAdvancedTools(options).find(
+        (entry) => entry.name === "invoke_skill"
+      )!;
+      expect(tool.description).toContain("No skills are currently available");
+      expect(tool.description).toContain("never call names remembered from earlier lists");
+    });
+
+    it("marks the catalog lifecycle as published once a non-empty catalog is built", () => {
+      const markPublished = jest.fn();
+      options.skillCatalogLifecycle = { everPublished: () => false, markPublished };
+      createNativeAdvancedTools(options);
+      expect(markPublished).toHaveBeenCalledTimes(1);
+    });
+
+    // 投递纪律与兜底列举 https://github.com/ItsDalk-Lane/Scribe/issues/41
+    // https://github.com/ItsDalk-Lane/Scribe/issues/42
+    it("lists every registered skill with its invocation status when called with no arguments", async () => {
+      options.skills = () => [
+        { name: "usable", description: "Ready", body: "b1", status: "available" as const },
+        { name: "off", description: "Off", body: "b2", status: "disabled" as const },
+        {
+          name: "manual",
+          description: "Manual only",
+          body: "b3",
+          status: "manual-only" as const,
+        },
+      ];
+      const result = await execute("invoke_skill", {});
+      expect(result.content[0]).toMatchObject({
+        type: "text",
+        text: expect.stringMatching(
+          /- usable \(available\): Ready[\s\S]*- off \(disabled\): Off[\s\S]*- manual \(manual-only\): Manual only/
+        ),
+      });
+      expect(result.details).toEqual({ listed: 3, truncated: false });
+    });
+
+    it("returns distinct redirecting errors for unknown, disabled and manual-only skills", async () => {
+      options.skills = () => [
+        {
+          name: "off",
+          description: "Off",
+          body: "",
+          status: "disabled" as const,
+        },
+        {
+          name: "manual",
+          description: "Manual",
+          body: "",
+          status: "manual-only" as const,
+        },
+      ];
+      options.skillCatalogLifecycle = {
+        everPublished: () => true,
+        markPublished: jest.fn(),
+      };
+      await expect(execute("invoke_skill", { name: "ghost" })).rejects.toThrow(
+        "Call invoke_skill with no arguments to list every registered skill"
+      );
+      await expect(execute("invoke_skill", { name: "off" })).rejects.toThrow(
+        "disabled for this agent"
+      );
+      await expect(execute("invoke_skill", { name: "manual" })).rejects.toThrow(
+        "does not allow model invocation"
+      );
+    });
+
+    it("reads a supporting file through the anchored reader only", async () => {
+      options.readSkillFile = jest.fn(async () => "reference body");
+      const result = await execute("invoke_skill", { name: "note-format", file: "refs/a.md" });
+      expect(options.readSkillFile).toHaveBeenCalledWith("note-format", "refs/a.md", undefined);
+      expect(result.content[0]).toMatchObject({
+        type: "text",
+        text: expect.stringContaining("reference body"),
+      });
+      expect(result.details).toMatchObject({ name: "note-format", file: "refs/a.md" });
+    });
+
+    it("rejects supporting-file reads when no anchored reader is available", async () => {
+      await expect(
+        execute("invoke_skill", { name: "note-format", file: "refs/a.md" })
+      ).rejects.toThrow("support-file reading is unavailable");
+    });
+
+    it("truncates an oversized skill body with a clear marker", async () => {
+      options.skills = () => [
+        {
+          name: "big",
+          description: "Big",
+          body: "x".repeat(20001),
+          status: "available" as const,
+        },
+      ];
+      const result = await execute("invoke_skill", { name: "big" });
+      const text = (result.content[0] as { type: string; text: string }).text;
+      expect(text.endsWith("[Output truncated]")).toBe(true);
+      expect(text.length).toBeLessThan(20001 + 100);
+      expect(result.details).toMatchObject({ truncated: true });
     });
 
     it("does not advertise a feedback tool https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {

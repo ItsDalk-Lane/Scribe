@@ -393,7 +393,12 @@ describe("nativeDescriptor", () => {
       const tools = options.createTools(context);
       expect(tools.tools.map((tool) => tool.name)).toEqual(["invoke_skill"]);
       const advancedOptions = jest.mocked(createNativeAdvancedTools).mock.calls[0][0];
-      expect(advancedOptions.skills().map((skill) => skill.name)).toEqual(["enabled"]);
+      // 目录条目携带调用资格状态，可用性过滤转移到工具层。https://github.com/ItsDalk-Lane/Scribe/issues/41
+      expect(advancedOptions.skills()).toEqual([
+        expect.objectContaining({ name: "enabled", status: "available" }),
+        expect.objectContaining({ name: "disabled", status: "disabled" }),
+        expect.objectContaining({ name: "manual", status: "manual-only" }),
+      ]);
       expect(NativeCommandTasks).toHaveBeenCalledWith(
         expect.objectContaining({
           cwd: "/vault/project",

@@ -9,6 +9,7 @@ import {
 } from "@earendil-works/pi-agent-core";
 import type { JournalRecord } from "@/agentMode/sdk/JournalStorage";
 import type { CompactionProjection } from "@/agentMode/sdk/compactionProjection";
+import { deliverSkillText } from "@/agentMode/sdk/skillCatalog";
 import {
   parseCompactionProjection,
   projectCompactedContext,
@@ -120,6 +121,9 @@ export interface NativeToolContext {
   sessionId: string;
   cwd: string;
   requester: PermissionRequester;
+  // 目录预算按当前模型上下文窗口折算；未知窗口时退化为绝对上限。https://github.com/ItsDalk-Lane/Scribe/issues/40
+  contextWindow?: number;
+  skillCatalog?: { everPublished(): boolean; markPublished(): void };
   getMode(): ScribeMode;
   emit(update: SessionUpdate): void;
   requestPermission(prompt: PermissionPrompt): Promise<PermissionDecision>;
@@ -207,6 +211,7 @@ interface NativeSessionContext {
   runId: string;
   compaction?: AbortController;
   refreshTools: boolean;
+  catalogEverPublished: boolean;
   runController?: AbortController;
 }
 
@@ -442,6 +447,8 @@ export class NativeBackendProcess implements BackendProcess {
       stepLimit: false,
       runId: "",
       refreshTools: false,
+      // 恢复的会话曾运行过轮次即视为发布过目录；空目录语义依赖此状态。https://github.com/ItsDalk-Lane/Scribe/issues/42
+      catalogEverPublished: record.messages.length > 0,
     };
     const session: NativeSession = Object.assign(context, {
       agent: this.createAgent(context, systemPrompt),
@@ -465,6 +472,13 @@ export class NativeBackendProcess implements BackendProcess {
       purpose: session.record.purpose,
       cwd: session.record.cwd,
       requester,
+      contextWindow: session.provider.model.contextWindow,
+      skillCatalog: {
+        everPublished: () => session.catalogEverPublished,
+        markPublished: () => {
+          session.catalogEverPublished = true;
+        },
+      },
       getMode: () => session.record.mode,
       emit,
       requestPermission: async (prompt) => {
@@ -746,7 +760,11 @@ export class NativeBackendProcess implements BackendProcess {
               ? this.options.getManuallyInvokedSkill(name, session.record.cwd)
               : null;
             if (skill) {
-              const instruction = `The user explicitly selected skill ${skill.name}.\n${skill.dirPath ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n` : ""}\n${skill.body}`;
+              // 手动注入与工具投递共用统一上限与纪律；正文超限截断并带标记。https://github.com/ItsDalk-Lane/Scribe/issues/41
+              const delivered = deliverSkillText(
+                `${skill.dirPath ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n\n` : ""}${skill.body}`
+              );
+              const instruction = `The user explicitly selected skill ${skill.name}. Follow its instructions yourself, reuse its bundled scripts and assets instead of rewriting them, and if it does not fit the task, say so briefly and continue with the next best approach.\n${delivered.text}`;
               requestMessages = messages.map((entry, position) =>
                 position === index
                   ? {

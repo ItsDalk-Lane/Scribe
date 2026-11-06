@@ -6,6 +6,13 @@ import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
 import { resolveNativeVaultPath, withNativeWriteLock } from "@/agentMode/sdk/nativeVaultPath";
 import {
+  buildEmptySkillCatalog,
+  buildSkillCatalog,
+  deliverSkillText,
+  resolveSkillCatalogBudget,
+  type SkillCatalogBuildStatus,
+} from "@/agentMode/sdk/skillCatalog";
+import {
   createExcalidrawTools,
   EXCALIDRAW_READ_TOOL,
   EXCALIDRAW_RENDER_TOOL,
@@ -23,13 +30,30 @@ export interface SkillDraftProposal {
   body: string;
 }
 
+// 模型可见目录按调用资格标注每个技能，供目录过滤与可改道错误共用。
+// https://github.com/ItsDalk-Lane/Scribe/issues/41
+export type SkillInvocationStatus = "available" | "disabled" | "manual-only";
+
+export interface SkillToolEntry {
+  name: string;
+  description: string;
+  body: string;
+  dirPath?: string;
+  status: SkillInvocationStatus;
+  builtin?: boolean;
+}
+
 export interface NativeAdvancedToolsOptions extends NativeToolContext {
   reviewSkillDraft?: (
     draft: SkillDraftProposal,
     signal?: AbortSignal
   ) => Promise<{ name: string } | null>;
   app: App;
-  skills(): readonly { name: string; description: string; body: string; dirPath?: string }[];
+  skills(): readonly SkillToolEntry[];
+  readSkillFile?: (name: string, relativePath: string, signal?: AbortSignal) => Promise<string>;
+  catalogBudget?: { contextWindow?: number; percent?: number; maxTokens?: number };
+  skillCatalogLifecycle?: { everPublished(): boolean; markPublished(): void };
+  onCatalogBuilt?: (status: SkillCatalogBuildStatus) => void;
   fetch?: typeof safeFetchNoThrow;
   searchUrlTemplate?: string;
 }
@@ -73,32 +97,118 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
     };
   }
 
+  function findSkillEntry(name: string) {
+    return options.skills().find((entry) => entry.name === name);
+  }
+
+  function requireInvocableSkill(name: string): SkillToolEntry {
+    const entry = findSkillEntry(name);
+    if (!entry)
+      throw new Error(
+        `The skill is not registered in this session: ${name}. Call invoke_skill with no arguments to list every registered skill.`
+      );
+    // 调用不可用状态的技能必须得到可区分、可指导改道的错误。https://github.com/ItsDalk-Lane/Scribe/issues/41
+    if (entry.status === "disabled")
+      throw new Error(
+        `Skill "${name}" is disabled for this agent. Ask the user to enable it in Settings → Skills, or use another skill.`
+      );
+    if (entry.status === "manual-only")
+      throw new Error(
+        `Skill "${name}" does not allow model invocation. Ask the user to run it manually, or use another skill.`
+      );
+    return entry;
+  }
+
+  function skillInvocationText(entry: SkillToolEntry): string {
+    return entry.dirPath
+      ? `Skill directory: ${entry.dirPath}\nResolve supporting files relative to this directory.\n\n${entry.body}`
+      : entry.body;
+  }
+
+  function listSkillsResult(): AgentToolResult {
+    const lines = options
+      .skills()
+      .map((skill) => `- ${skill.name} (${skill.status}): ${skill.description}`);
+    const delivered = deliverSkillText(
+      lines.length
+        ? `Registered skills:\n${lines.join("\n")}`
+        : "No skills are registered in this session."
+    );
+    return {
+      content: [{ type: "text", text: delivered.text }],
+      details: { listed: lines.length, truncated: delivered.truncated },
+    };
+  }
+
+  // 目录随每轮工具重建发布；从未发布过且无可用技能时不注册该工具，发布过之后
+  // 技能集变空则发布空目录纪律。https://github.com/ItsDalk-Lane/Scribe/issues/42
+  const availableCatalogEntries = () =>
+    options
+      .skills()
+      .filter((skill) => skill.status === "available")
+      .map((skill) => ({
+        name: skill.name,
+        description: skill.description,
+        builtin: skill.builtin === true,
+      }));
+  const catalog =
+    availableCatalogEntries().length > 0
+      ? buildSkillCatalog({
+          available: availableCatalogEntries(),
+          budget: resolveSkillCatalogBudget(options.catalogBudget ?? {}),
+        })
+      : options.skillCatalogLifecycle?.everPublished()
+        ? buildEmptySkillCatalog()
+        : null;
+  if (catalog) {
+    if (catalog.status.includedNames.length > 0) options.skillCatalogLifecycle?.markPublished();
+    options.onCatalogBuilt?.(catalog.status);
+  }
+
   const tools: AgentTool[] = [
-    defineNativeTool(
-      "invoke_skill",
-      "Use skill",
-      "Read the instructions of a registered Scribe skill for the current project and user.\nAvailable skills:\n" +
-        options
-          .skills()
-          .map((skill) => `${skill.name}: ${skill.description}`)
-          .join("\n"),
-      obj({ name: str({ minLength: 1 }) }),
-      async (_id, args) => {
-        const skill = options.skills().find((entry) => entry.name === args.name);
-        if (!skill) throw new Error(`The skill is not registered in this session: ${args.name}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: skill.dirPath
-                ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n\n${skill.body}`
-                : skill.body,
-            },
-          ],
-          details: { name: skill.name, ...(skill.dirPath ? { directory: skill.dirPath } : {}) },
-        };
-      }
-    ),
+    ...(catalog
+      ? [
+          defineNativeTool(
+            "invoke_skill",
+            "Use skill",
+            catalog.description,
+            obj({
+              name: opt(str({ minLength: 1 })),
+              file: opt(str({ minLength: 1 })),
+            }),
+            async (_id, args, signal) => {
+              if (args.name === undefined) return listSkillsResult();
+              const entry = requireInvocableSkill(args.name);
+              if (args.file !== undefined) {
+                // 支撑文件读取以技能名为锚点并复用管理器的路径防护与二进制判定。https://github.com/ItsDalk-Lane/Scribe/issues/41
+                if (!options.readSkillFile)
+                  throw new Error("Skill support-file reading is unavailable in this session.");
+                const content = await options.readSkillFile(entry.name, args.file, signal);
+                const delivered = deliverSkillText(
+                  `Skill file ${entry.name}/${args.file}:\n\n${content}`
+                );
+                return {
+                  content: [{ type: "text", text: delivered.text }],
+                  details: {
+                    name: entry.name,
+                    file: args.file,
+                    truncated: delivered.truncated,
+                  },
+                };
+              }
+              const delivered = deliverSkillText(skillInvocationText(entry));
+              return {
+                content: [{ type: "text", text: delivered.text }],
+                details: {
+                  name: entry.name,
+                  ...(entry.dirPath ? { directory: entry.dirPath } : {}),
+                  truncated: delivered.truncated,
+                },
+              };
+            }
+          ),
+        ]
+      : []),
     defineNativeTool(
       "fetch_url",
       "Fetch web page",
