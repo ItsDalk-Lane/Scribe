@@ -10,6 +10,15 @@ const renderFooter = (props: Partial<AssistantResponseFooterProps> = {}) =>
 
 describe("AssistantResponseFooter", () => {
   describe("AssistantResponseFooter()", () => {
+    it("keeps the timestamp and appends usage metadata before response actions https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      renderFooter({
+        timestamp: "2026/11/08 12:00:00",
+        ...{ afterTimestamp: <span>120 token · 30 token/s</span> },
+      });
+      expect(screen.getByText("2026/11/08 12:00:00")).toBeTruthy();
+      expect(screen.getByText("120 token · 30 token/s")).toBeTruthy();
+      expect(screen.getByText("Actions")).toBeTruthy();
+    });
     it("prefers leading metadata over the timestamp and keeps actions at the trailing edge", () => {
       const { container } = renderFooter({
         leading: <span>Worked for 24s</span>,

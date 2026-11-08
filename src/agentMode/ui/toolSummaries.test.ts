@@ -21,6 +21,45 @@ function tool(overrides: Partial<ToolCallPart> = {}): ToolCallPart {
 describe("toolSummaries", () => {
   describe("lookupToolSummary", () => {
     it.each([
+      [
+        { vendorToolName: "search_content", toolKind: "search", input: { query: "notes" } },
+        "Searching files",
+      ],
+      [
+        { vendorToolName: "fetch_url", toolKind: "fetch", input: { url: "https://example.com" } },
+        "Viewing webpage information",
+      ],
+      [
+        { vendorToolName: "delegate_task", input: { description: "Inspect notes" } },
+        "Calling subagent",
+      ],
+      [
+        { vendorToolName: "run_command", input: { description: "Inspect notes" } },
+        "Running command",
+      ],
+      [
+        {
+          vendorToolName: "mcp__library__web_search_prime",
+          mcpServer: "library",
+          input: { query: "notes" },
+        },
+        "library · Searching web",
+      ],
+      [
+        { vendorToolName: "mcp__other__custom_lookup", mcpServer: "other" },
+        "other · Running tool Custom lookup",
+      ],
+    ] as Array<[Partial<ToolCallPart>, string]>)(
+      "describes the actual running action for %j https://github.com/ItsDalk-Lane/Scribe/issues/52",
+      (overrides, expected) => {
+        const part = tool({ ...overrides, status: "in_progress" });
+        expect(lookupToolSummary(part).collapsedLine(part, CTX)).toContain(expected);
+        const pending = { ...part, status: "pending" as const };
+        expect(lookupToolSummary(pending).collapsedLine(pending, CTX)).toContain("Waiting to run");
+        expect(lookupToolSummary(pending).collapsedLine(pending, CTX)).not.toContain(expected);
+      }
+    );
+    it.each([
       ["list_subagent_sessions", "Listed subagent sessions"],
       ["read_subagent_result", "Read subagent result"],
     ])(
@@ -302,7 +341,7 @@ describe("toolSummaries", () => {
 
     it("hides the duplicated vendor name while Read input is still streaming", () => {
       const t = tool({ vendorToolName: "Read", title: "Read", status: "in_progress" });
-      expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Reading …");
+      expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Reading files …");
     });
 
     it("uses Editing while Edit is in flight and Edited when it completes", () => {
@@ -481,7 +520,7 @@ describe("toolSummaries", () => {
       expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("Edited draft.md");
     });
 
-    it("uses Fetching while WebFetch is in flight and Fetched when it completes", () => {
+    it("describes viewing webpage information in flight and keeps Fetched after completion https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
       const inflight = tool({
         vendorToolName: "WebFetch",
         title: "WebFetch",
@@ -489,31 +528,35 @@ describe("toolSummaries", () => {
         input: { url: "https://example.com" },
       });
       expect(lookupToolSummary(inflight).collapsedLine(inflight, CTX)).toBe(
-        "Fetching https://example.com"
+        "Viewing webpage information https://example.com"
       );
       const done = tool({ ...inflight, status: "completed" });
       expect(lookupToolSummary(done).collapsedLine(done, CTX)).toBe("Fetched https://example.com");
     });
 
-    it("uses Running while Bash is in flight and Ran when it completes", () => {
+    it("describes command execution in flight and keeps Ran after completion https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
       const inflight = tool({
         vendorToolName: "Bash",
         title: "Bash",
         status: "in_progress",
         input: { command: "git status" },
       });
-      expect(lookupToolSummary(inflight).collapsedLine(inflight, CTX)).toBe("Running `git status`");
+      expect(lookupToolSummary(inflight).collapsedLine(inflight, CTX)).toBe(
+        "Running command `git status`"
+      );
       const done = tool({ ...inflight, status: "completed" });
       expect(lookupToolSummary(done).collapsedLine(done, CTX)).toBe("Ran `git status`");
     });
 
-    it("shows a Bash description verbatim because it already starts with its own verb", () => {
+    it("marks a Bash description as running only until execution ends https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
       const inflight = tool({
         vendorToolName: "Bash",
         status: "in_progress",
         input: { command: "git status", description: "Check working tree" },
       });
-      expect(lookupToolSummary(inflight).collapsedLine(inflight, CTX)).toBe("Check working tree");
+      expect(lookupToolSummary(inflight).collapsedLine(inflight, CTX)).toBe(
+        "Running command · Check working tree"
+      );
       const done = tool({ ...inflight, status: "completed" });
       expect(lookupToolSummary(done).collapsedLine(done, CTX)).toBe("Check working tree");
     });

@@ -1,10 +1,12 @@
 import type { AgentTask } from "@/agentMode/session/AgentSession";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
+import type { UsageMetrics } from "@/agentMode/session/usageMetrics";
 import { SubagentChatPanel } from "@/agentMode/ui/SubagentChatPanel";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { useApp } from "@/context";
-import type { AgentChatMessage, PermissionPrompt } from "@/agentMode/session/types";
+import type { AgentChatMessage, PermissionPrompt, SessionUsage } from "@/agentMode/session/types";
 import type {
   SubagentMessage,
   SubagentRunSnapshot,
@@ -32,7 +34,8 @@ const runningRun: SubagentRunSnapshot = {
   id: "native-task-run-2",
   toolCallId: "call-2",
   status: "running",
-  createdAt: 10,
+  createdAt: Date.now() - 12000,
+  startedAt: Date.now() - 12000,
   endedAt: undefined,
 };
 
@@ -114,7 +117,19 @@ const runContent = (id: string, text: string): AgentChatMessage => ({
 
 const transcriptByCall: Record<string, AgentChatMessage[]> = {
   "call-1": [runContent("a1", "第一轮核对完成，发现两处口径差异。")],
-  "call-2": [runContent("a2", "正在按新口径重新核对第二份总结……")],
+  "call-2": [
+    {
+      ...runContent("a2", ""),
+      parts: [
+        {
+          kind: "thought",
+          text: "第一份已核对。\n正在按新口径重新核对第二份总结……",
+          segmentSeq: 20,
+          startedAtMs: runningRun.startedAt,
+        },
+      ],
+    },
+  ],
 };
 
 const childPermission: PermissionPrompt = {
@@ -136,6 +151,38 @@ const childPermission: PermissionPrompt = {
   ],
 };
 
+const childUsage: SessionUsage = {
+  usedTokens: 0,
+  updatedAt: 12,
+  metrics: {
+    totalTokens: 3262,
+    inputTokens: 3000,
+    outputTokens: 262,
+    cacheReadTokens: 1500,
+    cacheHitPercent: 50,
+    rounds: 2,
+    steps: 4,
+    partial: false,
+    sources: [
+      {
+        sourceId: "child-audit",
+        sourceName: "资料核对",
+        kind: "subagent",
+        modelId: "glm-4.7",
+        modelName: "GLM-4.7",
+        purpose: "chat",
+        totalTokens: 3262,
+        inputTokens: 3000,
+        outputTokens: 262,
+        cacheReadTokens: 1500,
+        cacheHitPercent: 50,
+        steps: 4,
+        partial: false,
+      },
+    ],
+  },
+};
+
 const createParentBackend = (
   current: SubagentSessionSnapshot | null,
   permissions: readonly PermissionPrompt[] = []
@@ -155,6 +202,17 @@ const createParentBackend = (
     getMessages: () => [],
     getTasks: (): readonly AgentTask[] => [],
     getTaskMessages: (toolCallId: string) => transcriptByCall[toolCallId] ?? [],
+    getMessageUsageMetrics: (message: AgentChatMessage) =>
+      message.parts?.some((part) => part.segmentSeq === 20)
+        ? {
+            partial: true,
+            sources: [],
+            roundStartedAtMs: runningRun.startedAt,
+            hasActiveWork: current?.runs.some(
+              (run) => run.id === runningRun.id && run.status === "running"
+            ),
+          }
+        : undefined,
     canStopTasks: () => true,
     stopTask: async () => {},
     isStarting: () => false,
@@ -168,6 +226,7 @@ const createParentBackend = (
     getCurrentPlan: () => null,
     getCurrentTodoList: () => null,
     getSessionUsage: () => null,
+    getSubagentUsage: (subagentId: string) => (subagentId === current?.id ? childUsage : null),
     getPlanUsage: () => null,
     hasPendingPlanPermission: () => false,
     getPendingToolPermissions: () => permissions,
@@ -232,6 +291,169 @@ export default meta;
 
 export const RunningWithSteeredMessage: StoryObj<SubagentChatPanelProps> = {
   render: (props) => <PanelPreview {...props} />,
+};
+
+export const WokenStreamingWithDeliveredInput: StoryObj<SubagentChatPanelProps> = {
+  render: function ChildLivePreview(props) {
+    const [startedAt] = React.useState(() => Date.now());
+    const [thought, setThought] = React.useState("");
+    const current: SubagentSessionSnapshot = {
+      ...session,
+      runs: [{ ...runningRun, startedAt: startedAt - 10000 }],
+      messages: [
+        {
+          ...session.messages[2],
+          runId: runningRun.id,
+          roundId: "delivered-round",
+          state: "delivered",
+          deliveredAt: startedAt,
+          deliverySeq: 15,
+        },
+      ],
+    };
+    return (
+      <div className="tw-flex tw-flex-col tw-gap-2">
+        <Button
+          onClick={() =>
+            setThought((text) =>
+              text ? text + " 新到达的片段。" : "第一行  保留空格。\n正在核对追加要求。"
+            )
+          }
+        >
+          接收下一片思考
+        </Button>
+        <PanelPreview
+          {...props}
+          parentBackend={{
+            ...createParentBackend(current),
+            getTaskMessages: (toolCallId) =>
+              toolCallId === runningRun.toolCallId
+                ? [
+                    {
+                      ...runContent("live-reply", ""),
+                      parts: [
+                        { kind: "text", text: "上一段已完成的答复。", segmentSeq: 10 },
+                        ...(thought
+                          ? [
+                              {
+                                kind: "thought" as const,
+                                text: thought,
+                                startedAtMs: startedAt,
+                                segmentSeq: 20,
+                              },
+                            ]
+                          : []),
+                      ],
+                    },
+                  ]
+                : [],
+            getMessageUsageMetrics: (message) =>
+              message.parts?.some((part) => part.segmentSeq === 20)
+                ? {
+                    partial: true,
+                    sources: [],
+                    roundId: "delivered-round",
+                    roundStartedAtMs: startedAt,
+                    hasActiveWork: true,
+                  }
+                : {
+                    partial: false,
+                    sources: [],
+                    roundStopReason: "end_turn",
+                    roundDurationMs: 2000,
+                  },
+          }}
+        />
+      </div>
+    );
+  },
+};
+
+export const CompletedWithOwnUsage: StoryObj<SubagentChatPanelProps> = {
+  render: (props) => {
+    const roundId = "child-round-complete";
+    const completed: SubagentSessionSnapshot = {
+      ...session,
+      runs: [{ ...completedRun, roundId, startedAt: 1000, endedAt: 12900, stopReason: "end_turn" }],
+      messages: [{ ...session.messages[0], runId: completedRun.id, roundId, acceptedAt: 1000 }],
+    };
+    const metrics: UsageMetrics = {
+      roundId,
+      subagentId: completed.id,
+      totalTokens: 1600,
+      inputTokens: 1500,
+      outputTokens: 100,
+      cacheReadTokens: 750,
+      cacheHitPercent: 50,
+      tokensPerSecond: 32.5,
+      ttftMs: 850,
+      rounds: 1,
+      steps: 2,
+      activeRounds: 0,
+      roundDurationMs: 11900,
+      roundStopReason: "end_turn",
+      finalResponseSegmentSeq: 20,
+      thinkingDurationMs: 3200,
+      toolCallCount: 1,
+      hasActiveWork: false,
+      partial: false,
+      sources: [
+        {
+          ...childUsage.metrics!.sources[0],
+          totalTokens: 1600,
+          inputTokens: 1500,
+          outputTokens: 100,
+          cacheReadTokens: 750,
+          steps: 2,
+        },
+      ],
+    };
+    const reply: AgentChatMessage = {
+      ...runContent("completed-reply", "核对完成，三份总结的统计口径已统一。"),
+      timestamp: {
+        epoch: 12900,
+        display: "2026/11/08 18:23:06",
+        fileName: "20261108_182306",
+      },
+      parts: [
+        { kind: "thought", text: "先逐项核对三份总结。", durationMs: 1200, segmentSeq: 10 },
+        { kind: "text", text: "已核对第一份总结，接着确认其余记录。", segmentSeq: 10 },
+        {
+          kind: "tool_call",
+          id: "completed-read",
+          title: "Read Notes/Summary.md",
+          vendorToolName: "Read",
+          input: { file_path: "Notes/Summary.md" },
+          output: [{ type: "text", text: "三份总结的完整核对记录。" }],
+          status: "completed",
+          segmentSeq: 11,
+        },
+        { kind: "thought", text: "按统一口径整理结果。", durationMs: 2000, segmentSeq: 20 },
+        { kind: "text", text: "核对完成，三份总结的统计口径已统一。", segmentSeq: 20 },
+      ],
+    };
+    return (
+      <PanelPreview
+        {...props}
+        parentBackend={{
+          ...createParentBackend(completed),
+          getSubagentSessions: () => [
+            completed,
+            {
+              ...session,
+              id: "child-sibling",
+              name: "仍在整理资料的子任务",
+              runs: [{ ...runningRun, roundId }],
+              messages: [],
+            },
+          ],
+          getTaskMessages: (toolCallId) => (toolCallId === completedRun.toolCallId ? [reply] : []),
+          getMessageUsageMetrics: (message) =>
+            message.parts?.some((part) => part.segmentSeq === 20) ? metrics : undefined,
+        }}
+      />
+    );
+  },
 };
 
 export const WaitingToRetry: StoryObj<SubagentChatPanelProps> = {

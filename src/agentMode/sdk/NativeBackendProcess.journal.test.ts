@@ -14,6 +14,7 @@ import {
 } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
 import type { JournalAppendOptions, JournalRecord } from "@/agentMode/sdk/JournalStorage";
+import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import { NodeJournalStorage } from "@/agentMode/sdk/JournalStorage";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
 import type { SessionEvent } from "@/agentMode/session/types";
@@ -131,6 +132,76 @@ function fixture(
 describe("NativeBackendProcess.journal", () => {
   describe("NativeBackendProcess", () => {
     describe("prompt()", () => {
+      it("settles both delivered steering rounds and keeps the newer command on its actual round https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const started = deferred();
+        const initial = createAssistantMessageEventStream();
+        let calls = 0;
+        const f = fixture({
+          request: () => {
+            calls++;
+            if (calls === 1) {
+              started.resolve();
+              return initial;
+            }
+            if (calls === 2) return reply("", [{ id: "command", name: "inspect", arguments: {} }]);
+            return reply("Complete");
+          },
+          createTools: (context) => [
+            defineNativeTool(
+              "inspect",
+              "Inspect",
+              "Inspect fixture",
+              obj({}),
+              async (toolCallId) => {
+                context.emit({
+                  sessionUpdate: "task_started",
+                  taskId: "background-command",
+                  toolCallId,
+                  kind: "command",
+                  description: "Inspect fixture",
+                });
+                context.emit({
+                  sessionUpdate: "task_ended",
+                  taskId: "background-command",
+                  status: "completed",
+                });
+                return { content: [{ type: "text", text: "Complete" }], details: undefined };
+              }
+            ),
+          ],
+        });
+        const id = await f.open();
+        const first = f.send(id, "p1", "First");
+        await started.promise;
+        await f.send(id, "p2", "Steering input");
+        const message = createAssistantMessage(MODEL);
+        message.stopReason = "stop";
+        initial.push({ type: "done", reason: "stop", message });
+        await first;
+        const events = f.entries
+          .filter((entry) => entry.kind === "event")
+          .map((entry) => (entry.payload as SessionEvent).update);
+        const ended = events.filter((update) => update.sessionUpdate === "turn_ended");
+        expect(ended.map((update) => update.turnId)).toEqual(["p1", "p2"]);
+        expect(new Set(ended.map((update) => update.roundId)).size).toBe(2);
+        const newerRound = ended.find((update) => update.turnId === "p2")?.roundId;
+        expect(events).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "tool_execution_started",
+            roundId: newerRound,
+            toolCallId: "p2:command",
+          })
+        );
+        expect(events).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "task_started",
+            roundId: newerRound,
+            toolCallId: "p2:command",
+          })
+        );
+        await f.process.shutdown();
+      });
+
       it.each([null, "An outdated streamed prefix"])(
         "displays the finalized answer used by later requests when streamed text was %s",
         async (delta) => {
@@ -408,6 +479,93 @@ describe("NativeBackendProcess.journal", () => {
     });
 
     describe("resumeSession()", () => {
+      it("replays real usage and admitted tools into a reopened AgentSession without repeating requests https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const journal = new NodeJournalStorage(directory);
+        const storage = new NodeNativeSessionStorage(journal);
+        const original = fixture({ storage });
+        const id = await original.open();
+        await original.send(id, "prompt", "Explain the note");
+        const facts = (await journal.read(id)).records;
+        const accepted = facts.find((entry) => entry.kind === "user_accepted")!;
+        const roundId = (accepted.payload as { roundId: string }).roundId;
+        const segment = facts.find(
+          (entry) =>
+            entry.kind === "event" &&
+            (entry.payload as SessionEvent).update.sessionUpdate === "agent_segment_started"
+        )!.seq;
+        const base = {
+          id: "reported-call",
+          roundId,
+          promptId: "prompt",
+          sourceId: "main",
+          sourceName: "Main",
+          kind: "main" as const,
+          purpose: "chat" as const,
+          modelId: MODEL.id,
+          modelName: MODEL.name,
+          requestIds: ["retry", "continuation"],
+          status: "completed" as const,
+          startedAt: 100,
+          firstTokenAt: 200,
+          generationMs: 500,
+          generationOutputTokens: 2,
+          segmentSeq: segment,
+          usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7, cacheReadTokens: 0 },
+        };
+        for (const update of [
+          { sessionUpdate: "model_call_metrics" as const, observation: base },
+          { sessionUpdate: "model_call_metrics" as const, observation: base },
+          {
+            sessionUpdate: "tool_execution_started" as const,
+            roundId,
+            sourceId: "main",
+            toolCallId: "admitted-tool",
+          },
+        ])
+          await storage.append(id, "event", { sessionId: id, update }, { durable: true });
+        await original.process.shutdown();
+        const restored = fixture({
+          storage: new NodeNativeSessionStorage(new NodeJournalStorage(directory)),
+        });
+        const displayed = new AgentSession({
+          backend: restored.process,
+          backendSessionId: id,
+          internalId: "metrics-reopen",
+          backendId: "native",
+        });
+        try {
+          const loaded = await restored.process.loadSession({
+            sessionId: id,
+            cwd: "/fixture/vault",
+          });
+          displayed.completeResume(loaded.state);
+          await displayed.ready;
+          expect(displayed.getSessionUsage()?.metrics).toMatchObject({
+            totalTokens: 7,
+            steps: 2,
+            rounds: 1,
+            activeRounds: 0,
+            toolCallCount: 1,
+            hasActiveWork: false,
+            tokensPerSecond: 4,
+          });
+          const assistant = displayed.store
+            .getDisplayMessages()
+            .find((message) => message.id === "assistant:prompt");
+          expect(assistant?.turnMetrics).toMatchObject({
+            totalTokens: 7,
+            steps: 2,
+            finalResponseSegmentSeq: segment,
+            toolCallCount: 1,
+            hasActiveWork: false,
+          });
+          expect(restored.requests).toHaveLength(0);
+        } finally {
+          await displayed.dispose();
+          await restored.process.shutdown();
+        }
+      });
+
       it("restores the saved child completion when its task-ended notification was never committed (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const storage = new NodeNativeSessionStorage(new NodeJournalStorage(directory));
         const original = fixture({ storage });
@@ -508,6 +666,111 @@ describe("NativeBackendProcess.journal", () => {
       });
       afterEach(async () => {
         await rm(directory, { recursive: true, force: true });
+      });
+
+      it("restores complete mixed MCP blocks, structured output and unknown metadata without rerunning tools https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const text = '{"id":900719925474099312345,"body":"' + "x".repeat(270_000) + '"}';
+        const original = {
+          content: [
+            { type: "text", text },
+            { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+            {
+              type: "resource",
+              resource: {
+                uri: "mcp://report",
+                text: "# Complete resource",
+                mimeType: "text/markdown",
+              },
+            },
+            { type: "future-block", opaque: { version: 99, value: "retained" } },
+          ],
+          structuredContent: { answer: 42 },
+          _meta: { futureVersion: 99 },
+        };
+        const storage = new NodeNativeSessionStorage(
+          new NodeJournalStorage(directory),
+          new NodeAttachmentStorage(join(directory, "attachments"))
+        );
+        const initial = fixture({ storage });
+        const id = await initial.open();
+        const assistant = createAssistantMessage(MODEL);
+        assistant.content = [
+          { type: "toolCall", id: "mcp-result", name: "mcp__library__search", arguments: {} },
+        ];
+        assistant.stopReason = "toolUse";
+        await storage.append(id, "protocol_message", { message: assistant }, { durable: true });
+        await storage.append(
+          id,
+          "tool_admitted",
+          { id: "mcp-result", name: "mcp__library__search", toolCallId: "run:mcp-result" },
+          { durable: true }
+        );
+        await storage.append(
+          id,
+          "event",
+          {
+            sessionId: id,
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "run:mcp-result",
+              title: "Search",
+              status: "in_progress",
+            },
+          },
+          { durable: true }
+        );
+        await storage.append(
+          id,
+          "tool_result",
+          {
+            message: {
+              role: "toolResult",
+              toolCallId: "mcp-result",
+              toolName: "mcp__library__search",
+              content: [{ type: "text", text }],
+              details: { mcpResult: original },
+              timestamp: 2,
+              isError: false,
+            },
+          },
+          { durable: true }
+        );
+        const restoredStorage = new NodeNativeSessionStorage(
+          new NodeJournalStorage(directory),
+          new NodeAttachmentStorage(join(directory, "attachments"))
+        );
+        const restored = fixture({ storage: restoredStorage });
+        const events: SessionEvent[] = [];
+        restored.process.registerSessionHandler(id, (event) => events.push(event));
+        await restored.process.loadSession({ sessionId: id, cwd: "/fixture/vault" });
+        const toolUpdate = events.find(
+          (event) =>
+            event.update.sessionUpdate === "tool_call_update" && event.update.status === "completed"
+        );
+        const output =
+          toolUpdate?.update.sessionUpdate === "tool_call_update" ? toolUpdate.update.content : [];
+        expect(output).toHaveLength(6);
+        const first = output?.[0];
+        expect(first?.type === "content" && first.content.text === text).toBe(true);
+        expect(output?.slice(1)).toEqual([
+          ...original.content.slice(1).map((content) => ({
+            type: "content",
+            content:
+              content.type === "image"
+                ? { ...content, attachmentHash: expect.any(String) }
+                : content,
+          })),
+          {
+            type: "content",
+            content: { type: "json", name: "structuredContent", text: '{"answer":42}' },
+          },
+          {
+            type: "content",
+            content: { type: "json", name: "metadata", text: '{"_meta":{"futureVersion":99}}' },
+          },
+        ]);
+        expect(restored.requests).toHaveLength(0);
+        await restored.process.shutdown();
       });
 
       it.each(["compaction", "user_accepted", "tool_admitted", "display"])(

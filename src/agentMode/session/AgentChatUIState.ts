@@ -238,6 +238,17 @@ export class AgentChatUIState implements AgentChatBackend {
     return this.session.getCurrentTodoList();
   }
 
+  getMessageUsageMetrics(
+    message: AgentChatMessage,
+    child = false
+  ): AgentChatMessage["turnMetrics"] {
+    return this.session.getMessageUsageMetrics(message, child);
+  }
+
+  getSubagentUsage(subagentId: string): SessionUsage | null {
+    return this.session.getSubagentUsage(subagentId);
+  }
+
   getSessionUsage(): SessionUsage | null {
     return this.session.getSessionUsage();
   }

@@ -35,6 +35,8 @@ export interface SubagentMessagePayload {
 }
 
 export interface SubagentMessage {
+  roundId?: string;
+  promptId?: string;
   id: string;
   sequence: number;
   subagentId: string;
@@ -53,6 +55,8 @@ export interface SubagentMessage {
 }
 
 export interface SubagentRunSnapshot {
+  roundId?: string;
+  promptId?: string;
   id: string;
   taskGenerationId: string;
   toolCallId: string;

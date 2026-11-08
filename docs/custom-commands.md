@@ -6,12 +6,13 @@ For a fast question or rewrite while you are editing, use **Quick Ask** instead.
 
 ## Commands or skills?
 
-Skills that allow manual invocation appear when you type `/` in Agent Chat. Saved commands are not part of the `/` menu; run them from the editor or command palette.
+The `/` menu in Agent Chat is grouped into **commands, skills, and subagents**. Skills that allow manual invocation appear under **Skills**, enabled subagents under **Subagents** (selecting one delegates your task text to it), and the built-in `/compact` plus custom Agent commands under **Commands**. Saved commands are not part of the `/` menu; run them from the editor or command palette.
 
-| Use                | Best for                                                                     | Managed in                                       |
-| ------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------ |
-| **Scribe command** | A short, repeatable prompt with optional note variables                      | [**Settings → Scribe → 命令**](settings.md#命令) |
-| **Skill**          | A reusable agent workflow that can include instructions and supporting files | [**Settings → Scribe → 技能**](settings.md#技能) |
+| Use                | Best for                                                                     | Managed in                                               |
+| ------------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Scribe command** | A short, repeatable prompt with optional note variables                      | [**Settings → Scribe → 命令**](settings.md#命令)         |
+| **Skill**          | A reusable agent workflow that can include instructions and supporting files | [**Settings → Scribe → 技能**](settings.md#技能)         |
+| **Subagent**       | Delegating a task to a dedicated agent with its own instructions             | [**Settings → Scribe → 代理扩展**](settings.md#代理扩展) |
 
 Skills can be enabled for Scribe Agent Chat. Commands stay inside Scribe and also work from the editor and Obsidian command palette.
 

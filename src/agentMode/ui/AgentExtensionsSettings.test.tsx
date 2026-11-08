@@ -452,6 +452,15 @@ describe("AgentExtensionsSettings", () => {
       expect(screen.getByText("No entries found in the checked sources.")).toBeTruthy();
     });
 
+    it("opens the command editor from a New Commands button on the Commands tab (https://github.com/ItsDalk-Lane/Scribe/issues/53)", async () => {
+      mockList.mockResolvedValue([]);
+      mockRead.mockResolvedValue([{ kind: "command", status: "partial", warnings: [], items: [] }]);
+      render(<AgentExtensionsSettings kind="command" />);
+      await waitFor(() => expect(screen.queryByText("Loading extensions…")).toBeNull());
+      fireEvent.click(screen.getByRole("button", { name: "New Commands" }));
+      expect(mockModalContent).toHaveBeenCalledTimes(1);
+    });
+
     it("does not expose external or runtime-only skills through a second management interface", () => {
       mockList.mockResolvedValue([
         { ...mockItem, kind: "skill", source: "runtime", name: "external-only" },

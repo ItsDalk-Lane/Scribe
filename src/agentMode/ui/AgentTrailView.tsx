@@ -1,6 +1,16 @@
 import { t } from "@/lib/i18n";
 import React, { memo, useCallback, useMemo } from "react";
-import { agentResponseText, buildAgentTrail } from "@/agentMode/ui/agentTrail";
+import {
+  agentResponseText,
+  buildAgentTrail,
+  splitCompletedAgentTrail,
+  type CompletedAgentTrail,
+} from "@/agentMode/ui/agentTrail";
+import type { UsageMetrics } from "@/agentMode/session/usageMetrics";
+import { AgentActivityCard } from "@/components/chat-components/AgentActivityCard";
+import { ListChecks } from "lucide-react";
+import { formatWorkedDuration } from "@/agentMode/ui/AgentTurnDurationIndicator";
+import { TurnUsageBadge } from "@/agentMode/ui/TurnUsageBadge";
 import type { AgentMessagePart, StopReason, TurnFileChange } from "@/agentMode/session/types";
 import { ActionCard } from "@/agentMode/ui/ActionCard";
 import { FilesChangedCard } from "@/agentMode/ui/FilesChangedCard";
@@ -18,10 +28,13 @@ import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndi
 import { useAgentTasks, type AgentTasksContextValue } from "@/agentMode/ui/AgentTasksContext";
 import { TaskCard } from "@/agentMode/ui/TaskCard";
 import { AssistantResponseFooter } from "@/components/ui/AssistantResponseFooter";
+import { cn } from "@/lib/utils";
 import { openVaultPath } from "@/utils/openVaultPath";
 import { App } from "obsidian";
 
 interface AgentTrailProps {
+  messageId?: string;
+  metrics?: UsageMetrics;
   parts: AgentMessagePart[];
   isStreaming: boolean;
   turnStartedAtMs?: number;
@@ -72,6 +85,8 @@ function stopReasonNotice(stopReason: StopReason | undefined): string | undefine
 }
 
 export const AgentTrail: React.FC<AgentTrailProps> = ({
+  messageId,
+  metrics,
   parts,
   isStreaming,
   turnStartedAtMs,
@@ -85,7 +100,13 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
   onFork,
   forkDisabled,
 }) => {
-  const answer = agentResponseText(parts);
+  // 仅收起已经确认最终响应、且相关工作全部结束的正常回合；中断和旧记录保留原貌。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  const finalResponse = splitCompletedAgentTrail(parts, metrics?.finalResponseSegmentSeq);
+  const completed =
+    !isStreaming && turnStopReason === "end_turn" && !errorText && metrics?.hasActiveWork === false
+      ? finalResponse
+      : undefined;
+  const answer = agentResponseText(finalResponse?.response ?? parts);
   const recoveryNotices = useMemo(
     () =>
       parts
@@ -113,19 +134,26 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
     !isStreaming && turnStopReason !== "cancelled" && answer.length > 0 ? (
       <AgentMessageActions
         text={answer}
+        metrics={metrics}
         app={app}
         onFork={onFork}
         forkDisabled={forkDisabled}
         timestamp={timestamp}
       />
     ) : !hasRunningDuration && timestamp ? (
-      <AssistantResponseFooter timestamp={timestamp} />
+      <AssistantResponseFooter
+        timestamp={timestamp}
+        afterTimestamp={<TurnUsageBadge metrics={metrics} />}
+      />
     ) : null;
 
   return (
     <div className="tw-group tw-flex tw-flex-col tw-gap-1">
       <LinearTrail
         parts={parts}
+        messageId={messageId}
+        metrics={metrics}
+        completed={completed}
         isStreaming={isStreaming}
         app={app}
         turnDurationMs={!isStreaming && !compactionOnly ? turnDurationMs : undefined}
@@ -157,6 +185,7 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
 
 interface TrailContext {
   app: App;
+  isStreaming: boolean;
   lastPart: AgentMessagePart | undefined;
   expansion: TrailExpansion;
   tasks: AgentTasksContextValue | null;
@@ -167,23 +196,89 @@ const LinearTrail: React.FC<{
   isStreaming: boolean;
   app: App;
   turnDurationMs?: number;
-}> = ({ parts, isStreaming, app, turnDurationMs }) => {
+  messageId?: string;
+  metrics?: UsageMetrics;
+  completed?: CompletedAgentTrail;
+}> = ({ parts, isStreaming, app, turnDurationMs, messageId, metrics, completed }) => {
   const expansion = useTrailExpansion();
   const tasks = useAgentTasks();
   const nodes = foldActivityGroups(buildAgentTrail(parts), () => true);
+  const processNodes = completed
+    ? foldActivityGroups(buildAgentTrail(completed.process), () => true)
+    : [];
+  const finalNodes = completed ? buildAgentTrail(completed.response) : [];
+  // 中间工具失败不等于整轮失败；正常收尾后仍折叠过程，但把异常数量留在标题中。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  const processStatuses = completed?.process.flatMap((part) =>
+    part.kind === "tool_call" || part.kind === "compaction" ? [part.status] : []
+  );
+  const failedCount = processStatuses?.filter((status) => status === "failed").length ?? 0;
+  const cancelledCount = processStatuses?.filter((status) => status === "cancelled").length ?? 0;
+  const trailId = messageId ?? "root";
+  const processId = `${trailId}/process`;
+  const hasProcess = processNodes.length > 0;
   const ctx: TrailContext = {
     app,
+    isStreaming,
     lastPart: parts.length > 0 ? parts[parts.length - 1] : undefined,
     expansion,
     tasks,
   };
   return (
     <div className="tw-flex tw-flex-col tw-gap-1">
-      {turnDurationMs !== undefined ? (
+      {!hasProcess && turnDurationMs !== undefined ? (
         <AgentTurnDurationIndicator status="complete" durationMs={turnDurationMs} inline />
       ) : null}
-      {nodes.map((node, i) =>
-        renderNode(node, i, ctx, isStreaming && i === nodes.length - 1, "root")
+      {hasProcess ? (
+        <>
+          <AgentActivityCard
+            icon={ListChecks}
+            ariaLabel={t("Process details")}
+            label={
+              <>
+                <span className="tw-shrink-0">
+                  {t("Worked for")}{" "}
+                  {turnDurationMs === undefined
+                    ? "—"
+                    : formatWorkedDuration(Math.max(100, turnDurationMs))}
+                </span>
+                <span className="tw-truncate tw-font-normal">
+                  · {t("Thinking time")}{" "}
+                  {metrics?.thinkingDurationMs === undefined
+                    ? "—"
+                    : formatWorkedDuration(metrics.thinkingDurationMs)}
+                  {" · "}
+                  {t("Tool calls")} {metrics?.toolCallCount ?? "—"}
+                </span>
+              </>
+            }
+            expandable
+            trailing={
+              failedCount || cancelledCount ? (
+                <span className="tw-flex tw-shrink-0 tw-gap-2 tw-text-xs tw-tabular-nums">
+                  {failedCount ? (
+                    <span className="tw-text-error">
+                      {t("Failed")} {failedCount}
+                    </span>
+                  ) : null}
+                  {cancelledCount ? (
+                    <span className="tw-text-muted">
+                      {t("Cancelled")} {cancelledCount}
+                    </span>
+                  ) : null}
+                </span>
+              ) : null
+            }
+            open={expansion.isOpen(processId)}
+            onToggle={() => expansion.toggle(processId)}
+          >
+            {processNodes.map((node, i) => renderNode(node, i, ctx, false, trailId))}
+          </AgentActivityCard>
+          {finalNodes.map((node, i) => renderNode(node, `final:${i}`, ctx, false, trailId))}
+        </>
+      ) : (
+        nodes.map((node, i) =>
+          renderNode(node, i, ctx, isStreaming && i === nodes.length - 1, trailId)
+        )
       )}
     </div>
   );
@@ -240,6 +335,8 @@ function renderNode(
         <SubAgentCard
           key={key}
           parent={node.parent}
+          expansion={ctx.expansion}
+          expansionId={childTrailId}
           childNodes={children}
           truncated={node.truncated}
           app={ctx.app}
@@ -250,12 +347,21 @@ function renderNode(
     case "reasoning": {
       const isActive =
         atLiveEdge && node.part === ctx.lastPart && node.part.durationMs === undefined;
-      return <ReasoningBlock key={key} part={node.part} isStreaming={isActive} />;
+      const expansionId = `${trailId}/reasoning:${node.part.segmentSeq ?? key}:${node.part.contentIndex ?? 0}`;
+      return (
+        <ReasoningBlock
+          key={key}
+          part={node.part}
+          isStreaming={isActive}
+          open={ctx.expansion.isOpen(expansionId)}
+          onToggle={() => ctx.expansion.toggle(expansionId)}
+        />
+      );
     }
     case "text":
       return <AgentMarkdownText key={key} text={node.part.text} app={ctx.app} />;
     case "plan":
-      return <PlanPill key={key} entries={node.part.entries} />;
+      return <PlanPill key={key} entries={node.part.entries} isRunning={ctx.isStreaming} />;
     case "compaction":
       return <CompactionRow key={key} part={node.part} />;
   }
@@ -282,12 +388,23 @@ function actionExpansionId(trailId: string, toolCallId: string): string {
 
 interface PlanPillProps {
   entries: { content: string; status: "pending" | "in_progress" | "completed" }[];
+  isRunning: boolean;
 }
 
-const PlanPill: React.FC<PlanPillProps> = ({ entries }) =>
+const PlanPill: React.FC<PlanPillProps> = ({ entries, isRunning }) =>
   entries.length === 0 ? null : (
     <div className="tw-my-1 tw-rounded tw-border tw-border-border tw-bg-secondary tw-px-2 tw-py-1">
-      <p className="tw-mb-1 tw-text-xs tw-text-muted">{t("Plan")}</p>
+      {/* 计划状态可能未被模型收尾，回合停止后必须停下动效并保留原始条目。https://github.com/ItsDalk-Lane/Scribe/issues/52 */}
+      <p
+        className={cn(
+          "tw-mb-1 tw-text-xs tw-text-muted",
+          isRunning &&
+            entries.some((entry) => entry.status === "in_progress") &&
+            "scribe-shimmer-text motion-reduce:tw-animate-none"
+        )}
+      >
+        {t("Plan")}
+      </p>
       <ul className="tw-flex tw-flex-col tw-gap-0.5 tw-text-sm">
         {entries.map((e, i) => (
           // eslint-disable-next-line @eslint-react/no-array-index-key -- plan entries are positional and may share content

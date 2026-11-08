@@ -195,24 +195,30 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
       : api === "openai-responses"
         ? await import("@earendil-works/pi-ai/api/openai-responses")
         : await import("@earendil-works/pi-ai/api/openai-completions");
-  return createPiChatModel(descriptor, async (options) => {
-    options.signal?.throwIfAborted();
-    return withModelCredentials(model, async (requestModel) => {
+  return createPiChatModel(
+    descriptor,
+    async (options) => {
       options.signal?.throwIfAborted();
-      const redactionValues = [requestModel.apiKey ?? ""];
-      return {
-        redactionValues,
-        stream: implementation.stream,
-        options: {
-          ...defaults,
-          apiKey: defaults.apiKey ?? requestModel.apiKey ?? "keyless-endpoint",
-          fetch: createProviderFetch(requestModel, redactionValues),
-          headers: {
-            ...headers,
-            ...(anthropic ? { "x-api-key": requestModel.apiKey || "" } : {}),
+      return withModelCredentials(model, async (requestModel) => {
+        options.signal?.throwIfAborted();
+        const redactionValues = [requestModel.apiKey ?? ""];
+        return {
+          redactionValues,
+          observesDispatch: true,
+          stream: implementation.stream,
+          options: {
+            ...defaults,
+            apiKey: defaults.apiKey ?? requestModel.apiKey ?? "keyless-endpoint",
+            fetch: createProviderFetch(requestModel, redactionValues, options.onProviderDispatch),
+            headers: {
+              ...headers,
+              ...(anthropic ? { "x-api-key": requestModel.apiKey || "" } : {}),
+            },
           },
-        },
-      };
-    });
-  });
+        };
+      });
+    },
+    model.configuredModelId,
+    model.providerDisplayName
+  );
 }

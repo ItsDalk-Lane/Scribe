@@ -17,6 +17,43 @@ jest.mock("@/settings/model", () => ({
 }));
 
 describe("AgentChatUIState", () => {
+  describe("getMessageUsageMetrics()", () => {
+    it("forwards each child reply slice to the recorded message projection https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const metrics = { totalTokens: 20, partial: false, sources: [] };
+      const session = {
+        getMessageUsageMetrics: jest.fn(() => metrics),
+        subscribe: jest.fn(() => () => {}),
+      } as unknown as AgentSession;
+      const state = new AgentChatUIState(session);
+      const message = {
+        id: "slice",
+        sender: "ai",
+        message: "Second",
+        timestamp: null,
+        isVisible: true,
+      };
+      expect(state.getMessageUsageMetrics(message, true)).toBe(metrics);
+      expect(session.getMessageUsageMetrics).toHaveBeenCalledWith(message, true);
+    });
+  });
+
+  describe("getSubagentUsage()", () => {
+    it("forwards the stable child cumulative projection without rebuilding it https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const usage = {
+        usedTokens: 0,
+        updatedAt: 1,
+        metrics: { totalTokens: 8, partial: true, sources: [] },
+      };
+      const session = {
+        getSubagentUsage: jest.fn(() => usage),
+        subscribe: jest.fn(() => () => {}),
+      } as unknown as AgentSession;
+      const state = new AgentChatUIState(session);
+      expect(state.getSubagentUsage("child")).toBe(usage);
+      expect(session.getSubagentUsage).toHaveBeenCalledWith("child");
+    });
+  });
+
   function planReview(
     feedbackDelivery?: "permission" | "next_turn",
     { permissionArrived = true }: { permissionArrived?: boolean } = {}

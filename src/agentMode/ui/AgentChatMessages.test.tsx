@@ -66,12 +66,16 @@ jest.mock("@/components/chat-components/ChatSingleMessage", () => ({
 
 jest.mock("@/agentMode/ui/AgentTrailView", () => ({
   AgentTrail: ({
+    isStreaming,
+    turnStartedAtMs,
     timestamp,
     parts,
     errorText,
     fileChanges,
     onOpenFileChange,
   }: {
+    isStreaming?: boolean;
+    turnStartedAtMs?: number;
     timestamp?: string;
     parts: unknown[];
     errorText?: string;
@@ -80,7 +84,11 @@ jest.mock("@/agentMode/ui/AgentTrailView", () => ({
   }) => {
     mockTrailRender(parts);
     return (
-      <div data-testid="agent-trail-timestamp">
+      <div
+        data-testid="agent-trail-timestamp"
+        data-streaming={isStreaming}
+        data-start={turnStartedAtMs}
+      >
         {timestamp}
         {errorText ? <span data-testid="agent-trail-error">{errorText}</span> : null}
         {fileChanges?.map((change) => (
@@ -324,7 +332,7 @@ describe("AgentChatMessages", () => {
         false
       );
 
-      expect(screen.getByText("2m 18s")).toBeTruthy();
+      expect(screen.getByText("2m 18.0s")).toBeTruthy();
       expect(screen.getByTestId("single-message-footer").textContent).toBe("");
       expect(container.querySelector(".scribe-spinner")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
@@ -333,7 +341,7 @@ describe("AgentChatMessages", () => {
     it("retains the prior duration when the next turn starts", () => {
       const completed = assistantMessage("answer-1", 1_000, { turnDurationMs: 51_000 });
       const { container, rerender, props } = renderMessages([completed], false);
-      expect(screen.getByText("51s")).toBeTruthy();
+      expect(screen.getByText("51.0s")).toBeTruthy();
 
       rerender(
         <AgentChatMessages
@@ -343,12 +351,12 @@ describe("AgentChatMessages", () => {
         />
       );
 
-      expect(screen.getByText("51s")).toBeTruthy();
-      expect(screen.getByText("2s")).toBeTruthy();
+      expect(screen.getByText("51.0s")).toBeTruthy();
+      expect(screen.getByText("2.0s")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner")).toBeTruthy();
 
       act(() => jest.advanceTimersByTime(1_000));
-      expect(screen.getByText("3s")).toBeTruthy();
+      expect(screen.getByText("3.0s")).toBeTruthy();
     });
 
     it("retains each recorded duration as three consecutive replies finish", () => {
@@ -358,9 +366,9 @@ describe("AgentChatMessages", () => {
       const { rerender, props } = renderMessages([first], false);
       rerender(<AgentChatMessages {...props} messages={[first, second]} />);
       rerender(<AgentChatMessages {...props} messages={[first, second, third]} />);
-      expect(screen.getByText("8s")).toBeTruthy();
-      expect(screen.getByText("18s")).toBeTruthy();
-      expect(screen.getByText("12s")).toBeTruthy();
+      expect(screen.getByText("8.0s")).toBeTruthy();
+      expect(screen.getByText("18.0s")).toBeTruthy();
+      expect(screen.getByText("12.0s")).toBeTruthy();
     });
 
     it("shows a finished reply's duration without a live timer while the agent keeps working on its subagents", () => {
@@ -375,7 +383,7 @@ describe("AgentChatMessages", () => {
         true
       );
 
-      expect(screen.getByText("12s")).toBeTruthy();
+      expect(screen.getByText("12.0s")).toBeTruthy();
       expect(screen.queryByText("Agent is working")).toBeNull();
     });
 
@@ -392,6 +400,19 @@ describe("AgentChatMessages", () => {
       );
 
       expect(screen.getByTestId("agent-trail-timestamp").textContent).toBe(timestamp);
+    });
+
+    it("uses the delivered child round's actual start for a live steering slice without replacing its recorded timestamp https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const message = assistantMessage("subagent-run:wake:reply:2", 1000, {
+        parts: [{ kind: "thought", text: "正在核对追加要求", startedAtMs: 5200, segmentSeq: 20 }],
+        turnMetrics: { partial: true, sources: [], roundStartedAtMs: 5000 },
+      });
+      renderMessages([message], true);
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-streaming")).toBe(
+        "true"
+      );
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-start")).toBe("5000");
+      expect(message.timestamp?.epoch).toBe(1000);
     });
 
     it("separates an existing failed reply's body from its error without altering the message", () => {
@@ -446,6 +467,21 @@ describe("AgentChatMessages", () => {
       expect(screen.getAllByTestId("agent-trail-error").map((el) => el.textContent)).toEqual([
         "**Error:** stream error",
       ]);
+    });
+
+    it("keeps the main reply streaming when a child collaboration notice arrives https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const live = assistantMessage("answer-live", 3000, {
+        message: "",
+        parts: [{ kind: "thought", text: "Working on the final response" }],
+      });
+      const notice = assistantMessage("child-notice", 4000, {
+        synthetic: true,
+        message: "Child task finished",
+      });
+      renderMessages([live, notice], true);
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-streaming")).toBe(
+        "true"
+      );
     });
 
     it("keeps completed plain and structured turns mounted without rendering them again while the live turn streams", () => {

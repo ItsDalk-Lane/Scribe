@@ -31,12 +31,16 @@ export const SkillCommand: StoryObj<{ name: string; kind: string }> = {
 export const BuiltinCommand: StoryObj<{ name: string; kind: string }> = {
   args: { name: "compact", kind: "builtin" },
 };
+export const SubagentCommand: StoryObj<{ name: string; kind: string }> = {
+  args: { name: "research", kind: "subagent" },
+};
 export const InComposer: StoryObj<{ name: string; kind: string }> = {
   render: () => (
     <div className="tw-space-y-2">
       <CommandChipLine kind="skill" name="review-notes" trailing=" 检查这份笔记的论证结构" />
       <CommandChipLine kind="skill" name="skill-creator" trailing=" 帮我把这个流程做成技能" />
       <CommandChipLine kind="builtin" name="compact" trailing="" />
+      <CommandChipLine kind="subagent" name="research" trailing=" 收集关于这个主题的资料" />
     </div>
   ),
 };

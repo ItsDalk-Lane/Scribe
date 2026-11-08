@@ -14,6 +14,7 @@ import { FormattedDateTime, MessageContext } from "@/types/message";
 import { formatDateTime } from "@/utils";
 
 interface StoredAgentMessage {
+  turnMetrics?: AgentChatMessage["turnMetrics"];
   taskGenerationId?: string;
   seq?: number;
   synthetic?: boolean;
@@ -62,7 +63,12 @@ function partsEqual(a: AgentMessagePart, b: AgentMessagePart): boolean {
       return a.text === b.text;
     case "thought":
       if (b.kind !== "thought") return false;
-      return a.text === b.text && a.startedAtMs === b.startedAtMs && a.durationMs === b.durationMs;
+      return (
+        a.text === b.text &&
+        a.startedAtMs === b.startedAtMs &&
+        a.endedAtMs === b.endedAtMs &&
+        a.durationMs === b.durationMs
+      );
     case "plan":
       if (b.kind !== "plan") return false;
       return planEntriesEqual(a.entries, b.entries);
@@ -157,6 +163,12 @@ function toolOutputsEqual(
     if (output.type === "text" && other.type === "text") {
       return textFingerprint(output.text) === textFingerprint(other.text);
     }
+    if (output.type === "content" && other.type === "content") {
+      return (
+        output.content === other.content ||
+        JSON.stringify(output.content) === JSON.stringify(other.content)
+      );
+    }
     return false;
   });
 }
@@ -223,6 +235,7 @@ export class AgentMessageStore {
       !last ||
       last.kind !== "thought" ||
       last.startedAtMs === undefined ||
+      last.endedAtMs !== undefined ||
       (last.durationMs !== undefined && msg.turnStopReason === undefined)
     ) {
       return false;
@@ -231,6 +244,27 @@ export class AgentMessageStore {
     if (last.durationMs === durationMs) return false;
     msg.parts = msg.parts!.map((part) => (part === last ? { ...last, durationMs } : part));
     return true;
+  }
+
+  finishAgentThought(id: string, segmentSeq: number, contentIndex?: number): boolean {
+    const message = this.messages.find((item) => item.id === id);
+    if (!message?.parts) return false;
+    let changed = false;
+    message.parts = message.parts.map((part) => {
+      if (
+        part.kind !== "thought" ||
+        part.segmentSeq !== segmentSeq ||
+        (contentIndex !== undefined && part.contentIndex !== contentIndex) ||
+        part.startedAtMs === undefined ||
+        part.endedAtMs !== undefined
+      )
+        return part;
+      changed = true;
+      const durationMs = part.durationMs ?? Math.max(0, this.currentTime() - part.startedAtMs);
+      return { ...part, durationMs, endedAtMs: part.startedAtMs + durationMs };
+    });
+    if (changed) this.touch(message);
+    return changed;
   }
 
   addMessage(message: NewAgentChatMessage): string {
@@ -256,6 +290,7 @@ export class AgentMessageStore {
       turnStopReason: message.turnStopReason,
       taskGenerationId: message.taskGenerationId,
       turnDurationMs: message.turnDurationMs,
+      turnMetrics: message.turnMetrics,
       version: 0,
     });
     this.lastDisplay = null;
@@ -389,7 +424,9 @@ export class AgentMessageStore {
           ? {
               ...last,
               text: last.text + text,
-              ...(msg.turnStopReason !== undefined && last.startedAtMs !== undefined
+              ...(msg.turnStopReason !== undefined &&
+              last.startedAtMs !== undefined &&
+              last.endedAtMs === undefined
                 ? { durationMs: Math.max(0, this.currentTime() - last.startedAtMs) }
                 : {}),
             }
@@ -532,6 +569,13 @@ export class AgentMessageStore {
     return display;
   }
 
+  setTurnMetrics(id: string, metrics: AgentChatMessage["turnMetrics"]): void {
+    const message = this.messages.find((entry) => entry.id === id);
+    if (!message || JSON.stringify(message.turnMetrics) === JSON.stringify(metrics)) return;
+    message.turnMetrics = metrics;
+    this.touch(message);
+  }
+
   getMessage(id: string): AgentChatMessage | undefined {
     const msg = this.messages.find((m) => m.id === id);
     return msg ? this.adaptCached(msg) : undefined;
@@ -550,6 +594,7 @@ export class AgentMessageStore {
     this.displayFacts = [];
     for (const msg of messages) {
       this.messages.push({
+        turnMetrics: msg.turnMetrics,
         seq: msg.seq,
         synthetic: msg.synthetic,
         id: msg.id || this.generateId(),
@@ -575,6 +620,7 @@ export class AgentMessageStore {
 
   private toAgentChatMessage(m: StoredAgentMessage): AgentChatMessage {
     return {
+      ...(m.turnMetrics ? { turnMetrics: m.turnMetrics } : {}),
       ...(m.seq === undefined ? {} : { seq: m.seq }),
       ...(m.synthetic ? { synthetic: true } : {}),
       id: m.id,
@@ -655,6 +701,7 @@ export class AgentMessageStore {
         text: existing.text + text,
         ...(existing.kind === "thought" &&
         message.turnStopReason !== undefined &&
+        existing.endedAtMs === undefined &&
         existing.startedAtMs !== undefined
           ? { durationMs: Math.max(0, this.currentTime() - existing.startedAtMs) }
           : {}),

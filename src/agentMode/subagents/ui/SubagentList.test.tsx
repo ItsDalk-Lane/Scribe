@@ -10,6 +10,13 @@ const item = {
 };
 
 describe("SubagentList", () => {
+  beforeAll(() => {
+    (window as unknown as { activeDocument: Document }).activeDocument = document;
+    (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = MouseEvent;
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
+    Element.prototype.scrollIntoView = () => {};
+  });
   describe("SubagentList()", () => {
     it("lists independently enabled subagents and routes edits, deletion and toggles to the selected item", () => {
       const edit = jest.fn(),
@@ -29,8 +36,11 @@ describe("SubagentList", () => {
       expect(
         screen.getByRole("switch", { name: "Enable Writer" }).getAttribute("aria-checked")
       ).toBe("false");
-      fireEvent.click(screen.getByRole("button", { name: "Edit Reviewer" }));
-      fireEvent.click(screen.getByRole("button", { name: "Delete Reviewer" }));
+      const reviewerMenu = screen.getByRole("button", { name: "More actions for Reviewer" });
+      fireEvent.pointerDown(reviewerMenu, { button: 0, ctrlKey: false });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+      fireEvent.pointerDown(reviewerMenu, { button: 0, ctrlKey: false });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
       fireEvent.click(screen.getByRole("switch", { name: "Enable Reviewer" }));
       expect(edit).toHaveBeenCalledWith(item);
       expect(remove).toHaveBeenCalledWith(item);
@@ -51,7 +61,8 @@ describe("SubagentList", () => {
         />
       );
       expect(
-        screen.getByRole<HTMLButtonElement>("button", { name: "Edit Reviewer" }).disabled
+        screen.getByRole<HTMLButtonElement>("button", { name: "More actions for Reviewer" })
+          .disabled
       ).toBe(true);
       expect(
         screen.getByRole("switch", { name: "Enable Reviewer" }).getAttribute("aria-disabled")

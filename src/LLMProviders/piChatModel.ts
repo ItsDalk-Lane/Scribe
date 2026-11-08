@@ -24,6 +24,11 @@ import {
 import { RequestRedactor } from "@/LLMProviders/requestRedaction";
 import { isRecord } from "@/utils/obsidianInternals";
 import { v4 as uuidv4 } from "uuid";
+import {
+  reportedTokenUsage,
+  type ModelCallMetrics,
+  type TokenUsageMetrics,
+} from "@/LLMProviders/modelUsageMetrics";
 
 export interface ChatStreamOptions {
   signal?: AbortSignal;
@@ -36,15 +41,20 @@ export interface AgentStreamOptions extends SimpleStreamOptions {
   onFailure?: (failure: ProviderRequestFailure) => void;
   beforeRequest?: (requestId: string) => void | Promise<void>;
   onRequestUsage?: (requestId: string, usage: AssistantMessage["usage"]) => void | Promise<void>;
+  onCallMetrics?: (metrics: ModelCallMetrics) => void | Promise<void>;
+  onProviderDispatch?: () => void;
 }
 
 export interface ProviderChatModel {
+  configuredModelId?: string;
+  providerDisplayName?: string;
   model: Model<Api>;
   stream(context: Context, options?: ChatStreamOptions): AsyncIterable<AssistantMessageEvent>;
   agentStream(context: Context, options?: AgentStreamOptions): AssistantMessageEventStream;
 }
 
 export interface PiRequest {
+  observesDispatch?: boolean;
   stream: ProviderStreams["stream"];
   options: StreamOptions;
   redactionValues?: string[];
@@ -103,13 +113,31 @@ function visibleText(value: unknown): string {
 
 export function createPiChatModel(
   model: Model<Api>,
-  resolveRequest: (options: SimpleStreamOptions) => Promise<PiRequest>
+  resolveRequest: (options: AgentStreamOptions) => Promise<PiRequest>,
+  configuredModelId?: string,
+  providerDisplayName?: string
 ): ProviderChatModel {
   async function* attempt(
     context: Context,
     options: AgentStreamOptions,
-    setRetryBudget: (budget: number) => void
+    setRetryBudget: (budget: number) => void,
+    metrics: ModelCallMetrics,
+    markPrepared: () => void,
+    attemptId: string
   ): AsyncGenerator<AssistantMessageEvent> {
+    const requests = new Map<
+      string,
+      {
+        usage: TokenUsageMetrics;
+        first?: number;
+        ended?: number;
+        thought?: number;
+        thinkingDurationMs?: number;
+      }
+    >();
+    let terminalUsage: AssistantMessage["usage"] | undefined;
+    let recordDispatch: (() => void) | undefined;
+    let dispatchWrite: Promise<void> | undefined;
     let errorSecrets: string[] = [];
     let redactor = new RequestRedactor(errorSecrets);
     let failureStatus: number | undefined;
@@ -125,7 +153,11 @@ export function createPiChatModel(
       let request: PiRequest;
       try {
         request = await raceWithAbortSignal(
-          resolveRequest({ ...options, signal: controller.signal }),
+          resolveRequest({
+            ...options,
+            signal: controller.signal,
+            onProviderDispatch: () => recordDispatch?.(),
+          }),
           controller.signal
         );
       } catch (error) {
@@ -152,7 +184,31 @@ export function createPiChatModel(
           await options.beforeRequest?.(nextRequestId);
           controller.signal.throwIfAborted();
           requestId = nextRequestId;
-          const response = await raceWithAbortSignal(transport(input, init), controller.signal);
+          const observation: {
+            usage: TokenUsageMetrics;
+            first?: number;
+            ended?: number;
+            thought?: number;
+            thinkingDurationMs?: number;
+          } = { usage: {} };
+          markPrepared();
+          await options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] });
+          controller.signal.throwIfAborted();
+          recordDispatch = () => {
+            if (requests.has(nextRequestId)) return;
+            requests.set(nextRequestId, observation);
+            metrics.requestIds.push(nextRequestId);
+            metrics.requestAttempts = { ...metrics.requestAttempts, [nextRequestId]: attemptId };
+            metrics.startedAt ??= Date.now();
+            dispatchWrite = Promise.resolve(
+              options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] })
+            );
+            void dispatchWrite.catch(() => {});
+          };
+          const pending = transport(input, init);
+          if (!request.observesDispatch) recordDispatch();
+          const response = await raceWithAbortSignal(pending, controller.signal);
+          await dispatchWrite;
           failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
           return await observeProviderResponse(
@@ -160,7 +216,11 @@ export function createPiChatModel(
             (failure) => {
               capturedFailure = failure;
             },
-            controller.signal
+            controller.signal,
+            (payload) => Object.assign(observation.usage, reportedTokenUsage(payload)),
+            () => {
+              observation.ended = performance.now();
+            }
           );
         } catch (error) {
           const data = error as { status?: number; statusCode?: number } | null;
@@ -294,8 +354,42 @@ export function createPiChatModel(
           const next = await raceWithAbortSignal(iterator.next(), controller.signal);
           if (next.done) break;
           let event = next.value;
+          if (
+            (event.type === "thinking_end" ||
+              event.type === "text_start" ||
+              event.type === "toolcall_start") &&
+            requestId
+          ) {
+            const observation = requests.get(requestId);
+            if (observation?.thought !== undefined) {
+              observation.thinkingDurationMs =
+                (observation.thinkingDurationMs ?? 0) +
+                Math.max(0, performance.now() - observation.thought);
+              observation.thought = undefined;
+            }
+          }
+          if (
+            (event.type === "text_delta" || event.type === "thinking_delta") &&
+            event.delta.length > 0 &&
+            requestId
+          ) {
+            const now = performance.now();
+            const observation = requests.get(requestId);
+            if (observation) {
+              observation.first ??= now;
+              metrics.firstTokenAt ??= Date.now();
+              if (event.type === "thinking_delta") observation.thought ??= now;
+              // 部分服务商在正文结束后才发 thinking_end；正文首增量已证明此前思考结束。https://github.com/ItsDalk-Lane/Scribe/issues/52
+              else if (observation.thought !== undefined) {
+                observation.thinkingDurationMs =
+                  (observation.thinkingDurationMs ?? 0) + Math.max(0, now - observation.thought);
+                observation.thought = undefined;
+              }
+            }
+          }
           if ((event.type === "done" || event.type === "error") && requestId) {
             const message = event.type === "done" ? event.message : event.error;
+            terminalUsage = message.usage;
             await options.onRequestUsage?.(requestId, message.usage);
           }
           if (event.type === "error") {
@@ -406,6 +500,63 @@ export function createPiChatModel(
     } finally {
       options.signal?.removeEventListener("abort", abort);
       controller.abort();
+      await dispatchWrite;
+      const observed = [...requests.values()];
+      const reported = Object.assign(
+        {},
+        ...observed.map((entry) => entry.usage)
+      ) as TokenUsageMetrics;
+      // 协议续请求可能重复返回累计用量，只有本次 SDK 终态汇总可以入账一次。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      const normalized: TokenUsageMetrics = terminalUsage
+        ? {
+            inputTokens: terminalUsage.input + terminalUsage.cacheRead + terminalUsage.cacheWrite,
+            outputTokens: terminalUsage.output,
+            totalTokens: terminalUsage.totalTokens,
+            cacheReadTokens: terminalUsage.cacheRead,
+            cacheWriteTokens: terminalUsage.cacheWrite,
+          }
+        : {};
+      for (const key of [
+        "inputTokens",
+        "outputTokens",
+        "totalTokens",
+        "cacheReadTokens",
+        "cacheWriteTokens",
+      ] as const) {
+        if (reported[key] !== undefined && normalized[key] !== undefined)
+          metrics.usage[key] = (metrics.usage[key] ?? 0) + normalized[key];
+      }
+      if (
+        observed.length &&
+        (!terminalUsage ||
+          reported.totalTokens === undefined ||
+          reported.cacheReadTokens === undefined)
+      )
+        metrics.usagePartial = true;
+      const generating = observed.filter((entry) => entry.first !== undefined);
+      // 分子和生成区间来自同一完整调用；缺用量或中断的区间不能稀释另一调用的速度。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      if (
+        terminalUsage &&
+        reported.outputTokens !== undefined &&
+        generating.length &&
+        generating.every((entry) => entry.ended !== undefined)
+      ) {
+        const duration = generating.reduce(
+          (sum, entry) => sum + Math.max(0, entry.ended! - entry.first!),
+          0
+        );
+        if (duration > 0) {
+          metrics.generationMs = (metrics.generationMs ?? 0) + duration;
+          metrics.generationOutputTokens =
+            (metrics.generationOutputTokens ?? 0) + terminalUsage.output;
+        }
+      }
+      const thoughts = observed.flatMap((entry) =>
+        entry.thinkingDurationMs === undefined ? [] : [entry.thinkingDurationMs]
+      );
+      if (thoughts.length)
+        metrics.thinkingDurationMs =
+          (metrics.thinkingDurationMs ?? 0) + thoughts.reduce((sum, duration) => sum + duration, 0);
     }
   }
   async function* run(
@@ -414,46 +565,83 @@ export function createPiChatModel(
   ): AsyncGenerator<AssistantMessageEvent> {
     let retryBudget = options.maxRetries ?? 3;
     let producedContent = false;
-    for (let retries = 0; ; retries++) {
-      try {
-        for await (const event of attempt(context, options, (budget) => {
-          retryBudget = budget;
-        })) {
+    let metricsPublished = false;
+    let prepared = false;
+    const metrics: ModelCallMetrics = {
+      id: uuidv4(),
+      requestIds: [],
+      status: "running",
+      usage: {},
+    };
+    try {
+      for (let retries = 0; ; retries++) {
+        try {
+          let terminalEvent: AssistantMessageEvent | undefined;
+          for await (const event of attempt(
+            context,
+            options,
+            (budget) => {
+              retryBudget = budget;
+            },
+            metrics,
+            () => {
+              prepared = true;
+            },
+            `${metrics.id}:attempt:${retries + 1}`
+          )) {
+            if (
+              event.type === "toolcall_start" ||
+              event.type === "toolcall_delta" ||
+              (event.type === "text_delta" && event.delta.length > 0) ||
+              (event.type === "thinking_delta" && event.delta.length > 0)
+            )
+              producedContent = true;
+            if (event.type === "done") terminalEvent = event;
+            else yield event;
+          }
+          metrics.status = "completed";
+          metrics.endedAt = Date.now();
+          if (prepared)
+            await options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] });
+          metricsPublished = true;
+          if (terminalEvent) yield terminalEvent;
+          return;
+        } catch (error) {
+          const failure = classifyProviderFailure({ cause: error });
+          const delay = failure.retryAfterMs ?? Math.min(500 * 2 ** retries, 8000);
+          const maxDelay = options.maxRetryDelayMs ?? 60000;
           if (
-            event.type === "toolcall_start" ||
-            event.type === "toolcall_delta" ||
-            (event.type === "text_delta" && event.delta.length > 0) ||
-            (event.type === "thinking_delta" && event.delta.length > 0)
+            failure.kind === "transient" &&
+            !producedContent &&
+            retries < retryBudget &&
+            (maxDelay <= 0 || delay <= maxDelay)
+          ) {
+            await waitForProviderRetry(delay, options.signal);
+            continue;
+          }
+          if (
+            !(error instanceof PiStreamError) ||
+            (error.assistantMessage?.rawStopReason !== "refusal" &&
+              error.assistantMessage?.rawStopReason !== "content_filter")
           )
-            producedContent = true;
-          yield event;
+            options.onFailure?.(failure);
+          throw error;
         }
-        return;
-      } catch (error) {
-        const failure = classifyProviderFailure({ cause: error });
-        const delay = failure.retryAfterMs ?? Math.min(500 * 2 ** retries, 8000);
-        const maxDelay = options.maxRetryDelayMs ?? 60000;
-        if (
-          failure.kind === "transient" &&
-          !producedContent &&
-          retries < retryBudget &&
-          (maxDelay <= 0 || delay <= maxDelay)
-        ) {
-          await waitForProviderRetry(delay, options.signal);
-          continue;
-        }
-        if (
-          !(error instanceof PiStreamError) ||
-          (error.assistantMessage?.rawStopReason !== "refusal" &&
-            error.assistantMessage?.rawStopReason !== "content_filter")
-        )
-          options.onFailure?.(failure);
-        throw error;
+      }
+    } catch (error) {
+      metrics.status = options.signal?.aborted ? "cancelled" : "failed";
+      throw error;
+    } finally {
+      if (prepared && !metricsPublished) {
+        metrics.endedAt = Date.now();
+        await options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] });
       }
     }
   }
   return {
     model,
+    configuredModelId,
+    providerDisplayName,
     stream: run,
     agentStream(context, options = {}) {
       const events = createAssistantMessageEventStream();

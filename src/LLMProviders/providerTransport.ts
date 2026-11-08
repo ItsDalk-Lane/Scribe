@@ -175,7 +175,11 @@ function watsonxRequest(url: URL, body: BodyInit | null | undefined, model: Cust
   return JSON.stringify(payload);
 }
 
-export function createProviderFetch(model: CustomModel, redactionValues?: string[]): typeof fetch {
+export function createProviderFetch(
+  model: CustomModel,
+  redactionValues?: string[],
+  onDispatch?: () => void
+): typeof fetch {
   const apiKey = model.apiKey?.trim() ?? "";
   const catalogId = model.providerCatalogId;
   const vertex =
@@ -370,9 +374,12 @@ export function createProviderFetch(model: CustomModel, redactionValues?: string
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     try {
       // 桌面浏览器请求会被部分模型服务的跨域限制拦截，缓冲连接又会丢失流式显示。https://github.com/ItsDalk-Lane/Scribe/issues/51
-      return await (isDesktopRuntime()
-        ? loadDesktopStreamingFetch()(url.toString(), options)
-        : safeFetchNoThrow(url.toString(), options));
+      if (isDesktopRuntime())
+        return await loadDesktopStreamingFetch(onDispatch)(url.toString(), options);
+      const response = safeFetchNoThrow(url.toString(), options);
+      // 凭据解析和保存准备不是模型调用；只在实际传输启动后登记请求步数。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      onDispatch?.();
+      return await response;
     } catch (error) {
       // 仅真实网络调用失败可重试；地址和请求配置错误不能反复发送。https://github.com/ItsDalk-Lane/Scribe/issues/31
       if (error instanceof TypeError)

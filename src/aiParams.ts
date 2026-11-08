@@ -34,6 +34,7 @@ export interface ModelConfig {
 
 export interface CustomModel {
   configuredModelId?: string;
+  providerDisplayName?: string;
   credentialRef?: string;
   providerCatalogId?: string;
   providerNpm?: string;

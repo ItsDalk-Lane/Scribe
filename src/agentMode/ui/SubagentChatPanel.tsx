@@ -4,28 +4,27 @@ import { buildAgentModelPicker } from "@/agentMode/ui/agentModelPickerHelpers";
 import type { AgentTask } from "@/agentMode/session/AgentSession";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
-import { SubagentChatBackend } from "@/agentMode/session/SubagentChatBackend";
+import {
+  SubagentChatBackend,
+  SUBAGENT_RUN_MESSAGE_PREFIX,
+} from "@/agentMode/session/SubagentChatBackend";
 import { SUBAGENT_CHAT_DRAFT_PREFIX } from "@/agentMode/session/AgentInputDraftStore";
 import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
 import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
+import AgentContextMeter from "@/agentMode/ui/AgentContextMeter";
+import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndicator";
+import { USER_SENDER } from "@/constants";
 import { AgentTasksProvider } from "@/agentMode/ui/AgentTasksContext";
 import { QueuedMessageList } from "@/agentMode/ui/QueuedMessageList";
 import { subagentRunStatusLabel } from "@/agentMode/ui/subagentDisplay";
 import { useAgentChatRuntimeState } from "@/agentMode/ui/hooks/useAgentChatRuntimeState";
 import { useAgentInputDrafts } from "@/agentMode/ui/hooks/useAgentInputDrafts";
 import { useSessionBackendDescriptor } from "@/agentMode/ui/useBackendDescriptor";
-import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ChatInputProvider } from "@/context/ChatInputContext";
 import { logError } from "@/logger";
 import { useSettingsValue } from "@/settings/model";
-import { ArrowLeft, MoreHorizontal } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { TFile, type App } from "obsidian";
 import type ScribePlugin from "@/main";
 import React, { useMemo, useState } from "react";
@@ -87,6 +86,22 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
   const recoveryBlocked = !!snapshot?.recoveryBlocked;
   const blocked = !snapshot || archived || recoveryBlocked;
   const isLoading = draft.loading || runtime.isTurnInFlight;
+  // 子输入接收后即返回，但模型仍可持续输出；消息区须跟随真实子执行，不能借用旧回复的身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  const latestAssistant = runtime.messages.findLast(
+    (message) => message.sender !== USER_SENDER && !message.synthetic
+  );
+  const hasCurrentReply =
+    activeRun !== null &&
+    latestAssistant?.id.startsWith(`${SUBAGENT_RUN_MESSAGE_PREFIX}${activeRun.id}:`) &&
+    !latestAssistant.turnStopReason &&
+    ((latestAssistant.parts?.length ?? 0) > 0 || latestAssistant.message.length > 0);
+  const latestDeliveredInput = snapshot?.messages.findLast(
+    (message) =>
+      message.runId === activeRun?.id &&
+      message.direction === "to_child" &&
+      message.deliveredAt !== undefined
+  );
+  const pendingStartedAtMs = latestDeliveredInput?.deliveredAt ?? activeRun?.startedAt;
   const delivering = backend.getDeliveringPrompts();
   const held = backend.getHeldPrompts();
 
@@ -96,20 +111,6 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
       logError("[SubagentChatPanel] action failed", failure);
       setActionError(failure instanceof Error ? failure.message : String(failure));
     });
-  };
-
-  const confirmDelete = (): void => {
-    if (!snapshot) return;
-    new ConfirmModal(
-      app,
-      () => runAction(() => backend.remove()),
-      t(
-        "This deletes this child's saved context and run history after stopping its work. Messages already quoted in the parent chat remain. This cannot be undone."
-      ),
-      t("Delete child session"),
-      t("Confirm deletion"),
-      t("Cancel deletion")
-    ).open();
   };
 
   const statusLabel = archived
@@ -173,33 +174,6 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
         {modelLabel ? (
           <span className="tw-shrink-0 tw-text-xs tw-text-muted">{modelLabel}</span>
         ) : null}
-        {snapshot ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost2"
-                size="icon"
-                aria-label={t("Child session actions")}
-                className="tw-shrink-0"
-              >
-                <MoreHorizontal className="tw-size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {isReplyRunning ? (
-                <DropdownMenuItem onSelect={() => runAction(() => backend.stop())}>
-                  {t("Stop this child")}
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem onSelect={() => runAction(() => backend.setArchived(!archived))}>
-                {t(archived ? "Unarchive child session" : "Archive child session")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={confirmDelete}>
-                {t("Delete child session")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
       </div>
       {actionError ? (
         <div
@@ -248,9 +222,18 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
                 pendingToolPermissions={runtime.pendingToolPermissions}
                 pendingAskUserQuestions={runtime.pendingAskUserQuestions}
                 chatBackend={backend}
-                isLoading={isLoading}
+                isLoading={isLoading || (isReplyRunning && !!hasCurrentReply)}
               />
+              {/* 首片内容到达前只展示真实开始时间，不制造助手消息或把旧答案重新标为运行中。https://github.com/ItsDalk-Lane/Scribe/issues/52 */}
+              {isReplyRunning && !hasCurrentReply && pendingStartedAtMs !== undefined ? (
+                <div className="tw-shrink-0 tw-px-3 tw-py-2">
+                  <AgentTurnDurationIndicator status="running" startedAtMs={pendingStartedAtMs} />
+                </div>
+              ) : null}
               {queuedNode}
+              <div className="tw-flex tw-shrink-0 tw-justify-end tw-px-2">
+                <AgentContextMeter backend={backend} />
+              </div>
               <AgentChatInput
                 backend={backend}
                 plugin={plugin}

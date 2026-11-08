@@ -210,6 +210,105 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("prompt", () => {
+      it.each(["thinking_end", "text_start", "toolcall_start"] as const)(
+        "reports %s immediately while the response stream stays open for tool preparation https://github.com/ItsDalk-Lane/Scribe/issues/52",
+        async (boundary) => {
+          let now = 1000;
+          const clock = jest.spyOn(Date, "now").mockImplementation(() => now);
+          const source = createAssistantMessageEventStream();
+          const message = createAssistantMessage(model);
+          message.content = [{ type: "thinking", thinking: "Ready to search" }];
+          message.stopReason = "stop";
+          let streamReady!: () => void;
+          const ready = new Promise<void>((resolve) => {
+            streamReady = resolve;
+          });
+          let thoughtReady!: () => void;
+          const thought = new Promise<void>((resolve) => {
+            thoughtReady = resolve;
+          });
+          let endReady!: () => void;
+          const ended = new Promise<void>((resolve) => {
+            endReady = resolve;
+          });
+          const saved: unknown[] = [];
+          let sequence = 0;
+          const f = fixture(
+            () => {
+              streamReady();
+              return source;
+            },
+            [],
+            {
+              storage: {
+                load: async () => null,
+                list: async () => [],
+                save: async () => undefined,
+                append: async (_id, kind, payload, options) => {
+                  saved.push(payload);
+                  return {
+                    version: 2,
+                    seq: ++sequence,
+                    kind,
+                    payload,
+                    occurredAt: now,
+                    origin: options?.origin ?? "observed",
+                  };
+                },
+              },
+            }
+          );
+          try {
+            const id = await f.open();
+            f.proc.registerSessionHandler(id, (event) => {
+              f.events.push(event);
+              if (event.update.sessionUpdate === "agent_thought_chunk") thoughtReady();
+              if (event.update.sessionUpdate === "agent_thought_ended") endReady();
+            });
+            const sending = f.send(id);
+            await ready;
+            source.push({ type: "start", partial: message });
+            source.push({
+              type: "thinking_delta",
+              contentIndex: 0,
+              delta: "Ready to search",
+              partial: message,
+            });
+            await thought;
+            now = 3000;
+            source.push(
+              boundary === "thinking_end"
+                ? { type: boundary, contentIndex: 0, content: "Ready to search", partial: message }
+                : { type: boundary, contentIndex: 1, partial: message }
+            );
+            await ended;
+            const ending = f.events.find(
+              (event) => event.update.sessionUpdate === "agent_thought_ended"
+            );
+            expect(ending).toMatchObject({
+              occurredAt: 3000,
+              update: {
+                sessionUpdate: "agent_thought_ended",
+                segmentSeq: expect.any(Number),
+                ...(boundary === "thinking_end" ? { contentIndex: 0 } : {}),
+              },
+            });
+            now = 9000;
+            expect(
+              f.events.some((event) => event.update.sessionUpdate === "agent_segment_finalized")
+            ).toBe(false);
+            source.push({ type: "done", reason: "stop", message });
+            await sending;
+            expect(saved).toContainEqual(
+              expect.objectContaining({ update: ending?.update, occurredAt: 3000 })
+            );
+          } finally {
+            source.end(message);
+            clock.mockRestore();
+          }
+        }
+      );
+
       it.each([
         ["not selected", "ordinary request", true, "只能转交"],
         ["disabled after selection", "/manual-review check", false, "已停用或不可用"],
@@ -1279,6 +1378,64 @@ describe("NativeBackendProcess", () => {
           "Reviewer: Inspect notes",
           "Generic child",
         ]);
+        await f.proc.shutdown();
+      });
+
+      it("delegates a slash subagent command straight to the agent without prompting the main model (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            return response("Child result");
+          },
+          [],
+          {
+            getSubagents: () => [
+              {
+                id: "research",
+                name: "Researcher",
+                description: "Research",
+                instructions: "Research thoroughly",
+                enabled: true,
+              },
+            ],
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "slash-1", "/Researcher collect sources about Obsidian");
+        const children = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(children).toHaveLength(1);
+        expect(children[0]).toMatchObject({ name: "Researcher: collect sources about Obsidian" });
+        expect(f.records.get(id)?.subagents?.[0]).toMatchObject({
+          instructions: "Research thoroughly",
+        });
+        expect(f.records.get(id)?.subagents?.[0]?.snapshot.messages[0]).toMatchObject({
+          text: "collect sources about Obsidian",
+        });
+        expect(
+          contexts.some((context) => JSON.stringify(context.messages).includes("/Researcher"))
+        ).toBe(false);
+        await f.proc.shutdown();
+      });
+
+      it("falls back to a normal model prompt for a bare or unknown subagent command (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+        const request = jest.fn(() => response("Hello"));
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "research",
+              name: "Researcher",
+              description: "Research",
+              instructions: "Research thoroughly",
+              enabled: true,
+            },
+          ],
+        });
+        const id = await f.open();
+        await f.send(id, "bare", "/research");
+        await f.send(id, "unknown", "/unknown-agent do things");
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(await f.proc.listSubagentSessions({ sessionId: id })).toEqual([]);
         await f.proc.shutdown();
       });
 
@@ -2733,6 +2890,196 @@ describe("NativeBackendProcess", () => {
           status: "stopped",
           result: "Subagent stopped.",
         });
+        await f.proc.shutdown();
+      });
+    });
+
+    describe("sendSubagentMessage()", () => {
+      it("marks a delivered child round as failed when resource cleanup fails after a successful model reply https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const first = createAssistantMessageEventStream();
+        let requests = 0;
+        let failCleanup = true;
+        const contexts: NativeToolContext[] = [];
+        const f = fixture(
+          () => {
+            requests++;
+            if (requests === 1) {
+              started();
+              return first;
+            }
+            return response("Successful final text");
+          },
+          [],
+          {
+            createTools: (context) => {
+              contexts.push(context);
+              return {
+                tools: [],
+                shutdown: context.subagentId
+                  ? async () => {
+                      if (failCleanup) throw new Error("Cleanup failed");
+                    }
+                  : undefined,
+              };
+            },
+          }
+        );
+        const id = await f.open();
+        await contexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Child",
+          background: true,
+        });
+        await ready;
+        const [snapshot] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.startIndependentTask({ sessionId: id });
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: snapshot.id,
+          text: "Follow-up",
+          mode: "enqueue",
+          messageId: "user-round",
+        });
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [snapshot.id],
+          after: Math.max(...snapshot.messages.map((message) => message.sequence)),
+        });
+        const message = createAssistantMessage(model);
+        message.content = [{ type: "text", text: "First" }];
+        message.stopReason = "stop";
+        first.push({ type: "done", reason: "stop", message });
+        await completed;
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "turn_ended",
+            turnId: "user-round",
+            subagentId: snapshot.id,
+            stopReason: "request_error",
+          })
+        );
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].runs[0].status).toBe(
+          "failed"
+        );
+        failCleanup = false;
+        await f.proc.shutdown();
+      });
+      it("freezes in-flight child usage on its original round and moves only delivered user steering to a new round https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const first = createAssistantMessageEventStream();
+        let requests = 0;
+        const contexts: NativeToolContext[] = [];
+        const f = fixture(
+          (_model, _context, options) => {
+            requests++;
+            void options?.onCallMetrics?.({
+              id: `call-${requests}`,
+              requestIds: [`request-${requests}`],
+              status: "completed",
+              usage: { totalTokens: 7 },
+            });
+            if (requests === 1) {
+              started();
+              return first;
+            }
+            return requests === 2
+              ? response("", [{ id: "inspect", name: "inspect", arguments: {} }])
+              : response("Child final response");
+          },
+          [],
+          {
+            createTools: (context) => {
+              contexts.push(context);
+              return {
+                tools: [
+                  {
+                    name: "inspect",
+                    label: "Inspect",
+                    description: "Inspect fixture",
+                    parameters: { type: "object", properties: {} },
+                    execute: async (toolCallId) => {
+                      context.emit({
+                        sessionUpdate: "task_started",
+                        taskId: "child-command",
+                        toolCallId,
+                        kind: "command",
+                        description: "Child command",
+                      });
+                      context.emit({
+                        sessionUpdate: "task_ended",
+                        taskId: "child-command",
+                        status: "completed",
+                      });
+                      return { content: [{ type: "text", text: "Inspected" }], details: undefined };
+                    },
+                  },
+                ],
+              };
+            },
+          }
+        );
+        f.proc.setPermissionPrompter(async () => ({
+          outcome: { outcome: "selected", optionId: "allow_once" },
+        }));
+        const id = await f.open();
+        await contexts[0].executeSubagent!("delegate", {
+          prompt: "First child input",
+          description: "Child",
+          background: true,
+        });
+        await ready;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.startIndependentTask({ sessionId: id });
+        const accepted = await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "User steering",
+          mode: "enqueue",
+          messageId: "child-user-message",
+        });
+        expect(accepted.status).toBe("enqueued");
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: Math.max(...child.messages.map((message) => message.sequence)),
+        });
+        const message = createAssistantMessage(model);
+        message.content = [{ type: "text", text: "First child response" }];
+        message.stopReason = "stop";
+        first.push({ type: "done", reason: "stop", message });
+        await completed;
+        const observations = f.events.flatMap((event) =>
+          event.update.sessionUpdate === "model_call_metrics" ? [event.update.observation] : []
+        );
+        expect(observations).toHaveLength(3);
+        expect(observations[0].roundId).toBe(child.runs[0].roundId);
+        expect(observations[1].roundId).not.toBe(observations[0].roundId);
+        expect(observations[1].promptId).toBe("child-user-message");
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "turn_ended",
+            turnId: "child-user-message",
+            roundId: observations[1].roundId,
+            subagentId: child.id,
+          })
+        );
+        expect(observations[2].roundId).toBe(observations[1].roundId);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "task_started",
+            taskId: "child-command",
+            roundId: observations[1].roundId,
+            subagentId: child.id,
+          })
+        );
+        expect(requests).toBe(3);
         await f.proc.shutdown();
       });
     });

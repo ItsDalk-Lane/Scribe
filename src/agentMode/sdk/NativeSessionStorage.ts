@@ -236,6 +236,13 @@ function validEvent(value: unknown, sessionId: string): value is SessionEvent {
       return typeof update.name === "string" && isSubagentMessage(update.message);
     case "agent_segment_started":
       return true;
+    case "agent_thought_ended":
+      return (
+        Number.isSafeInteger(update.segmentSeq) &&
+        (update.segmentSeq as number) >= 0 &&
+        (update.contentIndex === undefined ||
+          (Number.isSafeInteger(update.contentIndex) && (update.contentIndex as number) >= 0))
+      );
     case "agent_segment_finalized":
       return (
         Number.isSafeInteger(update.segmentSeq) &&
@@ -350,6 +357,49 @@ function validEvent(value: unknown, sessionId: string): value is SessionEvent {
       return isRecord(update.state);
     case "usage_update":
       return isRecord(update.usage);
+    case "tool_execution_started":
+      return (
+        typeof update.roundId === "string" &&
+        typeof update.sourceId === "string" &&
+        typeof update.toolCallId === "string"
+      );
+    case "model_call_metrics": {
+      const observation = update.observation;
+      if (!isRecord(observation) || !isRecord(observation.usage)) return false;
+      const usage = observation.usage;
+      return (
+        typeof observation.id === "string" &&
+        typeof observation.roundId === "string" &&
+        Array.isArray(observation.requestIds) &&
+        observation.requestIds.every((id: unknown) => typeof id === "string") &&
+        ["sourceId", "sourceName", "modelId", "modelName"].every(
+          (key) => typeof observation[key] === "string"
+        ) &&
+        ["main", "subagent"].includes(observation.kind as string) &&
+        ["chat", "compaction"].includes(observation.purpose as string) &&
+        ["running", "completed", "failed", "cancelled"].includes(observation.status as string) &&
+        [
+          "startedAt",
+          "firstTokenAt",
+          "endedAt",
+          "generationMs",
+          "generationOutputTokens",
+          "thinkingDurationMs",
+          "segmentSeq",
+        ].every(
+          (key) =>
+            observation[key] === undefined ||
+            (typeof observation[key] === "number" &&
+              Number.isFinite(observation[key]) &&
+              observation[key] >= 0)
+        ) &&
+        ["inputTokens", "outputTokens", "totalTokens", "cacheReadTokens", "cacheWriteTokens"].every(
+          (key) =>
+            usage[key] === undefined ||
+            (typeof usage[key] === "number" && Number.isFinite(usage[key]) && usage[key] >= 0)
+        )
+      );
+    }
     case "plan_usage_update":
       return update.planUsage === null || isRecord(update.planUsage);
     default:

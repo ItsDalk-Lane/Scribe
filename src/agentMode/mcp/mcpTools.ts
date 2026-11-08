@@ -1,3 +1,4 @@
+import type { JsonValue } from "@earendil-works/pi-ai";
 import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { compile } from "@earendil-works/pi-schema";
 
@@ -70,8 +71,12 @@ function mcpAgentTool(
         };
       }
       return {
-        content: mapMcpContent(result.content),
-        details: undefined,
+        content:
+          result.content.length === 0 && result.structuredContent !== undefined
+            ? [{ type: "text", text: JSON.stringify(result.structuredContent) }]
+            : mapMcpContent(result.content),
+        // MCP结果已通过SDK的JSON协议边界；保留其完整元信息供展示与重开，不重新解释数值。https://github.com/ItsDalk-Lane/Scribe/issues/52
+        details: { mcpResult: result as unknown as JsonValue },
         isError: result.isError === true,
       };
     },

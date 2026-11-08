@@ -23,12 +23,23 @@ let mockSettings: {
   debug: boolean;
   configuredModels: Array<{ configuredModelId: string; providerId: string }>;
   providers: Record<string, { apiKeyRef?: string }>;
+  agentMode?: { disabledBuiltinCommands: string[] };
 } = { debug: false, configuredModels: [], providers: {} };
 const mockWithSecret = jest.fn<Promise<void>, [string, (value: string) => Promise<void>]>();
 jest.mock("@/services/secretStore", () => ({
   SecretStore: { getInstance: () => ({ withSecret: mockWithSecret }) },
 }));
 jest.mock("@/agentMode/skills/SkillManager", () => ({ useManagedSkills: () => mockManagedSkills }));
+let mockSubagents: {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  enabled: boolean;
+}[] = [];
+jest.mock("@/agentMode/subagents/SubagentManager", () => ({
+  getSubagents: () => mockSubagents,
+}));
 jest.mock("@/components/chat-components/ChatInput", () => ({
   __esModule: true,
   default: jest.requireActual<typeof React>("react").forwardRef(
@@ -201,9 +212,15 @@ function setupCancellation() {
 
 describe("AgentChatInput", () => {
   beforeEach(() => {
-    mockSettings = { debug: false, configuredModels: [], providers: {} };
+    mockSettings = {
+      debug: false,
+      configuredModels: [],
+      providers: {},
+      agentMode: { disabledBuiltinCommands: [] },
+    };
     mockWithSecret.mockReset().mockResolvedValue(undefined);
     mockManagedSkills = [];
+    mockSubagents = [];
     mockComposerSkills = undefined;
     mockSelectedTextContexts = [];
     mockActiveWebTab = undefined;
@@ -630,6 +647,71 @@ describe("AgentChatInput", () => {
       await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
       expect(jest.mocked(backend.sendMessage).mock.calls[0][0]).toBe("/compact");
       expect(jest.mocked(backend.sendMessage).mock.calls[0][2]).toBeUndefined();
+    });
+
+    it("keeps /compact as a normal message with its image once the built-in command is switched off https://github.com/ItsDalk-Lane/Scribe/issues/53", async () => {
+      mockSettings.agentMode = { disabledBuiltinCommands: ["compact"] };
+      const backend = {
+        sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
+        cancel: jest.fn(),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      renderInput(backend, makeDraft({ input: "/compact", images: [image] }));
+      fireEvent.click(screen.getByText("send"));
+      await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][0]).toBe("/compact");
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][2]).toEqual([imageBlock]);
+    });
+
+    it("sends a slash subagent command without its image (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+      mockSubagents = [
+        {
+          id: "research",
+          name: "research",
+          description: "Research",
+          instructions: "Research thoroughly",
+          enabled: true,
+        },
+      ];
+      const backend = {
+        sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
+        cancel: jest.fn(),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      const draft = makeDraft({ input: "/research collect sources", images: [image] });
+      renderInput(backend, draft, {
+        modelPickerOverride: {
+          models: [{ name: "text-only", provider: "agent", enabled: true, capabilities: [] }],
+          value: "text-only|agent",
+          onChange: jest.fn(),
+        },
+      });
+      fireEvent.click(screen.getByText("send"));
+      await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][0]).toBe("/research collect sources");
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][2]).toBeUndefined();
+    });
+
+    it("keeps a slash subagent draft with its image when no enabled definition matches the command token (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+      mockSubagents = [
+        {
+          id: "research",
+          name: "research",
+          description: "Research",
+          instructions: "Research thoroughly",
+          enabled: false,
+        },
+      ];
+      const backend = {
+        sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
+        cancel: jest.fn(),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      renderInput(backend, makeDraft({ input: "/research collect sources", images: [image] }));
+      fireEvent.click(screen.getByText("send"));
+      await waitFor(() => expect(backend.sendMessage).toHaveBeenCalledTimes(1));
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][0]).toBe("/research collect sources");
+      expect(jest.mocked(backend.sendMessage).mock.calls[0][2]).toEqual([imageBlock]);
     });
 
     it("sends a typed slash title verbatim instead of expanding a saved command", async () => {
@@ -1077,6 +1159,26 @@ describe("AgentChatInput", () => {
       expect(jest.mocked(backend.sendMessage).mock.calls[0]).toHaveLength(3);
       expect(draft.setQueue).not.toHaveBeenCalled();
       expect(draft.setLoading).not.toHaveBeenCalled();
+    });
+
+    it("holds a slash subagent command for the next turn instead of steering the running agent (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+      mockSubagents = [
+        {
+          id: "research",
+          name: "research",
+          description: "Research",
+          instructions: "Research thoroughly",
+          enabled: true,
+        },
+      ];
+      const backend = makeBackend();
+      const draft = makeDraft({ input: "/research collect sources", loading: true });
+
+      renderInput(backend, draft, { acceptsMidTurnMessages: true });
+      fireEvent.click(screen.getByText("send"));
+
+      await waitFor(() => expect(draft.setQueue).toHaveBeenCalled());
+      expect(backend.sendMessage).not.toHaveBeenCalled();
     });
 
     it.each([false, true])(

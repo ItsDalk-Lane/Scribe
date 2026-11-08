@@ -26,7 +26,7 @@ export function formatWorkedDuration(durationMs: number): string {
   const totalSeconds = Math.floor(safeDurationMs / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  const seconds = ((Math.floor(safeDurationMs / 100) % 600) / 10).toFixed(1);
 
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
@@ -42,11 +42,12 @@ export const AgentTurnDurationIndicator: React.FC<AgentTurnDurationIndicatorProp
     if (!isRunning) return;
     const intervalWindow = rootRef.current?.win;
     if (!intervalWindow) return;
-    const id = intervalWindow.setInterval(() => setNow(Date.now()), 1000);
+    const id = intervalWindow.setInterval(() => setNow(Date.now()), 100);
     return () => intervalWindow.clearInterval(id);
   }, [isRunning]);
 
-  const durationMs = isRunning ? Math.max(0, now - props.startedAtMs) : props.durationMs;
+  // 总计时首帧至少显示十分之一秒，后续仍以真实经过时间计算，不给保存记录添加偏移。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  const durationMs = Math.max(100, isRunning ? now - props.startedAtMs : props.durationMs);
 
   return (
     <div

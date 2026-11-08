@@ -1,6 +1,7 @@
 import type { Model, ToolCall } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { createAssistantMessage, createPiChatModel } from "@/LLMProviders/piChatModel";
+import type { ModelCallMetrics } from "@/LLMProviders/modelUsageMetrics";
 import { collectText } from "@/LLMProviders/testing/piFixtures";
 
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
@@ -90,6 +91,186 @@ describe("piChatModel", () => {
           beforeRequest.mock.calls[0][0],
           expect.objectContaining({ input: 7, output: 3, totalTokens: 10 })
         );
+      });
+
+      it("keeps actual steps at zero when cancellation happens while request preparation is being saved https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const controller = new AbortController();
+        const fetch = jest.fn(async () => new Response("unused"));
+        const observations: Array<{ requestIds: string[]; status: string }> = [];
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: { apiKey: "fixture", fetch, maxRetries: 0 },
+        }));
+        await chat
+          .agentStream(
+            { messages: [] },
+            {
+              signal: controller.signal,
+              onCallMetrics: (metrics) => {
+                observations.push(metrics);
+                if (metrics.status === "running") controller.abort();
+              },
+            }
+          )
+          .result();
+        expect(fetch).not.toHaveBeenCalled();
+        expect(observations.at(-1)).toMatchObject({ requestIds: [], status: "cancelled" });
+      });
+
+      it.each(["text_delta", "text_start", "toolcall_start"] as const)(
+        "closes the thought interval at %s before delayed completion https://github.com/ItsDalk-Lane/Scribe/issues/52",
+        async (boundary) => {
+          let now = 1000;
+          const clock = jest.spyOn(Date, "now").mockImplementation(() => now);
+          const monotonic = jest.spyOn(performance, "now").mockImplementation(() => now);
+          let responseReady!: (response: Response) => void;
+          const ready = new Promise<Response>((resolve) => {
+            responseReady = resolve;
+          });
+          let body!: ReadableStreamDefaultController<Uint8Array>;
+          const source = createAssistantMessageEventStream();
+          const message = createAssistantMessage(model);
+          message.content = [
+            { type: "thinking", thinking: "Thought" },
+            { type: "text", text: "Answer" },
+          ];
+          message.stopReason = "stop";
+          message.usage = { ...message.usage, input: 10, output: 10, totalTokens: 20 };
+          const onCallMetrics = jest.fn<void | Promise<void>, [ModelCallMetrics]>();
+          const chat = createPiChatModel(model, async () => ({
+            stream: (_model, _context, options) => {
+              void options?.fetch?.("https://fixture.invalid").then(responseReady);
+              return source;
+            },
+            options: {
+              fetch: async () =>
+                new Response(
+                  new ReadableStream<Uint8Array>({
+                    start(controller) {
+                      body = controller;
+                    },
+                  }),
+                  { headers: { "content-type": "text/event-stream" } }
+                ),
+            },
+          }));
+          try {
+            const events = chat.agentStream({ messages: [] }, { onCallMetrics });
+            const iterator = events[Symbol.asyncIterator]();
+            let next = iterator.next();
+            const response = await ready;
+            now = 3000;
+            source.push({
+              type: "thinking_delta",
+              contentIndex: 0,
+              delta: "Thought",
+              partial: message,
+            });
+            expect((await next).value?.type).toBe("thinking_delta");
+            next = iterator.next();
+            now = 5000;
+            source.push(
+              boundary === "text_delta"
+                ? { type: "text_delta", contentIndex: 1, delta: "Answer", partial: message }
+                : { type: boundary, contentIndex: 1, partial: message }
+            );
+            await next;
+            next = iterator.next();
+            now = 9000;
+            source.push({
+              type: "thinking_end",
+              contentIndex: 0,
+              content: "Thought",
+              partial: message,
+            });
+            await next;
+            next = iterator.next();
+            now = 10000;
+            body.enqueue(
+              new TextEncoder().encode(
+                'data: {"usage":{"prompt_tokens":10,"completion_tokens":10,"total_tokens":20,"prompt_tokens_details":{"cached_tokens":0}}}\n\n'
+              )
+            );
+            body.close();
+            await response.text();
+            source.push({ type: "done", reason: "stop", message });
+            await next;
+            expect(onCallMetrics.mock.calls.at(-1)?.[0]).toMatchObject({
+              startedAt: 1000,
+              firstTokenAt: 3000,
+              thinkingDurationMs: 2000,
+              generationMs: 7000,
+              generationOutputTokens: 10,
+            });
+            await iterator.return?.();
+          } finally {
+            clock.mockRestore();
+            monotonic.mockRestore();
+          }
+        }
+      );
+
+      it("counts cumulative protocol continuation usage once while retaining both real requests https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const onCallMetrics = jest.fn<void | Promise<void>, [ModelCallMetrics]>();
+        const chat = createPiChatModel(model, async () => ({
+          stream: (_model, _context, options) => {
+            const source = createAssistantMessageEventStream();
+            void (async () => {
+              for (let index = 0; index < 2; index++) {
+                const response = await options?.fetch?.("https://fixture.invalid", {
+                  method: "POST",
+                });
+                await response?.text();
+              }
+              const message = createAssistantMessage(model);
+              message.usage = { ...message.usage, input: 20, output: 10, totalTokens: 30 };
+              message.stopReason = "stop";
+              source.push({ type: "done", reason: "stop", message });
+            })();
+            return source;
+          },
+          options: {
+            fetch: async () =>
+              new Response(
+                'data: {"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}\n\n',
+                { headers: { "content-type": "text/event-stream" } }
+              ),
+            maxRetries: 0,
+          },
+        }));
+        await chat.agentStream({ messages: [] }, { onCallMetrics }).result();
+        const metrics = onCallMetrics.mock.calls.at(-1)?.[0];
+        expect(metrics).toMatchObject({
+          status: "completed",
+          usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
+        });
+        expect(metrics?.requestIds).toHaveLength(2);
+        expect(new Set(metrics?.requestIds).size).toBe(2);
+        expect(Object.keys(metrics?.requestAttempts ?? {})).toEqual(metrics?.requestIds);
+        expect(new Set(Object.values(metrics?.requestAttempts ?? {})).size).toBe(1);
+      });
+      it("keeps absent raw usage unknown and preserves a terminal error as failed https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const onCallMetrics = jest.fn<void | Promise<void>, [ModelCallMetrics]>();
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: {
+            apiKey: "fixture",
+            fetch: async () =>
+              new Response('data: {"error":{"message":"fixture rejected"}}\n\n', {
+                headers: { "content-type": "text/event-stream" },
+              }),
+            maxRetries: 0,
+          },
+        }));
+        await chat.agentStream({ messages: [] }, { onCallMetrics }).result();
+        expect(onCallMetrics.mock.calls.at(-1)?.[0]).toMatchObject({
+          status: "failed",
+          usage: {},
+          usagePartial: true,
+        });
+        expect(onCallMetrics.mock.calls.at(-1)?.[0].usage.totalTokens).toBeUndefined();
       });
 
       it("redacts request credentials from split text, thinking, tool arguments and persisted final messages", async () => {
@@ -492,7 +673,7 @@ describe("piChatModel", () => {
         }
       );
 
-      it("retries a structured transient failure with bottom-level retries disabled (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+      it("retries a structured transient failure with distinct attempt identities and bottom-level retries disabled (https://github.com/ItsDalk-Lane/Scribe/issues/31 https://github.com/ItsDalk-Lane/Scribe/issues/52)", async () => {
         const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
         const fetch = jest
           .fn()
@@ -509,17 +690,23 @@ describe("piChatModel", () => {
             )
           );
         const onFailure = jest.fn();
+        const onCallMetrics = jest.fn<void | Promise<void>, [ModelCallMetrics]>();
         const chat = createPiChatModel(model, async () => ({
           stream,
           options: { fetch, apiKey: "fixture", maxRetries: 3 },
         }));
-        const result = await chat.agentStream({ messages: [] }, { onFailure }).result();
+        const result = await chat
+          .agentStream({ messages: [] }, { onFailure, onCallMetrics })
+          .result();
         expect(result).toMatchObject({
           stopReason: "stop",
           content: [{ type: "text", text: "Recovered" }],
         });
         expect(fetch).toHaveBeenCalledTimes(2);
         expect(onFailure).not.toHaveBeenCalled();
+        const metrics = onCallMetrics.mock.calls.at(-1)![0];
+        expect(Object.keys(metrics.requestAttempts ?? {})).toEqual(metrics.requestIds);
+        expect(new Set(Object.values(metrics.requestAttempts ?? {})).size).toBe(2);
       });
 
       it("captures raw stream quota errors before the SDK converts them into text (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {

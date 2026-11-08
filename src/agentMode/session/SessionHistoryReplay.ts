@@ -63,6 +63,12 @@ export class SessionHistoryReplay {
         if (this.seq !== undefined)
           this.deps.store.startAgentSegment(this.aiBubbleId(occurredAt), this.seq);
         return true;
+      case "agent_thought_ended": {
+        const id = this.deps.store.findMessageIdWithSegment(update.segmentSeq);
+        if (id && this.deps.store.finishAgentThought(id, update.segmentSeq, update.contentIndex))
+          this.deps.scheduleNotifyMessages();
+        return true;
+      }
       case "agent_segment_finalized": {
         const id =
           this.deps.store.findMessageIdWithSegment(update.segmentSeq) ??

@@ -11,13 +11,14 @@ import {
 } from "lexical";
 import { BasePillNode, getEditorDocument, SerializedBasePillNode } from "./BasePillNode";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Terminal } from "lucide-react";
+import { Bot, Sparkles, Terminal } from "lucide-react";
 
-export type CommandChipKind = "builtin" | "skill";
+export type CommandChipKind = "builtin" | "skill" | "subagent";
 
 const COMMAND_CHIP_ICONS: Record<CommandChipKind, React.ComponentType<{ className?: string }>> = {
   builtin: Terminal,
   skill: Sparkles,
+  subagent: Bot,
 };
 
 export function getCommandChipIcon(kind: string): React.ComponentType<{ className?: string }> {

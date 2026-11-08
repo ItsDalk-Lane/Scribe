@@ -244,6 +244,7 @@ interface ChatSingleMessageProps {
   sourcePath?: string;
   isStreaming: boolean;
   footerStart?: React.ReactNode;
+  footerAfterTimestamp?: React.ReactNode;
   onFork?: () => void;
   forkDisabled?: boolean;
 }
@@ -254,6 +255,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   sourcePath = "",
   isStreaming,
   footerStart,
+  footerAfterTimestamp,
   onFork,
   forkDisabled,
 }) => {
@@ -565,6 +567,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
             <AssistantResponseFooter
               leading={footerStart}
               timestamp={message.timestamp?.display}
+              afterTimestamp={footerAfterTimestamp}
               actions={
                 <ChatButtons
                   message={message}

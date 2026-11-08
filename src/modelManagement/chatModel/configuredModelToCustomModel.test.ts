@@ -85,6 +85,16 @@ describe("configuredModelToCustomModel", () => {
   });
 
   describe("configuredModelToCustomModel", () => {
+    it("carries the configured provider display name for distinct usage sources https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ displayName: "Research endpoint" }),
+        configuredModel: configuredModel(),
+      });
+      expect(custom).toHaveProperty("providerDisplayName", "Research endpoint");
+      expect(custom.configuredModelId).toBe("cm1");
+      expect(custom.name).toBe("gpt-5");
+    });
+
     it("uses the wire id as the model name and the stored display name", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),

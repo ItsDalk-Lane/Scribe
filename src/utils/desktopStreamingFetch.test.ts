@@ -41,6 +41,27 @@ function harness() {
 
 describe("desktopStreamingFetch", () => {
   describe("createDesktopStreamingFetch()", () => {
+    it("reports dispatch after the bridge starts and never reports cancelled body preparation https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+      const fetch = jest.fn(async () => new Response(null, { status: 204 }));
+      const dispatched = jest.fn();
+      const transport = createDesktopStreamingFetch({ fetch, AbortController }, dispatched);
+      await transport("https://fixture.invalid", { method: "POST", body: "{}" });
+      expect(dispatched).toHaveBeenCalledTimes(1);
+      const body = deferred<string>();
+      const text = jest.spyOn(Request.prototype, "text").mockReturnValue(body.promise);
+      const controller = new AbortController();
+      const pending = transport("https://fixture.invalid", {
+        method: "POST",
+        body: "{}",
+        signal: controller.signal,
+      });
+      controller.abort();
+      body.resolve("{}");
+      await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(dispatched).toHaveBeenCalledTimes(1);
+      text.mockRestore();
+    });
     it("preserves session headers and streams each response chunk before the response ends", async () => {
       const { fetcher, fetchRemote, reader, released } = harness();
       const signal = new AbortController();
@@ -158,7 +179,9 @@ describe("desktopStreamingFetch", () => {
           getGlobal: () => AbortController,
         },
       });
-      const response = await loadDesktopStreamingFetch()("https://example.test/mcp");
+      const dispatched = jest.fn();
+      const response = await loadDesktopStreamingFetch(dispatched)("https://example.test/mcp");
+      expect(dispatched).toHaveBeenCalledTimes(1);
       expect(response.status).toBe(204);
       expect(requireNodeModule).toHaveBeenCalledWith("electron");
     });

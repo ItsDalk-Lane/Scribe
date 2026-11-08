@@ -1,3 +1,5 @@
+import { RequestRedactor } from "@/LLMProviders/requestRedaction";
+import { isSensitiveKey } from "@/services/settingsSecretTransforms";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport, SseError } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
@@ -68,19 +70,32 @@ export class McpSdkConnection implements McpConnectionInstance {
   ): Promise<McpToolCallResult> {
     const client = this.client;
     if (!client) throw new Error("The server is not connected.");
-    const result = await client.callTool({ name, arguments: args ?? {} }, undefined, {
-      timeout: timeoutSeconds * 1000,
-      signal,
-      resetTimeoutOnProgress,
-      ...(resetTimeoutOnProgress
-        ? {
-            onprogress: () => undefined,
-            maxTotalTimeout: MCP_LONG_RUNNING_TIMEOUT_SECONDS * 1000,
-          }
-        : {}),
-    });
-    const content = Array.isArray(result.content) ? result.content : [];
-    return { content, isError: result.isError === true };
+    const redactor = new RequestRedactor(
+      Object.entries({ ...this.input.env, ...this.input.headers })
+        .filter(
+          ([key]) =>
+            isSensitiveKey(key) || this.input.server.secretRefs?.some((ref) => ref.key === key)
+        )
+        .map(([, value]) => value)
+    );
+    try {
+      const result = await client.callTool({ name, arguments: args ?? {} }, undefined, {
+        timeout: timeoutSeconds * 1000,
+        signal,
+        resetTimeoutOnProgress,
+        ...(resetTimeoutOnProgress
+          ? {
+              onprogress: () => undefined,
+              maxTotalTimeout: MCP_LONG_RUNNING_TIMEOUT_SECONDS * 1000,
+            }
+          : {}),
+      });
+      const content = Array.isArray(result.content) ? result.content : [];
+      // 工具返回的结构与元信息必须完整保留，并遮盖连接凭据，避免保存和展示绕过请求脱敏。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      return redactor.structured({ ...result, content, isError: result.isError === true });
+    } catch (error) {
+      throw redactor.error(error);
+    }
   }
 
   async close(): Promise<void> {

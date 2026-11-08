@@ -31,6 +31,35 @@ function renderMeter(backend: AgentChatBackend) {
 
 describe("AgentContextMeter", () => {
   describe("AgentContextMeter()", () => {
+    it("shows actual tokens, cache hit, rounds and steps without a cumulative label https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      renderMeter(
+        makeBackend({
+          usedTokens: 1000,
+          contextWindow: 200000,
+          updatedAt: 1,
+          ...{
+            metrics: {
+              totalTokens: 16000,
+              inputTokens: 14000,
+              outputTokens: 2000,
+              cacheReadTokens: 10000,
+              cacheHitPercent: 71.428,
+              rounds: 2,
+              steps: 5,
+              partial: false,
+              sources: [],
+            },
+          },
+        })
+      );
+      const trigger = screen.getByLabelText("Usage");
+      expect(trigger.textContent).toContain("16.0k token");
+      expect(trigger.textContent).toContain("Cache hit 71%");
+      expect(trigger.textContent).not.toContain("Cumulative usage");
+      fireEvent.focus(trigger);
+      expect(screen.getAllByText("2 rounds · 5 steps").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("1.0k / 200.0k (1%)").length).toBeGreaterThan(0);
+    });
     it("shows actual cumulative parent and child consumption separately from the current context https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
       renderMeter(
         makeBackend({
@@ -96,7 +125,7 @@ describe("AgentContextMeter", () => {
       expect(screen.getAllByText("170.0k / 200.0k (85%)").length).toBeGreaterThan(0);
     });
 
-    it("stays on the accent color below the warning threshold", () => {
+    it("uses the quiet label color below the warning threshold https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
       const usage: SessionUsage = {
         usedTokens: 100_000,
         contextWindow: 200_000,
@@ -105,7 +134,7 @@ describe("AgentContextMeter", () => {
       renderMeter(makeBackend(usage));
 
       const trigger = screen.getByLabelText("Usage");
-      expect(trigger.className).toContain("tw-text-accent");
+      expect(trigger.className).toContain("tw-text-muted");
       expect(trigger.className).not.toContain("tw-text-warning");
     });
 

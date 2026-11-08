@@ -113,6 +113,29 @@ describe("mcpTools", () => {
   });
 
   describe("MCP tool execute()", () => {
+    it("keeps the original mixed result for display without rewriting model text and supplies structured-only content https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+      const original = {
+        content: [
+          { type: "text", text: '{"id":900719925474099312345}' },
+          { type: "resource_link", uri: "https://example.com/report", name: "Report" },
+        ],
+        structuredContent: { answer: 42 },
+        _meta: { trace: "original" },
+      };
+      const results = [original, { content: [], structuredContent: { answer: 42 } }];
+      const bundle = createMcpTools(
+        managerStub({
+          servers: [server({})],
+          toolsByServer: { "srv-1": [SEARCH_TOOL] },
+          callTool: async () => results.shift()!,
+        })
+      );
+      const first = await bundle.tools[0].execute("call-1", { query: "x" });
+      expect(first.content[0]).toEqual(original.content[0]);
+      expect(first.details).toEqual({ mcpResult: original });
+      const structured = await bundle.tools[0].execute("call-2", { query: "x" });
+      expect(structured.content).toEqual([{ type: "text", text: '{"answer":42}' }]);
+    });
     it("routes the call to its server and maps text results", async () => {
       const callTool = jest.fn(
         async (): Promise<McpToolCallResult> => ({

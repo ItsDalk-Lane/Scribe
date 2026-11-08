@@ -94,13 +94,13 @@ describe("CommandEditorForm", () => {
       render(<CommandEditorForm {...props} />);
       expect(
         screen.queryByText(
-          "This name matches the built-in /compact command, so this command never appears in the slash menu."
+          "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled."
         )
       ).toBeNull();
       fireEvent.change(screen.getByLabelText("Name"), { target: { value: "compact" } });
       expect(
         screen.getByText(
-          "This name matches the built-in /compact command, so this command never appears in the slash menu."
+          "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled."
         )
       ).not.toBeNull();
     });

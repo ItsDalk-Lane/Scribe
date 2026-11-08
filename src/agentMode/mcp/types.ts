@@ -53,6 +53,7 @@ export interface McpToolInfo {
 }
 
 export interface McpToolContentPart {
+  [key: string]: unknown;
   type: string;
   text?: string;
   data?: string;
@@ -60,6 +61,8 @@ export interface McpToolContentPart {
 }
 
 export interface McpToolCallResult {
+  [key: string]: unknown;
+  structuredContent?: Record<string, unknown>;
   content: McpToolContentPart[];
   isError?: boolean;
 }

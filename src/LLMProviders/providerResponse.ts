@@ -18,7 +18,9 @@ function parseRecord(text: string): unknown {
 export async function observeProviderResponse(
   response: Response,
   onFailure: (failure: ProviderRequestFailure) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onPayload?: (payload: unknown) => void,
+  onEnd?: () => void
 ): Promise<Response> {
   if (!response.body) {
     if (!response.ok)
@@ -62,6 +64,7 @@ export async function observeProviderResponse(
   let discardingLine = false;
   const observe = (text: string) => {
     const payload = parseRecord(text);
+    if (payload !== undefined) onPayload?.(payload);
     if (
       isRecord(payload) &&
       (payload.error !== undefined ||
@@ -102,6 +105,7 @@ export async function observeProviderResponse(
         if (next.done) {
           if (pending && !discardingLine) readLine(pending);
           if (eventData && eventData.length <= MAX_ERROR_BYTES) observe(eventData);
+          onEnd?.();
           controller.close();
           reader.releaseLock();
         } else controller.enqueue(next.value);

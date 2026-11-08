@@ -35,7 +35,7 @@ import { useProjects } from "@/projects/state";
 import { useSettingsValue } from "@/settings/model";
 import { getVaultBase } from "@/utils/vaultPath";
 import { normalizeAbsPath } from "@/utils/pathUtils";
-import { RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { Notice, type App } from "obsidian";
 import React from "react";
 
@@ -495,6 +495,18 @@ function RuntimeExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsPr
         searchPlaceholder={t("Search {name}…", { name: t(EXTENSION_LABELS[kind]) })}
         actions={
           <>
+            {/* 只有命令页提供新建入口；技能与子代理有各自的管理页。https://github.com/ItsDalk-Lane/Scribe/issues/53 */}
+            {kind === "command" && (
+              <Button
+                variant="secondary"
+                aria-label={t("New {name}", { name: t(EXTENSION_LABELS[kind]) })}
+                disabled={busy || pending || !enabled || !management}
+                onClick={() => openEditor()}
+              >
+                <Plus aria-hidden="true" className="tw-size-4" />
+                {t("New {name}", { name: t(EXTENSION_LABELS[kind]) })}
+              </Button>
+            )}
             <Button
               size="icon"
               variant="secondary"

@@ -8,7 +8,7 @@ Scribe includes [Agent Chat](agent-mode-and-tools.md). Quick Ask and Quick Comma
 
 ## Agent 配置
 
-**Agent 配置** 是独立设置标签页：常用设置与库的自定义说明连续排列，不再显示 **常规** 和 **自定义说明** 分组标题，也不使用分组边框。Scribe 的其余设置分布在 **关于**、**模型**、**我的指令**、**命令**、**技能** 和 **子代理** 标签页。
+**Agent 配置** 是独立设置标签页：常用设置与库的自定义说明连续排列，不再显示 **常规** 和 **自定义说明** 分组标题，也不使用分组边框。Scribe 的其余设置分布在 **关于**、**模型**、**我的指令**、**命令**、**技能**、**子代理** 和 **MCP** 标签页。
 
 | Control                  | Default    | What it does                                                                                                                                                                |
 | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,6 +67,8 @@ See [Troubleshooting and FAQ](troubleshooting-and-faq.md) before sharing logs or
 
 Quick Ask、Quick Command 及未指定模型的编辑器指令，默认使用配置顺序中第一个可用聊天模型。弹窗中的临时选择仅对当前弹窗生效，单条指令指定的模型继续优先生效。
 
+连接方式自动选择，不再提供 CORS 配置。桌面端在供应商支持时边生成边显示回复，点击 **停止** 会取消当前连接并保留已收到的内容。手机端可能等回复完成后才显示；**停止** 会结束本地这一轮回复并忽略稍后返回的内容，但无法取消已经发出的请求，服务端可能继续处理或计费。详见 [模型连接说明](llm-providers.md)。
+
 #### Add a provider
 
 1. Select **添加供应商**.
@@ -82,7 +84,6 @@ The configuration dialog contains:
 | **API 密钥**                                 | Blank; required or optional according to provider | Enter the credential used by this connection. Saved keys are not filled back into the form. Leave blank to keep one, enter a value to replace it, or use **清空** and save to remove it. Required-key providers need a saved or newly entered key. |
 | **获取模型列表** / **测试聊天连接**          | Available when connection details allow           | Fetching reads the provider's model directory; testing sends a short message to a selected model and may use quota. A successful directory fetch does not prove chat works.                                                                        |
 | **基础地址**                                 | Provider's standard endpoint when known           | Overrides where Scribe sends requests. A custom OpenAI-compatible provider must have a Base URL. Ollama defaults to `http://localhost:11434/v1`; LM Studio defaults to `http://localhost:1234/v1`.                                                 |
-| **启用 CORS**                                | On for a new provider; saved choice retained      | Uses the compatibility connection for Agent Chat and Quick tools. Responses normally arrive after completion instead of word by word; stopping locally cannot cancel a request already sent to the server.                                         |
 | **模型 ID → 添加** (Model ID → Add)          | Blank                                             | Adds an exact model ID manually. Use this when an endpoint cannot list models. A typed ID can be removed from the candidate list with its remove button.                                                                                           |
 | **搜索可用模型…** (Search available models…) | Blank                                             | Filters discovered, previously configured, and manually added models. Check each model you want to save. Model rows can show context size, release date, and capabilities when known.                                                              |
 | **保存 / 取消** (Save / Cancel)              | Save disabled until the setup is usable           | Save requires at least one model, required keys and connection fields, and no address-parsing error. Failed connection checks do not themselves prevent saving; saving does not prove that the provider is reachable or the key works.             |
@@ -93,7 +94,7 @@ The configuration dialog contains:
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Search providers**        | Filters by provider name, model name, or model ID.                                                                                                                                   |
 | **Provider card**           | Expand it to see configured models. A provider that needs no key says **无需 API 密钥**; a separate badge shows the connection check result, such as **接口可访问** or **检查失败**. |
-| **More actions → Edit key** | Reopens the full configuration dialog, where you can change the name, key, Base URL, CORS behavior, and selected models.                                                             |
+| **More actions → Edit key** | Reopens the full configuration dialog, where you can change the name, key, Base URL, and selected models.                                                                            |
 | **More actions → Remove**   | Removes the provider and all of its models from every model picker after confirmation.                                                                                               |
 | **移除模型**                | The remove button on an expanded model row removes that model from the provider and all model pickers after confirmation.                                                            |
 
@@ -129,11 +130,13 @@ The configuration dialog contains:
 
 命令页的 **刷新并检查** 核对当前可用状态；技能页在聚焦和修改后自动刷新，子代理页的 **刷新** 重新读取定义。这些操作均不发送聊天消息，也不执行工具。命令和子代理均可新建、编辑、启停和删除。子代理可以分别设置名称、用途说明和自定义指令，定义独立保存在当前库 `.scribe/subagents/<稳定标识>.json` 中；刷新或重新打开页面会重新读取外部修改。主代理能发现已启用的子代理，并按其指令真实委派任务。子代理沿用当前聊天的模型和操作权限，不单独配置密钥。修改影响后续委派，已运行任务继续使用启动时的设置；删除子代理保留已有聊天和任务结果。
 
-本版本不提供旧外部代理的插件市场、插件安装、Hook 或 MCP 配置入口，也不读取或转换原有插件包。原有外部文件保留。
+桌面端可在 **Settings → Scribe → MCP** 配置 MCP 服务器，支持本地命令、SSE 和可流式传输的 HTTP 连接；详见 [MCP 服务器](agent-mode-and-tools.md#mcp-服务器)。本版本不提供旧外部代理的插件市场、插件安装或 Hook 入口，也不读取或转换原有插件包。原有外部文件保留。
 
 ## 命令
 
-**命令** 页使用 Scribe 现有的命令存储，支持新建、编辑、启停和删除。命令保存在当前资料库，供原输入区的 `/` 菜单和已支持的快捷入口使用。**我的指令** 保留原有的复制、排序、单条模型选择、变量及菜单显示选项。
+**命令** 页管理 Agent 的斜杠命令。内置命令 `/compact`（总结当前聊天以释放上下文）提供开关：关闭后 Agent 斜杠菜单不再显示它，手动输入 `/compact` 按普通文字发送，附件与排队行为与普通消息一致；开关状态保存在插件设置中。**新建命令** 按钮创建自定义 Agent 命令，每条命令保存为当前资料库 `.scribe/agent-commands/<稳定标识>.json`，可设置名称、用途说明和命令内容，并支持编辑、启停和删除。在 Agent 输入区的 `/` 菜单选中自定义命令时，命令内容以可编辑文字填入输入框，确认后再发送。命令名称不区分大小写，不得与内置命令或其他命令重名；外部修改在刷新或重新打开页面后读取，检测到外部变更时保存与删除会被拒绝。**我的指令**（快捷工具）保留原有行为，与 Agent 命令互不影响。
+
+Agent 斜杠菜单按 **命令、技能、子代理** 三组显示，每个条目名称后带「内置」或「自定义」标签。已启用的子代理会出现在「子代理」分组中（代理模式已激活后端时）：选中后留下命令标签，补充任务描述并发送即直接委派该子代理在后台执行，结果自动回传主聊天；只输入命令词或没有匹配的已启用子代理时按普通消息发送，详见 [Agent Chat](agent-mode-and-tools.md#skills)。
 
 ### Command-wide controls
 

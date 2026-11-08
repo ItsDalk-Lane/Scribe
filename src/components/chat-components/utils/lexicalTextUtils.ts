@@ -366,6 +366,32 @@ export function $insertTextWithPills(app: App, text: string): void {
   }
 }
 
+export function $replaceTriggeredTextWithText(triggerChar: string, replacement: string): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) return;
+
+  const anchor = selection.anchor;
+  const anchorNode = anchor.getNode();
+
+  if (!(anchorNode instanceof TextNode)) return;
+
+  const textContent = anchorNode.getTextContent();
+  const cursorOffset = anchor.offset;
+
+  const triggerIndex = textContent.lastIndexOf(triggerChar, cursorOffset);
+
+  if (triggerIndex === -1) return;
+
+  const { beforeText, afterText } = splitTextAtRange(textContent, triggerIndex, cursorOffset);
+  const replacementNode = $createTextNode(beforeText + replacement);
+  anchorNode.replace(replacementNode);
+  if (afterText) {
+    const afterNode = $createTextNode(afterText);
+    replacementNode.insertAfter(afterNode);
+  }
+  replacementNode.selectEnd();
+}
+
 export function $replaceTriggeredTextWithPill(
   triggerChar: string,
   pillData: PillData,

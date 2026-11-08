@@ -49,6 +49,13 @@ jest.mock("@/components/modals/ConfirmModal", () => ({
 }));
 
 describe("SubagentsSettings", () => {
+  beforeAll(() => {
+    (window as unknown as { activeDocument: Document }).activeDocument = document;
+    (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = MouseEvent;
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
+    Element.prototype.scrollIntoView = () => {};
+  });
   describe("SubagentsSettings()", () => {
     beforeEach(() => {
       jest.clearAllMocks();
@@ -98,7 +105,11 @@ describe("SubagentsSettings", () => {
       cleanup();
       mockSave.mockRejectedValueOnce(new Error("Conflict"));
       render(<SubagentsSettings />);
-      fireEvent.click(screen.getByRole("button", { name: "Edit Reviewer" }));
+      fireEvent.pointerDown(screen.getByRole("button", { name: "More actions for Reviewer" }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
       fireEvent.change(screen.getByLabelText("Instructions"), {
         target: { value: "Keep this draft" },
       });
@@ -116,7 +127,11 @@ describe("SubagentsSettings", () => {
     it("requires confirmation before deletion and displays removal failures", async () => {
       mockRemove.mockRejectedValueOnce(new Error("Removal failed"));
       render(<SubagentsSettings />);
-      fireEvent.click(screen.getByRole("button", { name: "Delete Reviewer" }));
+      fireEvent.pointerDown(screen.getByRole("button", { name: "More actions for Reviewer" }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
       expect(mockRemove).not.toHaveBeenCalled();
       await act(async () => {
         await mockConfirm();

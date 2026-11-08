@@ -26,6 +26,7 @@ export interface SubagentExecutionResult {
 export const SUBAGENT_STOPPED_MESSAGE = "Subagent stopped.";
 
 export interface NativeSubagentControllerOptions {
+  getRoundContext?(sender?: "main" | "user"): { roundId: string; promptId?: string };
   parentSessionId: string;
   cwd: string;
   projectId?: string;
@@ -445,6 +446,11 @@ export class NativeSubagentController {
       input.messageId
     );
     message.payload = input.payload;
+    // 子会话中途收到用户输入时也冻结独立回合，排队和重试不能改写原来的归属。https://github.com/ItsDalk-Lane/Scribe/issues/52
+    if (sender === "user") {
+      message.roundId = this.options.getRoundContext?.("user").roundId ?? uuidv4();
+      message.promptId = message.id;
+    }
     let accepted = false;
     await this.change(input.subagentId, (state) => {
       if (this.managing.has(input.subagentId))
@@ -852,7 +858,20 @@ export class NativeSubagentController {
     const operation = (async (): Promise<SubagentDispatchResult> => {
       const active = this.active.get(id);
       if (active) return { subagentId: id, runId: active.id, messageId, status: "enqueued" };
-      const run = this.newRun(taskId, `continue-${uuidv4()}`);
+      const pending =
+        this.state(id).snapshot.messages.find((message) => message.id === messageId) ??
+        this.state(id).snapshot.messages.find(
+          (message) => message.direction === "to_child" && message.state === "accepted"
+        );
+      const run = this.newRun(
+        taskId,
+        `continue-${uuidv4()}`,
+        pending?.sender === "user" ? "user" : "main"
+      );
+      if (pending?.roundId) {
+        run.roundId = pending.roundId;
+        run.promptId = pending.promptId;
+      }
       const admission = this.reserveRun();
       this.admissions.set(id, admission);
       try {
@@ -1041,8 +1060,13 @@ export class NativeSubagentController {
     });
   }
 
-  private newRun(taskGenerationId: string, toolCallId: string): SubagentRunSnapshot {
+  private newRun(
+    taskGenerationId: string,
+    toolCallId: string,
+    sender: "main" | "user" = "main"
+  ): SubagentRunSnapshot {
     return {
+      ...this.options.getRoundContext?.(sender),
       id: `native-task-${uuidv4()}`,
       taskGenerationId,
       toolCallId,

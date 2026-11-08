@@ -18,6 +18,7 @@ function deferred<T>() {
 function fixture(
   restored: NativeSubagentState[] = [],
   hooks: {
+    getRoundContext?: NativeSubagentControllerOptions["getRoundContext"];
     save?(state: NativeSubagentState): Promise<void>;
     remove?(): Promise<void>;
     reserve?(signal: AbortSignal): { ready: Promise<() => void> };
@@ -38,6 +39,7 @@ function fixture(
     restored,
     getModelId: () => "model",
     getTaskGenerationId: () => "task",
+    getRoundContext: hooks.getRoundContext,
     isTaskActive: () => taskActive,
     acquire: async () => () => {},
     reserve: hooks.reserve,
@@ -218,6 +220,60 @@ describe("NativeSubagentController", () => {
       });
     });
     describe("send()", () => {
+      it("freezes delegated parent ownership and gives a direct user continuation its own round https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const getRoundContext = jest.fn((sender?: "main" | "user") =>
+          sender === "user"
+            ? { roundId: "child-user-round" }
+            : { roundId: "parent-round", promptId: "parent-prompt" }
+        );
+        const f = fixture([], { getRoundContext });
+        const child = await f.create();
+        await f.started.promise;
+        expect(f.controller.state(child.subagentId).snapshot.runs[0]).toMatchObject({
+          roundId: "parent-round",
+          promptId: "parent-prompt",
+        });
+        f.finish.resolve();
+        await f.controller.finished(child.subagentId, child.runId!);
+        const next = await f.controller.send({
+          sessionId: "parent",
+          subagentId: child.subagentId,
+          text: "Direct child follow-up",
+          mode: "wake",
+        });
+        await f.controller.finished(child.subagentId, next.runId!);
+        expect(f.controller.state(child.subagentId).snapshot.runs.at(-1)).toMatchObject({
+          roundId: "child-user-round",
+        });
+        expect(f.controller.state(child.subagentId).snapshot.runs.at(-1)?.promptId).toBe(
+          next.messageId
+        );
+        expect(getRoundContext).toHaveBeenLastCalledWith("user");
+      });
+      it("keeps an accepted running-child user round stable across duplicate delivery attempts https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const getRoundContext = jest.fn(() => ({ roundId: "accepted-user-round" }));
+        const f = fixture([], { getRoundContext });
+        const child = await f.create();
+        await f.started.promise;
+        const input = {
+          sessionId: "parent",
+          subagentId: child.subagentId,
+          text: "New user input",
+          mode: "enqueue" as const,
+          messageId: "stable-user-input",
+        };
+        await f.controller.send(input);
+        const reads = getRoundContext.mock.calls.length;
+        await f.controller.send(input);
+        expect(getRoundContext).toHaveBeenCalledTimes(reads);
+        expect(
+          f.controller
+            .state(child.subagentId)
+            .snapshot.messages.filter((message) => message.id === input.messageId)
+        ).toMatchObject([{ roundId: "accepted-user-round", promptId: input.messageId }]);
+        f.finish.resolve();
+        await f.controller.finished(child.subagentId, child.runId!);
+      });
       it("retries an accepted image once after admission becomes available without adding another message (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const source = fixture();
         const child = await source.create();

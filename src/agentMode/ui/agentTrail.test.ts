@@ -1,4 +1,9 @@
-import { agentResponseText, buildAgentTrail, type RenderNode } from "@/agentMode/ui/agentTrail";
+import {
+  agentResponseText,
+  buildAgentTrail,
+  splitCompletedAgentTrail,
+  type RenderNode,
+} from "@/agentMode/ui/agentTrail";
 import type { AgentMessagePart } from "@/agentMode/session/types";
 
 function tool(
@@ -169,6 +174,30 @@ describe("agentTrail", () => {
       expect(tree.map((n) => n.type)).toEqual(["reasoning", "action", "text"]);
     });
 
+    it("omits empty thoughts and plans from display without trimming meaningful thoughts or changing the recorded parts https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const originalThought = thought("  思考中的  空格\n\n和换行。  ");
+      const parts: AgentMessagePart[] = [
+        thought(""),
+        thought(" \n\t "),
+        { kind: "plan", entries: [] },
+        originalThought,
+        text("Final answer"),
+      ];
+      const tree = buildAgentTrail(parts);
+      expect(tree).toEqual([
+        { type: "reasoning", part: originalThought },
+        { type: "text", part: parts[4] },
+      ]);
+      expect(tree[0].type === "reasoning" && tree[0].part).toBe(originalThought);
+      expect(originalThought).toEqual(thought("  思考中的  空格\n\n和换行。  "));
+      expect(parts).toHaveLength(5);
+      expect(parts.slice(0, 3)).toEqual([
+        thought(""),
+        thought(" \n\t "),
+        { kind: "plan", entries: [] },
+      ]);
+    });
+
     it("keeps a compaction part as its own node at its position in the turn", () => {
       const compaction: AgentMessagePart = {
         kind: "compaction",
@@ -234,6 +263,48 @@ describe("agentTrail", () => {
       ];
       const tree = buildAgentTrail(parts);
       expect(tree.map((n) => n.type)).toEqual(["reasoning", "plan"]);
+    });
+  });
+
+  describe("splitCompletedAgentTrail()", () => {
+    it("keeps intermediate prose in its original prefix and exposes only the confirmed final segment https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const parts: AgentMessagePart[] = [
+        { ...text("Before the tool"), segmentSeq: 1 },
+        tool("a"),
+        { ...text("After the tool"), segmentSeq: 3 },
+        { ...thought("Final thinking"), segmentSeq: 7 },
+        { ...text("Final answer"), segmentSeq: 7 },
+        { ...text("Final appendix"), segmentSeq: 7 },
+      ];
+      const split = splitCompletedAgentTrail(parts, 7);
+      expect(split?.process).toEqual(parts.slice(0, 4));
+      expect(split?.response).toEqual(parts.slice(4));
+      expect(parts).toHaveLength(6);
+    });
+
+    it.each([
+      ["missing identity", [text("Legacy answer")], undefined],
+      ["no final text", [tool("a"), { ...thought("Only thinking"), segmentSeq: 7 }], 7],
+      ["later tool", [{ ...text("Not final"), segmentSeq: 7 }, tool("a")], 7],
+      [
+        "different later segment",
+        [
+          { ...text("First"), segmentSeq: 7 },
+          { ...text("Second"), segmentSeq: 9 },
+        ],
+        7,
+      ],
+      ["synthetic final", [{ ...text("Recovered"), segmentSeq: 7, synthetic: true }], 7],
+    ] as const)(
+      "leaves %s unsplit rather than guessing a final answer https://github.com/ItsDalk-Lane/Scribe/issues/52",
+      (_label, parts, seq) => {
+        expect(splitCompletedAgentTrail([...parts] as AgentMessagePart[], seq)).toBeUndefined();
+      }
+    );
+
+    it("returns an empty process for a plain confirmed final answer https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const parts = [{ ...text("Plain answer"), segmentSeq: 7 }];
+      expect(splitCompletedAgentTrail(parts, 7)).toEqual({ process: [], response: parts });
     });
   });
 

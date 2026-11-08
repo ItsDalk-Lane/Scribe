@@ -16,7 +16,7 @@ const meta = {
 export default meta;
 
 const RunningDemo: React.FC = () => (
-  <AgentTurnDurationIndicator status="running" startedAtMs={Date.now() - 138_000} />
+  <AgentTurnDurationIndicator status="running" startedAtMs={Date.now() - 138_450} />
 );
 
 export const Running: StoryObj<AgentTurnDurationIndicatorProps> = {
@@ -24,7 +24,7 @@ export const Running: StoryObj<AgentTurnDurationIndicatorProps> = {
 };
 
 export const Complete: StoryObj<AgentTurnDurationIndicatorProps> = {
-  args: { status: "complete", durationMs: 138_000 },
+  args: { status: "complete", durationMs: 138_450 },
 };
 
 const AlignedWithResponseDemo: React.FC = () => {
@@ -49,4 +49,11 @@ const AlignedWithResponseDemo: React.FC = () => {
 
 export const AlignedWithResponse: StoryObj<AgentTurnDurationIndicatorProps> = {
   render: AlignedWithResponseDemo,
+};
+
+export const JustStarted: StoryObj<AgentTurnDurationIndicatorProps> = {
+  render: () => <AgentTurnDurationIndicator status="running" startedAtMs={Date.now()} />,
+};
+export const CompletedWithinOneTenth: StoryObj<AgentTurnDurationIndicatorProps> = {
+  args: { status: "complete", durationMs: 50 },
 };

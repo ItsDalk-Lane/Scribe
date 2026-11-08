@@ -7,17 +7,17 @@ import React from "react";
 
 describe("AgentTurnDurationIndicator", () => {
   describe("formatWorkedDuration()", () => {
-    it("keeps seconds while omitting leading zero-valued units", () => {
-      expect(formatWorkedDuration(0)).toBe("0s");
-      expect(formatWorkedDuration(18_999)).toBe("18s");
-      expect(formatWorkedDuration(138_000)).toBe("2m 18s");
-      expect(formatWorkedDuration(3_738_000)).toBe("1h 2m 18s");
+    it("shows tenths of a second while omitting leading zero-valued units https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      expect(formatWorkedDuration(0)).toBe("0.0s");
+      expect(formatWorkedDuration(18_999)).toBe("18.9s");
+      expect(formatWorkedDuration(138_000)).toBe("2m 18.0s");
+      expect(formatWorkedDuration(3_738_000)).toBe("1h 2m 18.0s");
     });
 
     it("clamps invalid and negative durations to zero", () => {
-      expect(formatWorkedDuration(-1_000)).toBe("0s");
-      expect(formatWorkedDuration(Number.NaN)).toBe("0s");
-      expect(formatWorkedDuration(Number.POSITIVE_INFINITY)).toBe("0s");
+      expect(formatWorkedDuration(-1_000)).toBe("0.0s");
+      expect(formatWorkedDuration(Number.NaN)).toBe("0.0s");
+      expect(formatWorkedDuration(Number.POSITIVE_INFINITY)).toBe("0.0s");
     });
   });
 
@@ -35,14 +35,30 @@ describe("AgentTurnDurationIndicator", () => {
       );
 
       expect(screen.getByRole("status").textContent).toBe("Agent is working");
-      const duration = screen.getByText("2m 18s");
+      const duration = screen.getByText("2m 18.0s");
       expect(duration.closest('[aria-hidden="true"]')).toBeNull();
       expect(container.querySelector(".scribe-spinner")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner-dot-0")).toBeTruthy();
 
       act(() => jest.advanceTimersByTime(2_000));
 
-      expect(screen.getByText("2m 20s")).toBeTruthy();
+      expect(screen.getByText("2m 20.0s")).toBeTruthy();
+    });
+
+    it("starts at one tenth and reads wall-clock elapsed time without accumulating ticks https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      render(<AgentTurnDurationIndicator status="running" startedAtMs={199_950} />);
+      expect(screen.getByText("0.1s")).toBeTruthy();
+      act(() => jest.advanceTimersByTime(100));
+      expect(screen.getByText("0.1s")).toBeTruthy();
+      jest.setSystemTime(207_450);
+      act(() => jest.advanceTimersByTime(100));
+      expect(screen.getByText("7.6s")).toBeTruthy();
+    });
+
+    it("keeps the minimum visible tenth when a very fast reply completes https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      render(<AgentTurnDurationIndicator status="complete" durationMs={50} />);
+      expect(screen.getByText("0.1s")).toBeTruthy();
+      expect(screen.queryByRole("status")).toBeNull();
     });
 
     it("registers and clears the ticker on the mounted element's window", () => {
@@ -56,7 +72,7 @@ describe("AgentTurnDurationIndicator", () => {
           <AgentTurnDurationIndicator status="running" startedAtMs={62_000} />
         );
 
-        expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 1000);
+        expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 100);
         unmount();
         expect(clearInterval).toHaveBeenCalledWith(42);
       } finally {
@@ -69,14 +85,16 @@ describe("AgentTurnDurationIndicator", () => {
         <AgentTurnDurationIndicator status="complete" durationMs={138_000} />
       );
 
-      expect(screen.getByText("2m 18s").parentElement?.textContent).toContain("Worked for 2m 18s");
+      expect(screen.getByText("2m 18.0s").parentElement?.textContent).toContain(
+        "Worked for 2m 18.0s"
+      );
       expect(container.querySelector(".scribe-spinner")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
       expect(screen.queryByRole("status")).toBeNull();
 
       act(() => jest.advanceTimersByTime(60_000));
 
-      expect(screen.getByText("2m 18s")).toBeTruthy();
+      expect(screen.getByText("2m 18.0s")).toBeTruthy();
     });
 
     it("shows and announces the given label in place of the turn wording while running", () => {
@@ -89,7 +107,7 @@ describe("AgentTurnDurationIndicator", () => {
       );
 
       expect(screen.getAllByText("Compacting conversation…")).toHaveLength(2);
-      expect(screen.getByText("2m 18s")).toBeTruthy();
+      expect(screen.getByText("2m 18.0s")).toBeTruthy();
       expect(screen.getByRole("status").textContent).toBe("Compacting conversation…");
       expect(screen.queryByText("Worked for")).toBeNull();
     });
@@ -105,7 +123,7 @@ describe("AgentTurnDurationIndicator", () => {
 
       expect(screen.getByTestId("custom-icon")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner")).toBeNull();
-      expect(screen.getByText("2m 18s")).toBeTruthy();
+      expect(screen.getByText("2m 18.0s")).toBeTruthy();
     });
   });
 });

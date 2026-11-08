@@ -50,7 +50,10 @@ import {
   type ProviderRequestFailure,
 } from "@/LLMProviders/providerRequestFailure";
 import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
-import { isCompactCommand } from "@/commands/compactCommand";
+import { isCompactCommand, COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
+import { parseSubagentCommand } from "@/commands/subagentCommand";
+import { isBuiltinCommandEnabled } from "@/agentMode/agentCommands/builtinAgentCommands";
+import { getSettings } from "@/settings/model";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
 import { SCRIBE_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
 import { resolveToolName } from "@/agentMode/session/toolName";
@@ -252,6 +255,7 @@ export interface NativeBackendProcessOptions {
 }
 
 interface NativeSessionContext {
+  roundIds: Map<string, string>;
   managedCommands: Map<string, string>;
   releasingTools: Map<NativeRuntimeTools, Promise<void>>;
   pendingChildAdmissions: number;
@@ -280,7 +284,17 @@ interface NativeSessionContext {
   messageSeqs: WeakMap<AgentMessage, number>;
   toolResultSeqs: Map<string, number>;
   recordedToolResults: Set<string>;
-  toolExecutions: Map<string, { id: string; name: string; taskId?: string; admitted: boolean }>;
+  toolExecutions: Map<
+    string,
+    {
+      id: string;
+      name: string;
+      taskId?: string;
+      admitted: boolean;
+      roundId?: string;
+      sourceId?: string;
+    }
+  >;
   storageError?: Error;
   compactions: CompactionProjection[];
   provider: ProviderChatModel;
@@ -318,6 +332,8 @@ export interface NativeSubagentTask {
 }
 
 interface ChildExecution {
+  roundId?: string;
+  promptId?: string;
   provider?: ProviderChatModel;
   taskId: string;
   toolCallId: string;
@@ -373,6 +389,9 @@ const ALLOWED_BY_MODE: PermissionDecision = Object.freeze({
 });
 
 interface NativeAgentRunState {
+  promptId?: string;
+  roundId?: string;
+  deliveredPromptIds?: Set<string>;
   taskGenerationId?: string;
   requestUsage?: Map<string, SubagentUsage>;
   steps: number;
@@ -520,6 +539,15 @@ export class NativeBackendProcess implements BackendProcess {
     if (!this.running) throw new Error("The native agent has shut down.");
     const context: NativeSessionContext = {
       record,
+      roundIds: new Map(
+        (record.journalRecords ?? []).flatMap((fact) =>
+          isRecord(fact.payload) &&
+          typeof fact.payload.promptId === "string" &&
+          typeof fact.payload.roundId === "string"
+            ? [[fact.payload.promptId, fact.payload.roundId] as const]
+            : []
+        )
+      ),
       taskGenerationId: "",
       pendingChildAdmissions: 0,
       cancelEpoch: 0,
@@ -619,7 +647,14 @@ export class NativeBackendProcess implements BackendProcess {
     child?: ChildExecution
   ): Agent {
     const run: NativeAgentRunState = { steps: 0, closing: false };
+    const toolOwners = new Map<string, string>();
     const emit = (update: SessionUpdate): void => {
+      if (update.sessionUpdate === "task_started")
+        update = {
+          ...update,
+          roundId: toolOwners.get(update.toolCallId) ?? child?.roundId,
+          ...(child ? { subagentId: child.subagentId, runId: child.taskId } : {}),
+        };
       if (
         !child &&
         update.sessionUpdate === "task_started" &&
@@ -646,7 +681,17 @@ export class NativeBackendProcess implements BackendProcess {
           })
         );
     };
-    const viewId = (id: string): string => `${child?.taskId ?? session.runId}:${id}`;
+    const toolViewIds = new Map<string, string>();
+    const viewId = (id: string): string => {
+      const existing = toolViewIds.get(id);
+      if (existing) return existing;
+      const promptId = run.promptId ?? session.runId;
+      const key = `${child?.taskId ?? promptId}:${id}`;
+      toolViewIds.set(id, key);
+      const roundId = child?.roundId ?? session.roundIds.get(promptId);
+      if (roundId) toolOwners.set(key, roundId);
+      return key;
+    };
     const requester: PermissionRequester = child
       ? {
           taskId: child.taskId,
@@ -1030,6 +1075,8 @@ export class NativeBackendProcess implements BackendProcess {
               id,
               name: tool.name,
               taskId: child?.taskId,
+              roundId: toolOwners.get(key),
+              sourceId: child?.subagentId ?? "main",
               admitted: false,
             });
             if (
@@ -1130,7 +1177,12 @@ export class NativeBackendProcess implements BackendProcess {
             ...this.requestAccounting(
               session,
               child?.taskGenerationId ?? run.taskGenerationId ?? session.taskGenerationId,
-              run
+              run,
+              {
+                child,
+                provider: childProvider ?? session.provider,
+                getSegmentSeq: () => segmentSeq,
+              }
             ),
             onFailure,
             disableReasoning: (child ? childEffort : session.record.effort) === "off",
@@ -1375,14 +1427,53 @@ export class NativeBackendProcess implements BackendProcess {
         run.closing = false;
         run.stopReason = undefined;
         run.failure = undefined;
+        run.deliveredPromptIds = new Set();
+      }
+      if (
+        child &&
+        event.type === "message_start" &&
+        event.message.role === "user" &&
+        !run.closing
+      ) {
+        const input = session.collaboration.get(event.message);
+        if (input?.sender === "user" && input.roundId) {
+          child.roundId = input.roundId;
+          child.promptId = input.promptId ?? input.id;
+          run.promptId = child.promptId;
+          run.roundId = child.roundId;
+          run.steps = 0;
+          run.deliveredPromptIds?.add(child.promptId);
+          await this.emitCommitted(
+            session,
+            {
+              sessionUpdate: "turn_started",
+              turnId: child.promptId,
+              roundId: child.roundId,
+              startedAt: Date.now(),
+            },
+            child.toolCallId
+          );
+        }
       }
       if (
         event.type === "message_start" &&
         event.message.role === "user" &&
         session.messageIds.has(event.message) &&
         !run.closing
-      )
+      ) {
+        run.promptId = session.messageIds.get(event.message);
+        if (!child && run.promptId) {
+          run.deliveredPromptIds?.add(run.promptId);
+          if (run.promptId !== session.runId)
+            await this.emitCommitted(session, {
+              sessionUpdate: "turn_started",
+              turnId: run.promptId,
+              roundId: session.roundIds.get(run.promptId),
+              startedAt: Date.now(),
+            });
+        }
         run.steps = 0;
+      }
       if (event.type === "message_start" && event.message.role === "assistant") {
         const started = await this.emitCommitted(
           session,
@@ -1463,7 +1554,12 @@ export class NativeBackendProcess implements BackendProcess {
           if (blocks.length || (message.stopReason !== "error" && message.stopReason !== "aborted"))
             await this.emitCommitted(
               session,
-              { sessionUpdate: "agent_segment_finalized", segmentSeq, blocks },
+              {
+                sessionUpdate: "agent_segment_finalized",
+                segmentSeq,
+                blocks,
+                finalResponse: message.stopReason === "stop",
+              },
               child?.toolCallId
             );
         }
@@ -1490,6 +1586,8 @@ export class NativeBackendProcess implements BackendProcess {
     if (session.accepted.has(input.promptId)) return;
     this.assertWritable(session);
     const message = this.userMessage(input.prompt);
+    const roundId = uuidv4();
+    session.roundIds.set(input.promptId, roundId);
     session.messageIds.set(message, input.promptId);
     session.pending.set(input.promptId, message);
     const accepted = (async () => {
@@ -1498,7 +1596,7 @@ export class NativeBackendProcess implements BackendProcess {
       const fact = await this.persist(
         session,
         "user_accepted",
-        { promptId: input.promptId, message, displayMessage: input.displayMessage },
+        { promptId: input.promptId, roundId, message, displayMessage: input.displayMessage },
         true
       );
       if (fact) session.acceptedSeqs.set(input.promptId, fact.seq);
@@ -1564,6 +1662,15 @@ export class NativeBackendProcess implements BackendProcess {
     session.ending = false;
     session.runController = new AbortController();
     session.runId = promptId;
+    const collaboration = session.collaboration.get(message);
+    const originRun = collaboration
+      ? session.record.subagents
+          ?.flatMap((entry) => entry.snapshot.runs)
+          .find((run) => run.id === collaboration.runId)
+      : undefined;
+    if (originRun?.roundId) session.roundIds.set(promptId, originRun.roundId);
+    const agentRun = this.agentRuns.get(session.agent);
+    if (agentRun) agentRun.promptId = originRun?.promptId ?? promptId;
     const taskGenerationId =
       session.collaboration.get(message)?.taskGenerationId ?? session.taskGenerationId;
     session.executingTaskId = taskGenerationId;
@@ -1587,6 +1694,9 @@ export class NativeBackendProcess implements BackendProcess {
         error: failure instanceof Error ? failure : new Error(String(failure)),
       };
     }
+    const deliveredPromptIds = [
+      ...new Set([promptId, ...(this.agentRuns.get(session.agent)?.deliveredPromptIds ?? [])]),
+    ];
     if (session.run === run) {
       session.run = undefined;
       session.runController = undefined;
@@ -1595,7 +1705,15 @@ export class NativeBackendProcess implements BackendProcess {
     finish();
     try {
       this.emit(session, { sessionUpdate: "busy_changed", busy: false });
-      this.emit(session, { sessionUpdate: "turn_ended", ...ended, taskGenerationId });
+      // 插队输入也形成独立回合，不能因共享一次执行而永远停留在进行中。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      for (const deliveredId of deliveredPromptIds)
+        this.emit(session, {
+          sessionUpdate: "turn_ended",
+          ...ended,
+          turnId: deliveredId,
+          taskGenerationId,
+          roundId: session.roundIds.get(deliveredId),
+        });
       await this.save(session);
       session.inFlight.delete(promptId);
       if (ended.stopReason === "end_turn") await this.finishIdleTask(session, taskGenerationId);
@@ -1652,7 +1770,12 @@ export class NativeBackendProcess implements BackendProcess {
     message: UserMessage,
     turnId: string
   ): Promise<TurnEnd> {
-    this.emit(session, { sessionUpdate: "turn_started", turnId, startedAt: Date.now() });
+    this.emit(session, {
+      sessionUpdate: "turn_started",
+      turnId,
+      startedAt: Date.now(),
+      roundId: session.roundIds.get(turnId),
+    });
     this.emit(session, { sessionUpdate: "busy_changed", busy: true });
     session.pending.delete(turnId);
     this.emit(session, { sessionUpdate: "message_delivered", promptId: turnId });
@@ -1693,7 +1816,12 @@ export class NativeBackendProcess implements BackendProcess {
         typeof message.content === "string"
           ? message.content
           : message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
-      if (isCompactCommand(text)) {
+      // 用户斜杠委派：命中子代理命令的消息不进入主模型，直接启动后台子代理运行，结果经自动续跑回传主聊天。https://github.com/ItsDalk-Lane/Scribe/issues/54
+      const subagentCommand = this.options.getSubagents
+        ? parseSubagentCommand(text, this.options.getSubagents())
+        : undefined;
+      // 会话层与输入层都按同一开关判断；这里兜底防止被禁用的 /compact 走压缩分支。https://github.com/ItsDalk-Lane/Scribe/issues/53
+      if (isCompactCommand(text) && isBuiltinCommandEnabled(getSettings(), COMPACT_COMMAND_NAME)) {
         const controller = new AbortController();
         session.compaction = controller;
         await this.compact(
@@ -1707,6 +1835,15 @@ export class NativeBackendProcess implements BackendProcess {
           }
         );
         if (session.pending.size > 0 && !session.cancelled) await session.agent.continue();
+      } else if (subagentCommand) {
+        await this.ensureTask(session);
+        await session.subagentController!.create({
+          prompt: subagentCommand.prompt,
+          name: `${subagentCommand.definition.name}: ${subagentCommand.prompt}`,
+          toolCallId: `slash-${turnId}`,
+          background: true,
+          instructions: subagentCommand.definition.instructions,
+        });
       } else {
         session.agent.clearSteeringQueue();
         session.queuedCollaboration.clear();
@@ -1891,7 +2028,23 @@ export class NativeBackendProcess implements BackendProcess {
                 taskId
                   ? session.subagentController!.state(taskId).snapshot.runs.at(-1)!.taskGenerationId
                   : (session.executingTaskId ?? session.taskGenerationId),
-                accountingRun
+                accountingRun,
+                {
+                  provider,
+                  purpose: "compaction",
+                  child: taskId
+                    ? {
+                        subagentId: taskId,
+                        taskId: session.subagentController!.state(taskId).snapshot.runs.at(-1)!.id,
+                        roundId:
+                          accountingRun?.roundId ??
+                          session.subagentController!.state(taskId).snapshot.runs.at(-1)!.roundId,
+                        promptId:
+                          accountingRun?.promptId ??
+                          session.subagentController!.state(taskId).snapshot.runs.at(-1)!.promptId,
+                      }
+                    : undefined,
+                }
               ),
               onFailure: (failure) => {
                 failureReported = true;
@@ -2015,6 +2168,18 @@ export class NativeBackendProcess implements BackendProcess {
     }
     if (event.type === "message_update") {
       const delta = event.assistantMessageEvent;
+      // 思考结束后生成工具参数的等待不能继续计作思考；按真实协议边界冻结原块。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      if (
+        segmentSeq !== undefined &&
+        (delta.type === "thinking_end" ||
+          delta.type === "text_start" ||
+          delta.type === "toolcall_start")
+      )
+        emit({
+          sessionUpdate: "agent_thought_ended",
+          segmentSeq,
+          ...(delta.type === "thinking_end" ? { contentIndex: delta.contentIndex } : {}),
+        });
       if (delta.type === "text_delta" || delta.type === "thinking_delta") {
         emit({
           sessionUpdate:
@@ -2058,7 +2223,7 @@ export class NativeBackendProcess implements BackendProcess {
         vendorToolName: event.toolName,
         ...(mcpServer ? { mcpServer } : {}),
         rawInput: event.args,
-        status: "in_progress",
+        status: "pending",
         ...(event.toolName === "propose_plan" ? { isPlanProposal: true } : {}),
       });
     }
@@ -2080,23 +2245,38 @@ export class NativeBackendProcess implements BackendProcess {
   }
 
   private toolContent(result: unknown): ToolCallContent[] {
-    if (
-      typeof result !== "object" ||
-      result === null ||
-      !("content" in result) ||
-      !Array.isArray(result.content)
-    )
-      return [];
-    const content = result.content.flatMap((part: unknown): ToolCallContent[] =>
-      typeof part === "object" &&
-      part !== null &&
-      "type" in part &&
-      part.type === "text" &&
-      "text" in part &&
-      typeof part.text === "string"
-        ? [{ type: "content", content: { type: "text", text: part.text } }]
-        : []
-    );
+    if (!isRecord(result)) return [];
+    const detail = isRecord(result.details) ? result.details : undefined;
+    const original = isRecord(detail?.mcpResult) ? detail.mcpResult : result;
+    const content: ToolCallContent[] = Array.isArray(original.content)
+      ? original.content.flatMap((part: unknown): ToolCallContent[] =>
+          isRecord(part) && typeof part.type === "string"
+            ? [{ type: "content", content: { ...part, type: part.type } }]
+            : []
+        )
+      : [];
+    if (original.structuredContent !== undefined) {
+      content.push({
+        type: "content",
+        content: {
+          type: "json",
+          name: "structuredContent",
+          text: JSON.stringify(original.structuredContent),
+        },
+      });
+    }
+    if (original !== result) {
+      const metadata = Object.fromEntries(
+        Object.entries(original).filter(
+          ([key]) => !["content", "structuredContent", "isError"].includes(key)
+        )
+      );
+      if (Object.keys(metadata).length > 0)
+        content.push({
+          type: "content",
+          content: { type: "json", name: "metadata", text: JSON.stringify(metadata) },
+        });
+    }
     if ("details" in result && typeof result.details === "object" && result.details !== null) {
       const detail = result.details;
       if (
@@ -2125,6 +2305,16 @@ export class NativeBackendProcess implements BackendProcess {
       restored: session.record.subagents,
       getModelId: () => session.record.modelId,
       getTaskGenerationId: () => session.taskGenerationId,
+      getRoundContext: (sender) => {
+        const promptId =
+          sender !== "user" && session.run
+            ? (this.agentRuns.get(session.agent)?.promptId ?? session.runId)
+            : undefined;
+        return {
+          roundId: (promptId ? session.roundIds.get(promptId) : undefined) ?? uuidv4(),
+          ...(promptId ? { promptId } : {}),
+        };
+      },
       isTaskActive: (id) =>
         !session.closed &&
         session.record.taskGenerations?.some(
@@ -2241,6 +2431,8 @@ export class NativeBackendProcess implements BackendProcess {
     );
     const system = await raceWithAbortSignal(this.options.getSystemPrompt(session.record), signal);
     const child: ChildExecution = {
+      roundId: run.roundId,
+      promptId: run.promptId,
       taskId: run.id,
       toolCallId: run.toolCallId,
       subagentId: state.snapshot.id,
@@ -2293,6 +2485,7 @@ export class NativeBackendProcess implements BackendProcess {
       description: state.snapshot.name,
       prompt: pending.map((message) => message.text).join("\n"),
     });
+    let childRoundStopReason: StopReason = "request_error";
     try {
       signal.throwIfAborted();
       await agent.prompt(initial);
@@ -2307,6 +2500,9 @@ export class NativeBackendProcess implements BackendProcess {
         (stopReason !== undefined && stopReason !== "end_turn") ||
         (message?.role === "assistant" &&
           ["error", "aborted", "length", "toolUse"].includes(message.stopReason));
+      childRoundStopReason = signal.aborted
+        ? "cancelled"
+        : (stopReason ?? (failed ? "request_error" : "end_turn"));
       // 重试及压缩已消耗的请求不能因最终上下文只保留成功回复而漏计。https://github.com/ItsDalk-Lane/Scribe/issues/50
       const actualUsage = this.agentRuns.get(agent)?.requestUsage;
       const usage = actualUsage
@@ -2358,9 +2554,35 @@ export class NativeBackendProcess implements BackendProcess {
       };
     } finally {
       signal.removeEventListener("abort", abort);
-      await Promise.all(
-        [...(child.resources ?? [])].map((resources) => this.releaseTools(session, resources))
-      );
+      try {
+        // 后台工作收尾失败不能随着最终正文被记为正常完成。https://github.com/ItsDalk-Lane/Scribe/issues/52
+        await Promise.all(
+          [...(child.resources ?? [])].map((resources) => this.releaseTools(session, resources))
+        ).catch((error: unknown) => {
+          childRoundStopReason = "request_error";
+          throw error;
+        });
+      } finally {
+        // 已投递的新子回合逐一结束；未送达的排队输入不伪造完成轮次。https://github.com/ItsDalk-Lane/Scribe/issues/52
+        const childRun = this.agentRuns.get(agent);
+        for (const promptId of childRun?.deliveredPromptIds ?? []) {
+          const input = session
+            .subagentController!.state(child.subagentId)
+            .snapshot.messages.find((message) => message.id === promptId);
+          if (input?.roundId)
+            await this.emitCommitted(
+              session,
+              {
+                sessionUpdate: "turn_ended",
+                turnId: promptId,
+                roundId: input.roundId,
+                subagentId: child.subagentId,
+                stopReason: signal.aborted ? "cancelled" : childRoundStopReason,
+              },
+              child.toolCallId
+            );
+        }
+      }
     }
   }
 
@@ -2603,11 +2825,24 @@ export class NativeBackendProcess implements BackendProcess {
   private requestAccounting(
     session: NativeSessionContext,
     taskId: string,
-    run?: NativeAgentRunState
+    run?: NativeAgentRunState,
+    scope: {
+      child?: Pick<ChildExecution, "roundId" | "promptId" | "subagentId" | "taskId">;
+      provider?: ProviderChatModel;
+      purpose?: "chat" | "compaction";
+      getSegmentSeq?: () => number | undefined;
+    } = {}
   ): Pick<
     import("@/LLMProviders/piChatModel").AgentStreamOptions,
-    "beforeRequest" | "onRequestUsage"
+    "beforeRequest" | "onRequestUsage" | "onCallMetrics"
   > {
+    // 请求归属在派发时固定，后台子执行不能随父聊天后续输入改归属。https://github.com/ItsDalk-Lane/Scribe/issues/52
+    const promptId = scope.child?.promptId ?? run?.promptId ?? session.runId;
+    const roundId = scope.child?.roundId ?? session.roundIds.get(promptId) ?? uuidv4();
+    const provider = scope.provider ?? session.provider;
+    const subagent = scope.child
+      ? session.subagentController?.state(scope.child.subagentId).snapshot
+      : undefined;
     const change = (update: (task: NativeSubagentTask) => void): Promise<void> => {
       const operation = session.budgetQueue.then(async () => {
         const task = session.record.taskGenerations?.find((entry) => entry.id === taskId);
@@ -2622,6 +2857,35 @@ export class NativeBackendProcess implements BackendProcess {
       return operation;
     };
     return {
+      onCallMetrics: async (metrics) => {
+        await this.emitCommitted(
+          session,
+          {
+            sessionUpdate: "model_call_metrics",
+            observation: {
+              ...metrics,
+              roundId,
+              promptId,
+              sourceId: scope.child?.subagentId ?? "main",
+              sourceName: subagent?.name ?? (scope.child ? scope.child.subagentId : "Main agent"),
+              kind: scope.child ? "subagent" : "main",
+              purpose: scope.purpose ?? "chat",
+              modelId: provider.model.id,
+              modelName: provider.model.name,
+              modelSourceId: provider.configuredModelId,
+              provider: provider.providerDisplayName ?? provider.model.provider,
+              taskGenerationId: taskId,
+              ...(scope.child
+                ? { subagentId: scope.child.subagentId, runId: scope.child.taskId }
+                : {}),
+              segmentSeq: scope.getSegmentSeq?.(),
+            },
+          },
+          scope.child
+            ? subagent?.runs.find((entry) => entry.id === scope.child!.taskId)?.toolCallId
+            : undefined
+        );
+      },
       beforeRequest: async (requestId) => {
         await change((task) => {
           if (!task.active) throw new DOMException("This task was stopped", "AbortError");
@@ -3029,11 +3293,14 @@ export class NativeBackendProcess implements BackendProcess {
       "user_message_chunk",
       "agent_message_chunk",
       "agent_thought_chunk",
+      "agent_thought_ended",
       "tool_call",
       "tool_call_update",
       "plan",
       "compaction",
       "turn_ended",
+      "model_call_metrics",
+      "tool_execution_started",
       "task_started",
       "task_progress",
       "task_ended",
@@ -3157,7 +3424,13 @@ export class NativeBackendProcess implements BackendProcess {
     if (session.closed) return event;
     session.record.events.push(event);
     if (this.options.storage.append) {
-      const record = await this.persist(session, "event", event, false, origin);
+      const record = await this.persist(
+        session,
+        "event",
+        event,
+        update.sessionUpdate === "model_call_metrics",
+        origin
+      );
       event.seq = record?.seq;
     }
     this.handlers.get(session.record.sessionId)?.(event);
@@ -3567,6 +3840,29 @@ export class NativeBackendProcess implements BackendProcess {
     if (!execution || execution.admitted) return;
     await this.persist(session, "tool_admitted", { toolCallId, ...execution }, true);
     execution.admitted = true;
+    if (execution.roundId && execution.sourceId) {
+      const taskToolCallId = execution.taskId
+        ? session.subagentController
+            ?.list()
+            .flatMap((entry) => entry.runs)
+            .find((run) => run.id === execution.taskId)?.toolCallId
+        : undefined;
+      await this.emitCommitted(
+        session,
+        {
+          sessionUpdate: "tool_execution_started",
+          roundId: execution.roundId,
+          sourceId: execution.sourceId,
+          toolCallId,
+        },
+        taskToolCallId
+      );
+      await this.emitCommitted(
+        session,
+        { sessionUpdate: "tool_call_update", toolCallId, status: "in_progress" },
+        taskToolCallId
+      );
+    }
   }
 
   private async recordToolResult(

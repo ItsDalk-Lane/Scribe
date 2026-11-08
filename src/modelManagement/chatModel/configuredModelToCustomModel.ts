@@ -92,6 +92,7 @@ export function configuredModelToCustomModel(params: {
 
   return {
     configuredModelId: configuredModel.configuredModelId,
+    providerDisplayName: provider.displayName,
     providerCatalogId:
       provider.origin.kind === "byok" ? provider.origin.catalogProviderId : undefined,
     providerNpm: connection.npm,

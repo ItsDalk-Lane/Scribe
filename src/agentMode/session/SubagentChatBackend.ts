@@ -35,6 +35,7 @@ import type {
   SubagentSendMode,
   SubagentSessionSnapshot,
 } from "@/agentMode/session/subagentTypes";
+import { STOP_REASONS } from "@/LLMProviders/modelUsageMetrics";
 import { v4 as uuidv4 } from "uuid";
 
 const EMPTY_MESSAGES = Object.freeze([]) as unknown as AgentChatMessage[];
@@ -80,6 +81,7 @@ function mailboxEntry(
     ...base,
     id: `subagent-out:${message.id}`,
     sender: AI_SENDER,
+    synthetic: true,
     message: `${interjectionLabel(message.kind)}\n\n${message.text}`,
   };
 }
@@ -147,6 +149,9 @@ export function buildSubagentTranscript(
           ...message,
           id: `${runMessageId(run.id, message.id)}:${start}`,
           parts: slice,
+          turnMetrics: undefined,
+          turnStopReason: undefined,
+          turnDurationMs: undefined,
           message: slice.map((part) => (part.kind === "text" ? part.text : "")).join(""),
         });
         start = end;
@@ -216,14 +221,6 @@ export class SubagentChatBackend implements AgentChatBackend {
     await this.parent.stopSubagent?.(this.subagentId);
   }
 
-  async setArchived(archived: boolean): Promise<void> {
-    await this.parent.setSubagentArchived?.(this.subagentId, archived);
-  }
-
-  async remove(): Promise<void> {
-    await this.parent.deleteSubagentSession?.(this.subagentId);
-  }
-
   async confirmRecovery(): Promise<void> {
     await this.parent.confirmSubagentRecovery?.(this.subagentId);
   }
@@ -243,19 +240,15 @@ export class SubagentChatBackend implements AgentChatBackend {
       if (!this.getSnapshot()) throw new Error(t("This child session no longer exists."));
       const mode: SubagentSendMode = this.getActiveRun() ? "enqueue" : "wake";
       const web = await serializeWebTabContext(context);
-      const payload =
-        context || promptContent?.length
-          ? {
-              content: buildPromptBlocks(text, context, promptContent, web),
-              context: serializeDisplayMessage({
-                ...buildUserMessage(id, text, context, promptContent),
-                id,
-              }).context,
-            }
-          : undefined;
-      if (payload)
-        await this.parent.sendSubagentMessage?.(this.subagentId, text, mode, id, payload);
-      else await this.parent.sendSubagentMessage?.(this.subagentId, text, mode, id);
+      // 子聊天里的纯文字同样是用户输入，不能因没有附件而误走协作引用通道。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      const payload = {
+        content: buildPromptBlocks(text, context, promptContent, web),
+        context: serializeDisplayMessage({
+          ...buildUserMessage(id, text, context, promptContent),
+          id,
+        }).context,
+      };
+      await this.parent.sendSubagentMessage?.(this.subagentId, text, mode, id, payload);
     })();
     return { id, turn };
   }
@@ -326,7 +319,54 @@ export class SubagentChatBackend implements AgentChatBackend {
       snapshot,
       (toolCallId) => this.parent.getTaskMessages(toolCallId),
       this.resolveNote
-    );
+    ).map((message) => {
+      if (message.sender === USER_SENDER) return message;
+      const metrics = this.parent.getMessageUsageMetrics?.(message, true);
+      const run = snapshot.runs.find((run) =>
+        message.id.startsWith(`${SUBAGENT_RUN_MESSAGE_PREFIX}${run.id}:`)
+      );
+      const inputs = run
+        ? snapshot.messages.filter(
+            (input) =>
+              input.direction === "to_child" &&
+              input.runId === run.id &&
+              input.state !== "accepted" &&
+              input.state !== "withdrawn"
+          )
+        : [];
+      // 只有一轮的原始执行可借用自己的开始结束记录；切片不能继承整段执行的耗时和成功状态。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      const completed =
+        run &&
+        !isSubagentRunActive(run.status) &&
+        inputs.length <= 1 &&
+        !inputs.some((input) => input.roundId && input.roundId !== run.roundId) &&
+        (!metrics?.roundId || metrics.roundId === run.roundId);
+      const reported = STOP_REASONS.find((reason) => reason === run?.stopReason);
+      const reason = completed
+        ? ((reported === "end_turn" && run.status !== "completed" ? undefined : reported) ??
+          (run.status === "completed"
+            ? "end_turn"
+            : run.status === "stopped"
+              ? "cancelled"
+              : run.status === "interrupted"
+                ? "interrupted"
+                : "request_error"))
+        : undefined;
+      const duration =
+        completed &&
+        run.status !== "interrupted" &&
+        run.startedAt !== undefined &&
+        run.endedAt !== undefined &&
+        run.endedAt >= run.startedAt
+          ? run.endedAt - run.startedAt
+          : undefined;
+      return {
+        ...message,
+        turnMetrics: metrics,
+        turnStopReason: metrics?.roundStopReason ?? reason,
+        turnDurationMs: metrics?.roundDurationMs ?? duration,
+      };
+    });
   }
 
   getTasks(): readonly AgentTask[] {
@@ -388,7 +428,7 @@ export class SubagentChatBackend implements AgentChatBackend {
   }
 
   getSessionUsage(): SessionUsage | null {
-    return null;
+    return this.parent.getSubagentUsage?.(this.subagentId) ?? null;
   }
 
   getPlanUsage(): PlanUsage | null {

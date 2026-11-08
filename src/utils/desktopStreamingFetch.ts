@@ -12,19 +12,25 @@ interface ElectronNetworkBridge {
   };
 }
 
-export function loadDesktopStreamingFetch(): typeof fetch {
+export function loadDesktopStreamingFetch(onDispatch?: () => void): typeof fetch {
   const remote = requireNodeModule<ElectronNetworkBridge>("electron").remote;
   const net = remote?.require?.("electron").net;
   const MainAbortController = remote?.getGlobal?.("AbortController");
   if (!net?.fetch || !MainAbortController)
     throw new Error("The desktop network bridge required for streaming requests is unavailable.");
-  return createDesktopStreamingFetch({
-    fetch: (url, init) => net.fetch!(url, init),
-    AbortController: MainAbortController,
-  });
+  return createDesktopStreamingFetch(
+    {
+      fetch: (url, init) => net.fetch!(url, init),
+      AbortController: MainAbortController,
+    },
+    onDispatch
+  );
 }
 
-export function createDesktopStreamingFetch(bridge: DesktopStreamingFetchBridge): typeof fetch {
+export function createDesktopStreamingFetch(
+  bridge: DesktopStreamingFetchBridge,
+  onDispatch?: () => void
+): typeof fetch {
   return async (input, init) => {
     const request = new Request(input, init);
     request.signal.throwIfAborted();
@@ -55,13 +61,16 @@ export function createDesktopStreamingFetch(bridge: DesktopStreamingFetchBridge)
     };
     request.signal.addEventListener("abort", abort, { once: true });
     try {
-      const response = await bridge.fetch(request.url, {
+      const pending = bridge.fetch(request.url, {
         method: request.method,
         headers: Object.fromEntries(request.headers.entries()),
         ...(body === undefined ? {} : { body }),
         redirect: request.redirect,
         signal: mainAbort.signal,
       });
+      // 读取请求正文仍可能被取消，只有原生连接已启动才能记真实调用。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      onDispatch?.();
+      const response = await pending;
       request.signal.throwIfAborted();
       const headers = new Headers();
       const entries = response.headers.entries();

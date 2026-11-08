@@ -116,29 +116,36 @@ export async function createHttpProviderChatModel(
     throw new Error(
       t("Unsupported native provider package: {provider}", { provider: model.providerNpm ?? "" })
     );
-  return createPiChatModel(descriptor, async (options) => {
-    options.signal?.throwIfAborted();
-    return withModelCredentials(model, async (requestModel) => {
+  return createPiChatModel(
+    descriptor,
+    async (options) => {
       options.signal?.throwIfAborted();
-      const redactionValues = [requestModel.apiKey ?? ""];
-      try {
-        const request = await resolveHttpProviderRequest(
-          requestModel,
-          descriptor,
-          {
-            ...defaults,
-            apiKey: defaults.apiKey ?? requestModel.apiKey ?? "keyless-endpoint",
-            fetch: defaults.fetch ?? createProviderFetch(requestModel, redactionValues),
-          },
-          options,
-          redactionValues
-        );
-        return { ...request, redactionValues };
-      } catch (error) {
-        throw new RequestRedactor(redactionValues).error(error);
-      }
-    });
-  });
+      return withModelCredentials(model, async (requestModel) => {
+        options.signal?.throwIfAborted();
+        const redactionValues = [requestModel.apiKey ?? ""];
+        try {
+          const request = await resolveHttpProviderRequest(
+            requestModel,
+            descriptor,
+            {
+              ...defaults,
+              apiKey: defaults.apiKey ?? requestModel.apiKey ?? "keyless-endpoint",
+              fetch:
+                defaults.fetch ??
+                createProviderFetch(requestModel, redactionValues, options.onProviderDispatch),
+            },
+            options,
+            redactionValues
+          );
+          return { ...request, redactionValues, observesDispatch: true };
+        } catch (error) {
+          throw new RequestRedactor(redactionValues).error(error);
+        }
+      });
+    },
+    model.configuredModelId,
+    model.providerDisplayName
+  );
 }
 
 async function resolveHttpProviderRequest(

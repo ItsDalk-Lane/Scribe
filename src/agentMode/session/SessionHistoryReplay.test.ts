@@ -76,6 +76,54 @@ describe("SessionHistoryReplay", () => {
     });
 
     describe("append", () => {
+      it("keeps the explicit thought end before delayed tool arguments and ignores a repeated end after reopening https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const { store, replay } = startReplay();
+        replay.append({ sessionUpdate: "agent_segment_started" }, 1000, 10);
+        replay.append(
+          {
+            sessionUpdate: "agent_thought_chunk",
+            segmentSeq: 10,
+            contentIndex: 0,
+            content: { type: "text", text: "Ready to search" },
+          },
+          1000,
+          11
+        );
+        const ended = {
+          sessionUpdate: "agent_thought_ended",
+          segmentSeq: 10,
+          contentIndex: 0,
+        } as SessionEvent["update"];
+        replay.append(ended, 3000, 12);
+        expect(store.getDisplayMessages()[0].parts?.[0]).toMatchObject({ durationMs: 2000 });
+        replay.append(ended, 8000, 13);
+        replay.append(
+          {
+            sessionUpdate: "agent_thought_chunk",
+            segmentSeq: 10,
+            contentIndex: 1,
+            content: { type: "text", text: "Another thought" },
+          },
+          9000,
+          14
+        );
+        replay.append(ended, 10000, 15);
+        expect(store.getDisplayMessages()[0].parts?.[0]).toMatchObject({ durationMs: 2000 });
+        expect(store.getDisplayMessages()[0].parts?.[1]).not.toHaveProperty("durationMs");
+        replay.append(
+          {
+            sessionUpdate: "tool_call",
+            toolCallId: "search",
+            title: "search",
+            kind: "search",
+            status: "in_progress",
+          },
+          12000,
+          16
+        );
+        expect(store.getDisplayMessages()[0].parts?.[1]).toMatchObject({ durationMs: 3000 });
+      });
+
       it("restores the exact exhausted task generation without authorizing new model calls https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
         const { store, replay } = startReplay();
         replay.append(replayText("user_message_chunk", "Question", "u1"), 100);

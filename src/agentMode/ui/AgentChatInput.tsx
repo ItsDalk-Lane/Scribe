@@ -5,7 +5,10 @@ import { useManagedSkills } from "@/agentMode/skills/SkillManager";
 import { resolveActiveNoteToken } from "@/agentMode/session/resolveActiveNoteToken";
 import type { QueuedAgentMessage } from "@/agentMode/session/AgentInputDraftStore";
 import type { AgentInputDraftControls } from "@/agentMode/ui/hooks/useAgentInputDrafts";
-import { isCompactCommand } from "@/commands/compactCommand";
+import { isCompactCommand, COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
+import { parseSubagentCommand } from "@/commands/subagentCommand";
+import { getSubagents } from "@/agentMode/subagents/SubagentManager";
+import { isBuiltinCommandEnabled } from "@/agentMode/agentCommands/builtinAgentCommands";
 import {
   clearSelection,
   dismissSelection,
@@ -110,11 +113,21 @@ const combineQueuedMessages = (items: QueuedAgentMessage[]): QueuedAgentMessage 
   };
 };
 
+// /compact 只有在用户未关闭内置命令开关时才算压缩指令；关闭后按普通文字处理。https://github.com/ItsDalk-Lane/Scribe/issues/53
+const isCompactSend = (text: string): boolean =>
+  isCompactCommand(text) && isBuiltinCommandEnabled(getSettings(), COMPACT_COMMAND_NAME);
+
+// 子代理斜杠委派与 /compact 一样按命令发送：不作为 mid-turn 插话、不携带图片，排队时也独立成回合。https://github.com/ItsDalk-Lane/Scribe/issues/54
+const isSubagentSend = (text: string): boolean =>
+  parseSubagentCommand(text, getSubagents()) !== undefined;
+
+const isCommandSend = (text: string): boolean => isCompactSend(text) || isSubagentSend(text);
+
 const takeNextQueuedBatch = (
   items: QueuedAgentMessage[]
 ): { batch: QueuedAgentMessage[]; rest: QueuedAgentMessage[] } => {
-  const nextCompact = items.findIndex((item) => isCompactCommand(item.text));
-  const end = nextCompact === 0 ? 1 : nextCompact === -1 ? items.length : nextCompact;
+  const nextCommand = items.findIndex((item) => isCommandSend(item.text));
+  const end = nextCommand === 0 ? 1 : nextCommand === -1 ? items.length : nextCommand;
   return { batch: items.slice(0, end), rest: items.slice(end) };
 };
 
@@ -224,7 +237,7 @@ export const AgentChatInput = memo(function AgentChatInput({
 
   const restoreToComposer = useCallback(
     (items: QueuedAgentMessage[], originalImages: File[] = []) => {
-      const nonCompact = items.filter((item) => !isCompactCommand(item.text));
+      const nonCompact = items.filter((item) => !isCompactSend(item.text));
       const restored = combineQueuedMessages(nonCompact.length > 0 ? nonCompact : items);
       const currentInput = activeChatInputId.current === chatInputId ? chatInputRef.current : null;
       const activeUrl = currentInput ? activeWebTabForMentions?.url : undefined;
@@ -371,7 +384,7 @@ export const AgentChatInput = memo(function AgentChatInput({
         shouldIncludeActiveWebTab
       );
 
-      const images = isCompactCommand(resolvedText) ? [] : selectedImages;
+      const images = isCommandSend(resolvedText) ? [] : selectedImages;
       if (images.length > 0 && unsupportedImageModelLabel) {
         new Notice(
           t("{p0} doesn't support images. Switch to a vision-capable model to send images.", {
@@ -446,7 +459,7 @@ export const AgentChatInput = memo(function AgentChatInput({
 
         const starting = backend.isStarting();
         if (starting || backend.isTurnInFlight() || backend.getQueuedPrompts().length > 0) {
-          if (!starting && acceptsMidTurnMessages && !isCompactCommand(item.text)) {
+          if (!starting && acceptsMidTurnMessages && !isCommandSend(item.text)) {
             sendMidTurn(item);
             return;
           }

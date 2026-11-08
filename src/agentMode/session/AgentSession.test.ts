@@ -1599,6 +1599,97 @@ describe("AgentSession", () => {
 
     describe("sendPrompt", () => {
       it.each(["main", "child"] as const)(
+        "freezes %s thought at its explicit end while the model is still preparing a tool, including replay https://github.com/ItsDalk-Lane/Scribe/issues/52",
+        async (target) => {
+          const mock = makeMockBackend();
+          const sent = recordPrompts(mock);
+          const session = makeSession(mock);
+          const first = session.sendPrompt("Search notes");
+          await waitFor(() => expect(sent).toHaveLength(1));
+          const events: SessionEvent[] = [];
+          const child = target === "child";
+          const emit = (seq: number, update: SessionEvent["update"], inChild = false) => {
+            const event: SessionEvent = {
+              sessionId: "session-1",
+              seq,
+              occurredAt: seq * 1000,
+              update,
+              ...(inChild ? { taskToolCallId: "launch" } : {}),
+            };
+            events.push(event);
+            mock.emit(event);
+          };
+          emit(1, { sessionUpdate: "turn_started", turnId: first.userMessageId });
+          emit(2, { sessionUpdate: "message_delivered", promptId: first.userMessageId });
+          emit(3, replayText("user_message_chunk", "Search notes", first.userMessageId));
+          if (child)
+            emit(4, {
+              sessionUpdate: "task_started",
+              taskId: "child-1",
+              toolCallId: "launch",
+              kind: "subagent",
+              description: "Search notes",
+            });
+          emit(10, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            11,
+            {
+              sessionUpdate: "agent_thought_chunk",
+              segmentSeq: 10,
+              contentIndex: 0,
+              content: { type: "text", text: "Ready to search" },
+            },
+            child
+          );
+          const thought = () =>
+            (child ? session.getTaskMessages("launch")[0] : aiMessages(session)[0]).parts?.[0];
+          expect(thought()).not.toHaveProperty("durationMs");
+          emit(
+            13,
+            { sessionUpdate: "agent_thought_ended", segmentSeq: 10, contentIndex: 0 },
+            child
+          );
+          expect(thought()).toMatchObject({ durationMs: 2000, endedAtMs: 13000 });
+          emit(18, { sessionUpdate: "agent_thought_ended", segmentSeq: 10 }, child);
+          expect(thought()).toMatchObject({ durationMs: 2000 });
+          emit(
+            19,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [{ kind: "thought", contentIndex: 0, text: "Ready to search" }],
+            },
+            child
+          );
+          if (child)
+            emit(20, { sessionUpdate: "task_ended", taskId: "child-1", status: "completed" });
+          emit(21, {
+            sessionUpdate: "turn_ended",
+            turnId: first.userMessageId,
+            stopReason: "end_turn",
+          });
+          await first.turn;
+          emit(
+            25,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [{ kind: "thought", contentIndex: 0, text: "Ready to search" }],
+            },
+            child
+          );
+          expect(thought()).toMatchObject({ durationMs: 2000, endedAtMs: 13000 });
+          const replayBackend = makeMockBackend();
+          const reopened = makeAwaitingResumeSession(replayBackend);
+          for (const event of events) replayBackend.emit(event);
+          reopened.completeResume(emptyState());
+          await reopened.ready;
+          const restored = child ? reopened.getTaskMessages("launch")[0] : aiMessages(reopened)[0];
+          expect(restored.parts?.[0]).toEqual(thought());
+        }
+      );
+
+      it.each(["main", "child"] as const)(
         "uses exact finalized segment blocks for %s content live and after replay",
         async (target) => {
           const mock = makeMockBackend();
@@ -3269,12 +3360,12 @@ describe("AgentSession", () => {
         expect(await storedToolOutput(text)).toEqual({ type: "text", text });
       });
 
-      it("trims a runaway tool output above the backstop, noting the agent got it all", async () => {
+      it("preserves a complete 300,000-character tool output without a display backstop https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         const output = await storedToolOutput("y".repeat(300_000));
         if (output?.type !== "text") throw new Error("expected text output");
-        expect(output.text.length).toBeLessThan(300_000);
-        expect(output.text).toContain("Display trimmed");
-        expect(output.text).toContain("The agent received the full output");
+        expect(output.text.length).toBe(300_000);
+        expect(output.text === "y".repeat(300_000)).toBe(true);
+        expect(output.text).not.toContain("Display trimmed");
       });
 
       it("builds the <project_context> block when the first prompt is sent and injects it into that prompt only", async () => {
@@ -5707,6 +5798,34 @@ describe("AgentSession", () => {
         mock.emitUpdate({ sessionUpdate: "state_changed", state: newState });
         expect(session.getState()).toBe(newState);
         expect(onModelChanged).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("getSubagentUsage()", () => {
+      it("exposes the child's real cumulative calls through a stable backend projection https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        mock.emitUpdate({
+          sessionUpdate: "model_call_metrics",
+          observation: {
+            id: "child-call",
+            roundId: "r",
+            sourceId: "child",
+            subagentId: "child",
+            sourceName: "Child",
+            kind: "subagent",
+            purpose: "chat",
+            modelId: "m",
+            modelName: "M",
+            requestIds: ["req"],
+            status: "completed",
+            usage: { totalTokens: 8 },
+          },
+        });
+        const usage = session.getSubagentUsage("child");
+        expect(usage?.metrics).toMatchObject({ totalTokens: 8, steps: 1 });
+        expect(session.getSubagentUsage("child")).toBe(usage);
+        expect(session.getSubagentUsage("other")).toBeNull();
       });
     });
 

@@ -17,6 +17,7 @@ const meta = {
 export default meta;
 
 export const Running: StoryObj<TaskCardProps> = {};
+export const RunningCommand: StoryObj<TaskCardProps> = { args: { task: makeCommandTask() } };
 
 export const Queued: StoryObj<TaskCardProps> = {
   args: { task: makeTask({ subagentStatus: "queued" }) },

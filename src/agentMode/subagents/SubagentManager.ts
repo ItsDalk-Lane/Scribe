@@ -141,3 +141,8 @@ export function getSubagents(): readonly SubagentDefinition[] {
 export function useSubagents(): readonly SubagentDefinition[] {
   return useAtomValue(definitions, { store: state });
 }
+
+// 斜杠菜单等非 React 订阅方通过它与运行时委派读取同一份定义。https://github.com/ItsDalk-Lane/Scribe/issues/54
+export function subscribeSubagents(listener: () => void): () => void {
+  return state.sub(definitions, () => listener());
+}

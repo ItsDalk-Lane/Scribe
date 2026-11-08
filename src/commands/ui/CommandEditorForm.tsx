@@ -83,11 +83,11 @@ export function CommandEditorForm({
           placeholder={t("Enter command name")}
         />
         {errors.title && <div className="tw-text-sm tw-text-error">{errors.title}</div>}
-        {/* 与内建 /compact 同名的指令被斜杠菜单永久遮蔽，提示用户开关为何无效。 https://github.com/ItsDalk-Lane/Scribe/issues/20 */}
+        {/* 与内建 /compact 同名的指令在内建命令开启时被斜杠菜单遮蔽；关闭内建命令后恢复显示。 https://github.com/ItsDalk-Lane/Scribe/issues/53 */}
         {command.title === COMPACT_COMMAND_NAME && !errors.title && (
           <div className="tw-text-sm tw-text-muted">
             {t(
-              "This name matches the built-in /compact command, so this command never appears in the slash menu."
+              "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled."
             )}
           </div>
         )}

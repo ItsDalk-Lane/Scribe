@@ -1,3 +1,4 @@
+import { TurnUsageBadge } from "@/agentMode/ui/TurnUsageBadge";
 import { t } from "@/lib/i18n";
 import { AgentTrail } from "@/agentMode/ui/AgentTrailView";
 import { AskUserQuestionCard } from "@/agentMode/ui/AskUserQuestionCard";
@@ -70,8 +71,9 @@ function findToolCallTitle(messages: AgentChatMessage[], toolCallId: string): st
 }
 
 function lastAssistant(visible: AgentChatMessage[]): AgentChatMessage | undefined {
+  // 协作通知不代表新的模型回答，不能抢走仍在生成的主回复的展示身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
   for (let i = visible.length - 1; i >= 0; i--) {
-    if (visible[i].sender !== USER_SENDER) return visible[i];
+    if (visible[i].sender !== USER_SENDER && !visible[i].synthetic) return visible[i];
   }
   return undefined;
 }
@@ -100,8 +102,11 @@ const AgentMessageRow = memo(function AgentMessageRow({
   const hasParts = (message.parts?.length ?? 0) > 0;
   const renderTrail = isAssistant && hasParts;
   const completedTurnDurationMs = message.turnDurationMs;
+  // 子会话追加输入会共用原消息的时间戳，运行计时必须优先使用该回合真实交付起点。https://github.com/ItsDalk-Lane/Scribe/issues/52
   const runningTurnStartedAtMs =
-    isLatestAssistant && isStreaming ? message.timestamp?.epoch : undefined;
+    isLatestAssistant && isStreaming
+      ? (message.turnMetrics?.roundStartedAtMs ?? message.timestamp?.epoch)
+      : undefined;
   const completedTurnDuration =
     completedTurnDurationMs !== undefined ? (
       <AgentTurnDurationIndicator status="complete" durationMs={completedTurnDurationMs} inline />
@@ -122,6 +127,8 @@ const AgentMessageRow = memo(function AgentMessageRow({
         <div className="tw-px-3 tw-pt-2">
           <AgentTrail
             parts={message.parts!}
+            messageId={message.id}
+            metrics={message.turnMetrics}
             onFork={onFork}
             forkDisabled={forkDisabled}
             isStreaming={isStreaming}
@@ -149,6 +156,11 @@ const AgentMessageRow = memo(function AgentMessageRow({
             message={adaptedMessage}
             app={app}
             isStreaming={false}
+            footerAfterTimestamp={
+              isAssistant && !message.synthetic ? (
+                <TurnUsageBadge metrics={message.turnMetrics} />
+              ) : undefined
+            }
             onFork={onFork}
             forkDisabled={forkDisabled}
           />

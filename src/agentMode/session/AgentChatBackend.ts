@@ -79,6 +79,11 @@ export interface AgentChatBackend {
   getCurrentTodoList(): AgentTodoListEntry[] | null;
 
   getSessionUsage(): SessionUsage | null;
+  getSubagentUsage?(subagentId: string): SessionUsage | null;
+  getMessageUsageMetrics?(
+    message: AgentChatMessage,
+    child?: boolean
+  ): AgentChatMessage["turnMetrics"];
 
   getPlanUsage(): PlanUsage | null;
 

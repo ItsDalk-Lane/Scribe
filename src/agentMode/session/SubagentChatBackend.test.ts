@@ -4,6 +4,7 @@ import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type { AgentChatMessage, PermissionPrompt, QueuedPrompt } from "@/agentMode/session/types";
 import type {
   SubagentMessage,
+  SubagentMessagePayload,
   SubagentRunSnapshot,
   SubagentSessionSnapshot,
 } from "@/agentMode/session/subagentTypes";
@@ -137,7 +138,7 @@ describe("SubagentChatBackend", () => {
       ]);
     });
 
-    it("renders each run's content after its delivered user messages and before its parent interjections", () => {
+    it("renders each run after delivered input and marks parent interjections as notices https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
       const snapshot = buildSession({
         runs: [
           buildRun({ id: "run-1", toolCallId: "call-1", createdAt: 1000 }),
@@ -180,6 +181,7 @@ describe("SubagentChatBackend", () => {
       expect(transcript[0].sender).toBe(USER_SENDER);
       expect(transcript[1].id).toBe(`${SUBAGENT_RUN_MESSAGE_PREFIX}run-1:a1`);
       expect(transcript[2].sender).toBe(AI_SENDER);
+      expect(transcript[2].synthetic).toBe(true);
       expect(transcript[3].id).toBe(`subagent-in:m2`);
       expect(readRunMessages).toHaveBeenCalledWith("call-2");
     });
@@ -342,6 +344,148 @@ describe("SubagentChatBackend", () => {
     };
 
     describe("getMessages()", () => {
+      it("uses each recorded child round's own completion and elapsed time instead of inheriting the whole run https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const snapshot = buildSession({
+          runs: [
+            buildRun({
+              id: "run-1",
+              toolCallId: "call-1",
+              roundId: "first",
+              startedAt: 1000,
+              endedAt: 9000,
+            }),
+          ],
+          messages: [
+            buildMessage({ id: "follow-up", runId: "run-1", roundId: "second", deliverySeq: 15 }),
+          ],
+        });
+        const { backend } = backendWithSession(snapshot, {
+          getTaskMessages: () => [
+            {
+              ...runContent("reply", "FirstSecond"),
+              turnStopReason: "end_turn",
+              turnDurationMs: 8000,
+              parts: [
+                { kind: "text", text: "First", segmentSeq: 10 },
+                { kind: "text", text: "Second", segmentSeq: 20 },
+              ],
+            },
+          ],
+          getMessageUsageMetrics: (message) => ({
+            roundId: message.parts?.[0]?.segmentSeq === 10 ? "first" : "second",
+            roundDurationMs: message.parts?.[0]?.segmentSeq === 10 ? 3000 : 4000,
+            roundStopReason: message.parts?.[0]?.segmentSeq === 10 ? "end_turn" : "cancelled",
+            partial: false,
+            sources: [],
+          }),
+        });
+        const replies = backend.getMessages().filter((message) => message.sender === AI_SENDER);
+        expect(replies.map((message) => message.turnDurationMs)).toEqual([3000, 4000]);
+        expect(replies.map((message) => message.turnStopReason)).toEqual(["end_turn", "cancelled"]);
+      });
+      it("keeps slice completion unknown when the only available timing belongs to a multi-round run https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const run = buildRun({ id: "run-1", roundId: "first", startedAt: 1000, endedAt: 9000 });
+        const { backend } = backendWithSession(
+          buildSession({
+            runs: [run],
+            messages: [buildMessage({ runId: run.id, roundId: "second", deliverySeq: 15 })],
+          }),
+          {
+            getTaskMessages: () => [
+              {
+                ...runContent("reply", "FirstSecond"),
+                turnStopReason: "end_turn",
+                turnDurationMs: 8000,
+                parts: [
+                  { kind: "text", text: "First", segmentSeq: 10 },
+                  { kind: "text", text: "Second", segmentSeq: 20 },
+                ],
+              },
+            ],
+            getMessageUsageMetrics: () => undefined,
+          }
+        );
+        for (const reply of backend
+          .getMessages()
+          .filter((message) => message.sender === AI_SENDER)) {
+          expect(reply.turnStopReason).toBeUndefined();
+          expect(reply.turnDurationMs).toBeUndefined();
+        }
+      });
+      it("keeps an interrupted run's duration unknown because recovery only records its last known activity https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const { backend } = backendWithSession(
+          buildSession({
+            runs: [
+              buildRun({
+                status: "interrupted",
+                stopReason: "interrupted",
+                startedAt: 1000,
+                endedAt: 9000,
+              }),
+            ],
+          }),
+          { getTaskMessages: () => [runContent("reply", "Interrupted")] }
+        );
+        expect(backend.getMessages()[0].turnStopReason).toBe("interrupted");
+        expect(backend.getMessages()[0].turnDurationMs).toBeUndefined();
+      });
+      it("recovers an initial completed run's actual elapsed time while keeping an active or unrecorded run unknown https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const complete = buildRun({
+          id: "run-1",
+          toolCallId: "call-1",
+          startedAt: 1000,
+          endedAt: 9000,
+        });
+        const { backend } = backendWithSession(buildSession({ runs: [complete] }), {
+          getTaskMessages: () => [runContent("reply", "Answer")],
+        });
+        expect(backend.getMessages()[0]).toMatchObject({
+          turnStopReason: "end_turn",
+          turnDurationMs: 8000,
+        });
+        const active = backendWithSession(
+          buildSession({ runs: [{ ...complete, status: "running" }] }),
+          { getTaskMessages: () => [runContent("reply", "Still working")] }
+        );
+        expect(active.backend.getMessages()[0].turnStopReason).toBeUndefined();
+        expect(active.backend.getMessages()[0].turnDurationMs).toBeUndefined();
+      });
+      it("projects usage independently for reply slices separated by delivered child input https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const snapshot = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+          messages: [
+            buildMessage({
+              id: "second-input",
+              runId: "run-1",
+              deliverySeq: 15,
+              text: "Follow-up",
+            }),
+          ],
+        });
+        const { backend } = backendWithSession(snapshot, {
+          getTaskMessages: () => [
+            {
+              ...runContent("reply", "FirstSecond"),
+              parts: [
+                { kind: "text", text: "First", segmentSeq: 10 },
+                { kind: "text", text: "Second", segmentSeq: 20 },
+              ],
+              turnMetrics: { totalTokens: 999, partial: false, sources: [] },
+            },
+          ],
+          ...{
+            getMessageUsageMetrics: (message: AgentChatMessage) => ({
+              totalTokens: message.parts?.[0]?.segmentSeq === 10 ? 10 : 20,
+              partial: false,
+              sources: [],
+            }),
+          },
+        });
+        const replies = backend.getMessages().filter((message) => message.sender === AI_SENDER);
+        expect(replies.map((message) => message.message)).toEqual(["First", "Second"]);
+        expect(replies.map((message) => message.turnMetrics?.totalTokens)).toEqual([10, 20]);
+      });
+
       it("returns an empty transcript when the child session no longer exists", () => {
         const parent = createParent({ getSubagentSessions: jest.fn(() => []) });
         const backend = new SubagentChatBackend(parent, "subagent-missing");
@@ -361,6 +505,40 @@ describe("SubagentChatBackend", () => {
     });
 
     describe("sendWaitingNow()", () => {
+      it("keeps a plain-text user payload and its message identity through the waiting queue and retry https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const snapshot = buildSession({ runs: [buildRun({ status: "running" })] });
+        const sendSubagentMessage = jest.fn(
+          async (
+            _subagentId: string,
+            text: string,
+            _mode: string,
+            id?: string,
+            payload?: SubagentMessagePayload
+          ) => {
+            snapshot.messages = [buildMessage({ id, text, payload, state: "accepted" })];
+            return { subagentId: snapshot.id, status: "queued" as const };
+          }
+        );
+        const { backend } = backendWithSession(snapshot, { sendSubagentMessage });
+        const input = "请调用MCP工具检查资料。";
+        const sent = backend.sendMessage(input);
+        await sent.turn;
+        const payload = sendSubagentMessage.mock.calls[0][4];
+        expect(payload?.content).toEqual([{ type: "text", text: input }]);
+        expect(backend.getDeliveringPrompts()).toEqual([{ id: sent.id, text: input }]);
+        snapshot.runs = [];
+        expect(backend.getHeldPrompts()).toEqual([{ id: sent.id, text: input }]);
+        await backend.sendWaitingNow();
+        expect(sendSubagentMessage).toHaveBeenNthCalledWith(
+          2,
+          snapshot.id,
+          input,
+          "wake",
+          sent.id,
+          payload
+        );
+        expect(sendSubagentMessage.mock.calls[1][4]).toBe(payload);
+      });
       it("retries the first waiting message with its original identity and attachment (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const payload = {
           content: [{ type: "image" as const, mimeType: "image/png", data: "YWJj" }],
@@ -385,7 +563,7 @@ describe("SubagentChatBackend", () => {
     });
 
     describe("sendMessage()", () => {
-      it("enqueues into the live run while the child is executing", async () => {
+      it("enqueues plain text as user content while the child is executing https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         const snapshot = buildSession({
           runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "running" })],
         });
@@ -400,11 +578,12 @@ describe("SubagentChatBackend", () => {
           snapshot.id,
           "Steer this",
           "enqueue",
-          expect.any(String)
+          expect.any(String),
+          { content: [{ type: "text", text: "Steer this" }], context: undefined }
         );
       });
 
-      it("wakes an idle child with a fresh run instead of parking the message", async () => {
+      it("wakes an idle child with plain text as user content instead of quoted collaboration https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         const snapshot = buildSession({
           runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "completed" })],
         });
@@ -419,7 +598,8 @@ describe("SubagentChatBackend", () => {
           snapshot.id,
           "Start again",
           "wake",
-          expect.any(String)
+          expect.any(String),
+          { content: [{ type: "text", text: "Start again" }], context: undefined }
         );
       });
 
@@ -590,6 +770,20 @@ describe("SubagentChatBackend", () => {
       });
     });
 
+    describe("getSessionUsage()", () => {
+      it("uses all child calls from the parent projection and preserves its reference https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const usage = {
+          usedTokens: 0,
+          updatedAt: 1,
+          metrics: { totalTokens: 16, steps: 2, partial: true, sources: [] },
+        };
+        const getSubagentUsage = jest.fn(() => usage);
+        const { backend } = backendWithSession(buildSession(), { getSubagentUsage });
+        expect(backend.getSessionUsage()).toBe(usage);
+        expect(backend.getSessionUsage()).toBe(usage);
+        expect(getSubagentUsage).toHaveBeenCalledWith(buildSession().id);
+      });
+    });
     describe("canSwitchModel()", () => {
       it("disables model, effort and mode switching for the child chat", () => {
         const { backend } = backendWithSession(buildSession());

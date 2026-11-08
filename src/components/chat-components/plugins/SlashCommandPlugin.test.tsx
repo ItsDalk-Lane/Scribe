@@ -12,13 +12,40 @@ import { SlashCommandPlugin } from "@/components/chat-components/plugins/SlashCo
 import { ValueSyncPlugin } from "@/components/chat-components/plugins/ValueSyncPlugin";
 
 let mockSkills: Skill[] = [];
+let mockAgentCommands: {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  enabled: boolean;
+}[] = [];
+let mockSubagents: {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  enabled: boolean;
+}[] = [];
 jest.mock("@/agentMode", () => ({
   getManagedSkills: () => mockSkills,
+  getAgentCommands: () => mockAgentCommands,
+  subscribeAgentCommands: () => () => undefined,
   SkillManager: {
     hasInstance: () => true,
     getInstance: () => ({ subscribeToSkillSetChange: () => () => undefined }),
   },
   listBackendDescriptors: () => [{ id: "native" }],
+}));
+jest.mock("@/agentMode/subagents/SubagentManager", () => ({
+  getSubagents: () => mockSubagents,
+  subscribeSubagents: () => () => undefined,
+}));
+jest.mock("@/utils/desktopRuntime", () => ({
+  isDesktopRuntime: () => true,
+}));
+jest.mock("@/settings/model", () => ({
+  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- 模拟真实 Hook 导出
+  useSettingsValue: () => ({ agentMode: { activeBackend: "native" } }),
 }));
 
 const makeSkill = (name: string): Skill => ({
@@ -91,6 +118,46 @@ describe("SlashCommandPlugin", () => {
       expect(
         screen.getByLabelText("chat editor").querySelector(".command-pill-wrapper")
       ).toBeNull();
+    });
+
+    it("keeps a seeded custom Agent command draft as plain text, never a command chip (https://github.com/ItsDalk-Lane/Scribe/issues/53)", async () => {
+      mockSkills = [];
+      mockAgentCommands = [
+        {
+          id: "translate",
+          name: "翻译",
+          description: "译成英文",
+          content: "请翻译：",
+          enabled: true,
+        },
+      ];
+      render(<ComposerHarness value="/翻译 请处理这段" />);
+      await waitFor(() => expect(reportedText).toBe("/翻译 请处理这段"));
+      expect(
+        screen.getByLabelText("chat editor").querySelector(".command-pill-wrapper")
+      ).toBeNull();
+    });
+
+    it("renders a seeded subagent draft as a command chip keyed by its command token, with identical reported text (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+      mockSkills = [];
+      mockAgentCommands = [];
+      mockSubagents = [
+        {
+          id: "research",
+          name: "research helper",
+          description: "Collects and summarizes sources",
+          instructions: "You research topics thoroughly.",
+          enabled: true,
+        },
+      ];
+      render(<ComposerHarness value="/research collect sources" />);
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText("chat editor").querySelector(".command-pill-wrapper")
+        ).toBeTruthy()
+      );
+      expect(screen.getByText("research")).toBeTruthy();
+      await waitFor(() => expect(reportedText).toBe("/research collect sources"));
     });
   });
 });

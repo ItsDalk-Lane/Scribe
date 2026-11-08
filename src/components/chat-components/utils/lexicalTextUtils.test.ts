@@ -1,4 +1,8 @@
-import { parseTextForPills, $replaceTriggeredTextWithPill } from "./lexicalTextUtils";
+import {
+  parseTextForPills,
+  $replaceTriggeredTextWithPill,
+  $replaceTriggeredTextWithText,
+} from "./lexicalTextUtils";
 import { $createParagraphNode, $createTextNode, $getRoot, createEditor, TextNode } from "lexical";
 import { CommandPillNode } from "@/components/chat-components/pills/CommandPillNode";
 import { App, TFile } from "obsidian";
@@ -128,6 +132,33 @@ describe("lexicalTextUtils", () => {
       ]);
     });
   });
+  describe("$replaceTriggeredTextWithText()", () => {
+    it("replaces the typed slash text with editable command content and leaves no chip (https://github.com/ItsDalk-Lane/Scribe/issues/53)", () => {
+      const editor = createEditor({
+        namespace: "agent-command-insert",
+        nodes: [CommandPillNode],
+        onError: (error) => {
+          throw error;
+        },
+      });
+      editor.setRootElement(document.body.createDiv());
+      editor.update(
+        () => {
+          const paragraph = $createParagraphNode();
+          paragraph.append($createTextNode("/翻"));
+          $getRoot().clear();
+          $getRoot().append(paragraph);
+          const textNode = $getRoot().getFirstDescendant();
+          (textNode as TextNode).select(2, 2);
+          $replaceTriggeredTextWithText("/", "请翻译以下内容：");
+          expect($getRoot().getTextContent()).toBe("请翻译以下内容：");
+        },
+        { discrete: true }
+      );
+      expect(editor.getRootElement()?.querySelector(".command-pill-wrapper")).toBeNull();
+    });
+  });
+
   describe("$replaceTriggeredTextWithPill()", () => {
     it("replaces typed slash text with a command chip that keeps the exact slash text content (https://github.com/ItsDalk-Lane/Scribe/issues/35)", () => {
       const editor = createEditor({

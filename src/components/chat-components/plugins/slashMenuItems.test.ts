@@ -1,10 +1,15 @@
 import type { Skill } from "@/agentMode";
+import type { SubagentDefinition } from "@/agentMode/subagents/SubagentManager";
 import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "lexical";
 import {
   $slashStartsPrompt,
   composeSlashMenuItems,
   filterSlashMenuOptions,
+  slashMenuItemGroup,
+  slashMenuItemSourceLabel,
 } from "./slashMenuItems";
+
+const SUBAGENT_ISSUE_URL = "https://github.com/ItsDalk-Lane/Scribe/issues/54";
 
 function makeSkill(overrides: Partial<Skill> & { name: string }): Skill {
   const name = overrides.name;
@@ -15,6 +20,16 @@ function makeSkill(overrides: Partial<Skill> & { name: string }): Skill {
     body: `body for ${name}`,
     enabledAgents: [],
     location: { kind: "canonical" },
+    ...overrides,
+  };
+}
+
+function makeSubagent(overrides: Partial<SubagentDefinition> & { id: string }): SubagentDefinition {
+  return {
+    name: overrides.id,
+    description: `desc for ${overrides.id}`,
+    instructions: `instructions for ${overrides.id}`,
+    enabled: true,
     ...overrides,
   };
 }
@@ -101,6 +116,157 @@ describe("slashMenuItems", () => {
         ["skill", "Compact"],
       ]);
     });
+
+    it("lists enabled Agent commands as insertable items carrying their content and hides disabled ones", () => {
+      const agentCommands = [
+        {
+          id: "translate",
+          name: "翻译",
+          description: "译成英文",
+          content: "请翻译",
+          enabled: true,
+        },
+        { id: "draft", name: "草稿", description: "", content: "写草稿", enabled: false },
+      ];
+      expect(composeSlashMenuItems([], "native", false, { agentCommands })).toEqual([
+        expect.objectContaining({
+          kind: "agentCommand",
+          name: "翻译",
+          description: "译成英文",
+          body: "请翻译",
+        }),
+      ]);
+    });
+
+    it("hides the built-in compact command once it is turned off, even when the slash starts the prompt", () => {
+      expect(
+        composeSlashMenuItems([], null, true, { disabledBuiltinCommands: ["compact"] })
+      ).toEqual([]);
+      expect(composeSlashMenuItems([], null, true).map((item) => item.name)).toEqual(["compact"]);
+    });
+
+    it(`lists enabled subagents after commands and skills, keyed by definition id and carrying instructions ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems(
+        [makeSkill({ name: "summarize", enabledAgents: ["native"] })],
+        "native",
+        true,
+        {
+          agentCommands: [
+            { id: "c1", name: "翻译", description: "", content: "请翻译", enabled: true },
+          ],
+          subagents: [makeSubagent({ id: "research", name: "研究助理" })],
+        }
+      );
+      expect(items.map((item) => [item.kind, item.name])).toEqual([
+        ["builtin", "compact"],
+        ["agentCommand", "翻译"],
+        ["skill", "summarize"],
+        ["subagent", "研究助理"],
+      ]);
+      const subagent = items[3];
+      expect(subagent.key).toMatch(/^subagent:research:/);
+      expect(subagent).toMatchObject({
+        description: "desc for research",
+        body: "instructions for research",
+      });
+    });
+
+    it(`hides disabled subagents ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems([], "native", true, {
+        subagents: [makeSubagent({ id: "off", enabled: false }), makeSubagent({ id: "on" })],
+      });
+      const ids = items
+        .filter((item) => item.kind === "subagent")
+        .map((item) => (item.kind === "subagent" ? item.subagent.id : ""));
+      expect(ids).toEqual(["on"]);
+    });
+
+    it(`omits the whole subagent group outside agent mode or without an active backend ${SUBAGENT_ISSUE_URL}`, () => {
+      const subagents = [makeSubagent({ id: "research" })];
+      expect(composeSlashMenuItems([], "native", false, { subagents })).toEqual([]);
+      expect(composeSlashMenuItems([], null, true, { subagents })).toEqual(
+        composeSlashMenuItems([], null, true)
+      );
+    });
+
+    it(`keeps subagents listed when compact is turned off ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems([], "native", true, {
+        disabledBuiltinCommands: ["compact"],
+        subagents: [makeSubagent({ id: "research" })],
+      });
+      expect(items.map((item) => item.kind)).toEqual(["subagent"]);
+    });
+
+    it(`shadows a subagent whose command token collides with compact and drops later duplicate tokens ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems([], "native", true, {
+        subagents: [
+          makeSubagent({ id: "c1", name: "compact" }),
+          makeSubagent({ id: "dup-a", name: "research" }),
+          makeSubagent({ id: "dup-b", name: "research" }),
+          makeSubagent({ id: "fallback", name: "research helper" }),
+        ],
+      });
+      const ids = items
+        .filter((item) => item.kind === "subagent")
+        .map((item) => (item.kind === "subagent" ? item.subagent.id : ""));
+      expect(ids).toEqual(["dup-a", "fallback"]);
+    });
+  });
+
+  describe("slashMenuItemGroup", () => {
+    it(`maps builtin and agent commands to Commands, skills to Skills, subagents to Subagents ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems(
+        [makeSkill({ name: "summarize", enabledAgents: ["native"] })],
+        "native",
+        true,
+        {
+          agentCommands: [
+            { id: "c1", name: "翻译", description: "", content: "请翻译", enabled: true },
+          ],
+          subagents: [makeSubagent({ id: "research" })],
+        }
+      );
+      expect(items.map(slashMenuItemGroup)).toEqual([
+        "Commands",
+        "Commands",
+        "Skills",
+        "Subagents",
+      ]);
+    });
+  });
+
+  describe("slashMenuItemSourceLabel", () => {
+    it(`labels compact and built-in-source skills as Built-in, everything else as Custom ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems(
+        [
+          makeSkill({
+            name: "builtin-skill",
+            enabledAgents: ["native"],
+            source: { kind: "builtin" },
+          }),
+          makeSkill({ name: "local-skill", enabledAgents: ["native"], source: { kind: "local" } }),
+          makeSkill({ name: "agent-skill", enabledAgents: ["native"], source: { kind: "agent" } }),
+          makeSkill({ name: "sourceless-skill", enabledAgents: ["native"] }),
+        ],
+        "native",
+        true,
+        {
+          agentCommands: [
+            { id: "c1", name: "翻译", description: "", content: "请翻译", enabled: true },
+          ],
+          subagents: [makeSubagent({ id: "research" })],
+        }
+      );
+      expect(items.map(slashMenuItemSourceLabel)).toEqual([
+        "Built-in",
+        "Custom",
+        "Built-in",
+        "Custom",
+        "Custom",
+        "Custom",
+        "Custom",
+      ]);
+    });
   });
 
   describe("filterSlashMenuOptions", () => {
@@ -136,6 +302,40 @@ describe("slashMenuItems", () => {
 
       expect(ranked[0].item.kind).toBe("builtin");
       expect(ranked.map((o) => o.title)).toEqual(["compact", "compactor", "compact-notes"]);
+    });
+
+    it(`filters each group independently and preserves the command/skill/subagent group order ${SUBAGENT_ISSUE_URL}`, () => {
+      const options = [
+        { title: "compact", content: "", group: "Commands" },
+        { title: "translate", content: "", group: "Commands" },
+        { title: "compactor", content: "", group: "Skills" },
+        { title: "compact-notes", content: "", group: "Skills" },
+        { title: "compact-checker", content: "", group: "Subagents" },
+      ];
+      expect(filterSlashMenuOptions(options, "compact").map((o) => [o.title, o.group])).toEqual([
+        ["compact", "Commands"],
+        ["compactor", "Skills"],
+        ["compact-notes", "Skills"],
+        ["compact-checker", "Subagents"],
+      ]);
+    });
+
+    it(`drops groups whose options all miss the query so their headers disappear ${SUBAGENT_ISSUE_URL}`, () => {
+      const options = [
+        { title: "compact", content: "", group: "Commands" },
+        { title: "research", content: "", group: "Subagents" },
+      ];
+      expect(filterSlashMenuOptions(options, "res")).toEqual([
+        { title: "research", content: "", group: "Subagents" },
+      ]);
+    });
+
+    it(`falls back to content matching within each group ${SUBAGENT_ISSUE_URL}`, () => {
+      const options = [
+        { title: "polish", content: "make the prose tighter", group: "Commands" },
+        { title: "other", content: "unrelated", group: "Skills" },
+      ];
+      expect(filterSlashMenuOptions(options, "prose").map((o) => o.title)).toEqual(["polish"]);
     });
   });
 

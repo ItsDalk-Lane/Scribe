@@ -456,6 +456,20 @@ describe("ChatSingleMessage", () => {
       );
       expect(screen.getByText(timestamp)).toBeTruthy();
     });
+    it("keeps supplementary usage directly beside the timestamp https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      render(
+        <TooltipProvider>
+          <ChatSingleMessage
+            message={baseMessage}
+            app={createAppStub()}
+            isStreaming={false}
+            footerAfterTimestamp={<span>16000 token</span>}
+          />
+        </TooltipProvider>
+      );
+      const usage = screen.getByText("16000 token");
+      expect(usage.parentElement?.textContent).toContain(baseMessage.timestamp?.display);
+    });
     it("collapses an oversized user message behind a Show more control", () => {
       const restoreContentHeight = stubContentDimensions(2000, 240);
 

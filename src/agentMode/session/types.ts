@@ -1,4 +1,9 @@
 import type { EffortOption } from "@/lib/model-effort";
+import type {
+  ModelCallObservation,
+  UsageMetrics,
+  StopReason,
+} from "@/agentMode/session/usageMetrics";
 import type React from "react";
 import type { ModelCapability } from "@/constants";
 import type { FormattedDateTime, MessageContext } from "@/types/message";
@@ -170,18 +175,7 @@ export type PromptContent =
   | { type: "image"; mimeType: string; data: string }
   | { type: "resource_link"; uri: string; name?: string };
 
-export type StopReason =
-  | "end_turn"
-  | "interrupted"
-  | "cancelled"
-  | "refusal"
-  | "max_tokens"
-  | "max_turn_requests"
-  | "max_task_requests"
-  | "quota_exhausted"
-  | "authentication_error"
-  | "context_limit"
-  | "request_error";
+export type { StopReason } from "@/LLMProviders/modelUsageMetrics";
 
 export type AgentToolKind =
   | "read"
@@ -197,8 +191,17 @@ export type AgentToolKind =
 
 export type AgentToolStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
 
+export interface AgentToolContentBlock {
+  [key: string]: unknown;
+  type: string;
+  text?: string;
+  data?: string;
+  mimeType?: string;
+}
+
 export type AgentToolCallOutput =
   | { type: "text"; text: string }
+  | { type: "content"; content: AgentToolContentBlock }
   | { type: "diff"; path: string; oldText: string | null; newText: string };
 
 export interface AgentPlanEntry {
@@ -252,7 +255,7 @@ export interface ToolCallDelta {
 }
 
 export type ToolCallContent =
-  | { type: "content"; content: { type: "text"; text: string } }
+  | { type: "content"; content: AgentToolContentBlock }
   | { type: "diff"; path: string; oldText?: string | null; newText: string };
 
 export interface PlanSummary {
@@ -298,7 +301,17 @@ export type SessionUpdate =
       contentIndex?: number;
     }
   | { sessionUpdate: "agent_segment_started" }
-  | { sessionUpdate: "agent_segment_finalized"; segmentSeq: number; blocks: AgentSegmentBlock[] }
+  | {
+      sessionUpdate: "agent_thought_ended";
+      segmentSeq: number;
+      contentIndex?: number;
+    }
+  | {
+      sessionUpdate: "agent_segment_finalized";
+      segmentSeq: number;
+      blocks: AgentSegmentBlock[];
+      finalResponse?: boolean;
+    }
   | ({ sessionUpdate: "tool_call" } & ToolCallSnapshot)
   | ({ sessionUpdate: "tool_call_update" } & ToolCallDelta)
   | { sessionUpdate: "plan"; entries: AgentPlanEntry[] }
@@ -311,7 +324,14 @@ export type SessionUpdate =
   | { sessionUpdate: "plan_usage_update"; planUsage: PlanUsage | null }
   | { sessionUpdate: "message_delivered"; promptId: string; messageSeq?: number }
   | { sessionUpdate: "messages_withdrawn"; promptIds: string[] }
-  | { sessionUpdate: "turn_started"; turnId: string; startedAt?: number }
+  | { sessionUpdate: "turn_started"; turnId: string; startedAt?: number; roundId?: string }
+  | { sessionUpdate: "model_call_metrics"; observation: ModelCallObservation }
+  | {
+      sessionUpdate: "tool_execution_started";
+      roundId: string;
+      sourceId: string;
+      toolCallId: string;
+    }
   | ({ sessionUpdate: "turn_ended" } & TurnEnd)
   | { sessionUpdate: "busy_changed"; busy: boolean }
   | { sessionUpdate: "session_disconnected"; error: Error }
@@ -332,6 +352,7 @@ export type TaskKind = "subagent" | "command";
 export type TaskEndStatus = "completed" | "failed" | "stopped";
 
 export interface TaskStart {
+  roundId?: string;
   subagentId?: string;
   runId?: string;
   taskId?: string;
@@ -352,6 +373,8 @@ export interface TaskEnd {
 }
 
 export interface TurnEnd {
+  roundId?: string;
+  subagentId?: string;
   taskGenerationId?: string;
   turnId: string;
   stopReason: StopReason;
@@ -360,6 +383,7 @@ export interface TurnEnd {
 }
 
 export interface SessionUsage {
+  metrics?: UsageMetrics;
   usedTokens: number;
   cumulativeInputTokens?: number;
   cumulativeOutputTokens?: number;
@@ -624,6 +648,7 @@ export type AgentMessagePart = (
       kind: "thought";
       text: string;
       startedAtMs?: number;
+      endedAtMs?: number;
       durationMs?: number;
     }
   | {
@@ -638,6 +663,7 @@ export type AgentMessagePart = (
 ) & { seq?: number; synthetic?: boolean; segmentSeq?: number; contentIndex?: number };
 
 export interface AgentChatMessage {
+  turnMetrics?: UsageMetrics;
   taskGenerationId?: string;
   seq?: number;
   synthetic?: boolean;

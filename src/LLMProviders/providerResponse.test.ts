@@ -4,6 +4,34 @@ const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/31";
 
 describe("providerResponse", () => {
   describe("observeProviderResponse()", () => {
+    it("observes original usage fields and completes timing only after the response body ends https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+      let body!: ReadableStreamDefaultController<Uint8Array>;
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            body = controller;
+          },
+        })
+      );
+      const payload = jest.fn();
+      const ended = jest.fn();
+      const observed = await observeProviderResponse(
+        response,
+        jest.fn(),
+        undefined,
+        payload,
+        ended
+      );
+      const reading = observed.text();
+      body.enqueue(
+        new TextEncoder().encode('data: {"usage":{"prompt_tokens":7,"completion_tokens":0}}\n\n')
+      );
+      expect(ended).not.toHaveBeenCalled();
+      body.close();
+      expect(await reading).toContain('"prompt_tokens":7');
+      expect(payload).toHaveBeenCalledWith({ usage: { prompt_tokens: 7, completion_tokens: 0 } });
+      expect(ended).toHaveBeenCalledTimes(1);
+    });
     it(`preserves response bytes and captures split, multiline error events (${issue})`, async () => {
       const chunks = [
         'event: error\ndata: {"error":\n',

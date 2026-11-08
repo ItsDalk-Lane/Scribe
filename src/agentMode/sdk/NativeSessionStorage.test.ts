@@ -743,6 +743,9 @@ describe("NativeSessionStorage", () => {
         { sessionUpdate: "task_ended", taskId: "t", status: "future_status" },
         { sessionUpdate: "task_progress", taskId: "t", progress: { description: 3 } },
         { sessionUpdate: "future_event", raw: "Kept" },
+        { sessionUpdate: "agent_thought_ended", segmentSeq: -1 },
+        { sessionUpdate: "agent_thought_ended", segmentSeq: 2, contentIndex: -1 },
+        { sessionUpdate: "agent_thought_ended", segmentSeq: 2, contentIndex: "0" },
         { sessionUpdate: "agent_segment_finalized", segmentSeq: -1, blocks: [] },
         { sessionUpdate: "agent_segment_finalized", segmentSeq: 2, blocks: null },
         { sessionUpdate: "agent_segment_finalized", segmentSeq: 2, blocks: [null] },
@@ -781,7 +784,7 @@ describe("NativeSessionStorage", () => {
         }
       );
 
-      it("preserves segment boundaries, indexed deltas, and finalized text and thought blocks", async () => {
+      it("preserves segment boundaries, indexed deltas, explicit thought ends and finalized blocks https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         await storage.save(record());
         const updates = [
           { sessionUpdate: "agent_segment_started", futureField: "preserved" },
@@ -791,6 +794,8 @@ describe("NativeSessionStorage", () => {
             contentIndex: 0,
             content: { type: "text", text: "Tentative thought" },
           },
+          { sessionUpdate: "agent_thought_ended", segmentSeq: 2, contentIndex: 0 },
+          { sessionUpdate: "agent_thought_ended", segmentSeq: 2 },
           {
             sessionUpdate: "agent_message_chunk",
             segmentSeq: 2,
@@ -810,7 +815,7 @@ describe("NativeSessionStorage", () => {
           await storage.append(SESSION_ID, "event", { sessionId: SESSION_ID, update });
         const loaded = await storage.load(SESSION_ID);
         expect(loaded?.events.map((event) => event.update)).toEqual(updates);
-        expect(loaded?.events.map((event) => event.seq)).toEqual([2, 3, 4, 5]);
+        expect(loaded?.events.map((event) => event.seq)).toEqual([2, 3, 4, 5, 6, 7]);
         expect(loaded?.warnings).toEqual([]);
       });
 

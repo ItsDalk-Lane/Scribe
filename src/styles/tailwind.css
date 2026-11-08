@@ -217,14 +217,16 @@ If your plugin does not need CSS, delete this file.
 .scribe-shimmer-text {
   background: linear-gradient(
     90deg,
-    var(--text-muted) 0%,
+    var(--text-muted) 35%,
     var(--text-normal) 50%,
-    var(--text-muted) 100%
+    var(--text-muted) 65%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  /* 嵌套标题有自己的文字颜色，继承透明填充才能让文字亮带持续可见。https://github.com/ItsDalk-Lane/Scribe/issues/52 */
+  -webkit-text-fill-color: transparent;
   animation: scribe-text-shimmer 2.5s ease-in-out infinite;
 }
 

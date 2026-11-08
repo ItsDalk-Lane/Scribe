@@ -141,6 +141,29 @@ describe("model", () => {
       ).toBe("right");
     });
 
+    it("keeps only known built-in command names in the disabled list, without duplicates", () => {
+      expect(
+        sanitizeSettings({
+          ...DEFAULT_SETTINGS,
+          agentMode: {
+            ...DEFAULT_SETTINGS.agentMode,
+            disabledBuiltinCommands: ["compact", "compact", "unknown", 3 as never],
+          },
+        }).agentMode.disabledBuiltinCommands
+      ).toEqual(["compact"]);
+    });
+
+    it("treats a missing or non-list disabled command setting as every built-in command being on", () => {
+      for (const raw of [undefined, "compact"]) {
+        expect(
+          sanitizeSettings({
+            ...DEFAULT_SETTINGS,
+            agentMode: { ...DEFAULT_SETTINGS.agentMode, disabledBuiltinCommands: raw as never },
+          }).agentMode.disabledBuiltinCommands
+        ).toEqual([]);
+      }
+    });
+
     it("drops the retired skill list sort strategy from settings written by older versions https://github.com/ItsDalk-Lane/Scribe/issues/48", () => {
       const stored = {
         ...DEFAULT_SETTINGS,
@@ -403,6 +426,7 @@ describe("model", () => {
       });
       expect(sanitized.agentMode).toEqual({
         activeBackend: "native",
+        disabledBuiltinCommands: [],
         subagents: { maxConcurrent: 3, maxQueued: 20, maxTaskRequests: 100 },
         backends: {},
         notificationSound: true,

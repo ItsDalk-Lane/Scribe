@@ -61,7 +61,8 @@ import {
 import { TurnTracker, type TurnOutcome, type TurnSend } from "@/agentMode/session/TurnTracker";
 import { getVaultBase } from "@/utils/vaultPath";
 import { deriveChatTitleFromMessages } from "@/agentMode/session/chatHistoryMerge";
-import { isCompactCommand } from "@/commands/compactCommand";
+import { isCompactCommand, COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
+import { isBuiltinCommandEnabled } from "@/agentMode/agentCommands/builtinAgentCommands";
 import {
   buildConversationHistoryBlock,
   buildBranchHistoryContent,
@@ -107,6 +108,7 @@ import type {
 import {
   EMPTY_SUBAGENT_SESSIONS,
   hasManagedSubagentWork,
+  isSubagentRunActive,
 } from "@/agentMode/session/subagentSessions";
 import {
   projectDisplayFacts,
@@ -399,6 +401,8 @@ export class AgentSession {
   completeResume(state: BackendState | null, purpose?: AgentSessionPurpose): void {
     this.purpose = purpose;
     this.historyReplay.end();
+    this.usageTracker.completeReplay();
+    this.refreshMessageMetrics();
     const lastMessage = this.store.getDisplayMessages().at(-1);
     this.turns.restoreLastTurnFailure(
       lastMessage?.sender !== USER_SENDER && lastMessage?.isErrorMessage === true
@@ -842,7 +846,9 @@ export class AgentSession {
     if (!isAgentBackendEnabled(getSettings(), this.backendId) || this.backendSuspended) {
       throw new Error("This agent is unavailable. Check its model configuration in Models.");
     }
-    const sendsCompact = isCompactCommand(displayText);
+    // 关闭内置命令开关后，/compact 按普通文字发送，不再触发压缩或清空上下文。https://github.com/ItsDalk-Lane/Scribe/issues/53
+    const sendsCompact =
+      isCompactCommand(displayText) && isBuiltinCommandEnabled(getSettings(), COMPACT_COMMAND_NAME);
     if (sendsCompact) {
       displayText = displayText.trim();
       context = undefined;
@@ -1011,6 +1017,17 @@ export class AgentSession {
     this.subagentSessions = sessions.length
       ? Object.freeze([...sessions])
       : EMPTY_SUBAGENT_SESSIONS;
+    for (const session of sessions) {
+      for (const run of session.runs) this.usageTracker.applyChildRun(session.id, run);
+      const rounds = new Set(session.runs.flatMap((run) => (run.roundId ? [run.roundId] : [])));
+      for (const roundId of rounds) {
+        const runs = session.runs.filter((run) => run.roundId === roundId);
+        if (runs.every((run) => !isSubagentRunActive(run.status))) {
+          this.usageTracker.markChildRoundEnded(session.id, roundId);
+          if (runs.every((run) => !run.promptId)) this.usageTracker.markMetricsRoundEnded(roundId);
+        }
+      }
+    }
     for (const session of sessions)
       for (const message of session.messages) this.showSubagentMessage(message, session.name);
     for (const session of sessions)
@@ -1034,6 +1051,7 @@ export class AgentSession {
     this.store.addMessage({
       id,
       sender: AI_SENDER,
+      synthetic: true,
       isVisible: true,
       timestamp: formatDateTime(new Date(message.acceptedAt)),
       message: `${t("Subagent")} · ${name} · ${t(message.kind)}${message.runId ? ` · ${message.runId}` : ""}\n\n${message.text}`,
@@ -1357,6 +1375,10 @@ export class AgentSession {
     return this.taskContent.get(toolCallId)?.getDisplayMessages() ?? EMPTY_MESSAGES;
   }
 
+  getSubagentUsage(subagentId: string): SessionUsage | null {
+    return this.usageTracker.getSubagentUsage(subagentId);
+  }
+
   getSessionUsage(): SessionUsage | null {
     return this.usageTracker.getSessionUsage();
   }
@@ -1413,10 +1435,54 @@ export class AgentSession {
 
   private handleSessionEvent(event: SessionEvent): void {
     this.store.withRecordedTime(event.occurredAt, () => this.applySessionEvent(event));
+    this.refreshMessageMetrics();
   }
 
   private applySessionEvent(event: SessionEvent): void {
     const update = event.update;
+    if (update.sessionUpdate === "turn_started") {
+      const task = event.taskToolCallId ? this.tasks.get(event.taskToolCallId) : undefined;
+      this.usageTracker.markMetricsRoundStarted(
+        update.roundId,
+        update.turnId,
+        task?.subagentId
+          ? {
+              subagentId: task.subagentId,
+              runId: task.runId,
+              startedAt: update.startedAt ?? event.occurredAt,
+            }
+          : undefined
+      );
+    }
+    if (update.sessionUpdate === "tool_execution_started") {
+      this.usageTracker.recordToolExecution(update.roundId, update.sourceId, update.toolCallId);
+      this.refreshMessageMetrics();
+      return;
+    }
+    if (update.sessionUpdate === "model_call_metrics") {
+      this.usageTracker.applyModelCall(update.observation);
+      this.refreshMessageMetrics();
+      return;
+    }
+    if (update.sessionUpdate === "turn_ended") {
+      this.usageTracker.markMetricsRoundEnded(update.roundId);
+      if (update.subagentId && update.roundId)
+        this.usageTracker.markChildRoundEnded(
+          update.subagentId,
+          update.roundId,
+          event.occurredAt,
+          update.stopReason
+        );
+      this.refreshMessageMetrics();
+    }
+    if (
+      update.sessionUpdate === "agent_segment_finalized" &&
+      update.finalResponse &&
+      event.origin !== "synthetic"
+    ) {
+      this.usageTracker.markFinalSegment(update.segmentSeq);
+      this.refreshMessageMetrics();
+    }
     if (update.sessionUpdate === "subagents_updated") {
       this.applySubagentSessions(update.subagents);
       return;
@@ -1550,6 +1616,13 @@ export class AgentSession {
     }
     if (update.sessionUpdate === "plan_usage_update") {
       this.usageTracker.applyPlanUsage(update.planUsage);
+      return;
+    }
+
+    if (update.sessionUpdate === "agent_thought_ended") {
+      const target = this.store.findMessageIdWithSegment(update.segmentSeq);
+      if (target && this.store.finishAgentThought(target, update.segmentSeq, update.contentIndex))
+        this.scheduleNotifyMessages();
       return;
     }
 
@@ -1723,6 +1796,10 @@ export class AgentSession {
       toolCallId: start.toolCallId,
       kind: start.kind,
       taskId: start.taskId ?? existing?.taskId,
+      // 开始事实已携带稳定归属；重开不能依赖尚未加载的子会话目录补齐身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      subagentId: start.subagentId ?? existing?.subagentId,
+      runId: start.runId ?? existing?.runId,
+      roundId: start.roundId ?? existing?.roundId,
       description: start.description || existing?.description || "",
       prompt: start.prompt ?? existing?.prompt,
       subagentType: start.subagentType ?? existing?.subagentType,
@@ -1859,6 +1936,9 @@ export class AgentSession {
         case "agent_segment_started":
           if (event.seq !== undefined) content.startAgentSegment(messageId, event.seq);
           return;
+        case "agent_thought_ended":
+          changed = content.finishAgentThought(messageId, update.segmentSeq, update.contentIndex);
+          break;
         case "agent_segment_finalized":
           changed = content.finalizeAgentSegment(
             messageId,
@@ -1921,7 +2001,52 @@ export class AgentSession {
 
   private publishTasks(): void {
     this.taskList = this.tasks.size === 0 ? EMPTY_TASKS : Object.freeze([...this.tasks.values()]);
+    this.refreshMessageMetrics();
     this.notifyTasks();
+  }
+
+  getMessageUsageMetrics(
+    message: AgentChatMessage,
+    child = false
+  ): AgentChatMessage["turnMetrics"] {
+    const recorded = this.usageTracker.getMetricsForMessage(message, child);
+    if (!recorded) return undefined;
+    const metrics = { ...recorded };
+    // 子聊天完成与否只由自身任务决定；同轮兄弟仍运行时，主聊天继续保持活动。https://github.com/ItsDalk-Lane/Scribe/issues/52
+    const runs = this.subagentSessions
+      .filter((session) => !child || session.id === metrics.subagentId)
+      .flatMap((session) => session.runs.filter((run) => run.roundId === metrics.roundId));
+    metrics.hasActiveWork =
+      metrics.hasActiveWork ||
+      metrics.activeRounds! > 0 ||
+      runs.some((run) =>
+        ["queued", "running", "awaiting_approval", "awaiting_input", "stopping"].includes(
+          run.status
+        )
+      ) ||
+      [...this.tasks.values()].some(
+        (task) =>
+          task.status === "running" &&
+          ((task.roundId === metrics.roundId &&
+            (!child || task.subagentId === metrics.subagentId)) ||
+            runs.some((run) => task.toolCallId === run.toolCallId))
+      );
+    return metrics;
+  }
+
+  private refreshMessageMetrics(): void {
+    for (const [store, child] of [
+      [this.store, false] as const,
+      ...[...this.taskContent.values()].map((store) => [store, true] as const),
+    ]) {
+      for (const message of store.getDisplayMessages()) {
+        if (message.sender !== AI_SENDER) continue;
+        const metrics = this.getMessageUsageMetrics(message, child);
+        if (!metrics) continue;
+        store.setTurnMetrics(message.id, metrics);
+      }
+    }
+    this.scheduleNotifyMessages();
   }
 
   private notifyTasks(): void {

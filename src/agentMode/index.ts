@@ -1,3 +1,4 @@
+import { AgentCommandManager } from "@/agentMode/agentCommands/AgentCommandManager";
 import { SubagentManager } from "@/agentMode/subagents/SubagentManager";
 import { initializeSkillUsageStore } from "@/agentMode/skills/skillUsageStore";
 import { type App, Platform } from "obsidian";
@@ -25,6 +26,8 @@ export type { AgentSessionManager } from "./session/AgentSessionManager";
 export type { BackendDescriptor, BackendId, ScribeMode, ModelSelection } from "./session/types";
 export { getManagedSkills, SkillManager, SKILL_CREATOR_SKILL_NAME, SkillsSettings } from "./skills";
 export { flushSkillUsageStore } from "./skills/skillUsageStore";
+export { getAgentCommands, subscribeAgentCommands } from "./agentCommands/AgentCommandManager";
+export type { AgentCommandDefinition } from "./agentCommands/AgentCommandManager";
 export type { Skill } from "./skills";
 export { default as ScribeAgentView } from "./ui/ScribeAgentView";
 export { PlanPreviewView } from "./ui/PlanPreviewView";
@@ -55,6 +58,8 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
   initializeSkillUsageStore(app);
   const subagentManager = SubagentManager.getInstance(app);
   plugin.register(() => SubagentManager.reset());
+  const agentCommandManager = AgentCommandManager.getInstance(app);
+  plugin.register(() => AgentCommandManager.reset());
   if (isDesktopRuntime()) initializeMcpServerManager(app, plugin);
   const initializing = new Map<BackendId, Promise<void>>();
   const beforeBackendStart = async (id: BackendId): Promise<void> => {
@@ -102,6 +107,7 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
     refreshManagedSkills(),
     skillManager.syncBuiltins(),
     subagentManager.refresh(),
+    agentCommandManager.refresh(),
   ])
     .then(() => undefined)
     .catch((error) => {

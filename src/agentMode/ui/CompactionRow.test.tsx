@@ -32,13 +32,13 @@ describe("CompactionRow", () => {
       expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe(
         "Compacting conversation…"
       );
-      expect(screen.getByText("12s")).toBeTruthy();
+      expect(screen.getByText("12.0s")).toBeTruthy();
       expect(container.querySelector(FOLD_ICON)).toBeTruthy();
       expect(container.querySelector(".scribe-spinner")).toBeNull();
 
       act(() => jest.advanceTimersByTime(3_000));
 
-      expect(screen.getByText("15s")).toBeTruthy();
+      expect(screen.getByText("15.0s")).toBeTruthy();
     });
 
     it("words a running automatic compaction as the context being full", () => {

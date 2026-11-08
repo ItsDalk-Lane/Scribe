@@ -3,6 +3,7 @@ import { atom, createStore, useAtomValue } from "jotai";
 
 import type { ScribeMode, ModelSelection } from "@/agentMode";
 import { sanitizeMcpSection } from "@/agentMode/mcp/configSchema";
+import { AGENT_BUILTIN_COMMANDS } from "@/agentMode/agentCommands/builtinAgentCommands";
 import type { McpSettingsSection } from "@/agentMode/mcp/types";
 import type { BackendConfig, BackendType, ConfiguredModel, Provider } from "@/modelManagement";
 import { TOP_LEVEL_SECRET_FIELDS } from "@/services/settingsSecretTransforms";
@@ -70,6 +71,7 @@ export interface ScribeSettings {
     notificationSoundId: NotificationSoundId;
     welcomeDismissed: boolean;
     subagentChatOpenArea?: "left" | "right" | "floating";
+    disabledBuiltinCommands: readonly string[];
     subagents?: {
       maxConcurrent: number;
       maxQueued: number;
@@ -438,6 +440,7 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
 
   const subagentsRaw =
     r.subagents && typeof r.subagents === "object" ? (r.subagents as Record<string, unknown>) : {};
+  const disabledBuiltinCommands = sanitizeDisabledBuiltinCommands(r.disabledBuiltinCommands);
   const subagents: NonNullable<ScribeSettings["agentMode"]["subagents"]> = {
     ...DEFAULT_SUBAGENT_LIMITS,
   };
@@ -459,9 +462,24 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     notificationSoundId,
     welcomeDismissed,
     subagentChatOpenArea,
+    disabledBuiltinCommands,
     skills,
     subagents,
   };
+}
+
+const NO_DISABLED_BUILTIN_COMMANDS: readonly string[] = Object.freeze([]);
+
+function sanitizeDisabledBuiltinCommands(raw: unknown): readonly string[] {
+  if (!Array.isArray(raw)) return NO_DISABLED_BUILTIN_COMMANDS;
+  const names = [
+    ...new Set(
+      raw.filter(
+        (name): name is string => typeof name === "string" && AGENT_BUILTIN_COMMANDS.includes(name)
+      )
+    ),
+  ];
+  return names.length ? names : NO_DISABLED_BUILTIN_COMMANDS;
 }
 
 function sanitizeDefaultModel(raw: unknown): ModelSelection | undefined {

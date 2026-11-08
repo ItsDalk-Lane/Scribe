@@ -22,11 +22,18 @@ export interface ToolSummary {
 
 export function lookupToolSummary(part: ToolCallPart): ToolSummary {
   const base = selectToolSummary(part);
-  if (!part.mcpServer) return base;
+  if (!part.mcpServer && part.status !== "pending") return base;
   const server = part.mcpServer;
   return {
     ...base,
-    collapsedLine: (p, ctx) => `${server} · ${base.collapsedLine(p, ctx)}`,
+    collapsedLine: (p, ctx) => {
+      // 尚未获准执行时只显示等待，不能把将要做的动作写成正在执行。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      const line =
+        p.status === "pending"
+          ? `${t("Waiting to run")} · ${genericToolLabel(p)}`
+          : base.collapsedLine(p, ctx);
+      return server ? `${server} · ${line}` : line;
+    },
   };
 }
 
@@ -43,6 +50,19 @@ function selectToolSummary(part: ToolCallPart): ToolSummary {
   if (part.vendorToolName) {
     const v = VENDOR_SUMMARIES[toolPresentationName(part.vendorToolName)];
     if (v) return v;
+    // 远程工具的动作名可复用已有展示类别；识别动作而非服务器名，结束后保留原工具标题。https://github.com/ItsDalk-Lane/Scribe/issues/52
+    if (part.mcpServer && part.status === "in_progress") {
+      const name = resolveToolName(part.vendorToolName).tool;
+      const native = VENDOR_SUMMARIES[toolPresentationName(name)];
+      if (native) return native;
+      const words = humanizeToolName(name).toLowerCase().split(/\s+/);
+      if (words.includes("web") && words.includes("search")) return WEB_SEARCH_SUMMARY;
+      if (
+        words.includes("web") &&
+        words.some((word) => ["read", "reader", "fetch", "open"].includes(word))
+      )
+        return WEB_FETCH_SUMMARY;
+    }
   }
   if (part.toolKind) {
     const k = KIND_SUMMARIES[part.toolKind];
@@ -176,7 +196,7 @@ function approxTokens(part: ToolCallPart): number {
 const READ_SUMMARY: ToolSummary = {
   icon: pickToolIcon({ vendorToolName: "Read" }),
   collapsedLine: (p, ctx) =>
-    `${verb(p, t("Reading"), t("Read"))} ${displayTargetFromPath(p, ctx?.vaultBase ?? null) ?? targetFromTitle(p)}`,
+    `${verb(p, t("Reading files"), t("Read"))} ${displayTargetFromPath(p, ctx?.vaultBase ?? null) ?? targetFromTitle(p)}`,
   outcome: (p) => {
     const tokens = approxTokens(p);
     return tokens > 0 ? t("~{count} tokens", { count: formatTokens(tokens) }) : null;
@@ -187,7 +207,7 @@ const READ_SUMMARY: ToolSummary = {
 const LIST_SUMMARY: ToolSummary = {
   icon: pickToolIcon({ vendorToolName: "LS" }),
   collapsedLine: (p, ctx) => {
-    const v = verb(p, t("Listing"), t("Listed"));
+    const v = verb(p, t("Listing files"), t("Listed"));
     const path = displayTargetFromPath(p, ctx?.vaultBase ?? null);
     return path ? `${v} ${path}` : t("{action} vault root", { action: v });
   },
@@ -224,9 +244,11 @@ const BASH_SUMMARY: ToolSummary = {
   collapsedLine: (p) => {
     const input = p.input as { command?: unknown; description?: unknown } | null | undefined;
     if (typeof input?.description === "string" && input.description.length > 0) {
-      return input.description;
+      return p.status === "in_progress"
+        ? `${t("Running command")} · ${input.description}`
+        : input.description;
     }
-    const v = verb(p, t("Running"), t("Ran"));
+    const v = verb(p, t("Running command"), t("Ran"));
     if (typeof input?.command === "string") {
       const cmd = input.command.length > 60 ? input.command.slice(0, 60) + "…" : input.command;
       return `${v} \`${cmd}\``;
@@ -247,7 +269,7 @@ const BASH_SUMMARY: ToolSummary = {
 const SEARCH_VAULT_SUMMARY: ToolSummary = {
   icon: pickToolIcon({ vendorToolName: "Grep" }),
   collapsedLine: (p) => {
-    const v = verb(p, t("Searching vault"), t("Searched vault"));
+    const v = verb(p, t("Searching files"), t("Searched vault"));
     const q = queryFromInput(p);
     return q ? `${v} · "${q}"` : `${v} · ${targetFromTitle(p)}`;
   },
@@ -267,7 +289,7 @@ const WEB_SEARCH_SUMMARY: ToolSummary = {
 const WEB_FETCH_SUMMARY: ToolSummary = {
   icon: pickToolIcon({ vendorToolName: "WebFetch" }),
   collapsedLine: (p) => {
-    const v = verb(p, t("Fetching"), t("Fetched"));
+    const v = verb(p, t("Viewing webpage information"), t("Fetched"));
     const input = p.input as { url?: unknown } | null | undefined;
     if (typeof input?.url === "string") return `${v} ${input.url}`;
     return `${v} ${targetFromTitle(p)}`;
@@ -289,7 +311,8 @@ const TASK_SUMMARY: ToolSummary = {
         : typeof input?.prompt === "string"
           ? input.prompt.slice(0, 60)
           : targetFromTitle(p);
-    return agent ? `${agent} · "${desc}"` : t('Sub-agent · "{p0}"', { p0: desc });
+    const label = agent ? `${agent} · "${desc}"` : t('Sub-agent · "{p0}"', { p0: desc });
+    return p.status === "in_progress" ? `${t("Calling subagent")} · ${label}` : label;
   },
   outcome: (p) => {
     const progress = p.progress;
@@ -437,7 +460,10 @@ const KIND_SUMMARIES: Record<string, ToolSummary> = {
 
 const GENERIC_SUMMARY: ToolSummary = {
   icon: pickToolIcon({}),
-  collapsedLine: (p) => genericToolLabel(p),
+  collapsedLine: (p) =>
+    p.status === "in_progress"
+      ? t("Running tool {tool}", { tool: genericToolLabel(p) })
+      : genericToolLabel(p),
   outcome: () => null,
 };
 

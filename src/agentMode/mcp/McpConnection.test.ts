@@ -193,6 +193,22 @@ describe("McpConnection", () => {
       });
     });
     describe("callTool()", () => {
+      it("retains structured-only results and response metadata while masking configured credentials https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const { connection, input, client } = createHarness();
+        input.headers = { Authorization: "Bearer fixture-private-key" };
+        client.callTool.mockResolvedValueOnce({
+          content: [],
+          structuredContent: { count: 2, echoed: "fixture-private-key" },
+          _meta: { trace: "trace-123" },
+        });
+        await connection.start();
+        expect(await connection.callTool("search", {}, 60, false)).toEqual({
+          content: [],
+          structuredContent: { count: 2, echoed: "[redacted]" },
+          _meta: { trace: "trace-123" },
+          isError: false,
+        });
+      });
       it("requests server progress and keeps a long-running call alive beyond its idle deadline while progress arrives", async () => {
         jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
         const { connection, server } = await createProtocolHarness("streamableHttp");

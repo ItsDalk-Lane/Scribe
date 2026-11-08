@@ -51,6 +51,24 @@ describe("AgentMessageStore", () => {
     });
   });
 
+  describe("setTurnMetrics()", () => {
+    it("retains optional round facts across loading and avoids replacing an unchanged display projection https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const store = new AgentMessageStore();
+      const metrics = { roundId: "r", totalTokens: 10, partial: true, sources: [] };
+      const id = store.addMessage({ ...placeholder(), turnMetrics: metrics });
+      expect(store.getMessage(id)?.turnMetrics).toBe(metrics);
+      const displayed = store.getMessage(id);
+      store.setTurnMetrics(id, { ...metrics });
+      expect(store.getMessage(id)).toBe(displayed);
+      store.setTurnMetrics(id, { ...metrics, totalTokens: 20 });
+      expect(store.getMessage(id)?.turnMetrics?.totalTokens).toBe(20);
+      const restored = new AgentMessageStore();
+      restored.loadMessages(store.getDisplayMessages());
+      expect(restored.getMessage(id)?.turnMetrics?.totalTokens).toBe(20);
+      expect(() => store.setTurnMetrics("missing", metrics)).not.toThrow();
+    });
+  });
+
   describe("withRecordedTime()", () => {
     it("uses recorded event times for thought start and duration independently of the current clock", () => {
       const clock = jest.spyOn(Date, "now").mockReturnValue(900_000);
@@ -92,6 +110,53 @@ describe("AgentMessageStore", () => {
       } finally {
         clock.mockRestore();
       }
+    });
+  });
+
+  describe("finishAgentThought()", () => {
+    it("freezes the identified thought at its end event and keeps other segments and later thoughts untouched https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.withRecordedTime(1000, () => store.appendAgentThought(id, "First", 11, false, 10, 0));
+      expect(store.withRecordedTime(3000, () => store.finishAgentThought(id, 10, 0))).toBe(true);
+      expect(store.getMessage(id)?.parts?.[0]).toMatchObject({ durationMs: 2000 });
+      const frozen = store.getMessage(id);
+      expect(store.withRecordedTime(8000, () => store.finishAgentThought(id, 10, 0))).toBe(false);
+      expect(store.getMessage(id)).toBe(frozen);
+      store.withRecordedTime(9000, () => store.appendAgentThought(id, "Second", 13, false, 10, 1));
+      expect(store.withRecordedTime(10000, () => store.finishAgentThought(id, 10, 0))).toBe(false);
+      expect(store.finishAgentThought(id, 999)).toBe(false);
+      expect(store.finishAgentThought("missing", 10)).toBe(false);
+      expect(store.getMessage(id)?.parts?.[1]).not.toHaveProperty("durationMs");
+      expect(store.withRecordedTime(12000, () => store.finishAgentThought(id, 10))).toBe(true);
+      expect(store.getMessage(id)?.parts?.[1]).toMatchObject({ durationMs: 3000 });
+      store.withRecordedTime(15000, () => store.markTurnComplete(id, "end_turn"));
+      store.withRecordedTime(20000, () =>
+        store.appendAgentThought(id, " confirmed", 14, false, 10, 1)
+      );
+      store.withRecordedTime(25000, () =>
+        store.finalizeAgentSegment(id, 10, [
+          { kind: "thought", text: "First", contentIndex: 0 },
+          { kind: "thought", text: "Second confirmed", contentIndex: 1 },
+        ])
+      );
+      expect(store.getMessage(id)?.parts?.[1]).toMatchObject({
+        text: "Second confirmed",
+        durationMs: 3000,
+        endedAtMs: 12000,
+      });
+      const restored = new AgentMessageStore();
+      restored.loadMessages(store.getDisplayMessages());
+      restored.withRecordedTime(30000, () =>
+        restored.finalizeAgentSegment(id, 10, [
+          { kind: "thought", text: "First", contentIndex: 0 },
+          { kind: "thought", text: "Second confirmed", contentIndex: 1 },
+        ])
+      );
+      expect(restored.getMessage(id)?.parts?.[1]).toMatchObject({
+        durationMs: 3000,
+        endedAtMs: 12000,
+      });
     });
   });
 
@@ -409,6 +474,39 @@ describe("AgentMessageStore", () => {
         store.upsertAgentPart(id, { ...part, output: part.output?.map((o) => ({ ...o })) })
       ).toBe(false);
       expect(store.getMessage(id)?.parts).toHaveLength(1);
+    });
+
+    it("retains rich MCP blocks, skips exact repeats and detects changes in long result middles https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      const content = {
+        type: "resource",
+        resource: { uri: "fixture:data", text: "a".repeat(20000) + "middle" + "z".repeat(20000) },
+      };
+      const part: AgentMessagePart = {
+        kind: "tool_call",
+        id: "rich",
+        title: "MCP",
+        status: "completed",
+        output: [{ type: "content", content }],
+      };
+      expect(store.upsertAgentPart(id, part)).toBe(true);
+      expect(
+        store.upsertAgentPart(id, {
+          ...part,
+          output: [{ type: "content", content: { ...content, resource: { ...content.resource } } }],
+        })
+      ).toBe(false);
+      const changed = {
+        ...content,
+        resource: { ...content.resource, text: content.resource.text.replace("middle", "MIDDLE") },
+      };
+      expect(
+        store.upsertAgentPart(id, { ...part, output: [{ type: "content", content: changed }] })
+      ).toBe(true);
+      expect(store.getMessage(id)?.parts?.[0]).toMatchObject({
+        output: [{ type: "content", content: changed }],
+      });
     });
 
     it("treats a plan as a singleton (replace, not duplicate)", () => {

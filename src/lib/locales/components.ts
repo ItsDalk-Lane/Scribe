@@ -4,6 +4,7 @@ export const componentTranslations: Record<string, string> = {
   "System prompt": "系统提示词",
   Projects: "项目",
   "Custom commands": "自定义指令",
+  Custom: "自定义",
   "Failed to send message. Please try again.": "发送消息失败，请重试。",
   "Cannot regenerate the first message.": "无法重新生成第一条消息。",
   "Message not found.": "未找到消息。",
@@ -264,8 +265,8 @@ export const componentTranslations: Record<string, string> = {
     "请前往设置 → Scribe → 快捷操作 → 工具配置配置模型，然后重新运行指令。",
   "Cannot replace.": "无法替换。",
   "Prompt is required": "请输入提示词",
-  "This name matches the built-in /compact command, so this command never appears in the slash menu.":
-    "此名称与内建 /compact 指令同名，因此永远不会出现在斜杠菜单中。",
+  "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled.":
+    "此名称与内建 /compact 指令同名：在内建命令开启时，它不会出现在斜杠菜单中；关闭内建命令后恢复显示。",
   "Your AI assistant for Obsidian • @ to add context • / for custom prompts":
     "你的 Obsidian AI 助手 • 输入 @ 添加参考内容 • 输入 / 使用自定义指令",
   "Thought for a while": "思考了一会儿",

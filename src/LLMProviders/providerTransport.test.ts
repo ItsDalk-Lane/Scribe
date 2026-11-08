@@ -81,6 +81,22 @@ describe("providerTransport", () => {
 
     afterEach(() => jest.restoreAllMocks());
 
+    it("reports only the inference dispatch after authentication and not a rejected request configuration https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+      const dispatched = jest.fn();
+      const fetcher = createProviderFetch(
+        model({ providerCatalogId: "github-copilot", apiKey: "gho_fixture" }),
+        undefined,
+        dispatched
+      );
+      safeFetch.mockResolvedValueOnce(
+        jsonResponse({ token: "service-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      await fetcher("https://proxy.example/chat/completions", { method: "POST", body: "{}" });
+      expect(safeFetch).toHaveBeenCalledTimes(2);
+      expect(dispatched).toHaveBeenCalledTimes(1);
+      await expect(fetcher("invalid-url")).rejects.toThrow();
+      expect(dispatched).toHaveBeenCalledTimes(1);
+    });
     it("marks network-layer failures as transient while keeping invalid request configuration deterministic (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
       jest.mocked(isDesktopRuntime).mockReturnValue(true);
       nativeFetch.mockRejectedValueOnce(new TypeError("Network unavailable"));

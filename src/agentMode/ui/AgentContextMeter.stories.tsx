@@ -62,3 +62,33 @@ export const CumulativeUnknownContext: StoryObj<UsageMeterProps> = {
     contextWindow: null,
   },
 };
+
+export const MeasuredChat: StoryObj<UsageMeterProps> = {
+  args: {
+    usage: {
+      ...CONTEXT,
+      metrics: {
+        totalTokens: 1300000,
+        inputTokens: 1250000,
+        outputTokens: 50000,
+        cacheReadTokens: 1050000,
+        cacheHitPercent: 84,
+        steps: 12,
+        rounds: 4,
+        activeRounds: 1,
+        partial: false,
+        sources: [],
+      },
+    },
+    contextWindow: 200000,
+  },
+};
+export const UnknownCache: StoryObj<UsageMeterProps> = {
+  args: {
+    usage: {
+      ...CONTEXT,
+      metrics: { totalTokens: 25000, steps: 2, rounds: 1, partial: true, sources: [] },
+    },
+    contextWindow: 200000,
+  },
+};

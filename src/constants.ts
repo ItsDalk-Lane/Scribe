@@ -290,6 +290,7 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
     notificationSoundId: "piano",
     welcomeDismissed: false,
     subagentChatOpenArea: "right",
+    disabledBuiltinCommands: [],
     subagents: DEFAULT_SUBAGENT_LIMITS,
     skills: {
       catalogBudgetPercent: DEFAULT_SKILL_CATALOG_BUDGET_PERCENT,

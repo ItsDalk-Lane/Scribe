@@ -1,3 +1,5 @@
+import type { UsageMetrics } from "@/agentMode/session/usageMetrics";
+import { TurnUsageBadge } from "@/agentMode/ui/TurnUsageBadge";
 import { t } from "@/lib/i18n";
 import { CopyButton } from "@/components/chat-components/CopyButton";
 import { MessageActionButton } from "@/components/chat-components/MessageActionButton";
@@ -14,6 +16,7 @@ interface AgentMessageActionsProps {
   onFork?: () => void;
   forkDisabled?: boolean;
   timestamp?: string;
+  metrics?: UsageMetrics;
 }
 
 export const AgentMessageActions: React.FC<AgentMessageActionsProps> = ({
@@ -22,9 +25,11 @@ export const AgentMessageActions: React.FC<AgentMessageActionsProps> = ({
   onFork,
   forkDisabled,
   timestamp,
+  metrics,
 }) => (
   <AssistantResponseFooter
     timestamp={timestamp}
+    afterTimestamp={<TurnUsageBadge metrics={metrics} />}
     actions={
       <div
         className={cn("tw-flex tw-items-center tw-gap-1", {

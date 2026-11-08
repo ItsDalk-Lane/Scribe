@@ -1,4 +1,5 @@
 import { AgentSession } from "@/agentMode/session/AgentSession";
+import { SubagentChatBackend } from "@/agentMode/session/SubagentChatBackend";
 import { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
 import type { BackendProcess, SessionEvent, SessionUpdateHandler } from "@/agentMode/session/types";
 import type { SubagentSessionSnapshot } from "@/agentMode/session/subagentTypes";
@@ -74,8 +75,12 @@ function fixture() {
     newTask,
     recovery,
     continueBudget,
-    emit: (update: SessionEvent["update"], occurredAt?: number, seq?: number) =>
-      handler!({ sessionId: "parent-1", update, occurredAt, seq }),
+    emit: (
+      update: SessionEvent["update"],
+      occurredAt?: number,
+      seq?: number,
+      taskToolCallId?: string
+    ) => handler!({ sessionId: "parent-1", update, occurredAt, seq, taskToolCallId }),
   };
 }
 
@@ -333,6 +338,310 @@ describe("AgentSession subagent collaboration", () => {
         expect(f.chat.getSubagentSessions()).toEqual([]);
       });
     });
+    describe("getMessageUsageMetrics()", () => {
+      it("restores each child reply's real completion and elapsed time through live and replayed lifecycle facts https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        const f = fixture();
+        f.session.completeResume(null);
+        await f.session.ready;
+        await f.chat.refreshSubagentSessions();
+        const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
+        const run = {
+          id: "run",
+          roundId: "first",
+          promptId: "parent-input",
+          taskGenerationId: "g",
+          toolCallId: "call",
+          status: "running" as const,
+          createdAt: 1000,
+          startedAt: 1000,
+          usage,
+        };
+        const followup = {
+          id: "child-input",
+          roundId: "second",
+          promptId: "child-input",
+          sequence: 1,
+          subagentId: child.id,
+          runId: "run",
+          taskGenerationId: "g",
+          direction: "to_child" as const,
+          sender: "user" as const,
+          kind: "instruction" as const,
+          text: "Follow-up",
+          state: "delivered" as const,
+          acceptedAt: 3500,
+          deliveredAt: 4000,
+          deliverySeq: 15,
+        };
+        const saved = {
+          ...child,
+          runs: [{ ...run, status: "completed" as const, endedAt: 9000 }],
+          messages: [followup],
+        };
+        const base = {
+          id: "first-call",
+          roundId: "first",
+          subagentId: child.id,
+          runId: "run",
+          sourceId: child.id,
+          sourceName: child.name,
+          kind: "subagent" as const,
+          purpose: "chat" as const,
+          modelId: "m",
+          modelName: "M",
+          requestIds: ["first-request"],
+          status: "completed" as const,
+          usage: { totalTokens: 7 },
+          segmentSeq: 10,
+        };
+        const events: Array<[SessionEvent["update"], number, number, string?]> = [
+          [
+            {
+              sessionUpdate: "task_started",
+              taskId: "run",
+              toolCallId: "call",
+              kind: "subagent",
+              description: "Child",
+              subagentId: child.id,
+              runId: "run",
+              roundId: "first",
+            },
+            1000,
+            1,
+          ],
+          [{ sessionUpdate: "subagents_updated", subagents: [{ ...child, runs: [run] }] }, 1000, 2],
+          [{ sessionUpdate: "agent_segment_started" }, 1000, 10, "call"],
+          [{ sessionUpdate: "model_call_metrics", observation: base }, 3000, 11, "call"],
+          [
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [
+                { kind: "thought", text: "Thinking", contentIndex: 0 },
+                { kind: "text", text: "First", contentIndex: 1 },
+              ],
+              finalResponse: true,
+            },
+            3000,
+            12,
+            "call",
+          ],
+          [
+            {
+              sessionUpdate: "turn_started",
+              turnId: "child-input",
+              roundId: "second",
+              startedAt: 4000,
+            },
+            4000,
+            14,
+            "call",
+          ],
+          [{ sessionUpdate: "agent_segment_started" }, 4000, 20, "call"],
+          [
+            {
+              sessionUpdate: "model_call_metrics",
+              observation: {
+                ...base,
+                id: "second-call",
+                roundId: "second",
+                promptId: "child-input",
+                segmentSeq: 20,
+                requestIds: ["second-request"],
+              },
+            },
+            8000,
+            21,
+            "call",
+          ],
+          [
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 20,
+              blocks: [{ kind: "text", text: "Second", contentIndex: 0 }],
+              finalResponse: true,
+            },
+            8000,
+            22,
+            "call",
+          ],
+          [
+            {
+              sessionUpdate: "turn_ended",
+              turnId: "child-input",
+              roundId: "second",
+              subagentId: child.id,
+              stopReason: "end_turn",
+            },
+            9000,
+            23,
+            "call",
+          ],
+          [{ sessionUpdate: "task_ended", taskId: "run", status: "completed" }, 9000, 24],
+          [{ sessionUpdate: "subagents_updated", subagents: [saved] }, 9000, 25],
+          [
+            {
+              sessionUpdate: "turn_ended",
+              turnId: "parent-input",
+              roundId: "first",
+              stopReason: "end_turn",
+            },
+            20000,
+            26,
+          ],
+        ];
+        for (const event of events) f.emit(...event);
+        const live = new SubagentChatBackend(f.chat, child.id)
+          .getMessages()
+          .filter((message) => message.sender === "ai");
+        expect(
+          live.map((message) => ({
+            text: message.message,
+            stop: message.turnStopReason,
+            time: message.turnDurationMs,
+            final: message.turnMetrics?.finalResponseSegmentSeq,
+          }))
+        ).toEqual([
+          { text: "First", stop: "end_turn", time: 3000, final: 10 },
+          { text: "Second", stop: "end_turn", time: 5000, final: 20 },
+        ]);
+        const reopened = fixture();
+        reopened.list.mockResolvedValue([saved]);
+        for (const event of events)
+          if (event[0].sessionUpdate !== "subagents_updated") reopened.emit(...event);
+        reopened.session.completeResume(null);
+        await reopened.session.ready;
+        await reopened.chat.refreshSubagentSessions();
+        const restored = new SubagentChatBackend(reopened.chat, child.id)
+          .getMessages()
+          .filter((message) => message.sender === "ai");
+        expect(restored.map((message) => [message.turnStopReason, message.turnDurationMs])).toEqual(
+          [
+            ["end_turn", 3000],
+            ["end_turn", 5000],
+          ]
+        );
+        expect(reopened.send).not.toHaveBeenCalled();
+      });
+      it("does not mutate retained display statistics while deriving live work status https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const f = fixture();
+        const metrics = Object.freeze({ partial: true, sources: [], roundId: "legacy" });
+        const message = {
+          id: "old",
+          sender: "ai",
+          message: "Old",
+          timestamp: null,
+          isVisible: true,
+          turnMetrics: metrics,
+        };
+        expect(f.session.getMessageUsageMetrics(message)).toMatchObject({
+          partial: true,
+          hasActiveWork: false,
+        });
+        expect(metrics).not.toHaveProperty("hasActiveWork");
+      });
+      it("finishes a child's process independently while its sibling continues in the same parent round https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const f = fixture();
+        const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
+        const runA = {
+          id: "run-a",
+          roundId: "round",
+          taskGenerationId: "generation",
+          toolCallId: "task-a",
+          status: "completed" as const,
+          createdAt: 1,
+          endedAt: 4,
+          usage,
+        };
+        const runB = {
+          ...runA,
+          id: "run-b",
+          toolCallId: "task-b",
+          status: "running" as const,
+          endedAt: undefined,
+        };
+        f.emit({
+          sessionUpdate: "task_started",
+          kind: "subagent",
+          taskId: "run-a",
+          subagentId: "child-a",
+          runId: "run-a",
+          roundId: "round",
+          toolCallId: "task-a",
+          description: "A",
+        });
+        f.emit({
+          sessionUpdate: "task_started",
+          kind: "subagent",
+          taskId: "run-b",
+          subagentId: "child-b",
+          runId: "run-b",
+          roundId: "round",
+          toolCallId: "task-b",
+          description: "B",
+        });
+        f.emit({ sessionUpdate: "agent_segment_started" }, 1000, 10, "task-a");
+        f.emit(
+          {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: "A finished" },
+            segmentSeq: 10,
+            contentIndex: 0,
+          },
+          2000,
+          11,
+          "task-a"
+        );
+        f.emit(
+          {
+            sessionUpdate: "agent_segment_finalized",
+            segmentSeq: 10,
+            blocks: [{ kind: "text", text: "A finished", contentIndex: 0 }],
+            finalResponse: true,
+          },
+          2000,
+          12,
+          "task-a"
+        );
+        f.emit({
+          sessionUpdate: "model_call_metrics",
+          observation: {
+            id: "a-call",
+            roundId: "round",
+            sourceId: "child-a",
+            subagentId: "child-a",
+            runId: "run-a",
+            sourceName: "A",
+            kind: "subagent",
+            purpose: "chat",
+            modelId: "m",
+            modelName: "M",
+            segmentSeq: 10,
+            requestIds: ["request-a"],
+            status: "completed",
+            usage: { totalTokens: 5 },
+          },
+        });
+        f.emit({
+          sessionUpdate: "task_ended",
+          taskId: "run-a",
+          status: "completed",
+        });
+        f.emit({
+          sessionUpdate: "subagents_updated",
+          subagents: [
+            { ...child, id: "child-a", runs: [runA] },
+            { ...child, id: "child-b", runs: [runB] },
+          ],
+        });
+        expect(
+          f.session.getMessageUsageMetrics(f.chat.getTaskMessages("task-a")[0], true)
+        ).toMatchObject({ hasActiveWork: false, activeRounds: 0, finalResponseSegmentSeq: 10 });
+        expect(f.chat.getTasks().find((task) => task.toolCallId === "task-b")?.status).toBe(
+          "running"
+        );
+      });
+    });
     describe("showSubagentMessage()", () => {
       it("restores a child result before the follow-up reply and uses that reply's own start time https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
         const f = fixture();
@@ -379,7 +688,7 @@ describe("AgentSession subagent collaboration", () => {
         expect(f.chat.getMessages()[2].turnDurationMs).toBe(1000);
       });
 
-      it("shows the real child source once across repeated events and saved-directory replay https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      it("shows the real child source once and identifies collaboration notices during event and directory replay https://github.com/ItsDalk-Lane/Scribe/issues/50 https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
         const f = fixture();
         const message = {
           id: "message-1",
@@ -404,6 +713,7 @@ describe("AgentSession subagent collaboration", () => {
         expect(shown[0].message).toContain("资料整理");
         expect(shown[0].message).toContain("请确认范围");
         expect(shown[0].sender).not.toBe("user");
+        expect(shown[0].synthetic).toBe(true);
       });
     });
   });

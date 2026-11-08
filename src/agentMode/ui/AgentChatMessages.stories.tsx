@@ -364,3 +364,24 @@ export const PlanResponses: StoryObj<AgentChatMessagesProps> = {
   },
   render: (props) => <QueuedActionsDemo {...actionRailArgs} {...props} />,
 };
+
+export const ChildNoticeDuringReasoning: StoryObj<AgentChatMessagesProps> = {
+  args: {
+    ...actionRailArgs,
+    pendingToolPermissions: [],
+    pendingAskUserQuestions: [],
+    isLoading: true,
+    messages: [
+      {
+        ...message,
+        id: "live-main",
+        message: "",
+        parts: [
+          { kind: "thought", text: "正在结合两个子代理的结果继续思考。", startedAtMs: Date.now() },
+        ],
+      },
+      { ...message, id: "child-notice", synthetic: true, message: "子代理A已完成自己的部分。" },
+    ],
+  },
+  render: (props) => <QueuedActionsDemo {...actionRailArgs} {...props} />,
+};
