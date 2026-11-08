@@ -408,6 +408,100 @@ describe("NativeBackendProcess.journal", () => {
     });
 
     describe("resumeSession()", () => {
+      it("restores the saved child completion when its task-ended notification was never committed (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const storage = new NodeNativeSessionStorage(new NodeJournalStorage(directory));
+        const original = fixture({ storage });
+        const id = await original.open();
+        await original.process.shutdown();
+        const result = createAssistantMessage(MODEL);
+        result.content = [{ type: "text", text: "Actual saved child result" }];
+        result.stopReason = "stop";
+        await storage.append(
+          id,
+          "event",
+          {
+            sessionId: id,
+            update: {
+              sessionUpdate: "task_started",
+              taskId: "saved-run",
+              toolCallId: "delegate",
+              kind: "subagent",
+              description: "Saved child",
+              subagentId: "saved-child",
+              runId: "saved-run",
+            },
+          },
+          { durable: true }
+        );
+        await storage.append(
+          id,
+          "subagent_state",
+          {
+            version: 1,
+            state: {
+              version: 1,
+              revision: 1,
+              context: [{ role: "user", timestamp: 1, content: "Original child task" }, result],
+              automaticTaskIds: [],
+              snapshot: {
+                id: "saved-child",
+                parentSessionId: id,
+                name: "Saved child",
+                modelId: MODEL.id,
+                cwd: "/fixture/vault",
+                retention: "retained",
+                createdAt: 1,
+                updatedAt: 2,
+                runs: [
+                  {
+                    id: "saved-run",
+                    taskGenerationId: "saved-task",
+                    toolCallId: "delegate",
+                    status: "completed",
+                    createdAt: 1,
+                    startedAt: 1,
+                    endedAt: 2,
+                    resultId: "saved-result",
+                    result: "Actual saved child result",
+                    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+                  },
+                ],
+                messages: [
+                  {
+                    id: "saved-result",
+                    sequence: 1,
+                    subagentId: "saved-child",
+                    runId: "saved-run",
+                    taskGenerationId: "saved-task",
+                    direction: "to_parent",
+                    sender: "subagent",
+                    kind: "result",
+                    text: "Actual saved child result",
+                    state: "accepted",
+                    acceptedAt: 2,
+                  },
+                ],
+              },
+            },
+          },
+          { durable: true }
+        );
+        const restoredStorage = new NodeNativeSessionStorage(new NodeJournalStorage(directory));
+        const restored = fixture({ storage: restoredStorage });
+        await restored.process.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        const loaded = await restoredStorage.load(id);
+        expect(loaded?.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "task_ended",
+            taskId: "saved-run",
+            status: "completed",
+            summary: "Actual saved child result",
+          })
+        );
+        expect(restored.requests).toHaveLength(0);
+        await restored.process.shutdown();
+      });
+
       let directory: string;
       beforeEach(async () => {
         directory = await mkdtemp(join(tmpdir(), "scribe-journal-runtime-"));

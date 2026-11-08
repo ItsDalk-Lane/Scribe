@@ -24,6 +24,8 @@ import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { type ProjectConfig } from "@/aiParams";
 import type { ProjectFileRecord } from "@/projects/type";
 import { MethodUnsupportedError } from "@/agentMode/session/errors";
+import type { SubagentSessionSnapshot } from "@/agentMode/session/subagentTypes";
+import { hasManagedSubagentWork } from "@/agentMode/session/subagentSessions";
 import type {
   AgentChatMessage,
   AgentDisplayFact,
@@ -179,6 +181,7 @@ interface MockSessionTestHandle {
   ): void;
   setHasUserVisibleMessages(value: boolean): void;
   setTaskStatuses(statuses: AgentTask["status"][], kinds?: AgentTask["kind"][]): void;
+  setSubagents(sessions: readonly SubagentSessionSnapshot[]): void;
   setPendingPermissionCount(count: number): void;
   setQueuedPromptCount(count: number): void;
   disconnect(): void;
@@ -213,6 +216,7 @@ function makeMockSession(overrides: {
   let displayMessages: { message: string }[] = [];
   let hasUserVisibleMessages = false;
   let tasks: AgentTask[] = [];
+  let subagents: readonly SubagentSessionSnapshot[] = [];
   let pendingPermissions: unknown[] = [];
   let queuedPrompts: unknown[] = [];
   const listeners = new Set<{
@@ -280,6 +284,8 @@ function makeMockSession(overrides: {
     getState: () => null,
     getRawSnapshot: () => ({ models: null, modes: null, configOptions: null }),
     getTasks: () => tasks,
+    getSubagentSessions: () => subagents,
+    hasManagedSubagentWork: () => hasManagedSubagentWork(subagents),
     getTaskSnapshots: () => tasks.map((task) => ({ task, messages: [] })),
     rememberTaskOutput: (toolCallId: string, output: { text: string; truncated: boolean }) => {
       tasks = tasks.map((task) =>
@@ -302,6 +308,10 @@ function makeMockSession(overrides: {
     },
   } as unknown as AgentSession;
   sessionTestHandles.set(overrides.internalId, {
+    setSubagents: (next) => {
+      subagents = next;
+      for (const listener of listeners) listener.onTasksChanged?.();
+    },
     setStatus: (next) => {
       if (status === next) return;
       status = next;
@@ -929,6 +939,70 @@ function snapshotHarness() {
 
 describe("AgentSessionManager", () => {
   describe("AgentSessionManager", () => {
+    describe("getLiveChatInputIds()", () => {
+      it("accepts input for an interrupted child restored with its parent chat https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const child: SubagentSessionSnapshot = {
+          id: "restored-child",
+          parentSessionId: "saved-chat",
+          modelId: "model-1",
+          name: "助手",
+          cwd: "/vault",
+          retention: "retained",
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          runs: [
+            {
+              id: "run-1",
+              taskGenerationId: "task-1",
+              toolCallId: "call-1",
+              status: "interrupted",
+              createdAt: 1,
+              usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+            },
+          ],
+        };
+        const replay = buildReplayingBackend({
+          onLoad: (emit) => emit({ sessionUpdate: "subagents_updated", subagents: [child] }),
+        });
+        const { manager } = buildHistoryHarness({
+          createBackendProcess: jest.fn(() => replay.backend),
+        });
+
+        await manager.loadNativeSessionFromHistory("native", "saved-chat");
+        const childInputId = "subagent-chat:restored-child";
+        manager.drafts.update(childInputId, (draft) => ({ ...draft, input: "恢复后继续" }));
+
+        expect(manager.getLiveChatInputIds()).toContain(childInputId);
+        expect(manager.drafts.get(childInputId)?.input).toBe("恢复后继续");
+      });
+
+      it("retains a child chat's draft while its parent and child exist and removes it when the child is deleted https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const manager = buildManager();
+        const session = await manager.createSession();
+        const child: SubagentSessionSnapshot = {
+          id: "child-1",
+          parentSessionId: session.getBackendSessionId()!,
+          modelId: "model-1",
+          name: "助手",
+          cwd: "/vault",
+          retention: "retained",
+          createdAt: 1,
+          updatedAt: 1,
+          messages: [],
+          runs: [],
+        };
+        getSessionTestHandle(session).setSubagents([child]);
+        const childInputId = "subagent-chat:child-1";
+        manager.drafts.update(childInputId, (draft) => ({ ...draft, input: "请继续" }));
+
+        expect(manager.drafts.get(childInputId)?.input).toBe("请继续");
+        expect(manager.getLiveChatInputIds()).toContain(childInputId);
+        getSessionTestHandle(session).setSubagents([]);
+        manager.drafts.prune();
+        expect(manager.drafts.get(childInputId)).toBeUndefined();
+      });
+    });
     describe("flushSessionSnapshot", () => {
       it("persists new display facts without writing the old UI snapshot", async () => {
         const { snapshots } = snapshotHarness();
@@ -2330,6 +2404,29 @@ describe("AgentSessionManager", () => {
         expect(mockSessionDispose).not.toHaveBeenCalled();
       });
 
+      it.each(["command", "subagent"] as const)(
+        "reopens a hidden chat with its running %s after the hidden-chat limit is reached https://github.com/ItsDalk-Lane/Scribe/issues/50",
+        async (kind) => {
+          const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
+          const original = await mgr.createSession();
+          getSessionTestHandle(original).setTaskStatuses(["running"], [kind]);
+          await mgr.createSession();
+          mgr.detachSessionFromTab(original.internalId);
+          const others = await hideChats(mgr, 3);
+
+          expect(closedSessions()).toEqual([others[0]]);
+          const reopened = await mgr.loadNativeSessionFromHistory(
+            original.backendId,
+            original.getBackendSessionId()!
+          );
+          expect(reopened).toBe(original);
+          expect(mgr.getActiveSession()).toBe(original);
+          expect(reopened.getTasks()).toEqual([
+            expect.objectContaining({ kind, status: "running" }),
+          ]);
+        }
+      );
+
       it("closes the least recently hidden idle chat once a fourth chat of a process-per-chat backend is hidden, keeping the other three", async () => {
         const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
         const chats = await hideChats(mgr, 3);
@@ -2347,6 +2444,147 @@ describe("AgentSessionManager", () => {
         expect(mgr.getSessions()).toEqual(expect.arrayContaining([...chats.slice(1), fourth]));
       });
 
+      it("keeps queued, waiting and stopping children alive when their hidden parent model is idle https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
+        const first = await mgr.createSession();
+        getSessionTestHandle(first).setSubagents([
+          {
+            id: "child-1",
+            parentSessionId: first.getBackendSessionId()!,
+            modelId: "model-1",
+            name: "资料整理",
+            cwd: "/vault",
+            retention: "retained",
+            createdAt: 1,
+            updatedAt: 2,
+            messages: [],
+            runs: [
+              {
+                id: "run-1",
+                taskGenerationId: "g-1",
+                toolCallId: "tool-1",
+                status: "queued",
+                createdAt: 1,
+                usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+              },
+            ],
+          },
+        ]);
+        mgr.detachSessionFromTab(first.internalId);
+        const rest = await hideChats(mgr, 3);
+        expect(closedSessions()).toEqual([rest[0]]);
+        expect(mgr.getSessions()).toContain(first);
+      });
+
+      it("keeps a hidden parent alive while its child has an unsent draft https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
+        const first = await mgr.createSession();
+        getSessionTestHandle(first).setSubagents([
+          {
+            id: "child-with-draft",
+            parentSessionId: first.getBackendSessionId()!,
+            modelId: "model-1",
+            name: "助手",
+            cwd: "/vault",
+            retention: "retained",
+            createdAt: 1,
+            updatedAt: 1,
+            messages: [],
+            runs: [],
+          },
+        ]);
+        mgr.drafts.update("subagent-chat:child-with-draft", (draft) => ({
+          ...draft,
+          input: "未发送的消息",
+        }));
+        mgr.detachSessionFromTab(first.internalId);
+        const rest = await hideChats(mgr, 3);
+        expect(closedSessions()).toEqual([rest[0]]);
+        expect(mgr.drafts.get("subagent-chat:child-with-draft")?.input).toBe("未发送的消息");
+      });
+
+      it("preserves a hidden child's unsent selected text when idle chats are reclaimed https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
+        const parent = await mgr.createSession();
+        getSessionTestHandle(parent).setSubagents([
+          {
+            id: "child-with-selection",
+            parentSessionId: parent.getBackendSessionId()!,
+            modelId: "model-1",
+            name: "助手",
+            cwd: "/vault",
+            retention: "retained",
+            createdAt: 1,
+            updatedAt: 1,
+            messages: [],
+            runs: [],
+          },
+        ]);
+        const selectedTextContexts = [
+          {
+            id: "excerpt",
+            sourceType: "note" as const,
+            noteTitle: "测试笔记",
+            notePath: "测试笔记.md",
+            content: "待发送的选中内容",
+            startLine: 1,
+            endLine: 1,
+          },
+        ];
+        const draftId = "subagent-chat:child-with-selection";
+        mgr.drafts.update(draftId, (draft) => ({ ...draft, selectedTextContexts }));
+        mgr.detachSessionFromTab(parent.internalId);
+        const rest = await hideChats(mgr, 3);
+
+        expect(closedSessions()).toEqual([rest[0]]);
+        expect(mgr.getSessions()).toContain(parent);
+        expect(mgr.drafts.get(draftId)?.selectedTextContexts).toEqual(selectedTextContexts);
+      });
+
+      it("retains a hidden chat's saved-result outbox without an inbox message and reclaims it only after delivery https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const mgr = buildManager({ descriptor: buildDescriptor({ processPerChat: true }) });
+        const first = await mgr.createSession();
+        const snapshot: SubagentSessionSnapshot = {
+          id: "child-outbox",
+          parentSessionId: first.getBackendSessionId()!,
+          modelId: "model-1",
+          name: "满箱待交付结果",
+          cwd: "/vault",
+          retention: "retained",
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [],
+          runs: [
+            {
+              id: "run-outbox",
+              taskGenerationId: "g-1",
+              toolCallId: "tool-outbox",
+              status: "completed",
+              createdAt: 1,
+              endedAt: 2,
+              resultId: "run-outbox:result",
+              result: "已保存但未进入父收件箱",
+              deliveryBlocked: true,
+              usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 },
+            },
+          ],
+        };
+        getSessionTestHandle(first).setSubagents([snapshot]);
+        mgr.detachSessionFromTab(first.internalId);
+        const rest = await hideChats(mgr, 3);
+        expect(closedSessions()).toEqual([rest[0]]);
+        expect(mgr.getSessions()).toContain(first);
+        const closed = untilClosed(mgr, first);
+        getSessionTestHandle(first).setSubagents([
+          {
+            ...snapshot,
+            runs: [{ ...snapshot.runs[0], deliveryBlocked: false, resultDelivered: true }],
+          },
+        ]);
+        await closed;
+        expect(closedSessions()).toEqual([rest[0], first]);
+      });
+
       it.each([
         ["runs its main turn", (s: AgentSession) => getSessionTestHandle(s).setStatus("running")],
         [
@@ -2355,7 +2593,11 @@ describe("AgentSessionManager", () => {
         ],
         [
           "runs a background task",
-          (s: AgentSession) => getSessionTestHandle(s).setTaskStatuses(["completed", "running"]),
+          (s: AgentSession) =>
+            getSessionTestHandle(s).setTaskStatuses(
+              ["completed", "running"],
+              ["command", "command"]
+            ),
         ],
         [
           "holds a task's permission request",

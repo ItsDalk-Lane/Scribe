@@ -6,7 +6,8 @@ import { logError } from "@/logger";
 import { getSettings } from "@/settings/model";
 import { isAgentBackendEnabled } from "@/settings/agentEnablement";
 import { getScribeDataPath } from "@/utils/appPaths";
-import { requireNodeModule } from "@/utils/desktopRuntime";
+import { isDesktopRuntime, requireNodeModule } from "@/utils/desktopRuntime";
+import { initializeMcpServerManager } from "./mcp/McpServerManager";
 import { backendRegistry, listBackendDescriptors } from "./backends/registry";
 import type { BackendId } from "./session/types";
 import { AgentModelPreloader } from "./session/AgentModelPreloader";
@@ -27,6 +28,11 @@ export { flushSkillUsageStore } from "./skills/skillUsageStore";
 export type { Skill } from "./skills";
 export { default as ScribeAgentView } from "./ui/ScribeAgentView";
 export { PlanPreviewView } from "./ui/PlanPreviewView";
+export {
+  SubagentChatView,
+  openSubagentChat,
+  closeFloatingSubagentChat,
+} from "./ui/SubagentChatView";
 export { closeAgentDetailModals } from "./ui/AgentDetailModal";
 export { closeRestoredTurnDiffs, registerTurnDiffCommands } from "./ui/TurnDiffView";
 export { useBackendInstallState, useManagedInstallActionState } from "./ui/useBackendDescriptor";
@@ -49,6 +55,7 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
   initializeSkillUsageStore(app);
   const subagentManager = SubagentManager.getInstance(app);
   plugin.register(() => SubagentManager.reset());
+  if (isDesktopRuntime()) initializeMcpServerManager(app, plugin);
   const initializing = new Map<BackendId, Promise<void>>();
   const beforeBackendStart = async (id: BackendId): Promise<void> => {
     await initializing.get(id);
@@ -125,3 +132,4 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
 export { useBackendAuthState } from "./session/useBackendAuthState";
 
 export { AgentExtensionsSettings } from "./ui/AgentExtensionsSettings";
+export { McpSettingsPanel } from "./ui/mcp/McpSettingsPanel";

@@ -133,7 +133,6 @@ function commandModal(modelKey: string, autoExecuteOnOpen = true) {
         content: "Rewrite clearly",
         modelKey,
         showInContextMenu: true,
-        showInSlashMenu: true,
       }}
       onClose={() => undefined}
       onInsert={() => undefined}

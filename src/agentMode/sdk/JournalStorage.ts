@@ -214,6 +214,101 @@ export class NodeJournalStorage {
     });
   }
 
+  async redact(
+    sessionId: string,
+    select: (record: JournalRecord) => boolean,
+    replace?: (record: JournalRecord) => Pick<JournalRecord, "kind" | "payload">
+  ): Promise<void> {
+    const destination = this.path(sessionId);
+    return this.enqueue(sessionId, async () => {
+      const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+      let original: Uint8Array;
+      try {
+        original = new Uint8Array(await fs.readFile(destination));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+        throw error;
+      }
+      const scan = await this.scan(sessionId, original);
+      this.assertWritable(this.states.get(sessionId) ?? scan.state);
+      this.assertWritable(scan.state);
+      const selected = new Set(scan.records.filter(select).map((record) => record.seq));
+      if (!selected.size) return;
+      const parts: Uint8Array[] = [];
+      let start = 0;
+      for (let end = 0; end < scan.state.completeBytes; end++) {
+        if (original[end] !== 10) continue;
+        const line = original.subarray(start, end + 1);
+        const parsed: JournalRecord = JSON.parse(new TextDecoder().decode(line));
+        const replacement = selected.has(parsed.seq)
+          ? (replace?.(parsed) ?? { kind: "redacted", payload: {} })
+          : undefined;
+        parts.push(
+          selected.has(parsed.seq)
+            ? new TextEncoder().encode(
+                JSON.stringify({
+                  version: 2,
+                  seq: parsed.seq,
+                  kind: replacement!.kind,
+                  occurredAt: parsed.occurredAt,
+                  origin: parsed.origin,
+                  payload: replacement!.payload,
+                }) + "\n"
+              )
+            : line
+        );
+        start = end + 1;
+      }
+      parts.push(original.subarray(start));
+      const replacement = new Uint8Array(parts.reduce((size, part) => size + part.byteLength, 0));
+      let offset = 0;
+      for (const part of parts) {
+        replacement.set(part, offset);
+        offset += part.byteLength;
+      }
+      const suffix = uuidv4();
+      const temporary = `${destination}.${suffix}.redact.tmp`;
+      const backup = `${destination}.${suffix}.redact.backup`;
+      let replaced = false;
+      let backedUp = false;
+      try {
+        const handle = await fs.open(temporary, "wx", 0o600);
+        try {
+          await handle.writeFile(replacement);
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+        await fs.link(destination, backup);
+        backedUp = true;
+        const current = new Uint8Array(await fs.readFile(destination));
+        if (
+          current.byteLength !== original.byteLength ||
+          current.some((byte, index) => byte !== original[index])
+        )
+          throw new Error(
+            "The journal changed while deleting a subagent; its new contents were preserved."
+          );
+        await syncDirectory(this.directory);
+        await fs.rename(temporary, destination);
+        replaced = true;
+        await syncDirectory(this.directory);
+        await fs.rm(backup);
+        backedUp = false;
+        this.states.set(sessionId, (await this.scan(sessionId, replacement)).state);
+      } catch (error) {
+        // 删除失败后冻结追加，原件或同目录备份必须保留供恢复。https://github.com/ItsDalk-Lane/Scribe/issues/50
+        scan.state.failure = error instanceof Error ? error : new Error(String(error));
+        this.states.set(sessionId, scan.state);
+        if (!replaced) {
+          await fs.rm(temporary, { force: true }).catch(() => {});
+          if (backedUp) await fs.rm(backup, { force: true }).catch(() => {});
+        }
+        throw scan.state.failure;
+      }
+    });
+  }
+
   async flush(sessionId: string): Promise<void> {
     const destination = this.path(sessionId);
     return this.enqueue(sessionId, async () => {
@@ -243,11 +338,11 @@ export class NodeJournalStorage {
     return state;
   }
 
-  private async scan(sessionId: string): Promise<JournalScan> {
+  private async scan(sessionId: string, source?: Uint8Array): Promise<JournalScan> {
     const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
     let bytes: Uint8Array;
     try {
-      bytes = new Uint8Array(await fs.readFile(this.path(sessionId)));
+      bytes = source ?? new Uint8Array(await fs.readFile(this.path(sessionId)));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return {

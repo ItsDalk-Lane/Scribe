@@ -56,7 +56,8 @@ Warnings remain for cases where automatic cleanup could change behavior or UI, i
 
 `requestUrl` supports neither streaming responses nor AbortSignal, so the following call sites must keep `fetch` and carry a `// scorecard:` comment. Any remaining scorecard `fetch` warning must match this list:
 
-- `src/LLMProviders/providerTransport.ts` — shared pi-ai provider transport, including keyless endpoints and LM Studio; native streaming and cancellation remain available when compatibility is off, while compatibility mode uses buffered `requestUrl`.
+- `src/LLMProviders/providerTransport.ts` — shared pi-ai provider transport, including keyless endpoints and LM Studio; desktop calls use the shared streaming bridge, while mobile uses buffered `requestUrl`.
+- `src/agentMode/mcp/McpConnection.ts` and `src/utils/desktopStreamingFetch.ts` — models and MCP share the desktop network bridge to preserve streaming, cancellation, system proxy settings and session response headers hidden by browser CORS. `requestUrl` cannot implement that transport. Legacy SSE remains available for servers that do not offer streamable HTTP.
 
 Non-streaming JSON requests route through `safeFetchNoThrow`, which uses `requestUrl`. Provider smoke tests are needed when their adapters or network boundaries change.
 

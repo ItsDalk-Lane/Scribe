@@ -1,38 +1,23 @@
 import { t } from "@/lib/i18n";
 import React, { memo, useCallback, useMemo } from "react";
-import { Layers } from "lucide-react";
-import { AgentActivityCard } from "@/components/chat-components/AgentActivityCard";
 import { agentResponseText, buildAgentTrail } from "@/agentMode/ui/agentTrail";
 import type { AgentMessagePart, StopReason, TurnFileChange } from "@/agentMode/session/types";
 import { ActionCard } from "@/agentMode/ui/ActionCard";
 import { FilesChangedCard } from "@/agentMode/ui/FilesChangedCard";
-import { ActivityGroupCard } from "@/agentMode/ui/ActivityGroupCard";
-import {
-  foldActivityGroups,
-  summarizeActivity,
-  type ActivityGroupNode,
-  type GroupedTrailNode,
-} from "@/agentMode/ui/activityGroups";
-import { activityLiveStep, isReasoningActive } from "@/agentMode/ui/activityLiveStep";
+import { foldActivityGroups, type GroupedTrailNode } from "@/agentMode/ui/activityGroups";
 import { CompactionRow } from "@/agentMode/ui/CompactionRow";
 import { AgentMessageActions } from "@/agentMode/ui/AgentMessageActions";
 import { SubAgentCard } from "@/agentMode/ui/SubAgentCard";
 import { ReasoningBlock } from "@/agentMode/ui/ReasoningBlock";
 import { AgentMarkdownText } from "@/agentMode/ui/AgentMarkdownText";
 import { planEntryClass, planEntryIcon } from "@/agentMode/ui/planEntryStyles";
-import type { ToolSummaryContext } from "@/agentMode/ui/toolSummaries";
 import { summarizeDrawing } from "@/excalidraw/agentMode/excalidrawToolRun";
 import { ExcalidrawToolCard } from "@/excalidraw/agentMode/ui/ExcalidrawToolCard";
-import { useThinkingClock } from "@/agentMode/ui/useThinkingClock";
 import { useTrailExpansion, type TrailExpansion } from "@/agentMode/ui/useTrailExpansion";
-import {
-  AgentTurnDurationIndicator,
-  formatWorkedDuration,
-} from "@/agentMode/ui/AgentTurnDurationIndicator";
+import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndicator";
 import { useAgentTasks, type AgentTasksContextValue } from "@/agentMode/ui/AgentTasksContext";
 import { TaskCard } from "@/agentMode/ui/TaskCard";
 import { AssistantResponseFooter } from "@/components/ui/AssistantResponseFooter";
-import { getVaultBase } from "@/utils/vaultPath";
 import { openVaultPath } from "@/utils/openVaultPath";
 import { App } from "obsidian";
 
@@ -63,6 +48,8 @@ function stopReasonNotice(stopReason: StopReason | undefined): string | undefine
     interrupted: "System recovery: this reply was interrupted. It was not automatically resumed.",
     max_turn_requests:
       "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue.",
+    max_task_requests:
+      "**Task request limit reached.** The parent chat and its children have used this task's request budget. Saved progress is preserved; explicitly continue to allow more requests.",
     quota_exhausted:
       "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.",
     authentication_error:
@@ -99,36 +86,6 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
   forkDisabled,
 }) => {
   const answer = agentResponseText(parts);
-  const expansion = useTrailExpansion(isStreaming);
-  const processParts = useMemo(
-    () => parts.filter((part) => part.kind === "tool_call" || part.kind === "thought"),
-    [parts]
-  );
-  const visibleParts = useMemo(
-    () => parts.filter((part) => part.kind !== "tool_call" && part.kind !== "thought"),
-    [parts]
-  );
-  const hasSeveralProcessGroups = useMemo(
-    () =>
-      foldActivityGroups(buildAgentTrail(parts)).filter(
-        (node) => node.type !== "text" && node.type !== "plan" && node.type !== "compaction"
-      ).length > 1,
-    [parts]
-  );
-  const processSummary = useMemo(
-    () =>
-      summarizeActivity(
-        processParts.map((part) =>
-          part.kind === "tool_call"
-            ? { type: "action" as const, part }
-            : {
-                type: "reasoning" as const,
-                part,
-              }
-        )
-      ),
-    [processParts]
-  );
   const recoveryNotices = useMemo(
     () =>
       parts
@@ -167,31 +124,12 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
 
   return (
     <div className="tw-group tw-flex tw-flex-col tw-gap-1">
-      {!isStreaming && hasSeveralProcessGroups ? (
-        <>
-          <AgentActivityCard
-            icon={Layers}
-            label={
-              turnDurationMs === undefined
-                ? processSummary.line
-                : `${t("Worked for")} ${formatWorkedDuration(turnDurationMs)}, ${processSummary.line}`
-            }
-            expandable
-            open={expansion.isOpen("completed-turn", false)}
-            onToggle={() => expansion.toggle("completed-turn", false)}
-          >
-            <LinearTrail parts={processParts} isStreaming={false} app={app} />
-          </AgentActivityCard>
-          <LinearTrail parts={visibleParts} isStreaming={false} app={app} />
-        </>
-      ) : (
-        <LinearTrail
-          parts={parts}
-          isStreaming={isStreaming}
-          app={app}
-          turnDurationMs={!isStreaming && !compactionOnly ? turnDurationMs : undefined}
-        />
-      )}
+      <LinearTrail
+        parts={parts}
+        isStreaming={isStreaming}
+        app={app}
+        turnDurationMs={!isStreaming && !compactionOnly ? turnDurationMs : undefined}
+      />
       {recoveryNotices.map(({ id, text }) => (
         <div role="alert" key={id} className="tw-text-warning">
           <span className="tw-text-xs">{t("Recovered after interruption")}</span>
@@ -221,11 +159,7 @@ interface TrailContext {
   app: App;
   lastPart: AgentMessagePart | undefined;
   expansion: TrailExpansion;
-  summaryCtx: ToolSummaryContext;
   tasks: AgentTasksContextValue | null;
-  turnDurationMs?: number;
-  durationGroupId?: string;
-  isStreaming: boolean;
 }
 
 const LinearTrail: React.FC<{
@@ -234,26 +168,18 @@ const LinearTrail: React.FC<{
   app: App;
   turnDurationMs?: number;
 }> = ({ parts, isStreaming, app, turnDurationMs }) => {
-  const expansion = useTrailExpansion(isStreaming);
+  const expansion = useTrailExpansion();
   const tasks = useAgentTasks();
-  const summaryCtx = useMemo(() => ({ vaultBase: getVaultBase(app) }), [app]);
-  const nodes = foldActivityGroups(buildAgentTrail(parts), (part) =>
-    Boolean(tasks?.tasks.some((task) => task.toolCallId === part.id))
-  );
-  const durationGroup = nodes.find((node) => node.type === "activityGroup");
+  const nodes = foldActivityGroups(buildAgentTrail(parts), () => true);
   const ctx: TrailContext = {
     app,
     lastPart: parts.length > 0 ? parts[parts.length - 1] : undefined,
     expansion,
-    isStreaming,
-    summaryCtx,
     tasks,
-    turnDurationMs,
-    durationGroupId: durationGroup?.type === "activityGroup" ? durationGroup.id : undefined,
   };
   return (
     <div className="tw-flex tw-flex-col tw-gap-1">
-      {turnDurationMs !== undefined && !durationGroup ? (
+      {turnDurationMs !== undefined ? (
         <AgentTurnDurationIndicator status="complete" durationMs={turnDurationMs} inline />
       ) : null}
       {nodes.map((node, i) =>
@@ -303,17 +229,8 @@ function renderNode(
       );
     }
     case "activityGroup":
-      return (
-        <ActivityGroupRow
-          key={key}
-          group={node}
-          ctx={ctx}
-          atLiveEdge={atLiveEdge}
-          trailId={trailId}
-          turnDurationMs={
-            trailId === "root" && node.id === ctx.durationGroupId ? ctx.turnDurationMs : undefined
-          }
-        />
+      return node.members.map((member, index) =>
+        renderNode(member, `${key}:${index}`, ctx, atLiveEdge, trailId)
       );
     case "subagent": {
       const children = foldActivityGroups(node.children);
@@ -323,7 +240,6 @@ function renderNode(
         <SubAgentCard
           key={key}
           parent={node.parent}
-          isTurnStreaming={ctx.isStreaming}
           childNodes={children}
           truncated={node.truncated}
           app={ctx.app}
@@ -334,14 +250,7 @@ function renderNode(
     case "reasoning": {
       const isActive =
         atLiveEdge && node.part === ctx.lastPart && node.part.durationMs === undefined;
-      return (
-        <ReasoningBlock
-          key={key}
-          part={node.part}
-          isStreaming={isActive}
-          isTurnStreaming={ctx.isStreaming}
-        />
-      );
+      return <ReasoningBlock key={key} part={node.part} isStreaming={isActive} />;
     }
     case "text":
       return <AgentMarkdownText key={key} text={node.part.text} app={ctx.app} />;
@@ -366,70 +275,6 @@ const TrailAction = memo(function TrailAction({
   const onToggle = useCallback(() => toggle(expansionId), [toggle, expansionId]);
   return <ActionCard part={part} open={open} onToggle={onToggle} />;
 });
-
-interface ActivityGroupRowProps {
-  group: ActivityGroupNode;
-  atLiveEdge: boolean;
-  ctx: TrailContext;
-  trailId: string;
-  turnDurationMs?: number;
-}
-
-const ActivityGroupRow: React.FC<ActivityGroupRowProps> = ({
-  group,
-  atLiveEdge,
-  ctx,
-  trailId,
-  turnDurationMs,
-}) => {
-  const trailingMember = group.members[group.members.length - 1];
-  const groupAtLiveEdge = atLiveEdge && trailingMember?.part === ctx.lastPart;
-  const reasoningActive = isReasoningActive(group.members, groupAtLiveEdge);
-  const activeThoughtStartedAtMs =
-    reasoningActive && trailingMember?.type === "reasoning"
-      ? trailingMember.part.startedAtMs
-      : undefined;
-  const thinkingMs = useThinkingClock(reasoningActive, activeThoughtStartedAtMs);
-  const groupExpansionId = `${trailId}/group:${group.id}`;
-  const memberExpansionIds = group.members.flatMap((member) =>
-    member.type === "action" ? [actionExpansionId(trailId, member.part.id)] : []
-  );
-  const groupOpen = ctx.expansion.isOpen(
-    groupExpansionId,
-    ctx.isStreaming || memberExpansionIds.some((id) => ctx.expansion.isOpen(id, false))
-  );
-
-  const toggleGroup = () => {
-    if (!groupOpen) {
-      ctx.expansion.toggle(groupExpansionId);
-      return;
-    }
-    if (ctx.expansion.isOpen(groupExpansionId)) ctx.expansion.toggle(groupExpansionId);
-    for (const id of memberExpansionIds) {
-      if (ctx.expansion.isOpen(id)) ctx.expansion.toggle(id);
-    }
-  };
-
-  return (
-    <ActivityGroupCard
-      group={group}
-      turnDurationMs={turnDurationMs}
-      thinkingMs={thinkingMs}
-      open={groupOpen}
-      onToggle={toggleGroup}
-      renderMember={(member, i) =>
-        renderNode(
-          member,
-          member.type === "action" ? member.part.id : `thought-${i}`,
-          ctx,
-          groupAtLiveEdge,
-          trailId
-        )
-      }
-      liveStep={activityLiveStep(group.members, groupAtLiveEdge, ctx.summaryCtx)}
-    />
-  );
-};
 
 function actionExpansionId(trailId: string, toolCallId: string): string {
   return `${trailId}/action:${toolCallId}`;

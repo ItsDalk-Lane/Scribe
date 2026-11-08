@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { randomBytes } from "node:crypto";
 import type { AssistantMessage, Context } from "@earendil-works/pi-ai";
 import type { CustomModel } from "@/aiParams";
@@ -6,6 +7,11 @@ import { collectReply, collectText, sse } from "@/LLMProviders/testing/piFixture
 import * as obsidianModule from "obsidian";
 
 jest.mock("@/logger");
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const apiKey = randomBytes(24).toString("hex");
@@ -26,7 +32,6 @@ function googleModel(overrides: Partial<CustomModel> = {}): CustomModel {
     providerNpm: "@ai-sdk/google",
     baseUrl: "https://google.fixture.invalid/v1beta",
     enabled: true,
-    enableCors: false,
     apiKey,
     ...overrides,
   };
@@ -45,6 +50,13 @@ function deferred<T>() {
 }
 
 describe("httpChatApis", () => {
+  beforeEach(() => {
+    Platform.isMobile = false;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   const originalFetch = window.fetch;
   const requests: RecordedRequest[] = [];
   let respond: (request: RecordedRequest, index: number) => Promise<Response>;
@@ -88,10 +100,11 @@ describe("httpChatApis", () => {
 
   describe("streamGoogle", () => {
     it.each([false, true])(
-      `sends bare and models-qualified IDs to the same configured endpoint with CORS=%s (${issue})`,
-      async (enableCors) => {
+      `sends bare and models-qualified IDs to the same configured endpoint on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
+        Platform.isMobile = mobile;
         for (const name of ["gemini-2.5-flash", "models/gemini-2.5-flash"]) {
-          const client = await createProviderChatModel(googleModel({ name, enableCors }));
+          const client = await createProviderChatModel(googleModel({ name }));
           expect(await collectText(client)).toBe("Reply");
         }
         expect(requests.map((request) => request.url)).toEqual([
@@ -234,15 +247,16 @@ describe("httpChatApis", () => {
     });
 
     it.each([false, true])(
-      `continues a long answer in order and reuses context, authentication and transport with CORS=%s (${issue})`,
-      async (enableCors) => {
+      `continues a long answer in order and reuses context, authentication and transport on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
+        Platform.isMobile = mobile;
         respond = async (_request, index) =>
           new Response(
             sse([
               index === 0 ? googleChunk("First", "CONTINUATION", "next-1") : googleChunk(" second"),
             ])
           );
-        const client = await createProviderChatModel(googleModel({ enableCors, maxTokens: 12000 }));
+        const client = await createProviderChatModel(googleModel({ maxTokens: 12000 }));
         const chunks: string[] = [];
         let reply: AssistantMessage | undefined;
         const context: Context = {
@@ -262,7 +276,7 @@ describe("httpChatApis", () => {
         expect(requests[1].url).toBe(requests[0].url);
         expect(requests[1].body).toEqual({ ...requests[0].body, continuationToken: "next-1" });
         expect([...requests[1].headers.entries()]).toEqual([...requests[0].headers.entries()]);
-        if (!enableCors) expect(requests[1].signal).toBe(requests[0].signal);
+        if (!mobile) expect(requests[1].signal).toBe(requests[0].signal);
         await collectReply(client, {
           ...context,
           messages: [

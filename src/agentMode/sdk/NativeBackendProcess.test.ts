@@ -10,7 +10,7 @@ import {
   type NativeBackendProcessOptions,
   type NativeToolContext,
 } from "@/agentMode/sdk/NativeBackendProcess";
-import type { SessionEvent } from "@/agentMode/session/types";
+import type { SessionEvent, PermissionPrompt } from "@/agentMode/session/types";
 import type { ProviderChatModel, AgentStreamOptions } from "@/LLMProviders/piChatModel";
 
 const model = {
@@ -79,6 +79,11 @@ function fixture(
       list: async () => [...records.values()],
       remove: async (id) => {
         records.delete(id);
+      },
+      removeSubagent: async (id, subagentId) => {
+        const record = records.get(id);
+        if (record)
+          record.subagents = record.subagents?.filter((state) => state.snapshot.id !== subagentId);
       },
     },
     ...overrides,
@@ -205,6 +210,251 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("prompt", () => {
+      it.each([
+        ["not selected", "ordinary request", true, "只能转交"],
+        ["disabled after selection", "/manual-review check", false, "已停用或不可用"],
+        ["selected and enabled", "/manual-review check", true, "找不到当前聊天所属的子会话"],
+      ])(
+        "checks the current user authorization before a resumed child receives skills when %s (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+        async (_label, prompt, enabledAtSend, expected) => {
+          let enabled = true;
+          let failure = "";
+          const f = fixture(
+            (_model, context) => {
+              if (context.messages.at(-1)?.role === "toolResult") return response("done");
+              return response("", [{ id: "send", name: "send_subagent_message", arguments: {} }]);
+            },
+            [],
+            {
+              getManuallyInvokedSkill: (name) =>
+                enabled && name === "manual-review" ? { name, body: "Instructions" } : null,
+              createTools: (context) => ({
+                tools: [
+                  {
+                    name: "send_subagent_message",
+                    label: "send",
+                    description: "send",
+                    parameters: { type: "object", properties: {} },
+                    execute: async () => {
+                      enabled = enabledAtSend;
+                      try {
+                        await context.sendSubagentMessage!({
+                          subagentId: "unknown",
+                          text: "continue",
+                          mode: "wake",
+                          skills: ["manual-review"],
+                        });
+                      } catch (error) {
+                        failure = String(error);
+                      }
+                      return { content: [{ type: "text", text: "done" }], details: undefined };
+                    },
+                  },
+                ] as AgentTool[],
+              }),
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "authorization-test", prompt);
+          expect(failure).toContain(expected);
+        }
+      );
+      function transferredSkillFixture(overrides: Partial<NativeBackendProcessOptions>) {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            const last = context.messages.at(-1);
+            if (JSON.stringify(last).includes("Child task")) return response("Child done");
+            if (last?.role === "toolResult") return response("Parent done");
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: {
+                  prompt: "Child task",
+                  description: "Review",
+                  skills: ["manual-review"],
+                },
+              },
+            ]);
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+            createTools: (context) => ({
+              tools: context.executeSubagent
+                ? [
+                    {
+                      name: "delegate_task",
+                      label: "Delegate",
+                      description: "Delegate",
+                      parameters: { type: "object", properties: {} },
+                      execute: (id, args, signal) =>
+                        context.executeSubagent!(
+                          id,
+                          args as { prompt: string; description: string; skills: string[] },
+                          signal
+                        ),
+                    },
+                  ]
+                : [],
+            }),
+            ...overrides,
+          }
+        );
+        return { ...f, contexts };
+      }
+
+      it("does not send a child request when dependency resolution fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let calls = 0;
+        const f = transferredSkillFixture({
+          resolveSkillDependencies: async () => {
+            if (++calls === 2) throw new Error("Dependency check failed");
+            return [];
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        expect(
+          f.contexts.some((context) =>
+            JSON.stringify(context.messages.at(-1)).includes("Child task")
+          )
+        ).toBe(false);
+      });
+
+      it("does not send a child request when the skill is disabled during dependency resolution (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let enabled = true;
+        let calls = 0;
+        const f = transferredSkillFixture({
+          getManuallyInvokedSkill: (name) => (enabled ? { name, body: "Instructions" } : null),
+          resolveSkillDependencies: async () => {
+            if (++calls === 2) enabled = false;
+            return [];
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        expect(
+          f.contexts.some((context) =>
+            JSON.stringify(context.messages.at(-1)).includes("Child task")
+          )
+        ).toBe(false);
+      });
+
+      it("does not send a child request after cancellation during dependency resolution (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let calls = 0;
+        let started!: () => void;
+        let finish!: (readings: []) => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const pending = new Promise<[]>((resolve) => {
+          finish = resolve;
+        });
+        const f = transferredSkillFixture({
+          resolveSkillDependencies: async () => {
+            if (++calls === 2) {
+              started();
+              return pending;
+            }
+            return [];
+          },
+        });
+        const id = await f.open();
+        const turn = f.send(id, "manual", "/manual-review Check");
+        await ready;
+        const cancellation = f.proc.cancel({ sessionId: id });
+        finish([]);
+        await Promise.all([turn, cancellation]);
+        expect(
+          f.contexts.some((context) =>
+            JSON.stringify(context.messages.at(-1)).includes("Child task")
+          )
+        ).toBe(false);
+      });
+
+      it("bounds the combined transferred instruction and indicates truncation (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = transferredSkillFixture({
+          getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(30000) }),
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = f.contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        const text = child?.messages[0].content;
+        expect(typeof text).toBe("string");
+        expect((text as string).length).toBeLessThanOrEqual(
+          20000 + "\n\n[Output truncated]".length
+        );
+        expect(text).toContain("[Output truncated]");
+      });
+
+      it("delivers transferred skills with dependency readiness and their support directory to the child (https://github.com/ItsDalk-Lane/Scribe/issues/46)", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            const last = context.messages.at(-1);
+            if (JSON.stringify(last).includes("Child task")) return response("Child done");
+            if (last?.role === "toolResult") return response("Parent done");
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: {
+                  prompt: "Child task",
+                  description: "Review",
+                  skills: ["manual-review"],
+                },
+              },
+            ]);
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({
+              name,
+              body: "Review instructions",
+              dirPath: "/fixture/skills/manual-review",
+            }),
+            resolveSkillDependencies: async () => [
+              { type: "command", name: "example", ready: true, detail: "/usr/bin/example" },
+              { type: "python-package", name: "missing", ready: false, detail: "not installed" },
+            ],
+            createTools: (context) => ({
+              tools: context.executeSubagent
+                ? [
+                    {
+                      name: "delegate_task",
+                      label: "Delegate",
+                      description: "Delegate",
+                      parameters: { type: "object", properties: {} },
+                      execute: (id, args, signal) =>
+                        context.executeSubagent!(
+                          id,
+                          args as { prompt: string; description: string; skills: string[] },
+                          signal
+                        ),
+                    },
+                  ]
+                : [],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        expect(child).toBeDefined();
+        const text = JSON.stringify(child!.messages);
+        expect(text).toContain("Review instructions");
+        expect(text).toContain("/fixture/skills/manual-review");
+        expect(text).toContain("/usr/bin/example");
+        expect(text).toContain("not available on this computer");
+      });
+
       it("loads an explicitly named manual skill for this request without rewriting the original user message", async () => {
         const contexts: Context[] = [];
         const findSkill = jest.fn((name: string) =>
@@ -237,6 +487,83 @@ describe("NativeBackendProcess", () => {
         ).toEqual([{ type: "text", text: original }]);
         await f.send(id, "ordinary", "Continue without a skill");
         expect(JSON.stringify(contexts[1].messages)).not.toContain("Verify each quoted claim.");
+      });
+
+      it("counts one manual skill selection once across tool continuations and counts a new selection separately https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+        const onManualSkillInvoked = jest.fn();
+        let requests = 0;
+        const tool = {
+          name: "check",
+          label: "Check",
+          description: "Check",
+          parameters: { type: "object", properties: {} },
+          execute: jest.fn(async () => ({
+            content: [{ type: "text", text: "done" }],
+            details: undefined,
+          })),
+        } as AgentTool;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "call-1", name: "check", arguments: {} }])
+              : response("Done"),
+          [tool],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+            onManualSkillInvoked,
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        expect(requests).toBe(2);
+        expect(onManualSkillInvoked).toHaveBeenCalledTimes(1);
+        await f.send(id, "second", "/manual-review Again");
+        expect(onManualSkillInvoked).toHaveBeenCalledTimes(2);
+      });
+
+      it("does not count a manual selection when preparing its dependencies fails https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+        const onManualSkillInvoked = jest.fn();
+        const request = jest.fn(() => response("unused"));
+        const f = fixture(request, [], {
+          getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+          resolveSkillDependencies: async () => {
+            throw new Error("Dependency check failed");
+          },
+          onManualSkillInvoked,
+        });
+        const id = await f.open();
+        await f.send(id, "failed", "/manual-review Check");
+        expect(request).not.toHaveBeenCalled();
+        expect(onManualSkillInvoked).not.toHaveBeenCalled();
+      });
+
+      it("does not count a manual selection cancelled before the model request https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+        const onManualSkillInvoked = jest.fn();
+        const request = jest.fn(() => response("unused"));
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let finish!: (readings: []) => void;
+        const dependency = new Promise<[]>((resolve) => {
+          finish = resolve;
+        });
+        const f = fixture(request, [], {
+          getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+          resolveSkillDependencies: () => {
+            started();
+            return dependency;
+          },
+          onManualSkillInvoked,
+        });
+        const id = await f.open();
+        const pending = f.send(id, "cancelled", "/manual-review Check");
+        await ready;
+        const cancelled = f.proc.cancel({ sessionId: id });
+        finish([]);
+        await Promise.all([pending, cancelled]);
+        expect(request).not.toHaveBeenCalled();
+        expect(onManualSkillInvoked).not.toHaveBeenCalled();
       });
 
       it("does not send a model request when the explicitly named skill disallows manual invocation", async () => {
@@ -670,6 +997,9 @@ describe("NativeBackendProcess", () => {
           ],
           { maxSteps: 1 }
         );
+        f.proc.setPermissionPrompter(async () => ({
+          outcome: { outcome: "selected", optionId: "allow_once" },
+        }));
         const id = await f.open();
         await f.send(id);
         expect(request).toHaveBeenCalledTimes(2);
@@ -911,6 +1241,202 @@ describe("NativeBackendProcess", () => {
             .filter((update) => update.sessionUpdate === "task_started")
         ).toEqual([]);
       });
+      it("names the child from the explicit name before the custom agent and description fallbacks", async () => {
+        const request = jest.fn(() => response("Child work"));
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "reviewer",
+              name: "Reviewer",
+              description: "Review",
+              instructions: "Review carefully",
+              enabled: true,
+            },
+          ],
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("named", {
+          prompt: "Inspect",
+          description: "Inspect notes",
+          name: "  Source audit  ",
+          agent: "reviewer",
+          background: true,
+        });
+        await f.toolContexts[0].executeSubagent!("custom-fallback", {
+          prompt: "Inspect",
+          description: "Inspect notes",
+          agent: "reviewer",
+          background: true,
+        });
+        await f.toolContexts[0].executeSubagent!("generic-fallback", {
+          prompt: "Inspect",
+          description: "Generic child",
+          background: true,
+        });
+        const children = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(children.map((child) => child.name)).toEqual([
+          "Source audit",
+          "Reviewer: Inspect notes",
+          "Generic child",
+        ]);
+        await f.proc.shutdown();
+      });
+
+      it("refuses background delegation cancelled while the task setup is being saved (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let entered!: () => void;
+        let finish!: () => void;
+        const saving = new Promise<void>((resolve) => {
+          entered = resolve;
+        });
+        const released = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        let held = false;
+        const request = jest.fn(() => response("Must not run"));
+        const f = fixture(request, [], {
+          storage: {
+            load: async () => null,
+            list: async () => [],
+            save: async (record) => {
+              if (!held && record.taskGenerations?.length) {
+                held = true;
+                entered();
+                await released;
+              }
+            },
+          },
+        });
+        const id = await f.open();
+        const signal = new AbortController();
+        const delegation = f.toolContexts[0].executeSubagent!(
+          "cancelled-create",
+          { prompt: "Do work", description: "Cancelled", background: true },
+          signal.signal
+        );
+        await saving;
+        signal.abort();
+        finish();
+        await expect(delegation).rejects.toMatchObject({ name: "AbortError" });
+        expect(await f.proc.listSubagentSessions({ sessionId: id })).toEqual([]);
+        expect(request).not.toHaveBeenCalled();
+        await f.proc.shutdown();
+      });
+
+      it("counts failed and retried actual request usage once in the child run (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const failedUsage = { input: 7, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 10 };
+        const successUsage = { input: 13, output: 5, cacheRead: 1, cacheWrite: 1, totalTokens: 20 };
+        const cost = { ...model.cost, total: 0 };
+        const f = fixture((_model, _context, options) => {
+          const stream = createAssistantMessageEventStream();
+          void (async () => {
+            await options?.beforeRequest?.("child-failed-request");
+            await options?.onRequestUsage?.("child-failed-request", {
+              ...failedUsage,
+              cost,
+            });
+            await options?.beforeRequest?.("child-retried-request");
+            await options?.onRequestUsage?.("child-failed-request", {
+              ...failedUsage,
+              cost,
+            });
+            await options?.onRequestUsage?.("child-retried-request", {
+              ...successUsage,
+              cost,
+            });
+            const message = createAssistantMessage(model);
+            message.content = [{ type: "text", text: "Retried child completed" }];
+            message.stopReason = "stop";
+            message.usage = { ...successUsage, cost };
+            stream.push({ type: "done", reason: "stop", message });
+          })();
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate-retry", {
+          prompt: "Retry the child request",
+          description: "Retry usage",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(child.runs[0].usage).toEqual({
+          input: 20,
+          output: 8,
+          cacheRead: 1,
+          cacheWrite: 1,
+          totalTokens: 30,
+        });
+        expect(f.records.get(id)?.taskGenerations?.[0].usage).toHaveLength(2);
+      });
+
+      it.each([
+        { allowedTools: ["invoke_skill"], expected: ["invoke_skill"] },
+        { allowedTools: [], expected: [] },
+      ])(
+        "only exposes the child's allowed tools and blocks a forbidden tool call for $allowedTools (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+        async ({ allowedTools, expected }) => {
+          const childTools: string[][] = [];
+          const readNote = jest.fn(async () => ({ content: [], details: undefined }));
+          let assertChildTool: NativeToolContext["assertCanExecute"];
+          const f = fixture(
+            (_model, context) => {
+              const last = context.messages.at(-1);
+              if (last?.role === "toolResult") return response("Finished");
+              if (JSON.stringify(last).includes("Child task")) {
+                childTools.push(getCurrentTools(context.messages).map((tool) => tool.name));
+                return response("", [{ id: "forbidden", name: "read_note", arguments: {} }]);
+              }
+              return response("", [
+                {
+                  id: "delegate",
+                  name: "delegate_task",
+                  arguments: { prompt: "Child task", description: "Review", allowedTools },
+                },
+              ]);
+            },
+            [],
+            {
+              createTools: (context) => {
+                if (context.subagentId) assertChildTool = context.assertCanExecute;
+                const tools: AgentTool[] = ["invoke_skill", "read_note"].map((name) => ({
+                  name,
+                  label: name,
+                  description: name,
+                  parameters: { type: "object", properties: {} },
+                  execute:
+                    name === "read_note"
+                      ? readNote
+                      : async () => ({ content: [], details: undefined }),
+                })) as AgentTool[];
+                if (context.executeSubagent)
+                  tools.push({
+                    name: "delegate_task",
+                    label: "Delegate",
+                    description: "Delegate",
+                    parameters: { type: "object", properties: {} },
+                    execute: (id, args, signal) =>
+                      context.executeSubagent!(
+                        id,
+                        args as { prompt: string; description: string; allowedTools: string[] },
+                        signal
+                      ),
+                  } as AgentTool);
+                return { tools };
+              },
+            }
+          );
+          const id = await f.open();
+          await f.send(id);
+          expect(childTools).toEqual([expected]);
+          expect(readNote).not.toHaveBeenCalled();
+          expect(assertChildTool).toBeDefined();
+          expect(() => assertChildTool!("read_note")).toThrow("此子会话的角色限制不允许调用该工具");
+          if (allowedTools.length) expect(() => assertChildTool!("invoke_skill")).not.toThrow();
+          else
+            expect(() => assertChildTool!("invoke_skill")).toThrow(
+              "此子会话的角色限制不允许调用该工具"
+            );
+        }
+      );
+
       it("delegates to a saved custom agent with its own instructions and the current model", async () => {
         const contexts: Context[] = [];
         const request = jest.fn((_model, context: Context) => {
@@ -970,6 +1496,322 @@ describe("NativeBackendProcess", () => {
             description: "Reviewer: Review",
           })
         );
+      });
+
+      it("rejects an unknown remote write after plan mode starts while its approval is pending (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let ready!: () => void;
+        let approve!: () => void;
+        const pending = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "changed" }],
+          details: undefined,
+        }));
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "remote", name: "remote_write", arguments: {} }])
+              : response("No remote write"),
+          [
+            {
+              name: "remote_write",
+              label: "Remote",
+              description: "Remote",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ]
+        );
+        f.proc.setPermissionPrompter(
+          () =>
+            new Promise((resolve) => {
+              approve = () => resolve({ outcome: { outcome: "selected", optionId: "allow_once" } });
+              ready();
+            })
+        );
+        const id = await f.open();
+        const turn = f.send(id);
+        await pending;
+        await f.proc.setSessionMode({ sessionId: id, modeId: "plan" });
+        approve();
+        await turn;
+        expect(execute).not.toHaveBeenCalled();
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Plan approval is required");
+      });
+
+      it("keeps permanent approvals separate for distinct remote tools with identical arguments (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let requests = 0;
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "changed" }],
+          details: undefined,
+        }));
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_always" },
+        }));
+        const f = fixture(
+          () =>
+            ++requests < 3
+              ? response("", [
+                  {
+                    id: `remote-${requests}`,
+                    name: requests === 1 ? "service_a_write" : "service_b_write",
+                    arguments: { target: "same" },
+                  },
+                ])
+              : response("Done"),
+          ["service_a_write", "service_b_write"].map((name) => ({
+            name,
+            label: name,
+            description: name,
+            parameters: { type: "object", properties: { target: { type: "string" } } },
+            execute,
+          }))
+        );
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).toHaveBeenCalledTimes(2);
+        expect(execute).toHaveBeenCalledTimes(2);
+      });
+
+      it("refreshes changed capability descriptions before the next actual model request (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let revision = "first";
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return contexts.length === 1
+              ? response("", [{ id: "read", name: "read_note", arguments: {} }])
+              : response("Updated tools");
+          },
+          [],
+          {
+            getCapabilityRevision: () => revision,
+            createTools: () => ({
+              tools: [
+                {
+                  name: revision === "first" ? "read_note" : "find_paths",
+                  label: "Current",
+                  description: revision,
+                  parameters: { type: "object", properties: {} },
+                  execute: async () => {
+                    revision = "second";
+                    return { content: [{ type: "text", text: "read" }], details: undefined };
+                  },
+                },
+              ],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(getCurrentTools(contexts[1].messages).map((tool) => tool.name)).toEqual([
+          "find_paths",
+        ]);
+      });
+
+      it("delivers interleaved child messages in accepted order after parent preparation finishes (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let blocked = false;
+        let ready!: () => void;
+        let release!: () => void;
+        const preparing = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        const resumed = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            getSystemPrompt: async () => {
+              if (blocked) {
+                ready();
+                await resumed;
+              }
+              return "Instructions";
+            },
+          }
+        );
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("a", { prompt: "A", description: "A" });
+        await f.toolContexts[0].executeSubagent!("b", { prompt: "B", description: "B" });
+        blocked = true;
+        const turn = f.send(id, "parent", "Read discoveries");
+        await preparing;
+        await f.toolContexts[2].sendParentMessage!({ kind: "discovery", text: "First from B" });
+        await f.toolContexts[1].sendParentMessage!({ kind: "discovery", text: "Second from A" });
+        release();
+        await turn;
+        const actual = JSON.stringify(contexts.at(-1)!.messages);
+        expect(actual).toContain("First from B");
+        expect(actual).toContain("Second from A");
+        expect(actual.indexOf("First from B")).toBeLessThan(actual.indexOf("Second from A"));
+        await f.proc.shutdown();
+      });
+
+      it("keeps a child's local plan and its approval from changing the parent or a sibling mode (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const contexts: NativeToolContext[] = [];
+        let waiting!: () => void;
+        let approve!: () => void;
+        const pending = new Promise<void>((resolve) => {
+          waiting = resolve;
+        });
+        const f = fixture(
+          (_model, context) => {
+            const task = context.messages.find((message) => message.role === "user");
+            return task?.role === "user" &&
+              task.content === "Child A" &&
+              !context.messages.some((message) => message.role === "toolResult")
+              ? response("", [{ id: "plan", name: "propose_plan", arguments: { plan: "Review" } }])
+              : response("Done");
+          },
+          [],
+          {
+            createTools: (context) => {
+              contexts.push(context);
+              return {
+                tools: [
+                  {
+                    name: "propose_plan",
+                    label: "Plan",
+                    description: "Plan",
+                    parameters: { type: "object", properties: { plan: { type: "string" } } },
+                    execute: async (id) => {
+                      const decision = await context.requestPermission({
+                        sessionId: context.sessionId,
+                        toolCall: {
+                          toolCallId: id,
+                          kind: "switch_mode",
+                          title: "Plan",
+                          rawInput: { plan: "Review" },
+                          isPlanProposal: true,
+                        },
+                        options: [{ optionId: "allow_once", name: "Approve", kind: "allow_once" }],
+                      });
+                      if (decision.outcome.outcome === "selected") context.onPlanApproved();
+                      return {
+                        content: [{ type: "text", text: "Plan approved" }],
+                        details: undefined,
+                      };
+                    },
+                  },
+                ],
+              };
+            },
+          }
+        );
+        f.proc.setPermissionPrompter(
+          () =>
+            new Promise((resolve) => {
+              approve = () => resolve({ outcome: { outcome: "selected", optionId: "allow_once" } });
+              waiting();
+            })
+        );
+        const id = await f.open();
+        await f.proc.setSessionMode({ sessionId: id, modeId: "full" });
+        const first = contexts[0].executeSubagent!("child-a", {
+          prompt: "Child A",
+          description: "A",
+        });
+        await pending;
+        expect(contexts[1].getMode()).toBe("plan");
+        expect(contexts[0].getMode()).toBe("full");
+        await contexts[0].executeSubagent!("child-b", { prompt: "Child B", description: "B" });
+        expect(contexts[2].getMode()).toBe("full");
+        approve();
+        await first;
+        expect(contexts[1].getMode()).toBe("full");
+        expect(contexts[0].getMode()).toBe("full");
+        expect(contexts[2].getMode()).toBe("full");
+      });
+
+      it("keeps an independent new parent task running when an old child reports delayed quota exhaustion (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let childReady!: () => void;
+        let parentReady!: () => void;
+        let failChild!: () => void;
+        let finishParent!: () => void;
+        let parentAborted = false;
+        const childStarted = new Promise<void>((resolve) => {
+          childReady = resolve;
+        });
+        const parentStarted = new Promise<void>((resolve) => {
+          parentReady = resolve;
+        });
+        let requests = 0;
+        const f = fixture((_model, _context, options) => {
+          const stream = createAssistantMessageEventStream();
+          if (++requests === 1) {
+            let ended = false;
+            const end = () => {
+              if (ended) return;
+              ended = true;
+              const message = createAssistantMessage(model);
+              message.stopReason = "error";
+              message.errorMessage = "Old account quota exhausted";
+              stream.push({ type: "error", reason: "error", error: message });
+            };
+            options?.signal?.addEventListener("abort", end, { once: true });
+            failChild = () => {
+              options?.onFailure?.({ kind: "quota" });
+              end();
+            };
+            childReady();
+          } else {
+            const abort = () => {
+              parentAborted = true;
+              const message = createAssistantMessage(model);
+              message.stopReason = "aborted";
+              stream.push({ type: "error", reason: "aborted", error: message });
+            };
+            options?.signal?.addEventListener("abort", abort, { once: true });
+            finishParent = () => {
+              options?.signal?.removeEventListener("abort", abort);
+              const message = createAssistantMessage(model);
+              message.content = [{ type: "text", text: "Independent task done" }];
+              message.stopReason = "stop";
+              stream.push({ type: "done", reason: "stop", message });
+            };
+            parentReady();
+          }
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("old-delegate", {
+          prompt: "Old child",
+          description: "Old",
+          background: true,
+        });
+        await childStarted;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const sequence = Math.max(...child.messages.map((message) => message.sequence));
+        await f.proc.startIndependentTask({ sessionId: id });
+        const parent = f.send(id, "new-task", "Independent task");
+        await parentStarted;
+        const childEnded = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: sequence,
+        });
+        failChild();
+        await childEnded;
+        expect(parentAborted).toBe(false);
+        finishParent();
+        await parent;
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "turn_ended",
+            turnId: "new-task",
+            stopReason: "end_turn",
+          })
+        );
+        await f.proc.shutdown();
       });
 
       it("stops the parent without another request when a child exhausts quota (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
@@ -1384,7 +2226,296 @@ describe("NativeBackendProcess", () => {
       });
     });
 
+    describe("mcp tool permission gating", () => {
+      function mcpToolFixture() {
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "ok" }],
+          details: undefined,
+        }));
+        const tool: AgentTool = {
+          name: "mcp__files__search",
+          label: "search",
+          description: "Search notes.",
+          parameters: { type: "object", properties: {} },
+          execute,
+        };
+        return { execute, tool };
+      }
+
+      it("runs mcp tools listed for auto-approval without a permission prompt", async () => {
+        const { execute, tool } = mcpToolFixture();
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "mcp-1", name: "mcp__files__search", arguments: {} }])
+              : response("Done"),
+          [tool],
+          {
+            createTools: () => ({
+              tools: [tool],
+              autoApproveTools: new Set(["mcp__files__search"]),
+            }),
+          }
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).not.toHaveBeenCalled();
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("mcp__files__search");
+      });
+
+      it("still prompts for mcp tools that are not auto-approved", async () => {
+        const { execute, tool } = mcpToolFixture();
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "mcp-1", name: "mcp__files__search", arguments: {} }])
+              : response("Done"),
+          [tool],
+          { createTools: () => ({ tools: [tool] }) }
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).toHaveBeenCalledTimes(1);
+        expect(execute).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("continueTaskBudget()", () => {
+      it("adds the configured allowance to the exact task once per grant without starting a model (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const request = jest.fn(() => response("Done"));
+        const f = fixture(request);
+        const id = await f.open();
+        await f.send(id);
+        const task = f.records.get(id)!.taskGenerations![0];
+        await f.proc.continueTaskBudget({
+          sessionId: id,
+          taskGenerationId: task.id,
+          requestId: "grant",
+        });
+        await f.proc.continueTaskBudget({
+          sessionId: id,
+          taskGenerationId: task.id,
+          requestId: "grant",
+        });
+        expect(
+          f.records.get(id)!.taskGenerations!.find((entry) => entry.id === task.id)?.limit
+        ).toBe(200);
+        expect(request).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("startIndependentTask()", () => {
+      it("starts a distinct budget generation without rewriting the completed task (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.send(id);
+        const originalId = f.records.get(id)!.taskGenerations![0].id;
+        await f.proc.startIndependentTask({ sessionId: id });
+        await f.send(id, "independent", "New task");
+        const tasks = f.records.get(id)!.taskGenerations!;
+        expect(tasks).toHaveLength(2);
+        expect(tasks[0].id).toBe(originalId);
+        expect(tasks[0].autoContinue).toBe(false);
+        expect(tasks[1].id).not.toBe(originalId);
+      });
+    });
+
+    describe("setSubagentArchived()", () => {
+      it("does not append archived results or start an extra parent request after its current response ends (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let signalChild!: () => void;
+        let signalParent!: () => void;
+        const childStarted = {
+          promise: new Promise<void>((resolve) => {
+            signalChild = resolve;
+          }),
+        };
+        const parentStarted = {
+          promise: new Promise<void>((resolve) => {
+            signalParent = resolve;
+          }),
+        };
+        let endParent!: () => void;
+        const contexts: Context[] = [];
+        const f = fixture((_model, context, options) => {
+          contexts.push(context);
+          const stream = createAssistantMessageEventStream();
+          const first = context.messages.find((message) => message.role === "user");
+          if (first?.role === "user" && first.content === "Archive child") {
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                const message = createAssistantMessage(model);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            signalChild();
+          } else if (contexts.length === 2) {
+            endParent = () => {
+              const message = createAssistantMessage(model);
+              message.content = [{ type: "text", text: "Parent complete" }];
+              message.stopReason = "stop";
+              stream.push({ type: "done", reason: "stop", message });
+            };
+            signalParent();
+          } else return response("Unexpected extra request");
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Archive child",
+          description: "Archived",
+          background: true,
+        });
+        await childStarted.promise;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const turn = f.send(id, "parent-current", "Current work");
+        await parentStarted.promise;
+        await f.proc.setSubagentArchived({ sessionId: id, subagentId: child.id, archived: true });
+        endParent();
+        await turn;
+        expect(contexts).toHaveLength(2);
+        expect(
+          (await f.proc.listSubagentSessions({ sessionId: id }))[0].runs[0].resultDelivered
+        ).not.toBe(true);
+        await f.proc.shutdown();
+      });
+
+      it("archives and unarchives the retained child without exposing another chat's state (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.setSubagentArchived({ sessionId: id, subagentId: child.id, archived: true });
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].retention).toBe(
+          "archived"
+        );
+        await expect(
+          f.proc.sendSubagentMessage({
+            sessionId: id,
+            subagentId: child.id,
+            text: "Continue",
+            mode: "wake",
+          })
+        ).rejects.toThrow("取消归档");
+        await f.proc.setSubagentArchived({ sessionId: id, subagentId: child.id, archived: false });
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].retention).toBe(
+          "retained"
+        );
+      });
+    });
+
+    describe("deleteSubagentSession()", () => {
+      it("removes the saved child while retaining the original parent chat (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.deleteSubagentSession({ sessionId: id, subagentId: child.id });
+        expect(await f.proc.listSubagentSessions({ sessionId: id })).toEqual([]);
+        expect(f.records.has(id)).toBe(true);
+        await expect(
+          f.proc.sendSubagentMessage({
+            sessionId: id,
+            subagentId: child.id,
+            text: "Continue",
+            mode: "wake",
+          })
+        ).rejects.toThrow("找不到");
+      });
+    });
+
+    describe("confirmSubagentRecovery()", () => {
+      it("records an explicit recovery confirmation without running a model or tool (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const request = jest.fn(() => response("Done"));
+        const f = fixture(request);
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const count = request.mock.calls.length;
+        await f.proc.confirmSubagentRecovery({ sessionId: id, subagentId: child.id });
+        expect(request).toHaveBeenCalledTimes(count);
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].id).toBe(child.id);
+      });
+    });
+
     describe("cancel", () => {
+      it("still aborts child work and releases owned resources when saving the stop fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const contexts: NativeToolContext[] = [];
+        let fail = false;
+        let started!: () => void;
+        let aborted = false;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const shutdown = jest.fn(async () => {});
+        const f = fixture(
+          (_model, _context, options) => {
+            const stream = createAssistantMessageEventStream();
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+                const message = createAssistantMessage(model);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            started();
+            return stream;
+          },
+          [],
+          {
+            storage: {
+              load: async () => null,
+              list: async () => [],
+              save: async () => {
+                if (fail) throw new Error("Stop save failed");
+              },
+            },
+            createTools: (context) => {
+              contexts.push(context);
+              return { tools: [], shutdown };
+            },
+          }
+        );
+        const id = await f.open();
+        await contexts[0].executeSubagent!("child", {
+          prompt: "Run",
+          description: "Running",
+          background: true,
+        });
+        await ready;
+        fail = true;
+        await expect(f.proc.cancel({ sessionId: id })).rejects.toThrow("Stop save failed");
+        expect(aborted).toBe(true);
+        expect(shutdown).toHaveBeenCalledTimes(2);
+        fail = false;
+        await f.proc.shutdown();
+      });
+
       it("stops during instruction loading and does not start a model request when that loading finishes later", async () => {
         let started!: () => void;
         let finish!: (text: string) => void;
@@ -1567,7 +2698,101 @@ describe("NativeBackendProcess", () => {
       });
     });
 
+    describe("stopSubagent()", () => {
+      it("stops the selected retained child's active run and preserves its directory (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let requests = 0;
+        const f = fixture((_model, _context, options) => {
+          if (++requests > 1) return response("Stopped child acknowledged");
+          const stream = createAssistantMessageEventStream();
+          options?.signal?.addEventListener(
+            "abort",
+            () => {
+              const message = createAssistantMessage(model);
+              message.stopReason = "aborted";
+              stream.push({ type: "error", reason: "aborted", error: message });
+            },
+            { once: true }
+          );
+          started();
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Running",
+          description: "Retained",
+          background: true,
+        });
+        await ready;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.stopSubagent({ sessionId: id, subagentId: child.id });
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].runs[0]).toMatchObject({
+          status: "stopped",
+          result: "Subagent stopped.",
+        });
+        await f.proc.shutdown();
+      });
+    });
+
     describe("stopTask", () => {
+      it("ignores an ended run's late stop while the same child's new run continues (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let started!: () => void;
+        let finish!: () => void;
+        let aborted = false;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let requests = 0;
+        const f = fixture((_model, _context, options) => {
+          if (++requests !== 2) return response("Done");
+          const stream = createAssistantMessageEventStream();
+          const abort = () => {
+            aborted = true;
+            const message = createAssistantMessage(model);
+            message.stopReason = "aborted";
+            stream.push({ type: "error", reason: "aborted", error: message });
+          };
+          options?.signal?.addEventListener("abort", abort, { once: true });
+          finish = () => {
+            options?.signal?.removeEventListener("abort", abort);
+            const message = createAssistantMessage(model);
+            message.content = [{ type: "text", text: "Second run done" }];
+            message.stopReason = "stop";
+            stream.push({ type: "done", reason: "stop", message });
+          };
+          started();
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const sequence = Math.max(...child.messages.map((message) => message.sequence));
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "Continue",
+          mode: "wake",
+        });
+        await ready;
+        await f.proc.stopTask({ sessionId: id, taskId: child.runs[0].id });
+        expect(aborted).toBe(false);
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: sequence,
+        });
+        finish();
+        expect((await completed).reason).toBe("completed");
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].runs).toHaveLength(2);
+        await f.proc.shutdown();
+      });
+
       it("passes the requested task identity to its runner without cancelling the chat", async () => {
         const stopTask = jest.fn(async () => {});
         const f = fixture(undefined, [], { createTools: () => ({ tools: [], stopTask }) });
@@ -1582,6 +2807,34 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("loadSession", () => {
+      it("restores child messages and turn start times in their original order without rerunning them https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const f = fixture(() => response("Done"));
+        const id = await f.open();
+        await f.send(id);
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Child",
+          description: "Child",
+        });
+        await f.send(id, "follow-up", "Continue");
+        const relevant = (events: SessionEvent[]) =>
+          events.filter((event) =>
+            ["turn_started", "subagent_message", "message_delivered", "turn_ended"].includes(
+              event.update.sessionUpdate
+            )
+          );
+        const original = relevant(f.events);
+        expect(original.some((event) => event.update.sessionUpdate === "subagent_message")).toBe(
+          true
+        );
+        await f.proc.closeSession({ sessionId: id });
+        f.events.length = 0;
+
+        await f.proc.loadSession({ sessionId: id, cwd: "/fixture/vault" });
+
+        expect(relevant(f.events)).toEqual(original);
+        await f.proc.shutdown();
+      });
+
       it("replays stored history without executing its recorded tools", async () => {
         const execute = jest.fn(async () => ({
           content: [{ type: "text" as const, text: "read result" }],
@@ -1640,6 +2893,54 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("setPermissionPrompter", () => {
+      it("keeps one-shot command approval separate for the parent, two children and a later run of the same child (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const permission = jest.fn(async (_prompt: PermissionPrompt) => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        const f = fixture();
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        const prompt = (call: string) => ({
+          sessionId: id,
+          toolCall: {
+            toolCallId: call,
+            kind: "execute" as const,
+            vendorToolName: "run_command",
+            title: "Same command",
+            rawInput: { command: "printf same", cwd: "/fixture/vault" },
+          },
+          options: [],
+        });
+        await f.toolContexts[0].requestPermission(prompt("parent-command"));
+        await f.toolContexts[0].executeSubagent!("child-a", { prompt: "A", description: "A" });
+        await f.toolContexts[1].requestPermission(prompt("a-command"));
+        await f.toolContexts[0].executeSubagent!("child-b", { prompt: "B", description: "B" });
+        await f.toolContexts[2].requestPermission(prompt("b-command"));
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const sequence = Math.max(...child.messages.map((message) => message.sequence));
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: sequence,
+        });
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "Continue A",
+          mode: "wake",
+        });
+        await completed;
+        await f.toolContexts[3].requestPermission(prompt("a-next-command"));
+        expect(permission).toHaveBeenCalledTimes(4);
+        expect(permission.mock.calls.map((call) => call[0].requester)).toEqual([
+          "main",
+          expect.objectContaining({ subagentId: child.id }),
+          expect.any(Object),
+          expect.objectContaining({ subagentId: child.id }),
+        ]);
+        await f.proc.shutdown();
+      });
+
       it("remembers only an explicit persistent decision for the same action in the same chat and requester", async () => {
         const f = fixture();
         const id = await f.open();

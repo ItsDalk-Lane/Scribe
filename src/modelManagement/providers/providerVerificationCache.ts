@@ -22,7 +22,6 @@ export function providerVerificationFingerprint(provider: Provider): string {
   const stable = JSON.stringify([
     provider.providerType,
     provider.baseUrl ?? null,
-    provider.enableCors ?? false,
     provider.apiKeyRef ?? null,
     provider.requiresApiKey ?? true,
     provider.extras ?? null,

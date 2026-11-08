@@ -1,3 +1,9 @@
+import { Platform } from "obsidian";
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
+
 import { act, renderHook } from "@testing-library/react";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
@@ -15,10 +21,10 @@ const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const mockTextUpdate = jest.fn();
 
 jest.mock("@/hooks/use-raf-throttled-callback", () => ({
-  useRafThrottledCallback: (callback: (text: string) => void) => (text: string) => {
+  useRafThrottledCallback: jest.fn((callback: (text: string) => void) => (text: string) => {
     callback(text);
     mockTextUpdate(text);
-  },
+  }),
 }));
 
 function deferred<T>() {
@@ -79,7 +85,6 @@ const model: CustomModel = {
   baseUrl: "https://fixture.invalid/v1",
   apiKey: "fixture-key",
   enabled: true,
-  enableCors: false,
 };
 
 function observeText(expected: string): Promise<void> {
@@ -96,10 +101,12 @@ describe("use-streaming-chat-session", () => {
 
     beforeEach(() => {
       mockTextUpdate.mockReset();
+      Platform.isMobile = false;
     });
 
     afterEach(() => {
       window.fetch = originalFetch;
+      Platform.isMobile = false;
     });
 
     it(`publishes each received text increment before the connection completes (${issue})`, async () => {
@@ -342,6 +349,7 @@ describe("use-streaming-chat-session", () => {
 
     it(`ignores a late buffered compatibility response after stop and reset (${issue})`, async () => {
       const opened = deferred<void>();
+      Platform.isMobile = true;
       const oldResponse = deferred<unknown>();
       const body = (text: string) => ({
         status: 200,
@@ -367,7 +375,7 @@ describe("use-streaming-chat-session", () => {
       const onNonAbortError = jest.fn();
       const { result } = renderHook(() =>
         useStreamingChatSession({
-          model: { ...model, enableCors: true },
+          model,
           systemPrompt: "System",
           onNonAbortError,
         })

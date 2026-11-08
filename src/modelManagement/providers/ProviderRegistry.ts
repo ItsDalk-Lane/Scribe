@@ -103,12 +103,11 @@ export class ProviderRegistry {
       }
     }
     if (Object.keys(safePatch).length === 0) return;
-    const affectsAgentProviderConfig = Object.keys(safePatch).some((key) => key !== "enableCors");
     const next: Provider = { ...existing, ...(safePatch as Partial<Provider>) };
     setSettings((cur) => ({
       providers: { ...cur.providers, [providerId]: next },
     }));
-    if (affectsAgentProviderConfig) this.#emit(providerId);
+    this.#emit(providerId);
   }
 
   #setApiKeyRef(providerId: string, apiKeyRef: string | null): void {

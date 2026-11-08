@@ -5,11 +5,13 @@ export const CHAT_AGENT_VIEWTYPE = "scribe-agent-chat-view";
 export const AGENT_CHAT_MODE = "agent";
 export const PLAN_PREVIEW_VIEW_TYPE = "scribe-plan-preview-view";
 export const TURN_DIFF_VIEW_TYPE = "scribe-turn-diff-view";
+export const SUBAGENT_CHAT_VIEW_TYPE = "scribe-subagent-chat-view";
 export const SHARED_VIEW_TYPES = Object.freeze([]);
 export const DESKTOP_VIEW_TYPES = [
   ...SHARED_VIEW_TYPES,
   CHAT_AGENT_VIEWTYPE,
   PLAN_PREVIEW_VIEW_TYPE,
+  SUBAGENT_CHAT_VIEW_TYPE,
 ] as const;
 
 export const SCRIBE_AGENT_ICON_ID = "scribe-agent";
@@ -30,6 +32,11 @@ export const DEFAULT_SKILLS_FOLDER = `${SCRIBE_FOLDER_ROOT}/skills`;
 // https://github.com/ItsDalk-Lane/Scribe/issues/40
 export const DEFAULT_SKILL_CATALOG_BUDGET_PERCENT = 2;
 export const DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS = 10000;
+export const DEFAULT_SUBAGENT_LIMITS = Object.freeze({
+  maxConcurrent: 3,
+  maxQueued: 20,
+  maxTaskRequests: 100,
+});
 export const DEFAULT_QA_EXCLUSIONS_SETTING = SCRIBE_FOLDER_ROOT;
 export const NOTE_CONTEXT_PROMPT_TAG = "note_context";
 export const SELECTED_TEXT_TAG = "selected_text";
@@ -282,15 +289,17 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
     notificationSound: true,
     notificationSoundId: "piano",
     welcomeDismissed: false,
+    subagentChatOpenArea: "right",
+    subagents: DEFAULT_SUBAGENT_LIMITS,
     skills: {
       catalogBudgetPercent: DEFAULT_SKILL_CATALOG_BUDGET_PERCENT,
       catalogBudgetMaxTokens: DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS,
-      sortStrategy: "name",
     },
   },
   providers: {},
   configuredModels: [],
   backends: {},
+  mcp: { servers: [] },
 };
 
 export const EVENT_NAMES = {

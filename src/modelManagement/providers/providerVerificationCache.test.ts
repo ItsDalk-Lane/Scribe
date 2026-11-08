@@ -53,6 +53,16 @@ const ok: VerificationResult = { ok: true, checkedAt: 42 };
 
 describe("providerVerificationCache", () => {
   describe("providerVerificationFingerprint()", () => {
+    it("ignores retired CORS values so they cannot change the automatic transport's verification identity https://github.com/ItsDalk-Lane/Scribe/issues/51", () => {
+      const current = provider();
+      expect(providerVerificationFingerprint({ ...current, ...{ enableCors: true } })).toBe(
+        providerVerificationFingerprint(current)
+      );
+      expect(providerVerificationFingerprint({ ...current, ...{ enableCors: false } })).toBe(
+        providerVerificationFingerprint(current)
+      );
+    });
+
     it("stays stable across renders and renames but changes with verification-relevant config (https://github.com/ItsDalk-Lane/Scribe/issues/39)", () => {
       const base = provider();
       expect(providerVerificationFingerprint(provider())).toBe(

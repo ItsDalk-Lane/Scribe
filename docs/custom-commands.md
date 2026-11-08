@@ -6,7 +6,7 @@ For a fast question or rewrite while you are editing, use **Quick Ask** instead.
 
 ## Commands or skills?
 
-Enabled commands and skills that allow manual invocation appear when you type `/` in Agent Chat. You can also run saved commands from the editor or command palette.
+Skills that allow manual invocation appear when you type `/` in Agent Chat. Saved commands are not part of the `/` menu; run them from the editor or command palette.
 
 | Use                | Best for                                                                     | Managed in                                       |
 | ------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------ |
@@ -15,26 +15,22 @@ Enabled commands and skills that allow manual invocation appear when you type `/
 
 Skills can be enabled for Scribe Agent Chat. Commands stay inside Scribe and also work from the editor and Obsidian command palette.
 
-An isolated test found that if an available skill and an enabled command share a name, the slash menu shows the skill, but sending can expand the command instead. Until this is fixed, avoid invoking a shared name in Agent Chat.
-
-隔离测试发现，当可用技能和已启用指令同名时，斜杠菜单显示技能，但发送后可能展开指令。修复前请不要在代理聊天中调用名称重复的技能或指令。
-
 ## Create a command
 
-1. On desktop, open [**Settings → Scribe → 命令**](settings.md#命令). On desktop or mobile, you can also open **Settings → Scribe → 我的指令**.
-2. Click **新建代理命令** on **命令**, or **添加指令** on **我的指令**.
-3. Enter a **名称** and the command text, labeled **内容** on **命令** or **提示词** on **我的指令**. The **命令** editor also offers an optional **说明**. Click **保存**.
-4. To adjust the model and menu preferences, use **我的指令**.
+1. Open **Settings → Scribe → 我的指令**.
+2. Click **添加指令**.
+3. Enter a **名称** and the **提示词**. Click **保存**.
+4. To adjust the model and the context-menu preference, edit the command from the same list.
 
-Choose **默认模型** to use the first available chat model configured under **Settings → Scribe → 模型**. A command-specific model applies to editor and command-palette runs. A slash run uses the model selected for that Agent Chat.
+Choose **默认模型** to use the first available chat model configured under **Settings → Scribe → 模型**. A command-specific model applies to editor and command-palette runs.
 
 If a saved command’s explicit model is unavailable, edit it under **Settings → Scribe → 我的指令** or repair its connection under **模型**, then rerun the command. A command with an explicit model does not silently switch to another one. Changing the popup picker does not retry the original saved-command run. Quick Ask and Quick Command keep your unsent input while you choose a model.
 
-**命令** 页列出 Scribe 已注册的命令，支持新建、编辑、启停和删除。独立的 **我的指令** 页提供复制、拖动排序、单条模型选择、变量填充和菜单偏好。变量填充、排序和默认指令生成直接显示在列表上方，不再有“指令选项”折叠标题。
+**我的指令** 页提供新建、复制、拖动排序、单条模型选择、变量填充和菜单偏好。变量填充和默认指令生成直接显示在列表上方，不再有“指令选项”折叠标题。代理配置中的 **命令** 页只列出 Agent 内建的命令条目及其可用性，自定义指令的创建和编辑都在 **我的指令** 完成。
 
-每条 Scribe 指令都有独立的启用开关。关闭后不能从右键菜单、命令面板、快捷键或聊天 `/` 调用。**在右键菜单中显示** 和 **在斜杠菜单中显示** 的偏好会保留，重新启用时恢复原样；仅隐藏某个菜单并不会停用整条指令。
+每条 Scribe 指令都有独立的启用开关。关闭后不能从右键菜单、命令面板或快捷键调用。**在右键菜单中显示** 的偏好会保留，重新启用时恢复原样；隐藏右键菜单并不会停用整条指令。
 
-Use **生成默认指令** for a starter set. You can edit, duplicate, delete, or drag commands to reorder them. **指令排序** controls their order in the slash menu.
+Use **生成默认指令** for a starter set. You can edit, duplicate, delete, or drag commands to reorder them. The drag order is the order shown in **我的指令**.
 
 ### Add note context to a prompt
 
@@ -56,13 +52,10 @@ Rewrite {} as a concise project update. Match the style of {[[Writing Guide]]}.
 
 Tags must be in note properties, not only written inline in the note body.
 
-In Agent Chat, command expansion inserts selected text for `{}` when available and otherwise uses a link to the active note, if one is available. Note links, folder paths, and tags are sent as references rather than automatically expanded into note contents, regardless of the **指令变量替换** switch. The agent may use available tools to inspect them, but this is not guaranteed. Separately attached context can include note contents; see [Context and Mentions](context-and-mentions.md).
-
 ## Run a command
 
 - **From the editor:** select text if needed, then right-click and choose **Scribe → _command name_**. The command must have **在右键菜单中显示** enabled.
 - **From the command palette:** run **应用自定义指令**, then choose an enabled command. Each enabled command is also registered by name in the palette.
-- **From Agent Chat:** type `/`, choose a command, add any extra instruction, and send. Choosing an item inserts it without sending, so you can review it first.
 
 Editor and command-palette runs open a result panel. You can refine the result, copy it, insert it at the cursor, or replace the original selection.
 

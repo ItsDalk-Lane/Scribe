@@ -29,8 +29,8 @@ npm test -- --runInBand src/LLMProviders src/modelManagement src/hooks/use-strea
 npm run test:mobile-load
 ```
 
-`localStreaming.integration.test.ts` uses an ephemeral loopback HTTP server to
-prove that text arrives before the response ends, Stop closes the native socket,
+`localStreaming.integration.test.ts` uses an ephemeral loopback HTTP server without
+browser CORS headers through the shared desktop streaming bridge to prove that text arrives before the response ends, Stop closes the native socket,
 and accepted partial history is sent on the next turn. These are protocol fixtures,
 not running Ollama or LM Studio models. Buffered `requestUrl` tests instead prove
 prompt local cancellation and isolation of late results.

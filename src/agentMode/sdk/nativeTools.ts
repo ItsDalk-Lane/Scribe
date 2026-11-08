@@ -12,6 +12,7 @@ import type {
   ToolCallSnapshot,
 } from "@/agentMode/session/types";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
+import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
 import {
   resolveNativeVaultPath,
@@ -19,7 +20,16 @@ import {
   writeNativeVaultTarget,
 } from "@/agentMode/sdk/nativeVaultPath";
 
-export interface NativeToolsOptions {
+export interface NativeToolsOptions extends Pick<
+  NativeToolContext,
+  | "assertCanExecute"
+  | "sendSubagentMessage"
+  | "listSubagentSessions"
+  | "readSubagentResult"
+  | "waitSubagents"
+  | "stopSubagent"
+  | "sendParentMessage"
+> {
   app: App;
   cwd: string;
   sessionId: string;
@@ -33,7 +43,15 @@ export interface NativeToolsOptions {
   subagents?: readonly { id: string; name: string; description: string }[];
   executeSubagent?(
     toolCallId: string,
-    input: { prompt: string; description: string; agent?: string },
+    input: {
+      prompt: string;
+      description: string;
+      name?: string;
+      agent?: string;
+      background?: boolean;
+      skills?: string[];
+      allowedTools?: string[];
+    },
     signal?: AbortSignal
   ): Promise<AgentToolResult>;
 }
@@ -98,7 +116,8 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
     toolCallId: string,
     requested: string,
     transform: (before: string | null) => string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    operationName = "write_note"
   ): Promise<AgentToolResult> {
     const path = await resolvePath(requested, true);
     return withNativeWriteLock(`${vaultBase}/${path}`, async () => {
@@ -140,6 +159,7 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
       signal?.throwIfAborted();
       if (options.getMode() === "plan")
         throw new Error("Plan approval is required before changing files or running commands.");
+      options.assertCanExecute?.(operationName);
       await writeNativeVaultTarget(vaultBase, path, after, before === null);
       options.emit({ sessionUpdate: "tool_call_update", toolCallId, status: "completed", content });
       return textResult(`Saved ${path}`, { path, before, after });
@@ -246,7 +266,8 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
               ? pieces.join(args.new_text)
               : before.replace(args.old_text, () => args.new_text);
           },
-          signal
+          signal,
+          "edit_note"
         )
     ),
     defineNativeTool(
@@ -339,6 +360,7 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
           background: args.background,
           signal,
           checkPermission: () => {
+            options.assertCanExecute?.("run_command");
             if (options.getMode() === "plan")
               throw new Error(
                 "Plan approval is required before changing files or running commands."
@@ -367,6 +389,16 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
         obj({
           prompt: str({ minLength: 1 }),
           description: str({ minLength: 1 }),
+          name: opt(
+            str({
+              minLength: 1,
+              description:
+                "Short stable name for this child instance, shown in the parent chat's child agent list. Use a distinct descriptive name for every new child.",
+            })
+          ),
+          background: opt(bool()),
+          skills: opt(arr(str({ minLength: 1 }))),
+          allowedTools: opt(arr(str({ minLength: 1 }))),
           agent: opt(
             str({
               minLength: 1,
@@ -379,5 +411,115 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
       )
     );
   }
+  if (options.sendSubagentMessage)
+    tools.push(
+      defineNativeTool(
+        "send_subagent_message",
+        "Send subagent message",
+        "Send a scoped instruction to a retained child session. enqueue only queues; wake starts an idle session; interrupt stops the old run before continuing. For an idle wake, skills may name skills explicitly selected by the user in this task; this grants them only to the new run.",
+        obj({
+          subagentId: str({ minLength: 1 }),
+          text: str({ minLength: 1 }),
+          mode: oneOf(["enqueue", "wake", "interrupt"]),
+          messageId: opt(str({ minLength: 1 })),
+          skills: opt(arr(str({ minLength: 1 }))),
+        }),
+        async (_id, input) => textResult(JSON.stringify(await options.sendSubagentMessage!(input)))
+      )
+    );
+  if (options.listSubagentSessions)
+    tools.push(
+      defineNativeTool(
+        "list_subagent_sessions",
+        "List child sessions",
+        "Read this chat's retained child sessions, runs, messages and saved results without starting a model.",
+        obj({}),
+        async () =>
+          textResult(
+            JSON.stringify(
+              options.listSubagentSessions!().map((state) => ({
+                ...state,
+                runs: state.runs.map(({ result: _result, ...run }) => run),
+                // 列表仅供定位消息，不能把子聊天附件和选区发送给主模型。https://github.com/ItsDalk-Lane/Scribe/issues/50
+                messages: state.messages.map(
+                  ({ text: _text, payload: _payload, ...message }) => message
+                ),
+              }))
+            )
+          )
+      )
+    );
+  if (options.readSubagentResult)
+    tools.push(
+      defineNativeTool(
+        "read_subagent_result",
+        "Read saved child result",
+        "Deliver the selected canonical saved result once. An already delivered result returns its identity without repeating its body.",
+        obj({ subagentId: str({ minLength: 1 }), runId: opt(str({ minLength: 1 })) }),
+        async (_id, input) => options.readSubagentResult!(input.subagentId, input.runId)
+      )
+    );
+  if (options.waitSubagents)
+    tools.push(
+      defineNativeTool(
+        options.sendParentMessage ? "wait_for_message" : "wait_subagents",
+        "Wait for collaboration",
+        "Wait for a new message, result, user input, cancellation or timeout. Use the returned sequence as after for the next wait.",
+        obj({
+          subagentIds: opt(arr(str({ minLength: 1 }))),
+          after: opt(int({ minimum: 0 })),
+          timeoutMs: opt(int({ minimum: 0, maximum: 60000 })),
+        }),
+        async (_id, input, signal) => {
+          const event = await options.waitSubagents!({
+            ...input,
+            timeoutMs: input.timeoutMs ?? 30000,
+            signal,
+          });
+          return textResult(
+            JSON.stringify({
+              ...event,
+              ...(event.message
+                ? {
+                    message: {
+                      id: event.message.id,
+                      kind: event.message.kind,
+                      subagentId: event.message.subagentId,
+                      runId: event.message.runId,
+                    },
+                  }
+                : {}),
+            })
+          );
+        }
+      )
+    );
+  if (options.stopSubagent)
+    tools.push(
+      defineNativeTool(
+        "stop_subagent",
+        "Stop child run",
+        "Stop only the selected child run, preserving its retained context.",
+        obj({ subagentId: str({ minLength: 1 }) }),
+        async (_id, input) => {
+          await options.stopSubagent!(input.subagentId);
+          return textResult("Child run stopped.");
+        }
+      )
+    );
+  if (options.sendParentMessage)
+    tools.push(
+      defineNativeTool(
+        "send_parent_message",
+        "Send parent message",
+        "Reliably send a progress report, discovery, question or blocker to the owning parent chat without waiting for an answer.",
+        obj({
+          text: str({ minLength: 1 }),
+          kind: oneOf(["progress", "discovery", "question", "blocked"]),
+          messageId: opt(str({ minLength: 1 })),
+        }),
+        async (_id, input) => textResult(JSON.stringify(await options.sendParentMessage!(input)))
+      )
+    );
   return tools;
 }

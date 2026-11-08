@@ -908,6 +908,20 @@ describe("TurnTracker", () => {
     });
 
     describe("endTurn", () => {
+      it("attaches the exhausted task generation to the stopped reply for explicit allowance changes https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const { deps, tracker } = setup();
+        const { outcome } = runningTurn(tracker, "p1", "t1");
+        tracker.endTurn({
+          turnId: "t1",
+          stopReason: "max_task_requests",
+          taskGenerationId: "old-generation",
+        });
+        await outcome;
+        expect(deps.store.getDisplayMessages().at(-1)).toMatchObject({
+          turnStopReason: "max_task_requests",
+          taskGenerationId: "old-generation",
+        });
+      });
       it("closes the reply with the turn's stop reason and resolves every delivered prompt", async () => {
         const { deps, tracker } = setup();
         const { outcome, replyId } = runningTurn(tracker, "p1", "t1");

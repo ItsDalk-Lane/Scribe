@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders, ModelCapability, ReasoningEffort } from "@/constants";
 import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
@@ -15,10 +16,16 @@ const wire: CustomModel = {
   provider: ChatModelProviders.OPENROUTERAI,
   enabled: true,
   apiKey: "fixture",
-  enableCors: true,
 };
 
 describe("createProviderChatModel OpenRouter", () => {
+  beforeEach(() => {
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("createProviderChatModel", () => {
     let requests: Array<{ url: string; body: string; headers: Record<string, string> }>;
     let response: string;

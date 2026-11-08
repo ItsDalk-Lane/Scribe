@@ -339,7 +339,12 @@ export class TurnTracker {
       const replyId = this.placeholderId;
       this.failReply(end.error, endedAt);
       if (replyId && end.stopReason !== "end_turn")
-        this.deps.store.markTurnComplete(replyId, end.stopReason, endedAt - this.replyStartedAtMs);
+        this.deps.store.markTurnComplete(
+          replyId,
+          end.stopReason,
+          endedAt - this.replyStartedAtMs,
+          end.taskGenerationId
+        );
       return settle();
     }
     if (end.stopReason === "max_tokens" && prompts.some((p) => p.continuesAtOutputLimit)) {
@@ -348,7 +353,9 @@ export class TurnTracker {
       }
       return settle();
     }
-    void this.finalizeReply(end.stopReason, end.turnDiff, endedAt).then(settle);
+    void this.finalizeReply(end.stopReason, end.turnDiff, endedAt, end.taskGenerationId).then(
+      settle
+    );
   }
 
   failReply(err: unknown, occurredAt = Date.now()): void {
@@ -446,7 +453,8 @@ export class TurnTracker {
   private async finalizeReply(
     stopReason: StopReason,
     turnDiff?: TurnDiff,
-    endedAt = Date.now()
+    endedAt = Date.now(),
+    taskGenerationId?: string
   ): Promise<void> {
     const placeholderId = this.placeholderId;
     if (!placeholderId) return;
@@ -485,7 +493,12 @@ export class TurnTracker {
     if (filesChanged) this.deps.notifyMessages();
     if (
       store.withRecordedTime(endedAt, () =>
-        store.markTurnComplete(placeholderId, stopReason, endedAt - turnStartedAtMs)
+        store.markTurnComplete(
+          placeholderId,
+          stopReason,
+          endedAt - turnStartedAtMs,
+          taskGenerationId
+        )
       )
     ) {
       this.deps.notifyMessages();

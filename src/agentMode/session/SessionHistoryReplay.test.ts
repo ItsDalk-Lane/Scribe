@@ -76,6 +76,24 @@ describe("SessionHistoryReplay", () => {
     });
 
     describe("append", () => {
+      it("restores the exact exhausted task generation without authorizing new model calls https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "Question", "u1"), 100);
+        replay.append(
+          {
+            sessionUpdate: "turn_ended",
+            turnId: "t1",
+            stopReason: "max_task_requests",
+            taskGenerationId: "old-generation",
+          },
+          150
+        );
+        replay.end();
+        expect(store.getDisplayMessages().at(-1)).toMatchObject({
+          turnStopReason: "max_task_requests",
+          taskGenerationId: "old-generation",
+        });
+      });
       it("freezes a normal reply's final thought at its recorded end time after a later replay", () => {
         const clock = jest.spyOn(Date, "now").mockReturnValue(9_000_000);
         try {

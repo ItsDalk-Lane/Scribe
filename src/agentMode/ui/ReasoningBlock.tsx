@@ -6,15 +6,13 @@ import type { ThoughtPart } from "@/agentMode/ui/agentTrail";
 interface ReasoningBlockProps {
   part: ThoughtPart;
   isStreaming: boolean;
-  isTurnStreaming?: boolean;
 }
 
 export const ReasoningBlock: React.FC<ReasoningBlockProps> = memo(function ReasoningBlock({
   part,
   isStreaming,
-  isTurnStreaming,
 }) {
-  const expansion = useTrailExpansion(isTurnStreaming ?? isStreaming);
+  const expansion = useTrailExpansion();
   const fallbackStartedAtRef = useRef(Date.now());
   const [now, setNow] = useState(() => Date.now());
 

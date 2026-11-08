@@ -1,4 +1,11 @@
 export const settingsTranslations: Record<string, string> = {
+  "Concurrent subagents": "同时执行的子代理数",
+  "Queued subagents": "等待启动的子代理数",
+  "Model requests per task": "每项任务的模型调用次数",
+  "Counts model requests from the main chat and its subagents, including retries and compaction. Reaching the limit preserves progress and stops new requests.":
+    "主对话与子代理合计，包含重试和上下文整理。达到上限后保留进度，停止新的模型请求。",
+  "Shared by all chats in this vault. Waiting for approval or input still uses an active slot.":
+    "当前资料库中的所有聊天共同使用。等待批准或回复的子代理仍占执行名额。",
   "Model list contains credential values and was not loaded.":
     "服务商返回的模型列表包含密钥内容，已停止读取。",
   "Failed to load commands.": "无法加载指令。",
@@ -47,8 +54,8 @@ export const settingsTranslations: Record<string, string> = {
 
   "Checks the registered Scribe skills, commands, and subagents without sending a chat message.":
     "核对 Scribe 已注册的技能、命令和子代理，不发送聊天消息。",
-  "Scribe uses its own registered tools and extensions. External agent plugins, hooks, and MCP services are not loaded.":
-    "Scribe 使用自己注册的工具和扩展，不加载外部代理的插件、钩子或 MCP 服务。",
+  "Scribe uses its own registered tools and extensions. External agent plugins and hooks are not loaded. MCP servers are configured on the MCP tab.":
+    "Scribe 使用自己注册的工具和扩展，不加载外部代理的插件或钩子。MCP 服务器在「MCP」页签中配置。",
   Unlimited: "无限制",
   "Set a step limit": "限制步数",
   "Step limit": "步数上限",
@@ -266,6 +273,12 @@ export const settingsTranslations: Record<string, string> = {
   "Change folder": "更改文件夹",
   "Open plugin in": "插件打开位置",
   "Choose where to open the plugin.": "选择插件的打开位置。",
+  "Open subagent chats in": "子代理聊天打开位置",
+  "Choose where a child agent's chat opens from the child agent list.":
+    "点击子代理列表中的子代理时，聊天界面的打开位置。",
+  "Right sidebar": "右侧边栏",
+  "Left sidebar": "左侧边栏",
+  "Floating panel": "悬浮面板",
   "Sidebar view": "侧边栏",
   Editor: "编辑区",
   "Send shortcut": "发送快捷键",
@@ -409,8 +422,6 @@ export const settingsTranslations: Record<string, string> = {
   "No models match the current filters.": "没有符合当前筛选条件的模型。",
   "No models discovered — enter a model ID above or test your credentials.":
     "未找到模型，请在上方输入模型 ID，或测试你的凭据。",
-  "Enable CORS": "启用 CORS",
-  "About Quick tools CORS compatibility": "关于快捷工具的 CORS 兼容性",
   "Could not verify this provider. Reopen this tab to retry.":
     "无法验证此供应商，请重新打开此页面重试。",
   "Set up your own providers and models to use in Scribe.":
@@ -461,8 +472,6 @@ export const settingsTranslations: Record<string, string> = {
   "{count} model": "{count} 个模型",
   "{count} models": "{count} 个模型",
   "Agent Provided": "代理提供",
-  "Some Quick tools models require CORS compatibility to connect. When enabled, responses appear only after they finish instead of streaming token by token.":
-    "某些快捷工具模型需要启用 CORS 兼容才能连接。启用后，回复会在生成完毕后一次性显示，不再逐字显示。",
   "Endpoint accessible": "接口可访问",
   "Chat connection verified": "聊天连接验证通过",
   "Access restricted": "访问受限",
@@ -537,4 +546,90 @@ export const settingsTranslations: Record<string, string> = {
   "This plugin has no listed components.": "此插件没有列出的附属事项。",
   "Not provided": "未提供",
   "Installation files are missing.": "安装文件已缺失。",
+  "MCP servers are available on desktop.": "MCP 服务器仅在桌面端可用。",
+  "Connect Model Context Protocol servers and offer their tools to Scribe's agent.":
+    "连接 MCP（模型上下文协议）服务器，把它们的工具提供给 Scribe 的代理使用。",
+  "Add server": "添加服务器",
+  "Quick create": "快速创建",
+  "Import from JSON": "从 JSON 导入",
+  "Export as JSON": "导出为 JSON",
+  All: "全部",
+  Disabled: "已禁用",
+  Filter: "筛选",
+  "Filter servers by state": "按状态筛选服务器",
+  "Search MCP servers…": "搜索 MCP 服务器...",
+  "No MCP servers configured yet.": "未配置服务器",
+  "No servers match the current filters.": "没有符合当前筛选条件的服务器。",
+  "There are no MCP servers to export yet.": "还没有可导出的 MCP 服务器。",
+  "Copied the MCP servers JSON to the clipboard.": "已将 MCP 服务器 JSON 复制到剪贴板。",
+  "Failed to copy the MCP servers JSON.": "复制 MCP 服务器 JSON 失败。",
+  "Auto-approve {name}": "自动批准 {name}",
+  "Remove MCP server": "删除 MCP 服务器",
+  'Remove MCP server "{name}"? Its saved credentials are removed as well.':
+    "要删除 MCP 服务器“{name}”吗？它保存的凭据也会一并删除。",
+  "Failed to save the MCP server configuration.": "保存 MCP 服务器配置失败。",
+  "The server was saved, but its unused credentials could not be deleted.":
+    "服务器已保存，但未能清理不再使用的加密凭据。",
+  "The server was removed, but its saved credentials could not be deleted.":
+    "服务器已删除，但未能清理其加密凭据。",
+  "Failed to delete the MCP server.": "删除 MCP 服务器失败。",
+  "New MCP server": "新建 MCP 服务器",
+  "Version unknown": "版本未知",
+  Connected: "已连接",
+  Connecting: "连接中",
+  Error: "错误",
+  "Enable this server": "启用此服务器",
+  General: "通用",
+  Tools: "工具",
+  "Server settings sections": "服务器设置分区",
+  Type: "类型",
+  "Standard input / output (stdio)": "标准输入 / 输出 (stdio)",
+  "Server-sent events (sse)": "服务器发送事件 (sse)",
+  "Streamable HTTP (streamableHttp)": "可流式传输的 HTTP (streamableHttp)",
+  Command: "命令",
+  Arguments: "参数",
+  "One argument per line": "每个参数占一行",
+  "Environment variables": "环境变量",
+  "Format: KEY=value, one per line": "格式：KEY=value，每行一个",
+  URL: "URL",
+  Headers: "请求头",
+  "Saved credentials — leave blank to keep them:": "已保存的凭据，留空即可保留：",
+  Timeout: "超时",
+  "Request timeout for this server, in seconds. The default is 60 seconds.":
+    "对该服务器请求的超时时间（秒），默认为 60 秒。",
+  "Long-running mode": "长时间运行模式",
+  "When enabled, progress notifications reset the timeout for long tasks, up to a 10-minute total limit.":
+    "启用后，长时间任务收到进度通知时会重置超时计时器，总超时上限延长至 10 分钟。",
+  "A command is required for standard input / output servers.":
+    "标准输入 / 输出服务器必须填写命令。",
+  "A URL is required for remote servers.": "远程服务器必须填写 URL。",
+  "Enter an http:// or https:// URL.": "请输入 http:// 或 https:// 开头的地址。",
+  "Enter a whole number of seconds greater than 0.": "请输入大于 0 的整数秒。",
+  "Paste an {mcpServers} JSON config, such as the one from Claude Desktop or Cherry Studio.":
+    "粘贴 {mcpServers} JSON 配置，例如来自 Claude Desktop 或 Cherry Studio 的配置。",
+  "Server already exists: {name}": "服务器已存在：{name}",
+  "{name} is missing a command or URL.": "{name} 缺少命令或 URL。",
+  "{name} has an invalid URL.": "{name} 的 URL 无效。",
+  "Imported {count} MCP servers. They are disabled until you enable them.":
+    "已导入 {count} 个 MCP 服务器，启用后才会连接。",
+  "MCP servers JSON": "MCP 服务器 JSON",
+  "{count} servers are ready to import.": "有 {count} 个服务器可以导入。",
+  "Invalid JSON.": "无效输入，请检查 JSON 格式。",
+  'Expected a "mcpServers" object.': '应为 "mcpServers" 对象。',
+  "No tools available. Save and enable the server to load its tools.":
+    "无可用工具。保存并启用服务器后，这里会显示它的工具。",
+  "Search tools…": "搜索工具...",
+  "Available tools": "可用工具",
+  "Auto-approve": "自动批准",
+  "Auto-approved tools run without asking for confirmation before each call.":
+    "自动批准的工具在调用时不再逐一请求确认。",
+  "No results.": "无结果",
+  "Enable the tool before configuring auto-approval.": "启用工具后才能使用自动批准",
+  "This tool runs without asking for confirmation.": "工具将自动运行而无需批准",
+  "This tool asks for confirmation before it runs.": "工具运行前需要手动批准",
+  "Allowed values": "允许的值",
+  Items: "数组项",
+  Required: "必填",
+  "This field is required": "此项为必填项",
+  Description: "描述",
 };

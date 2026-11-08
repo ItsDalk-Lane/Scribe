@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import type { RenderNode, ThoughtPart, ToolCallPart } from "@/agentMode/ui/agentTrail";
-import { pluralize } from "@/agentMode/ui/toolSummaries";
+import { pluralize, SUBAGENT_INSPECTION_SUMMARIES } from "@/agentMode/ui/toolSummaries";
 import { excalidrawToolRun } from "@/excalidraw/agentMode/excalidrawToolRun";
 import { formatDuration } from "@/lib/duration";
 
@@ -104,6 +104,10 @@ export function foldActivityGroups(
 type FileActivityFamily = "read" | "edit";
 
 function fileFamilyFor(part: ToolCallPart): FileActivityFamily | null {
+  // 保留的子会话读取不是文件读取，旧聊天也必须正确显示。https://github.com/ItsDalk-Lane/Scribe/issues/50
+  if (!part.mcpServer && SUBAGENT_INSPECTION_SUMMARIES.has(part.vendorToolName ?? "")) {
+    return null;
+  }
   if (!part.mcpServer) {
     switch (part.vendorToolName) {
       case "Read":

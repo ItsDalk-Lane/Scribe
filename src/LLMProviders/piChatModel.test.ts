@@ -36,6 +36,62 @@ describe("piChatModel", () => {
 
   describe("createPiChatModel", () => {
     describe("agentStream", () => {
+      it("takes a separate budget slot before each real retry and refuses transport when exhausted https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const fetch = jest.fn(
+          async () =>
+            new Response("Unavailable", { status: 503, headers: { "retry-after-ms": "0" } })
+        );
+        const ids: string[] = [];
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: { fetch, apiKey: "fixture", maxRetries: 3 },
+        }));
+        const result = await chat
+          .agentStream(
+            { messages: [] },
+            {
+              beforeRequest: (id) => {
+                ids.push(id);
+                if (ids.length > 1) throw new Error("Task request budget exhausted");
+              },
+            }
+          )
+          .result();
+        expect(result.stopReason).toBe("error");
+        expect(result.errorMessage).toContain("budget exhausted");
+        expect(ids).toHaveLength(2);
+        expect(new Set(ids).size).toBe(2);
+        expect(fetch).toHaveBeenCalledTimes(1);
+      });
+
+      it("reports terminal usage with the identity admitted for that network request https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const fetch = jest.fn(
+          async () =>
+            new Response(
+              'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}\n\ndata: [DONE]\n\n',
+              { headers: { "content-type": "text/event-stream" } }
+            )
+        );
+        const beforeRequest = jest.fn();
+        const onRequestUsage = jest.fn();
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: { fetch, apiKey: "fixture", maxRetries: 0 },
+        }));
+        const result = await chat
+          .agentStream({ messages: [] }, { beforeRequest, onRequestUsage })
+          .result();
+        expect(result.content).toEqual([{ type: "text", text: "Done" }]);
+        expect(beforeRequest).toHaveBeenCalledTimes(1);
+        expect(onRequestUsage).toHaveBeenCalledTimes(1);
+        expect(onRequestUsage).toHaveBeenCalledWith(
+          beforeRequest.mock.calls[0][0],
+          expect.objectContaining({ input: 7, output: 3, totalTokens: 10 })
+        );
+      });
+
       it("redacts request credentials from split text, thinking, tool arguments and persisted final messages", async () => {
         const apiKey = "request-private-key";
         const bearer = "request-derived-token";

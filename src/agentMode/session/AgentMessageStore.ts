@@ -14,6 +14,7 @@ import { FormattedDateTime, MessageContext } from "@/types/message";
 import { formatDateTime } from "@/utils";
 
 interface StoredAgentMessage {
+  taskGenerationId?: string;
   seq?: number;
   synthetic?: boolean;
   id: string;
@@ -253,6 +254,7 @@ export class AgentMessageStore {
       content: message.content,
       parts: message.parts,
       turnStopReason: message.turnStopReason,
+      taskGenerationId: message.taskGenerationId,
       turnDurationMs: message.turnDurationMs,
       version: 0,
     });
@@ -260,12 +262,18 @@ export class AgentMessageStore {
     return id;
   }
 
-  markTurnComplete(id: string, stopReason: StopReason, durationMs?: number): boolean {
+  markTurnComplete(
+    id: string,
+    stopReason: StopReason,
+    durationMs?: number,
+    taskGenerationId?: string
+  ): boolean {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg) return false;
     if (msg.turnStopReason !== undefined) return false;
     this.finishTrailingThought(msg);
     msg.turnStopReason = stopReason;
+    msg.taskGenerationId = taskGenerationId;
     if (durationMs !== undefined) msg.turnDurationMs = Math.max(0, durationMs);
     this.touch(msg);
     return true;
@@ -557,6 +565,7 @@ export class AgentMessageStore {
         content: msg.content,
         parts: msg.parts,
         turnStopReason: msg.turnStopReason,
+        taskGenerationId: msg.taskGenerationId,
         turnDurationMs: msg.turnDurationMs,
         version: 0,
       });
@@ -580,6 +589,7 @@ export class AgentMessageStore {
       content: m.content,
       parts: m.parts,
       turnStopReason: m.turnStopReason,
+      ...(m.taskGenerationId ? { taskGenerationId: m.taskGenerationId } : {}),
       turnDurationMs: m.turnDurationMs,
       fileChanges: m.fileChanges,
     };

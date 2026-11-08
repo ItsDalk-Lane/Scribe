@@ -6,6 +6,7 @@ import type ScribePlugin from "@/main";
 import { AgentChatUIState } from "@/agentMode/session/AgentChatUIState";
 import {
   AgentInputDraftStore,
+  SUBAGENT_CHAT_DRAFT_PREFIX,
   type AgentInputDraft,
 } from "@/agentMode/session/AgentInputDraftStore";
 import { getSettings, setSettings, subscribeToSettingsChange } from "@/settings/model";
@@ -132,16 +133,23 @@ function hasUnsentInput(draft: AgentInputDraft | undefined): boolean {
       draft.images.length > 0 ||
       draft.contextNotes.length > 0 ||
       draft.webTabs.length > 0 ||
+      // 失败后保留的选区同样是尚未发送的草稿。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      (draft.selectedTextContexts?.length ?? 0) > 0 ||
       draft.queue.length > 0)
   );
 }
 
 function hasRunningTask(session: AgentSession): boolean {
-  return session.getTasks().some((task) => task.status === "running");
+  return (
+    session.hasManagedSubagentWork() || session.getTasks().some((task) => task.status === "running")
+  );
 }
 
 function hasRunningSubagent(session: AgentSession): boolean {
-  return session.getTasks().some((task) => task.kind === "subagent" && task.status === "running");
+  return (
+    session.hasManagedSubagentWork() ||
+    session.getTasks().some((task) => task.kind === "subagent" && task.status === "running")
+  );
 }
 
 export type PermissionPrompter = (req: PermissionPrompt) => Promise<PermissionDecision>;
@@ -657,6 +665,15 @@ export class AgentSessionManager {
       if (hasRunningTask(session) || session.getPendingToolPermissions().length > 0) continue;
       if (session.getQueuedPrompts().length > 0 || session.getNeedsAttention()) continue;
       if (hasUnsentInput(this.drafts.get(session.chatInputId))) continue;
+      // 关闭隐藏的主聊天会丢失其子代理未发送的草稿。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      if (
+        session
+          .getSubagentSessions()
+          .some((child) =>
+            hasUnsentInput(this.drafts.get(`${SUBAGENT_CHAT_DRAFT_PREFIX}${child.id}`))
+          )
+      )
+        continue;
       excess--;
       void this.closeSession(session.internalId).catch((e) =>
         logWarn(`[AgentMode] closing an idle hidden chat failed`, e)
@@ -2014,7 +2031,13 @@ export class AgentSessionManager {
 
   getLiveChatInputIds(): readonly string[] {
     const ids = new Set(this.retainedChatInputIds);
-    for (const session of this.sessions.values()) ids.add(session.chatInputId);
+    for (const session of this.sessions.values()) {
+      ids.add(session.chatInputId);
+      // 子代理输入需要独立草稿，否则文字无法发送。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      for (const child of session.getSubagentSessions()) {
+        ids.add(`${SUBAGENT_CHAT_DRAFT_PREFIX}${child.id}`);
+      }
+    }
     return ids.size === 0 ? EMPTY_CHAT_INPUT_IDS : Array.from(ids);
   }
 
@@ -2596,9 +2619,34 @@ export class AgentSessionManager {
   private attachAttentionTracking(session: AgentSession): void {
     let prev = session.getStatus();
     let tasksRunning = hasRunningTask(session);
+    let childAttention = "";
     const unsubscribe = session.subscribe({
       onMessagesChanged: () => {},
       onTasksChanged: () => {
+        const nextChildAttention = session
+          .getSubagentSessions()
+          .flatMap((child) => [
+            ...child.runs
+              .filter(
+                (run) => run.status === "awaiting_approval" || run.status === "awaiting_input"
+              )
+              .map((run) => `${run.id}:${run.status}`),
+            ...child.messages
+              .filter(
+                (message) =>
+                  message.direction === "to_parent" &&
+                  message.state === "accepted" &&
+                  (message.kind === "question" ||
+                    message.kind === "blocked" ||
+                    message.kind === "result")
+              )
+              .map((message) => message.id),
+          ])
+          .join("|");
+        // 同一待处理事项只提醒一次，普通进度变化不制造通知风暴。https://github.com/ItsDalk-Lane/Scribe/issues/50
+        if (nextChildAttention && nextChildAttention !== childAttention)
+          this.signalSessionNeedsAttention(session);
+        childAttention = nextChildAttention;
         this.prepareNextPrompt(session.internalId);
         void this.finishBackendDisableIfReady(session.backendId);
         if (hasRunningTask(session) === tasksRunning) return;

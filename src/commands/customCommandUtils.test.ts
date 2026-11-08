@@ -75,7 +75,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a {variable} and {}.",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -105,7 +104,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a {variable1} and {variable2}.",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -179,7 +177,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is the active note: {activenote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -210,7 +207,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is the active note: {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -229,7 +225,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a test prompt with no variables.",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -454,7 +449,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is the active note: {activeNote}. And again: {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -486,7 +480,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "Summarize this: {}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -514,7 +507,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "Summarize this: {}. Additional info: {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -545,7 +537,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "Analyze this: {}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -573,7 +564,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a test prompt with {invalidVariable} name and {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -712,7 +702,6 @@ describe("customCommandUtils", () => {
         title: "Beta",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: true,
         order: 2,
         modelKey: "",
         lastUsedMs: 100,
@@ -721,7 +710,6 @@ describe("customCommandUtils", () => {
         title: "Alpha",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: true,
         order: 1,
         modelKey: "",
         lastUsedMs: 150,
@@ -730,7 +718,6 @@ describe("customCommandUtils", () => {
         title: "Gamma",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: true,
         order: 3,
         modelKey: "",
         lastUsedMs: 200,
@@ -818,7 +805,6 @@ describe("customCommandUtils", () => {
         modelKey: "gpt-4",
         content: "Prompt content here.",
         showInContextMenu: true,
-        showInSlashMenu: false,
         order: 42,
         lastUsedMs: 1234567890,
       });
@@ -826,13 +812,18 @@ describe("customCommandUtils", () => {
       expect(app.metadataCache.getFileCache).not.toHaveBeenCalled();
     });
 
-    it("preserves a disabled command and both saved menu preferences", async () => {
+    it("preserves a disabled command and its saved context-menu preference", async () => {
       mockFrontmatter["scribe-command-enabled"] = false;
       const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
       const result = await parseCustomCommandFile(window.app, mockFile);
       expect(result.enabled).toBe(false);
       expect(result.showInContextMenu).toBe(true);
-      expect(result.showInSlashMenu).toBe(false);
+    });
+
+    it("ignores the retired slash-menu frontmatter key left by older versions", async () => {
+      const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
+      const result = await parseCustomCommandFile(window.app, mockFile);
+      expect("showInSlashMenu" in result).toBe(false);
     });
 
     it("keeps variable templating off when the command file says so", async () => {
@@ -858,7 +849,6 @@ describe("customCommandUtils", () => {
         modelKey: "",
         content: "Prompt content only, no frontmatter.",
         showInContextMenu: true,
-        showInSlashMenu: true,
         order: 0,
         lastUsedMs: 0,
       });
@@ -871,7 +861,6 @@ describe("customCommandUtils", () => {
         title: "Command One",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -880,7 +869,6 @@ describe("customCommandUtils", () => {
         title: "Command Two",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -889,7 +877,6 @@ describe("customCommandUtils", () => {
         title: "Another Command",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,

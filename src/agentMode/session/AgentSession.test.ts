@@ -4683,7 +4683,7 @@ describe("AgentSession", () => {
         ]);
       });
 
-      it("settles locally, drops retry output, and holds the next prompt until the stopped turn ends when backend cancellation fails", async () => {
+      it("reports cancellation failure, drops retry output, and holds the next prompt until the stopped turn ends https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
         const mock = makeMockBackend();
         let resolveBackingPrompt: ((value: { stopReason: "cancelled" }) => void) | null = null;
         let resolveSecondPrompt: ((value: { stopReason: "end_turn" }) => void) | null = null;
@@ -4724,7 +4724,7 @@ describe("AgentSession", () => {
           return Promise.reject(new Error("cancel unsupported"));
         });
 
-        await session.cancel();
+        await expect(session.cancel()).rejects.toThrow("cancel unsupported");
         await expect(turn).resolves.toBe("cancelled");
         expect(session.getStatus()).toBe("idle");
 
@@ -7208,6 +7208,33 @@ describe("AgentSession", () => {
     });
 
     describe("getTaskMessages", () => {
+      it("retains the recorded order of child tool calls for interleaved instructions https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock, { backendId: "native" });
+        mock.emitUpdate({
+          sessionUpdate: "task_started",
+          taskId: "task-1",
+          toolCallId: "tool-agent",
+          kind: "subagent",
+          description: "Work",
+        });
+        mock.emit({
+          sessionId: "session-1",
+          taskToolCallId: "tool-agent",
+          seq: 42,
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "tool-one",
+            title: "Work",
+            kind: "other",
+            status: "in_progress",
+          },
+        });
+        expect(session.getTaskMessages("tool-agent")[0].parts).toEqual([
+          expect.objectContaining({ id: "tool-one", seq: 42 }),
+        ]);
+      });
+
       it("keeps a subagent's text and tool calls in its own messages, never in the reply that is running when they arrive", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);

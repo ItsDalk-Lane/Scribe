@@ -287,6 +287,15 @@ describe("AgentMessageStore", () => {
   });
 
   describe("markTurnComplete", () => {
+    it("preserves the stopped task identity through display save and reload so budget actions cannot target another task https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.markTurnComplete(id, "max_task_requests", 100, "old-generation");
+      expect(store.getMessage(id)?.taskGenerationId).toBe("old-generation");
+      const restored = new AgentMessageStore();
+      restored.loadMessages(store.getDisplayMessages());
+      expect(restored.getMessage(id)?.taskGenerationId).toBe("old-generation");
+    });
     it("freezes a trailing thought when the turn completes", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);

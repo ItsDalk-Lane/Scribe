@@ -1,16 +1,18 @@
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { AgentStepLimitSetting } from "@/settings/v2/components/ui/AgentStepLimitSetting";
+import { SubagentLimitSettings } from "@/settings/v2/components/ui/SubagentLimitSettings";
+import { SkillCatalogBudgetSettings } from "@/settings/v2/components/ui/SkillCatalogBudgetSettings";
 import { updateAgentModeBackendFields } from "@/settings/model";
 import { t } from "@/lib/i18n";
 import { SettingItem } from "@/components/ui/setting-item";
 import { SettingSection } from "@/components/ui/setting-section";
-import { DEFAULT_OPEN_AREA, SEND_SHORTCUT } from "@/constants";
+import { DEFAULT_OPEN_AREA, DEFAULT_SUBAGENT_LIMITS, SEND_SHORTCUT } from "@/constants";
 import { useApp } from "@/context";
 import { openAgentsFile, writeAgentsFile } from "@/instructions/agentsFile";
 import { useAgentsFileDraft } from "@/instructions/useAgentsFileDraft";
 import { logError } from "@/logger";
 import { debounce } from "@/utils/debounce";
-import { updateSetting, useSettingsValue } from "@/settings/model";
+import { setSettings, updateSetting, useSettingsValue } from "@/settings/model";
 import { clearDeviceUnlock } from "@/services/deviceUnlockStore";
 import { VaultInstructionsSetting } from "@/settings/v2/components/VaultInstructionsSetting";
 import { Notice } from "obsidian";
@@ -126,6 +128,43 @@ export const BasicSettings: React.FC = () => {
         <AgentStepLimitSetting
           maxSteps={settings.agentMode.backends.native?.maxSteps}
           onChange={(maxSteps) => updateAgentModeBackendFields("native", { maxSteps })}
+        />
+        <SubagentLimitSettings
+          values={settings.agentMode.subagents ?? DEFAULT_SUBAGENT_LIMITS}
+          onChange={(subagents) =>
+            setSettings((current) => ({ agentMode: { ...current.agentMode, subagents } }))
+          }
+        />
+        <SettingItem
+          type="select"
+          title={t("Open subagent chats in")}
+          description={t("Choose where a child agent's chat opens from the child agent list.")}
+          value={settings.agentMode.subagentChatOpenArea ?? "right"}
+          onChange={(value) =>
+            setSettings((current) => ({
+              agentMode: {
+                ...current.agentMode,
+                subagentChatOpenArea: value as "left" | "right" | "floating",
+              },
+            }))
+          }
+          options={[
+            { label: t("Right sidebar"), value: "right" },
+            { label: t("Left sidebar"), value: "left" },
+            { label: t("Floating panel"), value: "floating" },
+          ]}
+        />
+        <SkillCatalogBudgetSettings
+          percent={settings.agentMode.skills.catalogBudgetPercent}
+          maxTokens={settings.agentMode.skills.catalogBudgetMaxTokens}
+          onChange={(budget) =>
+            setSettings((current) => ({
+              agentMode: {
+                ...current.agentMode,
+                skills: { ...current.agentMode.skills, ...budget },
+              },
+            }))
+          }
         />
       </SettingSection>
 

@@ -34,3 +34,31 @@ export const ContextNearlyFull: StoryObj<UsageMeterProps> = {
 export const UnknownContextWindow: StoryObj<UsageMeterProps> = {
   args: { usage: { usedTokens: 12_400, updatedAt: 1 }, contextWindow: null },
 };
+
+export const CumulativeWithChildren: StoryObj<UsageMeterProps> = {
+  args: {
+    usage: {
+      ...CONTEXT,
+      cumulativeInputTokens: 110000,
+      cumulativeOutputTokens: 20000,
+      cumulativeCacheReadTokens: 10000,
+      cumulativeCacheWriteTokens: 0,
+      cumulativeTotalTokens: 140000,
+    },
+    contextWindow: 200000,
+  },
+};
+
+export const CompactedWithCumulative: StoryObj<UsageMeterProps> = {
+  args: {
+    usage: { ...CONTEXT, usedTokens: 2000, cumulativeTotalTokens: 140000 },
+    contextWindow: 200000,
+  },
+};
+
+export const CumulativeUnknownContext: StoryObj<UsageMeterProps> = {
+  args: {
+    usage: { usedTokens: 0, cumulativeTotalTokens: 140000, updatedAt: 1 },
+    contextWindow: null,
+  },
+};

@@ -70,3 +70,19 @@ export const LongCatalog: StoryObj<ConfigureProviderStoryProps> = {
     </ModelManagementProvider>
   ),
 };
+
+export const CustomEndpoint: StoryObj<ConfigureProviderStoryProps> = {
+  render: LongCatalog.render,
+  args: {
+    state: {
+      mode: "new",
+      source: {
+        id: "custom-endpoint",
+        displayName: "本地或自定义模型服务",
+        providerType: "openai-compatible",
+        requiresApiKey: false,
+        modelInputHint: "模型 ID",
+      },
+    },
+  },
+};

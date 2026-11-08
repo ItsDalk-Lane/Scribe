@@ -2,11 +2,20 @@ import { reviewSkillDraft } from "@/agentMode/skills/ui/SkillDraftModal";
 import { publishSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
 import { checkSkillDependencies } from "@/agentMode/skills/skillDependencyCheck";
 import { recordSkillUsage } from "@/agentMode/skills/skillUsageStore";
-import { SkillManager, getManagedSkills } from "@/agentMode/skills/SkillManager";
+import {
+  SkillManager,
+  getManagedSkills,
+  computeSkillSetSignature,
+} from "@/agentMode/skills/SkillManager";
 import { SubagentManager, getSubagents } from "@/agentMode/subagents/SubagentManager";
+import { getMcpServerManager } from "@/agentMode/mcp/McpServerManager";
+import { createMcpTools } from "@/agentMode/mcp/mcpTools";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
+import { SubagentScheduler } from "@/agentMode/sdk/subagentLimits";
+import { DEFAULT_SUBAGENT_LIMITS } from "@/constants";
+import { resolveScopeCwd } from "@/agentMode/session/sessionScope";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
@@ -41,6 +50,32 @@ import { isRecord } from "@/utils/obsidianInternals";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
 
 const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
+const SUBAGENT_SCHEDULERS = new WeakMap<App, SubagentScheduler>();
+
+type McpExtensionServerStatus =
+  | "connected"
+  | "failed"
+  | "needs-auth"
+  | "pending"
+  | "unconfirmed"
+  | "disabled";
+
+function toExtensionMcpStatus(
+  status: "connected" | "connecting" | "error" | "disabled"
+): McpExtensionServerStatus {
+  if (status === "connecting") return "pending";
+  if (status === "error") return "failed";
+  return status;
+}
+
+function createMcpToolsBundle(app: App) {
+  const manager = getMcpServerManager(app);
+  if (!manager) return { tools: EMPTY_MCP_TOOLS, autoApprovedTools: EMPTY_MCP_AUTO_APPROVE };
+  return createMcpTools(manager);
+}
+
+const EMPTY_MCP_AUTO_APPROVE: ReadonlySet<string> = Object.freeze(new Set<string>());
+const EMPTY_MCP_TOOLS = Object.freeze([]) as unknown as ReturnType<typeof createMcpTools>["tools"];
 
 // 目录条目按调用资格标注状态：目录过滤与可改道错误共用同一判定。
 // https://github.com/ItsDalk-Lane/Scribe/issues/41
@@ -179,8 +214,33 @@ export const NativeBackendDescriptor: BackendDescriptor = {
     if (!isAgentBackendEnabled(getSettings(), "native")) throw new Error("This agent is disabled.");
     const path = requireNodeModule<typeof import("node:path")>("path");
     const directory = path.join(getScribeDataPath(app), "chats", "v2");
+    const assertScope = (input: { cwd: string; projectId?: string }): void => {
+      if (!input.projectId) return;
+      const current = resolveScopeCwd(path.dirname(getScribeDataPath(app)), input.projectId);
+      // 已撤销的项目位置不能通过旧子会话或迟到批准继续使用。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      if (path.resolve(current) !== path.resolve(input.cwd))
+        throw new Error("项目工作位置已改变，请重新打开当前项目后再继续。");
+    };
     const attachments = new NodeAttachmentStorage(path.join(getScribeDataPath(app), "attachments"));
+    const getSubagentLimits = () => getSettings().agentMode.subagents ?? DEFAULT_SUBAGENT_LIMITS;
+    let scheduler = SUBAGENT_SCHEDULERS.get(app);
+    if (!scheduler) {
+      scheduler = new SubagentScheduler(getSubagentLimits);
+      SUBAGENT_SCHEDULERS.set(app, scheduler);
+    }
+    const admission = scheduler;
     return new NativeBackendProcess({
+      assertScope,
+      getSubagentLimits,
+      acquireSubagentSlot: (signal?: AbortSignal) => admission.acquire(signal),
+      reserveSubagentSlot: (signal?: AbortSignal) => admission.reserve(signal),
+      getCapabilityRevision: (cwd) =>
+        JSON.stringify([
+          computeSkillSetSignature(getNativeScopedSkills(cwd), "native"),
+          getExcalidrawApi(app) !== null,
+          getSubagents().map(({ id, enabled, revision }) => [id, enabled, revision]),
+          getMcpServerManager(app)?.signature() ?? "",
+        ]),
       getSubagents,
       getManuallyInvokedSkill: (name, cwd) => {
         const skill = getNativeScopedSkills(cwd).find((entry) => entry.name === name);
@@ -206,6 +266,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),
       createModel: (id) => createNativeModel(app, id),
       getSystemPrompt: async (input) => {
+        assertScope(input);
         await SubagentManager.getInstance(app).refresh();
         return buildNativeSystemPrompt(app, input);
       },
@@ -242,15 +303,43 @@ export const NativeBackendDescriptor: BackendDescriptor = {
         }).filter(
           (tool) => !EXCALIDRAW_TOOL_NAMES.has(tool.name) || getExcalidrawApi(app) !== null
         );
+        const mcpBundle = createMcpToolsBundle(app);
         return {
-          tools: [...createNativeTools({ ...context, app, commandTasks }), ...advanced],
+          tools: [
+            ...createNativeTools({ ...context, app, commandTasks }),
+            ...advanced,
+            ...mcpBundle.tools,
+          ],
+          autoApproveTools: mcpBundle.autoApprovedTools,
           stopTask: (taskId) => commandTasks.stop(taskId),
           shutdown: () => commandTasks.shutdown(),
         };
       },
       storage: new NodeNativeSessionStorage(directory, attachments),
       attachments,
-      getExtensionRuntime: readNativeExtensionRuntime,
+      getMcpServerStatus: () => {
+        const manager = getMcpServerManager(app);
+        return manager
+          ? manager.listServerStatuses().map((server) => ({
+              name: server.name,
+              status: toExtensionMcpStatus(server.status),
+              toolCount: server.toolCount,
+            }))
+          : null;
+      },
+      getExtensionRuntime: (cwd) => {
+        const snapshot = readNativeExtensionRuntime(cwd);
+        const manager = getMcpServerManager(app);
+        if (!manager) return snapshot;
+        return {
+          ...snapshot,
+          mcpServers: manager.listServerStatuses().map((server) => ({
+            name: server.name,
+            status: toExtensionMcpStatus(server.status),
+            toolCount: server.toolCount,
+          })),
+        };
+      },
       getVaultConfigDir: () => app.vault.configDir,
       maxSteps: () => getSettings().agentMode.backends.native?.maxSteps,
     });

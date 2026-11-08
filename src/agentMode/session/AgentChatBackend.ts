@@ -1,5 +1,11 @@
+import type { SubagentMessagePayload } from "@/agentMode/session/subagentTypes";
 import type { MessageContext } from "@/types/message";
 import type { AgentTask } from "@/agentMode/session/AgentSession";
+import type {
+  SubagentDispatchResult,
+  SubagentSendMode,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
 import type {
   AgentChatMessage,
   AgentQuestionAnswers,
@@ -36,6 +42,21 @@ export interface AgentChatBackend {
   getTaskMessages(toolCallId: string): readonly AgentChatMessage[];
   canStopTasks(): boolean;
   stopTask(taskId: string): Promise<void>;
+  startIndependentTask?(): Promise<void>;
+  continueTaskBudget?(taskGenerationId?: string, requestId?: string): Promise<void>;
+  confirmSubagentRecovery?(subagentId: string): Promise<void>;
+  getSubagentSessions?(): readonly SubagentSessionSnapshot[];
+  refreshSubagentSessions?(): Promise<void>;
+  sendSubagentMessage?(
+    subagentId: string,
+    text: string,
+    mode: SubagentSendMode,
+    messageId?: string,
+    payload?: SubagentMessagePayload
+  ): Promise<SubagentDispatchResult>;
+  stopSubagent?(subagentId: string): Promise<void>;
+  setSubagentArchived?(subagentId: string, archived: boolean): Promise<void>;
+  deleteSubagentSession?(subagentId: string): Promise<void>;
 
   isStarting(): boolean;
   isTurnInFlight(): boolean;

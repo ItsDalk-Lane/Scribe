@@ -215,7 +215,14 @@ export function buildSkillCatalog(input: SkillCatalogInput): {
     droppable = droppable.slice(1);
   }
   const names = byName(droppable);
-  const description = namesOnlyDescription(names, input.available.length);
+  let description = namesOnlyDescription(names, input.available.length);
+  if (estimateTextTokens(description) > budgetTokens) {
+    // 极小预算连固定说明也装不下时，只投递能完整容纳的短说明，避免误导性的半句。https://github.com/ItsDalk-Lane/Scribe/issues/40
+    const compact =
+      "Current list is empty. Do not guess old names. Call with no arguments to list skills; load instructions before use. If unavailable, tell the user.";
+    const minimal = "No list. Do not guess. List skills before use.";
+    description = [compact, minimal, ""].find((text) => estimateTextTokens(text) <= budgetTokens)!;
+  }
   return {
     description,
     status: {
@@ -226,10 +233,18 @@ export function buildSkillCatalog(input: SkillCatalogInput): {
   };
 }
 
-export function buildEmptySkillCatalog(): { description: string; status: SkillCatalogBuildStatus } {
-  const description = assembleDescription([], USAGE_DISCIPLINE.slice(5, 7), [
+export function buildEmptySkillCatalog(budget?: SkillCatalogBudget): {
+  description: string;
+  status: SkillCatalogBuildStatus;
+} {
+  let description = assembleDescription([], USAGE_DISCIPLINE.slice(5, 7), [
     "No skills are currently available for this session. Do not guess or call skill names from earlier lists; ask the user or wait for an updated list.",
   ]);
+  if (budget && estimateTextTokens(description) > catalogBudgetTokens(budget)) {
+    // 空目录也必须受同一预算约束，不能延续被停用的旧列表。https://github.com/ItsDalk-Lane/Scribe/issues/40
+    const compact = "No skills are available. Do not guess old names.";
+    description = estimateTextTokens(compact) <= catalogBudgetTokens(budget) ? compact : "";
+  }
   return { description, status: { mode: "full", includedNames: [], omittedNames: [] } };
 }
 

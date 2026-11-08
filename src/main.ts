@@ -2,12 +2,7 @@ import { t } from "@/lib/i18n";
 import { initializeInterfaceLanguage } from "@/services/interfaceLanguage";
 import { releaseCursorAssociation } from "@/editor/releaseCursorAssociation";
 import { registerNoteHeaderAction } from "@/editor/registerNoteHeaderAction";
-import {
-  SKILL_CREATOR_SKILL_NAME,
-  flushSkillUsageStore,
-  type AgentSessionManager,
-  type SkillManager,
-} from "@/agentMode";
+import type { AgentSessionManager, SkillManager } from "@/agentMode";
 import { isNativeChatId, parseNativeChatId } from "@/utils/nativeChatId";
 import {
   buildChatDeepLink,
@@ -34,6 +29,7 @@ import {
   EVENT_NAMES,
   PLAN_PREVIEW_VIEW_TYPE,
   SHARED_VIEW_TYPES,
+  SUBAGENT_CHAT_VIEW_TYPE,
 } from "@/constants";
 import { logError, logFatalError, logInfo, logWarn } from "@/logger";
 import { SecretStore } from "@/services/secretStore";
@@ -106,6 +102,9 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
   skills?: SkillManager;
   private ScribeAgentView?: typeof import("@/agentMode").ScribeAgentView;
   private PlanPreviewView?: typeof import("@/agentMode").PlanPreviewView;
+  private SubagentChatView?: typeof import("@/agentMode").SubagentChatView;
+  private openSubagentChatImpl?: typeof import("@/agentMode").openSubagentChat;
+  private closeFloatingSubagentChatImpl?: typeof import("@/agentMode").closeFloatingSubagentChat;
   modelManagement!: ModelManagementApi;
   private ribbonIconEl?: HTMLElement;
   quickAskController: QuickAskController;
@@ -219,6 +218,9 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
       const {
         ScribeAgentView,
         PlanPreviewView,
+        SubagentChatView,
+        openSubagentChat,
+        closeFloatingSubagentChat,
         closeAgentDetailModals,
         closeRestoredTurnDiffs,
         registerTurnDiffCommands,
@@ -227,8 +229,14 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
       } = agentMode;
       this.ScribeAgentView = ScribeAgentView;
       this.PlanPreviewView = PlanPreviewView;
+      this.SubagentChatView = SubagentChatView;
+      this.openSubagentChatImpl = openSubagentChat;
+      this.closeFloatingSubagentChatImpl = closeFloatingSubagentChat;
       closeRestoredTurnDiffs(this.app.workspace);
-      this.register(() => closeAgentDetailModals(this.app));
+      this.register(() => {
+        closeAgentDetailModals(this.app);
+        closeFloatingSubagentChat();
+      });
       registerTurnDiffCommands(this);
 
       this.agentSessionManager = createAgentSessionManager(this.app, this);
@@ -267,8 +275,14 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     if (this.ScribeAgentView && this.PlanPreviewView) {
       const AgentView = this.ScribeAgentView;
       const PreviewView = this.PlanPreviewView;
+      const SubagentChat = this.SubagentChatView;
       this.startedViewCreators.set(CHAT_AGENT_VIEWTYPE, (leaf) => new AgentView(leaf, this));
       this.startedViewCreators.set(PLAN_PREVIEW_VIEW_TYPE, (leaf) => new PreviewView(leaf));
+      if (SubagentChat)
+        this.startedViewCreators.set(
+          SUBAGENT_CHAT_VIEW_TYPE,
+          (leaf) => new SubagentChat(leaf, this)
+        );
     }
 
     this.initActiveLeafChangeHandler();
@@ -432,11 +446,10 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     this.projectRegister?.cleanup();
     this.settingsUnsubscriber?.();
     await flushPersistence();
-    // 卸载前冲刷本地使用台账，避免丢失最近计数。https://github.com/ItsDalk-Lane/Scribe/issues/48
-    await flushSkillUsageStore();
-
     if (isDesktopRuntime()) {
-      const { SkillManager } = await import("@/agentMode");
+      const { SkillManager, flushSkillUsageStore } = await import("@/agentMode");
+      // 使用台账只随桌面代理加载并在卸载前冲刷，避免移动端提前载入桌面模块。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      await flushSkillUsageStore();
       if (SkillManager.hasInstance()) {
         SkillManager.getInstance().dispose();
       }
@@ -560,6 +573,11 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     return leaf;
   }
 
+  async openSubagentChat(parentSessionId: string, subagentId: string): Promise<void> {
+    if (!this.requireAgentView() || !this.openSubagentChatImpl) return;
+    await this.openSubagentChatImpl(this, { parentSessionId, subagentId });
+  }
+
   async addNoteToAgentChat(note: TFile, openInRightSidebar = false): Promise<void> {
     try {
       const leaf = await this.activateAgentView(openInRightSidebar);
@@ -604,6 +622,7 @@ export default class ScribePlugin extends Plugin implements ScribeStartup {
     const manager = this.requireAgentView();
     if (!manager) return;
     try {
+      const { SKILL_CREATOR_SKILL_NAME } = await import("@/agentMode");
       const session = await manager.createSkillAuthoringSession(
         `/${SKILL_CREATOR_SKILL_NAME} ${t(
           "Describe the workflow you want to turn into a skill. Discuss it with me, show the complete name, description and instructions, then submit the complete draft for my review and confirmation. Do not save files or run commands directly."

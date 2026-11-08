@@ -132,6 +132,29 @@ describe("skillCatalog", () => {
       expect(estimateTextTokens(description)).toBeLessThanOrEqual(400);
     });
 
+    it.each([1, 50, 100, 200])(
+      "keeps the catalog within a %i-token limit even when fixed instructions cannot fit https://github.com/ItsDalk-Lane/Scribe/issues/40",
+      (maxTokens) => {
+        const skills = [entry("note-format", "Format notes"), entry("draw", "Draw a diagram")];
+        const { description, status } = buildSkillCatalog({
+          available: skills,
+          budget: { contextWindow: 0, percent: 2, maxTokens },
+        });
+        expect(estimateTextTokens(description)).toBeLessThanOrEqual(maxTokens);
+        expect(status.mode).toBe("names-only");
+        expect(status.omittedNames).toEqual(skills.map((skill) => skill.name));
+      }
+    );
+
+    it("keeps a previously published empty catalog within an extreme budget https://github.com/ItsDalk-Lane/Scribe/issues/40", () => {
+      const { description } = buildEmptySkillCatalog({
+        contextWindow: 0,
+        percent: 2,
+        maxTokens: 1,
+      });
+      expect(estimateTextTokens(description)).toBeLessThanOrEqual(1);
+    });
+
     it("caps a single description at the render limit as a second safeguard beyond format validation", () => {
       const huge = entry("huge", "y".repeat(SKILL_CATALOG_DESCRIPTION_RENDER_MAX + 500));
       const { description } = buildSkillCatalog({

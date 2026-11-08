@@ -10,8 +10,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import type { App } from "obsidian";
 import React from "react";
 import type { AgentModelPickerOverride } from "@/agentMode/ui/useAgentModelPicker";
+import type { SubagentSessionSnapshot } from "@/agentMode/session/subagentTypes";
 
 let mockModelPicker: AgentModelPickerOverride | null = null;
+let mockSubagents: readonly SubagentSessionSnapshot[] = [];
 
 jest.mock("@/agentMode/ui/AgentChatInput", () => ({
   AgentChatInput: ({ disabled, sendDisabled }: { disabled: boolean; sendDisabled: boolean }) => (
@@ -21,7 +23,22 @@ jest.mock("@/agentMode/ui/AgentChatInput", () => ({
   ),
 }));
 jest.mock("@/agentMode/ui/AgentChatMessages", () => ({ __esModule: true, default: () => null }));
-jest.mock("@/agentMode/ui/AgentChatControls", () => ({ AgentChatControls: () => null }));
+jest.mock("@/agentMode/ui/AgentChatControls", () => ({
+  AgentChatControls: ({
+    tasksIndicator,
+    onNewChat,
+  }: {
+    tasksIndicator?: React.ReactNode;
+    onNewChat?: () => void;
+  }) => (
+    <>
+      {tasksIndicator}
+      <button type="button" onClick={onNewChat}>
+        New chat
+      </button>
+    </>
+  ),
+}));
 jest.mock("@/agentMode/ui/AgentContextMeter", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/agentMode/ui/AgentModeStatus", () => ({ AgentModeStatus: () => null }));
 jest.mock("@/agentMode/ui/AgentProjectHeader", () => ({ AgentProjectHeader: () => null }));
@@ -42,6 +59,7 @@ jest.mock("@/agentMode/ui/hooks/useAgentChatRuntimeState", () => ({
     pendingAskUserQuestions: [],
     queuedPrompts: [],
     tasks: [],
+    subagents: mockSubagents,
     isReplyRunning: false,
   }),
 }));
@@ -90,6 +108,150 @@ describe("AgentHome", () => {
       cleanup();
       resetSettings();
       mockModelPicker = null;
+      mockSubagents = [];
+    });
+
+    it.each(["background command", "child agent"])(
+      "keeps the prior chat's running %s available when starting a new chat https://github.com/ItsDalk-Lane/Scribe/issues/50",
+      async (kind) => {
+        const app = { workspace: { getActiveFile: () => null } } as unknown as App;
+        const original = {
+          internalId: "chat-old",
+          backendId: "native",
+          projectId: GLOBAL_SCOPE,
+          cwd: "/vault",
+          hasUserVisibleMessages: () => true,
+          task: { kind, status: "running" },
+        };
+        const replacement = { ...original, internalId: "chat-new", task: undefined };
+        let active = original as typeof original | typeof replacement;
+        const open = [original];
+        const noIds = new Set<string>();
+        const manager = {
+          drafts: new AgentInputDraftStore(app, () => true),
+          subscribe: () => () => {},
+          getStartingBackendId: () => null,
+          getIsStarting: () => false,
+          getActiveSession: () => active,
+          getSession: () => original,
+          getActiveProjectId: () => GLOBAL_SCOPE,
+          getSessionSourcePath: () => null,
+          getOpenChatIds: () => noIds,
+          getRunningChatIds: () => noIds,
+          getAttentionChatIds: () => noIds,
+          createSession: jest.fn(async () => {
+            active = replacement;
+            return replacement;
+          }),
+          detachSessionFromTab: jest.fn(),
+          replaceSessionInPlace: jest.fn(async () => {
+            original.task.status = "stopped";
+            open.pop();
+            active = replacement;
+            return replacement;
+          }),
+        } as unknown as AgentSessionManager;
+        const backend = {
+          acceptsMidTurnMessages: () => false,
+          canStopTasks: () => false,
+        } as unknown as AgentChatBackend;
+        render(
+          <AgentHome
+            backend={backend}
+            sessionId="chat-old"
+            chatInputId="chat-old"
+            manager={manager}
+            plugin={{ app } as ScribePlugin}
+            updateUserMessageHistory={() => undefined}
+          />
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+
+        await waitFor(() => expect(manager.detachSessionFromTab).toHaveBeenCalledWith("chat-old"));
+        expect(active).toBe(replacement);
+        expect(open).toContain(original);
+        expect(original.task.status).toBe("running");
+      }
+    );
+
+    it("does not show the previous chat's delayed child-list failure after switching to another chat https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+      resetSettings();
+      const app = { workspace: { getActiveFile: () => null } } as unknown as App;
+      const session = {
+        internalId: "chat-a",
+        backendId: "native",
+        cwd: "/vault",
+        hasUserVisibleMessages: () => true,
+      };
+      const noIds = new Set<string>();
+      const manager = {
+        drafts: new AgentInputDraftStore(app, () => true),
+        subscribe: () => () => {},
+        getStartingBackendId: () => null,
+        getActiveSession: () => session,
+        getSession: () => session,
+        getActiveProjectId: () => GLOBAL_SCOPE,
+        getSessionSourcePath: () => null,
+        getOpenChatIds: () => noIds,
+        getRunningChatIds: () => noIds,
+        getAttentionChatIds: () => noIds,
+      } as unknown as AgentSessionManager;
+      const child: SubagentSessionSnapshot = {
+        id: "child-a",
+        parentSessionId: "chat-a",
+        modelId: "model",
+        name: "聊天甲的整理",
+        cwd: "/vault",
+        retention: "retained",
+        createdAt: 1,
+        updatedAt: 1,
+        runs: [],
+        messages: [],
+      };
+      mockSubagents = [child];
+      let fail!: (error: Error) => void;
+      const pending = new Promise<void>((_resolve, reject) => {
+        fail = reject;
+      });
+      const refreshA = jest.fn(() => pending);
+      const refreshB = jest.fn(async () => undefined);
+      const backend = (refresh: () => Promise<void>) =>
+        ({
+          acceptsMidTurnMessages: () => false,
+          canStopTasks: () => false,
+          getSubagentSessions: () => mockSubagents,
+          sendSubagentMessage: async () => ({ subagentId: "child-a", status: "enqueued" }),
+          stopSubagent: async () => undefined,
+          setSubagentArchived: async () => undefined,
+          deleteSubagentSession: async () => undefined,
+          refreshSubagentSessions: refresh,
+        }) as unknown as AgentChatBackend;
+      const tree = (id: string, currentBackend: AgentChatBackend) => (
+        <AgentHome
+          backend={currentBackend}
+          sessionId={id}
+          chatInputId={id}
+          manager={manager}
+          plugin={{ app } as ScribePlugin}
+          updateUserMessageHistory={() => undefined}
+        />
+      );
+      const view = render(tree("chat-a", backend(refreshA)));
+      fireEvent.click(screen.getByRole("button", { name: "Subagents (1)" }));
+      fireEvent.click(screen.getByRole("button", { name: "Refresh child sessions" }));
+      mockSubagents = [
+        { ...child, id: "child-b", parentSessionId: "chat-b", name: "聊天乙的整理" },
+      ];
+      session.internalId = "chat-b";
+      view.rerender(tree("chat-b", backend(refreshB)));
+      await act(async () => {
+        fail(new Error("聊天甲刷新失败"));
+        await pending.catch(() => undefined);
+      });
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("button", { name: "Subagents (1)" })).toBeTruthy();
+      expect(refreshB).not.toHaveBeenCalled();
     });
 
     it("refreshes projects when the list opens, is clicked again, and is reopened", async () => {

@@ -103,6 +103,70 @@ describe("nativeTools", () => {
       return tool.execute(id, args, signal);
     }
 
+    it("passes explicitly selected skills with a retained child wake instruction (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      options.sendSubagentMessage = jest.fn(async () => ({
+        subagentId: "child",
+        runId: "run",
+        status: "queued" as const,
+      }));
+      await execute("send_subagent_message", {
+        subagentId: "child",
+        text: "continue",
+        mode: "wake",
+        skills: ["manual-review"],
+      });
+      expect(options.sendSubagentMessage).toHaveBeenCalledWith({
+        subagentId: "child",
+        text: "continue",
+        mode: "wake",
+        skills: ["manual-review"],
+      });
+    });
+
+    it("lists child message metadata without exposing text or attachments to the parent model https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+      const message = {
+        id: "msg-1",
+        sequence: 1,
+        subagentId: "child",
+        taskGenerationId: "task",
+        direction: "to_child" as const,
+        sender: "user" as const,
+        kind: "instruction" as const,
+        text: "private user instruction",
+        payload: {
+          content: [
+            { type: "text" as const, text: "private selected content" },
+            { type: "image" as const, data: "cHJpdmF0ZS1pbWFnZQ==", mimeType: "image/png" },
+          ],
+        },
+        state: "delivered" as const,
+        acceptedAt: 1,
+      };
+      options.listSubagentSessions = () => [
+        {
+          id: "child",
+          parentSessionId: "parent",
+          name: "Child",
+          modelId: "model",
+          cwd: root,
+          retention: "retained",
+          createdAt: 1,
+          updatedAt: 2,
+          runs: [],
+          messages: [message],
+        },
+      ];
+
+      const result = await execute("list_subagent_sessions", {});
+      const body = JSON.stringify(result);
+      expect(body).not.toContain("private user instruction");
+      expect(body).not.toContain("private selected content");
+      expect(body).not.toContain("cHJpdmF0ZS1pbWFnZQ==");
+      expect(body).not.toContain("payload");
+      expect(body).toContain("msg-1");
+      expect(message.payload.content).toHaveLength(2);
+    });
+
     it("reads a real note and finds its path and matching line from actual contents", async () => {
       const read = await execute("read_note", { path: "notes/source.md" });
       const paths = await execute("find_paths", { query: "source" });
@@ -314,6 +378,30 @@ describe("nativeTools", () => {
       expect(await readFile(join(root, "notes/source.md"), "utf8")).toBe("Changed by the user");
     });
 
+    it("detects an approved command changing a note outside the note write lock while its edit approval is pending (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      await writeFile(
+        join(root, "external-edit.cjs"),
+        "require('node:fs').writeFileSync('notes/source.md', 'Changed by approved command')"
+      );
+      options.requestPermission = async (request) => {
+        if (request.toolCall.kind === "edit")
+          await execute("run_command", {
+            command: `"${process.execPath}" external-edit.cjs`,
+          });
+        return { outcome: { outcome: "selected", optionId: "allow_once" } };
+      };
+      await expect(
+        execute("edit_note", {
+          path: "notes/source.md",
+          old_text: "old paragraph",
+          new_text: "agent edit",
+        })
+      ).rejects.toThrow(/changed while approval/i);
+      expect(await readFile(join(root, "notes/source.md"), "utf8")).toBe(
+        "Changed by approved command"
+      );
+    });
+
     it("serializes two writes to the same file so each approved diff uses the latest content", async () => {
       let permissionStarted!: () => void;
       let approve!: (decision: PermissionDecision) => void;
@@ -426,6 +514,34 @@ describe("nativeTools", () => {
         { prompt: "Inspect the notes", description: "Inspect", agent: "reviewer" },
         controller.signal
       );
+    });
+
+    it("passes the optional child name through to the native executor", async () => {
+      const controller = new AbortController();
+      options.executeSubagent = jest.fn(async () => ({
+        content: [{ type: "text" as const, text: "Child result" }],
+        details: undefined,
+      }));
+      const result = await execute(
+        "delegate_task",
+        { prompt: "Inspect the notes", description: "Inspect", name: "Source audit" },
+        "child-tool",
+        controller.signal
+      );
+      expect(result.content).toContainEqual({ type: "text" as const, text: "Child result" });
+      expect(options.executeSubagent).toHaveBeenCalledWith(
+        "child-tool",
+        { prompt: "Inspect the notes", description: "Inspect", name: "Source audit" },
+        controller.signal
+      );
+    });
+
+    it("rejects an empty child name before asking permission or starting the child", async () => {
+      options.executeSubagent = jest.fn();
+      await expect(
+        execute("delegate_task", { prompt: "Inspect", description: "Inspect", name: "" })
+      ).rejects.toThrow(/argument/i);
+      expect(options.executeSubagent).not.toHaveBeenCalled();
     });
 
     it("rejects malformed parameters before asking permission or touching files", async () => {

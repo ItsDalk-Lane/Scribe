@@ -82,10 +82,12 @@ function toolCall(id: string, overrides: Partial<ToolCallPart> = {}): ToolCallPa
 const READ_A = toolCall("r1", {
   vendorToolName: "Read",
   locations: [{ path: "notes/a.md" }],
+  output: [{ type: "text", text: "Notes A content" }],
 });
 const READ_B = toolCall("r2", {
   vendorToolName: "Read",
   locations: [{ path: "notes/b.md" }],
+  output: [{ type: "text", text: "Notes B content" }],
 });
 const LINT = toolCall("b1", {
   vendorToolName: "Bash",
@@ -105,71 +107,77 @@ describe("AgentTrail", () => {
     });
   });
 
-  it("opens all running groups and their tool details, closes them on completion, and lets the user reopen them", () => {
+  it("keeps each process card directly visible and its details folded before, during, and after a reply", () => {
     const read = { ...READ_A, output: [{ type: "text" as const, text: "First file contents" }] };
-    const running: AgentMessagePart[] = [
+    const parts: AgentMessagePart[] = [
+      text("Before tools"),
       read,
       LINT,
-      text("Visible response"),
+      text("Between tools"),
       READ_B,
-      { ...LINT, id: "second-command", status: "in_progress" },
+      { kind: "thought", text: "Internal reasoning", durationMs: 2_000 },
+      text("Final response"),
     ];
-    const { rerenderTrail } = renderTrail({
-      parts: running,
+    const { container, rerenderTrail } = renderTrail({
+      parts,
       isStreaming: true,
       turnStopReason: undefined,
-      turnStartedAtMs: Date.now() - 2_000,
     });
-    const groups = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(groups.map((group) => group.getAttribute("aria-expanded"))).toEqual(["true", "true"]);
-    expect(screen.getByText("First file contents")).toBeTruthy();
-    fireEvent.click(groups[0]);
-    fireEvent.click(groups[0]);
+    const visibleOrder = () =>
+      [
+        ...container.querySelectorAll(
+          '[data-testid="agent-md"], [data-agent-activity-card-header]'
+        ),
+      ].map((element) => element.textContent);
+    const initialOrder = visibleOrder();
+    expect(initialOrder).toEqual([
+      "Before tools",
+      "Readnotes/a.md",
+      "Ran `npm run lint`",
+      "Between tools",
+      "Readnotes/b.md",
+      "Thought for2s",
+      "Final response",
+    ]);
+    expect(screen.queryByText("First file contents")).toBeNull();
+    expect(screen.queryByText("Internal reasoning")).toBeNull();
+    expect(screen.queryByText(/Ran 3 commands/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
     expect(screen.getByText("First file contents")).toBeTruthy();
-    rerenderTrail({
-      parts: running,
-      isStreaming: false,
-      turnStopReason: "end_turn",
-      turnDurationMs: 2_000,
-    });
-    const completed = screen.getAllByRole("button", { name: /Ran 4 commands, read 2 files/ });
-    expect(completed.map((group) => group.getAttribute("aria-expanded"))).toEqual(["false"]);
-    expect(screen.queryByText("First file contents")).toBeNull();
-    expect(screen.getByText("Visible response")).toBeTruthy();
-    fireEvent.click(completed[0]);
-    expect(screen.queryByText("First file contents")).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Ran 4 commands, read 2 files/, expanded: false })
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn", turnDurationMs: 2_000 });
+    expect(visibleOrder()).toEqual(initialOrder);
     expect(screen.getByText("First file contents")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    expect(screen.queryByText("First file contents")).toBeNull();
   });
 
-  it("keeps a single tool open while running and closes a manually reopened detail when the reply ends", () => {
+  it("defaults a tool to collapsed and preserves its manual expansion after the reply ends", () => {
     const parts = [{ ...READ_A, output: [{ type: "text" as const, text: "Tool details" }] }];
     const { rerenderTrail } = renderTrail({ parts, isStreaming: true, turnStopReason: undefined });
-    expect(screen.getByText("Tool details")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
     expect(screen.queryByText("Tool details")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
     expect(screen.getByText("Tool details")).toBeTruthy();
+    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
+    expect(screen.getByText("Tool details")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    expect(screen.queryByText("Tool details")).toBeNull();
   });
 
-  it("expands standalone reasoning for the running reply and folds it at reply completion", () => {
+  it("defaults reasoning to collapsed and respects manual choices through reply completion", () => {
     const parts: AgentMessagePart[] = [
       { kind: "thought", text: "Detailed thought", durationMs: 2_000 },
     ];
     const { rerenderTrail } = renderTrail({ parts, isStreaming: true, turnStopReason: undefined });
-    expect(screen.getByText("Detailed thought")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
-    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
     expect(screen.queryByText("Detailed thought")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
     expect(screen.getByText("Detailed thought")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    expect(screen.queryByText("Detailed thought")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
+    expect(screen.getByText("Detailed thought")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    expect(screen.queryByText("Detailed thought")).toBeNull();
   });
 
   it("keeps a plain response visible and retains the running timer animation", () => {
@@ -191,21 +199,23 @@ describe("AgentTrail", () => {
     expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
   });
 
-  it("keeps a running group's manual close when later tools join it", () => {
+  it("keeps each running tool independently closed when later tools arrive", () => {
     const { rerenderTrail } = renderTrail({
       parts: [READ_A, LINT],
       isStreaming: true,
       turnStopReason: undefined,
     });
-    fireEvent.click(screen.getByRole("button", { name: /Ran 2 commands/ }));
+    const read = screen.getByRole("button", { name: /Read notes\/a.md/ });
+    fireEvent.click(read);
+    fireEvent.click(read);
     rerenderTrail({ parts: [READ_A, LINT, READ_B], isStreaming: true, turnStopReason: undefined });
     expect(
-      screen.getByRole("button", { name: /Ran 3 commands/ }).getAttribute("aria-expanded")
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
     ).toBe("false");
-    expect(screen.queryByRole("link", { name: "notes/b.md" })).toBeNull();
+    expect(screen.getByRole("link", { name: "notes/b.md" })).toBeTruthy();
   });
 
-  it("resets a legacy subagent's prompt and nested work when the main reply finishes", () => {
+  it("keeps a legacy subagent's manually opened prompt visible when the main reply finishes", () => {
     const parts: AgentMessagePart[] = [
       toolCall("nested-task", {
         vendorToolName: "Task",
@@ -220,34 +230,37 @@ describe("AgentTrail", () => {
     ];
     const { rerenderTrail } = renderTrail({ parts, isStreaming: true, turnStopReason: undefined });
     const header = screen.getByRole("button", { name: /Explore.*Nested work/ });
-    expect(header.getAttribute("aria-expanded")).toBe("true");
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(header);
     expect(
-      screen.getByRole("button", { name: /Ran 2 commands/ }).getAttribute("aria-expanded")
-    ).toBe("true");
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
+    ).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: "Prompt" }));
     expect(screen.getByText("Private task prompt")).toBeTruthy();
     rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
     expect(
       screen.getByRole("button", { name: /Explore.*Nested work/ }).getAttribute("aria-expanded")
-    ).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: /Explore.*Nested work/ }));
+    ).toBe("true");
     expect(
-      screen.getByRole("button", { name: /Ran 2 commands/ }).getAttribute("aria-expanded")
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
     ).toBe("false");
-    expect(screen.queryByText("Private task prompt")).toBeNull();
+    expect(screen.getByText("Private task prompt")).toBeTruthy();
   });
 
-  it("places the completed duration before the first activity summary and keeps the footer timestamp", () => {
+  it("shows a non-collapsible completed duration before the first process card and keeps the footer timestamp", () => {
     renderTrail({
       parts: [READ_A, READ_B, text("Answer")],
       turnDurationMs: 12_000,
       timestamp: "2026/10/31 21:00:00",
     });
     const duration = screen.getByText("Worked for");
-    const summary = screen.getByText(/Ran 2 commands/);
-    expect(summary.textContent).toBe("Worked for 12s, Ran 2 commands, read 2 files");
+    expect(screen.getByText("12s")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Worked for/ })).toBeNull();
+    expect(
+      duration.compareDocumentPosition(screen.getByRole("button", { name: /Read notes\/a.md/ })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByText("2026/10/31 21:00:00")).toBeTruthy();
-    expect(duration.closest(".tw-justify-between")).toBeNull();
   });
 
   it("offers a fork next to insert for a completed reply and calls the supplied action", () => {
@@ -566,6 +579,16 @@ describe("AgentTrail", () => {
     );
   });
 
+  it("explains the shared task budget without promising that saved progress was lost https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+    renderTrail({ turnStopReason: "max_task_requests" });
+    expect(screen.getAllByTestId("agent-md")[1].textContent).toContain(
+      "Task request limit reached"
+    );
+    expect(screen.getAllByTestId("agent-md")[1].textContent).toContain(
+      "Saved progress is preserved"
+    );
+  });
+
   it("shows a distinct notice for user cancellation and none for a normal reply (https://github.com/ItsDalk-Lane/Scribe/issues/31)", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "end_turn" });
     expect(screen.getAllByTestId("agent-md")).toHaveLength(1);
@@ -595,10 +618,10 @@ describe("AgentTrail", () => {
     });
 
     const headers = [...container.querySelectorAll("[data-agent-activity-card-header]")];
-    expect(headers).toHaveLength(1);
+    expect(headers).toHaveLength(5);
     expect(headers.every((header) => header.classList.contains("tw-pl-1"))).toBe(true);
     expect(headers.every((header) => header.getAttribute("aria-expanded") === "false")).toBe(true);
-    expect(container.querySelectorAll(".lucide-chevron-right")).toHaveLength(1);
+    expect(container.querySelectorAll(".lucide-chevron-right")).toHaveLength(5);
   });
 
   it("shows progress on a childless background subagent card", () => {
@@ -632,23 +655,21 @@ describe("AgentTrail", () => {
     { ...LINT, status: "in_progress" },
   ];
 
-  it("shows the live row on the group at the live edge only", () => {
+  it("shows the running command status directly while completed reasoning remains quiet", () => {
     renderTrail({ parts: STREAMING_PARTS, isStreaming: true, turnStopReason: undefined });
 
     expect(screen.getByText("Running `npm run lint`")).toBeTruthy();
     expect(screen.queryByText("Reasoning")).toBeNull();
   });
 
-  it("keeps trailing reasoning live when the streaming group is expanded", () => {
+  it("shows active reasoning directly beside a completed tool while its content stays folded", () => {
     renderTrail({
       parts: [READ_A, { kind: "thought", text: "still mulling it over" }],
       isStreaming: true,
       turnStopReason: undefined,
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /read 1 file/i }));
-
     expect(screen.getByText("Reasoning")).toBeTruthy();
+    expect(screen.queryByText("still mulling it over")).toBeNull();
     expect(screen.queryByText("Thought for")).toBeNull();
   });
 
@@ -671,7 +692,8 @@ describe("AgentTrail", () => {
         turnStopReason: undefined,
       });
 
-      expect(screen.getByText("Ran 1 command, read 1 file, thought for 18s")).toBeTruthy();
+      expect(screen.getByText("Thought for")).toBeTruthy();
+      expect(screen.getByText("18s")).toBeTruthy();
       expect(screen.queryByText("Reasoning")).toBeNull();
     } finally {
       jest.useRealTimers();
@@ -701,38 +723,44 @@ describe("AgentTrail", () => {
     expect(screen.queryByText("Reasoning")).toBeNull();
   });
 
-  it("renders prose between two groups at full size", () => {
-    renderTrail({ parts: STREAMING_PARTS, isStreaming: true, turnStopReason: undefined });
-
+  it("keeps progress prose between its original individual process cards", () => {
+    const { container } = renderTrail({
+      parts: STREAMING_PARTS,
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
     const prose = screen.getByText("Halfway there.");
     expect(prose.getAttribute("data-testid")).toBe("agent-md");
-    expect(screen.getByText("Ran 1 command, read 1 file")).toBeTruthy();
-    expect(screen.getByText("Ran 2 commands, read 1 file")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).compareDocumentPosition(prose) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      prose.compareDocumentPosition(screen.getByRole("button", { name: /Read notes\/b.md/ })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(container.querySelectorAll("[data-agent-activity-card-header]")).toHaveLength(4);
   });
 
-  it("keeps a group the user opened open as more parts stream into it", () => {
+  it("preserves a tool's manual expansion when more process cards arrive", () => {
+    const read = { ...READ_A, output: [{ type: "text" as const, text: "file contents" }] };
     const { rerenderTrail } = renderTrail({
-      parts: [READ_A, LINT],
+      parts: [read, LINT],
       isStreaming: true,
       turnStopReason: undefined,
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /read 1 file/i }));
-    fireEvent.click(screen.getByRole("button", { name: /read 1 file/i }));
-    expect(screen.getByRole("link", { name: "notes/a.md" })).toBeTruthy();
-
-    rerenderTrail({
-      parts: [READ_A, LINT, READ_B],
-      isStreaming: true,
-      turnStopReason: undefined,
-    });
-
-    const grown = screen.getByRole("button", { name: /read 2 files/i });
-    expect(grown.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("link", { name: "notes/b.md" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    rerenderTrail({ parts: [read, LINT, READ_B], isStreaming: true, turnStopReason: undefined });
+    expect(
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
+    ).toBe("true");
+    expect(screen.getByText("file contents")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Read notes\/b.md/ }).getAttribute("aria-expanded")
+    ).toBe("false");
   });
 
-  it("groups a sub-agent's children too", () => {
+  it("shows a sub-agent's individual child steps inside its own card", () => {
     renderTrail({
       parts: [
         toolCall("task1", {
@@ -747,7 +775,8 @@ describe("AgentTrail", () => {
     fireEvent.click(screen.getByText('Explore · "Look around"'));
 
     expect(screen.getByText("2 tools")).toBeTruthy();
-    expect(screen.getByText("Ran 2 commands, read 1 file")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read notes\/a.md/ })).toBeTruthy();
+    expect(screen.getByText("Ran `npm run lint`")).toBeTruthy();
   });
 
   it("counts each call folded into a sub-agent's Excalidraw card as a tool", () => {
@@ -768,58 +797,40 @@ describe("AgentTrail", () => {
     expect(screen.getByText("2 tools")).toBeTruthy();
   });
 
-  it("keeps an opened tool visible when streaming turns it into a group", () => {
-    const readWithOutput = {
-      ...READ_A,
-      output: [{ type: "text" as const, text: "file contents" }],
-    };
+  it("preserves an opened tool when a second tool arrives without inserting a group wrapper", () => {
+    const read = { ...READ_A, output: [{ type: "text" as const, text: "file contents" }] };
     const { rerenderTrail } = renderTrail({
-      parts: [readWithOutput],
+      parts: [read],
       isStreaming: true,
       turnStopReason: undefined,
     });
-
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    rerenderTrail({ parts: [read, LINT], isStreaming: true, turnStopReason: undefined });
+    expect(screen.queryByText(/Ran 2 commands/)).toBeNull();
+    expect(screen.getByText("file contents")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    expect(screen.getByText("file contents")).toBeTruthy();
-
-    rerenderTrail({
-      parts: [readWithOutput, LINT],
-      isStreaming: true,
-      turnStopReason: undefined,
-    });
-
-    const group = screen.getByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(group.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("file contents")).toBeTruthy();
-
-    fireEvent.click(group);
     expect(screen.queryByText("file contents")).toBeNull();
   });
 
-  it("keeps nested group expansion independent from the root trail", () => {
+  it("keeps a nested tool's expansion independent from a root tool", () => {
     renderTrail({
       parts: [
-        READ_A,
+        { ...READ_A, output: [{ type: "text", text: "Root output" }] },
         LINT,
         toolCall("task1", {
           vendorToolName: "Task",
           input: { subagent_type: "Explore", description: "Look around" },
         }),
-        { ...READ_B, parentToolCallId: "task1" },
-        {
-          ...toolCall("b2", { vendorToolName: "Bash", input: { command: "npm test" } }),
-          parentToolCallId: "task1",
-        },
+        { ...READ_B, parentToolCallId: "task1", output: [{ type: "text", text: "Child output" }] },
       ],
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /Ran 5 commands/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Ran 2 commands, read 1 file/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
     fireEvent.click(screen.getByText('Explore · "Look around"'));
-
-    const groups = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(groups.map((group) => group.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
+    expect(screen.getByText("Root output")).toBeTruthy();
+    expect(screen.queryByText("Child output")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/b.md/ }));
+    expect(screen.getByText("Root output")).toBeTruthy();
+    expect(screen.getByText("Child output")).toBeTruthy();
   });
 
   it("keeps synthetic recovery warnings visible while completed process details are folded", () => {
@@ -843,7 +854,9 @@ describe("AgentTrail", () => {
     expect(screen.getByRole("alert").textContent).toContain("Files may have changed");
     expect(screen.getByText("Recovered after interruption")).toBeTruthy();
     expect(screen.getByText("The saved reply remains visible.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Read notes\/a.md/ })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
+    ).toBe("false");
   });
 
   it("identifies an interrupted reply as system recovery without claiming the user cancelled it", () => {
@@ -858,7 +871,7 @@ describe("AgentTrail", () => {
     expect(screen.getByText("The partial reply remains intact.")).toBeTruthy();
   });
 
-  it("keeps live activity inside an earlier sub-agent quiet", () => {
+  it("shows root and nested command statuses directly within their owning cards", () => {
     renderTrail({
       parts: [
         toolCall("task1", {
@@ -888,11 +901,11 @@ describe("AgentTrail", () => {
 
     fireEvent.click(screen.getByText('Explore · "Look around"'));
 
-    expect(screen.queryByText("Running `npm run child`")).toBeNull();
+    expect(screen.getByText("Running `npm run child`")).toBeTruthy();
     expect(screen.getByText("Running `npm run root`")).toBeTruthy();
   });
 
-  it("renders an Excalidraw write as a Scribe card between grouped work and opens the drawing in a new tab", () => {
+  it("renders an Excalidraw write directly among process cards and opens the drawing in a new tab", () => {
     const openLinkText = jest.fn();
     const app = {
       workspace: { getActiveFile: jest.fn(() => null), openLinkText },
@@ -904,8 +917,6 @@ describe("AgentTrail", () => {
       elements: [],
     });
     renderTrail({ app, parts: [READ_A, LINT, write, READ_B, LINT, text("Drew it.")] });
-
-    fireEvent.click(screen.getByRole("button", { name: /Ran 5 commands/ }));
 
     expect(screen.getByText("Drew in Excalidraw")).toBeTruthy();
     expect(screen.getByText("Drew it.")).toBeTruthy();
@@ -924,13 +935,12 @@ describe("AgentTrail", () => {
           status: "failed",
           output: [{ type: "text", text: "INVALID_INPUT: Unsupported field" }],
         }),
-        READ_A,
         excalidrawToolCall("excalidraw_write", board, { id: "w3" }),
+        READ_A,
         text("Updated the board."),
       ],
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Ran 5 commands/ }));
     expect(screen.getAllByText("Edited in Excalidraw")).toHaveLength(1);
     expect(screen.getByText("1 failed")).toBeTruthy();
     expect(screen.queryByText(/Unsupported field/)).toBeNull();
@@ -939,6 +949,22 @@ describe("AgentTrail", () => {
     fireEvent.click(screen.getAllByText(/Excalidraw write/)[1]);
 
     expect(screen.getByText(/Unsupported field/)).toBeTruthy();
+  });
+
+  it("keeps separate drawing cards on each side of a normal tool so later drawing steps do not move earlier", () => {
+    const board = { path: "Boards/Launch board.excalidraw.md", operations: [] };
+    renderTrail({
+      parts: [
+        excalidrawToolCall("excalidraw_write", board, { id: "draw-before" }),
+        READ_A,
+        excalidrawToolCall("excalidraw_write", board, { id: "draw-after" }),
+      ],
+    });
+    expect(screen.getAllByText("Edited in Excalidraw")).toHaveLength(2);
+    const [before, after] = screen.getAllByText("Edited in Excalidraw");
+    const read = screen.getByRole("button", { name: /Read notes\/a.md/ });
+    expect(before.compareDocumentPosition(read) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(read.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   describe("with task state from the session", () => {

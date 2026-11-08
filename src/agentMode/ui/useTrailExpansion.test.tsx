@@ -25,40 +25,21 @@ const Trail: React.FC<{ members: ActivityMember[] }> = ({ members }) => {
 
 describe("useTrailExpansion", () => {
   describe("useTrailExpansion()", () => {
-    it("opens running activity by default, then closes every manual choice when the reply ends", () => {
-      const { result, rerender } = renderHook(({ running }) => useTrailExpansion(running), {
-        initialProps: { running: true },
-      });
-      expect(result.current.isOpen("group")).toBe(true);
-      expect(result.current.isOpen("tool")).toBe(true);
-      act(() => result.current.toggle("group"));
-      expect(result.current.isOpen("group")).toBe(false);
-      act(() => result.current.toggle("group"));
-      expect(result.current.isOpen("group")).toBe(true);
-      rerender({ running: false });
-      expect(result.current.isOpen("group")).toBe(false);
+    it("defaults every detail to closed and preserves independent manual choices across renders", () => {
+      const { result, rerender } = renderHook(() => useTrailExpansion());
+      expect(result.current.isOpen("thought")).toBe(false);
       expect(result.current.isOpen("tool")).toBe(false);
-      act(() => result.current.toggle("group"));
-      rerender({ running: false });
-      expect(result.current.isOpen("group")).toBe(true);
+      act(() => result.current.toggle("thought"));
+      act(() => result.current.toggle("tool"));
+      act(() => result.current.toggle("thought"));
+      rerender();
+      expect(result.current.isOpen("thought")).toBe(false);
+      expect(result.current.isOpen("tool")).toBe(true);
+      expect(result.current.isOpen("new-tool")).toBe(false);
     });
 
-    it("keeps a running group's manual close while new activity appears and resets the next run", () => {
-      const { result, rerender } = renderHook(({ running }) => useTrailExpansion(running), {
-        initialProps: { running: true },
-      });
-      act(() => result.current.toggle("group"));
-      rerender({ running: true });
-      expect(result.current.isOpen("group")).toBe(false);
-      expect(result.current.isOpen("new-tool")).toBe(true);
-      rerender({ running: false });
-      act(() => result.current.toggle("group"));
-      rerender({ running: true });
-      expect(result.current.isOpen("group")).toBe(true);
-    });
-
-    it("supports an explicitly closed-by-default detail inside otherwise open running activity", () => {
-      const { result } = renderHook(() => useTrailExpansion(true));
+    it("supports an explicitly closed-by-default detail while the reply runs", () => {
+      const { result } = renderHook(() => useTrailExpansion());
       expect(result.current.isOpen("prompt", false)).toBe(false);
       act(() => result.current.toggle("prompt", false));
       expect(result.current.isOpen("prompt", false)).toBe(true);

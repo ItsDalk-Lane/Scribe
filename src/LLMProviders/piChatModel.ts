@@ -23,6 +23,7 @@ import {
 } from "@/LLMProviders/providerRequestFailure";
 import { RequestRedactor } from "@/LLMProviders/requestRedaction";
 import { isRecord } from "@/utils/obsidianInternals";
+import { v4 as uuidv4 } from "uuid";
 
 export interface ChatStreamOptions {
   signal?: AbortSignal;
@@ -33,6 +34,8 @@ export interface ChatStreamOptions {
 export interface AgentStreamOptions extends SimpleStreamOptions {
   disableReasoning?: boolean;
   onFailure?: (failure: ProviderRequestFailure) => void;
+  beforeRequest?: (requestId: string) => void | Promise<void>;
+  onRequestUsage?: (requestId: string, usage: AssistantMessage["usage"]) => void | Promise<void>;
 }
 
 export interface ProviderChatModel {
@@ -111,6 +114,7 @@ export function createPiChatModel(
     let redactor = new RequestRedactor(errorSecrets);
     let failureStatus: number | undefined;
     let capturedFailure: ProviderRequestFailure | undefined;
+    let requestId: string | undefined;
     const controller = new AbortController();
     const abort = () => controller.abort(options.signal?.reason);
     options.signal?.addEventListener("abort", abort, { once: true });
@@ -142,6 +146,12 @@ export function createPiChatModel(
       if (!transport) throw new Error("A provider transport is required.");
       const requestFetch: typeof fetch = async (input, init) => {
         try {
+          controller.signal.throwIfAborted();
+          // 重试和协议续请求都必须先取得同一主任务的预算名额。https://github.com/ItsDalk-Lane/Scribe/issues/50
+          const nextRequestId = uuidv4();
+          await options.beforeRequest?.(nextRequestId);
+          controller.signal.throwIfAborted();
+          requestId = nextRequestId;
           const response = await raceWithAbortSignal(transport(input, init), controller.signal);
           failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
@@ -199,6 +209,14 @@ export function createPiChatModel(
           const replacement: unknown = await request.options.onPayload?.(payload, selectedModel);
           const body = replacement === undefined ? payload : replacement;
           if (!isRecord(body)) throw new Error("Unexpected model request payload.");
+          if (
+            options.reasoning === undefined &&
+            !options.disableReasoning &&
+            !("reasoningEffort" in request.options)
+          ) {
+            if (model.api === "openai-responses") delete body.reasoning;
+            if (isRecord(body.thinking) && body.thinking.type === "disabled") delete body.thinking;
+          }
           if (options.disableReasoning) {
             if (model.api === "openai-completions") {
               if (isRecord(body.reasoning)) body.reasoning = { effort: "none" };
@@ -224,8 +242,9 @@ export function createPiChatModel(
               sapModel.params.reasoning_effort = "none";
             } else throw new Error(`Reasoning disablement is unsupported for ${model.api}.`);
           } else if (options.reasoning !== undefined && model.api === "openai-completions") {
-            if (isRecord(body.reasoning)) body.reasoning = { effort: options.reasoning };
-            else body.reasoning_effort = options.reasoning;
+            const effort = model.thinkingLevelMap?.[options.reasoning] ?? options.reasoning;
+            if (isRecord(body.reasoning)) body.reasoning = { effort };
+            else body.reasoning_effort = effort;
           }
           return body;
         },
@@ -275,6 +294,10 @@ export function createPiChatModel(
           const next = await raceWithAbortSignal(iterator.next(), controller.signal);
           if (next.done) break;
           let event = next.value;
+          if ((event.type === "done" || event.type === "error") && requestId) {
+            const message = event.type === "done" ? event.message : event.error;
+            await options.onRequestUsage?.(requestId, message.usage);
+          }
           if (event.type === "error") {
             const error =
               transportError instanceof Error

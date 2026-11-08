@@ -4,30 +4,63 @@ import { Platform } from "obsidian";
 
 import { cn } from "@/lib/utils";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+interface MenuDocumentContextValue {
+  container: HTMLElement | null;
+  setContainer: (container: HTMLElement | null) => void;
+}
 
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+const MenuDocumentContext = React.createContext<MenuDocumentContextValue | null>(null);
+
+function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null);
+  const value = React.useMemo(() => ({ container, setContainer }), [container]);
+  return (
+    <MenuDocumentContext.Provider value={value}>
+      <DropdownMenuPrimitive.Root {...props} />
+    </MenuDocumentContext.Provider>
+  );
+}
+
+const DropdownMenuTrigger = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
+>((props, ref) => {
+  const setContainer = React.useContext(MenuDocumentContext)?.setContainer;
+  const attachTrigger = React.useCallback(
+    (element: HTMLButtonElement | null) => {
+      setContainer?.(element?.ownerDocument.body ?? null);
+      if (typeof ref === "function") ref(element);
+      else if (ref) ref.current = element;
+    },
+    [ref, setContainer]
+  );
+  return <DropdownMenuPrimitive.Trigger ref={attachTrigger} {...props} />;
+});
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
 
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
     container?: HTMLElement | null;
   }
->(({ className, sideOffset = 4, container, ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal container={container ?? activeDocument.body}>
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      hideWhenDetached={Platform.isMobile}
-      className={cn(
-        "tw-z-[50] tw-min-w-32 tw-overflow-hidden tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-primary tw-p-1 tw-text-normal tw-shadow-md",
-        "data-[state=open]:tw-animate-in data-[state=closed]:tw-animate-out data-[state=closed]:tw-fade-out-0 data-[state=open]:tw-fade-in-0 data-[state=closed]:tw-zoom-out-95 data-[state=open]:tw-zoom-in-95 data-[side=bottom]:tw-slide-in-from-top-2 data-[side=left]:tw-slide-in-from-right-2 data-[side=right]:tw-slide-in-from-left-2 data-[side=top]:tw-slide-in-from-bottom-2",
-        className
-      )}
-      {...props}
-    />
-  </DropdownMenuPrimitive.Portal>
-));
+>(({ className, sideOffset = 4, container, ...props }, ref) => {
+  const owner = React.useContext(MenuDocumentContext);
+  return (
+    <DropdownMenuPrimitive.Portal container={container ?? owner?.container ?? undefined}>
+      <DropdownMenuPrimitive.Content
+        ref={ref}
+        sideOffset={sideOffset}
+        hideWhenDetached={Platform.isMobile}
+        className={cn(
+          "tw-z-[50] tw-min-w-32 tw-overflow-hidden tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-primary tw-p-1 tw-text-normal tw-shadow-md",
+          "data-[state=open]:tw-animate-in data-[state=closed]:tw-animate-out data-[state=closed]:tw-fade-out-0 data-[state=open]:tw-fade-in-0 data-[state=closed]:tw-zoom-out-95 data-[state=open]:tw-zoom-in-95 data-[side=bottom]:tw-slide-in-from-top-2 data-[side=left]:tw-slide-in-from-right-2 data-[side=right]:tw-slide-in-from-left-2 data-[side=top]:tw-slide-in-from-bottom-2",
+          className
+        )}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
+  );
+});
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 const DropdownMenuItem = React.forwardRef<

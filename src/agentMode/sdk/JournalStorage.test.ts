@@ -248,6 +248,103 @@ describe("JournalStorage", () => {
       });
     });
 
+    describe("redact()", () => {
+      it("clears only selected records while retaining sequence references and unknown bytes (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const parent = await storage.append(SESSION, "message", { text: "主聊天保留" });
+        await storage.append(SESSION, "subagent_state", {
+          childId: "child-a",
+          text: "删除的上下文",
+        });
+        const unknown =
+          JSON.stringify({
+            version: 2,
+            seq: 2,
+            kind: "future_record",
+            occurredAt: 12,
+            origin: "observed",
+            payload: { text: "未知原文" },
+            future: true,
+          }) + "\n";
+        await nodeFs.appendFile(file(), unknown);
+        await storage.read(SESSION);
+        const pending = storage.append(SESSION, "message", { text: "排队保留" });
+        await storage.redact(SESSION, (entry) => entry.kind === "subagent_state");
+        await pending;
+        const bytes = await readFile(file(), "utf8");
+        expect(bytes).not.toContain("删除的上下文");
+        expect(bytes).toContain(unknown);
+        expect((await storage.read(SESSION)).records).toMatchObject([
+          parent,
+          { seq: 1, kind: "redacted", payload: {} },
+          { seq: 2, kind: "future_record" },
+          { seq: 3, payload: { text: "排队保留" } },
+        ]);
+        expect((await storage.append(SESSION, "message", {})).seq).toBe(4);
+        expect(await readdir(directory)).toEqual([`${SESSION}.jsonl`]);
+      });
+
+      it("preserves the original when replacing the journal fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.append(SESSION, "subagent_state", { text: "原件" });
+        const original = await readFile(file(), "utf8");
+        jest.spyOn(nodeFs, "rename").mockRejectedValueOnce(new Error("Replace failed"));
+        await expect(storage.redact(SESSION, () => true)).rejects.toThrow("Replace failed");
+        expect(await readFile(file(), "utf8")).toBe(original);
+      });
+
+      it("rejects uncertain sequences without replacing the recovery copy (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const original = line(0) + "broken\n" + line(2);
+        await writeFile(file(), original);
+        await expect(storage.redact(SESSION, () => true)).rejects.toThrow(/sequence|writ/i);
+        expect(await readFile(file(), "utf8")).toBe(original);
+      });
+
+      it("keeps external edits made while deletion is preparing and freezes further writes (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.append(SESSION, "subagent_state", { text: "原件" });
+        const original = await readFile(file(), "utf8");
+        const link = nodeFs.link;
+        jest.spyOn(nodeFs, "link").mockImplementationOnce(async (...args) => {
+          await link(...args);
+          await nodeFs.appendFile(file(), line(1, { text: "外部新内容" }));
+        });
+        await expect(storage.redact(SESSION, () => true)).rejects.toThrow(/changed/i);
+        expect(await readFile(file(), "utf8")).toBe(original + line(1, { text: "外部新内容" }));
+        await expect(storage.append(SESSION, "message", {})).rejects.toThrow(/frozen|fail/i);
+      });
+
+      it("retains a recoverable original beside the replacement if directory synchronization fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.append(SESSION, "subagent_state", { text: "原件" });
+        const original = await readFile(file(), "utf8");
+        const rename = nodeFs.rename;
+        let renamed = false;
+        jest.spyOn(nodeFs, "rename").mockImplementationOnce(async (...args) => {
+          await rename(...args);
+          renamed = true;
+        });
+        const open = nodeFs.open;
+        jest.spyOn(nodeFs, "open").mockImplementation(async (...args) => {
+          const handle = await open(...args);
+          if (args[0] === directory && renamed)
+            jest.spyOn(handle, "sync").mockRejectedValueOnce(new Error("Directory sync failed"));
+          return handle;
+        });
+        await expect(storage.redact(SESSION, () => true)).rejects.toThrow(/Directory sync failed/);
+        const backup = (await readdir(directory)).find((name) => name.endsWith(".redact.backup"));
+        expect(backup).toBeDefined();
+        expect(await readFile(join(directory, backup!), "utf8")).toBe(original);
+        await expect(storage.append(SESSION, "message", {})).rejects.toThrow(/frozen|fail/i);
+      });
+
+      it("does not create files when the journal is absent or no records belong to the selection (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.redact(SESSION, () => true);
+        expect(await readdir(directory)).toEqual([]);
+        await storage.append(SESSION, "message", { text: "保留" });
+        const original = await readFile(file(), "utf8");
+        await storage.redact(SESSION, () => false);
+        expect(await readFile(file(), "utf8")).toBe(original);
+        expect(await readdir(directory)).toEqual([`${SESSION}.jsonl`]);
+      });
+    });
+
     describe("remove()", () => {
       it("waits for pending writes and removes only the explicitly selected journal", async () => {
         const first = storage.append(SESSION, "message", {});

@@ -66,7 +66,6 @@ jest.mock("@/modelManagement/state/atoms", () => {
         providerType: "openai-compatible",
         displayName: "Custom",
         baseUrl: "https://proxy.example/v1",
-        enableCors: false,
         requiresApiKey: false,
         extras: { openAIOrgId: "org-keep", unknownField: { retained: true } },
         origin: { kind: "byok" },
@@ -256,7 +255,7 @@ describe("ConfigureProviderDialog", () => {
       }
     );
 
-    it(`saves a hand-entered model without depending on a directory or chat check`, async () => {
+    it(`saves a hand-entered model without depending on a directory or chat check — https://github.com/ItsDalk-Lane/Scribe/issues/51`, async () => {
       const onSaved = jest.fn();
       render(
         <ConfigureProviderForm
@@ -271,10 +270,11 @@ describe("ConfigureProviderDialog", () => {
       await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
       expect(mockVerifyCredentials).not.toHaveBeenCalled();
       expect(mockChatConnection).not.toHaveBeenCalled();
+      expect(screen.queryByRole("switch", { name: "Enable CORS" })).toBeNull();
+      expect(mockSetupProvider.mock.calls[0][0]).not.toHaveProperty("enableCors");
       expect(mockSetupProvider).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: "entered-key",
-          enableCors: true,
           models: [expect.objectContaining({ id: "private-model" })],
         })
       );
@@ -326,7 +326,7 @@ describe("ConfigureProviderDialog", () => {
       expect(screen.queryByText("Chat connection verified")).toBeNull();
     });
 
-    it(`sends one explicit chat test with the selected model and current unsaved configuration`, async () => {
+    it(`sends one explicit chat test with the selected model and current unsaved configuration — https://github.com/ItsDalk-Lane/Scribe/issues/51`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "new", source: CUSTOM_OPENAI_DEFINITION }}
@@ -339,13 +339,15 @@ describe("ConfigureProviderDialog", () => {
       fireEvent.click(chatTestButton());
       expect(await screen.findByText("Chat connection verified")).toBeTruthy();
       expect(mockChatConnection).toHaveBeenCalledTimes(1);
+      expect(
+        (mockChatConnection.mock.calls[0][0] as TestProviderConnectionInput).provider
+      ).not.toHaveProperty("enableCors");
       expect(mockChatConnection).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: "current-key",
           model: expect.objectContaining({ id: "chat-model" }) as unknown,
           provider: expect.objectContaining({
             baseUrl: "https://chat.example/v1",
-            enableCors: true,
           }) as unknown,
         })
       );
@@ -925,7 +927,7 @@ describe("ConfigureProviderDialog", () => {
       );
     });
 
-    it(`keeps the stored key encrypted while preserving the custom endpoint, extras and transport choice`, async () => {
+    it(`keeps the stored key encrypted while preserving the custom endpoint and extras without a connection-mode switch — https://github.com/ItsDalk-Lane/Scribe/issues/51`, async () => {
       render(
         <ConfigureProviderForm
           state={{ mode: "edit", providerId: "p-custom" }}
@@ -934,14 +936,14 @@ describe("ConfigureProviderDialog", () => {
       );
       expect((await screen.findByTestId<HTMLInputElement>("api-key")).value).toBe("");
       expect(mockGetApiKey).not.toHaveBeenCalled();
-      expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
+      expect(screen.queryByRole("switch", { name: "Enable CORS" })).toBeNull();
       fireEvent.click(saveButton());
       await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+      expect(mockUpdate.mock.calls[0][1]).not.toHaveProperty("enableCors");
       expect(mockUpdate).toHaveBeenCalledWith(
         "p-custom",
         expect.objectContaining({
           baseUrl: "https://proxy.example/v1",
-          enableCors: false,
           extras: expect.objectContaining({
             openAIOrgId: "org-keep",
             unknownField: { retained: true },
@@ -1059,7 +1061,6 @@ describe("ConfigureProviderDialog", () => {
       await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
       expect(screen.getByTestId<HTMLInputElement>("api-key").disabled).toBe(true);
       expect(baseUrlInput().disabled).toBe(true);
-      expect(screen.getByRole("switch").getAttribute("aria-disabled")).toBe("true");
       await act(async () => {
         finish();
         await pending;

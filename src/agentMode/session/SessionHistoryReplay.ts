@@ -124,7 +124,12 @@ export class SessionHistoryReplay {
         // 后台记录可能是唯一恢复来源，未产生正文的停止也必须恢复其可见原因。https://github.com/ItsDalk-Lane/Scribe/issues/31
         if (
           (update.stopReason !== "end_turn" || this.aiId !== null) &&
-          this.deps.store.markTurnComplete(this.aiBubbleId(occurredAt), update.stopReason, elapsed)
+          this.deps.store.markTurnComplete(
+            this.aiBubbleId(occurredAt),
+            update.stopReason,
+            elapsed,
+            update.taskGenerationId
+          )
         ) {
           this.deps.scheduleNotifyMessages();
         }

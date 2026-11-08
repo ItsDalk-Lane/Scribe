@@ -70,6 +70,26 @@ describe("BasicSettings", () => {
       expect(mockClearDeviceUnlock).toHaveBeenCalledTimes(1);
     });
 
+    it("saves skill catalog budget edits while keeping the untouched budget limit", () => {
+      render(<BasicSettings />);
+
+      fireEvent.change(screen.getByLabelText("Context share (percent)"), {
+        target: { value: "5" },
+      });
+      expect(settingsStore.get(settingsAtom).agentMode.skills).toMatchObject({
+        catalogBudgetPercent: 5,
+        catalogBudgetMaxTokens: 10000,
+      });
+
+      fireEvent.change(screen.getByLabelText("Absolute token maximum"), {
+        target: { value: "500" },
+      });
+      expect(settingsStore.get(settingsAtom).agentMode.skills).toMatchObject({
+        catalogBudgetPercent: 5,
+        catalogBudgetMaxTokens: 500,
+      });
+    });
+
     it("keeps the draft open after a failed save and retries it before opening the file", async () => {
       writeAgentsFile.mockRejectedValueOnce(new Error("disk unavailable"));
       render(<BasicSettings />);

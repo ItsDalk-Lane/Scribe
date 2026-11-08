@@ -3,12 +3,25 @@ import { runInThisContext } from "node:vm";
 import type { Socket } from "node:net";
 import { createChatChain, createChatMemory } from "@/commands/customCommandChatEngine";
 import { ChatModelProviders } from "@/constants";
+import { requireNodeModule } from "@/utils/desktopRuntime";
 
 jest.mock("@/logger");
-const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
-const nativeRuntime = runInThisContext("({ fetch, AbortController, AbortSignal })") as Pick<
+jest.mock("@/utils/desktopRuntime", () => ({
+  ...jest.requireActual<typeof import("@/utils/desktopRuntime")>("@/utils/desktopRuntime"),
+  requireNodeModule: jest.fn(),
+}));
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/51";
+const nativeRuntime = runInThisContext(
+  "({ fetch, AbortController, AbortSignal, Request, Response, Headers, ReadableStream })"
+) as Pick<
   typeof window,
-  "fetch" | "AbortController" | "AbortSignal"
+  | "fetch"
+  | "AbortController"
+  | "AbortSignal"
+  | "Request"
+  | "Response"
+  | "Headers"
+  | "ReadableStream"
 >;
 
 function deferred<T>() {
@@ -24,6 +37,13 @@ describe("localStreaming integration", () => {
     it.each(["Ollama", "LM Studio"])(
       `receives real HTTP chunks from a keyless %s-compatible server, aborts its socket and replays accepted history (${issue})`,
       async (name) => {
+        const desktopFetch = jest.fn(nativeRuntime.fetch);
+        jest.mocked(requireNodeModule).mockReturnValue({
+          remote: {
+            require: () => ({ net: { fetch: desktopFetch } }),
+            getGlobal: () => nativeRuntime.AbortController,
+          },
+        });
         const closed = deferred<void>();
         const requests: Array<{ headers: Record<string, unknown>; body: { messages: unknown[] } }> =
           [];
@@ -43,7 +63,6 @@ describe("localStreaming integration", () => {
             });
             response.writeHead(200, {
               "Content-Type": "text/event-stream",
-              "Access-Control-Allow-Origin": "*",
               "Cache-Control": "no-cache",
             });
             if (requests.length === 1) {
@@ -67,6 +86,10 @@ describe("localStreaming integration", () => {
         });
         const originalRuntime = {
           fetch: window.fetch,
+          Request: window.Request,
+          Response: window.Response,
+          Headers: window.Headers,
+          ReadableStream: window.ReadableStream,
           AbortController: window.AbortController,
           AbortSignal: window.AbortSignal,
         };
@@ -84,7 +107,6 @@ describe("localStreaming integration", () => {
               baseUrl: `http://127.0.0.1:${address.port}/v1`,
               enabled: true,
               requiresApiKey: false,
-              enableCors: false,
             },
             "Original system",
             createChatMemory()
@@ -101,6 +123,7 @@ describe("localStreaming integration", () => {
             if (event.value.type === "text_delta") partial += event.value.delta;
           }
           expect(partial).toBe("Partial answer");
+          expect(desktopFetch).toHaveBeenCalledTimes(1);
           expect(firstEnded).toBe(false);
           controller.abort();
           await expect(iterator.next()).rejects.toMatchObject({ name: "AbortError" });

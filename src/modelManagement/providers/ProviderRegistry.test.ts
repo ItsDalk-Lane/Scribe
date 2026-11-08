@@ -96,13 +96,13 @@ describe("ProviderRegistry", () => {
         await registry.update(id, { displayName: "Example" });
         expect(listener).not.toHaveBeenCalled();
       });
-      it("saves the quick-tool transport preference without restarting agent consumers", async () => {
+      it("notifies consumers when the provider endpoint changes https://github.com/ItsDalk-Lane/Scribe/issues/51", async () => {
         const id = await registry.add(providerInput());
         const listener = jest.fn();
         registry.subscribe(listener);
-        await registry.update(id, { enableCors: true });
-        expect(registry.get(id)?.enableCors).toBe(true);
-        expect(listener).not.toHaveBeenCalled();
+        await registry.update(id, { baseUrl: "https://changed.example/v1" });
+        expect(registry.get(id)?.baseUrl).toBe("https://changed.example/v1");
+        expect(listener).toHaveBeenCalledWith(id);
       });
     });
     describe("setApiKey()", () => {

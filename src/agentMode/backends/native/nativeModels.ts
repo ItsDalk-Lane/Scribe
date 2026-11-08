@@ -18,6 +18,7 @@ import { SecretStore } from "@/services/secretStore";
 import { getSettings, type ScribeSettings } from "@/settings/model";
 import { t } from "@/lib/i18n";
 import { MissingApiKeyError } from "@/error";
+import { resolveModelThinking } from "@/LLMProviders/modelThinking";
 
 const EMPTY_MODELS: ConfiguredModel[] = Object.freeze([]) as unknown as ConfiguredModel[];
 const EMPTY_MODEL_ENTRIES: ModelEntry[] = Object.freeze([]) as unknown as ModelEntry[];
@@ -27,15 +28,6 @@ const EMPTY_ENABLED_ENTRIES: EnabledModelEntry[] = Object.freeze(
 const EMPTY_EFFORT_OPTIONS: ModelEntry["effortOptions"] = Object.freeze(
   []
 ) as unknown as ModelEntry["effortOptions"];
-const THINKING_LEVELS: readonly string[] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-];
 
 function configuredModels(settings: ScribeSettings): ConfiguredModel[] {
   // 模型一次配置后直接供聊天使用，历史启用清单只保留兼容加载。https://github.com/ItsDalk-Lane/Scribe/issues/31
@@ -60,9 +52,12 @@ export function getNativeModelEntries(settings: ScribeSettings): ModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_MODEL_ENTRIES;
   return models.map((model) => {
-    const efforts = (model.info.reasoningEfforts ?? [])
-      .map((value) => (value === "none" ? "off" : value))
-      .filter((value) => THINKING_LEVELS.includes(value));
+    const efforts = resolveModelThinking(
+      configuredModelToCustomModel({
+        provider: settings.providers[model.providerId],
+        configuredModel: model,
+      })
+    ).levels;
     return {
       baseModelId: model.configuredModelId,
       name: model.info.displayName || model.info.id,

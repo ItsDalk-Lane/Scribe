@@ -4,14 +4,18 @@ import { lastOutputLine } from "@/agentMode/session/taskOutputTail";
 import type { PermissionPrompt } from "@/agentMode/session/types";
 import { TaskStatusMark } from "@/agentMode/ui/TaskCard";
 import { useTaskOutputTail } from "@/agentMode/ui/hooks/useTaskOutputTail";
-import { runningTasks, taskDisplayStatus, taskLabel } from "@/agentMode/ui/taskDisplay";
+import {
+  backgroundCommandTasks,
+  runningTasks,
+  taskDisplayStatus,
+  taskLabel,
+} from "@/agentMode/ui/taskDisplay";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { pluralize } from "@/agentMode/ui/toolSummaries";
-import { Bot, ListTodo, Loader2, Square, Terminal } from "lucide-react";
-import React, { useRef, useState } from "react";
+import { ListTodo, Loader2, Square, Terminal } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
 
 const ROW_OUTPUT_BYTES = 4096;
 export const STOP_UNAVAILABLE_UNTIL_STARTED = "Can stop once the task starts";
@@ -36,8 +40,9 @@ export const RunningTasksIndicator: React.FC<RunningTasksIndicatorProps> = ({
 }) => {
   const [open, setOpen] = useState(defaultOpen);
   const closeTimer = useRef<number | null>(null);
-  const running = runningTasks(tasks);
-  if (tasks.length === 0) {
+  const commandTasks = useMemo(() => backgroundCommandTasks(tasks), [tasks]);
+  const running = runningTasks(commandTasks);
+  if (commandTasks.length === 0) {
     if (open) setOpen(false);
     return null;
   }
@@ -70,9 +75,7 @@ export const RunningTasksIndicator: React.FC<RunningTasksIndicatorProps> = ({
           ) : (
             <ListTodo className="tw-size-3" />
           )}
-          {running.length > 0
-            ? `${pluralize(running.length, "task")} ${t("running")}`
-            : pluralize(tasks.length, "task")}
+          {t("Background tasks")} ({commandTasks.length})
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -87,8 +90,8 @@ export const RunningTasksIndicator: React.FC<RunningTasksIndicatorProps> = ({
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         {["running", "completed"].map((group) => {
-          const members = tasks
-            .filter((task) => (task.status === "running") === (group === "running"))
+          const members = commandTasks
+            .filter((task) => running.includes(task) === (group === "running"))
             .slice()
             .reverse();
           if (members.length === 0) return null;
@@ -161,7 +164,7 @@ interface RunningTaskRowProps {
 }
 
 const RunningTaskRow: React.FC<RunningTaskRowProps> = ({ task, status, onOpen }) => {
-  const Icon = task.kind === "command" ? Terminal : Bot;
+  const Icon = Terminal;
   return (
     <button
       type="button"

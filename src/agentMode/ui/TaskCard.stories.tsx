@@ -18,6 +18,26 @@ export default meta;
 
 export const Running: StoryObj<TaskCardProps> = {};
 
+export const Queued: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "queued" }) },
+};
+
+export const WaitingForInput: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "awaiting_input" }) },
+};
+
+export const WaitingForApproval: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "awaiting_approval" }) },
+};
+
+export const Stopping: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "stopping" }) },
+};
+
+export const TaskRequestLimit: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ status: "stopped", stopReason: "max_task_requests" }) },
+};
+
 export const Starting: StoryObj<TaskCardProps> = {
   args: { task: makeTask({ taskId: undefined, description: "", subagentType: undefined }) },
 };

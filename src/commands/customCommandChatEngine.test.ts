@@ -1,3 +1,8 @@
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
+
 import { createChatChain, createChatMemory } from "@/commands/customCommandChatEngine";
 import { ChatModelProviders } from "@/constants";
 import { fixtureSse } from "@/LLMProviders/testing/piFixtures";
@@ -11,7 +16,6 @@ const model = {
   baseUrl: "https://fixture.invalid/v1",
   apiKey: "fixture",
   enabled: true,
-  enableCors: false,
 };
 
 describe("customCommandChatEngine", () => {

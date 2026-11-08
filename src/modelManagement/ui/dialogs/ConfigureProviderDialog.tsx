@@ -15,7 +15,6 @@ import { byokProvidersAtom, configuredModelsAtom } from "@/modelManagement/state
 import type { ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import type { ProviderDefinition, VerificationResult } from "@/modelManagement/types/runtime";
-import { CorsCompatibilitySetting } from "@/modelManagement/ui/components/CorsCompatibilitySetting";
 import { ModelChecklist } from "@/modelManagement/ui/components/ModelChecklist";
 import {
   ModelManagementProvider,
@@ -154,9 +153,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const [baseUrl, setBaseUrl] = useState(() =>
     state.mode === "edit" ? (provider?.baseUrl ?? "") : ""
   );
-  const [enableCors, setEnableCors] = useState(() =>
-    state.mode === "edit" ? (provider?.enableCors ?? true) : true
-  );
   const [extras, setExtras] = useState<Record<string, unknown>>(() =>
     state.mode === "edit" ? (provider?.extras ?? {}) : {}
   );
@@ -268,7 +264,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     storedBaseUrl,
     apiKey,
     connectionExtras,
-    enableCors,
     testModel,
   ]);
   const currentConnectionKey = useRef(connectionKey);
@@ -316,7 +311,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
       displayName,
       apiKeyRef: clearKey ? null : provider?.apiKeyRef,
       baseUrl: storedBaseUrl || undefined,
-      enableCors,
       requiresApiKey,
       extras: configurationExtras(),
     };
@@ -355,7 +349,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
         providerType,
         displayName,
         baseUrl: storedBaseUrl || undefined,
-        enableCors,
         apiKey: apiKey || undefined,
         requiresApiKey: state.source.requiresApiKey,
         extras: configurationExtras(),
@@ -381,7 +374,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
         clearKey,
         displayName,
         effectiveBaseUrl: storedBaseUrl,
-        enableCors,
         extras: configurationExtras(),
         existingModels,
         selectedWireIds: pool.selectedWireIds,
@@ -536,14 +528,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
               setExtras((previous) => ({ ...previous, [key]: value }));
             }}
           />
-          <CorsCompatibilitySetting
-            checked={enableCors}
-            disabled={saving}
-            onCheckedChange={(value) => {
-              invalidateChatCheck();
-              setEnableCors(value);
-            }}
-          />
           <div className="tw-flex tw-flex-col tw-gap-2">
             <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
               <div className="tw-text-sm tw-font-medium tw-text-normal">{t("Models")}</div>
@@ -641,7 +625,6 @@ interface SaveEditArgs {
   clearKey: boolean;
   displayName: string;
   effectiveBaseUrl: string;
-  enableCors: boolean;
   extras: Record<string, unknown>;
   existingModels: readonly ConfiguredModel[];
   selectedWireIds: ReadonlySet<string>;
@@ -655,7 +638,6 @@ async function saveProviderEdit({
   clearKey,
   displayName,
   effectiveBaseUrl,
-  enableCors,
   extras,
   existingModels,
   selectedWireIds,
@@ -667,7 +649,6 @@ async function saveProviderEdit({
   await api.providerRegistry.update(providerId, {
     displayName,
     baseUrl: effectiveBaseUrl || undefined,
-    enableCors,
     extras: Object.keys(extras).length > 0 ? extras : undefined,
   });
 

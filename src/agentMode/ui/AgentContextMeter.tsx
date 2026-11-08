@@ -69,37 +69,84 @@ export function UsageMeter({ usage, contextWindow }: UsageMeterProps) {
   const fraction = hasContext ? Math.min(1, Math.max(0, used / contextWindow)) : 0;
   const percent = Math.round(fraction * 100);
   const isWarning = hasContext && fraction >= WARNING_THRESHOLD;
+  const cumulative = usage?.cumulativeTotalTokens;
+  const hasCumulative =
+    typeof cumulative === "number" && Number.isFinite(cumulative) && cumulative >= 0;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant="ghost2"
-          size="icon"
-          className={cn(isWarning ? "tw-text-warning" : "tw-text-accent")}
+          size={hasCumulative ? "fit" : "icon"}
+          className={cn(
+            "tw-flex tw-items-center tw-gap-1",
+            isWarning ? "tw-text-warning" : "tw-text-accent"
+          )}
           aria-label={t("Usage")}
         >
-          {!hasUsage || hasContext ? <ContextRing fraction={fraction} /> : formatTokens(used)}
+          {!hasUsage || hasContext || hasCumulative ? (
+            <ContextRing fraction={fraction} />
+          ) : (
+            formatTokens(used)
+          )}
+          {hasCumulative ? (
+            <span className="tw-whitespace-nowrap tw-text-xs">
+              {t("Cumulative usage")}: {formatTokens(cumulative)}
+            </span>
+          ) : null}
         </Button>
       </TooltipTrigger>
-      <TooltipContent align="end" side="top" className="tw-w-80">
+      <TooltipContent align="end" side="top" className="tw-w-80 tw-max-w-[calc(100vw-2rem)]">
         <div className="tw-flex tw-flex-col tw-gap-2">
           {hasUsage && (
             <>
-              <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-ui-smaller">
-                <span className="tw-whitespace-nowrap tw-text-muted">{t("Context window")}</span>
-                <span
-                  className={cn(
-                    "tw-whitespace-nowrap tw-tabular-nums",
-                    isWarning && "tw-text-warning"
-                  )}
-                >
-                  {hasContext
-                    ? `${formatTokens(used)} / ${formatTokens(contextWindow)} (${percent}%)`
-                    : formatTokens(used)}
+              {hasContext || used > 0 ? (
+                <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-ui-smaller">
+                  <span className="tw-whitespace-nowrap tw-text-muted">{t("Context window")}</span>
+                  <span
+                    className={cn(
+                      "tw-whitespace-nowrap tw-tabular-nums",
+                      isWarning && "tw-text-warning"
+                    )}
+                  >
+                    {hasContext
+                      ? `${formatTokens(used)} / ${formatTokens(contextWindow)} (${percent}%)`
+                      : formatTokens(used)}
+                  </span>
+                </div>
+              ) : (
+                <span className="tw-text-ui-smaller tw-text-muted">
+                  {t("Current context usage is unavailable")}
                 </span>
-              </div>
+              )}
               {hasContext && <Progress value={percent} className="tw-h-1.5" />}
+              {hasCumulative ? (
+                <>
+                  <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-ui-smaller">
+                    <span className="tw-text-muted">{t("Cumulative usage")}</span>
+                    <span>{formatTokens(cumulative)}</span>
+                  </div>
+                  {(
+                    [
+                      ["Cumulative input", usage.cumulativeInputTokens],
+                      ["Cumulative output", usage.cumulativeOutputTokens],
+                      ["Cumulative cache read", usage.cumulativeCacheReadTokens],
+                      ["Cumulative cache write", usage.cumulativeCacheWriteTokens],
+                    ] as const
+                  ).map(([label, value]) =>
+                    typeof value === "number" && Number.isFinite(value) ? (
+                      <div
+                        key={label}
+                        className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-ui-smaller"
+                      >
+                        <span className="tw-text-muted">{t(label)}</span>
+                        <span>{formatTokens(value)}</span>
+                      </div>
+                    ) : null
+                  )}
+                </>
+              ) : null}
             </>
           )}
         </div>
@@ -115,6 +162,9 @@ export default function AgentContextMeter({ backend }: AgentContextMeterProps) {
   const contextWindow =
     typeof rawWindow === "number" && Number.isFinite(rawWindow) && rawWindow > 0 ? rawWindow : null;
   const hasTokens = usage !== null && usage.usedTokens > 0;
+  const cumulative = usage?.cumulativeTotalTokens;
+  if (typeof cumulative === "number" && Number.isFinite(cumulative) && cumulative >= 0)
+    return <UsageMeter usage={usage} contextWindow={contextWindow} />;
 
   if (contextWindow !== null) {
     return (

@@ -30,7 +30,6 @@ export interface ModelConfig {
   openAIProxyBaseUrl?: string;
   groqApiKey?: string;
   mistralApiKey?: string;
-  enableCors?: boolean;
 }
 
 export interface CustomModel {
@@ -47,7 +46,6 @@ export interface CustomModel {
   requiresApiKey?: boolean;
   enabled: boolean;
   isEmbeddingModel?: boolean;
-  enableCors?: boolean;
   stream?: boolean;
   streamUsage?: boolean;
   maxTokens?: number;
@@ -64,4 +62,5 @@ export interface CustomModel {
   openAIOrgId?: string;
 
   reasoningEffort?: ReasoningEffort;
+  reasoningEfforts?: readonly string[];
 }

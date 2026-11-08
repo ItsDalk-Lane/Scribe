@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { randomBytes } from "node:crypto";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
@@ -7,6 +8,11 @@ import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidian from "obsidian";
 
 jest.mock("@/logger");
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidian as unknown as {
@@ -30,7 +36,8 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function githubProviderModel(enableCors: boolean): CustomModel {
+function githubProviderModel(mobile: boolean): CustomModel {
+  Platform.isMobile = mobile;
   return {
     name: "synthetic-model",
     provider: ChatModelProviders.OPENAI_FORMAT,
@@ -39,7 +46,6 @@ function githubProviderModel(enableCors: boolean): CustomModel {
     baseUrl: "https://api.githubcopilot.com",
     apiKey: `github_pat_${randomBytes(16).toString("hex")}`,
     enabled: true,
-    enableCors,
   };
 }
 
@@ -91,6 +97,13 @@ function pausedNetwork() {
 }
 
 describe("providerTransport cancellation integration", () => {
+  beforeEach(() => {
+    Platform.isMobile = false;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   const originalFetch = window.fetch;
   afterEach(() => {
     window.fetch = originalFetch;
@@ -99,11 +112,11 @@ describe("providerTransport cancellation integration", () => {
 
   describe("createProviderFetch()", () => {
     it.each([false, true])(
-      `does not send a cancelled note after shared authentication finishes with compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `does not send a cancelled note after shared authentication finishes on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
         const network = pausedNetwork();
         const controller = new AbortController();
-        const fetcher = createProviderFetch(githubProviderModel(enableCors));
+        const fetcher = createProviderFetch(githubProviderModel(mobile));
         const result = fetcher("https://api.githubcopilot.com/chat/completions", {
           method: "POST",
           body: '{"messages":[{"role":"user","content":"Synthetic cancelled note"}]}',
@@ -153,10 +166,10 @@ describe("providerTransport cancellation integration", () => {
 
   describe("createProviderChatModel()", () => {
     it.each([false, true])(
-      `returns a stopped turn before token release and sends only its live sibling with compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `returns a stopped turn before token release and sends only its live sibling on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
         const network = pausedNetwork();
-        const model = await createProviderChatModel(githubProviderModel(enableCors));
+        const model = await createProviderChatModel(githubProviderModel(mobile));
         const controller = new AbortController();
         const first = collectText(model, "Synthetic cancelled note", {
           signal: controller.signal,

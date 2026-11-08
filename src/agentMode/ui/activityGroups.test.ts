@@ -338,6 +338,15 @@ describe("activityGroups", () => {
   });
 
   describe("summarizeActivity", () => {
+    it("does not count subagent session and result inspection as file reads https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      expect(
+        summarizeActivity([
+          member("sessions", { vendorToolName: "list_subagent_sessions", toolKind: "read" }),
+          member("result", { vendorToolName: "read_subagent_result", toolKind: "read" }),
+          member("note", { vendorToolName: "read_note", toolKind: "read" }),
+        ]).line
+      ).toBe("Ran 3 commands, read 1 file");
+    });
     it("names each tool family in first-appearance order", () => {
       const { line } = summarizeActivity([
         member("a", { vendorToolName: "Read" }),

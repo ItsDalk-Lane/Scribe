@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { act, renderHook } from "@testing-library/react";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
@@ -23,7 +24,6 @@ const model: CustomModel = {
   provider: ChatModelProviders.OPENAI_FORMAT,
   baseUrl: "https://opencode.ai/inference/go/openai/v1",
   enabled: true,
-  enableCors: true,
   apiKey: "test-key",
 };
 
@@ -71,6 +71,13 @@ function session(headers: Record<string, string>): string {
 }
 
 describe("providerSession integration", () => {
+  beforeEach(() => {
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("useStreamingChatSession", () => {
     it(`keeps headers across quick-ask turns and model changes, then rotates on a new chat (${issue})`, async () => {
       const requests = captureRequests();

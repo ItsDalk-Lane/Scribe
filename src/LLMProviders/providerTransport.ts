@@ -8,6 +8,8 @@ import {
 } from "@/LLMProviders/providerRequestFailure";
 import { TimeoutError } from "@/error";
 import { safeFetchNoThrow } from "@/utils";
+import { isDesktopRuntime } from "@/utils/desktopRuntime";
+import { loadDesktopStreamingFetch } from "@/utils/desktopStreamingFetch";
 import { isRecord } from "@/utils/obsidianInternals";
 import { v4 as uuidv4 } from "uuid";
 
@@ -367,8 +369,9 @@ export function createProviderFetch(model: CustomModel, redactionValues?: string
     };
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     try {
-      return await (model.enableCors === false
-        ? fetch(url.toString(), options)
+      // 桌面浏览器请求会被部分模型服务的跨域限制拦截，缓冲连接又会丢失流式显示。https://github.com/ItsDalk-Lane/Scribe/issues/51
+      return await (isDesktopRuntime()
+        ? loadDesktopStreamingFetch()(url.toString(), options)
         : safeFetchNoThrow(url.toString(), options));
     } catch (error) {
       // 仅真实网络调用失败可重试；地址和请求配置错误不能反复发送。https://github.com/ItsDalk-Lane/Scribe/issues/31

@@ -26,6 +26,9 @@ import { createNativeModel } from "@/agentMode/backends/native/nativeModels";
 import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
+import { EMPTY_PROJECT_CONFIG } from "@/projects/constants";
+import { getCachedProjectRecords, updateCachedProjectRecords } from "@/projects/state";
+import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
 
 const mockStop = jest.fn().mockResolvedValue(undefined);
 const mockShutdown = jest.fn().mockResolvedValue(undefined);
@@ -53,6 +56,17 @@ jest.mock("@/excalidraw/excalidrawApi", () => ({
 }));
 jest.mock("@/agentMode/sdk/nativeTools", () => ({
   createNativeTools: jest.fn().mockReturnValue([]),
+}));
+const mockGetMcpServerManager = jest.fn().mockReturnValue(null);
+jest.mock("@/agentMode/mcp/McpServerManager", () => ({
+  getMcpServerManager: (...args: unknown[]) => mockGetMcpServerManager(...args),
+}));
+const mockCreateMcpTools = jest.fn().mockReturnValue({
+  tools: [],
+  autoApprovedTools: new Set<string>(),
+});
+jest.mock("@/agentMode/mcp/mcpTools", () => ({
+  createMcpTools: (...args: unknown[]) => mockCreateMcpTools(...args),
 }));
 jest.mock("@/agentMode/backends/native/nativeSystemPrompt", () => ({
   buildNativeSystemPrompt: jest.fn().mockResolvedValue("Vault prompt"),
@@ -329,6 +343,106 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("createBackendProcess()", () => {
+    it("changes the capability revision when a scoped skill is disabled or updated https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const skill = {
+        name: "scoped",
+        description: "Scoped skill",
+        body: "Original",
+        enabledAgents: ["native"],
+        filePath: "/skills/scoped/SKILL.md",
+        dirPath: "/skills/scoped",
+        location: { kind: "canonical" as const },
+      };
+      jest.mocked(getNativeScopedSkills).mockReturnValue([skill]);
+      NativeBackendDescriptor.createBackendProcess({
+        app: {} as App,
+        plugin: {} as ScribePlugin,
+        clientVersion: "test",
+        descriptor: NativeBackendDescriptor,
+      });
+      const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
+      const initial = options.getCapabilityRevision?.("/vault");
+      expect(typeof initial).toBe("string");
+      jest.mocked(getNativeScopedSkills).mockReturnValue([{ ...skill, enabledAgents: [] }]);
+      expect(options.getCapabilityRevision?.("/vault")).not.toBe(initial);
+      jest.mocked(getNativeScopedSkills).mockReturnValue([{ ...skill, body: "Changed" }]);
+      expect(options.getCapabilityRevision?.("/vault")).not.toBe(initial);
+    });
+
+    it("rechecks the current project folder on each operation and accepts only the updated location https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const previous = getCachedProjectRecords();
+      const record = {
+        project: { ...EMPTY_PROJECT_CONFIG, id: "scope-live", workspacePath: "Old" },
+        filePath: ".scribe/projects/scope-live/project.md",
+        folderName: "scope-live",
+      };
+      try {
+        updateCachedProjectRecords([record]);
+        NativeBackendDescriptor.createBackendProcess({
+          app: {} as App,
+          plugin: {} as ScribePlugin,
+          clientVersion: "test",
+          descriptor: NativeBackendDescriptor,
+        });
+        const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
+        expect(() =>
+          options.assertScope?.({ cwd: "/synthetic-vault/Old", projectId: "scope-live" })
+        ).not.toThrow();
+        updateCachedProjectRecords([
+          { ...record, project: { ...record.project, workspacePath: "New" } },
+        ]);
+        expect(() =>
+          options.assertScope?.({ cwd: "/synthetic-vault/Old", projectId: "scope-live" })
+        ).toThrow("项目工作位置已改变");
+        expect(() =>
+          options.assertScope?.({ cwd: "/synthetic-vault/New", projectId: "scope-live" })
+        ).not.toThrow();
+      } finally {
+        updateCachedProjectRecords(previous);
+      }
+    });
+
+    it("rejects a child operation after its project is removed instead of accepting the old working directory https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      NativeBackendDescriptor.createBackendProcess({
+        app: {} as App,
+        plugin: {} as ScribePlugin,
+        clientVersion: "test",
+        descriptor: NativeBackendDescriptor,
+      });
+      const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
+      expect(() =>
+        options.assertScope?.({ cwd: "/synthetic-vault/removed", projectId: "removed-project" })
+      ).toThrow("no longer available");
+    });
+
+    it("shares child admission across chats in one app and keeps separate vault instances independent https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+      const app = {} as App;
+      for (const owner of [app, app, {} as App])
+        NativeBackendDescriptor.createBackendProcess({
+          app: owner,
+          plugin: {} as ScribePlugin,
+          clientVersion: "test",
+          descriptor: NativeBackendDescriptor,
+        });
+      const calls = jest.mocked(NativeBackendProcess).mock.calls.map(([options]) => options);
+      expect(calls[0].getSubagentLimits?.()).toEqual({
+        maxConcurrent: 3,
+        maxQueued: 20,
+        maxTaskRequests: 100,
+      });
+      const releases = await Promise.all([
+        calls[0].acquireSubagentSlot!(),
+        calls[1].acquireSubagentSlot!(),
+        calls[1].acquireSubagentSlot!(),
+      ]);
+      const stop = new AbortController();
+      const waiting = calls[0].acquireSubagentSlot!(stop.signal);
+      const independent = await calls[2].acquireSubagentSlot!();
+      independent();
+      stop.abort();
+      await expect(waiting).rejects.toMatchObject({ name: "AbortError" });
+      releases.forEach((release) => release());
+    });
     it("constructs an in-process agent with vault-isolated native storage, existing model factory and independent command resources", async () => {
       const app = {} as App;
       NativeBackendDescriptor.createBackendProcess({
@@ -414,6 +528,107 @@ describe("nativeDescriptor", () => {
       await tools.shutdown?.();
       expect(mockStop).toHaveBeenCalledWith("command-id");
       expect(mockShutdown).toHaveBeenCalledTimes(1);
+    });
+    describe("mcp integration", () => {
+      function managerStub(overrides: {
+        signature?: string;
+        statuses?: readonly { name: string; status: string; toolCount: number }[];
+      }) {
+        return {
+          signature: () => overrides.signature ?? "sig-1",
+          listServerStatuses: () => overrides.statuses ?? [],
+          listEnabledServers: () => [],
+          getTools: () => [],
+        };
+      }
+
+      afterEach(() => {
+        mockGetMcpServerManager.mockReturnValue(null);
+        mockCreateMcpTools.mockReturnValue({
+          tools: [],
+          autoApprovedTools: new Set<string>(),
+        });
+      });
+
+      function createAndCaptureOptions() {
+        NativeBackendDescriptor.createBackendProcess({
+          app: {} as App,
+          plugin: {} as ScribePlugin,
+          clientVersion: "test",
+          descriptor: NativeBackendDescriptor,
+        });
+        return jest.mocked(NativeBackendProcess).mock.calls.at(-1)![0];
+      }
+
+      it("appends mcp tools and their auto-approval list to the session tool bundle", () => {
+        const mcpTool = { name: "mcp__files__search" };
+        mockGetMcpServerManager.mockReturnValue(managerStub({}));
+        mockCreateMcpTools.mockReturnValue({
+          tools: [mcpTool],
+          autoApprovedTools: new Set(["mcp__files__search"]),
+        });
+        const options = createAndCaptureOptions();
+        const bundle = options.createTools({
+          sessionId: "s",
+          cwd: "/vault",
+          emit: jest.fn(),
+          getMode: () => "default",
+          requestPermission: jest.fn(),
+          askUser: jest.fn(),
+          onPlanApproved: jest.fn(),
+          requester: "main",
+        });
+        expect(bundle.tools).toContain(mcpTool);
+        expect([...(bundle.autoApproveTools ?? [])]).toEqual(["mcp__files__search"]);
+      });
+
+      it("rebuilds the tool list when the mcp signature changes", () => {
+        mockGetMcpServerManager.mockReturnValue(managerStub({ signature: "before" }));
+        const options = createAndCaptureOptions();
+        const before = options.getCapabilityRevision?.("/vault");
+        mockGetMcpServerManager.mockReturnValue(managerStub({ signature: "after" }));
+        expect(options.getCapabilityRevision?.("/vault")).not.toBe(before);
+      });
+
+      it("keeps the capability revision stable when no mcp manager exists", () => {
+        const options = createAndCaptureOptions();
+        expect(options.getCapabilityRevision?.("/vault")).toBe(
+          options.getCapabilityRevision?.("/vault")
+        );
+      });
+
+      it("maps live mcp server statuses into the extension runtime snapshot", () => {
+        mockGetMcpServerManager.mockReturnValue(
+          managerStub({
+            statuses: [
+              { name: "files", status: "connected", toolCount: 3 },
+              { name: "stream", status: "connecting", toolCount: 0 },
+              { name: "broken", status: "error", toolCount: 0 },
+              { name: "off", status: "disabled", toolCount: 0 },
+            ],
+          })
+        );
+        const options = createAndCaptureOptions();
+        const snapshot = options.getExtensionRuntime?.("/vault") as AgentExtensionRuntimeSnapshot;
+        expect(snapshot.mcpServers).toEqual([
+          { name: "files", status: "connected", toolCount: 3 },
+          { name: "stream", status: "pending", toolCount: 0 },
+          { name: "broken", status: "failed", toolCount: 0 },
+          { name: "off", status: "disabled", toolCount: 0 },
+        ]);
+      });
+
+      it("answers mcp status queries from the manager and null without one", () => {
+        mockGetMcpServerManager.mockReturnValue(
+          managerStub({ statuses: [{ name: "files", status: "connected", toolCount: 2 }] })
+        );
+        const options = createAndCaptureOptions();
+        expect(options.getMcpServerStatus?.()).toEqual([
+          { name: "files", status: "connected", toolCount: 2 },
+        ]);
+        mockGetMcpServerManager.mockReturnValue(null);
+        expect(options.getMcpServerStatus?.()).toBeNull();
+      });
     });
     it("permits explicit manual-only skill references while rejecting disabled or hidden manual references", () => {
       NativeBackendDescriptor.createBackendProcess({

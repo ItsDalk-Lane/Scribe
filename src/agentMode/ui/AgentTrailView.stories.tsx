@@ -69,7 +69,7 @@ const UNIFIED_CARDS: AgentMessagePart[] = [
   say("A single expandable tool remains its own row."),
   tool("read-2", "Read", { locations: [{ path: "src/agentMode/ui/ActionCard.tsx" }] }),
   tool("test-1", "Bash", { input: { description: "Run focused activity-card tests" } }),
-  say("Consecutive work folds into a group with the same header geometry."),
+  say("Consecutive tools remain separate rows with their own folded details."),
   tool("delegate-1", "Task", {
     input: { subagent_type: "Explore", description: "Check nested trail cards" },
   }),
@@ -209,6 +209,15 @@ export const StepLimitSummary: StoryObj<AgentTrailProps> = {
     <TrailDemo
       parts={[say("已完成两篇笔记的整理，剩余笔记尚未处理。发送新消息可以继续。")]}
       stopReason="max_turn_requests"
+    />
+  ),
+};
+
+export const TaskRequestLimit: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[say("已完成的资料整理和子会话已保存，等待明确继续。")]}
+      stopReason="max_task_requests"
     />
   ),
 };
@@ -358,24 +367,32 @@ const ActivityLifecycleDemo: React.FC<{ singleTool?: boolean; reasoningOnly?: bo
   const running = stoppedAt === null;
   const read = tool("lifecycle-read", "Read", {
     locations: [{ path: "Example.md" }],
-    output: [{ type: "text", text: "已读取的内容会在运行时展开；完成后仍可点击查看。" }],
+    output: [{ type: "text", text: "工具详情默认收起，点击此工具即可查看。" }],
   });
   const parts = reasoningOnly
-    ? [{ kind: "thought" as const, text: "运行中的思考详情；完成后自动收起。", durationMs: 3_000 }]
+    ? [
+        {
+          kind: "thought" as const,
+          text: "思考详情默认收起；手动展开后，完成时仍保留展开。",
+          durationMs: 3_000,
+        },
+      ]
     : singleTool
       ? [read]
       : [
+          say("先查看第一篇笔记，再检查结果。"),
           read,
           tool("lifecycle-check", "Bash", {
             input: { command: "npm test" },
             status: running ? "in_progress" : "completed",
           }),
-          say("正文保持显示。"),
+          say("第一轮检查已完成，接着查看另一篇笔记。"),
           tool("lifecycle-read-second", "Read", { locations: [{ path: "Another.md" }] }),
           tool("lifecycle-check-second", "Bash", {
             input: { command: "npm run lint" },
             status: running ? "in_progress" : "completed",
           }),
+          say("这些正文始终留在原来的位置；完成时不会被移到最后。"),
         ];
   return (
     <TooltipProvider>
@@ -441,6 +458,19 @@ export const InterruptedWithPreservedOriginal: StoryObj<AgentTrailProps> = {
         }),
       ]}
       stopReason="interrupted"
+    />
+  ),
+};
+
+export const SubagentInspection: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        think("查看已保存的子会话及其结果。"),
+        tool("sessions", "list_subagent_sessions", { toolKind: "read" }),
+        tool("result", "read_subagent_result", { toolKind: "read" }),
+        say("子代理已完成工作。"),
+      ]}
     />
   ),
 };

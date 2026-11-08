@@ -525,7 +525,7 @@ function RuntimeExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsPr
           </p>
           <p>
             {t(
-              "Scribe uses its own registered tools and extensions. External agent plugins, hooks, and MCP services are not loaded."
+              "Scribe uses its own registered tools and extensions. External agent plugins and hooks are not loaded. MCP servers are configured on the MCP tab."
             )}
           </p>
           <p>{t("Loaded or connected does not guarantee that each execution succeeds.")}</p>

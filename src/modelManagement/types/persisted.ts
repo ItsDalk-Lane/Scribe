@@ -18,7 +18,6 @@ export interface Provider {
   providerType: ProviderType;
   displayName: string;
   baseUrl?: string;
-  enableCors?: boolean;
   apiKeyRef?: string | null;
   requiresApiKey?: boolean;
   extras?: Record<string, unknown>;

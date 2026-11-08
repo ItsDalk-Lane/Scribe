@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import type { CustomModel } from "@/aiParams";
 import { ModelCapability, ReasoningEffort } from "@/constants";
 import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
@@ -5,6 +6,11 @@ import { sse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidian from "obsidian";
 
 jest.mock("@/logger");
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidian as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -316,6 +322,13 @@ function providerReply(protocol: Protocol, withTools: boolean): string {
 }
 
 describe("createProviderChatModel", () => {
+  beforeEach(() => {
+    Platform.isMobile = false;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("createProviderChatModel()", () => {
     const originalFetch = window.fetch;
     afterEach(() => {
@@ -350,7 +363,6 @@ describe("createProviderChatModel", () => {
           ...model,
           capabilities: [ModelCapability.REASONING],
           reasoningEffort: ReasoningEffort.HIGH,
-          enableCors: false,
         });
         await client.agentStream({ messages: [] }).result();
         await client
@@ -464,7 +476,6 @@ describe("createProviderChatModel", () => {
           apiKey: "fixture",
           baseUrl: "https://fixture.invalid/v1",
           enabled: true,
-          enableCors: false,
         });
         const reply = await client.agentStream({ messages: [] }).result();
         expect(reply).toMatchObject({
@@ -500,7 +511,6 @@ describe("createProviderChatModel", () => {
           enabled: true,
           ...model,
           capabilities: [ModelCapability.REASONING],
-          enableCors: false,
         });
         const reply = await client
           .agentStream({ messages: [] }, { reasoning: "high", maxTokens: 4096 })
@@ -545,12 +555,11 @@ describe("createProviderChatModel", () => {
     );
 
     it.each(
-      providers.flatMap((provider) =>
-        [false, true].map((enableCors) => ({ ...provider, enableCors }))
-      )
+      providers.flatMap((provider) => [false, true].map((mobile) => ({ ...provider, mobile })))
     )(
-      "$label completes a tool-result continuation through CORS=$enableCors without changing the selected endpoint",
-      async ({ model, protocol, enableCors }) => {
+      "$label completes a tool-result continuation on mobile=$mobile without changing the selected endpoint (https://github.com/ItsDalk-Lane/Scribe/issues/51)",
+      async ({ model, protocol, mobile }) => {
+        Platform.isMobile = mobile;
         const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
         const respond = (url: string, body = ""): Response => {
           if (url.endsWith("/oauth/token"))
@@ -594,7 +603,6 @@ describe("createProviderChatModel", () => {
           baseUrl: "https://fixture.invalid/v1",
           enabled: true,
           ...model,
-          enableCors,
         });
         const tools = [
           {

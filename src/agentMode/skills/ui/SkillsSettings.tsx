@@ -10,10 +10,7 @@ import {
 import { buildSkillRepairPrompt } from "@/agentMode/skills/skillRepairPrompt";
 import { useSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
 import { useSkillUsageLedger } from "@/agentMode/skills/skillUsageStore";
-import {
-  SkillCatalogBudgetNotice,
-  SkillCatalogBudgetSettings,
-} from "@/agentMode/skills/ui/SkillCatalogBudget";
+import { SkillCatalogBudgetNotice } from "@/agentMode/skills/ui/SkillCatalogBudget";
 import { SKILL_CREATOR_SKILL_NAME } from "@/agentMode/skills/builtinSkills";
 import { pickSkillImport } from "@/agentMode/skills/pickSkillImport";
 import { readSkillPackage } from "@/agentMode/skills/skillImport";
@@ -41,8 +38,6 @@ import { useApp } from "@/context";
 import { usePlugin } from "@/contexts/PluginContext";
 import { t } from "@/lib/i18n";
 import { getEffectiveSkillsFolder } from "@/settings/scribeFolder";
-import { getSettings, updateSetting } from "@/settings/model";
-import { SettingItem } from "@/components/ui/setting-item";
 import { formatCompactRelativeTime } from "@/utils/formatRelativeTime";
 import { getVaultBase, toVaultRelative } from "@/utils/vaultPath";
 import { Plus, RotateCcw } from "lucide-react";
@@ -71,9 +66,6 @@ export function SkillsSettings({
   const rejected = useRejectedSkills();
   const catalogStatus = useSkillCatalogStatus();
   const usageLedger = useSkillUsageLedger();
-  const [sortStrategy, setSortStrategy] = React.useState<"name" | "recent">(
-    () => getSettings().agentMode.skills.sortStrategy ?? "name"
-  );
   const [localSearch, setLocalSearch] = React.useState("");
   const [selectedSkill, setSelectedSkill] = React.useState<Skill | RejectedSkill>();
   const selectedSkillRef = React.useRef<Skill | RejectedSkill>();
@@ -266,19 +258,11 @@ export function SkillsSettings({
     });
   };
   const search = (query ?? localSearch).trim().toLowerCase();
-  // 按最近使用排序复用台账时间，回退按名称。https://github.com/ItsDalk-Lane/Scribe/issues/48
-  const entries = [...skills, ...rejected]
-    .filter((skill) =>
-      `${skill.name} ${"description" in skill ? skill.description : skill.reason}`
-        .toLowerCase()
-        .includes(search)
-    )
-    .sort((left, right) =>
-      sortStrategy === "name"
-        ? 0
-        : (usageLedger[right.name]?.lastUsedAt ?? 0) - (usageLedger[left.name]?.lastUsedAt ?? 0) ||
-          left.name.localeCompare(right.name)
-    );
+  const entries = [...skills, ...rejected].filter((skill) =>
+    `${skill.name} ${"description" in skill ? skill.description : skill.reason}`
+      .toLowerCase()
+      .includes(search)
+  );
   const usageNoteFor = (skill: Skill | RejectedSkill): string | undefined => {
     const usage = usageLedger[skill.name];
     if (!usage) return undefined;
@@ -476,28 +460,6 @@ export function SkillsSettings({
           })}
         </p>
       )}
-      <SkillCatalogBudgetSettings
-        percent={getSettings().agentMode.skills.catalogBudgetPercent}
-        maxTokens={getSettings().agentMode.skills.catalogBudgetMaxTokens}
-      />
-      <SettingItem
-        type="select"
-        title={t("List sorting")}
-        value={sortStrategy}
-        options={[
-          { value: "name", label: t("By name") },
-          { value: "recent", label: t("By recent use") },
-        ]}
-        onChange={(value) => {
-          const next = value === "recent" ? "recent" : "name";
-          setSortStrategy(next);
-          const agentMode = getSettings().agentMode;
-          updateSetting("agentMode", {
-            ...agentMode,
-            skills: { ...agentMode.skills, sortStrategy: next },
-          });
-        }}
-      />
       {children}
     </div>
   );

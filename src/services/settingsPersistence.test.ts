@@ -36,6 +36,60 @@ describe("settingsPersistence", () => {
     settingsStore.set(settingsAtom, DEFAULT_SETTINGS);
   });
 
+  describe("MCP secret references", () => {
+    const serverWithHeaderSecret = {
+      id: "srv-1",
+      name: "web-reader",
+      type: "sse" as const,
+      url: "https://mcp.example.com/mcp",
+      isActive: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      secretRefs: [
+        {
+          scope: "headers" as const,
+          key: "Authorization",
+          secretId: "mcp:srv-1:headers:Authorization",
+        },
+      ],
+    };
+
+    it("keeps header-scope secret references through serialize, disk reload, and re-serialize", () => {
+      const saved = serializeSettings({
+        ...configuredSettings(),
+        mcp: { servers: [serverWithHeaderSecret] },
+      });
+      const refsAfterSave = saved.mcp.servers[0].secretRefs;
+      expect(refsAfterSave).toEqual([
+        {
+          scope: "headers",
+          key: "Authorization",
+          secretId: "mcp:srv-1:headers:Authorization",
+        },
+      ]);
+
+      const reloaded = JSON.parse(JSON.stringify(saved)) as unknown;
+      const resaved = serializeSettings({
+        ...DEFAULT_SETTINGS,
+        ...(reloaded as Partial<ScribeSettings>),
+      });
+      expect(resaved.mcp.servers[0].secretRefs).toEqual(refsAfterSave);
+    });
+
+    it("does not rewrite disk data that already carries header secret references", async () => {
+      const disk = serializeSettings({
+        ...configuredSettings(),
+        mcp: { servers: [serverWithHeaderSecret] },
+      });
+      const saved: unknown[] = [];
+      const loaded = await loadStoredSettings(JSON.parse(JSON.stringify(disk)), async (data) => {
+        saved.push(data);
+      });
+      expect(loaded.mcp.servers[0].secretRefs).toEqual(serverWithHeaderSecret.secretRefs);
+      expect(saved).toHaveLength(0);
+    });
+  });
+
   describe("serializeSettings()", () => {
     it("does not persist raw authorization headers or private keys inside service options", () => {
       const settings = configuredSettings();
@@ -93,6 +147,39 @@ describe("settingsPersistence", () => {
   });
 
   describe("loadStoredSettings()", () => {
+    it.each([false, true])(
+      "removes retired CORS=%s on reopening and keeps the saved endpoint, model and encrypted key reference https://github.com/ItsDalk-Lane/Scribe/issues/51",
+      async (enableCors) => {
+        const settings = configuredSettings();
+        const raw = {
+          ...serializeSettings(settings),
+          providers: { service: { ...settings.providers.service, enableCors } },
+          configuredModels: [
+            {
+              configuredModelId: "saved-model",
+              providerId: "service",
+              info: { id: "glm-5.3", displayName: "GLM-5.3" },
+              configuredAt: 2,
+            },
+          ],
+        };
+        const save = jest.fn(async () => {});
+
+        const loaded = await loadStoredSettings(raw, save);
+
+        expect(loaded.providers.service).toEqual(settings.providers.service);
+        expect(loaded.configuredModels).toEqual(raw.configuredModels);
+        expect(save).toHaveBeenCalledTimes(1);
+        const saved = serializeSettings(loaded);
+        expect(saved.providers.service).not.toHaveProperty("enableCors");
+        const reopenSave = jest.fn(async () => {});
+        expect((await loadStoredSettings(saved, reopenSave)).providers.service).toEqual(
+          settings.providers.service
+        );
+        expect(reopenSave).not.toHaveBeenCalled();
+      }
+    );
+
     it("preserves an explicitly keyless custom service through saving and reopening", async () => {
       const settings = configuredSettings();
       const keyless = {

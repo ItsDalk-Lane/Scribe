@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { testProviderConnection } from "@/LLMProviders/testProviderConnection";
 import { fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import type { Provider } from "@/modelManagement";
@@ -14,12 +15,18 @@ const provider: Provider = {
   displayName: "Fixture",
   baseUrl: "https://fixture.invalid/v1",
   requiresApiKey: true,
-  enableCors: true,
   origin: { kind: "byok" },
   addedAt: 0,
 };
 
 describe("testProviderConnection integration", () => {
+  beforeEach(() => {
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("testProviderConnection", () => {
     it.each([
       [401, "invalid_api_key"],

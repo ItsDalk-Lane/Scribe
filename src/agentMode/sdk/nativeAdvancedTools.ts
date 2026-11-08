@@ -116,7 +116,8 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
       throw new Error(
         `Skill "${name}" is disabled for this agent. Ask the user to enable it in Settings → Skills, or use another skill.`
       );
-    if (entry.status === "manual-only")
+    // 明确转交仅对本次子运行开放技能读取，不能改变技能的长期调用资格。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (entry.status === "manual-only" && !options.transferredSkills?.includes(name))
       throw new Error(
         `Skill "${name}" does not allow model invocation. Ask the user to run it manually, or use another skill.`
       );
@@ -149,7 +150,12 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
   const availableCatalogEntries = () =>
     options
       .skills()
-      .filter((skill) => skill.status === "available")
+      // 转交的手动技能也必须能读取支持文件，即使没有自动技能目录。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      .filter(
+        (skill) =>
+          skill.status === "available" ||
+          (skill.status === "manual-only" && options.transferredSkills?.includes(skill.name))
+      )
       .map((skill) => ({
         name: skill.name,
         description: skill.description,
@@ -162,7 +168,7 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
           budget: resolveSkillCatalogBudget(options.catalogBudget ?? {}),
         })
       : options.skillCatalogLifecycle?.everPublished()
-        ? buildEmptySkillCatalog()
+        ? buildEmptySkillCatalog(resolveSkillCatalogBudget(options.catalogBudget ?? {}))
         : null;
   if (catalog) {
     if (catalog.status.includedNames.length > 0) options.skillCatalogLifecycle?.markPublished();

@@ -3,6 +3,7 @@ import type { SessionEvent } from "@/agentMode/session/types";
 import type {
   NativeSessionRecord,
   NativeSessionStorage,
+  NativeSubagentTask,
 } from "@/agentMode/sdk/NativeBackendProcess";
 import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import {
@@ -14,9 +15,15 @@ import {
 import { requireNodeModule } from "@/utils/desktopRuntime";
 import { isRecord } from "@/utils/obsidianInternals";
 import { logWarn } from "@/logger";
+import {
+  isSubagentMessage,
+  isSubagentSnapshot,
+  projectSubagentState,
+} from "@/agentMode/sdk/subagentState";
 
 const IMAGE_CACHE = new Map<string, string>();
 const ADAPTER_QUEUES = new WeakMap<NodeJournalStorage, Map<string, Promise<unknown>>>();
+const SUBAGENT_WRITE_ERRORS = new WeakMap<NodeJournalStorage, Map<string, Error>>();
 const MAX_IMAGE_CACHE_BYTES = 16 * 1024 * 1024;
 let imageCacheBytes = 0;
 
@@ -24,6 +31,38 @@ function serializable(_key: string, value: unknown): unknown {
   return value instanceof Error
     ? { name: value.name, message: value.message, stack: value.stack }
     : value;
+}
+
+function validSubagentTask(value: unknown): value is NativeSubagentTask {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
+    typeof value.active === "boolean" &&
+    (value.autoContinue === undefined || typeof value.autoContinue === "boolean") &&
+    (value.budgetGrants === undefined ||
+      (Array.isArray(value.budgetGrants) &&
+        value.budgetGrants.every((id: unknown) => typeof id === "string"))) &&
+    Number.isSafeInteger(value.limit) &&
+    (value.limit as number) > 0 &&
+    Array.isArray(value.requestIds) &&
+    value.requestIds.every((id: unknown) => typeof id === "string") &&
+    new Set(value.requestIds).size === value.requestIds.length &&
+    Array.isArray(value.usage) &&
+    value.usage.every(
+      (entry: unknown) =>
+        isRecord(entry) &&
+        typeof entry.requestId === "string" &&
+        (value.requestIds as unknown[]).includes(entry.requestId) &&
+        isRecord(entry.usage) &&
+        ["input", "output", "cacheRead", "cacheWrite", "totalTokens"].every(
+          (key) =>
+            typeof (entry.usage as Record<string, unknown>)[key] === "number" &&
+            Number.isFinite((entry.usage as Record<string, unknown>)[key]) &&
+            ((entry.usage as Record<string, unknown>)[key] as number) >= 0
+        )
+    )
+  );
 }
 
 function configuration(record: NativeSessionRecord): Record<string, unknown> {
@@ -191,6 +230,10 @@ function validEvent(value: unknown, sessionId: string): value is SessionEvent {
   if (value.taskToolCallId !== undefined && typeof value.taskToolCallId !== "string") return false;
   const update = value.update;
   switch (update.sessionUpdate) {
+    case "subagents_updated":
+      return Array.isArray(update.subagents) && update.subagents.every(isSubagentSnapshot);
+    case "subagent_message":
+      return typeof update.name === "string" && isSubagentMessage(update.message);
     case "agent_segment_started":
       return true;
     case "agent_segment_finalized":
@@ -375,6 +418,7 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
   readonly journal: NodeJournalStorage;
   private readonly queues: Map<string, Promise<unknown>>;
   private readonly configurations = new Map<string, string>();
+  private readonly subagentWriteErrors: Map<string, Error>;
 
   constructor(
     directoryOrJournal: string | NodeJournalStorage,
@@ -386,6 +430,8 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
         : directoryOrJournal;
     this.queues = ADAPTER_QUEUES.get(this.journal) ?? new Map();
     ADAPTER_QUEUES.set(this.journal, this.queues);
+    this.subagentWriteErrors = SUBAGENT_WRITE_ERRORS.get(this.journal) ?? new Map();
+    SUBAGENT_WRITE_ERRORS.set(this.journal, this.subagentWriteErrors);
   }
 
   async append(
@@ -396,6 +442,8 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
   ): Promise<JournalRecord> {
     const captured: unknown = JSON.parse(JSON.stringify(payload, serializable));
     return this.enqueue(sessionId, async () => {
+      const blocked = this.subagentWriteErrors.get(sessionId);
+      if (blocked) throw blocked;
       const written = await this.appendEncoded(sessionId, kind, captured, options);
       return { ...written, payload: captured };
     });
@@ -410,6 +458,8 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
     if (!validHeader(header, record.sessionId)) throw new Error("Invalid native session metadata.");
     const encoded = JSON.stringify(header);
     return this.enqueue(record.sessionId, async () => {
+      const blocked = this.subagentWriteErrors.get(record.sessionId);
+      if (blocked) throw blocked;
       let previous = this.configurations.get(record.sessionId);
       if (previous === undefined) {
         const existing = await this.journal.read(record.sessionId);
@@ -454,6 +504,8 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
       const loaded = await this.journal.read(sessionId);
       const warnings = [...loaded.warnings];
       const facts: JournalRecord[] = [];
+      const taskGenerations = new Map<string, NativeSubagentTask>();
+      let tasksWritable = true;
       let record: NativeSessionRecord | null = null;
       for (const fact of loaded.records) {
         let payload = await this.hydrate(fact.payload, warnings);
@@ -474,6 +526,23 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
         }
         if (!record) continue;
         record.updatedAt = Math.max(record.updatedAt, fact.occurredAt);
+        if (fact.kind === "subagent_task") {
+          if (!isRecord(payload) || payload.version !== 1 || !validSubagentTask(payload.task)) {
+            warnings.push(
+              `Subagent task ${fact.seq} has an unsupported format; its original bytes were preserved.`
+            );
+            tasksWritable = false;
+          } else {
+            const task = payload.task;
+            taskGenerations.set(task.id, {
+              ...task,
+              active: false,
+              requestIds: [...task.requestIds],
+              usage: [...new Map(task.usage.map((entry) => [entry.requestId, entry])).values()],
+            });
+          }
+          continue;
+        }
         if (fact.kind === "session_config") {
           if (isRecord(payload) && validHeader({ ...record, ...payload }, sessionId))
             Object.assign(record, payload, { messages: record.messages, events: record.events });
@@ -494,8 +563,41 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
         }
       }
       if (!record) return null;
+      const projection = projectSubagentState(facts, validMessage);
+      warnings.push(...projection.warnings);
+      if (!projection.writable || !tasksWritable)
+        this.subagentWriteErrors.set(
+          sessionId,
+          new Error(
+            "The subagent record format is unsupported or damaged; further writes are disabled."
+          )
+        );
+      else this.subagentWriteErrors.delete(sessionId);
+      const messageSequences = new Map<AgentMessage, number>();
+      for (const fact of facts) {
+        if (
+          (fact.kind === "protocol_message" || fact.kind === "tool_result") &&
+          isRecord(fact.payload) &&
+          validMessage(fact.payload.message)
+        )
+          messageSequences.set(fact.payload.message, fact.seq);
+      }
+      for (const delivered of projection.parentMessages) {
+        record.messages.push(delivered.message);
+        messageSequences.set(delivered.message, delivered.seq);
+      }
+      record.messages.sort(
+        (left, right) => (messageSequences.get(left) ?? 0) - (messageSequences.get(right) ?? 0)
+      );
       this.configurations.set(sessionId, JSON.stringify(configuration(record)));
-      return { ...record, journalRecords: facts, writable: loaded.writable, warnings };
+      return {
+        ...record,
+        subagents: projection.subagents,
+        taskGenerations: [...taskGenerations.values()],
+        journalRecords: facts,
+        writable: loaded.writable && projection.writable && tasksWritable,
+        warnings,
+      };
     });
   }
 
@@ -520,6 +622,78 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
     return this.enqueue(sessionId, async () => {
       await this.journal.remove(sessionId);
       this.configurations.delete(sessionId);
+      this.subagentWriteErrors.delete(sessionId);
+    });
+  }
+
+  async removeSubagent(sessionId: string, subagentId: string): Promise<void> {
+    return this.enqueue(sessionId, async () => {
+      const blocked = this.subagentWriteErrors.get(sessionId);
+      if (blocked) throw blocked;
+      const loaded = await this.journal.read(sessionId);
+      const projection = projectSubagentState(loaded.records, validMessage);
+      if (!loaded.writable || !projection.writable)
+        throw new Error(
+          "The subagent record cannot be safely deleted while its format is uncertain."
+        );
+      const child = projection.subagents.find((entry) => entry.snapshot.id === subagentId);
+      if (!child) return;
+      const runIds = new Set(child.snapshot.runs.map((run) => run.id));
+      const calls = new Set(child.snapshot.runs.map((run) => run.toolCallId));
+      const deliveredSequences = new Set(projection.parentMessages.map((entry) => entry.seq));
+      const ownedKinds = new Set([
+        "subagent_state",
+        "subagent_delivery",
+        "protocol_message",
+        "tool_result",
+        "tool_admitted",
+        "task_admitted",
+        "permission",
+        "question",
+        "event",
+        "compaction",
+      ]);
+      await this.journal.redact(
+        sessionId,
+        (record) => {
+          if (!ownedKinds.has(record.kind) || !isRecord(record.payload)) return false;
+          const payload = record.payload;
+          if (record.kind === "subagent_state")
+            return (
+              isRecord(payload.state) &&
+              isRecord(payload.state.snapshot) &&
+              payload.state.snapshot.id === subagentId
+            );
+          if (
+            payload.subagentId === subagentId ||
+            (typeof payload.taskId === "string" && runIds.has(payload.taskId)) ||
+            (typeof payload.runId === "string" && runIds.has(payload.runId))
+          )
+            return true;
+          if (
+            isRecord(payload.requester) &&
+            ((typeof payload.requester.taskId === "string" &&
+              runIds.has(payload.requester.taskId)) ||
+              payload.requester.subagentId === subagentId)
+          )
+            return true;
+          if (record.kind === "event")
+            return (
+              (typeof payload.taskToolCallId === "string" && calls.has(payload.taskToolCallId)) ||
+              (isRecord(payload.update) &&
+                typeof payload.update.taskId === "string" &&
+                runIds.has(payload.update.taskId))
+            );
+          return false;
+        },
+        (record) =>
+          record.kind === "subagent_delivery" &&
+          deliveredSequences.has(record.seq) &&
+          isRecord(record.payload) &&
+          validMessage(record.payload.message)
+            ? { kind: "protocol_message", payload: { message: record.payload.message } }
+            : { kind: "redacted", payload: {} }
+      );
     });
   }
 

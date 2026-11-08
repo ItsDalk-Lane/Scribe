@@ -29,7 +29,6 @@ function settings(): ScribeSettings {
         providerType: "openai-compatible",
         displayName: "Local",
         baseUrl: "http://localhost:1234/v1",
-        enableCors: false,
         requiresApiKey: false,
         origin: { kind: "byok" },
         addedAt: 1,
@@ -39,7 +38,6 @@ function settings(): ScribeSettings {
         providerType: "openai-compatible",
         displayName: "Cloud",
         baseUrl: "https://example.test/custom/v1",
-        enableCors: true,
         requiresApiKey: true,
         apiKeyRef: "saved-key",
         origin: { kind: "byok", catalogProviderId: "openai" },
@@ -137,6 +135,21 @@ describe("nativeModels", () => {
         "untagged",
       ]);
     });
+    it("offers the actual GLM reasoning levels when the configured model has no effort list", () => {
+      const value = settings();
+      value.configuredModels[0].info = {
+        id: "glm-5.3-flash",
+        displayName: "GLM-5.3-Flash",
+        reasoning: true,
+      };
+      value.providers.local.baseUrl = "https://open.bigmodel.cn/api/paas/v4";
+      expect(getNativeModelEntries(value)[0].effortOptions.map((option) => option.value)).toEqual([
+        "default",
+        "low",
+        "high",
+        "max",
+      ]);
+    });
   });
   describe("getNativeEnabledModelEntries()", () => {
     it("preserves configured order and marks required credentials missing without hiding the model", () => {
@@ -167,7 +180,6 @@ describe("nativeModels", () => {
           name: "reasoning-model",
           configuredModelId: "reasoning",
           baseUrl: "https://example.test/custom/v1",
-          enableCors: true,
           credentialRef: "saved-key",
         })
       );
@@ -182,7 +194,6 @@ describe("nativeModels", () => {
           name: "manually-entered",
           baseUrl: "http://localhost:1234/v1",
           requiresApiKey: false,
-          enableCors: false,
         })
       );
     });

@@ -18,7 +18,6 @@ interface SubAgentCardProps {
   parent: ToolCallPart;
   childNodes: GroupedTrailNode[];
   truncated?: boolean;
-  isTurnStreaming?: boolean;
   app: App;
   renderNode: (node: GroupedTrailNode, key: string | number) => React.ReactNode;
 }
@@ -29,9 +28,8 @@ export const SubAgentCard: React.FC<SubAgentCardProps> = ({
   truncated,
   app,
   renderNode,
-  isTurnStreaming = false,
 }) => {
-  const expansion = useTrailExpansion(isTurnStreaming);
+  const expansion = useTrailExpansion();
   const open = expansion.isOpen("subagent");
   const promptOpen = expansion.isOpen("prompt", false);
   const summary = lookupToolSummary(parent);

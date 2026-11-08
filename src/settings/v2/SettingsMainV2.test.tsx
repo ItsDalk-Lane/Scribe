@@ -15,6 +15,7 @@ jest.mock("@/settings/v2/components/DesktopOnlySettingsPanel", () => ({
 const mockSkillManagerRefresh = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/agentMode", () => ({
   SkillsSettings: () => null,
+  McpSettingsPanel: () => null,
 }));
 jest.mock("@/modelManagement", () => ({
   ModelsAndProvidersPanel: () => null,
@@ -48,6 +49,7 @@ describe("SettingsMainV2", () => {
         "技能",
         "命令",
         "子代理",
+        "MCP",
         "关于",
       ]);
       expect(screen.getByRole("tab", { name: "模型" }).getAttribute("aria-selected")).toBe("true");
@@ -80,6 +82,7 @@ describe("SettingsMainV2", () => {
         "Skills",
         "Commands",
         "Subagents",
+        "MCP",
         "About",
       ]);
     });

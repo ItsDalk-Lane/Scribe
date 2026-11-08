@@ -8,6 +8,8 @@ import type {
   QueuedPrompt,
 } from "@/agentMode/session/types";
 import type { AgentTask } from "@/agentMode/session/AgentSession";
+import type { SubagentSessionSnapshot } from "@/agentMode/session/subagentTypes";
+import { EMPTY_SUBAGENT_SESSIONS } from "@/agentMode/session/subagentSessions";
 import { useEffect, useRef, useState } from "react";
 
 export interface AgentChatRuntimeState {
@@ -22,6 +24,7 @@ export interface AgentChatRuntimeState {
   pendingAskUserQuestions: AskUserQuestionPrompt[];
   queuedPrompts: readonly QueuedPrompt[];
   tasks: readonly AgentTask[];
+  subagents: readonly SubagentSessionSnapshot[];
 }
 
 interface BackendRuntimeSnapshot {
@@ -44,6 +47,7 @@ function readBackendRuntimeSnapshot(backend: AgentChatBackend): BackendRuntimeSn
       pendingAskUserQuestions: backend.getPendingAskUserQuestions(),
       queuedPrompts: backend.getQueuedPrompts(),
       tasks: backend.getTasks(),
+      subagents: backend.getSubagentSessions?.() ?? EMPTY_SUBAGENT_SESSIONS,
     },
   };
 }

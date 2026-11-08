@@ -13,6 +13,10 @@ import { AgentTabStrip } from "@/agentMode/ui/AgentTabStrip";
 import { AgentTasksProvider } from "@/agentMode/ui/AgentTasksContext";
 import { QueuedMessageList } from "@/agentMode/ui/QueuedMessageList";
 import { RunningTasksIndicator } from "@/agentMode/ui/RunningTasksIndicator";
+import {
+  SubagentSessionsButton,
+  TaskBudgetContinuation,
+} from "@/agentMode/ui/SubagentSessionsPanel";
 import { openTaskModal } from "@/agentMode/ui/TaskDetailModal";
 import { AgentWelcomeCard } from "@/agentMode/ui/AgentWelcomeCard";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
@@ -99,10 +103,12 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     pendingAskUserQuestions,
     queuedPrompts,
     tasks,
+    subagents,
     isReplyRunning,
   } = useAgentChatRuntimeState(backend);
   const isLoading = draft.loading || isTurnInFlight;
   const replyRunning = draft.loading || isReplyRunning;
+  const stoppedTask = messages.findLast((message) => message.turnStopReason);
 
   const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
   const handleForkMessage = useCallback(
@@ -133,7 +139,8 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     const oldId = active.internalId;
     void (async () => {
       try {
-        await manager.replaceSessionInPlace(oldId, active.backendId);
+        await manager.createSession(active.backendId, active.projectId);
+        manager.detachSessionFromTab(oldId);
       } catch (e) {
         logError("[AgentMode] new chat failed", e);
         new Notice(t("Failed to start a new chat. Please try again."));
@@ -709,6 +716,16 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                         onForkMessage={handleForkMessage}
                         isLoading={isLoading}
                       />
+                      {stoppedTask?.turnStopReason === "max_task_requests" &&
+                      stoppedTask.taskGenerationId &&
+                      backend.continueTaskBudget ? (
+                        <TaskBudgetContinuation
+                          key={stoppedTask.id}
+                          onContinue={(requestId) =>
+                            backend.continueTaskBudget!(stoppedTask.taskGenerationId, requestId)
+                          }
+                        />
+                      ) : null}
                       {queuedMessagesNode}
                       <AgentChatControls
                         onCopyChatLink={
@@ -731,13 +748,33 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                         runningChatIds={runningChatIds}
                         usageMeter={<AgentContextMeter backend={backend} />}
                         tasksIndicator={
-                          <RunningTasksIndicator
-                            tasks={tasks}
-                            permissions={pendingToolPermissions}
-                            onOpenTask={handleOpenTask}
-                            onStopTask={backend.canStopTasks() ? handleStopTask : undefined}
-                            container={rootEl}
-                          />
+                          <>
+                            <RunningTasksIndicator
+                              tasks={tasks}
+                              permissions={pendingToolPermissions}
+                              onOpenTask={handleOpenTask}
+                              onStopTask={backend.canStopTasks() ? handleStopTask : undefined}
+                              container={rootEl}
+                            />
+                            {/* 切换聊天时隔离尚未返回的操作回执，避免归到另一聊天。https://github.com/ItsDalk-Lane/Scribe/issues/50 */}
+                            {subagents.length > 0 &&
+                            backend.getSubagentSessions &&
+                            backend.sendSubagentMessage &&
+                            backend.stopSubagent &&
+                            backend.setSubagentArchived &&
+                            backend.deleteSubagentSession &&
+                            backend.refreshSubagentSessions ? (
+                              <SubagentSessionsButton
+                                key={chatInputId}
+                                sessions={subagents}
+                                container={rootEl}
+                                onOpen={(subagentId) => {
+                                  void plugin.openSubagentChat(sessionId, subagentId);
+                                }}
+                                onRefresh={() => backend.refreshSubagentSessions!()}
+                              />
+                            ) : null}
+                          </>
                         }
                       />
                       {composerNode}

@@ -1,5 +1,24 @@
 import { stripUserMessageWrapper } from "@/agentMode/session/promptEnvelope";
 import {
+  NativeSubagentController,
+  EMPTY_SUBAGENT_USAGE,
+  SUBAGENT_STOPPED_MESSAGE,
+  subagentModelMessage,
+  type SubagentExecutionResult,
+} from "@/agentMode/sdk/NativeSubagentController";
+import type { NativeSubagentState } from "@/agentMode/sdk/subagentState";
+import type {
+  SubagentMessage,
+  SubagentMessageKind,
+  SubagentRunSnapshot,
+  SubagentSendInput,
+  SubagentDispatchResult,
+  SubagentSessionSnapshot,
+  SubagentUsage,
+  SubagentWaitResult,
+} from "@/agentMode/session/subagentTypes";
+import type { SubagentLimits } from "@/agentMode/sdk/subagentLimits";
+import {
   Agent,
   type AgentEvent,
   type AgentMessage,
@@ -34,6 +53,7 @@ import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { isCompactCommand } from "@/commands/compactCommand";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
 import { SCRIBE_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
+import { resolveToolName } from "@/agentMode/session/toolName";
 import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
 import { t } from "@/lib/i18n";
 import { v4 as uuidv4 } from "uuid";
@@ -60,6 +80,7 @@ import type {
   AgentDisplayFact,
   SequencedAgentDisplayFact,
   SessionUpdate,
+  SessionUsage,
   SessionUpdateHandler,
   StopReason,
   ToolCallContent,
@@ -78,6 +99,8 @@ const SKILL_AUTHORING_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export interface NativeSessionRecord {
+  subagents?: NativeSubagentState[];
+  taskGenerations?: NativeSubagentTask[];
   purpose?: AgentSessionPurpose;
   journalRecords?: JournalRecord[];
   writable?: boolean;
@@ -107,6 +130,7 @@ export interface NativeSessionRecord {
 }
 
 export interface NativeSessionStorage {
+  removeSubagent?(sessionId: string, subagentId: string): Promise<void>;
   load(sessionId: string): Promise<NativeSessionRecord | null>;
   save(record: NativeSessionRecord): Promise<void>;
   list(): Promise<NativeSessionRecord[]>;
@@ -121,6 +145,28 @@ export interface NativeSessionStorage {
 }
 
 export interface NativeToolContext {
+  projectId?: string;
+  transferredSkills?: readonly string[];
+  readSubagentResult?(id: string, runId?: string): AgentToolResult;
+  assertCanExecute?(tool: string): void;
+  subagentId?: string;
+  runId?: string;
+  sendSubagentMessage?(
+    input: Omit<SubagentSendInput, "sessionId">
+  ): Promise<SubagentDispatchResult>;
+  listSubagentSessions?(): readonly SubagentSessionSnapshot[];
+  waitSubagents?(input: {
+    subagentIds?: string[];
+    after?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  }): Promise<SubagentWaitResult>;
+  stopSubagent?(id: string): Promise<void>;
+  sendParentMessage?(input: {
+    text: string;
+    kind: SubagentMessageKind;
+    messageId?: string;
+  }): Promise<SubagentMessage>;
   purpose?: AgentSessionPurpose;
   sessionId: string;
   cwd: string;
@@ -144,18 +190,32 @@ export interface NativeToolContext {
   subagents?: readonly { id: string; name: string; description: string }[];
   executeSubagent?: (
     toolCallId: string,
-    input: { prompt: string; description: string; agent?: string },
+    input: {
+      prompt: string;
+      description: string;
+      name?: string;
+      agent?: string;
+      background?: boolean;
+      skills?: string[];
+      allowedTools?: string[];
+    },
     signal?: AbortSignal
   ) => Promise<AgentToolResult>;
 }
 
 export interface NativeRuntimeTools {
   tools: AgentTool[];
+  autoApproveTools?: ReadonlySet<string>;
   stopTask?(taskId: string): Promise<void>;
   shutdown?(): Promise<void>;
 }
 
 export interface NativeBackendProcessOptions {
+  getCapabilityRevision?(cwd: string): string;
+  reserveSubagentSlot?(signal?: AbortSignal): { ready: Promise<() => void> };
+  assertScope?(input: { cwd: string; projectId?: string }): void;
+  acquireSubagentSlot?(signal?: AbortSignal): Promise<() => void>;
+  getSubagentLimits?(): SubagentLimits;
   getManuallyInvokedSkill?(
     name: string,
     cwd: string
@@ -187,10 +247,34 @@ export interface NativeBackendProcessOptions {
   getExtensionRuntime?(
     cwd: string
   ): AgentExtensionRuntimeSnapshot | null | Promise<AgentExtensionRuntimeSnapshot | null>;
+  getMcpServerStatus?(): AgentExtensionRuntimeSnapshot["mcpServers"];
   getVaultConfigDir?(): string;
 }
 
 interface NativeSessionContext {
+  managedCommands: Map<string, string>;
+  releasingTools: Map<NativeRuntimeTools, Promise<void>>;
+  pendingChildAdmissions: number;
+  cancelEpoch: number;
+  exhaustedTaskIds: Set<string>;
+  contextUsage?: SessionUsage;
+  cumulativeUsage?: {
+    cumulativeInputTokens: number;
+    cumulativeOutputTokens: number;
+    cumulativeCacheReadTokens: number;
+    cumulativeCacheWriteTokens: number;
+    cumulativeTotalTokens: number;
+  };
+  startingTask?: Promise<void>;
+  executingTaskId?: string;
+  subagentController?: NativeSubagentController;
+  taskGenerationId: string;
+  budgetQueue: Promise<unknown>;
+  taskBudgetExhausted: boolean;
+  manuallyInvokedSkills: Set<string>;
+  collaboration: WeakMap<AgentMessage, SubagentMessage>;
+  suppressedCollaboration: WeakSet<AgentMessage>;
+  queuedCollaboration: Set<string>;
   record: NativeSessionRecord;
   recordedMessages: WeakSet<AgentMessage>;
   messageSeqs: WeakMap<AgentMessage, number>;
@@ -201,13 +285,10 @@ interface NativeSessionContext {
   compactions: CompactionProjection[];
   provider: ProviderChatModel;
   tools: Set<NativeRuntimeTools>;
-  children: Map<
-    string,
-    { agent: Agent; toolCallId: string; promise: Promise<AgentToolResult>; stop(): void }
-  >;
   pending: Map<string, UserMessage>;
   accepting: Map<string, Promise<void>>;
   messageIds: WeakMap<UserMessage, string>;
+  manualSkillUsageRecorded: Set<string>;
   accepted: Set<string>;
   acceptedSeqs: Map<string, number>;
   inFlight: Set<string>;
@@ -221,8 +302,32 @@ interface NativeSessionContext {
   runId: string;
   compaction?: AbortController;
   refreshTools: boolean;
+  toolsRevision: number;
   catalogEverPublished: boolean;
   runController?: AbortController;
+}
+
+export interface NativeSubagentTask {
+  budgetGrants?: string[];
+  id: string;
+  active: boolean;
+  autoContinue?: boolean;
+  limit: number;
+  requestIds: string[];
+  usage: Array<{ requestId: string; usage: SubagentUsage }>;
+}
+
+interface ChildExecution {
+  provider?: ProviderChatModel;
+  taskId: string;
+  toolCallId: string;
+  subagentId: string;
+  taskGenerationId: string;
+  allowedTools?: string[];
+  manualSkills?: string[];
+  localPlan: boolean;
+  tools?: NativeRuntimeTools;
+  resources?: Set<NativeRuntimeTools>;
 }
 
 interface NativeSession extends NativeSessionContext {
@@ -245,17 +350,31 @@ const TOOL_KINDS: Readonly<Record<string, AgentToolKind>> = Object.freeze({
   excalidraw_write: "edit",
   excalidraw_read: "read",
   excalidraw_render: "read",
+  ask_user: "think",
+  invoke_skill: "read",
+  propose_skill: "think",
+  send_subagent_message: "think",
+  list_subagent_sessions: "read",
+  read_subagent_result: "read",
+  wait_subagents: "think",
+  stop_subagent: "think",
+  send_parent_message: "think",
+  wait_for_message: "think",
 });
 
 const DENIED: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "cancelled" }),
 });
 const NO_ANSWERS: AgentQuestionAnswers = Object.freeze({});
+const EMPTY_SUBAGENT_SESSIONS: readonly SubagentSessionSnapshot[] = Object.freeze([]);
+const EMPTY_COLLABORATION_MESSAGES: readonly SubagentMessage[] = Object.freeze([]);
 const ALLOWED_BY_MODE: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "selected", optionId: "allow_once" }),
 });
 
 interface NativeAgentRunState {
+  taskGenerationId?: string;
+  requestUsage?: Map<string, SubagentUsage>;
   steps: number;
   closing: boolean;
   stopReason?: StopReason;
@@ -401,11 +520,27 @@ export class NativeBackendProcess implements BackendProcess {
     if (!this.running) throw new Error("The native agent has shut down.");
     const context: NativeSessionContext = {
       record,
+      taskGenerationId: "",
+      pendingChildAdmissions: 0,
+      cancelEpoch: 0,
+      budgetQueue: Promise.resolve(),
+      taskBudgetExhausted: false,
+      exhaustedTaskIds: new Set(
+        (record.taskGenerations ?? [])
+          .filter((task) => task.requestIds.length >= task.limit)
+          .map((task) => task.id)
+      ),
+      manuallyInvokedSkills: new Set(),
+      collaboration: new WeakMap(),
+      suppressedCollaboration: new WeakSet(),
+      queuedCollaboration: new Set(),
       recordedMessages: new WeakSet(record.messages),
       messageSeqs: new WeakMap(
         (record.journalRecords ?? []).flatMap((fact) => {
           const message = isRecord(fact.payload) ? fact.payload.message : undefined;
-          return (fact.kind === "protocol_message" || fact.kind === "tool_result") &&
+          return (fact.kind === "protocol_message" ||
+            fact.kind === "tool_result" ||
+            fact.kind === "subagent_delivery") &&
             isRecord(message)
             ? [[message as unknown as AgentMessage, fact.seq] as const]
             : [];
@@ -425,10 +560,12 @@ export class NativeBackendProcess implements BackendProcess {
       }),
       provider,
       tools: new Set(),
-      children: new Map(),
+      managedCommands: new Map(),
+      releasingTools: new Map(),
       pending: new Map(),
       accepting: new Map(),
       messageIds: new WeakMap(),
+      manualSkillUsageRecorded: new Set(),
       accepted: new Set([
         ...record.events.flatMap((event) =>
           event.update.sessionUpdate === "message_delivered" ? [event.update.promptId] : []
@@ -457,14 +594,21 @@ export class NativeBackendProcess implements BackendProcess {
       stepLimit: false,
       runId: "",
       refreshTools: false,
+      toolsRevision: 0,
       // 恢复的会话曾运行过轮次即视为发布过目录；空目录语义依赖此状态。https://github.com/ItsDalk-Lane/Scribe/issues/42
       catalogEverPublished: record.messages.length > 0,
     };
     const session: NativeSession = Object.assign(context, {
       agent: this.createAgent(context, systemPrompt),
     });
+    for (const state of record.subagents ?? [])
+      state.context.forEach((message, index) => {
+        const seq = state.contextSeqs?.[index];
+        if (seq !== undefined && seq >= 0) session.messageSeqs.set(message, seq);
+      });
     if (record.messages.length) session.agent.state.messages = [...record.messages];
     this.sessions.set(record.sessionId, session);
+    session.subagentController = this.createSubagentController(session);
     if (record.journalRecords?.length) await this.recoverSession(session);
     return session;
   }
@@ -472,12 +616,69 @@ export class NativeBackendProcess implements BackendProcess {
   private createAgent(
     session: NativeSessionContext,
     systemPrompt: string,
-    child?: { taskId: string; toolCallId: string }
+    child?: ChildExecution
   ): Agent {
-    const emit = (update: SessionUpdate): void => this.emit(session, update, child?.toolCallId);
+    const run: NativeAgentRunState = { steps: 0, closing: false };
+    const emit = (update: SessionUpdate): void => {
+      if (
+        !child &&
+        update.sessionUpdate === "task_started" &&
+        update.kind === "command" &&
+        update.taskId
+      )
+        session.managedCommands.set(
+          update.taskId,
+          run.taskGenerationId ?? session.executingTaskId ?? session.taskGenerationId
+        );
+      const commandTask =
+        !child && update.sessionUpdate === "task_ended"
+          ? session.managedCommands.get(update.taskId)
+          : undefined;
+      if (!child && update.sessionUpdate === "task_ended")
+        session.managedCommands.delete(update.taskId);
+      this.emit(session, update, child?.toolCallId);
+      if (commandTask)
+        void this.finishIdleTask(session, commandTask).catch((error) =>
+          logWarn("[AgentMode] 命令结束状态未保存", {
+            parentSessionId: session.record.sessionId,
+            taskGenerationId: commandTask,
+            errorType: error instanceof Error ? error.name : typeof error,
+          })
+        );
+    };
     const viewId = (id: string): string => `${child?.taskId ?? session.runId}:${id}`;
-    const requester: PermissionRequester = child ? { taskId: child.taskId } : "main";
-    const tools = this.options.createTools({
+    const requester: PermissionRequester = child
+      ? {
+          taskId: child.taskId,
+          subagentId: child.subagentId,
+          runId: child.taskId,
+          subagentName: session.subagentController?.state(child.subagentId).snapshot.name,
+        }
+      : "main";
+    let toolsRevision = session.toolsRevision;
+    let capabilityRevision = this.options.getCapabilityRevision?.(session.record.cwd) ?? "";
+    const getMode = (): ScribeMode =>
+      session.record.mode === "plan" || child?.localPlan ? "plan" : session.record.mode;
+    const assertCanExecute = (name: string): void => {
+      this.assertWritable(session);
+      this.options.assertScope?.(session.record);
+      if (
+        toolsRevision !== session.toolsRevision ||
+        capabilityRevision !== (this.options.getCapabilityRevision?.(session.record.cwd) ?? "")
+      )
+        throw new Error("工具设置已变化，请在下一轮重新确认调用。");
+      if (child?.allowedTools && !child.allowedTools.includes(name))
+        throw new Error("此子会话的角色限制不允许调用该工具。");
+      const kind = TOOL_KINDS[name] ?? "execute";
+      if (getMode() === "plan" && (kind === "edit" || kind === "execute"))
+        throw new Error("Plan approval is required before changing files or running commands.");
+    };
+    const toolContext: NativeToolContext = {
+      projectId: session.record.projectId,
+      transferredSkills: child?.manualSkills,
+      assertCanExecute,
+      subagentId: child?.subagentId,
+      runId: child?.taskId,
       sessionId: session.record.sessionId,
       purpose: session.record.purpose,
       cwd: session.record.cwd,
@@ -490,13 +691,31 @@ export class NativeBackendProcess implements BackendProcess {
         },
       },
       resolveSkillDependencies: this.options.resolveSkillDependencies,
-      getMode: () => session.record.mode,
+      getMode,
       emit,
       requestPermission: async (prompt) => {
+        if (child)
+          await session.subagentController!.setStatus(
+            child.subagentId,
+            child.taskId,
+            "awaiting_approval"
+          );
         const canRemember =
           !prompt.toolCall.isPlanProposal &&
           (prompt.toolCall.kind === "edit" || prompt.toolCall.kind === "execute");
-        const key = JSON.stringify([requester, prompt.toolCall.kind, prompt.toolCall.rawInput]);
+        const key = JSON.stringify([
+          child ? { subagentId: child.subagentId } : requester,
+          session.record.cwd,
+          {
+            tool:
+              session.toolExecutions.get(prompt.toolCall.toolCallId)?.name ??
+              prompt.toolCall.vendorToolName ??
+              prompt.toolCall.kind,
+            server: prompt.toolCall.mcpServer ?? null,
+          },
+          prompt.toolCall.kind,
+          prompt.toolCall.rawInput,
+        ]);
         const saved = canRemember
           ? session.record.permissions?.find((rule) => rule.key === key)
           : undefined;
@@ -542,7 +761,13 @@ export class NativeBackendProcess implements BackendProcess {
                 ? ALLOWED_BY_MODE
                 : await (this.permission?.({ ...prompt, requester, options }) ??
                     Promise.resolve(DENIED));
+        if (!prompt.toolCall.isPlanProposal) {
+          const execution = session.toolExecutions.get(prompt.toolCall.toolCallId);
+          if (execution) assertCanExecute(execution.name);
+        }
         const response = prompt.signal?.aborted ? DENIED : answer;
+        if (child)
+          await session.subagentController!.setStatus(child.subagentId, child.taskId, "running");
         (session.record.decisions ??= []).push({
           kind: "permission",
           requestId: prompt.toolCall.toolCallId,
@@ -584,10 +809,18 @@ export class NativeBackendProcess implements BackendProcess {
         return response;
       },
       askUser: async (prompt) => {
+        if (child)
+          await session.subagentController!.setStatus(
+            child.subagentId,
+            child.taskId,
+            "awaiting_input"
+          );
         const answer = prompt.signal?.aborted
           ? NO_ANSWERS
           : await (this.question?.(prompt) ?? Promise.resolve(NO_ANSWERS));
         const response = prompt.signal?.aborted ? NO_ANSWERS : answer;
+        if (child)
+          await session.subagentController!.setStatus(child.subagentId, child.taskId, "running");
         (session.record.decisions ??= []).push({
           kind: "question",
           requestId: prompt.requestId,
@@ -605,9 +838,18 @@ export class NativeBackendProcess implements BackendProcess {
       },
       flush: () => this.flush(session),
       beforeTaskStart: async (task) => {
-        await this.persist(session, "task_admitted", task, true);
+        await this.persist(
+          session,
+          "task_admitted",
+          { ...task, ...(child ? { subagentId: child.subagentId, runId: child.taskId } : {}) },
+          true
+        );
       },
       onPlanApproved: () => {
+        if (child) {
+          child.localPlan = false;
+          return;
+        }
         session.record.mode = session.record.modeBeforePlan ?? "default";
         delete session.record.modeBeforePlan;
         emit({ sessionUpdate: "current_mode_update", currentModeId: session.record.mode });
@@ -617,90 +859,294 @@ export class NativeBackendProcess implements BackendProcess {
       executeSubagent: child
         ? undefined
         : (id, input, signal) => this.delegate(session, id, input, signal),
-    });
+      ...(child
+        ? {
+            sendParentMessage: (input: {
+              text: string;
+              kind: SubagentMessageKind;
+              messageId?: string;
+            }) => session.subagentController!.sendParent(child.subagentId, child.taskId, input),
+            waitSubagents: async (input: {
+              after?: number;
+              timeoutMs?: number;
+              signal?: AbortSignal;
+            }) => {
+              await session.subagentController!.setStatus(
+                child.subagentId,
+                child.taskId,
+                "awaiting_input"
+              );
+              try {
+                return await session.subagentController!.wait({
+                  ids: [child.subagentId],
+                  ...input,
+                  direction: "to_child",
+                });
+              } finally {
+                await session.subagentController!.setStatus(
+                  child.subagentId,
+                  child.taskId,
+                  "running"
+                );
+              }
+            },
+          }
+        : {
+            sendSubagentMessage: (input: Omit<SubagentSendInput, "sessionId">) => {
+              // 只有当前用户明确选中的技能才能授予后续子运行。https://github.com/ItsDalk-Lane/Scribe/issues/50
+              if (input.skills?.some((name) => !session.manuallyInvokedSkills.has(name)))
+                throw new Error("只能转交用户为当前任务明确选择的技能。");
+              if (
+                input.skills?.some(
+                  (name) => !this.options.getManuallyInvokedSkill?.(name, session.record.cwd)
+                )
+              )
+                throw new Error("选中的技能已停用或不可用。");
+              return session.subagentController!.send(
+                { ...input, sessionId: session.record.sessionId },
+                "main"
+              );
+            },
+            listSubagentSessions: () => session.subagentController!.list(),
+            readSubagentResult: (id: string, runId?: string): AgentToolResult => {
+              const state = session.subagentController!.state(id);
+              const run = runId
+                ? state.snapshot.runs.find((entry) => entry.id === runId)
+                : state.snapshot.runs.at(-1);
+              if (!run?.resultId)
+                return {
+                  content: [{ type: "text", text: "The selected run has no saved final result." }],
+                  isError: true,
+                  details: undefined,
+                };
+              if (run.deliveryBlocked)
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: JSON.stringify({
+                        subagentId: id,
+                        runId: run.id,
+                        resultId: run.resultId,
+                        status: "delivery_blocked",
+                        reason:
+                          "The parent inbox is full. Process its accepted messages before reading this result.",
+                      }),
+                    },
+                  ],
+                  details: undefined,
+                };
+              if (run.resultDelivered)
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: JSON.stringify({
+                        subagentId: id,
+                        runId: run.id,
+                        resultId: run.resultId,
+                        status: "already_delivered",
+                      }),
+                    },
+                  ],
+                  details: undefined,
+                };
+              return {
+                content: [{ type: "text", text: run.result ?? "" }],
+                details: { subagentId: id, runId: run.id, resultId: run.resultId },
+                isError: run.status !== "completed",
+              };
+            },
+            waitSubagents: (input: {
+              subagentIds?: string[];
+              after?: number;
+              timeoutMs?: number;
+              signal?: AbortSignal;
+            }) =>
+              session.subagentController!.wait({
+                ...input,
+                ids: input.subagentIds,
+                direction: "to_parent",
+              }),
+            stopSubagent: (id: string) => session.subagentController!.stop(id),
+          }),
+    };
+    const tools = this.options.createTools(toolContext);
+    if (child) {
+      child.tools = tools;
+      (child.resources ??= new Set()).add(tools);
+    }
     session.tools.add(tools);
-    const run: NativeAgentRunState = { steps: 0, closing: false };
     const onFailure = (failure: ProviderRequestFailure): void => {
       run.failure = failure;
-      run.stopReason = failureStopReason(failure);
+      if (!run.stopReason || run.stopReason === "end_turn")
+        run.stopReason = failureStopReason(failure);
       if (failure.kind === "cancelled") return;
-      if (!child || failure.kind === "quota") session.failure = failure;
-      // 子任务额度耗尽后必须停止父任务的新请求，避免继续消耗同一账户。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      const taskId = child?.taskGenerationId ?? run.taskGenerationId;
+      if ((!child || failure.kind === "quota") && taskId === session.executingTaskId)
+        session.failure = failure;
+      // 迟到的额度错误只终止来源任务，不能污染另一代正在使用的新账户。https://github.com/ItsDalk-Lane/Scribe/issues/50
       if (child && failure.kind === "quota") {
-        this.sessions.get(session.record.sessionId)?.agent.abort();
-        session.runController?.abort();
-        for (const entry of session.children.values()) entry.agent.abort();
+        const task = session.record.taskGenerations?.find(
+          (entry) => entry.id === child.taskGenerationId
+        );
+        if (task) {
+          task.active = false;
+          void this.persist(session, "subagent_task", { version: 1, task }, true).catch((error) =>
+            logWarn("[AgentMode] 子任务额度停止状态未保存", {
+              parentSessionId: session.record.sessionId,
+              subagentId: child.subagentId,
+              runId: child.taskId,
+              taskGenerationId: child.taskGenerationId,
+              errorType: error instanceof Error ? error.name : typeof error,
+            })
+          );
+        }
+        if (child.taskGenerationId === session.executingTaskId) {
+          this.sessions.get(session.record.sessionId)?.agent.abort();
+          session.runController?.abort();
+        }
+        void session.subagentController?.stopGeneration(child.taskGenerationId);
       }
     };
-    const childProvider = child ? session.provider : undefined;
+    const childProvider = child?.provider ?? (child ? session.provider : undefined);
     const childEffort = child ? session.record.effort : undefined;
     let requestMessages: AgentMessage[] | undefined;
-    const agent = new Agent({
-      initialState: {
-        model: session.provider.model,
-        systemPrompt,
-        tools: tools.tools
-          .filter(
-            (tool) =>
-              session.record.purpose !== "skill-authoring" || SKILL_AUTHORING_TOOLS.has(tool.name)
-          )
-          .map((tool) => ({
-            ...tool,
-            execute: async (id, args, signal, onUpdate) => {
-              const key = viewId(id);
-              session.toolExecutions.set(key, {
-                id,
-                name: tool.name,
-                taskId: child?.taskId,
-                admitted: false,
+    let pendingManualSkill: { promptId: string; name: string } | undefined;
+    const wrapTools = (runtimeTools: NativeRuntimeTools): AgentTool[] =>
+      runtimeTools.tools
+        .filter(
+          (tool) =>
+            (session.record.purpose !== "skill-authoring" ||
+              SKILL_AUTHORING_TOOLS.has(tool.name)) &&
+            (!child?.allowedTools || child.allowedTools.includes(tool.name))
+        )
+        .map((tool) => ({
+          ...tool,
+          execute: async (id, args, signal, onUpdate) => {
+            assertCanExecute(tool.name);
+            const key = viewId(id);
+            session.toolExecutions.set(key, {
+              id,
+              name: tool.name,
+              taskId: child?.taskId,
+              admitted: false,
+            });
+            if (
+              !(tool.name in TOOL_KINDS) &&
+              !runtimeTools.autoApproveTools?.has(tool.name) &&
+              ![
+                "ask_user",
+                "invoke_skill",
+                "propose_skill",
+                "send_subagent_message",
+                "list_subagent_sessions",
+                "wait_subagents",
+                "stop_subagent",
+                "send_parent_message",
+                "wait_for_message",
+              ].includes(tool.name)
+            ) {
+              const decision = await toolContext.requestPermission({
+                sessionId: session.record.sessionId,
+                requester,
+                toolCall: { toolCallId: key, title: tool.name, kind: "execute", rawInput: args },
+                options: [
+                  { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                  { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+                ],
+                signal,
               });
-              this.assertWritable(session);
-              if (TOOL_KINDS[tool.name] !== "edit" && TOOL_KINDS[tool.name] !== "execute")
-                await this.admitTool(session, key);
-              try {
-                const result = await tool.execute(key, args, signal, onUpdate);
+              if (
+                decision.outcome.outcome !== "selected" ||
+                decision.outcome.optionId !== "allow_once"
+              )
+                throw new Error("Permission denied.");
+            }
+            this.assertWritable(session);
+            if (TOOL_KINDS[tool.name] !== "edit" && TOOL_KINDS[tool.name] !== "execute")
+              await this.admitTool(session, key);
+            try {
+              const result = await tool.execute(key, args, signal, onUpdate);
+              await this.recordToolResult(
+                session,
+                id,
+                tool.name,
+                result as AgentToolResult,
+                "isError" in result && result.isError === true,
+                child?.taskId
+              );
+              return result;
+            } catch (error) {
+              if (!session.storageError)
                 await this.recordToolResult(
                   session,
                   id,
                   tool.name,
-                  result as AgentToolResult,
-                  "isError" in result && result.isError === true,
+                  {
+                    content: [
+                      {
+                        type: "text",
+                        text: error instanceof Error ? error.message : String(error),
+                      },
+                    ],
+                    details: undefined,
+                  },
+                  true,
                   child?.taskId
                 );
-                return result;
-              } catch (error) {
-                if (!session.storageError)
-                  await this.recordToolResult(
-                    session,
-                    id,
-                    tool.name,
-                    {
-                      content: [
-                        {
-                          type: "text",
-                          text: error instanceof Error ? error.message : String(error),
-                        },
-                      ],
-                      details: undefined,
-                    },
-                    true,
-                    child?.taskId
-                  );
-                throw error;
-              }
-            },
-          })),
+              throw error;
+            }
+          },
+        }));
+    const refreshCapabilities = (): void => {
+      const currentCapabilityRevision =
+        this.options.getCapabilityRevision?.(session.record.cwd) ?? "";
+      if (
+        toolsRevision !== session.toolsRevision ||
+        capabilityRevision !== currentCapabilityRevision
+      ) {
+        toolContext.subagents = this.options.getSubagents?.().filter((entry) => entry.enabled);
+        const refreshed = this.options.createTools(toolContext);
+        session.tools.add(refreshed);
+        child?.resources?.add(refreshed);
+        agent.state.tools = wrapTools(refreshed);
+        toolsRevision = session.toolsRevision;
+        capabilityRevision = currentCapabilityRevision;
+      }
+    };
+    const agent: Agent = new Agent({
+      initialState: {
+        model: childProvider?.model ?? session.provider.model,
+        systemPrompt,
+        tools: wrapTools(tools),
         thinkingLevel: session.record.effort ?? "off",
       },
-      streamFn: (_model, context, options) =>
-        (childProvider ?? session.provider).agentStream(
+      streamFn: (_model, context, options) => {
+        const stream = (childProvider ?? session.provider).agentStream(
           { ...context, messages: requestMessages ?? context.messages },
           {
             ...options,
+            ...this.requestAccounting(
+              session,
+              child?.taskGenerationId ?? run.taskGenerationId ?? session.taskGenerationId,
+              run
+            ),
             onFailure,
             disableReasoning: (child ? childEffort : session.record.effort) === "off",
           }
-        ),
+        );
+        // 同一条手动消息的后续工具请求不是新的技能使用；未发出请求也不计数。https://github.com/ItsDalk-Lane/Scribe/issues/48
+        if (
+          pendingManualSkill &&
+          !session.manualSkillUsageRecorded.has(pendingManualSkill.promptId)
+        ) {
+          session.manualSkillUsageRecorded.add(pendingManualSkill.promptId);
+          this.options.onManualSkillInvoked?.(pendingManualSkill.name);
+        }
+        pendingManualSkill = undefined;
+        return stream;
+      },
       sessionId: child?.taskId ?? session.record.sessionId,
       toolExecution: "parallel",
       beforeToolCall: async ({ assistantMessage, toolCall }, signal) => {
@@ -713,20 +1159,37 @@ export class NativeBackendProcess implements BackendProcess {
             typeof part.arguments.plan === "string" &&
             part.arguments.plan.trim().length > 0
         );
-        if (proposesPlan && session.record.mode !== "plan") {
+        if (proposesPlan && child) child.localPlan = true;
+        if (proposesPlan && !child && session.record.mode !== "plan") {
           session.record.modeBeforePlan = session.record.mode;
           session.record.mode = "plan";
           emit({ sessionUpdate: "current_mode_update", currentModeId: "plan" });
           emit({ sessionUpdate: "state_changed", state: this.state(session) });
         }
-        const kind = TOOL_KINDS[toolCall.name];
-        if (session.record.mode === "plan" && (kind === "edit" || kind === "execute"))
+        const kind =
+          TOOL_KINDS[toolCall.name] ??
+          ([
+            "ask_user",
+            "invoke_skill",
+            "propose_skill",
+            "send_subagent_message",
+            "list_subagent_sessions",
+            "wait_subagents",
+            "stop_subagent",
+            "send_parent_message",
+            "wait_for_message",
+          ].includes(toolCall.name)
+            ? "think"
+            : "execute");
+        if (getMode() === "plan" && (kind === "edit" || kind === "execute"))
           return {
             block: true,
             reason: "Plan approval is required before changing files or running commands.",
           };
       },
       prepareRequest: async ({ context }, signal) => {
+        pendingManualSkill = undefined;
+        refreshCapabilities();
         signal?.throwIfAborted();
         await this.flush(session);
         signal?.throwIfAborted();
@@ -746,11 +1209,12 @@ export class NativeBackendProcess implements BackendProcess {
         const provider = childProvider ?? session.provider;
         const messages = await this.prepareContext(
           session,
-          context.messages,
+          context.messages.filter((message) => !session.suppressedCollaboration.has(message)),
           provider,
           signal,
           onFailure,
-          child?.taskId
+          child?.subagentId,
+          run
         );
         signal?.throwIfAborted();
         requestMessages = messages;
@@ -771,12 +1235,14 @@ export class NativeBackendProcess implements BackendProcess {
               ? this.options.getManuallyInvokedSkill(name, session.record.cwd)
               : null;
             if (skill) {
+              session.manuallyInvokedSkills.add(skill.name);
               // 手动注入与工具投递共用统一上限、纪律与依赖就绪注入。https://github.com/ItsDalk-Lane/Scribe/issues/41
               // https://github.com/ItsDalk-Lane/Scribe/issues/46
-              this.options.onManualSkillInvoked?.(skill.name);
               const dependencyReadings = this.options.resolveSkillDependencies
                 ? await this.options.resolveSkillDependencies(skill.name)
                 : [];
+              // 用户在依赖检查期间停止后，不能继续发送或记录技能使用。https://github.com/ItsDalk-Lane/Scribe/issues/48
+              signal?.throwIfAborted();
               const delivered = deliverSkillText(
                 `${buildSkillDependencyBlock(dependencyReadings)}${
                   skill.dirPath
@@ -798,12 +1264,70 @@ export class NativeBackendProcess implements BackendProcess {
                     }
                   : entry
               );
+              const promptId = session.messageIds.get(user);
+              if (promptId) pendingManualSkill = { promptId, name: skill.name };
             }
           }
         }
+        if (child?.manualSkills?.length && this.options.getManuallyInvokedSkill) {
+          const texts: string[] = [];
+          for (const name of child.manualSkills) {
+            const skill = this.options.getManuallyInvokedSkill(name, session.record.cwd);
+            if (!skill) throw new Error(`The explicitly transferred skill is unavailable: ${name}`);
+            const dependencyReadings = this.options.resolveSkillDependencies
+              ? await this.options.resolveSkillDependencies(name)
+              : [];
+            // 检查依赖期间停止或关闭技能不能继续向子代理投递。https://github.com/ItsDalk-Lane/Scribe/issues/50
+            signal?.throwIfAborted();
+            const current = this.options.getManuallyInvokedSkill(name, session.record.cwd);
+            if (!current || current.body !== skill.body || current.dirPath !== skill.dirPath)
+              throw new Error(`The explicitly transferred skill is unavailable: ${name}`);
+            texts.push(
+              `${buildSkillDependencyBlock(dependencyReadings)}${
+                skill.dirPath
+                  ? `Skill directory: ${skill.dirPath}\nResolve supporting files relative to this directory.\n\n`
+                  : ""
+              }${skill.body}`
+            );
+          }
+          requestMessages = [
+            {
+              role: "user",
+              timestamp: 0,
+              content: deliverSkillText(
+                `Explicitly transferred skills for this delegation only, without additional permissions:\n${texts.join("\n\n")}`
+              ).text,
+            },
+            ...messages,
+          ];
+        }
+        agent.state.messages = agent.state.messages.filter(
+          (message) => !session.suppressedCollaboration.has(message)
+        );
+        return {
+          context: {
+            ...context,
+            messages: context.messages.filter(
+              (message) => !session.suppressedCollaboration.has(message)
+            ),
+            tools: agent.state.tools,
+          },
+        };
       },
       prepareNextTurnWithContext: ({ context }) => {
-        if (!run.closing) return;
+        refreshCapabilities();
+        if (!run.closing)
+          return {
+            context: { ...context, tools: agent.state.tools },
+            ...(!child
+              ? {
+                  messages: this.collaborationInputs(
+                    session,
+                    run.taskGenerationId ?? session.taskGenerationId
+                  ),
+                }
+              : {}),
+          };
         return {
           context: { ...context, tools: [] },
           messages: [{ role: "system", content: STEP_LIMIT_CLOSING_PROMPT, timestamp: Date.now() }],
@@ -831,6 +1355,13 @@ export class NativeBackendProcess implements BackendProcess {
           agent.clearSteeringQueue();
           return { action: "continue" };
         }
+        if (
+          !child &&
+          this.automaticCollaboration(session, run.taskGenerationId).some((entry) =>
+            ["question", "blocked", "result"].includes(entry.kind)
+          )
+        )
+          return { action: "continue" };
       },
     });
     this.agentRuns.set(agent, run);
@@ -838,6 +1369,8 @@ export class NativeBackendProcess implements BackendProcess {
     agent.subscribe(async (event) => {
       if (session.closed) return;
       if (event.type === "agent_start") {
+        run.taskGenerationId =
+          child?.taskGenerationId ?? session.executingTaskId ?? session.taskGenerationId;
         run.steps = 0;
         run.closing = false;
         run.stopReason = undefined;
@@ -862,6 +1395,47 @@ export class NativeBackendProcess implements BackendProcess {
         this.translate(session, event, emit, child !== undefined, viewId, segmentSeq);
       if (event.type === "message_end") {
         const message = event.message;
+        const collaboration = session.collaboration.get(message);
+        if (collaboration) session.queuedCollaboration.delete(collaboration.id);
+        if (child) {
+          const existingSeq =
+            message.role === "toolResult"
+              ? session.toolResultSeqs.get(`${child.taskId}:${message.toolCallId}`)
+              : undefined;
+          const fact =
+            existingSeq === undefined
+              ? await this.persist(
+                  session,
+                  "protocol_message",
+                  {
+                    message,
+                    taskId: child.taskId,
+                    subagentId: child.subagentId,
+                    ...(collaboration ? { collaborationMessageId: collaboration.id } : {}),
+                  },
+                  true
+                )
+              : undefined;
+          const seq = fact?.seq ?? existingSeq;
+          if (seq !== undefined) session.messageSeqs.set(message, seq);
+          await session.subagentController!.recordContext(
+            child.subagentId,
+            child.taskId,
+            [...agent.state.messages],
+            collaboration ? [collaboration.id] : [],
+            agent.state.messages.map((entry) => session.messageSeqs.get(entry) ?? -1),
+            collaboration ? seq : undefined
+          );
+          session.recordedMessages.add(message);
+        } else if (collaboration) {
+          const current = session
+            .subagentController!.state(collaboration.subagentId)
+            .snapshot.messages.find((entry) => entry.id === collaboration.id);
+          if (current?.state === "accepted")
+            await this.commitCollaboration(session, collaboration, message);
+          else session.suppressedCollaboration.add(message);
+          session.recordedMessages.add(message);
+        }
         if (
           !session.recordedMessages.has(message) &&
           !(
@@ -919,6 +1493,8 @@ export class NativeBackendProcess implements BackendProcess {
     session.messageIds.set(message, input.promptId);
     session.pending.set(input.promptId, message);
     const accepted = (async () => {
+      await this.ensureTask(session);
+      session.subagentController!.userInput();
       const fact = await this.persist(
         session,
         "user_accepted",
@@ -988,6 +1564,10 @@ export class NativeBackendProcess implements BackendProcess {
     session.ending = false;
     session.runController = new AbortController();
     session.runId = promptId;
+    const taskGenerationId =
+      session.collaboration.get(message)?.taskGenerationId ?? session.taskGenerationId;
+    session.executingTaskId = taskGenerationId;
+    session.taskBudgetExhausted = session.exhaustedTaskIds.has(taskGenerationId);
     session.stepLimit = false;
     session.failure = undefined;
     session.lastAssistant = undefined;
@@ -1006,28 +1586,65 @@ export class NativeBackendProcess implements BackendProcess {
         stopReason: session.cancelled ? "cancelled" : "request_error",
         error: failure instanceof Error ? failure : new Error(String(failure)),
       };
-    } finally {
-      if (session.run === run) {
-        session.run = undefined;
-        session.runController = undefined;
-      }
-      finish();
     }
-    this.emit(session, { sessionUpdate: "busy_changed", busy: false });
-    this.emit(session, { sessionUpdate: "turn_ended", ...ended });
-    await this.save(session);
-    session.inFlight.delete(promptId);
-    return ended.stopReason;
+    if (session.run === run) {
+      session.run = undefined;
+      session.runController = undefined;
+      session.queuedCollaboration.clear();
+    }
+    finish();
+    try {
+      this.emit(session, { sessionUpdate: "busy_changed", busy: false });
+      this.emit(session, { sessionUpdate: "turn_ended", ...ended, taskGenerationId });
+      await this.save(session);
+      session.inFlight.delete(promptId);
+      if (ended.stopReason === "end_turn") await this.finishIdleTask(session, taskGenerationId);
+      return ended.stopReason;
+    } finally {
+      if (ended.stopReason === "end_turn" && !session.cancelled && !session.closed) {
+        for (const child of session.subagentController!.list())
+          for (const accepted of child.messages) {
+            const task = session.record.taskGenerations?.find(
+              (entry) => entry.id === accepted.taskGenerationId
+            );
+            if (
+              accepted.direction === "to_parent" &&
+              accepted.state === "accepted" &&
+              ["question", "blocked", "result"].includes(accepted.kind) &&
+              task?.active &&
+              task.autoContinue !== false
+            )
+              void this.deliverCollaboration(session, accepted).catch((error) =>
+                logWarn("[AgentMode] 子代理消息交付失败", {
+                  parentSessionId: session.record.sessionId,
+                  subagentId: accepted.subagentId,
+                  runId: accepted.runId,
+                  messageId: accepted.id,
+                  errorType: error instanceof Error ? error.name : typeof error,
+                })
+              );
+          }
+      }
+    }
   }
 
   refreshSessionConfiguration(sessionId: string): void {
-    this.session(sessionId).refreshTools = true;
+    const session = this.session(sessionId);
+    session.refreshTools = true;
+    session.toolsRevision++;
   }
 
   async getExtensionRuntime(input: {
     sessionId: string;
   }): Promise<AgentExtensionRuntimeSnapshot | null> {
     return this.options.getExtensionRuntime?.(this.session(input.sessionId).record.cwd) ?? null;
+  }
+
+  async getMcpServerStatus(params: {
+    sessionId: string;
+  }): Promise<AgentExtensionRuntimeSnapshot["mcpServers"] | null> {
+    void this.session(params.sessionId);
+    return this.options.getMcpServerStatus?.() ?? null;
   }
 
   private async run(
@@ -1092,7 +1709,14 @@ export class NativeBackendProcess implements BackendProcess {
         if (session.pending.size > 0 && !session.cancelled) await session.agent.continue();
       } else {
         session.agent.clearSteeringQueue();
-        await session.agent.prompt(message);
+        session.queuedCollaboration.clear();
+        const initialCollaboration = session.collaboration.get(message)?.id;
+        const collaboration = this.collaborationInputs(
+          session,
+          session.executingTaskId ?? session.taskGenerationId,
+          initialCollaboration
+        );
+        await session.agent.prompt([message, ...collaboration]);
       }
       if (
         session.lastAssistant?.stopReason === "error" &&
@@ -1110,18 +1734,20 @@ export class NativeBackendProcess implements BackendProcess {
         }
       }
     }
-    const reason: StopReason = session.cancelled
-      ? "cancelled"
-      : session.failure
-        ? failureStopReason(session.failure)
-        : session.stepLimit
-          ? "max_turn_requests"
-          : session.lastAssistant?.rawStopReason === "refusal" ||
-              session.lastAssistant?.rawStopReason === "content_filter"
-            ? "refusal"
-            : session.lastAssistant?.stopReason === "length"
-              ? "max_tokens"
-              : "end_turn";
+    const reason: StopReason = session.taskBudgetExhausted
+      ? "max_task_requests"
+      : session.cancelled
+        ? "cancelled"
+        : session.failure
+          ? failureStopReason(session.failure)
+          : session.stepLimit
+            ? "max_turn_requests"
+            : session.lastAssistant?.rawStopReason === "refusal" ||
+                session.lastAssistant?.rawStopReason === "content_filter"
+              ? "refusal"
+              : session.lastAssistant?.stopReason === "length"
+                ? "max_tokens"
+                : "end_turn";
     session.compaction = undefined;
     session.ending = true;
     await this.save(session);
@@ -1140,7 +1766,8 @@ export class NativeBackendProcess implements BackendProcess {
     provider: ProviderChatModel,
     signal: AbortSignal | undefined,
     onFailure: (failure: ProviderRequestFailure) => void,
-    taskId?: string
+    taskId?: string,
+    accountingRun?: NativeAgentRunState
   ): Promise<AgentMessage[]> {
     const original = messages.filter((message) => message.role !== "system");
     const system = getCurrentSystemMessage(messages);
@@ -1184,7 +1811,8 @@ export class NativeBackendProcess implements BackendProcess {
           toIndex: tailIndex - 1,
           preservedIndices: userIndex >= 0 && userIndex < tailIndex ? [userIndex] : [],
         },
-        taskId
+        taskId,
+        accountingRun
       );
       if (estimateContextTokens(next).tokens >= budget)
         throw new Error("The compacted context is still too large for this model.");
@@ -1203,7 +1831,8 @@ export class NativeBackendProcess implements BackendProcess {
     provider = session.provider,
     onFailure?: (failure: ProviderRequestFailure) => void,
     range: { toIndex: number; preservedIndices: number[] } | undefined = undefined,
-    taskId?: string
+    taskId?: string,
+    accountingRun?: NativeAgentRunState
   ): Promise<AgentMessage[]> {
     const original = messages.filter((message) => message.role !== "system");
     range ??= { toIndex: original.length - 1, preservedIndices: [] };
@@ -1257,6 +1886,13 @@ export class NativeBackendProcess implements BackendProcess {
             },
             {
               signal,
+              ...this.requestAccounting(
+                session,
+                taskId
+                  ? session.subagentController!.state(taskId).snapshot.runs.at(-1)!.taskGenerationId
+                  : (session.executingTaskId ?? session.taskGenerationId),
+                accountingRun
+              ),
               onFailure: (failure) => {
                 failureReported = true;
                 if (failure.kind !== "cancelled") onFailure?.(failure);
@@ -1359,7 +1995,11 @@ export class NativeBackendProcess implements BackendProcess {
     viewId: (id: string) => string,
     segmentSeq?: number
   ): void {
-    if (event.type === "message_start" && event.message.role === "user") {
+    if (
+      event.type === "message_start" &&
+      event.message.role === "user" &&
+      !session.collaboration.has(event.message)
+    ) {
       const id = session.messageIds.get(event.message);
       if (id && session.pending.delete(id))
         emit({ sessionUpdate: "message_delivered", promptId: id });
@@ -1387,34 +2027,41 @@ export class NativeBackendProcess implements BackendProcess {
     if (event.type === "message_end" && event.message.role === "assistant") {
       if (!child) session.lastAssistant = event.message;
       const usage = event.message.usage;
-      if (!child)
+      if (!child) {
+        session.contextUsage = {
+          usedTokens: usage.totalTokens,
+          ...(session.provider.model.contextWindow > 0
+            ? { contextWindow: session.provider.model.contextWindow }
+            : {}),
+          inputTokens: usage.input,
+          outputTokens: usage.output,
+          cacheReadTokens: usage.cacheRead,
+          cacheWriteTokens: usage.cacheWrite,
+          updatedAt: Date.now(),
+        };
         emit({
           sessionUpdate: "usage_update",
-          usage: {
-            usedTokens: usage.totalTokens,
-            ...(session.provider.model.contextWindow > 0
-              ? { contextWindow: session.provider.model.contextWindow }
-              : {}),
-            inputTokens: usage.input,
-            outputTokens: usage.output,
-            cacheReadTokens: usage.cacheRead,
-            cacheWriteTokens: usage.cacheWrite,
-            updatedAt: Date.now(),
-          },
+          usage: { ...session.contextUsage, ...session.cumulativeUsage },
         });
+      }
     }
-    if (event.type === "tool_execution_start")
+    if (event.type === "tool_execution_start") {
+      const resolvedTool = resolveToolName(event.toolName);
+      const mcpServer =
+        resolvedTool.mcpServer ??
+        (EXCALIDRAW_TOOL_NAMES.has(event.toolName) ? SCRIBE_MCP_SERVER_NAME : undefined);
       emit({
         sessionUpdate: "tool_call",
         toolCallId: viewId(event.toolCallId),
-        title: event.toolName,
+        title: resolvedTool.mcpServer ? resolvedTool.tool : event.toolName,
         kind: TOOL_KINDS[event.toolName] ?? "other",
         vendorToolName: event.toolName,
-        ...(EXCALIDRAW_TOOL_NAMES.has(event.toolName) ? { mcpServer: SCRIBE_MCP_SERVER_NAME } : {}),
+        ...(mcpServer ? { mcpServer } : {}),
         rawInput: event.args,
         status: "in_progress",
         ...(event.toolName === "propose_plan" ? { isPlanProposal: true } : {}),
       });
+    }
     if (event.type === "tool_execution_update" || event.type === "tool_execution_end") {
       const result: unknown =
         event.type === "tool_execution_update" ? event.partialResult : event.result;
@@ -1470,105 +2117,636 @@ export class NativeBackendProcess implements BackendProcess {
     return content;
   }
 
+  private createSubagentController(session: NativeSession): NativeSubagentController {
+    return new NativeSubagentController({
+      parentSessionId: session.record.sessionId,
+      cwd: session.record.cwd,
+      projectId: session.record.projectId,
+      restored: session.record.subagents,
+      getModelId: () => session.record.modelId,
+      getTaskGenerationId: () => session.taskGenerationId,
+      isTaskActive: (id) =>
+        !session.closed &&
+        session.record.taskGenerations?.some(
+          (task) => task.id === id && task.active && task.autoContinue !== false
+        ) === true,
+      acquire: (signal) => this.options.acquireSubagentSlot?.(signal) ?? Promise.resolve(() => {}),
+      reserve: this.options.reserveSubagentSlot
+        ? (signal) => this.options.reserveSubagentSlot!(signal)
+        : undefined,
+      save: async (state) => {
+        const subagents = [
+          ...(session.record.subagents ?? []).filter(
+            (entry) => entry.snapshot.id !== state.snapshot.id
+          ),
+          state,
+        ];
+        if (this.options.storage.append)
+          await this.persist(session, "subagent_state", { version: 1, state }, true);
+        else await this.options.storage.save({ ...session.record, subagents });
+        session.record.subagents = subagents;
+      },
+      remove: async (id) => {
+        if (!this.options.storage.removeSubagent) throw new Error("当前保存组件不支持删除子会话。");
+        await this.options.storage.removeSubagent(session.record.sessionId, id);
+        session.record.subagents = session.record.subagents?.filter(
+          (state) => state.snapshot.id !== id
+        );
+      },
+      execute: (state, run, signal, attach) =>
+        this.executeSubagentRun(session, state, run, signal, attach),
+      changed: (subagents) => {
+        for (const snapshot of subagents) {
+          const saved = session.record.subagents?.find(
+            (state) => state.snapshot.id === snapshot.id
+          );
+          if (saved) saved.snapshot = snapshot;
+        }
+        this.emit(session, { sessionUpdate: "subagents_updated", subagents });
+      },
+      completed: (_state, run) => {
+        this.emit(session, {
+          sessionUpdate: "task_ended",
+          taskId: run.id,
+          status:
+            run.status === "completed"
+              ? "completed"
+              : run.status === "stopped"
+                ? "stopped"
+                : "failed",
+          summary: run.result,
+          ...(run.stopReason ? { stopReason: run.stopReason as StopReason } : {}),
+        });
+        const task = session.record.taskGenerations?.find(
+          (entry) => entry.id === run.taskGenerationId
+        );
+        if (
+          run.deliveryBlocked &&
+          _state.automaticTaskIds.includes(run.taskGenerationId) &&
+          task?.active &&
+          task.autoContinue !== false
+        ) {
+          const pending = this.automaticCollaboration(session, run.taskGenerationId)[0];
+          if (pending)
+            void this.deliverCollaboration(session, pending).catch((error) =>
+              logWarn("[AgentMode] 结果待投递邮箱未能接续", {
+                parentSessionId: session.record.sessionId,
+                subagentId: pending.subagentId,
+                runId: run.id,
+                messageId: pending.id,
+                errorType: error instanceof Error ? error.name : typeof error,
+              })
+            );
+        }
+      },
+      received: (state, message, automatic) => {
+        this.emit(session, {
+          sessionUpdate: "subagent_message",
+          name: state.snapshot.name,
+          message,
+        });
+        if (automatic && ["question", "blocked", "result"].includes(message.kind))
+          void this.deliverCollaboration(session, message).catch((error) =>
+            logWarn("[AgentMode] 子代理消息交付失败", {
+              parentSessionId: session.record.sessionId,
+              subagentId: message.subagentId,
+              runId: message.runId,
+              messageId: message.id,
+              errorType: error instanceof Error ? error.name : typeof error,
+            })
+          );
+      },
+    });
+  }
+
+  private async executeSubagentRun(
+    session: NativeSession,
+    state: NativeSubagentState,
+    run: SubagentRunSnapshot,
+    signal: AbortSignal,
+    attach: (receive: (message: SubagentMessage) => void) => void
+  ): Promise<SubagentExecutionResult> {
+    this.options.assertScope?.(session.record);
+    if (
+      state.snapshot.cwd !== session.record.cwd ||
+      state.snapshot.projectId !== session.record.projectId
+    )
+      throw new Error("子会话的项目或工作位置已变化，请核对后再继续。");
+    if (!this.options.getModels().some((model) => model.baseModelId === state.snapshot.modelId))
+      throw new Error("子会话原模型不可用，请恢复模型配置后继续。");
+    signal.throwIfAborted();
+    const provider = await raceWithAbortSignal(
+      this.options.createModel(state.snapshot.modelId),
+      signal
+    );
+    const system = await raceWithAbortSignal(this.options.getSystemPrompt(session.record), signal);
+    const child: ChildExecution = {
+      taskId: run.id,
+      toolCallId: run.toolCallId,
+      subagentId: state.snapshot.id,
+      taskGenerationId: run.taskGenerationId,
+      allowedTools: state.allowedTools,
+      manualSkills: state.manualSkills,
+      localPlan: false,
+      provider,
+    };
+    const agent = this.createAgent(
+      session,
+      state.instructions ? `${system}\n\n${state.instructions}` : system,
+      child
+    );
+    agent.state.messages = [
+      {
+        role: "system",
+        timestamp: 0,
+        content: state.instructions ? `${system}\n\n${state.instructions}` : system,
+      },
+      ...state.context.filter((message) => message.role !== "system"),
+    ];
+    const pending = session
+      .subagentController!.state(state.snapshot.id)
+      .snapshot.messages.filter(
+        (message) => message.direction === "to_child" && message.state === "accepted"
+      );
+    const initial = pending.map((message) => {
+      const native =
+        state.context.length === 0 && message.sender === "main" && message.kind === "instruction"
+          ? { role: "user" as const, timestamp: message.acceptedAt, content: message.text }
+          : subagentModelMessage(message);
+      session.collaboration.set(native, message);
+      return native;
+    });
+    attach((message) => {
+      const native = subagentModelMessage(message);
+      session.collaboration.set(native, message);
+      agent.steer(native);
+    });
+    const abort = (): void => agent.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    this.emit(session, {
+      sessionUpdate: "task_started",
+      taskId: run.id,
+      toolCallId: run.toolCallId,
+      subagentId: state.snapshot.id,
+      runId: run.id,
+      kind: "subagent",
+      description: state.snapshot.name,
+      prompt: pending.map((message) => message.text).join("\n"),
+    });
+    try {
+      signal.throwIfAborted();
+      await agent.prompt(initial);
+      const message = agent.state.messages.findLast((entry) => entry.role === "assistant");
+      const stopReason = this.agentRuns.get(agent)?.stopReason;
+      const text =
+        message?.role === "assistant"
+          ? message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")
+          : "";
+      const failed =
+        !text.trim() ||
+        (stopReason !== undefined && stopReason !== "end_turn") ||
+        (message?.role === "assistant" &&
+          ["error", "aborted", "length", "toolUse"].includes(message.stopReason));
+      // 重试及压缩已消耗的请求不能因最终上下文只保留成功回复而漏计。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      const actualUsage = this.agentRuns.get(agent)?.requestUsage;
+      const usage = actualUsage
+        ? [...actualUsage.values()].reduce<SubagentUsage>(
+            (total, entry) => ({
+              input: total.input + entry.input,
+              output: total.output + entry.output,
+              cacheRead: total.cacheRead + entry.cacheRead,
+              cacheWrite: total.cacheWrite + entry.cacheWrite,
+              totalTokens: total.totalTokens + entry.totalTokens,
+            }),
+            { ...EMPTY_SUBAGENT_USAGE }
+          )
+        : agent.state.messages.slice(state.context.length).reduce<SubagentUsage>(
+            (total, entry) =>
+              entry.role === "assistant"
+                ? {
+                    input: total.input + entry.usage.input,
+                    output: total.output + entry.usage.output,
+                    cacheRead: total.cacheRead + entry.usage.cacheRead,
+                    cacheWrite: total.cacheWrite + entry.usage.cacheWrite,
+                    totalTokens: total.totalTokens + entry.usage.totalTokens,
+                  }
+                : total,
+            { ...EMPTY_SUBAGENT_USAGE }
+          );
+      const summary =
+        stopReason === "max_turn_requests"
+          ? `The child agent reached its step limit and ended with a summary.\n\n${text}`
+          : text.trim()
+            ? text
+            : // 取消没有生成正文时应显示停止，而不是把底层异常当作子代理回复。https://github.com/ItsDalk-Lane/Scribe/issues/50
+              signal.aborted || (message?.role === "assistant" && message.stopReason === "aborted")
+              ? t(SUBAGENT_STOPPED_MESSAGE)
+              : (message?.role === "assistant" ? message.errorMessage : undefined) ||
+                "The child agent did not return a final result.";
+      return {
+        text: summary,
+        status:
+          stopReason && stopReason !== "cancelled" && stopReason !== "end_turn"
+            ? "failed"
+            : signal.aborted || (message?.role === "assistant" && message.stopReason === "aborted")
+              ? "stopped"
+              : failed
+                ? "failed"
+                : "completed",
+        stopReason,
+        usage,
+      };
+    } finally {
+      signal.removeEventListener("abort", abort);
+      await Promise.all(
+        [...(child.resources ?? [])].map((resources) => this.releaseTools(session, resources))
+      );
+    }
+  }
+
+  private async deliverCollaboration(
+    session: NativeSession,
+    message: SubagentMessage
+  ): Promise<void> {
+    if (session.closed || session.cancelled || session.queuedCollaboration.has(message.id)) return;
+    const task = session.record.taskGenerations?.find(
+      (entry) => entry.id === message.taskGenerationId
+    );
+    if (!task?.active || task.autoContinue === false) return;
+    if (session.run) return;
+    const first = this.automaticCollaboration(session, message.taskGenerationId)[0];
+    if (!first) return;
+    const native = subagentModelMessage(first);
+    session.collaboration.set(native, first);
+    session.queuedCollaboration.add(first.id);
+    await this.executeTurn(session, `collaboration-${first.id}`, native as UserMessage);
+  }
+
+  private automaticCollaboration(
+    session: NativeSessionContext,
+    taskId: string | undefined
+  ): readonly SubagentMessage[] {
+    const task = session.record.taskGenerations?.find((entry) => entry.id === taskId);
+    if (!taskId || !task?.active || task.autoContinue === false)
+      return EMPTY_COLLABORATION_MESSAGES;
+    // 停止或归档撤回的接续许可在忙闲两条投递路径中都必须生效。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    const messages = session
+      .subagentController!.list()
+      .filter(
+        (state) =>
+          state.retention === "retained" &&
+          session.subagentController!.state(state.id).automaticTaskIds.includes(taskId)
+      )
+      .flatMap((state) => state.messages)
+      .filter(
+        (message) =>
+          message.direction === "to_parent" &&
+          message.state === "accepted" &&
+          message.taskGenerationId === taskId
+      )
+      .sort((left, right) => left.sequence - right.sequence);
+    return messages.length ? messages : EMPTY_COLLABORATION_MESSAGES;
+  }
+
+  private collaborationInputs(
+    session: NativeSessionContext,
+    taskId: string,
+    excludeId?: string
+  ): AgentMessage[] {
+    return this.automaticCollaboration(session, taskId)
+      .filter((message) => message.id !== excludeId && !session.queuedCollaboration.has(message.id))
+      .map((message) => {
+        const native = subagentModelMessage(message);
+        session.collaboration.set(native, message);
+        session.queuedCollaboration.add(message.id);
+        return native;
+      });
+  }
+
+  private async commitCollaboration(
+    session: NativeSessionContext,
+    message: SubagentMessage,
+    native: AgentMessage
+  ): Promise<void> {
+    const resultId = message.kind === "result" ? message.id : undefined;
+    const fact = await this.persist(
+      session,
+      "subagent_delivery",
+      {
+        version: 1,
+        subagentId: message.subagentId,
+        message: native,
+        messageIds: [message.id],
+        resultId,
+      },
+      true
+    );
+    session.record.messages.push(native);
+    if (fact) session.messageSeqs.set(native, fact.seq);
+    await session.subagentController!.acknowledgeParent(message.subagentId, [message.id], resultId);
+  }
+
+  async listSubagentSessions(input: {
+    sessionId: string;
+  }): Promise<readonly SubagentSessionSnapshot[]> {
+    const session = this.sessions.get(input.sessionId);
+    if (session) return session.subagentController!.list();
+    const record = await this.options.storage.load(input.sessionId);
+    return record?.subagents?.map((state) => state.snapshot) ?? EMPTY_SUBAGENT_SESSIONS;
+  }
+
+  async sendSubagentMessage(input: SubagentSendInput): Promise<SubagentDispatchResult> {
+    const session = this.session(input.sessionId);
+    const epoch = session.cancelEpoch;
+    session.pendingChildAdmissions++;
+    let taskId = "";
+    try {
+      await this.ensureTask(session);
+      taskId = session.taskGenerationId;
+      if (epoch !== session.cancelEpoch)
+        throw new DOMException("The parent task was stopped", "AbortError");
+      session.cancelled = false;
+      return await session.subagentController!.send(input, "user");
+    } finally {
+      session.pendingChildAdmissions--;
+      if (taskId) await this.finishIdleTask(session, taskId);
+    }
+  }
+
+  private async finishIdleTask(session: NativeSessionContext, id: string): Promise<void> {
+    const task = session.record.taskGenerations?.find((entry) => entry.id === id);
+    if (
+      (session.run && session.executingTaskId === id) ||
+      [...session.managedCommands.values()].includes(id) ||
+      session.pendingChildAdmissions ||
+      !task?.active ||
+      session.pending.size ||
+      session.subagentController?.hasWork(id)
+    )
+      return;
+    task.active = false;
+    await this.persist(session, "subagent_task", { version: 1, task }, true);
+  }
+
+  async stopSubagent(input: { sessionId: string; subagentId: string }): Promise<void> {
+    await this.session(input.sessionId).subagentController!.stop(input.subagentId);
+  }
+
+  async setSubagentArchived(input: {
+    sessionId: string;
+    subagentId: string;
+    archived: boolean;
+  }): Promise<void> {
+    await this.session(input.sessionId).subagentController!.setArchived(
+      input.subagentId,
+      input.archived
+    );
+  }
+
+  async deleteSubagentSession(input: { sessionId: string; subagentId: string }): Promise<void> {
+    await this.session(input.sessionId).subagentController!.remove(input.subagentId);
+  }
+
+  async confirmSubagentRecovery(input: { sessionId: string; subagentId: string }): Promise<void> {
+    await this.session(input.sessionId).subagentController!.confirmRecovery(input.subagentId);
+  }
+
+  async waitSubagents(input: {
+    sessionId: string;
+    subagentIds?: string[];
+    after?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  }): Promise<SubagentWaitResult> {
+    return this.session(input.sessionId).subagentController!.wait({
+      ...input,
+      ids: input.subagentIds,
+      direction: "to_parent",
+    });
+  }
+
+  async startIndependentTask(input: { sessionId: string }): Promise<void> {
+    const session = this.session(input.sessionId);
+    if (session.run)
+      throw new Error("请等待当前主对话回复结束，再开始独立任务。后台子代理可以继续运行。");
+    const current = session.record.taskGenerations?.find(
+      (task) => task.id === session.taskGenerationId
+    );
+    if (current) {
+      current.autoContinue = false;
+      await this.persist(session, "subagent_task", { version: 1, task: current }, true);
+    }
+    session.taskGenerationId = "";
+  }
+
+  async continueTaskBudget(input: {
+    sessionId: string;
+    taskGenerationId?: string;
+    requestId?: string;
+  }): Promise<void> {
+    const session = this.session(input.sessionId);
+    const id = input.taskGenerationId ?? session.taskGenerationId;
+    const requestId = input.requestId ?? uuidv4();
+    const operation = session.budgetQueue.then(async () => {
+      const task = session.record.taskGenerations?.find((entry) => entry.id === id);
+      if (!task) throw new Error("找不到需要增加额度的主任务。");
+      if (task.budgetGrants?.includes(requestId)) return;
+      const next = {
+        ...task,
+        limit: task.limit + (this.options.getSubagentLimits?.().maxTaskRequests ?? 100),
+        budgetGrants: [...(task.budgetGrants ?? []), requestId],
+      };
+      await this.persist(session, "subagent_task", { version: 1, task: next }, true);
+      task.limit = next.limit;
+      task.budgetGrants = next.budgetGrants;
+      session.exhaustedTaskIds.delete(id);
+      if (session.executingTaskId === id) session.taskBudgetExhausted = false;
+    });
+    session.budgetQueue = operation.catch(() => {});
+    await operation;
+  }
+
+  private async ensureTask(session: NativeSessionContext): Promise<void> {
+    if (session.startingTask) return session.startingTask;
+    if (
+      session.record.taskGenerations?.some(
+        (task) => task.id === session.taskGenerationId && task.active
+      )
+    )
+      return;
+    const task: NativeSubagentTask = {
+      id: `task-${uuidv4()}`,
+      active: true,
+      limit: this.options.getSubagentLimits?.().maxTaskRequests ?? 100,
+      requestIds: [],
+      usage: [],
+    };
+    const cancelEpoch = session.cancelEpoch;
+    session.startingTask = (async () => {
+      await this.persist(session, "subagent_task", { version: 1, task }, true);
+      if (cancelEpoch !== session.cancelEpoch) {
+        task.active = false;
+        await this.persist(session, "subagent_task", { version: 1, task }, true);
+      }
+      session.record.taskGenerations = [...(session.record.taskGenerations ?? []), task];
+      session.taskGenerationId = task.id;
+      session.taskBudgetExhausted = false;
+      session.manuallyInvokedSkills.clear();
+    })();
+    try {
+      await session.startingTask;
+    } finally {
+      session.startingTask = undefined;
+    }
+  }
+
+  private requestAccounting(
+    session: NativeSessionContext,
+    taskId: string,
+    run?: NativeAgentRunState
+  ): Pick<
+    import("@/LLMProviders/piChatModel").AgentStreamOptions,
+    "beforeRequest" | "onRequestUsage"
+  > {
+    const change = (update: (task: NativeSubagentTask) => void): Promise<void> => {
+      const operation = session.budgetQueue.then(async () => {
+        const task = session.record.taskGenerations?.find((entry) => entry.id === taskId);
+        if (!task) throw new Error("主任务预算记录不存在。");
+        const next: NativeSubagentTask = JSON.parse(JSON.stringify(task));
+        update(next);
+        await this.persist(session, "subagent_task", { version: 1, task: next }, true);
+        task.requestIds = next.requestIds;
+        task.usage = next.usage;
+      });
+      session.budgetQueue = operation.catch(() => {});
+      return operation;
+    };
+    return {
+      beforeRequest: async (requestId) => {
+        await change((task) => {
+          if (!task.active) throw new DOMException("This task was stopped", "AbortError");
+          if (task.requestIds.includes(requestId)) return;
+          if (task.requestIds.length >= task.limit) {
+            session.exhaustedTaskIds.add(taskId);
+            if (session.executingTaskId === taskId) session.taskBudgetExhausted = true;
+            if (run) run.stopReason = "max_task_requests";
+            throw new Error(
+              "本次主任务已达到模型调用次数上限。已有进度已保留，请明确继续后再启动。"
+            );
+          }
+          task.requestIds.push(requestId);
+        });
+        if (run) run.requestUsage ??= new Map();
+      },
+      onRequestUsage: async (requestId, usage) => {
+        await change((task) => {
+          if (!task.usage.some((entry) => entry.requestId === requestId))
+            task.usage.push({ requestId, usage });
+        });
+        if (run) {
+          run.requestUsage ??= new Map();
+          if (!run.requestUsage.has(requestId)) run.requestUsage.set(requestId, usage);
+        }
+        const total = (session.record.taskGenerations ?? [])
+          .flatMap((task) => task.usage)
+          .reduce<SubagentUsage>(
+            (sum, entry) => ({
+              input: sum.input + entry.usage.input,
+              output: sum.output + entry.usage.output,
+              cacheRead: sum.cacheRead + entry.usage.cacheRead,
+              cacheWrite: sum.cacheWrite + entry.usage.cacheWrite,
+              totalTokens: sum.totalTokens + entry.usage.totalTokens,
+            }),
+            { ...EMPTY_SUBAGENT_USAGE }
+          );
+        session.cumulativeUsage = {
+          cumulativeInputTokens: total.input,
+          cumulativeOutputTokens: total.output,
+          cumulativeCacheReadTokens: total.cacheRead,
+          cumulativeCacheWriteTokens: total.cacheWrite,
+          cumulativeTotalTokens: total.totalTokens,
+        };
+        if (session.contextUsage)
+          this.emit(session, {
+            sessionUpdate: "usage_update",
+            usage: {
+              ...session.contextUsage,
+              ...session.cumulativeUsage,
+              updatedAt: Date.now(),
+            },
+          });
+      },
+    };
+  }
+
   private async delegate(
     session: NativeSessionContext,
     toolCallId: string,
-    input: { prompt: string; description: string; agent?: string },
+    input: {
+      prompt: string;
+      description: string;
+      name?: string;
+      agent?: string;
+      background?: boolean;
+      skills?: string[];
+      allowedTools?: string[];
+    },
     signal?: AbortSignal
   ): Promise<AgentToolResult> {
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const taskId = `native-task-${uuidv4()}`;
-    const systemPrompt = await this.options.getSystemPrompt(session.record);
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    signal?.throwIfAborted();
+    await this.ensureTask(session);
+    // 接纳前保存期间的取消也必须拒绝后台委派，不能等创建后才失去取消归属。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    signal?.throwIfAborted();
     const definition = input.agent
       ? this.options.getSubagents?.().find((entry) => entry.enabled && entry.id === input.agent)
       : undefined;
     if (input.agent && !definition)
       throw new Error("The selected subagent is disabled or unavailable.");
-    const agent = this.createAgent(
-      session,
-      definition ? `${systemPrompt}\n\n${definition.instructions}` : systemPrompt,
-      { taskId, toolCallId }
-    );
-    let stopped = false;
+    if (input.skills?.some((name) => !session.manuallyInvokedSkills.has(name)))
+      throw new Error("只能转交用户为当前任务明确选择的技能。");
+    const created = await session.subagentController!.create({
+      prompt: input.prompt,
+      name:
+        input.name?.trim() ||
+        (definition ? `${definition.name}: ${input.description}` : input.description),
+      toolCallId,
+      background: input.background === true,
+      instructions: definition?.instructions,
+      allowedTools: input.allowedTools,
+      manualSkills: input.skills,
+    });
+    if (input.background)
+      return {
+        content: [{ type: "text", text: JSON.stringify(created) }],
+        details: {
+          subagentId: created.subagentId,
+          runId: created.runId ?? "",
+          status: created.status,
+        },
+      };
     const abort = (): void => {
-      stopped = true;
-      agent.abort();
+      void session.subagentController!.stop(created.subagentId);
     };
     signal?.addEventListener("abort", abort, { once: true });
-    let launch!: () => void;
-    const ready = new Promise<void>((resolve) => {
-      launch = resolve;
-    });
-    const promise = (async (): Promise<AgentToolResult> => {
-      try {
-        await ready;
-        if (!stopped) await agent.prompt(input.prompt);
-        const message = agent.state.messages.findLast((message) => message.role === "assistant");
-        const stopReason = this.agentRuns.get(agent)?.stopReason;
-        const reply =
-          message?.role === "assistant"
-            ? message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")
-            : "";
-        const failed =
-          stopped ||
-          (stopReason !== undefined && stopReason !== "end_turn") ||
-          !message ||
-          !reply.trim() ||
-          (message.role === "assistant" &&
-            (message.stopReason === "error" ||
-              message.stopReason === "aborted" ||
-              message.stopReason === "toolUse" ||
-              message.stopReason === "length"));
-        const reasonText =
-          stopReason === "max_turn_requests"
-            ? "The child agent reached its step limit and ended with a summary."
-            : stopReason
-              ? `The child agent stopped: ${stopReason}.`
-              : "";
-        const text = reasonText
-          ? [reasonText, reply].filter(Boolean).join("\n\n")
-          : reply.trim()
-            ? reply
-            : message?.role === "assistant" && message.stopReason === "toolUse"
-              ? "The child agent reached its step limit before completing the task."
-              : message?.role === "assistant"
-                ? (message.errorMessage ?? "The child agent did not return a final result.")
-                : "The child agent did not return a final result.";
-        this.emit(session, {
-          sessionUpdate: "task_ended",
-          taskId,
-          status: stopped
-            ? "stopped"
-            : failed
-              ? message?.role === "assistant" && message.stopReason === "aborted"
-                ? "stopped"
-                : "failed"
-              : "completed",
-          summary: text,
-          ...(stopReason ? { stopReason } : {}),
-        });
-        return {
-          content: [{ type: "text", text }],
-          details: { taskId, ...(stopReason ? { stopReason } : {}) },
-          isError: failed,
-        };
-      } finally {
-        signal?.removeEventListener("abort", abort);
-        session.children.delete(taskId);
-      }
-    })();
-    session.children.set(taskId, { agent, toolCallId, promise, stop: abort });
-    this.emit(session, {
-      sessionUpdate: "task_started",
-      taskId,
-      toolCallId,
-      kind: "subagent",
-      description: definition ? `${definition.name}: ${input.description}` : input.description,
-      prompt: input.prompt,
-    });
-    launch();
-    return promise;
+    if (signal?.aborted) abort();
+    try {
+      const run = await session.subagentController!.finished(created.subagentId, created.runId!);
+      return {
+        content: [
+          { type: "text", text: run.result ?? "The child agent did not return a final result." },
+        ],
+        details: {
+          subagentId: created.subagentId,
+          runId: run.id,
+          taskId: run.id,
+          resultId: run.resultId ?? "",
+          ...(run.stopReason ? { stopReason: run.stopReason } : {}),
+        },
+        isError: run.status !== "completed",
+      };
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
   }
 
   async cancel(input: { sessionId: string; keepUnread?: boolean }): Promise<void> {
@@ -1577,13 +2755,53 @@ export class NativeBackendProcess implements BackendProcess {
     session.runController?.abort();
     session.agent.abort();
     session.compaction?.abort();
+    const resources = input.keepUnread ? [] : [...session.tools];
     if (!input.keepUnread) {
+      session.cancelEpoch++;
+      session.refreshTools = true;
+      session.toolsRevision++;
       const ids = [...session.pending.keys()];
       session.pending.clear();
       session.agent.clearAllQueues();
       if (ids.length) this.emit(session, { sessionUpdate: "messages_withdrawn", promptIds: ids });
     }
-    await session.run;
+    const stoppedTasks = input.keepUnread
+      ? []
+      : (session.record.taskGenerations ?? []).filter((task) => task.active);
+    for (const task of stoppedTasks) task.active = false;
+    let failure: unknown;
+    try {
+      for (const task of stoppedTasks) {
+        await this.persist(session, "subagent_task", { version: 1, task }, true);
+      }
+    } catch (error) {
+      failure = error;
+    }
+    const settled = await Promise.allSettled([
+      ...(!input.keepUnread ? [session.subagentController!.stopAll()] : []),
+      ...resources.map((tools) => this.releaseTools(session, tools)),
+      ...(session.run ? [session.run] : []),
+    ]);
+    failure ??= settled.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    )?.reason;
+    if (failure)
+      throw failure instanceof Error
+        ? failure
+        : new Error("停止后台工作失败。", { cause: failure });
+  }
+
+  private releaseTools(session: NativeSessionContext, tools: NativeRuntimeTools): Promise<void> {
+    const pending = session.releasingTools.get(tools);
+    if (pending) return pending;
+    if (!session.tools.has(tools)) return Promise.resolve();
+    const released = (async () => {
+      await tools.shutdown?.();
+      session.tools.delete(tools);
+    })();
+    session.releasingTools.set(tools, released);
+    void released.finally(() => session.releasingTools.delete(tools)).catch(() => {});
+    return released;
   }
 
   async withdraw(input: { sessionId: string; promptId: string }): Promise<boolean> {
@@ -1598,10 +2816,17 @@ export class NativeBackendProcess implements BackendProcess {
 
   async stopTask(input: { sessionId: string; taskId: string }): Promise<void> {
     const session = this.session(input.sessionId);
-    const child = session.children.get(input.taskId);
-    if (child) {
-      child.stop();
-      await child.promise;
+    const retained = session
+      .subagentController!.list()
+      .find((state) => state.runs.some((run) => run.id === input.taskId));
+    if (retained) {
+      const selected = retained.runs.find((run) => run.id === input.taskId)!;
+      if (
+        selected.endedAt ||
+        ["completed", "failed", "stopped", "interrupted"].includes(selected.status)
+      )
+        return;
+      await session.subagentController!.stop(retained.id);
       return;
     }
     await Promise.all(
@@ -1613,14 +2838,10 @@ export class NativeBackendProcess implements BackendProcess {
 
   async closeSession(input: { sessionId: string }): Promise<void> {
     const session = this.session(input.sessionId);
+    session.cancelled = true;
     await this.cancel(input);
-    for (const child of session.children.values()) child.stop();
-    await Promise.all([...session.children.values()].map((child) => child.promise));
-    await Promise.all(
-      [...session.tools].map(async (tools) => {
-        await tools.shutdown?.();
-      })
-    );
+    await session.subagentController?.close();
+    await Promise.all([...session.tools].map((tools) => this.releaseTools(session, tools)));
     if (!session.storageError && session.record.writable !== false) await this.save(session);
     session.closed = true;
     this.sessions.delete(input.sessionId);
@@ -1799,6 +3020,9 @@ export class NativeBackendProcess implements BackendProcess {
   async loadSession(input: ResumeSessionInput): Promise<OpenSessionOutput> {
     const opened = await this.resumeSession(input);
     const history = new Set([
+      // 恢复原始协作顺序和每轮起点，避免重开后消息错位或耗时失真。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      "turn_started",
+      "subagent_message",
       "message_delivered",
       "agent_segment_started",
       "agent_segment_finalized",
@@ -1906,7 +3130,12 @@ export class NativeBackendProcess implements BackendProcess {
     origin: "observed" | "synthetic" = "observed"
   ): void {
     void this.emitCommitted(session, update, taskToolCallId, origin).catch((error) =>
-      logWarn("[AgentMode] Chat fact could not be saved", error)
+      logWarn("[AgentMode] Chat fact could not be saved", {
+        parentSessionId: session.record.sessionId,
+        taskToolCallId,
+        eventType: update.sessionUpdate,
+        errorType: error instanceof Error ? error.name : typeof error,
+      })
     );
   }
 
@@ -2227,18 +3456,34 @@ export class NativeBackendProcess implements BackendProcess {
       await append(source.update, source);
       tasks.set(taskId, source);
     }
-    for (const [taskId, source] of tasks)
+    for (const [taskId, source] of tasks) {
+      // 结果已可靠保存但结束通知尚未落盘时，恢复卡片必须引用同一规范结果。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      const canonical = session.record.subagents
+        ?.flatMap((state) => state.snapshot.runs)
+        .find(
+          (run) => run.id === taskId && run.endedAt !== undefined && run.resultId !== undefined
+        );
       await append(
         {
           sessionUpdate: "task_ended",
           taskId,
-          status: "stopped",
-          summary: t(
-            "System recovery: the task outcome is unknown. Check actual files and processes before retrying."
-          ),
+          status: canonical
+            ? canonical.status === "completed"
+              ? "completed"
+              : canonical.status === "stopped"
+                ? "stopped"
+                : "failed"
+            : "stopped",
+          ...(canonical?.stopReason ? { stopReason: canonical.stopReason as StopReason } : {}),
+          summary: canonical
+            ? canonical.result
+            : t(
+                "System recovery: the task outcome is unknown. Check actual files and processes before retrying."
+              ),
         },
         source
       );
+    }
     for (const [turnId, source] of turns)
       await append({ sessionUpdate: "turn_ended", turnId, stopReason: "interrupted" }, source);
     for (const [id, source] of compactions) {
@@ -2279,13 +3524,29 @@ export class NativeBackendProcess implements BackendProcess {
         durable,
         origin,
       });
+      if (
+        !this.options.storage.append &&
+        kind === "subagent_task" &&
+        isRecord(payload) &&
+        isRecord(payload.task)
+      ) {
+        const task = payload.task as unknown as NativeSubagentTask;
+        await this.options.storage.save({
+          ...session.record,
+          taskGenerations: [
+            ...(session.record.taskGenerations ?? []).filter((entry) => entry.id !== task.id),
+            task,
+          ],
+        });
+      }
       if (record) (session.record.journalRecords ??= []).push(record);
       return record;
     } catch (failure) {
+      if (!this.options.storage.append) throw failure;
       session.storageError = failure instanceof Error ? failure : new Error(String(failure));
+      session.subagentController?.abortExecutors();
       this.sessions.get(session.record.sessionId)?.agent.abort();
       session.runController?.abort();
-      for (const child of session.children.values()) child.agent.abort();
       throw session.storageError;
     }
   }
@@ -2325,12 +3586,41 @@ export class NativeBackendProcess implements BackendProcess {
       isError,
       timestamp: Date.now(),
     };
+    const delegation =
+      !taskId &&
+      (name === "delegate_task" || name === "read_subagent_result") &&
+      isRecord(result.details) &&
+      typeof result.details.subagentId === "string" &&
+      typeof result.details.resultId === "string"
+        ? result.details
+        : undefined;
+    const resultMessageIds =
+      delegation &&
+      session
+        .subagentController!.state(delegation.subagentId as string)
+        .snapshot.messages.some((entry) => entry.id === delegation.resultId)
+        ? [delegation.resultId as string]
+        : [];
     const fact = await this.persist(
       session,
-      "tool_result",
-      { message, promptId: session.runId, ...(taskId ? { taskId } : {}) },
+      delegation ? "subagent_delivery" : "tool_result",
+      delegation
+        ? {
+            version: 1,
+            subagentId: delegation.subagentId,
+            message,
+            messageIds: resultMessageIds,
+            resultId: delegation.resultId,
+          }
+        : { message, promptId: session.runId, ...(taskId ? { taskId } : {}) },
       true
     );
+    if (delegation)
+      await session.subagentController!.acknowledgeParent(
+        delegation.subagentId as string,
+        resultMessageIds,
+        delegation.resultId as string
+      );
     if (fact) {
       session.messageSeqs.set(message, fact.seq);
       session.toolResultSeqs.set(`${taskId ?? "main"}:${id}`, fact.seq);

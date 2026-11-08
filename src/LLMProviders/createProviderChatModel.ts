@@ -1,6 +1,6 @@
 import type { Api, Model, StreamOptions } from "@earendil-works/pi-ai";
 import type { CustomModel } from "@/aiParams";
-import { ChatModelProviders, ModelCapability, ProviderInfo, ReasoningEffort } from "@/constants";
+import { ChatModelProviders, ProviderInfo, ReasoningEffort } from "@/constants";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
 import { createPiChatModel, type ProviderChatModel } from "@/LLMProviders/piChatModel";
 import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
@@ -8,6 +8,7 @@ import { anthropicHostBaseUrl, groqHostBaseUrl } from "@/utils/providerBaseUrl";
 import { isRecord } from "@/utils/obsidianInternals";
 import { t } from "@/lib/i18n";
 import { withModelCredentials } from "@/LLMProviders/modelCredentials";
+import { resolveModelThinking } from "@/LLMProviders/modelThinking";
 
 const LEGACY_PROTOCOLS: Record<ChatModelProviders, string> = {
   [ChatModelProviders.OPENAI]: "@ai-sdk/openai",
@@ -61,7 +62,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
       (legacy && provider !== ChatModelProviders.OPENAI_FORMAT
         ? ProviderInfo[provider]?.curlBaseURL
         : undefined),
-    enableCors: input.enableCors ?? !legacy,
   };
   if (legacy && provider === ChatModelProviders.GROQ)
     model.baseUrl = `${groqHostBaseUrl(model.baseUrl)}/openai/v1`;
@@ -96,6 +96,7 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
               : "openai-completions";
   const openRouterOptions =
     openRouter || (legacy && provider === ChatModelProviders.LM_STUDIO && !responses);
+  const thinking = resolveModelThinking(model, api);
   const descriptor: Model<Api> = {
     id: model.name,
     name: model.displayName || model.name,
@@ -103,8 +104,8 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     provider: model.providerCatalogId || (openRouter ? "openrouter" : model.provider),
     baseUrl: model.baseUrl || "",
     input: ["text", "image"],
-    reasoning: model.capabilities?.includes(ModelCapability.REASONING) ?? false,
-    thinkingLevelMap: { off: null },
+    reasoning: thinking.reasoning,
+    thinkingLevelMap: thinking.thinkingLevelMap,
     contextWindow: model.numCtx ?? 0,
     maxTokens:
       model.maxTokens ??
@@ -118,9 +119,9 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
       supportsDeveloperRole: api === "openai-responses" && npm === "@ai-sdk/openai",
       supportsStore: false,
       supportsUsageInStreaming: openRouterOptions || (model.streamUsage ?? false),
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: thinking.compat?.supportsReasoningEffort ?? false,
       maxTokensField: "max_tokens",
-      thinkingFormat: "openai",
+      thinkingFormat: thinking.compat?.thinkingFormat ?? "openai",
     },
   };
   const defaults: StreamOptions = {

@@ -10,12 +10,14 @@ Scribe includes [Agent Chat](agent-mode-and-tools.md). Quick Ask and Quick Comma
 
 **Agent 配置** 是独立设置标签页：常用设置与库的自定义说明连续排列，不再显示 **常规** 和 **自定义说明** 分组标题，也不使用分组边框。Scribe 的其余设置分布在 **关于**、**模型**、**我的指令**、**命令**、**技能** 和 **子代理** 标签页。
 
-| Control              | Default    | What it does                                                                                                                                                                |
-| -------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **插件打开位置**     | **侧边栏** | Chooses whether Scribe opens in a sidebar leaf or an editor tab. Options are **侧边栏** and **编辑区**.                                                                     |
-| **发送快捷键**       | **Enter**  | Chooses **Enter** or **Shift + Enter** to send. If the shortcut does not work, check **Obsidian → Hotkeys** for a conflict.                                                 |
-| **自动附加当前笔记** | On         | Attaches the active note to each new Agent Chat. Turn it off to add the **当前笔记** yourself from **添加参考内容** or with `@`.                                            |
-| **每轮最多执行步数** | **无限制** | 默认不限制步数。选择 **限制步数** 后填写正整数，达到上限会停止工具操作，并由模型总结已完成的工作。旧设置中明确保存的数值（包括 50）继续生效；切换到 **无限制** 才移除上限。 |
+| Control                  | Default    | What it does                                                                                                                                                                |
+| ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **插件打开位置**         | **侧边栏** | Chooses whether Scribe opens in a sidebar leaf or an editor tab. Options are **侧边栏** and **编辑区**.                                                                     |
+| **发送快捷键**           | **Enter**  | Chooses **Enter** or **Shift + Enter** to send. If the shortcut does not work, check **Obsidian → Hotkeys** for a conflict.                                                 |
+| **自动附加当前笔记**     | On         | Attaches the active note to each new Agent Chat. Turn it off to add the **当前笔记** yourself from **添加参考内容** or with `@`.                                            |
+| **每轮最多执行步数**     | **无限制** | 默认不限制步数。选择 **限制步数** 后填写正整数，达到上限会停止工具操作，并由模型总结已完成的工作。旧设置中明确保存的数值（包括 50）继续生效；切换到 **无限制** 才移除上限。 |
+| **上下文占比（百分比）** | 2          | 模型可见技能列表以模型上下文窗口的该比例封顶。技能页只显示预算状态提示；数值在此调整。                                                                                      |
+| **绝对 token 上限**      | 10000      | 即使上下文窗口很大，技能目录也不超过该 token 数。                                                                                                                           |
 
 Scribe uses the vault-root `.scribe` folder for all plugin material. The location is fixed. Only explicit configuration, lightweight preferences, storage metadata, and recovery identifiers remain in the plugin’s `data.json`. Vault and project `AGENTS.md` files stay at their respective workspace roots. Old locations are not imported, read, moved, or cleaned.
 
@@ -118,6 +120,10 @@ The configuration dialog contains:
 更多说明见 [Skills](agent-mode-and-tools.md#skills)。
 
 ## 代理扩展
+
+在 **Agent 配置** 可调整子代理的共享执行名额、等待数量和每项任务的模型调用次数，默认分别为 3、20 和 100。等待批准或输入的子代理仍占执行名额；调用次数包含主对话、全部子代理、重试和上下文整理。达到上限保留进度，继续需要明确操作，不会被当成已完成。
+
+**子代理聊天打开位置** 决定从子代理列表点击某个子代理时聊天界面的位置：右侧边栏（默认）、左侧边栏或悬浮面板。悬浮面板可拖拽和调整大小，不遮挡主聊天。
 
 当前提供 **Skills、Commands、Subagents** 三类原生入口。列表显示实际注册的技能、已有 Scribe 命令和自定义子代理，通用子代理委派能力继续保留。
 

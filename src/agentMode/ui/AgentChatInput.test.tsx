@@ -119,6 +119,7 @@ const makeDraft = (overrides: Partial<AgentInputDraftControls> = {}): AgentInput
   setInput: jest.fn(),
   setContextNotes: jest.fn(),
   setWebTabs: jest.fn(),
+  setDraftSelectedText: jest.fn(),
   setSelectedImages: jest.fn(),
   addImages: jest.fn(),
   setIncludeActiveNote: jest.fn(),
@@ -210,6 +211,116 @@ describe("AgentChatInput", () => {
   });
 
   describe("AgentChatInput", () => {
+    it.each(["note", "image", "selection", "web"])(
+      "sends %s context from a child chat to its backend (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+      async (kind) => {
+        const backend = {
+          sendMessage: jest.fn(() => ({ id: "message", turn: Promise.resolve() })),
+          takeWithdrawnPrompts: () => [],
+        } as unknown as AgentChatBackend;
+        const note = makeFile("Reference.md");
+        const selection: NoteSelectedTextContext = {
+          id: "excerpt",
+          sourceType: "note",
+          noteTitle: "Reference",
+          notePath: note.path,
+          content: "Selected text",
+          startLine: 1,
+          endLine: 1,
+        };
+        mockSelectedTextContexts = kind === "selection" ? [selection] : [];
+        if (kind === "web")
+          mockBuildWebTabsWithActiveSnapshot.mockReturnValueOnce([
+            { url: "https://example.com", title: "Example", isActive: true },
+          ]);
+        const draft = makeDraft({
+          input: "Keep this",
+          contextNotes: kind === "note" ? [note] : [],
+          images: kind === "image" ? [image] : [],
+        });
+        jest.mocked(Notice).mockClear();
+        const clearSelection = jest.requireMock("@/selection/selectionStore")
+          .clearSelection as jest.Mock;
+        clearSelection.mockClear();
+        renderInput(backend, draft, { acceptanceOnly: true });
+
+        await act(async () => {
+          fireEvent.click(screen.getByText("send"));
+        });
+
+        expect(backend.sendMessage).toHaveBeenCalledWith(
+          "Keep this",
+          kind === "image"
+            ? undefined
+            : expect.objectContaining({
+                notes: kind === "note" ? [note] : [],
+                selectedTextContexts: kind === "selection" ? [selection] : undefined,
+                webTabs:
+                  kind === "web"
+                    ? [expect.objectContaining({ url: "https://example.com" })]
+                    : undefined,
+              }),
+          kind === "image" ? [imageBlock] : undefined
+        );
+        expect(draft.resetCompose).toHaveBeenCalled();
+        expect(clearSelection).toHaveBeenCalled();
+      }
+    );
+
+    it.each([false, true])(
+      "restores a rejected child message and its reference content without overwriting newer input while running=%s (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+      async (running) => {
+        let reject!: (error: Error) => void;
+        const turn = new Promise<void>((_resolve, fail) => {
+          reject = fail;
+        });
+        const backend = {
+          sendMessage: jest.fn(() => ({ id: "message", turn })),
+          takeWithdrawnPrompts: () => [],
+        } as unknown as AgentChatBackend;
+        const store = new AgentInputDraftStore(makeApp(), () => true);
+        let current!: AgentInputDraftControls;
+        const selection: NoteSelectedTextContext = {
+          id: "excerpt",
+          sourceType: "note",
+          noteTitle: "Reference",
+          notePath: "Reference.md",
+          content: "Selected text",
+          startLine: 1,
+          endLine: 1,
+        };
+        mockSelectedTextContexts = [selection];
+        function Composer() {
+          current = useAgentInputDrafts({ store, chatInputId: "input-1" });
+          return inputNode(backend, current, {
+            acceptanceOnly: true,
+            isLoading: running,
+            acceptsMidTurnMessages: true,
+          });
+        }
+        render(<Composer />);
+        act(() => {
+          current.setInput("Original");
+          current.setContextNotes([makeFile("Reference.md")]);
+          current.setSelectedImages([image]);
+        });
+        await act(async () => {
+          fireEvent.click(screen.getByText("send"));
+        });
+        act(() => current.setInput("New draft"));
+        await act(async () => {
+          reject(new Error("save failed"));
+          await turn.catch(() => {});
+        });
+        expect(store.get("input-1")).toMatchObject({
+          input: "Original\n\nNew draft",
+          selectedTextContexts: [selection],
+          contextNotes: [expect.objectContaining({ path: "Reference.md" })],
+          images: [expect.objectContaining({ type: "image/png" })],
+        });
+      }
+    );
+
     it.each([new DOMException("Cancelled", "AbortError"), new Error("Damaged encrypted entry")])(
       "keeps the draft and attachments when selected-key validation fails: %s",
       async (failure) => {
@@ -471,6 +582,36 @@ describe("AgentChatInput", () => {
       expect(draft.resetCompose).not.toHaveBeenCalled();
     });
 
+    it("checks the child model before sending an image even without a model picker (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      const backend = {
+        sendMessage: jest.fn(),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      const draft = makeDraft({ input: "", images: [image] });
+      renderInput(backend, draft, {
+        acceptanceOnly: true,
+        modelEntryOverride: {
+          name: "child-text-only",
+          provider: "agent",
+          enabled: true,
+          capabilities: [],
+        },
+      });
+      await act(async () => fireEvent.click(screen.getByText("send")));
+      expect(backend.sendMessage).not.toHaveBeenCalled();
+      expect(draft.resetCompose).not.toHaveBeenCalled();
+    });
+
+    it("sends an image without text from a child chat (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      const backend = {
+        sendMessage: jest.fn(() => ({ id: "message", turn: Promise.resolve() })),
+        takeWithdrawnPrompts: () => [],
+      } as unknown as AgentChatBackend;
+      renderInput(backend, makeDraft({ input: "", images: [image] }), { acceptanceOnly: true });
+      await act(async () => fireEvent.click(screen.getByText("send")));
+      expect(backend.sendMessage).toHaveBeenCalledWith("", undefined, [imageBlock]);
+    });
+
     it("sends /compact without its image when the selected model lacks vision", async () => {
       const backend = {
         sendMessage: jest.fn(() => ({ turn: Promise.resolve() })),
@@ -716,7 +857,8 @@ describe("AgentChatInput", () => {
 
       expect(getDraft().loading).toBe(true);
     });
-    it("returns queued follow-ups to the composer but keeps the active turn running when cancellation fails", async () => {
+    it("returns queued follow-ups, keeps the active turn visible and warns the user when cancellation fails https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+      jest.mocked(Notice).mockClear();
       const { backend, getDraft, settleTurn } = setupCancellation();
       jest.mocked(backend.cancel).mockRejectedValueOnce(new Error("Cancellation failed"));
       act(() => getDraft().setInput("first turn"));
@@ -727,6 +869,9 @@ describe("AgentChatInput", () => {
       await waitFor(() => expect(getDraft().queue).toHaveLength(1));
 
       await act(async () => fireEvent.click(screen.getByText("stop")));
+      expect(Notice).toHaveBeenCalledWith(
+        "Stopping could not be confirmed. Check background work and try again."
+      );
 
       expect(getDraft().queue).toHaveLength(0);
       expect(getDraft().input).toBe("queued follow-up");
@@ -742,8 +887,9 @@ describe("AgentChatInput", () => {
       "authentication_error",
       "request_error",
       "max_turn_requests",
+      "max_task_requests",
     ] as const)(
-      "preserves queued text without sending after %s (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+      "preserves queued text without sending after %s (https://github.com/ItsDalk-Lane/Scribe/issues/31 https://github.com/ItsDalk-Lane/Scribe/issues/50)",
       async (turnStopReason) => {
         const { backend, getDraft, settleTurn } = setupCancellation();
         act(() => getDraft().setInput("first turn"));

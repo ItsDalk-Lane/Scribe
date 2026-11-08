@@ -58,6 +58,7 @@ jest.mock("@/utils/chatDeepLink", () => ({
   findChatFileByDeepLinkId: jest.fn(),
 }));
 const mockSkillManagerDispose = jest.fn();
+const mockFlushSkillUsageStore = jest.fn(async () => undefined);
 const mockSkillManagerHasInstance = jest.fn(() => true);
 jest.mock("@/agentMode", () => ({
   SkillManager: {
@@ -71,14 +72,19 @@ jest.mock("@/agentMode", () => ({
   ScribeAgentView: class {},
   PlanPreviewView: class {},
   closeAgentDetailModals: jest.fn(),
-  flushSkillUsageStore: jest.fn(async () => undefined),
+  flushSkillUsageStore: mockFlushSkillUsageStore,
 }));
 
 import ScribePlugin from "@/main";
 import { QuickAskController } from "@/editor";
 import { getSelectedTextContexts } from "@/selection/selectionStore";
 import { DEFAULT_SETTINGS } from "@/constants";
-import { CHAT_AGENT_VIEWTYPE, COMMAND_IDS, PLAN_PREVIEW_VIEW_TYPE } from "@/constants";
+import {
+  CHAT_AGENT_VIEWTYPE,
+  COMMAND_IDS,
+  PLAN_PREVIEW_VIEW_TYPE,
+  SUBAGENT_CHAT_VIEW_TYPE,
+} from "@/constants";
 import { StartupLoadingView } from "@/components/StartupLoadingView";
 import { settingsAtom, settingsStore } from "@/settings/model";
 import type { WebSelectionTrackingOptions } from "@/services/webViewerService/webViewerServiceSelection";
@@ -550,6 +556,7 @@ describe("main", () => {
         expect(registrations.registerView.mock.calls.map(([type]) => type)).toEqual([
           CHAT_AGENT_VIEWTYPE,
           PLAN_PREVIEW_VIEW_TYPE,
+          SUBAGENT_CHAT_VIEW_TYPE,
         ]);
         expect(openRegisteredView(CHAT_AGENT_VIEWTYPE)).toBeInstanceOf(StartupLoadingView);
         expect(openRegisteredView("scribe-chat-view")).toBeUndefined();
@@ -947,16 +954,18 @@ describe("main", () => {
         await flushTeardown();
 
         expect(mockSkillManagerDispose).toHaveBeenCalledTimes(1);
+        expect(mockFlushSkillUsageStore).toHaveBeenCalledTimes(1);
         expect(logInfo).toHaveBeenCalledWith("Scribe plugin unloaded");
       });
 
-      it("skips the Node-backed skill cleanup on a mobile runtime, where the barrel import would crash", async () => {
+      it("skips desktop skill cleanup and usage flushing on a mobile runtime (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const plugin = createPluginUnderTest([]);
 
         plugin.onunload();
         await flushTeardown();
 
         expect(mockSkillManagerDispose).not.toHaveBeenCalled();
+        expect(mockFlushSkillUsageStore).not.toHaveBeenCalled();
         expect(logInfo).toHaveBeenCalledWith("Scribe plugin unloaded");
       });
     });

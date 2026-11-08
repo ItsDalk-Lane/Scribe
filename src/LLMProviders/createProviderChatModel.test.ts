@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { ChatModelProviders } from "@/constants";
 import type { CustomModel } from "@/aiParams";
 import { createProviderChatModel } from "./createProviderChatModel";
@@ -26,7 +27,6 @@ const wire = (overrides: Partial<CustomModel> = {}): CustomModel => ({
   provider: ChatModelProviders.OPENAI_FORMAT,
   providerNpm: "@ai-sdk/openai-compatible",
   enabled: true,
-  enableCors: true,
   stream: false,
   apiKey: "fixture-key",
   baseUrl: "https://provider.invalid/v1",
@@ -75,6 +75,13 @@ function reply(request: Request): Record<string, unknown> {
 }
 
 describe("createProviderChatModel", () => {
+  beforeEach(() => {
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("createProviderChatModel", () => {
     beforeEach(() => {
       requests.length = 0;
@@ -224,6 +231,36 @@ describe("createProviderChatModel", () => {
       );
       expect(await collectText(model, "keyless original message")).toBe("ok");
       expect(new Headers(requests[0].headers).get("Authorization")).toBeNull();
+    });
+    it("leaves mandatory reasoning at the provider default when no effort was selected", async () => {
+      const model = await createProviderChatModel(
+        wire({ name: "glm-5.3-flash", baseUrl: "https://open.bigmodel.cn/api/paas/v4" })
+      );
+      await collectText(model);
+      expect(JSON.parse(requests[0].body!).thinking).not.toEqual({ type: "disabled" });
+      expect(JSON.parse(requests[0].body!).reasoning_effort).toBeUndefined();
+    });
+    it("sends a selected GLM reasoning level through its real provider request contract, capping max at the bigmodel coding endpoint's supported high value", async () => {
+      const model = await createProviderChatModel(
+        wire({ name: "glm-5.3-flash", baseUrl: "https://open.bigmodel.cn/api/paas/v4" })
+      );
+      await model.agentStream({ messages: [] }, { reasoning: "max" }).result();
+      expect(JSON.parse(requests[0].body!)).toMatchObject({
+        model: "glm-5.3-flash",
+        thinking: { type: "enabled" },
+        reasoning_effort: "high",
+      });
+    });
+    it("translates a selected reasoning level to the provider's advertised wire value", async () => {
+      const model = await createProviderChatModel(
+        wire({
+          name: "qwen/qwen3.6-27b",
+          providerCatalogId: "groq",
+          baseUrl: "https://api.groq.com/openai/v1",
+        })
+      );
+      await model.agentStream({ messages: [] }, { reasoning: "high" }).result();
+      expect(JSON.parse(requests[0].body!).reasoning_effort).toBe("default");
     });
     it("refuses an incomplete compatible endpoint instead of sending its credential to OpenAI by default", async () => {
       await expect(createProviderChatModel(wire({ baseUrl: undefined }))).rejects.toThrow(

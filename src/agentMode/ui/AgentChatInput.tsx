@@ -49,6 +49,10 @@ interface AgentChatInputProps {
   hasPendingPlanPermission: boolean;
   modelPickerOverride: ChatInputProps["modelPickerOverride"];
   modePickerOverride: ChatInputProps["modePickerOverride"];
+  showModelPicker?: boolean;
+  acceptanceOnly?: boolean;
+  modelIdOverride?: string;
+  modelEntryOverride?: NonNullable<ChatInputProps["modelPickerOverride"]>["models"][number];
   onCycleMode: () => void;
   disabled?: boolean;
   sendDisabled?: boolean;
@@ -149,6 +153,10 @@ export const AgentChatInput = memo(function AgentChatInput({
   hasPendingPlanPermission,
   modelPickerOverride,
   modePickerOverride,
+  showModelPicker = true,
+  acceptanceOnly = false,
+  modelIdOverride,
+  modelEntryOverride,
   onCycleMode,
   disabled = false,
   sendDisabled = false,
@@ -169,7 +177,7 @@ export const AgentChatInput = memo(function AgentChatInput({
   const activeChatInputId = useRef(chatInputId);
   activeChatInputId.current = chatInputId;
 
-  const selectedTextContexts = useSelectedTextContexts();
+  const currentSelection = useSelectedTextContexts();
   const { activeWebTabForMentions } = useActiveWebTabState();
 
   const previousChatInputIdRef = useRef(chatInputId);
@@ -185,6 +193,7 @@ export const AgentChatInput = memo(function AgentChatInput({
     setInput: setInputMessage,
     setContextNotes,
     setWebTabs,
+    setDraftSelectedText,
     setSelectedImages,
     addImages,
     setIncludeActiveNote,
@@ -193,9 +202,15 @@ export const AgentChatInput = memo(function AgentChatInput({
     setQueue: setQueuedMessages,
     resetCompose,
   } = draft;
-  const activeModelEntry = modelPickerOverride?.models.find(
-    (model) => getModelKeyFromModel(model) === modelPickerOverride.value
+  const selectedTextContexts = dedupeBy(
+    [...(draft.selectedTextContexts ?? []), ...currentSelection],
+    (selection) => selection.id
   );
+  const activeModelEntry =
+    modelEntryOverride ??
+    modelPickerOverride?.models.find(
+      (model) => getModelKeyFromModel(model) === modelPickerOverride.value
+    );
   const unsupportedImageModelLabel =
     Array.isArray(activeModelEntry?.capabilities) && !modelSupportsVision(activeModelEntry)
       ? activeModelEntry.displayName || activeModelEntry.name
@@ -233,6 +248,9 @@ export const AgentChatInput = memo(function AgentChatInput({
       if (notes.length > 0) {
         setContextNotes((previous) => dedupeBy([...notes, ...previous], (note) => note.path));
       }
+      const selected = restored.context?.selectedTextContexts ?? [];
+      if (selected.length > 0)
+        setDraftSelectedText((previous) => dedupeBy([...selected, ...previous], (item) => item.id));
       const images = [
         ...(restored.promptContent ?? [])
           .map(imageBlockToFile)
@@ -248,6 +266,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       setContextNotes,
       setInputMessage,
       setWebTabs,
+      setDraftSelectedText,
       setIncludeActiveNote,
       setIncludeActiveWebTab,
       setSelectedImages,
@@ -273,6 +292,8 @@ export const AgentChatInput = memo(function AgentChatInput({
       await backend.cancel();
     } catch (e) {
       logError("[AgentMode] cancel failed", e);
+      // 主输入区的停止失败也必须可见，不能只在后台日志留下记录。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      new Notice(t("Stopping could not be confirmed. Check background work and try again."));
     }
   }, [backend, queuedMessages, restoreToComposer, setQueuedMessages]);
 
@@ -294,18 +315,25 @@ export const AgentChatInput = memo(function AgentChatInput({
       } catch (error) {
         logError("Error sending agent message:", error);
         new Notice(t("Failed to send message. Please try again."));
-        if (!accepted) restoreToComposer([item]);
+        if (!accepted || acceptanceOnly) restoreToComposer([item]);
       } finally {
         setLoading(false);
       }
     },
-    [backend, restoreToComposer, setLoading, updateUserMessageHistory]
+    [acceptanceOnly, backend, restoreToComposer, setLoading, updateUserMessageHistory]
   );
 
   const sendMidTurn = useCallback(
     (item: QueuedAgentMessage) => {
       try {
-        backend.sendMessage(item.text, item.context, item.promptContent);
+        const { turn } = backend.sendMessage(item.text, item.context, item.promptContent);
+        if (acceptanceOnly) {
+          void turn.catch((error) => {
+            logError("Error sending agent message:", error);
+            new Notice(t("Failed to send message. Please try again."));
+            restoreToComposer([item]);
+          });
+        }
         if (item.rawInput) updateUserMessageHistory(item.rawInput);
       } catch (error) {
         logError("Error sending agent message:", error);
@@ -313,7 +341,7 @@ export const AgentChatInput = memo(function AgentChatInput({
         restoreToComposer([item]);
       }
     },
-    [backend, restoreToComposer, updateUserMessageHistory]
+    [acceptanceOnly, backend, restoreToComposer, updateUserMessageHistory]
   );
 
   const unlocking = useRef(false);
@@ -355,7 +383,8 @@ export const AgentChatInput = memo(function AgentChatInput({
 
       if (unlocking.current) return;
       const settings = getSettings();
-      const selectedModelId = backend.getBackendState()?.model?.current.baseModelId;
+      const selectedModelId =
+        modelIdOverride ?? backend.getBackendState()?.model?.current.baseModelId;
       const selectedModel = settings.configuredModels.find(
         (model) => model.configuredModelId === selectedModelId
       );
@@ -436,6 +465,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       backend,
       inputMessage,
       selectedImages,
+      modelIdOverride,
       contextNotes,
       includeActiveNote,
       includeActiveWebTab,
@@ -466,13 +496,14 @@ export const AgentChatInput = memo(function AgentChatInput({
     const stopReason = backend
       .getMessages()
       .findLast((message) => message.turnStopReason)?.turnStopReason;
-    // 自动停止后保留排队文本供用户确认，不能因空闲状态立即发出下一次请求。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    // 自动停止后保留排队文本供用户确认，不能因空闲状态立即发出下一次请求。https://github.com/ItsDalk-Lane/Scribe/issues/31 https://github.com/ItsDalk-Lane/Scribe/issues/50
     if (
       stopReason === "quota_exhausted" ||
       stopReason === "authentication_error" ||
       stopReason === "context_limit" ||
       stopReason === "request_error" ||
-      stopReason === "max_turn_requests"
+      stopReason === "max_turn_requests" ||
+      stopReason === "max_task_requests"
     ) {
       setQueuedMessages([]);
       restoreToComposer(queuedMessages);
@@ -552,10 +583,14 @@ export const AgentChatInput = memo(function AgentChatInput({
           onAddImage={addImages}
           setSelectedImages={setSelectedImages}
           disableModelSwitch={!modelPickerOverride}
+          showModelPicker={showModelPicker}
           modelPickerOverride={modelPickerOverride ?? undefined}
           modePickerOverride={modePickerOverride ?? undefined}
           selectedTextContexts={selectedTextContexts}
-          onRemoveSelectedText={dismissSelection}
+          onRemoveSelectedText={(id) => {
+            dismissSelection(id);
+            setDraftSelectedText((previous) => previous.filter((item) => item.id !== id));
+          }}
         />
       </div>
     </>

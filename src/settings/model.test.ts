@@ -57,26 +57,103 @@ describe("model", () => {
   });
 
   describe("sanitizeSettings", () => {
-    it("keeps the skill list sort strategy and falls back to name for invalid ones https://github.com/ItsDalk-Lane/Scribe/issues/48", () => {
-      const sanitized = sanitizeSettings({
+    it.each([false, true])(
+      "drops the retired CORS value %s while retaining provider credentials and configured models https://github.com/ItsDalk-Lane/Scribe/issues/51",
+      (enableCors) => {
+        const provider = {
+          providerId: "saved-zhipu",
+          providerType: "openai-compatible" as const,
+          displayName: "Saved Zhipu",
+          baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
+          apiKeyRef: "encrypted-zhipu-key",
+          requiresApiKey: true,
+          origin: { kind: "byok" as const, catalogProviderId: "zhipuai-coding-plan" },
+          addedAt: 1,
+        };
+        const input = {
+          ...DEFAULT_SETTINGS,
+          providers: { "saved-zhipu": { ...provider, enableCors } },
+          configuredModels: [
+            {
+              configuredModelId: "saved-glm",
+              providerId: "saved-zhipu",
+              info: { id: "glm-5.3", displayName: "GLM-5.3" },
+              configuredAt: 2,
+            },
+          ],
+        };
+
+        const sanitized = sanitizeSettings(input);
+
+        expect(sanitized.providers["saved-zhipu"]).toEqual(provider);
+        expect(sanitized.configuredModels).toEqual(input.configuredModels);
+        expect(input.providers["saved-zhipu"].enableCors).toBe(enableCors);
+      }
+    );
+
+    it("defaults missing child limits and retains explicitly configured limits https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const input = {
         ...DEFAULT_SETTINGS,
         agentMode: {
           ...DEFAULT_SETTINGS.agentMode,
-          skills: { ...DEFAULT_SETTINGS.agentMode.skills, sortStrategy: "recent" },
+          subagents: { maxConcurrent: 2, maxQueued: 0, maxTaskRequests: 200 },
         },
+      };
+      expect(sanitizeSettings(input).agentMode.subagents).toEqual({
+        maxConcurrent: 2,
+        maxQueued: 0,
+        maxTaskRequests: 200,
       });
-      expect(sanitized.agentMode.skills.sortStrategy).toBe("recent");
-      const invalid = sanitizeSettings({
+      expect(
+        sanitizeSettings({
+          ...input,
+          agentMode: {
+            ...input.agentMode,
+            subagents: { maxConcurrent: -1, maxQueued: 1.5, maxTaskRequests: 0 },
+          },
+        }).agentMode.subagents
+      ).toEqual({ maxConcurrent: 3, maxQueued: 20, maxTaskRequests: 100 });
+      expect(
+        sanitizeSettings({ ...input, agentMode: { ...input.agentMode, subagents: undefined } })
+          .agentMode.subagents
+      ).toEqual({ maxConcurrent: 3, maxQueued: 20, maxTaskRequests: 100 });
+    });
+    it("keeps valid subagent chat open areas and falls back to the right sidebar for invalid ones", () => {
+      for (const area of ["left", "right", "floating"] as const) {
+        expect(
+          sanitizeSettings({
+            ...DEFAULT_SETTINGS,
+            agentMode: { ...DEFAULT_SETTINGS.agentMode, subagentChatOpenArea: area },
+          }).agentMode.subagentChatOpenArea
+        ).toBe(area);
+      }
+      expect(
+        sanitizeSettings({
+          ...DEFAULT_SETTINGS,
+          agentMode: { ...DEFAULT_SETTINGS.agentMode, subagentChatOpenArea: "top" as never },
+        }).agentMode.subagentChatOpenArea
+      ).toBe("right");
+      expect(
+        sanitizeSettings({
+          ...DEFAULT_SETTINGS,
+          agentMode: { ...DEFAULT_SETTINGS.agentMode, subagentChatOpenArea: undefined },
+        }).agentMode.subagentChatOpenArea
+      ).toBe("right");
+    });
+
+    it("drops the retired skill list sort strategy from settings written by older versions https://github.com/ItsDalk-Lane/Scribe/issues/48", () => {
+      const stored = {
         ...DEFAULT_SETTINGS,
         agentMode: {
           ...DEFAULT_SETTINGS.agentMode,
           skills: {
             ...DEFAULT_SETTINGS.agentMode.skills,
-            sortStrategy: "manual" as unknown as "recent",
-          },
+            sortStrategy: "recent",
+          } as ScribeSettings["agentMode"]["skills"],
         },
-      });
-      expect(invalid.agentMode.skills.sortStrategy).toBe("name");
+      };
+      const sanitized = sanitizeSettings(stored);
+      expect(sanitized.agentMode.skills).not.toHaveProperty("sortStrategy");
     });
 
     it("keeps valid skill catalog budget overrides and falls back to defaults for invalid ones https://github.com/ItsDalk-Lane/Scribe/issues/40", () => {
@@ -326,10 +403,12 @@ describe("model", () => {
       });
       expect(sanitized.agentMode).toEqual({
         activeBackend: "native",
+        subagents: { maxConcurrent: 3, maxQueued: 20, maxTaskRequests: 100 },
         backends: {},
         notificationSound: true,
         notificationSoundId: "piano",
         welcomeDismissed: false,
+        subagentChatOpenArea: "right",
         skills: DEFAULT_SETTINGS.agentMode.skills,
       });
     });

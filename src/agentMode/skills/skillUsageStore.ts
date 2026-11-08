@@ -20,60 +20,84 @@ export interface SkillUsageEntry {
 export type SkillUsageLedger = Record<string, SkillUsageEntry>;
 
 const PERSIST_DEBOUNCE_MS = 30_000;
+const EMPTY_LEDGER = Object.freeze({}) as SkillUsageLedger;
 
 const store = createStore();
-const usageAtom = atom<SkillUsageLedger>({});
+const usageAtom = atom<SkillUsageLedger>(EMPTY_LEDGER);
 
-let app: App | null = null;
-let ledger: SkillUsageLedger = {};
-let loaded = false;
-let pendingPersist = false;
+interface UsageState {
+  owner: App;
+  ledger: SkillUsageLedger;
+  loaded: boolean;
+  failed: boolean;
+  loading: Promise<void> | null;
+  deletedDuringLoad: Set<string>;
+  changedDuringLoad: boolean;
+  pendingPersist: boolean;
+  disposed: boolean;
+  writeQueue: Promise<void>;
+  persistSoon: ReturnType<typeof debounce<(owner: UsageState) => void>>;
+}
+
+let current: UsageState | null = null;
+const states = new Map<App, UsageState>();
 
 async function load(owner: App): Promise<SkillUsageLedger> {
-  try {
-    if (!(await owner.vault.adapter.exists(SKILL_USAGE_PATH))) return {};
-    const raw = await owner.vault.adapter.read(SKILL_USAGE_PATH);
-    if (!raw.trim()) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const next: SkillUsageLedger = {};
-    for (const [name, entry] of Object.entries(parsed as Record<string, unknown>)) {
-      const record = entry as Partial<SkillUsageEntry> | null;
-      if (
-        record &&
-        typeof record.count === "number" &&
-        typeof record.lastUsedAt === "number" &&
-        (record.lastSource === "model" || record.lastSource === "user")
-      )
-        next[name] = {
-          count: record.count,
-          lastUsedAt: record.lastUsedAt,
-          lastSource: record.lastSource,
-        };
-    }
-    return next;
-  } catch (error) {
-    logWarn("[Skills] Could not read the usage ledger", error);
-    return {};
+  if (!(await owner.vault.adapter.exists(SKILL_USAGE_PATH))) return {};
+  const raw = await owner.vault.adapter.read(SKILL_USAGE_PATH);
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    throw new Error("Invalid skill usage ledger");
+  const next: SkillUsageLedger = {};
+  for (const [name, entry] of Object.entries(parsed as Record<string, unknown>)) {
+    const record = entry as Partial<SkillUsageEntry> | null;
+    if (
+      record &&
+      typeof record.count === "number" &&
+      typeof record.lastUsedAt === "number" &&
+      (record.lastSource === "model" || record.lastSource === "user")
+    )
+      next[name] = {
+        count: record.count,
+        lastUsedAt: record.lastUsedAt,
+        lastSource: record.lastSource,
+      };
+    else throw new Error("Invalid skill usage entry");
   }
+  return next;
 }
 
-async function persistNow(owner: App): Promise<void> {
-  pendingPersist = false;
-  try {
-    await writeVaultFile(owner.vault, SKILL_USAGE_PATH, `${JSON.stringify(ledger, null, 2)}\n`);
-  } catch (error) {
-    logWarn("[Skills] Could not save the usage ledger", error);
-  }
+function persistNow(state: UsageState): void {
+  state.pendingPersist = false;
+  const contents = `${JSON.stringify(state.ledger, null, 2)}\n`;
+  // 同一库的旧快照不能在新快照之后落盘。https://github.com/ItsDalk-Lane/Scribe/issues/48
+  state.writeQueue = state.writeQueue
+    .then(() => writeVaultFile(state.owner.vault, SKILL_USAGE_PATH, contents))
+    .catch((error: unknown) => logWarn("[Skills] Could not save the usage ledger", error));
 }
-
-let flushPromise: Promise<void> = Promise.resolve();
-const persistSoon = debounce((owner: App) => {
-  flushPromise = persistNow(owner);
-}, PERSIST_DEBOUNCE_MS);
 
 export function initializeSkillUsageStore(owner: App): void {
-  app = owner;
+  // 切库不能丢弃上一库未完成的读取和保存。https://github.com/ItsDalk-Lane/Scribe/issues/48
+  let state = states.get(owner);
+  if (!state) {
+    state = {
+      owner,
+      ledger: EMPTY_LEDGER,
+      loaded: false,
+      failed: false,
+      loading: null,
+      deletedDuringLoad: new Set(),
+      changedDuringLoad: false,
+      pendingPersist: false,
+      disposed: false,
+      writeQueue: Promise.resolve(),
+      persistSoon: debounce(persistNow, PERSIST_DEBOUNCE_MS),
+    };
+    states.set(owner, state);
+  }
+  current = state;
+  publish(state);
+  startLoading(state);
 }
 
 export function useSkillUsageLedger(): SkillUsageLedger {
@@ -81,71 +105,102 @@ export function useSkillUsageLedger(): SkillUsageLedger {
 }
 
 export function getSkillUsageLedger(): SkillUsageLedger {
-  return ledger;
+  return current?.ledger ?? EMPTY_LEDGER;
 }
 
-function publish(next: SkillUsageLedger): void {
-  ledger = next;
-  store.set(usageAtom, ledger);
+function publish(state: UsageState): void {
+  if (current === state) store.set(usageAtom, state.ledger);
+}
+
+function startLoading(state: UsageState): void {
+  if (!state.loaded && !state.loading && !state.failed) {
+    // 首次读取旧台账期间的调用仍须计数，不能被读取结果覆盖。https://github.com/ItsDalk-Lane/Scribe/issues/48
+    const pending = load(state.owner)
+      .then((initial) => {
+        if (state.disposed) return;
+        for (const deleted of state.deletedDuringLoad) delete initial[deleted];
+        for (const [pendingName, entry] of Object.entries(state.ledger)) {
+          initial[pendingName] = {
+            ...entry,
+            count: (initial[pendingName]?.count ?? 0) + entry.count,
+          };
+        }
+        state.deletedDuringLoad.clear();
+        state.ledger = initial;
+        publish(state);
+        state.loaded = true;
+        if (state.changedDuringLoad) {
+          state.changedDuringLoad = false;
+          schedulePersist(state);
+        }
+      })
+      .catch((error: unknown) => {
+        // 读取失败时保留原文件，不能把未知内容当成空台账覆盖。https://github.com/ItsDalk-Lane/Scribe/issues/48
+        state.failed = true;
+        logWarn("[Skills] Could not load the usage ledger", error);
+      });
+    state.loading = pending;
+  }
 }
 
 export function recordSkillUsage(owner: App | null, name: string, source: SkillUsageSource): void {
-  const target = owner ?? app;
+  const target = owner ?? current?.owner;
   if (!target) return;
-  if (!loaded) {
-    loaded = true;
-    void load(target)
-      .then((initial) => {
-        publish({
-          ...initial,
-          [name]: {
-            count: (initial[name]?.count ?? 0) + 1,
-            lastUsedAt: Date.now(),
-            lastSource: source,
-          },
-        });
-        schedulePersist(target);
-      })
-      .catch((error: unknown) => logWarn("[Skills] Could not load the usage ledger", error));
-    return;
-  }
-  const entry = ledger[name];
-  publish({
-    ...ledger,
+  if (!states.has(target)) initializeSkillUsageStore(target);
+  const state = states.get(target)!;
+  startLoading(state);
+  const entry = state.ledger[name];
+  state.ledger = {
+    ...state.ledger,
     [name]: {
       count: (entry?.count ?? 0) + 1,
       lastUsedAt: Date.now(),
       lastSource: source,
     },
-  });
-  schedulePersist(target);
+  };
+  publish(state);
+  if (state.loaded) schedulePersist(state);
+  else if (!state.failed) state.changedDuringLoad = true;
 }
 
-function schedulePersist(target: App): void {
-  pendingPersist = true;
-  persistSoon(target);
+function schedulePersist(state: UsageState): void {
+  state.pendingPersist = true;
+  state.persistSoon(state);
 }
 
 export async function flushSkillUsageStore(): Promise<void> {
-  if (app && pendingPersist) persistSoon.flush();
-  await flushPromise;
+  await Promise.all(
+    [...states.values()].map(async (state) => {
+      await state.loading;
+      if (state.pendingPersist) state.persistSoon.flush();
+      await state.writeQueue;
+    })
+  );
 }
 
 // 技能删除时一并清除其台账记录；重装恢复后计数从零开始。
 // https://github.com/ItsDalk-Lane/Scribe/issues/48
 export function forgetSkillUsage(name: string): void {
-  if (!(name in ledger)) return;
-  const next = { ...ledger };
+  const state = current;
+  if (!state) return;
+  if (!state.loaded && !state.failed) {
+    state.deletedDuringLoad.add(name);
+    state.changedDuringLoad = true;
+  }
+  if (!(name in state.ledger)) return;
+  const next = { ...state.ledger };
   delete next[name];
-  publish(next);
-  if (app) schedulePersist(app);
+  state.ledger = next;
+  publish(state);
+  if (state.loaded) schedulePersist(state);
 }
 
 export function resetSkillUsageStoreForTesting(): void {
-  app = null;
-  ledger = {};
-  loaded = false;
-  pendingPersist = false;
-  persistSoon.cancel();
-  store.set(usageAtom, {});
+  for (const state of states.values()) {
+    state.disposed = true;
+    state.persistSoon.cancel();
+  }
+  states.clear();
+  current = null;
+  store.set(usageAtom, EMPTY_LEDGER);
 }

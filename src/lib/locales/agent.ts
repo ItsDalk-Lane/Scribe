@@ -1,4 +1,60 @@
 export const agentTranslations: Record<string, string> = {
+  "Subagent stopped.": "子代理已停止。",
+  "Stopping could not be confirmed. Check background work and try again.":
+    "尚未确认停止成功，请检查后台工作后重试。",
+  "Result saved; delivery is blocked because the parent inbox is full. Delivery resumes when space is available.":
+    "结果已保存，但主对话的收件箱已满，暂时无法交付。腾出空间后会继续交付。",
+  "Result saved; waiting to enter the parent model context.": "结果已保存，等待进入主模型上下文。",
+  "Result is in the parent model context.": "结果已进入主模型上下文。",
+  "Add model requests for this task": "为此任务增加模型调用次数",
+  "Adds the configured request allowance without automatically running the task.":
+    "按设置中的次数增加额度，不会自动继续执行任务。",
+  "Request allowance added. Explicitly continue when you are ready; saved history is unchanged.":
+    "额度已增加，原有记录已保留。准备好后请明确继续。",
+  "Current context usage is unavailable": "当前上下文占用尚无可用读数",
+  "Cumulative usage": "累计消耗",
+  "Cumulative input": "累计输入",
+  "Cumulative output": "累计输出",
+  "Cumulative cache read": "累计缓存读取",
+  "Cumulative cache write": "累计缓存写入",
+  "I checked the actual files and tasks": "已核对实际文件和任务，解除恢复阻塞",
+  Subagents: "子代理",
+  "Background tasks": "后台任务",
+  "Subagent chat": "子代理聊天",
+  "Child session actions": "子代理操作",
+  "No child sessions yet.": "还没有子代理。",
+  "Refresh child sessions": "刷新子会话",
+  "Stop this child": "停止此子代理",
+  "Unarchive child session": "取消归档",
+  "Archive child session": "归档子会话",
+  "Delete child session": "删除子会话",
+  "Recovery blocked": "恢复受阻",
+  "This deletes this child's saved context and run history after stopping its work. Messages already quoted in the parent chat remain. This cannot be undone.":
+    "这会先停止此子代理，再删除它保存的工作内容和执行记录。主聊天已收到的引用仍会保留，此删除无法撤销。",
+  "Confirm deletion": "确认删除",
+  "Cancel deletion": "取消删除",
+  "This child session no longer exists.": "此子代理已不存在。",
+  "The parent chat of this child session is closed.": "此子代理所属的聊天已关闭。",
+  "Unarchive this child session before continuing.": "请先取消归档，再继续此子代理。",
+  "Replying to the parent agent": "正在回复主代理",
+  "Asking the parent agent": "正在询问主代理",
+  "Sends when the child session next runs": "待子代理下次运行时发送",
+  "Waiting for the child to start.": "等待子代理启动。",
+  "Retry waiting messages": "重试等待中的消息",
+  Queued: "排队中",
+  "Waiting for input": "等待输入",
+  Stopping: "停止中",
+  Archived: "已归档",
+  "Task request limit reached": "已达到主任务请求上限",
+  "This child session cannot be continued in this chat.": "此聊天目前无法继续该子会话。",
+  "**Task request limit reached.** The parent chat and its children have used this task's request budget. Saved progress is preserved; explicitly continue to allow more requests.":
+    "**已达到主任务请求上限。** 主对话和子代理已用完本次任务的请求次数。已保存的进度仍在，明确继续后才会允许更多请求。",
+  question: "提问",
+  progress: "进度",
+  discovery: "发现",
+  blocked: "受阻",
+  result: "结果",
+  instruction: "指令",
   "Some chat content or attachments could not be loaded. The available history has been preserved.":
     "部分聊天内容或附件未能加载，其余历史记录已保留。",
   "This chat can be viewed, but its record sequence is damaged and new operations are disabled.":
@@ -585,6 +641,10 @@ export const agentTranslations: Record<string, string> = {
   "+{added} / −{removed} lines": "+{added} / −{removed} 行",
   "{action} vault root": "{action}库根目录",
   "read {count}": "读取了 {count}",
+  "Listing subagent sessions": "正在查看子会话",
+  "Listed subagent sessions": "已查看子会话",
+  "Reading subagent result": "正在查看子代理结果",
+  "Read subagent result": "已查看子代理结果",
   "edited {count}": "编辑了 {count}",
   "ran {count}": "运行了 {count}",
   "thought for {duration}": "思考了 {duration}",
@@ -748,7 +808,10 @@ export const agentTranslations: Record<string, string> = {
     "技能目录预算：{total} 项技能中有 {omitted} 项未进入模型可见列表：{names}。",
   "Skill catalog budget: degraded to skill names only; {count} skill descriptions are not in the model-visible list.":
     "技能目录预算：已降级为仅技能名，{count} 项技能描述未进入模型可见列表。",
-  "Skill catalog budget": "技能目录预算",
+  "Skill catalog budget: No skill names are in the model-visible list. Omitted skills ({count}): {names}. Increase the budget to show them.":
+    "技能目录预算：模型可见列表中没有任何技能名称。未列入的技能（{count} 项）：{names}。请提高预算以显示技能。",
+  "Skill catalog budget: descriptions are omitted. Omitted skill names ({count}): {names}.":
+    "技能目录预算：技能描述未列入。未列入的技能名称（{count} 项）：{names}。",
   "Context share (percent)": "上下文占比（百分比）",
   "The model-visible skill list is capped by this share of the model context window. Default is {default}.":
     "模型可见技能列表以模型上下文窗口的该比例封顶。默认值为 {default}。",
@@ -809,9 +872,6 @@ export const agentTranslations: Record<string, string> = {
   "Brand color (#RRGGBB)": "品牌色（#RRGGBB）",
   "Default prompt for Use now": "“立即使用”的默认提示语",
   "Save interface metadata": "保存界面元数据",
-  "List sorting": "列表排序",
-  "By name": "按名称",
-  "By recent use": "按最近使用",
   "Used {count} times, last {when}": "已使用 {count} 次，最近 {when}",
   "These skills have not been used in over {days} days: {names}":
     "以下技能已超过 {days} 天未使用：{names}",

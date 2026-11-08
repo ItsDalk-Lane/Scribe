@@ -25,6 +25,11 @@ export const TaskStatusMark: React.FC<{ status: TaskDisplayStatus; className?: s
     {status === "needs_approval" ||
     status === "interrupted" ||
     status === "max_turn_requests" ||
+    status === "max_task_requests" ||
+    status === "queued" ||
+    status === "awaiting_approval" ||
+    status === "awaiting_input" ||
+    status === "stopping" ||
     status === "quota_exhausted" ||
     status === "authentication_error" ||
     status === "context_limit" ||

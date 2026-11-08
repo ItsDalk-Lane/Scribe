@@ -50,6 +50,13 @@ describe("skillUsageStore", () => {
     jest.useRealTimers();
   });
 
+  describe("getSkillUsageLedger()", () => {
+    it("returns the same frozen empty ledger before initialization", () => {
+      expect(getSkillUsageLedger()).toBe(getSkillUsageLedger());
+      expect(Object.isFrozen(getSkillUsageLedger())).toBe(true);
+    });
+  });
+
   describe("recordSkillUsage()", () => {
     it("counts model and manual invocations separately per skill", async () => {
       const { app } = fakeApp();
@@ -81,6 +88,29 @@ describe("skillUsageStore", () => {
       });
       expect(getSkillUsageLedger()["new-skill"].count).toBe(1);
       expect(files[SKILL_USAGE_PATH]).toContain("old-skill");
+    });
+
+    it("retains both invocations when the previous ledger is still loading https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const { app } = fakeApp({
+        [SKILL_USAGE_PATH]: JSON.stringify({
+          "note-format": { count: 7, lastUsedAt: 123, lastSource: "user" },
+        }),
+      });
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const exists = app.vault.adapter.exists.bind(app.vault.adapter);
+      jest.spyOn(app.vault.adapter, "exists").mockImplementation(async (path) => {
+        if (path === SKILL_USAGE_PATH) await gate;
+        return exists(path);
+      });
+      initializeSkillUsageStore(app);
+      recordSkillUsage(app, "note-format", "user");
+      recordSkillUsage(app, "note-format", "model");
+      release();
+      await jest.runAllTimersAsync();
+      expect(getSkillUsageLedger()["note-format"]).toMatchObject({ count: 9, lastSource: "model" });
     });
 
     it("persists to .scribe through staged writes and survives reload", async () => {
@@ -123,8 +153,8 @@ describe("skillUsageStore", () => {
     it("updates React consumers through the ledger hook", async () => {
       const { app } = fakeApp();
       const { result } = renderHook(() => useSkillUsageLedger());
-      initializeSkillUsageStore(app);
       await act(async () => {
+        initializeSkillUsageStore(app);
         recordSkillUsage(app, "note-format", "user");
         await jest.runAllTimersAsync();
       });
@@ -143,9 +173,66 @@ describe("skillUsageStore", () => {
       expect(getSkillUsageLedger()["note-format"]).toBeUndefined();
       expect(files[SKILL_USAGE_PATH]).not.toContain("note-format");
     });
+
+    it("does not restore a deleted skill when the previous ledger is still loading https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const { app, files } = fakeApp({
+        [SKILL_USAGE_PATH]: JSON.stringify({
+          old: { count: 4, lastUsedAt: 10, lastSource: "user" },
+        }),
+      });
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const exists = app.vault.adapter.exists.bind(app.vault.adapter);
+      jest.spyOn(app.vault.adapter, "exists").mockImplementation(async (path) => {
+        if (path === SKILL_USAGE_PATH) await gate;
+        return exists(path);
+      });
+      initializeSkillUsageStore(app);
+      forgetSkillUsage("old");
+      recordSkillUsage(app, "new", "model");
+      release();
+      await flushSkillUsageStore();
+      expect(getSkillUsageLedger()).not.toHaveProperty("old");
+      expect(JSON.parse(files[SKILL_USAGE_PATH])).not.toHaveProperty("old");
+    });
   });
 
   describe("flushSkillUsageStore()", () => {
+    it("writes later usage after an earlier slow save instead of overwriting it https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const { app, files } = fakeApp();
+      let release!: () => void;
+      let started!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const firstWrite = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const write = app.vault.adapter.write.bind(app.vault.adapter);
+      let writes = 0;
+      jest.spyOn(app.vault.adapter, "write").mockImplementation(async (path, content) => {
+        if (++writes === 1) {
+          started();
+          await gate;
+        }
+        return write(path, content);
+      });
+      initializeSkillUsageStore(app);
+      recordSkillUsage(app, "note-format", "user");
+      const firstFlush = flushSkillUsageStore();
+      await firstWrite;
+      recordSkillUsage(app, "note-format", "model");
+      await jest.advanceTimersByTimeAsync(30_000);
+      release();
+      await firstFlush;
+      await flushSkillUsageStore();
+      expect(JSON.parse(files[SKILL_USAGE_PATH])["note-format"]).toMatchObject({
+        count: 2,
+        lastSource: "model",
+      });
+    });
     it("flushes pending counts immediately", async () => {
       const { app, files } = fakeApp();
       initializeSkillUsageStore(app);
@@ -158,6 +245,75 @@ describe("skillUsageStore", () => {
         { count: number; lastSource: string }
       >;
       expect(saved["note-format"]).toMatchObject({ count: 2, lastSource: "user" });
+    });
+
+    it("waits for the initial ledger read before saving pending usage https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const { app, files } = fakeApp();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const exists = app.vault.adapter.exists.bind(app.vault.adapter);
+      jest.spyOn(app.vault.adapter, "exists").mockImplementation(async (path) => {
+        if (path === SKILL_USAGE_PATH) await gate;
+        return exists(path);
+      });
+      initializeSkillUsageStore(app);
+      recordSkillUsage(app, "note-format", "user");
+      const flushed = flushSkillUsageStore();
+      release();
+      await flushed;
+      expect(JSON.parse(files[SKILL_USAGE_PATH])["note-format"].count).toBe(1);
+    });
+  });
+
+  describe("initializeSkillUsageStore()", () => {
+    it("loads existing usage before any new invocation https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const { app } = fakeApp({
+        [SKILL_USAGE_PATH]: JSON.stringify({
+          old: { count: 4, lastUsedAt: 10, lastSource: "user" },
+        }),
+      });
+      initializeSkillUsageStore(app);
+      await flushSkillUsageStore();
+      expect(getSkillUsageLedger().old?.count).toBe(4);
+    });
+
+    it("does not publish or write the previous vault's pending load into a new vault https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const first = fakeApp({
+        [SKILL_USAGE_PATH]: JSON.stringify({
+          first: { count: 4, lastUsedAt: 10, lastSource: "user" },
+        }),
+      });
+      const second = fakeApp();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const exists = first.app.vault.adapter.exists.bind(first.app.vault.adapter);
+      jest.spyOn(first.app.vault.adapter, "exists").mockImplementation(async (path) => {
+        if (path === SKILL_USAGE_PATH) await gate;
+        return exists(path);
+      });
+      initializeSkillUsageStore(first.app);
+      recordSkillUsage(first.app, "first", "user");
+      initializeSkillUsageStore(second.app);
+      recordSkillUsage(second.app, "second", "model");
+      release();
+      await flushSkillUsageStore();
+      expect(getSkillUsageLedger()).toMatchObject({ second: { count: 1, lastSource: "model" } });
+      expect(getSkillUsageLedger()).not.toHaveProperty("first");
+      expect(JSON.parse(second.files[SKILL_USAGE_PATH])).not.toHaveProperty("first");
+      expect(JSON.parse(first.files[SKILL_USAGE_PATH]).first.count).toBe(5);
+    });
+
+    it("preserves an unreadable existing ledger when new usage is recorded https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const damaged = "{ incomplete";
+      const { app, files } = fakeApp({ [SKILL_USAGE_PATH]: damaged });
+      initializeSkillUsageStore(app);
+      recordSkillUsage(app, "note-format", "user");
+      await flushSkillUsageStore();
+      expect(files[SKILL_USAGE_PATH]).toBe(damaged);
     });
   });
 });

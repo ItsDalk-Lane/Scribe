@@ -7,6 +7,7 @@ import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import type { NativeSessionRecord } from "@/agentMode/sdk/NativeBackendProcess";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import type { Api, Model } from "@earendil-works/pi-ai";
+import type { NativeSubagentState } from "@/agentMode/sdk/subagentState";
 
 const SESSION_ID = "native-8c4529e7-6551-4f39-81b3-dbf5f8e716dd";
 const SECOND_ID = "native-41d51594-f0e0-46b7-b770-a283c9f6405f";
@@ -49,6 +50,52 @@ function gate() {
     resolve = done;
   });
   return { promise, resolve };
+}
+
+function childState(id = "child-a"): NativeSubagentState {
+  return {
+    version: 1,
+    revision: 1,
+    automaticTaskIds: ["generation-a"],
+    context: [{ role: "user", content: `子上下文-${id}`, timestamp: 1 }],
+    snapshot: {
+      id,
+      parentSessionId: SESSION_ID,
+      projectId: "project-a",
+      name: "整理资料",
+      modelId: "model-a",
+      cwd: "/vault/project",
+      retention: "retained",
+      createdAt: 1,
+      updatedAt: 3,
+      runs: [
+        {
+          id: `run-${id}`,
+          toolCallId: `tool-${id}`,
+          taskGenerationId: "generation-a",
+          status: "completed",
+          createdAt: 1,
+          resultId: `result-${id}`,
+          result: "任务完成",
+          usage: { input: 5, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 7 },
+        },
+      ],
+      messages: [
+        {
+          id: `message-${id}`,
+          sequence: 1,
+          subagentId: id,
+          taskGenerationId: "generation-a",
+          direction: "to_parent",
+          sender: "subagent",
+          kind: "result",
+          text: "任务完成",
+          state: "accepted",
+          acceptedAt: 3,
+        },
+      ],
+    },
+  };
 }
 
 describe("NativeSessionStorage", () => {
@@ -170,6 +217,27 @@ describe("NativeSessionStorage", () => {
     });
 
     describe("append()", () => {
+      it("does not accept a child image when attachment storage is unavailable https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        await storage.save(record());
+        const state = childState();
+        state.snapshot.messages = [
+          {
+            ...state.snapshot.messages[0],
+            payload: { content: [{ type: "image", mimeType: "image/png", data: "YWJj" }] },
+          },
+        ];
+        await expect(
+          new NodeNativeSessionStorage(journal).append(
+            SESSION_ID,
+            "subagent_state",
+            { version: 1, state },
+            { durable: true }
+          )
+        ).rejects.toThrow(/Attachment storage/);
+        const loaded = await storage.load(SESSION_ID);
+        expect(loaded?.subagents ?? []).toEqual([]);
+      });
+
       it("persists a newly accepted protocol message once with its fact sequence", async () => {
         await storage.save(record());
         const message = { role: "user", content: "Follow-up", timestamp: 20 };
@@ -269,6 +337,238 @@ describe("NativeSessionStorage", () => {
     });
 
     describe("load()", () => {
+      it("restores accepted child reference content and image bytes from the attachment store https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        await storage.save(record());
+        const state = childState();
+        const message = {
+          ...state.snapshot.messages[0],
+          direction: "to_child" as const,
+          sender: "user" as const,
+          kind: "instruction" as const,
+          payload: {
+            content: [
+              { type: "text" as const, text: "note and selected text" },
+              { type: "image" as const, mimeType: "image/png", data: "YWJj" },
+            ],
+            context: { notes: ["note.md"] },
+          },
+        };
+        state.snapshot.messages = [message];
+        await storage.append(
+          SESSION_ID,
+          "subagent_state",
+          { version: 1, state },
+          { durable: true }
+        );
+        const raw = await readFile(join(directory, "sessions", `${SESSION_ID}.jsonl`), "utf8");
+        expect(raw).not.toContain("YWJj");
+        const loaded = await new NodeNativeSessionStorage(journal, attachments).load(SESSION_ID);
+        expect(loaded?.subagents?.[0].snapshot.messages[0]).toMatchObject({
+          payload: message.payload,
+        });
+        expect(loaded?.writable).toBe(true);
+      });
+
+      it("restores a result-id-only synchronous delivery once and clears its blocked outbox marker (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.save(record());
+        const state = childState();
+        state.snapshot.messages = [];
+        state.snapshot.runs = state.snapshot.runs.map((run) => ({ ...run, deliveryBlocked: true }));
+        await storage.append(
+          SESSION_ID,
+          "subagent_state",
+          { version: 1, state },
+          { durable: true }
+        );
+        const payload = {
+          version: 1,
+          subagentId: "child-a",
+          messageIds: [],
+          resultId: "result-child-a",
+          message: {
+            role: "toolResult",
+            toolCallId: "delegate",
+            toolName: "delegate_task",
+            isError: false,
+            content: [{ type: "text", text: "唯一规范结果" }],
+            timestamp: 4,
+          },
+        };
+        await storage.append(SESSION_ID, "subagent_delivery", payload, { durable: true });
+        await storage.append(SESSION_ID, "subagent_delivery", payload, { durable: true });
+        const cold = await new NodeNativeSessionStorage(journal).load(SESSION_ID);
+        expect(cold?.messages.filter((message) => message.role === "toolResult")).toHaveLength(1);
+        expect(cold?.subagents?.[0].snapshot.runs[0]).toMatchObject({
+          resultDelivered: true,
+          deliveryBlocked: false,
+        });
+        expect(cold?.subagents?.[0].snapshot.messages).toEqual([]);
+        expect(cold?.writable).toBe(true);
+      });
+      it("restores child directory and collaboration display events while isolating malformed new events (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.save(record());
+        const snapshot = childState().snapshot;
+        const directory = {
+          sessionId: SESSION_ID,
+          update: { sessionUpdate: "subagents_updated", subagents: [snapshot] },
+        };
+        const message = {
+          sessionId: SESSION_ID,
+          update: {
+            sessionUpdate: "subagent_message",
+            name: snapshot.name,
+            message: snapshot.messages[0],
+          },
+        };
+        await storage.append(SESSION_ID, "event", directory);
+        await storage.append(SESSION_ID, "event", message);
+        await storage.append(SESSION_ID, "event", {
+          sessionId: SESSION_ID,
+          update: {
+            sessionUpdate: "subagent_message",
+            name: "错误",
+            message: { text: "缺少来源" },
+          },
+        });
+        const loaded = await storage.load(SESSION_ID);
+        expect(loaded?.events).toMatchObject([directory, message]);
+        expect(loaded?.events).toHaveLength(2);
+        expect(loaded?.warnings?.join(" ")).toContain("unsupported session event");
+      });
+      it("restores task request budgets and deduplicated usage without restarting a previous generation (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.save(record());
+        const usage = {
+          requestId: "request-a",
+          usage: { input: 3, output: 2, cacheRead: 1, cacheWrite: 0, totalTokens: 6 },
+        };
+        await storage.append(
+          SESSION_ID,
+          "subagent_task",
+          {
+            version: 1,
+            task: {
+              id: "generation-a",
+              active: true,
+              limit: 100,
+              requestIds: ["request-a"],
+              usage: [usage, usage],
+            },
+          },
+          { durable: true }
+        );
+        const loaded = await new NodeNativeSessionStorage(journal).load(SESSION_ID);
+        expect(loaded?.taskGenerations).toEqual([
+          {
+            id: "generation-a",
+            active: false,
+            limit: 100,
+            requestIds: ["request-a"],
+            usage: [usage],
+          },
+        ]);
+        expect(loaded?.writable).toBe(true);
+      });
+
+      it.each([
+        { version: 2, task: { id: "generation-a" } },
+        {
+          version: 1,
+          task: { id: "generation-a", active: true, limit: -1, requestIds: [], usage: [] },
+        },
+        {
+          version: 1,
+          task: {
+            id: "generation-a",
+            active: true,
+            limit: 100,
+            requestIds: ["request-a", "request-a"],
+            usage: [],
+          },
+        },
+        {
+          version: 1,
+          task: {
+            id: "generation-a",
+            active: true,
+            limit: 100,
+            requestIds: [],
+            usage: [{ requestId: "unknown", usage: {} }],
+          },
+        },
+      ])(
+        "keeps an unverifiable task budget read-only instead of accepting unbounded requests: %j (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+        async (payload) => {
+          await storage.save(record());
+          await journal.append(SESSION_ID, "subagent_task", payload, { durable: true });
+          expect((await storage.load(SESSION_ID))?.writable).toBe(false);
+          await expect(storage.append(SESSION_ID, "protocol_message", {})).rejects.toThrow(
+            /format|subagent/i
+          );
+        }
+      );
+      it("restores complete child context and one parent delivery with consistent markers (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.save(record());
+        const state = childState();
+        await storage.append(
+          SESSION_ID,
+          "subagent_state",
+          { version: 1, state },
+          { durable: true }
+        );
+        const delivery = {
+          version: 1,
+          subagentId: "child-a",
+          messageIds: ["message-child-a"],
+          resultId: "result-child-a",
+          message: { role: "user", content: "子代理来源的结果", timestamp: 4 },
+        };
+        await storage.append(SESSION_ID, "subagent_delivery", delivery, { durable: true });
+        await storage.append(SESSION_ID, "subagent_delivery", delivery, { durable: true });
+        await storage.append(SESSION_ID, "protocol_message", {
+          message: { role: "user", content: "后续输入", timestamp: 5 },
+        });
+        const loaded = await new NodeNativeSessionStorage(journal).load(SESSION_ID);
+        expect(loaded?.messages.map((message) => message.content)).toEqual([
+          "Inspect the note",
+          "子代理来源的结果",
+          "后续输入",
+        ]);
+        expect(loaded).toMatchObject({
+          subagents: [
+            {
+              context: state.context,
+              snapshot: {
+                id: "child-a",
+                messages: [{ state: "delivered" }],
+                runs: [{ resultDelivered: true }],
+              },
+            },
+          ],
+        });
+      });
+
+      it("preserves unknown child formats and prevents subsequent writes through another adapter (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.save(record());
+        await journal.append(
+          SESSION_ID,
+          "subagent_state",
+          { version: 2, state: childState() },
+          { durable: true }
+        );
+        const original = await readFile(join(journal.directory, `${SESSION_ID}.jsonl`), "utf8");
+        const loaded = await storage.load(SESSION_ID);
+        expect(loaded?.writable).toBe(false);
+        expect(loaded?.warnings?.join(" ")).toContain("unsupported");
+        await expect(
+          new NodeNativeSessionStorage(journal).append(SESSION_ID, "message", {})
+        ).rejects.toThrow(/subagent|format/i);
+        await expect(storage.save({ ...record(), mode: "plan" })).rejects.toThrow(
+          /subagent|format/i
+        );
+        expect(await readFile(join(journal.directory, `${SESSION_ID}.jsonl`), "utf8")).toBe(
+          original
+        );
+      });
       it("returns null without opening an old JSON chat", async () => {
         await writeFile(join(directory, `${SESSION_ID}.json`), JSON.stringify(record()));
         expect(await new NodeNativeSessionStorage(directory).load(SESSION_ID)).toBeNull();
@@ -579,6 +879,92 @@ describe("NativeSessionStorage", () => {
         expect(fact?.seq).toBe((await appended).seq);
         expect(fact?.payload).toMatchObject({ type: "image", attachmentHash: expect.any(String) });
         expect((await appended).payload).toMatchObject({ type: "image", data: "AAEC" });
+      });
+    });
+
+    describe("removeSubagent()", () => {
+      it("erases only the chosen child recovery data while preserving parent inputs and all sequence identities (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        await storage.save(record());
+        const first = childState();
+        const second = childState("child-b");
+        await storage.append(
+          SESSION_ID,
+          "subagent_state",
+          { version: 1, state: first },
+          { durable: true }
+        );
+        await storage.append(
+          SESSION_ID,
+          "subagent_state",
+          { version: 1, state: second },
+          { durable: true }
+        );
+        await storage.append(SESSION_ID, "protocol_message", {
+          taskId: "run-child-a",
+          message: { role: "user", content: "需要删除的子指令", timestamp: 2 },
+        });
+        await storage.append(
+          SESSION_ID,
+          "subagent_delivery",
+          {
+            version: 1,
+            subagentId: "child-a",
+            messageIds: ["message-child-a"],
+            resultId: "result-child-a",
+            message: { role: "user", content: "主聊天已引用的结论", timestamp: 4 },
+          },
+          { durable: true }
+        );
+        await storage.append(
+          SESSION_ID,
+          "compaction",
+          { taskId: "run-child-a", summary: "删除的压缩上下文" },
+          { durable: true }
+        );
+        await storage.append(
+          SESSION_ID,
+          "tool_result",
+          {
+            taskId: "run-child-a",
+            message: {
+              role: "toolResult",
+              toolCallId: "old-tool",
+              toolName: "read_note",
+              isError: false,
+              content: [{ type: "text", text: "删除的工具结果" }],
+              timestamp: 4,
+            },
+          },
+          { durable: true }
+        );
+        await storage.append(
+          SESSION_ID,
+          "subagent_delivery",
+          {
+            version: 1,
+            subagentId: "child-a",
+            messageIds: ["message-child-a"],
+            resultId: "result-child-a",
+            message: { role: "user", content: "主聊天已引用的结论", timestamp: 4 },
+          },
+          { durable: true }
+        );
+        const before = (await journal.read(SESSION_ID)).records.map((entry) => entry.seq);
+        await storage.removeSubagent(SESSION_ID, "child-a");
+        const text = await readFile(join(journal.directory, `${SESSION_ID}.jsonl`), "utf8");
+        expect(text).not.toContain("子上下文-child-a");
+        expect(text).not.toContain("需要删除的子指令");
+        expect(text).not.toContain("删除的压缩上下文");
+        expect(text).not.toContain("删除的工具结果");
+        expect(text).toContain("主聊天已引用的结论");
+        const loaded = await new NodeNativeSessionStorage(journal).load(SESSION_ID);
+        expect(loaded?.subagents?.map((entry) => entry.snapshot.id)).toEqual(["child-b"]);
+        expect(loaded?.messages.map((message) => message.content)).toEqual([
+          "Inspect the note",
+          "主聊天已引用的结论",
+        ]);
+        expect((await journal.read(SESSION_ID)).records.map((entry) => entry.seq)).toEqual(before);
+        expect(await readdir(journal.directory)).toEqual([`${SESSION_ID}.jsonl`]);
       });
     });
 

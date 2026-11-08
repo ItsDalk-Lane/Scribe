@@ -65,15 +65,15 @@ with your selected model to check those conditions yourself.
 
 Public connection parameters are saved with the provider. Scribe uses the saved
 address and supported extra settings when making a request. URL placeholders are
-filled only when a request is made; the original template is kept. New providers enable **CORS
-compatibility** by default. Existing explicit choices are retained. With this
-setting enabled, replies normally appear after completion instead of word by word.
+filled only when a request is made; the original template is kept. Scribe chooses
+the connection method automatically; there is no CORS switch to configure.
 
-With compatibility off, a server that allows browser access can deliver text as
-it is generated, and **Stop** cancels the streaming request. With compatibility
-on, **Stop** ends the local turn and ignores any late reply, but cannot cancel a
-request already sent to the server; provider-side work or billing may continue.
-Accepted partial text remains available for follow-up questions.
+On desktop, replies appear as they are generated when the provider supports
+streaming. **Stop** cancels the live connection, and accepted partial text remains
+available for follow-up questions. On mobile, replies may appear only after
+completion. **Stop** ends the local turn and ignores any late reply, but cannot
+cancel a request already sent through the mobile connection; provider-side work
+or billing may continue.
 
 If you press **Stop** while a provider is authenticating a chat, Scribe does not
 send that chat's note content after authentication finishes. Each chat request prepares
@@ -175,10 +175,9 @@ authentication. Model discovery uses the endpoint's `/v1/models` response, but
 you can always enter an exact model ID before searching the discovered list.
 
 If a directory loads but sending a message fails, use **测试聊天连接** (**Test chat connection**)
-with the same selected model and read its error. For a browser access error,
-check **启用 CORS** (**Enable CORS**), the CORS compatibility setting, which is enabled by default for new providers.
-Responses then appear after completion. For LM Studio, enabling CORS in the local
-server can let you turn compatibility off and keep word-by-word streaming.
+with the same selected model and read its error. On desktop, Scribe connects
+without requiring browser CORS access, including for local model servers. You do
+not need to change a CORS setting to receive streaming replies.
 
 ## Agent Chat model access
 

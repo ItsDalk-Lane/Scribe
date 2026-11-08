@@ -21,6 +21,16 @@ function tool(overrides: Partial<ToolCallPart> = {}): ToolCallPart {
 describe("toolSummaries", () => {
   describe("lookupToolSummary", () => {
     it.each([
+      ["list_subagent_sessions", "Listed subagent sessions"],
+      ["read_subagent_result", "Read subagent result"],
+    ])(
+      "labels %s as collaboration rather than a file read https://github.com/ItsDalk-Lane/Scribe/issues/50",
+      (name, expected) => {
+        const part = tool({ vendorToolName: name, title: name, toolKind: "read" });
+        expect(lookupToolSummary(part).collapsedLine(part, CTX)).toBe(expected);
+      }
+    );
+    it.each([
       ["read_note", "Read"],
       ["list_directory", "LS"],
       ["find_paths", "Glob"],
@@ -163,6 +173,28 @@ describe("toolSummaries", () => {
       });
       expect(lookupToolSummary(t).collapsedLine(t, CTX)).toBe("context7 · Query docs");
     });
+
+    it.each([
+      { server: "web-search-prime-check", name: "web_search_prime", label: "Web search prime" },
+      { server: "web-search_prime-check", name: "web_search", label: "Web search" },
+    ])(
+      "shows the MCP server once and humanizes only $name without using the native web-search summary",
+      ({ server, name, label }) => {
+        const qualifiedName = `mcp__${server}__${name}`;
+        const part = tool({
+          vendorToolName: qualifiedName,
+          title: qualifiedName,
+          mcpServer: server,
+          input: { query: "MCP live verification" },
+        });
+        const summary = lookupToolSummary(part);
+        expect(summary.collapsedLine(part, CTX)).toBe(`${server} · ${label}`);
+        expect(summary.collapsedLine(part, CTX)).not.toContain("MCP live verification");
+        expect(summary.icon).not.toBe(
+          lookupToolSummary(tool({ vendorToolName: "WebSearch" })).icon
+        );
+      }
+    );
 
     it("keeps the 'server ·' prefix when an MCP tool's bare name collides with a native tool", () => {
       const t = tool({

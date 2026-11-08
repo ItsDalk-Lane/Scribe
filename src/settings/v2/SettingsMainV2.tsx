@@ -18,6 +18,10 @@ const LazyExtensionsSettings = React.lazy(() =>
   import("@/agentMode").then((module) => ({ default: module.AgentExtensionsSettings }))
 );
 
+const LazyMcpSettings = React.lazy(() =>
+  import("@/agentMode").then((module) => ({ default: module.McpSettingsPanel }))
+);
+
 interface ExtensionsSettingsPanelProps {
   kind: "skill" | "command" | "subagent";
 }
@@ -32,6 +36,16 @@ const ExtensionsSettingsPanel: React.FC<ExtensionsSettingsPanelProps> = ({ kind 
   );
 };
 
+const McpSettingsEntry: React.FC = () => {
+  if (!isDesktopRuntime())
+    return <DesktopOnlySettingsPanel message={t("MCP servers are available on desktop.")} />;
+  return (
+    <React.Suspense fallback={null}>
+      <LazyMcpSettings />
+    </React.Suspense>
+  );
+};
+
 const components: Record<ScribeSettingsTabId, React.FC> = {
   basic: BasicSettings,
   about: AboutSettingsPanel,
@@ -40,6 +54,7 @@ const components: Record<ScribeSettingsTabId, React.FC> = {
   command: () => <ExtensionsSettingsPanel kind="command" />,
   skills: () => <ExtensionsSettingsPanel kind="skill" />,
   subagents: () => <ExtensionsSettingsPanel kind="subagent" />,
+  mcp: McpSettingsEntry,
 };
 
 const TAB_LABELS: Record<ScribeSettingsTabId, string> = {
@@ -49,6 +64,7 @@ const TAB_LABELS: Record<ScribeSettingsTabId, string> = {
   command: "Commands",
   skills: "Skills",
   subagents: "Subagents",
+  mcp: "MCP",
   about: "About",
 };
 

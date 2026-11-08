@@ -2,6 +2,8 @@ import { CustomModel } from "@/aiParams";
 import { atom, createStore, useAtomValue } from "jotai";
 
 import type { ScribeMode, ModelSelection } from "@/agentMode";
+import { sanitizeMcpSection } from "@/agentMode/mcp/configSchema";
+import type { McpSettingsSection } from "@/agentMode/mcp/types";
 import type { BackendConfig, BackendType, ConfiguredModel, Provider } from "@/modelManagement";
 import { TOP_LEVEL_SECRET_FIELDS } from "@/services/settingsSecretTransforms";
 import { isNotificationSoundId, type NotificationSoundId } from "@/utils/notificationSoundCatalog";
@@ -10,6 +12,7 @@ import {
   DEFAULT_OPEN_AREA,
   DEFAULT_QA_EXCLUSIONS_SETTING,
   DEFAULT_SETTINGS,
+  DEFAULT_SUBAGENT_LIMITS,
   SEND_SHORTCUT,
 } from "@/constants";
 
@@ -66,16 +69,22 @@ export interface ScribeSettings {
     notificationSound: boolean;
     notificationSoundId: NotificationSoundId;
     welcomeDismissed: boolean;
+    subagentChatOpenArea?: "left" | "right" | "floating";
+    subagents?: {
+      maxConcurrent: number;
+      maxQueued: number;
+      maxTaskRequests: number;
+    };
     skills: {
       suppressMigrationConfirm?: boolean;
       catalogBudgetPercent?: number;
       catalogBudgetMaxTokens?: number;
-      sortStrategy?: "name" | "recent";
     };
   };
   providers: Record<string, Provider>;
   configuredModels: ConfiguredModel[];
   backends: Partial<Record<BackendType, BackendConfig>>;
+  mcp: McpSettingsSection;
 }
 
 export interface NativeBackendSettings {
@@ -167,11 +176,6 @@ const TOP_LEVEL_CREDENTIAL_BUNDLE_FIELDS: readonly string[] = [
   ...TOP_LEVEL_CREDENTIAL_COMPANION_FIELDS,
 ];
 
-function carriesConfiguration(field: string, value: unknown): boolean {
-  if (field === "enableCors") return typeof value === "boolean";
-  return typeof value === "string" && value.length > 0;
-}
-
 function preserveProvidersWithCredentials(
   providers: Record<string, Provider> | undefined
 ): Record<string, Provider> {
@@ -196,7 +200,7 @@ export function resetSettings(): void {
   const preservedTopLevelSecrets: Record<string, unknown> = {};
   for (const field of TOP_LEVEL_CREDENTIAL_BUNDLE_FIELDS) {
     const value = currentRecord[field];
-    if (carriesConfiguration(field, value)) {
+    if (typeof value === "string" && value.length > 0) {
       preservedTopLevelSecrets[field] = value;
     }
   }
@@ -290,6 +294,8 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
 
   sanitizedSettings.agentMode = sanitizeAgentMode(sanitizedSettings.agentMode);
 
+  sanitizedSettings.mcp = sanitizeMcpSection(sanitizedSettings.mcp);
+
   if (
     !sanitizedSettings.providers ||
     typeof sanitizedSettings.providers !== "object" ||
@@ -309,11 +315,16 @@ export function sanitizeSettings(settings: ScribeSettings): ScribeSettings {
   }
 
   const providerRows = Object.entries(sanitizedSettings.providers);
-  if (providerRows.some(([, row]) => "apiKeyKeychainId" in row)) {
+  // 旧连接开关不再决定联网方式，重开保留服务商和密钥引用。https://github.com/ItsDalk-Lane/Scribe/issues/51
+  if (providerRows.some(([, row]) => "apiKeyKeychainId" in row || "enableCors" in row)) {
     sanitizedSettings.providers = Object.fromEntries(
       providerRows.map(([id, row]) => {
-        const copy = { ...row } as Provider & { apiKeyKeychainId?: unknown };
+        const copy = { ...row } as Provider & {
+          apiKeyKeychainId?: unknown;
+          enableCors?: unknown;
+        };
         delete copy.apiKeyKeychainId;
+        delete copy.enableCors;
         return [id, copy];
       })
     );
@@ -412,17 +423,34 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     skillsRaw.catalogBudgetMaxTokens > 0
       ? skillsRaw.catalogBudgetMaxTokens
       : DEFAULT_SETTINGS.agentMode.skills.catalogBudgetMaxTokens;
-  const sortStrategy: ScribeSettings["agentMode"]["skills"]["sortStrategy"] =
-    skillsRaw && (skillsRaw.sortStrategy === "recent" || skillsRaw.sortStrategy === "name")
-      ? skillsRaw.sortStrategy
-      : // 列表排序偏好；非法值回退默认按名称。https://github.com/ItsDalk-Lane/Scribe/issues/48
-        "name";
   const skills: ScribeSettings["agentMode"]["skills"] = {
     catalogBudgetPercent,
     catalogBudgetMaxTokens,
-    sortStrategy,
     ...(suppressMigrationConfirm !== undefined ? { suppressMigrationConfirm } : {}),
   };
+
+  const subagentChatOpenArea =
+    r.subagentChatOpenArea === "left" ||
+    r.subagentChatOpenArea === "right" ||
+    r.subagentChatOpenArea === "floating"
+      ? r.subagentChatOpenArea
+      : DEFAULT_SETTINGS.agentMode.subagentChatOpenArea;
+
+  const subagentsRaw =
+    r.subagents && typeof r.subagents === "object" ? (r.subagents as Record<string, unknown>) : {};
+  const subagents: NonNullable<ScribeSettings["agentMode"]["subagents"]> = {
+    ...DEFAULT_SUBAGENT_LIMITS,
+  };
+  for (const key of Object.keys(subagents) as (keyof typeof subagents)[]) {
+    const value = subagentsRaw[key];
+    // 老设置和无效输入只补默认限制，不改变用户已配置的有效上限。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (
+      typeof value === "number" &&
+      Number.isSafeInteger(value) &&
+      value >= (key === "maxQueued" ? 0 : 1)
+    )
+      subagents[key] = value;
+  }
 
   return {
     activeBackend,
@@ -430,7 +458,9 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     notificationSound,
     notificationSoundId,
     welcomeDismissed,
+    subagentChatOpenArea,
     skills,
+    subagents,
   };
 }
 

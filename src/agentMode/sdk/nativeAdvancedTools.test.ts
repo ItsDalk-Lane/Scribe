@@ -1,6 +1,7 @@
 import { access, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { estimateTextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { App, FileSystemAdapter } from "obsidian";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import type { ExcalidrawApi } from "@/excalidraw/excalidrawTools";
@@ -93,6 +94,36 @@ describe("nativeAdvancedTools", () => {
       if (!tool) throw new Error(`Missing tool ${name}`);
       return tool.execute(id, args, signal);
     }
+
+    it("reads a manually restricted skill only within an explicit transferred run scope and still refuses a disabled skill (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      let status: "manual-only" | "disabled" = "manual-only";
+      options.skills = () => [
+        { name: "visible", description: "Visible", body: "Visible", status: "available" },
+        { name: "manual", description: "Manual", body: "Only this delegated task", status },
+      ];
+      options.transferredSkills = ["manual"];
+      expect(JSON.stringify((await execute("invoke_skill", { name: "manual" })).content)).toContain(
+        "Only this delegated task"
+      );
+      options.transferredSkills = [];
+      await expect(execute("invoke_skill", { name: "manual" })).rejects.toThrow(
+        "does not allow model invocation"
+      );
+      options.transferredSkills = ["manual"];
+      status = "disabled";
+      await expect(execute("invoke_skill", { name: "manual" })).rejects.toThrow("disabled");
+    });
+
+    it("reads supporting files for a transferred manual-only skill when no catalog was published (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      options.skills = () => [
+        { name: "manual", description: "Manual", body: "Instructions", status: "manual-only" },
+      ];
+      options.transferredSkills = ["manual"];
+      options.readSkillFile = jest.fn(async () => "support content");
+      const result = await execute("invoke_skill", { name: "manual", file: "guide.md" });
+      expect(JSON.stringify(result.content)).toContain("support content");
+      expect(options.readSkillFile).toHaveBeenCalledWith("manual", "guide.md", undefined);
+    });
 
     it("loads only an explicitly registered skill without a network request", async () => {
       expect((await execute("invoke_skill", { name: "note-format" })).content).toEqual([
@@ -224,6 +255,16 @@ describe("nativeAdvancedTools", () => {
       )!;
       expect(tool.description).toContain("No skills are currently available");
       expect(tool.description).toContain("never call names remembered from earlier lists");
+    });
+
+    it("applies the configured limit to the replacement empty catalog https://github.com/ItsDalk-Lane/Scribe/issues/40", () => {
+      options.skills = () => [];
+      options.catalogBudget = { contextWindow: 0, percent: 2, maxTokens: 1 };
+      options.skillCatalogLifecycle = { everPublished: () => true, markPublished: jest.fn() };
+      const tool = createNativeAdvancedTools(options).find(
+        (entry) => entry.name === "invoke_skill"
+      )!;
+      expect(estimateTextTokens(tool.description)).toBeLessThanOrEqual(1);
     });
 
     it("marks the catalog lifecycle as published once a non-empty catalog is built", () => {

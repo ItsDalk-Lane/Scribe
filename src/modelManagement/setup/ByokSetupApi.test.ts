@@ -85,16 +85,15 @@ describe("ByokSetupApi", () => {
       expect(provider.apiKeyRef).toBeNull();
     });
 
-    it("persists the provider's Quick tools CORS choice", async () => {
+    it("creates a provider without a manual transport preference https://github.com/ItsDalk-Lane/Scribe/issues/51", async () => {
       const result = await api.setupProvider({
         providerType: "openai-compatible",
         displayName: "Work endpoint",
         baseUrl: "https://work.example.com/v1",
-        enableCors: true,
         models: [{ id: "work-model", displayName: "Work model" }],
       });
 
-      expect(providers.get(result.providerId)?.enableCors).toBe(true);
+      expect(providers.get(result.providerId)).not.toHaveProperty("enableCors");
     });
 
     it("does not enroll a model the caller flags as isEmbedding", async () => {

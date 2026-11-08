@@ -42,7 +42,6 @@ describe("testProviderConnection", () => {
           apiKey: "test-secret",
           baseUrl: provider.baseUrl,
           providerNpm: "@ai-sdk/openai-compatible",
-          enableCors: true,
         })
       );
       expect(stream.mock.calls[0][0]).toEqual({

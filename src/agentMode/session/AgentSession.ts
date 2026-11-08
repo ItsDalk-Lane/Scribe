@@ -1,3 +1,4 @@
+import type { SubagentMessagePayload } from "@/agentMode/session/subagentTypes";
 import { AI_SENDER, USER_SENDER } from "@/constants";
 import { logInfo, logWarn } from "@/logger";
 import { t } from "@/lib/i18n";
@@ -96,6 +97,17 @@ import { UsageTracker } from "@/agentMode/session/UsageTracker";
 import { replayPersistedMode } from "@/agentMode/session/replayPersistedMode";
 import type { SavedAgentTask } from "@/agentMode/session/AgentSessionSnapshots";
 import type { TaskOutputSnapshot } from "@/agentMode/session/taskOutputTail";
+import type {
+  SubagentDispatchResult,
+  SubagentMessage,
+  SubagentRunStatus,
+  SubagentSendMode,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
+import {
+  EMPTY_SUBAGENT_SESSIONS,
+  hasManagedSubagentWork,
+} from "@/agentMode/session/subagentSessions";
 import {
   projectDisplayFacts,
   serializeDisplayMessage,
@@ -127,6 +139,7 @@ export interface AgentBranchState {
 }
 
 export interface AgentTask extends TaskStart {
+  subagentStatus?: SubagentRunStatus;
   stopReason?: StopReason;
   status: "running" | TaskEndStatus;
   model?: string;
@@ -270,6 +283,8 @@ export class AgentSession {
   private readonly taskFiles = new Map<string, FileCaptures>();
   private readonly tasks = new Map<string, AgentTask>();
   private taskList: readonly AgentTask[] = EMPTY_TASKS;
+  private subagentSessions: readonly SubagentSessionSnapshot[] = EMPTY_SUBAGENT_SESSIONS;
+  private subagentRevision = 0;
   private readonly taskContent = new Map<string, AgentMessageStore>();
   private listeners = new Set<AgentSessionListener>();
   private unregisterSessionHandler: (() => void) | null = null;
@@ -393,6 +408,9 @@ export class AgentSession {
       this.startupSettled = true;
       this.recomputeStatusIfChanged();
       this.settleReady();
+      void this.refreshSubagentSessions().catch((error) =>
+        logWarn("[AgentMode] child session list unavailable", error)
+      );
     };
     const selection = this.resumeSelection ?? state?.model?.current;
     if (!selection || !state) return settle();
@@ -448,6 +466,7 @@ export class AgentSession {
 
       const selection = defaultModelSelection ?? resp.state.model?.current;
       if (selection) await this.applyStartupSelection(selection, opts.defaultMode);
+      await this.refreshSubagentSessions();
       this.startupSettled = true;
       this.recomputeStatusIfChanged();
     } catch (err) {
@@ -900,6 +919,128 @@ export class AgentSession {
     await this.backend.stopTask?.({ sessionId: this.backendSessionId!, taskId });
   }
 
+  getSubagentSessions(): readonly SubagentSessionSnapshot[] {
+    return this.subagentSessions;
+  }
+
+  async startIndependentTask(): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.startIndependentTask)
+      throw new MethodUnsupportedError("startIndependentTask");
+    await this.backend.startIndependentTask({ sessionId: this.backendSessionId });
+  }
+
+  async continueTaskBudget(taskGenerationId?: string, requestId?: string): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.continueTaskBudget)
+      throw new MethodUnsupportedError("continueTaskBudget");
+    await this.backend.continueTaskBudget({
+      sessionId: this.backendSessionId,
+      taskGenerationId,
+      requestId,
+    });
+  }
+
+  async confirmSubagentRecovery(subagentId: string): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.confirmSubagentRecovery)
+      throw new MethodUnsupportedError("confirmSubagentRecovery");
+    await this.backend.confirmSubagentRecovery({ sessionId: this.backendSessionId, subagentId });
+    await this.refreshSubagentSessions();
+  }
+
+  hasManagedSubagentWork(): boolean {
+    return hasManagedSubagentWork(this.subagentSessions);
+  }
+
+  async refreshSubagentSessions(): Promise<void> {
+    if (!this.backendSessionId || !this.backend.listSubagentSessions) return;
+    const revision = this.subagentRevision;
+    const sessions = await this.backend.listSubagentSessions({ sessionId: this.backendSessionId });
+    // 查询期间的新事件优先，避免旧列表覆盖已经收到的新执行。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (!this.disposed && revision === this.subagentRevision) this.applySubagentSessions(sessions);
+  }
+
+  async sendSubagentMessage(
+    subagentId: string,
+    text: string,
+    mode: SubagentSendMode,
+    messageId = uuidv4(),
+    payload?: SubagentMessagePayload
+  ): Promise<SubagentDispatchResult> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.sendSubagentMessage)
+      throw new Error(t("This child session cannot be continued in this chat."));
+    const result = await this.backend.sendSubagentMessage({
+      sessionId: this.backendSessionId,
+      subagentId,
+      text,
+      mode,
+      messageId,
+      ...(payload ? { payload } : {}),
+    });
+    await this.refreshSubagentSessions().catch((error) =>
+      logWarn("[AgentMode] child session list unavailable", error)
+    );
+    return result;
+  }
+
+  async stopSubagent(subagentId: string): Promise<void> {
+    if (!this.backendSessionId || !this.backend.stopSubagent)
+      throw new MethodUnsupportedError("stopSubagent");
+    await this.backend.stopSubagent({ sessionId: this.backendSessionId, subagentId });
+    await this.refreshSubagentSessions();
+  }
+
+  async setSubagentArchived(subagentId: string, archived: boolean): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.setSubagentArchived)
+      throw new MethodUnsupportedError("setSubagentArchived");
+    await this.backend.setSubagentArchived({
+      sessionId: this.backendSessionId,
+      subagentId,
+      archived,
+    });
+    await this.refreshSubagentSessions();
+  }
+
+  async deleteSubagentSession(subagentId: string): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.deleteSubagentSession)
+      throw new MethodUnsupportedError("deleteSubagentSession");
+    await this.backend.deleteSubagentSession({ sessionId: this.backendSessionId, subagentId });
+    await this.refreshSubagentSessions();
+  }
+
+  private applySubagentSessions(sessions: readonly SubagentSessionSnapshot[]): void {
+    this.subagentRevision++;
+    this.subagentSessions = sessions.length
+      ? Object.freeze([...sessions])
+      : EMPTY_SUBAGENT_SESSIONS;
+    for (const session of sessions)
+      for (const message of session.messages) this.showSubagentMessage(message, session.name);
+    for (const session of sessions)
+      for (const run of session.runs) {
+        const task = this.tasks.get(run.toolCallId);
+        if (task)
+          this.tasks.set(run.toolCallId, {
+            ...task,
+            subagentId: session.id,
+            runId: run.id,
+            subagentStatus: run.status,
+          });
+      }
+    this.publishTasks();
+  }
+
+  private showSubagentMessage(message: SubagentMessage, name: string): void {
+    const id = `subagent-message:${message.id}`;
+    // 协作内容保留真实来源，重开和重复通知不能生成第二份展示。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (message.direction !== "to_parent" || this.store.getMessage(id)) return;
+    this.store.addMessage({
+      id,
+      sender: AI_SENDER,
+      isVisible: true,
+      timestamp: formatDateTime(new Date(message.acceptedAt)),
+      message: `${t("Subagent")} · ${name} · ${t(message.kind)}${message.runId ? ` · ${message.runId}` : ""}\n\n${message.text}`,
+    });
+    this.scheduleNotifyMessages();
+  }
+
   private queuePrompt(
     text: string,
     context: MessageContext | undefined,
@@ -1059,7 +1200,14 @@ export class AgentSession {
 
   async cancel(options: { keepUnread?: boolean } = {}): Promise<void> {
     const status = this.getStatus();
-    if (status !== "running" && status !== "awaiting_permission") return;
+    // 主模型闲置时仍要停止所属后台执行，不能只看主回复的状态。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (
+      status !== "running" &&
+      status !== "awaiting_permission" &&
+      !this.hasManagedSubagentWork() &&
+      ![...this.tasks.values()].some((task) => task.kind === "command" && task.status === "running")
+    )
+      return;
     if (!this.backendSessionId) return;
     const keepUnread = options.keepUnread === true;
     this.turns.stop(!keepUnread && this.canWithdrawPrompts());
@@ -1069,6 +1217,8 @@ export class AgentSession {
       .cancel({ sessionId: this.backendSessionId, ...(keepUnread ? { keepUnread } : {}) })
       .catch((e: unknown) => {
         logWarn(`[AgentMode] cancel notification failed`, e);
+        // 停止保存失败必须让界面显示，不能让仍在运行的后台工作看似已停止。https://github.com/ItsDalk-Lane/Scribe/issues/50
+        throw e;
       });
   }
 
@@ -1126,6 +1276,7 @@ export class AgentSession {
     if (selection) await this.getDescriptor?.()?.applySelection(this, selection);
     await replayPersistedMode(this, mode);
     this.backendSuspended = false;
+    await this.refreshSubagentSessions();
     this.notifyModelChanged();
     this.recomputeStatusIfChanged();
   }
@@ -1266,6 +1417,14 @@ export class AgentSession {
 
   private applySessionEvent(event: SessionEvent): void {
     const update = event.update;
+    if (update.sessionUpdate === "subagents_updated") {
+      this.applySubagentSessions(update.subagents);
+      return;
+    }
+    if (update.sessionUpdate === "subagent_message") {
+      this.showSubagentMessage(update.message, update.name);
+      return;
+    }
     if (event.taskToolCallId !== undefined && !isTaskLifecycleUpdate(update)) {
       this.applyTaskContent(event.taskToolCallId, event);
       return;
@@ -1731,7 +1890,10 @@ export class AgentSession {
           break;
         case "tool_call":
           this.observeToolCall(this.filesOfTask(toolCallId), update.kind, toolCallTarget(update));
-          changed = store.upsertAgentPart(messageId, toolCallToPart(update));
+          changed = store.upsertAgentPart(messageId, {
+            ...toolCallToPart(update),
+            ...(event.seq === undefined ? {} : { seq: event.seq }),
+          });
           break;
         case "tool_call_update": {
           const existing = store

@@ -1,0 +1,605 @@
+import { AI_SENDER, USER_SENDER } from "@/constants";
+import type { AgentTask } from "@/agentMode/session/AgentSession";
+import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import type { AgentChatMessage, PermissionPrompt, QueuedPrompt } from "@/agentMode/session/types";
+import type {
+  SubagentMessage,
+  SubagentRunSnapshot,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
+import {
+  SUBAGENT_RUN_MESSAGE_PREFIX,
+  SubagentChatBackend,
+  buildSubagentTranscript,
+} from "@/agentMode/session/SubagentChatBackend";
+
+const createParent = (overrides: Partial<AgentChatBackend> = {}): AgentChatBackend => ({
+  subscribe: jest.fn(() => () => {}),
+  sendMessage: jest.fn(),
+  acceptsMidTurnMessages: jest.fn(() => true),
+  getQueuedPrompts: jest.fn((): readonly QueuedPrompt[] => []),
+  canWithdrawMessages: jest.fn(() => false),
+  withdrawMessage: jest.fn(async () => {}),
+  takeWithdrawnPrompts: jest.fn((): readonly QueuedPrompt[] => []),
+  cancel: jest.fn(async () => {}),
+  sendWaitingNow: jest.fn(async () => {}),
+  deleteMessage: jest.fn(async () => false),
+  clearMessages: jest.fn(),
+  getMessages: jest.fn((): AgentChatMessage[] => []),
+  getTasks: jest.fn((): readonly AgentTask[] => []),
+  getTaskMessages: jest.fn((): readonly AgentChatMessage[] => []),
+  canStopTasks: jest.fn(() => true),
+  stopTask: jest.fn(async () => {}),
+  isStarting: jest.fn(() => false),
+  isTurnInFlight: jest.fn(() => false),
+  isReplyRunning: jest.fn(() => false),
+  getBackendState: jest.fn(() => null),
+  canSwitchModel: jest.fn(() => false),
+  canSwitchEffort: jest.fn(() => false),
+  canSwitchMode: jest.fn(() => false),
+  resolvePlanProposal: jest.fn(async () => {}),
+  getCurrentPlan: jest.fn(() => null),
+  getCurrentTodoList: jest.fn(() => null),
+  getSessionUsage: jest.fn(() => null),
+  getPlanUsage: jest.fn(() => null),
+  hasPendingPlanPermission: jest.fn(() => false),
+  getPendingToolPermissions: jest.fn((): PermissionPrompt[] => []),
+  resolveToolPermission: jest.fn(),
+  getPendingAskUserQuestions: jest.fn(() => []),
+  resolveAskUserQuestion: jest.fn(),
+  ...overrides,
+});
+
+const buildRun = (overrides: Partial<SubagentRunSnapshot> = {}): SubagentRunSnapshot => ({
+  id: "native-task-1",
+  taskGenerationId: "gen-1",
+  toolCallId: "call-1",
+  status: "completed",
+  createdAt: 1000,
+  usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+  ...overrides,
+});
+
+const buildSession = (
+  overrides: Partial<SubagentSessionSnapshot> = {}
+): SubagentSessionSnapshot => ({
+  id: "subagent-1",
+  parentSessionId: "chat-1",
+  name: "Source audit",
+  modelId: "model-a",
+  cwd: "/vault",
+  retention: "retained",
+  createdAt: 900,
+  updatedAt: 2000,
+  runs: [],
+  messages: [],
+  ...overrides,
+});
+
+const buildMessage = (overrides: Partial<SubagentMessage>): SubagentMessage => ({
+  id: "m1",
+  sequence: 1,
+  subagentId: "subagent-1",
+  taskGenerationId: "gen-1",
+  direction: "to_child",
+  sender: "user",
+  kind: "instruction",
+  text: "hello",
+  state: "delivered",
+  acceptedAt: 1100,
+  ...overrides,
+});
+
+const runContent = (id: string, text: string): AgentChatMessage => ({
+  id,
+  sender: AI_SENDER,
+  timestamp: null,
+  isVisible: true,
+  message: text,
+});
+
+describe("SubagentChatBackend", () => {
+  describe("buildSubagentTranscript()", () => {
+    it("restores note, selection and image display in a delivered message https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const note = { path: "note.md", basename: "note" } as never;
+      const message = buildMessage({
+        text: "See this",
+        payload: {
+          context: {
+            notes: ["note.md"],
+            selectedTextContexts: [
+              {
+                id: "s",
+                sourceType: "note",
+                notePath: "note.md",
+                noteTitle: "note",
+                content: "excerpt",
+                startLine: 1,
+                endLine: 1,
+              },
+            ],
+          },
+          content: [{ type: "image", mimeType: "image/png", data: "YWJj" }],
+        },
+      });
+      const transcript = buildSubagentTranscript(
+        buildSession({ messages: [message] }),
+        () => [],
+        () => note
+      );
+      expect(transcript[0].context).toMatchObject({
+        notes: [note],
+        selectedTextContexts: [{ content: "excerpt" }],
+      });
+      expect(transcript[0].content).toEqual([
+        { type: "text", text: "See this" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,YWJj" } },
+      ]);
+    });
+
+    it("renders each run's content after its delivered user messages and before its parent interjections", () => {
+      const snapshot = buildSession({
+        runs: [
+          buildRun({ id: "run-1", toolCallId: "call-1", createdAt: 1000 }),
+          buildRun({ id: "run-2", toolCallId: "call-2", createdAt: 3000 }),
+        ],
+        messages: [
+          buildMessage({ id: "m0", sequence: 1, text: "Start working", runId: "run-1" }),
+          buildMessage({
+            id: "m1",
+            sequence: 2,
+            kind: "question",
+            direction: "to_parent",
+            sender: "subagent",
+            text: "Which folder?",
+            runId: "run-1",
+          }),
+          buildMessage({
+            id: "m2",
+            sequence: 3,
+            text: "Continue with folder B",
+            runId: "run-2",
+            acceptedAt: 2900,
+          }),
+        ],
+      });
+      const readRunMessages = jest.fn((toolCallId: string) =>
+        toolCallId === "call-1"
+          ? [runContent("a1", "First pass")]
+          : [runContent("a2", "Second pass")]
+      );
+      const transcript = buildSubagentTranscript(snapshot, readRunMessages);
+      expect(transcript.map((entry) => entry.message)).toEqual([
+        "Start working",
+        "First pass",
+        expect.stringContaining("Which folder?"),
+        "Continue with folder B",
+        "Second pass",
+      ]);
+      expect(transcript[2].message).toMatch(/^Asking the parent agent\n\nWhich folder\?$/);
+      expect(transcript[0].sender).toBe(USER_SENDER);
+      expect(transcript[1].id).toBe(`${SUBAGENT_RUN_MESSAGE_PREFIX}run-1:a1`);
+      expect(transcript[2].sender).toBe(AI_SENDER);
+      expect(transcript[3].id).toBe(`subagent-in:m2`);
+      expect(readRunMessages).toHaveBeenCalledWith("call-2");
+    });
+
+    it("keeps accepted deliveries and final results out of the transcript", () => {
+      const snapshot = buildSession({
+        runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+        messages: [
+          buildMessage({ id: "m1", state: "accepted", runId: "run-1" }),
+          buildMessage({
+            id: "m2",
+            kind: "result",
+            direction: "to_parent",
+            sender: "subagent",
+            text: "final",
+            runId: "run-1",
+          }),
+        ],
+      });
+      const transcript = buildSubagentTranscript(snapshot, () => [runContent("a1", "Work")]);
+      expect(transcript.map((entry) => entry.message)).toEqual(["Work"]);
+    });
+
+    it("places a progress report at its sending action before the later final reply https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const snapshot = buildSession({
+        runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+        messages: [
+          buildMessage({ id: "start", text: "Start", runId: "run-1" }),
+          buildMessage({
+            id: "progress",
+            direction: "to_parent",
+            sender: "subagent",
+            kind: "progress",
+            text: "Working",
+            runId: "run-1",
+          }),
+        ],
+      });
+      const transcript = buildSubagentTranscript(snapshot, () => [
+        {
+          ...runContent("a1", "Finished"),
+          parts: [
+            {
+              kind: "tool_call",
+              id: "t1",
+              title: "Send parent message",
+              vendorToolName: "send_parent_message",
+              status: "completed",
+              input: { text: "Working", kind: "progress" },
+            },
+            { kind: "tool_call", id: "t2", title: "Run command", status: "completed" },
+            { kind: "text", text: "Finished" },
+          ],
+        },
+      ]);
+      expect(transcript.map((entry) => entry.message)).toEqual([
+        "Start",
+        "",
+        "Replying to the parent agent\n\nWorking",
+        "Finished",
+      ]);
+      expect(transcript[1].parts?.map((part) => part.kind)).toEqual(["tool_call"]);
+      expect(transcript[3].parts?.map((part) => part.kind)).toEqual(["tool_call", "text"]);
+    });
+
+    it("places a delivered mid-run instruction after prior progress and before the later reply https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const snapshot = buildSession({
+        runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+        messages: [
+          buildMessage({ id: "start", text: "Start", runId: "run-1", deliverySeq: 1 }),
+          buildMessage({ id: "steer", text: "Continue", runId: "run-1", deliverySeq: 5 }),
+          buildMessage({
+            id: "progress",
+            direction: "to_parent",
+            sender: "subagent",
+            kind: "progress",
+            text: "Working",
+            runId: "run-1",
+          }),
+        ],
+      });
+      const transcript = buildSubagentTranscript(snapshot, () => [
+        {
+          ...runContent("a1", "Finished"),
+          parts: [
+            {
+              kind: "tool_call",
+              id: "t1",
+              title: "Send parent message",
+              vendorToolName: "send_parent_message",
+              status: "completed",
+              input: { text: "Working", kind: "progress" },
+              seq: 3,
+            },
+            { kind: "text", text: "Finished", segmentSeq: 6, seq: 8 },
+          ],
+        },
+      ]);
+      expect(transcript.map((entry) => entry.message)).toEqual([
+        "Start",
+        "",
+        "Replying to the parent agent\n\nWorking",
+        "Continue",
+        "Finished",
+      ]);
+    });
+
+    it("retains the old input-first display when saved run content has no comparable sequence https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const snapshot = buildSession({
+        runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+        messages: [buildMessage({ text: "Continue", runId: "run-1", deliverySeq: 5 })],
+      });
+      expect(
+        buildSubagentTranscript(snapshot, () => [runContent("a1", "Old content")]).map(
+          (entry) => entry.message
+        )
+      ).toEqual(["Continue", "Old content"]);
+    });
+
+    it("flags withdrawn instructions as error-styled user messages", () => {
+      const snapshot = buildSession({
+        runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+        messages: [
+          buildMessage({ id: "m1", state: "withdrawn", text: "Too late", runId: undefined }),
+        ],
+      });
+      const transcript = buildSubagentTranscript(snapshot, () => []);
+      expect(transcript).toHaveLength(1);
+      expect(transcript[0].sender).toBe(USER_SENDER);
+      expect(transcript[0].isErrorMessage).toBe(true);
+      expect(transcript[0].message).toBe("Too late");
+    });
+
+    it("anchors messages without a matching run to the first run created after them", () => {
+      const snapshot = buildSession({
+        runs: [
+          buildRun({ id: "run-1", toolCallId: "call-1", createdAt: 1000 }),
+          buildRun({ id: "run-2", toolCallId: "call-2", createdAt: 5000 }),
+        ],
+        messages: [
+          buildMessage({ id: "m1", text: "Early note", runId: undefined, acceptedAt: 2000 }),
+          buildMessage({ id: "m2", text: "Trailing note", runId: undefined, acceptedAt: 9000 }),
+        ],
+      });
+      const transcript = buildSubagentTranscript(snapshot, () => []);
+      expect(transcript.map((entry) => entry.message)).toEqual(["Early note", "Trailing note"]);
+    });
+  });
+
+  describe("SubagentChatBackend", () => {
+    const backendWithSession = (
+      session: SubagentSessionSnapshot,
+      overrides: Partial<AgentChatBackend> = {}
+    ): { backend: SubagentChatBackend; parent: AgentChatBackend } => {
+      const parent = createParent({
+        getSubagentSessions: jest.fn(() => [session]),
+        ...overrides,
+      });
+      return { backend: new SubagentChatBackend(parent, session.id), parent };
+    };
+
+    describe("getMessages()", () => {
+      it("returns an empty transcript when the child session no longer exists", () => {
+        const parent = createParent({ getSubagentSessions: jest.fn(() => []) });
+        const backend = new SubagentChatBackend(parent, "subagent-missing");
+        expect(backend.getMessages()).toEqual([]);
+      });
+
+      it("assembles the child transcript from its runs and mailbox", () => {
+        const snapshot = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1" })],
+          messages: [buildMessage({ id: "m1", text: "Go", runId: "run-1" })],
+        });
+        const { backend } = backendWithSession(snapshot, {
+          getTaskMessages: jest.fn(() => [runContent("a1", "Working")]),
+        });
+        expect(backend.getMessages().map((entry) => entry.message)).toEqual(["Go", "Working"]);
+      });
+    });
+
+    describe("sendWaitingNow()", () => {
+      it("retries the first waiting message with its original identity and attachment (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const payload = {
+          content: [{ type: "image" as const, mimeType: "image/png", data: "YWJj" }],
+        };
+        const waiting = buildMessage({ id: "waiting", state: "accepted", text: "", payload });
+        const sendSubagentMessage = jest.fn(async () => ({
+          subagentId: "subagent-1",
+          status: "queued" as const,
+        }));
+        const { backend } = backendWithSession(buildSession({ messages: [waiting] }), {
+          sendSubagentMessage,
+        });
+        await backend.sendWaitingNow();
+        expect(sendSubagentMessage).toHaveBeenCalledWith(
+          "subagent-1",
+          "",
+          "wake",
+          "waiting",
+          payload
+        );
+      });
+    });
+
+    describe("sendMessage()", () => {
+      it("enqueues into the live run while the child is executing", async () => {
+        const snapshot = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "running" })],
+        });
+        const sendSubagentMessage = jest.fn(async () => ({
+          subagentId: snapshot.id,
+          status: "enqueued" as const,
+        }));
+        const { backend } = backendWithSession(snapshot, { sendSubagentMessage });
+        const { turn } = backend.sendMessage("Steer this", undefined, undefined);
+        await turn;
+        expect(sendSubagentMessage).toHaveBeenCalledWith(
+          snapshot.id,
+          "Steer this",
+          "enqueue",
+          expect.any(String)
+        );
+      });
+
+      it("wakes an idle child with a fresh run instead of parking the message", async () => {
+        const snapshot = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "completed" })],
+        });
+        const sendSubagentMessage = jest.fn(async () => ({
+          subagentId: snapshot.id,
+          status: "queued" as const,
+        }));
+        const { backend } = backendWithSession(snapshot, { sendSubagentMessage });
+        const { turn } = backend.sendMessage("Start again");
+        await turn;
+        expect(sendSubagentMessage).toHaveBeenCalledWith(
+          snapshot.id,
+          "Start again",
+          "wake",
+          expect.any(String)
+        );
+      });
+
+      it("sends attached note, selection and image content to the child https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const sendSubagentMessage = jest.fn(async () => ({
+          subagentId: "subagent-1",
+          status: "enqueued" as const,
+        }));
+        const { backend } = backendWithSession(buildSession(), { sendSubagentMessage });
+        const context = {
+          notes: [{ path: "note.md" } as never],
+          selectedTextContexts: [
+            {
+              id: "s",
+              sourceType: "web" as const,
+              title: "Page",
+              url: "https://example.com",
+              content: "excerpt",
+            },
+          ],
+        };
+        await backend.sendMessage("Read", context, [
+          { type: "image", mimeType: "image/png", data: "YWJj" },
+        ]).turn;
+        expect(sendSubagentMessage).toHaveBeenCalledWith(
+          "subagent-1",
+          "Read",
+          "wake",
+          expect.any(String),
+          expect.objectContaining({
+            context: expect.objectContaining({ notes: ["note.md"] }),
+            content: expect.arrayContaining([
+              expect.objectContaining({ type: "text", text: expect.stringContaining("excerpt") }),
+              { type: "image", mimeType: "image/png", data: "YWJj" },
+            ]),
+          })
+        );
+      });
+
+      it("rejects archived or removed children without contacting the backend (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const sendSubagentMessage = jest.fn();
+        const archived = buildSession({ retention: "archived" });
+        const { backend: archivedBackend } = backendWithSession(archived, { sendSubagentMessage });
+        await expect(archivedBackend.sendMessage("Continue").turn).rejects.toThrow(/Unarchive/i);
+        const { backend: missingBackend } = backendWithSession(buildSession(), {
+          getSubagentSessions: jest.fn(() => []),
+          sendSubagentMessage,
+        });
+        await expect(missingBackend.sendMessage("Continue").turn).rejects.toThrow(
+          /no longer exists/i
+        );
+        expect(sendSubagentMessage).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("getQueuedPrompts()", () => {
+      it("identifies a pending image-only message https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const message = buildMessage({
+          text: "",
+          state: "accepted",
+          payload: { content: [{ type: "image", mimeType: "image/png", data: "YWJj" }] },
+        });
+        const { backend } = backendWithSession(buildSession({ messages: [message] }));
+        expect(backend.getQueuedPrompts()).toEqual([{ id: "m1", text: "[Image attachment]" }]);
+      });
+
+      it("lists only accepted instructions that the child has not read yet", () => {
+        const snapshot = buildSession({
+          messages: [
+            buildMessage({ id: "m1", state: "accepted", text: "Pending" }),
+            buildMessage({ id: "m2", state: "delivered", text: "Read" }),
+            buildMessage({
+              id: "m3",
+              state: "accepted",
+              direction: "to_parent",
+              sender: "subagent",
+              kind: "progress",
+              text: "From child",
+            }),
+          ],
+        });
+        const { backend } = backendWithSession(snapshot);
+        expect(backend.getQueuedPrompts()).toEqual([{ id: "m1", text: "Pending" }]);
+      });
+
+      it("splits the queue into delivering while running and held while idle", () => {
+        const running = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "running" })],
+          messages: [buildMessage({ id: "m1", state: "accepted", text: "Steer" })],
+        });
+        const idle = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "completed" })],
+          messages: [buildMessage({ id: "m1", state: "accepted", text: "Steer" })],
+        });
+        const { backend: runningBackend } = backendWithSession(running);
+        expect(runningBackend.getDeliveringPrompts().map((prompt) => prompt.text)).toEqual([
+          "Steer",
+        ]);
+        expect(runningBackend.getHeldPrompts()).toEqual([]);
+        const { backend: idleBackend } = backendWithSession(idle);
+        expect(idleBackend.getDeliveringPrompts()).toEqual([]);
+        expect(idleBackend.getHeldPrompts().map((prompt) => prompt.text)).toEqual(["Steer"]);
+      });
+    });
+
+    describe("getPendingToolPermissions()", () => {
+      it("mirrors only this child's permission prompts and resolves through the parent", () => {
+        const mine: PermissionPrompt = {
+          sessionId: "backend-session",
+          requester: { taskId: "native-task-1", subagentId: "subagent-1", subagentName: "Audit" },
+          toolCall: {
+            toolCallId: "tool-1",
+            status: "pending",
+            title: "write_note",
+            arguments: {},
+          } as PermissionPrompt["toolCall"],
+          options: [],
+        };
+        const mainPrompt: PermissionPrompt = {
+          sessionId: "backend-session",
+          toolCall: mine.toolCall,
+          options: [],
+        };
+        const snapshot = buildSession();
+        const resolveToolPermission = jest.fn();
+        const { backend } = backendWithSession(snapshot, {
+          getPendingToolPermissions: jest.fn(() => [mine, mainPrompt]),
+          resolveToolPermission,
+        });
+        expect(backend.getPendingToolPermissions()).toEqual([mine]);
+        backend.resolveToolPermission("tool-1", "allow_once");
+        expect(resolveToolPermission).toHaveBeenCalledWith("tool-1", "allow_once");
+      });
+    });
+
+    describe("isReplyRunning()", () => {
+      it("reports a live run and stops it through cancel()", async () => {
+        const running = buildSession({
+          runs: [buildRun({ id: "run-1", toolCallId: "call-1", status: "running" })],
+        });
+        const stopSubagent = jest.fn(async () => {});
+        const { backend } = backendWithSession(running, { stopSubagent });
+        expect(backend.isReplyRunning()).toBe(true);
+        await backend.cancel();
+        expect(stopSubagent).toHaveBeenCalledWith(running.id);
+        const idle = buildSession();
+        const { backend: idleBackend } = backendWithSession(idle, { stopSubagent });
+        expect(idleBackend.isReplyRunning()).toBe(false);
+      });
+    });
+
+    describe("canWithdrawMessages()", () => {
+      it("keeps the withdrawn queue contract empty because deliveries cannot be recalled", () => {
+        const { backend } = backendWithSession(buildSession());
+        expect(backend.canWithdrawMessages()).toBe(false);
+        expect(backend.takeWithdrawnPrompts()).toEqual([]);
+      });
+    });
+
+    describe("subscribe()", () => {
+      it("delegates subscriptions to the parent chat backend", () => {
+        const unsubscribe = jest.fn();
+        const subscribe = jest.fn(() => unsubscribe);
+        const { backend } = backendWithSession(buildSession(), { subscribe });
+        const listener = () => {};
+        expect(backend.subscribe(listener)).toBe(unsubscribe);
+        expect(subscribe).toHaveBeenCalledWith(listener);
+      });
+    });
+
+    describe("canSwitchModel()", () => {
+      it("disables model, effort and mode switching for the child chat", () => {
+        const { backend } = backendWithSession(buildSession());
+        expect(backend.canSwitchModel()).toBe(false);
+        expect(backend.canSwitchEffort()).toBe(false);
+        expect(backend.canSwitchMode()).toBe(false);
+        expect(backend.getCurrentPlan()).toBeNull();
+        expect(backend.getSessionUsage()).toBeNull();
+        expect(backend.getTasks()).toEqual([]);
+      });
+    });
+  });
+});

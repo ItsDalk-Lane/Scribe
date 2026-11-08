@@ -166,24 +166,19 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.baseUrl).toBe("https://api.example.com/v1");
     });
 
-    it("preserves the provider's explicit Quick tools CORS choice", () => {
-      const corsEnabled = configuredModelToCustomModel({
-        provider: provider({ baseUrl: "https://work.example.com/v1", enableCors: true }),
-        configuredModel: configuredModel(),
-        apiKey: "key-123",
-      });
-      const streaming = configuredModelToCustomModel({
-        provider: provider({
-          baseUrl: "https://openrouter.ai/api/v1",
-          enableCors: false,
-          origin: { kind: "byok", catalogProviderId: "openrouter" },
-        }),
-        configuredModel: configuredModel(),
-        apiKey: "key-123",
-      });
-      expect(corsEnabled.enableCors).toBe(true);
-      expect(streaming.enableCors).toBe(false);
-    });
+    it.each([false, true])(
+      "does not carry a retired CORS value %s into the automatic transport https://github.com/ItsDalk-Lane/Scribe/issues/51",
+      (enableCors) => {
+        const storedProvider = { ...provider(), enableCors };
+        const custom = configuredModelToCustomModel({
+          provider: storedProvider,
+          configuredModel: configuredModel(),
+          apiKey: "key-123",
+        });
+        expect(custom).not.toHaveProperty("enableCors");
+        expect(custom.apiKey).toBe("key-123");
+      }
+    );
 
     it("carries the runtime auth contract without synthesizing a key", () => {
       const keyless = configuredModelToCustomModel({

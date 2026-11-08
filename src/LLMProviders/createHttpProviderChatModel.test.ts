@@ -21,6 +21,15 @@ Object.defineProperty(window, "TextDecoderStream", {
 });
 
 jest.mock("@/logger");
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
+
+beforeEach(() => {
+  jest.mocked(isDesktopRuntime).mockReturnValue(false);
+});
+
 jest.mock("@/utils/desktopRuntime", () => ({ isDesktopRuntime: jest.fn(() => true) }));
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidianModule as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -169,7 +178,7 @@ describe("createHttpProviderChatModel", () => {
       expect(requests[0].body).not.toHaveProperty("max_tokens");
     });
 
-    it("honors explicitly selected native fetch for Google", async () => {
+    it("uses the desktop streaming connection for Google without a per-model switch (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
       const originalFetch = window.fetch;
       let usedObsidian = false;
       setRequestUrlImpl(async () => {
@@ -201,9 +210,10 @@ describe("createHttpProviderChatModel", () => {
           }) as Response
       );
       window.fetch = nativeFetch;
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
       try {
         const client = await createProviderChatModel(
-          model("@ai-sdk/google", { name: "gemini-2.0-flash", enableCors: false })
+          model("@ai-sdk/google", { name: "gemini-2.0-flash" })
         );
         expect(await collectText(client, "Fixture input")).toBe("Native fixture reply");
         expect(nativeFetch).toHaveBeenCalledTimes(1);

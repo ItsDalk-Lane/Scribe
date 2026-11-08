@@ -4,6 +4,12 @@ import type { ModelCapability } from "@/constants";
 import type { FormattedDateTime, MessageContext } from "@/types/message";
 import type { PlanUsage } from "@/agentMode/session/planUsage";
 import type { ProjectScopeId } from "./scope";
+import type {
+  SubagentDispatchResult,
+  SubagentMessage,
+  SubagentSendInput,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
 
 export type { PlanUsage, UsageWindow } from "@/agentMode/session/planUsage";
 
@@ -171,6 +177,7 @@ export type StopReason =
   | "refusal"
   | "max_tokens"
   | "max_turn_requests"
+  | "max_task_requests"
   | "quota_exhausted"
   | "authentication_error"
   | "context_limit"
@@ -308,6 +315,8 @@ export type SessionUpdate =
   | ({ sessionUpdate: "turn_ended" } & TurnEnd)
   | { sessionUpdate: "busy_changed"; busy: boolean }
   | { sessionUpdate: "session_disconnected"; error: Error }
+  | { sessionUpdate: "subagents_updated"; subagents: readonly SubagentSessionSnapshot[] }
+  | { sessionUpdate: "subagent_message"; message: SubagentMessage; name: string }
   | ({ sessionUpdate: "task_started" } & TaskStart)
   | {
       sessionUpdate: "task_progress";
@@ -323,6 +332,8 @@ export type TaskKind = "subagent" | "command";
 export type TaskEndStatus = "completed" | "failed" | "stopped";
 
 export interface TaskStart {
+  subagentId?: string;
+  runId?: string;
   taskId?: string;
   toolCallId: string;
   kind: TaskKind;
@@ -341,6 +352,7 @@ export interface TaskEnd {
 }
 
 export interface TurnEnd {
+  taskGenerationId?: string;
   turnId: string;
   stopReason: StopReason;
   error?: Error;
@@ -349,6 +361,11 @@ export interface TurnEnd {
 
 export interface SessionUsage {
   usedTokens: number;
+  cumulativeInputTokens?: number;
+  cumulativeOutputTokens?: number;
+  cumulativeCacheReadTokens?: number;
+  cumulativeCacheWriteTokens?: number;
+  cumulativeTotalTokens?: number;
   contextWindow?: number;
   inputTokens?: number;
   outputTokens?: number;
@@ -392,7 +409,9 @@ export interface PermissionOption {
   kind: PermissionOptionKind;
 }
 
-export type PermissionRequester = "main" | { taskId: string };
+export type PermissionRequester =
+  | "main"
+  | { taskId: string; subagentId?: string; runId?: string; subagentName?: string };
 
 export interface PermissionPrompt {
   sessionId: SessionId;
@@ -524,6 +543,24 @@ export interface StopTaskInput {
 export type SessionUpdateHandler = (event: SessionEvent) => void;
 
 export interface BackendProcess {
+  continueTaskBudget?(params: {
+    sessionId: SessionId;
+    taskGenerationId?: string;
+    requestId?: string;
+  }): Promise<void>;
+  confirmSubagentRecovery?(params: { sessionId: SessionId; subagentId: string }): Promise<void>;
+  startIndependentTask?(params: { sessionId: SessionId }): Promise<void>;
+  listSubagentSessions?(params: {
+    sessionId: SessionId;
+  }): Promise<readonly SubagentSessionSnapshot[]>;
+  sendSubagentMessage?(params: SubagentSendInput): Promise<SubagentDispatchResult>;
+  setSubagentArchived?(params: {
+    sessionId: SessionId;
+    subagentId: string;
+    archived: boolean;
+  }): Promise<void>;
+  deleteSubagentSession?(params: { sessionId: SessionId; subagentId: string }): Promise<void>;
+  stopSubagent?(params: { sessionId: SessionId; subagentId: string }): Promise<void>;
   appendDisplayFacts?(params: { sessionId: SessionId; facts: AgentDisplayFact[] }): Promise<void>;
   readDisplayFacts?(params: { sessionId: SessionId }): Promise<SequencedAgentDisplayFact[]>;
   refreshSessionConfiguration?(sessionId: SessionId): void;
@@ -601,6 +638,7 @@ export type AgentMessagePart = (
 ) & { seq?: number; synthetic?: boolean; segmentSeq?: number; contentIndex?: number };
 
 export interface AgentChatMessage {
+  taskGenerationId?: string;
   seq?: number;
   synthetic?: boolean;
   id: string;

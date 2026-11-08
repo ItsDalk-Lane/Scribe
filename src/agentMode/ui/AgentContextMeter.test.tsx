@@ -31,6 +31,33 @@ function renderMeter(backend: AgentChatBackend) {
 
 describe("AgentContextMeter", () => {
   describe("AgentContextMeter()", () => {
+    it("shows actual cumulative parent and child consumption separately from the current context https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      renderMeter(
+        makeBackend({
+          usedTokens: 1000,
+          contextWindow: 200000,
+          cumulativeTotalTokens: 150000,
+          cumulativeInputTokens: 130000,
+          cumulativeOutputTokens: 20000,
+          updatedAt: 1,
+        })
+      );
+      expect(screen.getByLabelText("Usage").textContent).toContain("150.0k");
+      fireEvent.focus(screen.getByLabelText("Usage"));
+      expect(screen.getAllByText("1.0k / 200.0k (1%)").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Cumulative input").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("130.0k").length).toBeGreaterThan(0);
+    });
+
+    it("keeps reported cumulative usage visible when current capacity is unknown and does not invent a missing ledger https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const first = renderMeter(
+        makeBackend({ usedTokens: 0, cumulativeTotalTokens: 140000, updatedAt: 1 })
+      );
+      expect(screen.getByLabelText("Usage").textContent).toContain("140.0k");
+      first.unmount();
+      renderMeter(makeBackend({ usedTokens: 1000, contextWindow: 200000, updatedAt: 1 }));
+      expect(screen.queryByText(/Cumulative usage/)).toBeNull();
+    });
     it("renders the % ring plus tooltip numbers when contextWindow is known", () => {
       const usage: SessionUsage = {
         usedTokens: 50_000,

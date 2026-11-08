@@ -38,6 +38,26 @@ export const NamesOnly: StoryObj<NoticeProps> = {
   },
 };
 
+export const NoNamesFit: StoryObj<NoticeProps> = {
+  args: {
+    status: {
+      mode: "names-only",
+      includedNames: [],
+      omittedNames: ["note-format", "summarize-paper"],
+    },
+  },
+};
+
+export const SomeNamesOmitted: StoryObj<NoticeProps> = {
+  args: {
+    status: {
+      mode: "names-only",
+      includedNames: ["note-format"],
+      omittedNames: ["summarize-paper"],
+    },
+  },
+};
+
 export const HiddenWithoutCatalog: StoryObj<NoticeProps> = {
   args: { status: null },
 };

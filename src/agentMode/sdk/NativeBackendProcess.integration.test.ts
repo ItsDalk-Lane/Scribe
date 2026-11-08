@@ -46,6 +46,11 @@ import type {
   SessionEvent,
 } from "@/agentMode/session/types";
 
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () =>
+    jest.requireActual<typeof import("@/utils")>("@/utils").safeFetchNoThrow,
+}));
+
 jest.mock("@/agentMode/ui/AgentMarkdownText", () => ({
   AgentMarkdownText: ({ text }: { text: string }) => React.createElement("div", null, text),
 }));
@@ -345,6 +350,111 @@ describe("NativeBackendProcess integration", () => {
         expect(JSON.stringify(session.store.getDisplayMessages())).not.toContain(
           "Late ending save failed"
         );
+      });
+
+      it("keeps a task live when immediate child wake admission overlaps the ended parent's final disk save (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const storage = new NodeNativeSessionStorage(join(data, "wake-admission"));
+        const endingSave = deferred<void>();
+        const releaseEnding = deferred<void>();
+        const admitting = deferred<void>();
+        const releaseAdmission = deferred<void>();
+        let holdEnding = true;
+        let holdAdmission = true;
+        let created = false;
+        const f = fixture(
+          (context) => {
+            if (userText(context) === "Child seed")
+              return response(
+                JSON.stringify(context.messages).includes("Wake immediately")
+                  ? "Continued child"
+                  : "Child result"
+              );
+            if (!created) {
+              created = true;
+              return response("", [
+                {
+                  id: "delegate",
+                  name: "delegate_task",
+                  arguments: { prompt: "Child seed", description: "Retained" },
+                },
+              ]);
+            }
+            return response("Parent result");
+          },
+          undefined,
+          undefined,
+          {
+            storage: {
+              load: (id) => storage.load(id),
+              list: () => storage.list(),
+              flush: (id) => storage.flush(id),
+              save: async (record) => {
+                const last = record.events.at(-1)?.update;
+                if (
+                  holdEnding &&
+                  last?.sessionUpdate === "turn_ended" &&
+                  last.turnId === "interleave"
+                ) {
+                  holdEnding = false;
+                  endingSave.resolve();
+                  await releaseEnding.promise;
+                }
+                await storage.save(record);
+              },
+              append: async (id, kind, payload, options) => {
+                if (
+                  holdAdmission &&
+                  kind === "subagent_state" &&
+                  JSON.stringify(payload).includes("Wake immediately")
+                ) {
+                  holdAdmission = false;
+                  admitting.resolve();
+                  await releaseAdmission.promise;
+                }
+                return storage.append(id, kind, payload, options);
+              },
+            },
+          }
+        );
+        const id = await f.open();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "create",
+          prompt: [{ type: "text", text: "Create child" }],
+        });
+        const [child] = await f.process.listSubagentSessions({ sessionId: id });
+        const after = Math.max(...child.messages.map((message) => message.sequence));
+        const interleave = f.process.prompt({
+          sessionId: id,
+          promptId: "interleave",
+          prompt: [{ type: "text", text: "Interleave" }],
+        });
+        await endingSave.promise;
+        const completed = f.process.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after,
+        });
+        const waking = f.process.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "Wake immediately",
+          mode: "wake",
+        });
+        await admitting.promise;
+        releaseEnding.resolve();
+        await interleave;
+        const taskFact = (await storage.journal.read(id)).records.findLast(
+          (record) => record.kind === "subagent_task"
+        )!;
+        expect((taskFact.payload as { task: { active: boolean } }).task.active).toBe(true);
+        releaseAdmission.resolve();
+        await waking;
+        expect((await completed).reason).toBe("completed");
+        const current = (await f.process.listSubagentSessions({ sessionId: id }))[0];
+        expect(current.id).toBe(child.id);
+        expect(current.runs.at(-1)?.status).toBe("completed");
+        expect(current.runs.at(-1)?.result).toBe("Continued child");
       });
 
       it("settles a real session after storage fails and allows a new prompt once storage recovers", async () => {
@@ -1635,6 +1745,20 @@ describe("NativeBackendProcess integration", () => {
           expect.objectContaining({ update: { sessionUpdate: "busy_changed", busy: false } })
         );
         expect(f.events.some((event) => event.update.sessionUpdate === "task_ended")).toBe(false);
+        const storage = new NodeNativeSessionStorage(join(data, "sessions"));
+        const initialTasks = (await storage.journal.read(id)).records
+          .filter((record) => record.kind === "subagent_task")
+          .map((record) => (record.payload as { task: { id: string; active: boolean } }).task);
+        expect(initialTasks.at(-1)?.active).toBe(true);
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "background-followup",
+          prompt: [{ type: "text", text: "Report the background work" }],
+        });
+        const followedTasks = (await storage.journal.read(id)).records
+          .filter((record) => record.kind === "subagent_task")
+          .map((record) => (record.payload as { task: { id: string; active: boolean } }).task);
+        expect(new Set(followedTasks.map((task) => task.id)).size).toBe(1);
         await f.process.stopTask({ sessionId: id, taskId: started[0].taskId! });
         expect(f.events).toContainEqual(
           expect.objectContaining({
@@ -1653,6 +1777,10 @@ describe("NativeBackendProcess integration", () => {
           )
         ).toBe(false);
         await f.process.stopTask({ sessionId: id, taskId: started[1].taskId! });
+        const finalTask = (await storage.journal.read(id)).records.findLast(
+          (record) => record.kind === "subagent_task"
+        )!;
+        expect((finalTask.payload as { task: { active: boolean } }).task.active).toBe(false);
       });
     });
 
@@ -1759,7 +1887,6 @@ describe("NativeBackendProcess integration", () => {
               addedAt: 1,
               displayName: "fixture",
               requiresApiKey: false,
-              enableCors: true,
             },
           } as typeof base.providers,
           configuredModels: [

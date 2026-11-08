@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
 import { MissingApiKeyError } from "@/error";
@@ -7,6 +8,11 @@ import ChatModelManager from "@/LLMProviders/chatModelManager";
 import * as obsidian from "obsidian";
 
 jest.mock("@/logger");
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
+
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidian as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
 };
@@ -27,6 +33,13 @@ function bridgedModel(overrides: Partial<CustomModel> = {}): CustomModel {
 }
 
 describe("chatModelManager", () => {
+  beforeEach(() => {
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("ChatModelManager", () => {
     const originalKey = getSettings().openAIApiKey;
     const originalFetch = window.fetch;
@@ -50,27 +63,29 @@ describe("chatModelManager", () => {
         ).rejects.toBeInstanceOf(MissingApiKeyError);
       });
 
-      it.each([false, true])("rejects a required missing key with CORS=%s", async (enableCors) => {
+      it.each([false, true])("rejects a required missing key on mobile=%s", async (mobile) => {
+        Platform.isMobile = mobile;
         await expect(
           ChatModelManager.getInstance().createModelInstanceFromBridged(
-            bridgedModel({ requiresApiKey: true, enableCors })
+            bridgedModel({ requiresApiKey: true })
           )
         ).rejects.toBeInstanceOf(MissingApiKeyError);
       });
 
       it.each(
-        [false, true].flatMap((enableCors) =>
+        [false, true].flatMap((mobile) =>
           [false, true].flatMap((stream) =>
             [
               { requiresApiKey: false, apiKey: undefined },
               { requiresApiKey: false, apiKey: "provided-key" },
               { requiresApiKey: true, apiKey: "provided-key" },
-            ].map((auth) => ({ enableCors, stream, ...auth }))
+            ].map((auth) => ({ mobile, stream, ...auth }))
           )
         )
       )(
-        `streams a private model with its configured auth and transport: %j (${issue})`,
-        async ({ enableCors, stream, requiresApiKey, apiKey }) => {
+        `streams a private model with its configured auth and transport: %j (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+        async ({ mobile, stream, requiresApiKey, apiKey }) => {
+          Platform.isMobile = mobile;
           let sentHeaders: Headers | undefined;
           let sentBody: string | undefined;
           const text = fixtureSse(completion);
@@ -98,7 +113,7 @@ describe("chatModelManager", () => {
           setRequestUrlImpl(requestUrl);
           setSettings({ openAIApiKey: "legacy-key-must-not-leak" });
           const client = await ChatModelManager.getInstance().createModelInstanceFromBridged(
-            bridgedModel({ enableCors, stream, requiresApiKey, apiKey })
+            bridgedModel({ stream, requiresApiKey, apiKey })
           );
           expect(await collectText(client)).toBe("ok");
           expect(sentHeaders?.get("authorization")).toBe(apiKey ? `Bearer ${apiKey}` : null);
@@ -107,8 +122,8 @@ describe("chatModelManager", () => {
             model: "private-local-model",
             stream: true,
           });
-          expect(requestUrl).toHaveBeenCalledTimes(enableCors ? 1 : 0);
-          expect(nativeFetch).toHaveBeenCalledTimes(enableCors ? 0 : 1);
+          expect(requestUrl).toHaveBeenCalledTimes(mobile ? 1 : 0);
+          expect(nativeFetch).toHaveBeenCalledTimes(mobile ? 0 : 1);
         }
       );
 
@@ -131,7 +146,6 @@ describe("chatModelManager", () => {
               provider: ChatModelProviders.GROQ,
               baseUrl: "https://api.groq.com/openai/v1",
               apiKey: "fixture",
-              enableCors: true,
               maxTokens,
             })
           );

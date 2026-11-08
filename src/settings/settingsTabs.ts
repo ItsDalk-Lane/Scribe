@@ -5,6 +5,7 @@ export const SCRIBE_SETTINGS_TAB_IDS = [
   "skills",
   "command",
   "subagents",
+  "mcp",
   "about",
 ] as const;
 

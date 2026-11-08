@@ -43,7 +43,6 @@ describe("CommandSettings", () => {
           title: "Review",
           content: "Read the note",
           showInContextMenu: true,
-          showInSlashMenu: true,
         },
       ];
       mockUpdate.mockClear();
@@ -78,7 +77,7 @@ describe("CommandSettings", () => {
       expect(screen.queryByRole("tablist")).toBeNull();
     });
 
-    it("turns off the whole command while retaining both menu preferences", async () => {
+    it("turns off the whole command while retaining the context-menu preference", async () => {
       render(<CommandSettings />);
       fireEvent.click(screen.getByRole("switch", { name: "Enable Review" }));
       await waitFor(() =>
@@ -86,7 +85,6 @@ describe("CommandSettings", () => {
           expect.objectContaining({
             enabled: false,
             showInContextMenu: true,
-            showInSlashMenu: true,
           }),
           "Review",
           false,

@@ -76,6 +76,24 @@ describe("UsageTracker", () => {
     });
 
     describe("applyUsageUpdate", () => {
+      it("accepts child cumulative usage without replacing the parent's current context occupancy https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const { tracker } = makeTracker();
+        tracker.applyUsageUpdate({ ...WINDOWED, cumulativeTotalTokens: 100000 });
+        tracker.applyUsageUpdate({
+          usedTokens: 0,
+          cumulativeTotalTokens: 150000,
+          cumulativeInputTokens: 130000,
+          cumulativeOutputTokens: 20000,
+          updatedAt: 2,
+        });
+        expect(tracker.getSessionUsage()).toMatchObject({
+          usedTokens: 5000,
+          contextWindow: 200000,
+          cumulativeTotalTokens: 150000,
+          cumulativeInputTokens: 130000,
+          cumulativeOutputTokens: 20000,
+        });
+      });
       it("stores a positive reading and notifies", () => {
         const { tracker, notifyMessages } = makeTracker();
 
@@ -114,6 +132,27 @@ describe("UsageTracker", () => {
     });
 
     describe("applyCompactedUsage", () => {
+      it("reduces current context after compaction while preserving cumulative parent and child consumption https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const { tracker } = makeTracker();
+        tracker.applyUsageUpdate({
+          ...WINDOWED,
+          cumulativeTotalTokens: 150000,
+          cumulativeInputTokens: 130000,
+        });
+        tracker.applyCompactedUsage({
+          id: "cumulative-compaction",
+          status: "completed",
+          trigger: "manual",
+          postTokens: 1000,
+        });
+        expect(tracker.getSessionUsage()).toMatchObject({
+          usedTokens: 1000,
+          cumulativeTotalTokens: 150000,
+          cumulativeInputTokens: 130000,
+        });
+        tracker.applyUsageUpdate({ usedTokens: 1200, contextWindow: 200000, updatedAt: 3 });
+        expect(tracker.getSessionUsage()?.cumulativeTotalTokens).toBe(150000);
+      });
       it("sets the count to a completed compaction's post-compaction tokens, keeping the window, without notifying", () => {
         const { tracker, notifyMessages } = makeTracker();
         tracker.applyUsageUpdate(WINDOWED);

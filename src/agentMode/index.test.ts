@@ -10,7 +10,7 @@ import { createAgentSessionManager } from "./index";
 import { AgentSessionManager } from "./session/AgentSessionManager";
 import { isObsidianCliEnabled } from "@/services/obsidianCli/ObsidianCliClient";
 
-jest.mock("@/constants", () => ({}));
+jest.mock("@/constants", () => ({ DEFAULT_SETTINGS: {} }));
 jest.mock("@/logger", () => ({ logError: jest.fn() }));
 jest.mock("@/utils", () => ({ err2String: jest.fn() }));
 jest.mock("@/settings/model", () => ({
@@ -46,6 +46,10 @@ jest.mock("./skills", () => ({
   SkillManager: {
     initialize: (...args: unknown[]) => mockInitialize(...args),
   },
+}));
+jest.mock("@/agentMode/skills/skillUsageStore", () => ({
+  initializeSkillUsageStore: (...args: unknown[]) => mockInitializeSkillUsage(...args),
+  flushSkillUsageStore: jest.fn(),
 }));
 jest.mock("@/services/obsidianCli/ObsidianCliClient", () => ({
   isObsidianCliEnabled: jest.fn(),
@@ -88,6 +92,7 @@ const mockInitialize = jest.fn((..._args: unknown[]) => ({
   refresh: mockRefresh,
   syncBuiltins: async () => undefined,
 }));
+const mockInitializeSkillUsage = jest.fn();
 
 function emitSettingsChange(next: ScribeSettings): void {
   const prev = mockSettings;
@@ -129,6 +134,12 @@ describe("agentMode", () => {
 
     afterEach(async () => {
       await Promise.all(mockManager.registerPreload.mock.calls.map(([, ready]) => ready));
+    });
+
+    it("initializes the usage ledger for the active vault https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+      const app = {} as App;
+      await startManager(app);
+      expect(mockInitializeSkillUsage).toHaveBeenCalledWith(app);
     });
 
     it("preloads native models despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {

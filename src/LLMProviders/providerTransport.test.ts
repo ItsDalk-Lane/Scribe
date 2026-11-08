@@ -1,3 +1,5 @@
+import { loadDesktopStreamingFetch } from "@/utils/desktopStreamingFetch";
+import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import type { CustomModel } from "@/aiParams";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
 import { getInterfaceLocale, setInterfaceLocale } from "@/lib/i18n";
@@ -13,6 +15,8 @@ const {
   Response: typeof Response;
 };
 
+jest.mock("@/utils/desktopStreamingFetch", () => ({ loadDesktopStreamingFetch: jest.fn() }));
+jest.mock("@/utils/desktopRuntime", () => ({ isDesktopRuntime: jest.fn(() => false) }));
 jest.mock("@/utils", () => ({ safeFetchNoThrow: jest.fn() }));
 jest.mock("./nativeSdk/createVertexAccessToken", () => ({
   ...jest.requireActual<typeof import("./nativeSdk/createVertexAccessToken")>(
@@ -67,16 +71,21 @@ describe("providerTransport", () => {
     beforeEach(() => {
       safeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
       nativeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
-      window.fetch = nativeFetch;
+      window.fetch = jest.fn(() => {
+        throw new Error("Browser network must not be used");
+      });
+      jest.mocked(isDesktopRuntime).mockReturnValue(false);
+      jest.mocked(loadDesktopStreamingFetch).mockReset().mockReturnValue(nativeFetch);
       googleAuth.mockReset();
     });
 
     afterEach(() => jest.restoreAllMocks());
 
     it("marks network-layer failures as transient while keeping invalid request configuration deterministic (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
       nativeFetch.mockRejectedValueOnce(new TypeError("Network unavailable"));
       await expect(
-        createProviderFetch(model({ enableCors: false }))("https://proxy.example/chat")
+        createProviderFetch(model())("https://proxy.example/chat")
       ).rejects.toMatchObject({ failure: { kind: "transient" } });
       await expect(createProviderFetch(model())("invalid-url")).rejects.toMatchObject({
         name: "TypeError",
@@ -84,41 +93,54 @@ describe("providerTransport", () => {
       expect(safeFetch).not.toHaveBeenCalled();
     });
 
-    it.each([undefined, true])(
-      "uses Obsidian transport by default or when compatibility is %s without changing normal provider identity",
-      async (enableCors) => {
-        const fetcher = createProviderFetch(model({ enableCors }));
-        const signal = new AbortController().signal;
-        const response = await fetcher(new URL("https://proxy.example/v1/chat/completions"), {
+    it("uses Obsidian transport on mobile while preserving provider identity (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
+      const signal = new AbortController().signal;
+      const response = await createProviderFetch(model())(
+        "https://proxy.example/v1/chat/completions",
+        {
           method: "POST",
           body: '{"messages":[]}',
           signal,
           headers: { Authorization: "Bearer custom-token", "X-Custom": "preserved" },
-        });
-        expect(response).toBe(await safeFetch.mock.results[0].value);
-        expect(safeFetch.mock.calls[0][0]).toBe("https://proxy.example/v1/chat/completions");
-        expect(safeFetch.mock.calls[0][1]).toMatchObject({
-          method: "POST",
-          body: '{"messages":[]}',
-        });
-        expect(safeFetch.mock.calls[0][1]?.signal).toBe(signal);
-        expect(requestHeaders(0).get("Authorization")).toBe("Bearer custom-token");
-        expect(requestHeaders(0).get("X-Custom")).toBe("preserved");
-        expect(nativeFetch).not.toHaveBeenCalled();
-      }
-    );
-
-    it("uses native fetch only for explicitly disabled compatibility and preserves cancellation", async () => {
-      const signal = new AbortController().signal;
-      await createProviderFetch(model({ enableCors: false }))(
-        "https://proxy.example/chat/completions",
-        { method: "POST", body: "{}", signal }
+        }
       );
+      expect(response).toBe(await safeFetch.mock.results[0].value);
+      expect(safeFetch.mock.calls[0][1]?.signal).toBe(signal);
+      expect(requestHeaders(0).get("Authorization")).toBe("Bearer custom-token");
+      expect(requestHeaders(0).get("X-Custom")).toBe("preserved");
+      expect(loadDesktopStreamingFetch).not.toHaveBeenCalled();
+    });
+
+    it("uses the desktop streaming bridge without browser CORS or a saved switch (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
+      const signal = new AbortController().signal;
+      const response = await createProviderFetch(model())(
+        "https://proxy.example/chat/completions",
+        {
+          method: "POST",
+          body: "{}",
+          signal,
+        }
+      );
+      expect(response).toBe(await nativeFetch.mock.results[0].value);
       expect(nativeFetch).toHaveBeenCalledWith(
         "https://proxy.example/chat/completions",
         expect.objectContaining({ method: "POST", body: "{}", signal })
       );
       expect(safeFetch).not.toHaveBeenCalled();
+      expect(window.fetch).not.toHaveBeenCalled();
+    });
+
+    it("reports a missing desktop bridge without falling back to a buffered or browser request (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
+      jest.mocked(loadDesktopStreamingFetch).mockImplementation(() => {
+        throw new Error("Desktop bridge unavailable");
+      });
+      await expect(createProviderFetch(model())("https://proxy.example/chat")).rejects.toThrow(
+        "Desktop bridge unavailable"
+      );
+      expect(safeFetch).not.toHaveBeenCalled();
+      expect(window.fetch).not.toHaveBeenCalled();
     });
 
     it("reads a Request's URL, method, body, signal and headers while honoring explicit header overrides", async () => {

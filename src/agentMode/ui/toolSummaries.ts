@@ -6,7 +6,7 @@ import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
 import { formatDuration } from "@/lib/duration";
 import { diffTargetPaths, primaryEditTargetPath } from "@/agentMode/session/editTargets";
 import { isAbsolutePath } from "@/utils/vaultPath";
-import { toolPresentationName } from "@/agentMode/session/toolName";
+import { resolveToolName, toolPresentationName } from "@/agentMode/session/toolName";
 
 export interface ToolSummaryContext {
   vaultBase: string | null;
@@ -33,6 +33,13 @@ export function lookupToolSummary(part: ToolCallPart): ToolSummary {
 function selectToolSummary(part: ToolCallPart): ToolSummary {
   if (part.userResponse) return USER_RESPONSE_SUMMARY;
   if (isOpencodeTaskTool(part)) return TASK_SUMMARY;
+  // 子会话记录不是笔记，历史记录也可能将其标记为读取。https://github.com/ItsDalk-Lane/Scribe/issues/50
+  const subagentSummary = part.mcpServer
+    ? undefined
+    : SUBAGENT_INSPECTION_SUMMARIES.get(part.vendorToolName ?? "");
+  if (subagentSummary) {
+    return subagentSummary;
+  }
   if (part.vendorToolName) {
     const v = VENDOR_SUMMARIES[toolPresentationName(part.vendorToolName)];
     if (v) return v;
@@ -75,7 +82,7 @@ function humanizeToolName(name: string): string {
 function genericToolLabel(part: ToolCallPart): string {
   if (!part.vendorToolName && /\s/.test(part.title)) return part.title;
   const bare = part.vendorToolName ?? part.title;
-  return humanizeToolName(bare) || t("Tool call");
+  return humanizeToolName(resolveToolName(bare).tool) || t("Tool call");
 }
 
 function firstQuestionText(part: ToolCallPart): string | null {
@@ -338,6 +345,25 @@ const SKILL_SUMMARY: ToolSummary = {
     return typeof input?.args === "string" && input.args.length > 0 ? input.args : null;
   },
 };
+
+export const SUBAGENT_INSPECTION_SUMMARIES: ReadonlyMap<string, ToolSummary> = new Map([
+  [
+    "list_subagent_sessions",
+    {
+      icon: Bot,
+      collapsedLine: (p) => verb(p, "Listing subagent sessions", "Listed subagent sessions"),
+      outcome: () => null,
+    },
+  ],
+  [
+    "read_subagent_result",
+    {
+      icon: Bot,
+      collapsedLine: (p) => verb(p, "Reading subagent result", "Read subagent result"),
+      outcome: () => null,
+    },
+  ],
+]);
 
 const VENDOR_SUMMARIES: Record<string, ToolSummary> = {
   Read: READ_SUMMARY,

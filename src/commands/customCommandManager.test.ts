@@ -6,7 +6,6 @@ import {
   EMPTY_COMMAND,
   SCRIBE_COMMAND_ENABLED,
   SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
-  SCRIBE_COMMAND_SLASH_ENABLED,
 } from "./constants";
 
 jest.mock("@/commands/customCommandUtils", () => ({
@@ -129,7 +128,7 @@ describe("customCommandManager", () => {
         ).rejects.toThrow();
         expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toBe(before);
       });
-      it("writes the whole-command enabled setting while preserving both menu preferences", async () => {
+      it("writes the whole-command enabled setting while preserving the context-menu preference", async () => {
         const { manager, frontmatter, files, texts } = setup();
         files.clear();
         texts.clear();
@@ -138,11 +137,9 @@ describe("customCommandManager", () => {
           title: "Review",
           enabled: false,
           showInContextMenu: true,
-          showInSlashMenu: true,
         });
         expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(false);
         expect(frontmatter()[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED]).toBe(true);
-        expect(frontmatter()[SCRIBE_COMMAND_SLASH_ENABLED]).toBe(true);
       });
     });
     describe("recordUsage()", () => {
@@ -319,7 +316,7 @@ describe("customCommandManager", () => {
         expect(getCachedCustomCommands()).toEqual([original]);
         updateCachedCommands([]);
       });
-      it("restores the saved command without changing either menu preference", async () => {
+      it("restores the saved command without changing the context-menu preference", async () => {
         const { manager, frontmatter } = setup();
         await manager.updateCommand(
           {
@@ -327,13 +324,11 @@ describe("customCommandManager", () => {
             title: "Review",
             enabled: true,
             showInContextMenu: false,
-            showInSlashMenu: true,
           },
           "Review"
         );
         expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(true);
         expect(frontmatter()[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED]).toBe(false);
-        expect(frontmatter()[SCRIBE_COMMAND_SLASH_ENABLED]).toBe(true);
       });
     });
     describe("updateCommands()", () => {

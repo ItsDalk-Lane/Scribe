@@ -36,17 +36,32 @@ export class UsageTracker {
   }
 
   applyUsageUpdate(usage: SessionUsage): void {
-    if (!usage.usedTokens) return;
-    if (usage.contextWindow === undefined && this.sessionUsage?.contextWindow !== undefined) {
-      return;
-    }
-    this.sessionUsage = usage;
+    const onlyCumulative =
+      !usage.usedTokens ||
+      (usage.contextWindow === undefined && this.sessionUsage?.contextWindow !== undefined);
+    // 子请求的累计消耗不是父上下文占用；压缩和缺省读数也不能清掉已报告的累计。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (onlyCumulative && usage.cumulativeTotalTokens === undefined) return;
+    const previous = this.sessionUsage;
+    if (onlyCumulative || previous?.cumulativeTotalTokens !== undefined) {
+      this.sessionUsage = {
+        ...(onlyCumulative ? (previous ?? usage) : usage),
+        cumulativeInputTokens: usage.cumulativeInputTokens ?? previous?.cumulativeInputTokens,
+        cumulativeOutputTokens: usage.cumulativeOutputTokens ?? previous?.cumulativeOutputTokens,
+        cumulativeCacheReadTokens:
+          usage.cumulativeCacheReadTokens ?? previous?.cumulativeCacheReadTokens,
+        cumulativeCacheWriteTokens:
+          usage.cumulativeCacheWriteTokens ?? previous?.cumulativeCacheWriteTokens,
+        cumulativeTotalTokens: usage.cumulativeTotalTokens ?? previous?.cumulativeTotalTokens,
+        updatedAt: usage.updatedAt,
+      };
+    } else this.sessionUsage = usage;
     this.deps.notifyMessages();
   }
 
   applyCompactedUsage(compaction: CompactionSnapshot): boolean {
     if (compaction.status !== "completed" || compaction.postTokens === undefined) return false;
     this.sessionUsage = {
+      ...this.sessionUsage,
       usedTokens: compaction.postTokens,
       contextWindow: this.sessionUsage?.contextWindow,
       updatedAt: Date.now(),

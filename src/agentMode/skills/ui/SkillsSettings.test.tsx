@@ -495,6 +495,19 @@ describe("SkillsSettings", () => {
       });
       expect(mockRefresh).toHaveBeenCalledTimes(2);
     });
+    it("renders skills in the manager's list order and no longer offers a sorting option", async () => {
+      mockSkills = [
+        makeSkill({ name: "zeta", description: "Zeta skill", dirPath: "zeta" }),
+        makeSkill({ name: "alpha", description: "Alpha skill", dirPath: "alpha" }),
+      ];
+      await act(async () => {
+        render(<SkillsSettings />);
+      });
+      const zeta = screen.getByText("zeta");
+      const alpha = screen.getByText("alpha");
+      expect(zeta.compareDocumentPosition(alpha) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.queryByText("List sorting")).toBeNull();
+    });
     it("reports refresh failures with context and offers recovery for modified builtins", async () => {
       mockRefresh.mockResolvedValue({ ok: false, discoveryError: "Permission denied" });
       mockStatus.mockResolvedValue([{ name: "skill-creator", status: "modified" }]);

@@ -13,6 +13,10 @@ import * as obsidianModule from "obsidian";
 
 jest.mock("@/logger");
 jest.mock("@/utils/desktopRuntime", () => ({ isDesktopRuntime: () => true }));
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () =>
+    jest.requireActual<typeof import("@/utils")>("@/utils").safeFetchNoThrow,
+}));
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidianModule as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
 };
@@ -61,7 +65,6 @@ function configuration(source: (typeof catalog)[number]): Provider {
       (source.id === "qvac" ? "http://localhost:8800/v1" : undefined),
     extras,
     requiresApiKey: true,
-    enableCors: true,
     addedAt: 0,
   };
 }
