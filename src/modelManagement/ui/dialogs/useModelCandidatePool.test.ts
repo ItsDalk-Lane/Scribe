@@ -279,4 +279,55 @@ describe("useModelCandidatePool", () => {
       expect(result.current.availableModels.map((model) => model.id)).toEqual(["second"]);
     });
   });
+
+  describe("setSelection()", () => {
+    it("replaces the selection with the given ids, keeping unknown ids listed as manual candidates", () => {
+      const info = { id: "known", displayName: "Known" };
+      const { result } = renderHook(() =>
+        useModelCandidatePool(args({ catalogMetadata: { known: info } }))
+      );
+      act(() => result.current.setSelection(["known", "custom-a"]));
+      expect([...result.current.selectedWireIds]).toEqual(["known", "custom-a"]);
+      const ids = result.current.availableModels.map((model) => model.id);
+      expect(ids).toContain("known");
+      expect(ids).toContain("custom-a");
+      expect(result.current.customIds.has("custom-a")).toBe(true);
+    });
+
+    it("replaces a previous selection entirely on the next call", () => {
+      const { result } = renderHook(() => useModelCandidatePool(args()));
+      act(() => result.current.setSelection(["a", "b"]));
+      act(() => result.current.setSelection(["c"]));
+      expect([...result.current.selectedWireIds]).toEqual(["c"]);
+      expect(result.current.buildSelectedModelInfos()).toEqual([{ id: "c", displayName: "c" }]);
+    });
+
+    it("prefills the initial selection for new providers without an extra mount step", () => {
+      const { result } = renderHook(() =>
+        useModelCandidatePool(args({ initialSelectedIds: ["seeded-a", "seeded-b"] }))
+      );
+      expect([...result.current.selectedWireIds]).toEqual(["seeded-a", "seeded-b"]);
+      expect(result.current.customIds.has("seeded-a")).toBe(true);
+    });
+
+    it("ignores initialSelectedIds in edit mode so saved selections stay authoritative", () => {
+      const { result } = renderHook(() =>
+        useModelCandidatePool(
+          args({
+            mode: "edit",
+            initialSelectedIds: ["seeded-a"],
+            existingModels: [
+              {
+                configuredModelId: "cm",
+                providerId: "p",
+                configuredAt: 0,
+                info: { id: "saved", displayName: "Saved" },
+              },
+            ],
+          })
+        )
+      );
+      expect([...result.current.selectedWireIds]).toEqual(["saved"]);
+    });
+  });
 });

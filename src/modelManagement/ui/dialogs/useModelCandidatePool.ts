@@ -20,6 +20,7 @@ export interface UseModelCandidatePoolArgs {
   requiresApiKey: boolean;
   providerHydrated: boolean;
   autoDiscover?: boolean;
+  initialSelectedIds?: readonly string[];
 }
 
 export interface ModelCandidatePool {
@@ -34,6 +35,7 @@ export interface ModelCandidatePool {
   toggle: (wireId: string, next: boolean) => void;
   addId: (id: string) => void;
   removeId: (id: string) => void;
+  setSelection: (ids: readonly string[]) => void;
   fetchModels: () => Promise<void>;
 }
 
@@ -49,9 +51,12 @@ export function useModelCandidatePool({
   requiresApiKey,
   providerHydrated,
   autoDiscover,
+  initialSelectedIds,
 }: UseModelCandidatePoolArgs): ModelCandidatePool {
   const [selectedWireIds, setSelectedWireIds] = useState<Set<string>>(() =>
-    mode === "edit" ? new Set(existingModels.map((m) => m.info.id)) : new Set()
+    mode === "edit"
+      ? new Set(existingModels.map((m) => m.info.id))
+      : new Set(initialSelectedIds ?? [])
   );
   const connectionKey = JSON.stringify([providerType, effectiveBaseUrl, apiKey, apiKeyRef, extras]);
   const currentConnectionKey = useRef(connectionKey);
@@ -68,7 +73,9 @@ export function useModelCandidatePool({
   }>(() => ({ connectionKey, ids: EMPTY_IDS, fetching: false, error: null }));
   const currentDiscovery = discovery.connectionKey === connectionKey ? discovery : EMPTY_DISCOVERY;
   const fetchedIds = currentDiscovery.ids;
-  const [manualIds, setManualIds] = useState<string[]>([]);
+  const [manualIds, setManualIds] = useState<string[]>(() =>
+    mode === "edit" ? [] : [...(initialSelectedIds ?? [])]
+  );
   const [removedExistingIds, setRemovedExistingIds] = useState<Set<string>>(() => new Set());
 
   const existingByWireId = useMemo(
@@ -235,6 +242,17 @@ export function useModelCandidatePool({
     [existingByWireId]
   );
 
+  const setSelection = useCallback((ids: readonly string[]): void => {
+    setManualIds((prev) => {
+      const next = [...prev];
+      for (const id of ids) {
+        if (!next.includes(id)) next.push(id);
+      }
+      return next;
+    });
+    setSelectedWireIds(new Set(ids));
+  }, []);
+
   const buildSelectedModelInfos = useCallback(
     (): ModelInfo[] => [...selectedWireIds].map((id) => resolveModelInfo(id)),
     [selectedWireIds, resolveModelInfo]
@@ -252,6 +270,7 @@ export function useModelCandidatePool({
     toggle,
     addId,
     removeId,
+    setSelection,
     fetchModels,
   };
 }

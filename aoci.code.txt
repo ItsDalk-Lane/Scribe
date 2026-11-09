@@ -5,7 +5,7 @@
 AGENTS.md[SG8M]: F:Defines repository development, persistence, test, review and cognition rules for coding agents | R:code:internal-docs/DATA_STORAGE.md,code:internal-docs/STYLE_GUIDE.md,code:internal-docs/TESTING_GUIDE.md | A:- | S:Never run npm run dev or alter prompts without explicit instruction; releases alone edit release notes. Configuration stays in data.json and plugin files in vault-root .scribe. Never import or clean old paths or keychain data automatically; preserve project work files
 CONTRIBUTING.md[SQ4S]: F:Contribution workflow covering issue reporting, dev environment setup, and the Obsidian review preflight | R:- | A:- | S:-
 LICENSE[SZ1L]: F:Full GNU Affero General Public License v3 text governing the project | R:- | A:- | S:-
-README.md[SU7T]: F:Introduces Scribe, upstream provenance, models, bundled and imported skills, everyday tools and encrypted vault storage | R:code:docs/getting-started.md,code:docs/llm-providers.md | A:- | S:Adopting encrypted storage requires re-entering keys without importing or changing the old keychain; skill dependencies are never installed automatically
+README.md[SU7T]: F:Introduces Scribe, upstream and preset-catalog provenance, models, bundled and imported skills, everyday tools and encrypted vault storage | R:code:docs/getting-started.md,code:docs/llm-providers.md | A:- | S:Adopting encrypted storage requires re-entering keys without importing or changing the old keychain; skill dependencies are never installed automatically
 esbuild.config.mjs[XV8T]: F:Production esbuild config producing the plugin bundle with banner, shims, and guards | R:- | A:- | S:Every production build enforces the bundle size guard
 eslint.config.mjs[XQ8L]: F:Repository-wide ESLint flat config including the custom no-direct-node-imports and boundaries rules | R:code:eslint.review.config.mjs | A:- | S:Node built-ins must be reached through requireNodeModule from the desktop runtime helper, not imported directly. MCP modules form their own boundary element reachable from backends, UI, the barrel and host.
 manifest.json[FV7T]: F:Declares Scribe identity, release version, minimum Obsidian version, and author metadata | R:code:package.json | A:- | S:-
@@ -715,7 +715,7 @@ progress.tsx[EU2T]: F:Progress bar | R:- | A:Progress | S:-
 resizable.stories.tsx[TQ2T]: F:Gallery stories for resizable groups | R:code:src/components/ui/resizable.tsx | A:- | S:-
 resizable.tsx[EU2T]: F:Resizable panel primitives with a drag grip | R:- | A:ResizableGroup, ResizablePanel | S:-
 scroll-area.tsx[EU2T]: F:Scroll area primitives | R:- | A:ScrollArea | S:-
-segmented-control.tsx[EU4S]: F:Segmented control for exclusive options | R:- | A:SegmentedControl | S:-
+segmented-control.tsx[EU4S]: F:Segmented control for exclusive options with roving-tabindex keyboard navigation | R:- | A:SegmentedControl | S:-
 separator.tsx[EU1T]: F:Visual separator | R:- | A:Separator | S:-
 setting-disclosure.stories.tsx[TQ2T]: F:Gallery story for the setting disclosure | R:code:src/components/ui/setting-disclosure.tsx | A:- | S:-
 setting-disclosure.tsx[EU2T]: F:Expandable row revealing nested settings | R:- | A:SettingDisclosure | S:-
@@ -818,7 +818,7 @@ utils.ts[EU2T]: F:Class name combiner with the tw prefix | R:- | A:cn | S:-
 agent.ts[CL3L]: F:Localizes chats, measured usage, action-specific executing/waiting titles, Agent command management, child collaboration and recovery into Simplified Chinese | R:code:src/lib/i18n.ts | A:agentTranslations | S:-
 components.ts[CL2M]: F:Localizes components, mode labels and command chips, project workspaces, context saves, links, bookmarks and slash menu group labels into Simplified Chinese | R:code:src/lib/i18n.ts | A:componentTranslations | S:-
 runtime.ts[CL2S]: F:Localizes startup, provider and runtime failures, Quick-tool capacity checks and incomplete-answer notices into Simplified Chinese | R:code:src/lib/i18n.ts | A:runtimeTranslations | S:-
-settings.ts[CL2L]: F:Localizes settings, credentials, child limits, MCP configuration, validation and persistence feedback into Simplified Chinese | R:code:src/lib/i18n.ts | A:settingsTranslations | S:-
+settings.ts[CL2L]: F:Localizes settings, credentials, child limits, MCP configuration, provider preset labels and persistence feedback into Simplified Chinese | R:code:src/lib/i18n.ts | A:settingsTranslations | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/lib/plugins/===
 colorOpacityPlugin.ts[XV4T]: F:Tailwind plugin adding opacity variants for theme colors | R:- | A:- | S:-
@@ -882,7 +882,7 @@ atoms.ts[DD4T]: F:Projects providers, configured models and backend data into sh
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/types/===
 catalog.ts[EG4T]: F:Catalog types for providers and models | R:- | A:ModelInfo, ProviderType | S:-
 persisted.ts[EG4T]: F:Defines saved providers, configured models and backend selections with encrypted credential references and no transport switch | R:code:src/modelManagement/types/catalog.ts | A:Provider,ConfiguredModel,BackendType,BackendConfig | S:Retired agent identity remains a saved data type.
-runtime.ts[EG4T]: F:Runtime types for verification and enabled entries | R:- | A:VerificationResult, EnabledBackendEntry | S:-
+runtime.ts[EG4T]: F:Runtime types for verification, enabled entries and provider definitions | R:- | A:VerificationResult, EnabledBackendEntry, ProviderDefinition | S:-
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/===
 ModelManagementContext.tsx[EU2T]: F:React context exposing the management API | R:code:src/modelManagement/createModelManagement.ts | A:ModelManagementProvider, useModelManagement | S:-
@@ -900,11 +900,11 @@ ProviderCredentialField.stories.tsx[TU3T]: F:Previews missing, saved encrypted, 
 ProviderCredentialField.tsx[EU5T]: F:Renders an empty credential field with saved, replacing, pending-clear and saving states | R:code:src/components/ui/password-input.tsx,code:src/modelManagement/ui/dialogs/ConfigureProviderDialog.tsx | A:ProviderCredentialField,ProviderCredentialFieldProps | S:Never reads storage; blank saved input means retain; clearing is explicit and takes effect on save
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/dialogs/===
-AddProviderDialog.stories.tsx[TU3T]: F:Previews adding catalog providers, a local Ollama template and a manually configured compatible service | R:code:src/modelManagement/ui/dialogs/AddProviderDialog.tsx | A:- | S:-
-AddProviderDialog.tsx[EU5M]: F:Dialog searching the catalog to add a provider | R:code:src/components/modals/ReactModal.tsx | A:AddProviderDialog | S:-
-ConfigureProviderDialog.stories.tsx[TU3T]: F:Previews long provider model lists and custom endpoints without a manual CORS control | R:code:src/modelManagement/ui/dialogs/ConfigureProviderDialog.tsx | A:- | S:-
-ConfigureProviderDialog.tsx[EU7L]: F:Edits provider credentials, connection parameters and model selections with explicit chat checks and automatic transport | R:code:src/modelManagement/providers/ProviderRegistry.ts,code:src/modelManagement/ui/dialogs/useModelCandidatePool.ts | A:ConfigureProviderDialog | S:Saved keys never hydrate fields; blank retains, explicit clear removes on save. Editing does not auto-fetch models; failed or cancelled secret saves keep the form.
-useModelCandidatePool.ts[DB5M]: F:Combines catalog, configured, manual and queried model candidates for provider configuration | R:code:src/modelManagement/providers/adapters/listProviderModels.ts,code:src/services/secretStore.ts | A:useModelCandidatePool | S:Saved references are resolved only for an explicit query; new inputs may discover models; stale responses cannot replace the current connection results
+AddProviderDialog.stories.tsx[TU3T]: F:Previews the category picker with preset family cards and catalog endpoints covered by presets | R:code:src/modelManagement/ui/dialogs/AddProviderDialog.tsx | A:- | S:-
+AddProviderDialog.tsx[EU5L]: F:Picker dialog browsing presets by category as two-column cards with merged vendor families | R:code:src/components/modals/ReactModal.tsx,code:src/modelManagement/catalog/presets/providerPresets.ts,code:src/modelManagement/catalog/presets/presetIcons.ts | A:AddProviderModal, AddProviderContent | S:Catalog vendors whose endpoint host matches a preset are hidden except the official direct trio; picking a family card submits its first version with the family display name
+ConfigureProviderDialog.stories.tsx[TU3S]: F:Previews provider model lists, custom endpoints and preset version controls without a manual CORS control | R:code:src/modelManagement/ui/dialogs/ConfigureProviderDialog.tsx | A:- | S:-
+ConfigureProviderDialog.tsx[EU7L]: F:Edits provider credentials, connection parameters, preset version and model selections with explicit chat checks and automatic transport | R:code:src/modelManagement/providers/ProviderRegistry.ts,code:src/modelManagement/ui/dialogs/useModelCandidatePool.ts,code:src/modelManagement/catalog/presets/presetVersionLabels.ts | A:ConfigureProviderDialog | S:Saved keys never hydrate; blank retains and explicit clear removes on save. Version switching rewrites the endpoint and swaps recommended models only in new mode; the preset id persists in extras
+useModelCandidatePool.ts[DB5M]: F:Combines catalog, configured, manual and queried model candidates for provider configuration | R:code:src/modelManagement/providers/adapters/listProviderModels.ts,code:src/services/secretStore.ts | A:useModelCandidatePool | S:Saved references resolve only for explicit queries; stale results cannot replace the current connection. Initial selections apply only in new mode; setSelection wholesale replaces the selection
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/ui/utils/===
 formatModelMetadata.ts[DB2T]: F:Formats context windows and token limits | R:code:src/lib/i18n.ts | A:formatContextWindow | S:-
@@ -1131,4 +1131,10 @@ builtinAgentCommands.ts[FC2T]: F:Declares the built-in Agent command names and t
 
 ===/Users/study_superior/Desktop/Code/Scribe/src/agentMode/sdk/testing/===
 diskConfirmation.ts[TQ1T]: F:Test helper that stalls fsync confirmations of one journal file until the test releases or fails them | R:code:src/agentMode/sdk/testing/diskConfirmation.ts,code:src/agentMode/sdk/JournalStorage.ts | A:stallConfirmations | S:-
+
+===/Users/study_superior/Desktop/Code/Scribe/src/modelManagement/catalog/presets/===
+presetFamilies.ts[DC5T]: F:Defines provider preset family, plan and region vocabularies with display names and version ordering | R:code:src/modelManagement/catalog/presets/providerPresets.ts,code:src/modelManagement/catalog/presets/presetVersionLabels.ts | A:PRESET_FAMILIES, PresetFamilyId | S:-
+presetIcons.ts[DC3S]: F:Maps preset icon names to bundled inline SVG markup for provider cards | R:code:src/modelManagement/ui/dialogs/AddProviderDialog.tsx | A:PRESET_ICONS, getPresetIcon | S:Missing icon names are intentional tile fallbacks
+presetVersionLabels.ts[DU4S]: F:Builds localized version labels and the plan-by-region picker model for preset versions | R:code:src/modelManagement/catalog/presets/providerPresets.ts,code:src/modelManagement/catalog/presets/presetFamilies.ts | A:presetVersionLabel, presetVersionPickerModel, presetDomain | S:The grid form appears only when plan and region both vary and every combination exists; incomplete grids degrade to a single dimension or a flat list
+providerPresets.ts[DB5L]: F:Ships the ported provider preset catalog with family grouping and per-version model recommendations | R:code:src/modelManagement/catalog/presets/presetFamilies.ts,code:src/modelManagement/ui/dialogs/AddProviderDialog.tsx,code:src/modelManagement/ui/dialogs/ConfigureProviderDialog.tsx | A:PROVIDER_PRESETS, getProviderPreset, getProviderPresetVersions | S:Ported from cc-switch 4.0.28; AWS Bedrock is excluded because no provider type supports its protocol, and Ollama plus LM Studio are omitted as duplicates of the bundled self-host templates
 

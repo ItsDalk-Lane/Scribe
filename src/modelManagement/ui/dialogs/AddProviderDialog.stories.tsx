@@ -52,3 +52,24 @@ const meta = {
 export default meta;
 
 export const AllProviderFamilies: StoryObj<AddProviderContentProps> = {};
+
+export const CatalogWithPresetCoveredEndpoints: StoryObj<AddProviderContentProps> = {
+  args: {
+    catalogProviders: [
+      {
+        id: "deepseek",
+        displayName: "DeepSeek",
+        providerType: "openai-compatible",
+        defaultBaseUrl: "https://api.deepseek.com/v1",
+        models: {},
+      },
+      {
+        id: "groq",
+        displayName: "Groq",
+        providerType: "openai-compatible",
+        defaultBaseUrl: "https://api.groq.com/openai/v1",
+        models: {},
+      },
+    ],
+  },
+};

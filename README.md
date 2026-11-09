@@ -18,6 +18,8 @@ Isolated tests found that removing a provider or changing its key can also affec
 
 Scribe is a fork of [Obsidian Copilot](https://github.com/logancyang/obsidian-copilot), based on upstream version **4.0.17**. This repository tracks upstream releases and selectively syncs the updates this project can use; **4.0.17** is the currently followed upstream version, and this record is updated whenever a sync lands. Scribe's own version numbering is independent of upstream and starts at 1.0.0.
 
+The provider preset catalog under `src/modelManagement/catalog/presets/` is ported from [cc-switch](https://github.com/farion1231/cc-switch) (MIT License, Copyright (c) 2025 Jason Young), version **4.0.28**, commit `cdca0984231021c4eb7e8978af8670cd29c6e415`. The preset data and the inline provider logo SVGs are distributed under cc-switch's MIT license; each provider logo remains the trademark of its respective owner.
+
 ## Work with Scribe
 
 **Agent Chat** is Scribe's desktop workspace for multi-step work. The in-app agent can inspect notes, use tools, create Obsidian files, and continue across several turns with permissions you control.

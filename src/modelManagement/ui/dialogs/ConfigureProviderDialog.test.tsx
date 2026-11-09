@@ -82,6 +82,15 @@ jest.mock("@/modelManagement/state/atoms", () => {
         extras: { unknownField: "keep" },
         addedAt: 0,
       },
+      {
+        providerId: "p-kimi",
+        providerType: "openai-compatible",
+        displayName: "Kimi",
+        baseUrl: "https://api.moonshot.cn/v1",
+        extras: { presetId: "kimi" },
+        origin: { kind: "byok" },
+        addedAt: 0,
+      },
     ]),
     configuredModelsAtom: jotai.atom([
       {
@@ -110,6 +119,12 @@ jest.mock("@/modelManagement/state/atoms", () => {
         configuredModelId: "cm-custom",
         providerId: "p-custom",
         info: { id: "work-model", displayName: "Work model" },
+        configuredAt: 0,
+      },
+      {
+        configuredModelId: "cm-kimi",
+        providerId: "p-kimi",
+        info: { id: "my-kimi-model", displayName: "My Kimi" },
         configuredAt: 0,
       },
     ]),
@@ -184,6 +199,17 @@ const ollamaSource: ProviderDefinition = {
   defaultBaseUrl: "http://localhost:11434/v1",
   requiresApiKey: false,
   modelInputHint: "e.g. llama3.2",
+};
+
+const kimiSource: ProviderDefinition = {
+  id: "kimi",
+  displayName: "Kimi",
+  providerType: "openai-compatible",
+  defaultBaseUrl: "https://api.moonshot.cn/v1",
+  requiresApiKey: true,
+  modelInputHint: "e.g. kimi-k3.1-pro",
+  catalogProviderId: "moonshotai",
+  presetId: "kimi",
 };
 
 const anthropicCatalogMetadata = {
@@ -1082,6 +1108,79 @@ describe("ConfigureProviderDialog", () => {
       await waitFor(() => expect(mockRemoveRefs).toHaveBeenCalledWith(["cm2"]));
       expect(mockEnableModel).toHaveBeenCalledWith("chat", "cm2");
       expect(mockEnableModel).toHaveBeenCalledTimes(1);
+    });
+
+    it("prefills the representative version's recommended models and renders plan and region controls for a multi-version preset", () => {
+      render(
+        <ConfigureProviderForm state={{ mode: "new", source: kimiSource }} onClose={jest.fn()} />
+      );
+      expect(screen.getByRole("radiogroup", { name: "Preset plan" })).toBeTruthy();
+      expect(screen.getByRole("radiogroup", { name: "Preset region" })).toBeTruthy();
+      expect(rowCheckbox("kimi-k3.1-pro").getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("switching the plan or region retargets the endpoint and replaces the recommended selection", () => {
+      render(
+        <ConfigureProviderForm state={{ mode: "new", source: kimiSource }} onClose={jest.fn()} />
+      );
+      fireEvent.click(
+        within(screen.getByRole("radiogroup", { name: "Preset plan" })).getByRole("radio", {
+          name: "Coding subscription",
+        })
+      );
+      expect(baseUrlInput().value).toBe("https://api.kimi.com/coding");
+      expect(rowCheckbox("kimi-for-coding").getAttribute("aria-checked")).toBe("true");
+      expect(rowCheckbox("kimi-k3.1-pro").getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(
+        within(screen.getByRole("radiogroup", { name: "Preset region" })).getByRole("radio", {
+          name: "International",
+        })
+      );
+      expect(baseUrlInput().value).toBe("https://api.kimi.ai/coding");
+    });
+
+    it("renders no version controls for sources without a preset", () => {
+      render(
+        <ConfigureProviderForm
+          state={{ mode: "new", source: anthropicSource }}
+          onClose={jest.fn()}
+        />
+      );
+      expect(screen.queryByText("Version")).toBeNull();
+      expect(screen.queryByRole("radiogroup", { name: "Preset plan" })).toBeNull();
+    });
+
+    it("restores the version controls from saved extras and switches only the endpoint in edit mode", () => {
+      render(
+        <ConfigureProviderForm state={{ mode: "edit", providerId: "p-kimi" }} onClose={jest.fn()} />
+      );
+      expect(screen.getByRole("radiogroup", { name: "Preset plan" })).toBeTruthy();
+      expect(baseUrlInput().value).toBe("https://api.moonshot.cn/v1");
+      expect(rowCheckbox("my-kimi-model").getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(
+        within(screen.getByRole("radiogroup", { name: "Preset plan" })).getByRole("radio", {
+          name: "Coding subscription",
+        })
+      );
+      expect(baseUrlInput().value).toBe("https://api.kimi.com/coding");
+      expect(rowCheckbox("my-kimi-model").getAttribute("aria-checked")).toBe("true");
+      expect(screen.queryByTestId("model-row-kimi-for-coding")).toBeNull();
+    });
+
+    it("persists the chosen preset id in extras when saving a new provider", async () => {
+      const onSaved = jest.fn();
+      render(
+        <ConfigureProviderForm
+          state={{ mode: "new", source: kimiSource }}
+          onClose={jest.fn()}
+          onSaved={onSaved}
+        />
+      );
+      fireEvent.change(screen.getByTestId("api-key"), { target: { value: "entered-key" } });
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+      const setupCall = mockSetupProvider.mock.calls[0][0] as { extras?: Record<string, unknown> };
+      expect(setupCall.extras?.presetId).toBe("kimi");
     });
   });
 });

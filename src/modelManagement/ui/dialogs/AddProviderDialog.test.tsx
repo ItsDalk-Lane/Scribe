@@ -9,11 +9,12 @@ beforeAll(() => {
   (window as unknown as { activeDocument: Document }).activeDocument = window.document;
 });
 
-function makeCatalog(id: string, displayName: string): CatalogProvider {
+function makeCatalog(id: string, displayName: string, defaultBaseUrl?: string): CatalogProvider {
   return {
     id,
     displayName,
     providerType: id === "anthropic" ? "anthropic" : "openai-compatible",
+    defaultBaseUrl,
     models: {},
   };
 }
@@ -68,28 +69,34 @@ describe("AddProviderDialog", () => {
   describe("AddProviderContent", () => {
     afterEach(() => setInterfaceLocale("en"));
 
-    it("shows Chinese controls without changing selected provider details", () => {
+    it("shows Chinese categories and the merged family card without changing selected provider details", () => {
       setInterfaceLocale("zh-CN");
       const onPick = jest.fn();
       renderDialog({ onPick });
       expect(screen.getByPlaceholderText("搜索供应商…")).toBeTruthy();
-      expect(screen.getByText("推荐")).toBeTruthy();
-      expect(screen.getByText(/Claude 系列/)).toBeTruthy();
+      expect(screen.getByText("全部")).toBeTruthy();
+      expect(screen.getAllByText("模型厂商").length).toBeGreaterThan(0);
+      expect(screen.getByText("platform.kimi.com · 4 个版本")).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "添加 Ollama 供应商" }));
       expect(onPick).toHaveBeenCalledWith(localTemplates[0]);
     });
 
-    it("shows popular catalog providers under Recommended and the rest under More", () => {
+    it("keeps the recommended catalog vendors on the first screen next to preset family cards", () => {
       renderDialog();
-      expect(screen.getByTestId("add-provider-recommended")).toBeTruthy();
       expect(screen.getByTestId("add-provider-card-anthropic")).toBeTruthy();
       expect(screen.getByTestId("add-provider-card-openai")).toBeTruthy();
       expect(screen.getByTestId("add-provider-card-google")).toBeTruthy();
-      expect(screen.getByTestId("add-provider-more")).toBeTruthy();
       expect(screen.getByTestId("add-provider-card-groq")).toBeTruthy();
+      expect(screen.getByTestId("add-provider-family-kimi")).toBeTruthy();
     });
 
-    it("shows only providers matching the search query across catalog and local groups", () => {
+    it("merges same-vendor preset versions into one card labeled with the version count", () => {
+      renderDialog();
+      expect(screen.getByTestId("add-provider-family-tencent")).toBeTruthy();
+      expect(screen.getByText("cloud.tencent.com · 8 versions")).toBeTruthy();
+    });
+
+    it("shows only providers matching the search query across catalog and preset groups", () => {
       renderDialog();
       fireEvent.change(screen.getByPlaceholderText("Search providers…"), {
         target: { value: "groq" },
@@ -97,6 +104,30 @@ describe("AddProviderDialog", () => {
       expect(screen.queryByTestId("add-provider-card-anthropic")).toBeNull();
       expect(screen.queryByTestId("add-provider-template-ollama")).toBeNull();
       expect(screen.getByTestId("add-provider-card-groq")).toBeTruthy();
+    });
+
+    it("finds a merged family card by its vendor name", () => {
+      renderDialog();
+      fireEvent.change(screen.getByPlaceholderText("Search providers…"), {
+        target: { value: "kimi" },
+      });
+      expect(screen.queryByTestId("add-provider-card-anthropic")).toBeNull();
+      expect(screen.getByTestId("add-provider-family-kimi")).toBeTruthy();
+    });
+
+    it("filters cards to the chosen category from the sidebar", () => {
+      renderDialog();
+      fireEvent.click(screen.getByTestId("add-provider-category-cloud_provider"));
+      expect(screen.getByTestId("add-provider-card-preset-ollama-cloud")).toBeTruthy();
+      expect(screen.queryByTestId("add-provider-card-groq")).toBeNull();
+      expect(screen.queryByTestId("add-provider-family-kimi")).toBeNull();
+    });
+
+    it("lists local runners and the local preset in their own category", () => {
+      renderDialog();
+      expect(screen.getByTestId("add-provider-template-ollama")).toBeTruthy();
+      expect(screen.getByTestId("add-provider-template-lmstudio")).toBeTruthy();
+      expect(screen.getByTestId("add-provider-card-preset-vllm")).toBeTruthy();
     });
 
     it("picks a catalog-backed definition requiring an API key when a catalog provider is clicked", () => {
@@ -113,6 +144,48 @@ describe("AddProviderDialog", () => {
       );
     });
 
+    it("picks the first version of a merged family with the family display name and preset id", () => {
+      const onPick = jest.fn();
+      renderDialog({ onPick });
+      fireEvent.click(screen.getByTestId("add-provider-family-kimi"));
+      expect(onPick).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "kimi",
+          presetId: "kimi",
+          displayName: "Kimi",
+          providerType: "openai-compatible",
+          defaultBaseUrl: "https://api.moonshot.cn/v1",
+          catalogProviderId: "moonshotai",
+        })
+      );
+    });
+
+    it("picks a single preset with its own preset id", () => {
+      const onPick = jest.fn();
+      renderDialog({ onPick });
+      fireEvent.click(screen.getByTestId("add-provider-card-preset-tokenplus"));
+      expect(onPick).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "tokenplus",
+          presetId: "tokenplus",
+          catalogProviderId: undefined,
+        })
+      );
+    });
+
+    it("hides a catalog vendor that a preset already covers at the same endpoint", () => {
+      renderDialog({
+        catalogProviders: [makeCatalog("deepseek", "DeepSeek", "https://api.deepseek.com/v1")],
+      });
+      expect(screen.queryByTestId("add-provider-card-deepseek")).toBeNull();
+      expect(screen.getByTestId("add-provider-card-preset-deep-seek")).toBeTruthy();
+    });
+
+    it("keeps official direct vendors even when a relay preset references their models", () => {
+      renderDialog();
+      expect(screen.getByTestId("add-provider-card-anthropic")).toBeTruthy();
+    });
+
     it("preserves the catalog package when a provider is selected", () => {
       const onPick = jest.fn();
       renderDialog({ catalogProviders: [{ ...catalog[0], npm: "@ai-sdk/anthropic" }], onPick });
@@ -125,13 +198,6 @@ describe("AddProviderDialog", () => {
       renderDialog({ onPick });
       fireEvent.click(screen.getByTestId("add-provider-card-anthropic"));
       expect(onPick.mock.calls[0][0].modelInputHint).toMatch(/claude/i);
-    });
-
-    it("lists local runners in their own group on the first screen", () => {
-      renderDialog();
-      expect(screen.getByTestId("add-provider-local")).toBeTruthy();
-      expect(screen.getByTestId("add-provider-template-ollama")).toBeTruthy();
-      expect(screen.getByTestId("add-provider-template-lmstudio")).toBeTruthy();
     });
 
     it("picks the local template as-is, without a catalog id, when a local runner is clicked", () => {

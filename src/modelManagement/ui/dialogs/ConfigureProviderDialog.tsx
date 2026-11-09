@@ -5,6 +5,7 @@ import { ReactModal } from "@/components/modals/ReactModal";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ProviderCredentialField } from "@/modelManagement/ui/components/ProviderCredentialField";
 import { useApp } from "@/context";
 import { logError } from "@/logger";
@@ -15,6 +16,20 @@ import { byokProvidersAtom, configuredModelsAtom } from "@/modelManagement/state
 import type { ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import type { ProviderDefinition, VerificationResult } from "@/modelManagement/types/runtime";
+import {
+  getProviderPreset,
+  getProviderPresetVersions,
+  type ProviderPreset,
+} from "@/modelManagement/catalog/presets/providerPresets";
+import type {
+  PresetPlanKey,
+  PresetRegionKey,
+} from "@/modelManagement/catalog/presets/presetFamilies";
+import {
+  presetPlanLabel,
+  presetRegionLabel,
+  presetVersionPickerModel,
+} from "@/modelManagement/catalog/presets/presetVersionLabels";
 import { ModelChecklist } from "@/modelManagement/ui/components/ModelChecklist";
 import {
   ModelManagementProvider,
@@ -154,8 +169,27 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     state.mode === "edit" ? (provider?.baseUrl ?? "") : ""
   );
   const [extras, setExtras] = useState<Record<string, unknown>>(() =>
-    state.mode === "edit" ? (provider?.extras ?? {}) : {}
+    state.mode === "edit"
+      ? (provider?.extras ?? {})
+      : state.source.presetId
+        ? { presetId: state.source.presetId }
+        : {}
   );
+  const [presetId, setPresetId] = useState(() => {
+    if (state.mode === "new") return state.source.presetId;
+    const saved = provider?.extras?.presetId;
+    return typeof saved === "string" ? saved : undefined;
+  });
+  const presetVersions = useMemo(() => {
+    const preset = presetId ? getProviderPreset(presetId) : undefined;
+    return preset ? getProviderPresetVersions(preset) : [];
+  }, [presetId]);
+  const versionPicker = useMemo(() => presetVersionPickerModel(presetVersions), [presetVersions]);
+  const currentVersion = presetVersions.find((candidate) => candidate.id === presetId);
+  const initialPresetSelection = useMemo(() => {
+    if (state.mode !== "new" || !state.source.presetId) return undefined;
+    return getProviderPreset(state.source.presetId)?.recommendedModelIds;
+  }, [state]);
   const [testModelId, setTestModelId] = useState("");
   const [chatCheck, setChatCheck] = useState<{
     key: string;
@@ -253,7 +287,36 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     requiresApiKey,
     autoDiscover: state.mode === "new" && !!defaultBaseUrl,
     providerHydrated: !missingParameters && !baseUrlError && (state.mode !== "edit" || !!provider),
+    initialSelectedIds: initialPresetSelection,
   });
+  const handleVersionChange = (versionId: string): void => {
+    const version = presetVersions.find((candidate) => candidate.id === versionId);
+    if (!version || version.id === presetId) return;
+    invalidateChatCheck();
+    setPresetId(version.id);
+    setBaseUrl(version.baseUrl);
+    setExtras((previous) => ({ ...previous, presetId: version.id }));
+    if (state.mode === "new") pool.setSelection(version.recommendedModelIds);
+  };
+  const changeVersionDimension = (value: string): void => {
+    const model = versionPicker;
+    if (!model || !currentVersion) return;
+    let target: ProviderPreset | undefined;
+    if (model.kind === "grid") {
+      const plan = model.plans.includes(value as PresetPlanKey)
+        ? (value as PresetPlanKey)
+        : (currentVersion.planKey ?? model.plans[0]);
+      const region = model.regions.includes(value as PresetRegionKey)
+        ? (value as PresetRegionKey)
+        : (currentVersion.regionKey ?? model.regions[0]);
+      target = model.versionAt(plan, region);
+    } else if (model.kind === "single-dimension" && model.dimension === "plan") {
+      target = presetVersions.find((candidate) => candidate.planKey === value);
+    } else if (model.kind === "single-dimension") {
+      target = presetVersions.find((candidate) => candidate.regionKey === value);
+    }
+    if (target) handleVersionChange(target.id);
+  };
   const testModels = pool.buildSelectedModelInfos().filter(isChatModelInfo);
   const activeTestModelId = testModels.some((model) => model.id === testModelId)
     ? testModelId
@@ -458,6 +521,71 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
           disabled={saving}
           className="tw-m-0 tw-flex tw-min-w-0 tw-flex-col tw-gap-4 tw-border-0 tw-p-0"
         >
+          {versionPicker?.kind === "grid" && currentVersion && (
+            <>
+              <FormField label={t("Preset plan")}>
+                <SegmentedControl
+                  aria-label={t("Preset plan")}
+                  value={currentVersion.planKey ?? versionPicker.plans[0]}
+                  onChange={changeVersionDimension}
+                  options={versionPicker.plans.map((plan) => ({
+                    value: plan,
+                    label: presetPlanLabel(plan),
+                  }))}
+                />
+              </FormField>
+              <FormField label={t("Preset region")}>
+                <SegmentedControl
+                  aria-label={t("Preset region")}
+                  value={currentVersion.regionKey ?? versionPicker.regions[0]}
+                  onChange={changeVersionDimension}
+                  options={versionPicker.regions.map((region) => ({
+                    value: region,
+                    label: presetRegionLabel(region),
+                  }))}
+                />
+              </FormField>
+            </>
+          )}
+          {versionPicker?.kind === "single-dimension" && versionPicker.dimension === "plan" && (
+            <FormField label={t("Version")}>
+              <SegmentedControl
+                aria-label={t("Version")}
+                value={currentVersion?.planKey ?? versionPicker.plans[0]}
+                onChange={changeVersionDimension}
+                options={versionPicker.plans.map((plan) => ({
+                  value: plan,
+                  label: presetPlanLabel(plan),
+                }))}
+              />
+            </FormField>
+          )}
+          {versionPicker?.kind === "single-dimension" && versionPicker.dimension === "region" && (
+            <FormField label={t("Version")}>
+              <SegmentedControl
+                aria-label={t("Version")}
+                value={currentVersion?.regionKey ?? versionPicker.regions[0]}
+                onChange={changeVersionDimension}
+                options={versionPicker.regions.map((region) => ({
+                  value: region,
+                  label: presetRegionLabel(region),
+                }))}
+              />
+            </FormField>
+          )}
+          {versionPicker?.kind === "list" && (
+            <FormField label={t("Version")}>
+              <SegmentedControl
+                aria-label={t("Version")}
+                value={presetId ?? ""}
+                onChange={handleVersionChange}
+                options={versionPicker.options.map((option) => ({
+                  value: option.id,
+                  label: option.label,
+                }))}
+              />
+            </FormField>
+          )}
           <FormField label={t("Display name")}>
             <Input
               value={displayName}
