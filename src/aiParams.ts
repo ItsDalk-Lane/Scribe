@@ -58,6 +58,7 @@ export interface CustomModel {
   enablePromptCaching?: boolean;
 
   capabilities?: ModelCapability[];
+  reasoning?: boolean;
   displayName?: string;
 
   openAIOrgId?: string;

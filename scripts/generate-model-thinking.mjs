@@ -23,6 +23,11 @@ for (const file of (await readdir(directory)).sort()) {
         compat: model.compat && {
           supportsReasoningEffort: model.compat.supportsReasoningEffort,
           thinkingFormat: model.compat.thinkingFormat,
+          // 保留协议能力，否则新版 Claude 会被错误发送旧式预算参数。https://github.com/ItsDalk-Lane/Scribe/issues/56
+          ...(model.api === "anthropic-messages" && {
+            forceAdaptiveThinking: model.compat.forceAdaptiveThinking,
+            supportsTemperature: model.compat.supportsTemperature,
+          }),
         },
       });
     }

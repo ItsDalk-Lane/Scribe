@@ -1,11 +1,7 @@
 import { CustomModel } from "@/aiParams";
-import {
-  ChatModelProviders,
-  DEFAULT_MAX_OUTPUT_TOKENS,
-  ModelCapability,
-  ProviderInfo,
-} from "@/constants";
+import { ChatModelProviders, DEFAULT_MAX_OUTPUT_TOKENS, ProviderInfo } from "@/constants";
 import { logWarn } from "@/logger";
+import { capabilitiesFromConfiguredInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
 import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import { resolveProviderConnection } from "@/modelManagement/chatModel/resolveProviderConnection";
@@ -87,10 +83,6 @@ export function configuredModelToCustomModel(params: {
       ? Math.min(info.limits.output, DEFAULT_MAX_OUTPUT_TOKENS)
       : undefined;
 
-  const capabilities: ModelCapability[] = [];
-  if (info.reasoning) capabilities.push(ModelCapability.REASONING);
-  if (info.modalities?.input?.includes("image")) capabilities.push(ModelCapability.VISION);
-
   return {
     configuredModelId: configuredModel.configuredModelId,
     providerDisplayName: provider.displayName,
@@ -107,7 +99,9 @@ export function configuredModelToCustomModel(params: {
     apiKey: trimmedKey,
     credentialRef: trimmedKey ? undefined : (provider.apiKeyRef ?? undefined),
     requiresApiKey,
-    capabilities,
+    // 与界面共用能力判断，缺少输入类型时保留未知，不静默移除附图。https://github.com/ItsDalk-Lane/Scribe/issues/56
+    capabilities: capabilitiesFromConfiguredInfo(info),
+    reasoning: info.reasoning,
     reasoningEfforts: info.reasoningEfforts,
     maxTokens,
     openAIOrgId: extraString(extras, "openAIOrgId"),

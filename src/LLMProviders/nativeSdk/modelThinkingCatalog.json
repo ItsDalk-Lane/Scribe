@@ -1330,7 +1330,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-fable-5-1",
@@ -1339,7 +1339,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-haiku-4-5",
@@ -1371,7 +1371,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4-5",
@@ -1396,7 +1396,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-opus-4-7",
@@ -1405,7 +1405,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4-8",
@@ -1414,7 +1414,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5",
@@ -1423,7 +1423,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5-5",
@@ -1440,7 +1440,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-sonnet-4-5",
@@ -1465,7 +1465,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5",
@@ -1474,7 +1474,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5-5",
@@ -1491,7 +1491,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "chat-latest",
@@ -2107,7 +2107,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-fable-5-1",
@@ -2116,7 +2116,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-haiku-4-5",
@@ -2133,7 +2133,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4-5",
@@ -2150,7 +2150,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-opus-4-7",
@@ -2159,7 +2159,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4-8",
@@ -2168,7 +2168,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5",
@@ -2177,7 +2177,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5-5",
@@ -2186,7 +2186,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-sonnet-4-5",
@@ -2203,7 +2203,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5",
@@ -2212,7 +2212,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5-5",
@@ -2221,7 +2221,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "workers-ai/@cf/deepseek-ai/deepseek-v4-flash-0731",
@@ -2979,7 +2979,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/deepseek-v4p1-flash-1017",
@@ -2996,7 +2996,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/ember-1",
@@ -3013,7 +3013,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/gpt-oss-120b",
@@ -3030,7 +3030,7 @@
       "xhigh": null,
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/inkling",
@@ -3055,7 +3055,7 @@
       "xhigh": null,
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/minimax-m3p1-flash",
@@ -3072,7 +3072,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/muse-spark-open",
@@ -3089,7 +3089,7 @@
       "xhigh": "xhigh",
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
@@ -3122,7 +3122,7 @@
       "xhigh": "xhigh",
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/qwen3p8-max",
@@ -3139,7 +3139,7 @@
       "xhigh": "xhigh",
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/deepseek-flash-latest",
@@ -3156,7 +3156,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot",
@@ -3173,7 +3173,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/deepseek-v4p1-flash-spot",
@@ -3190,7 +3190,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/kimi-fast-latest",
@@ -3207,7 +3207,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/kimi-latest",
@@ -3224,7 +3224,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/minimax-latest",
@@ -3241,7 +3241,7 @@
       "xhigh": null,
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/routers/qwen-max-latest",
@@ -3258,7 +3258,7 @@
       "xhigh": "xhigh",
       "max": null
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "accounts/fireworks/models/glm-5p3",
@@ -3437,7 +3437,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-fable-5.1",
@@ -3446,7 +3446,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-haiku-4.5",
@@ -3463,7 +3463,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4.8",
@@ -3472,7 +3472,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max", "minimal": "low" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5",
@@ -3481,7 +3481,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max", "minimal": "low" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5.5",
@@ -3498,7 +3498,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-sonnet-4.6",
@@ -3507,7 +3507,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max", "minimal": "low" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5",
@@ -3516,7 +3516,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5.5",
@@ -3525,7 +3525,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "gemini-3.8-flash",
@@ -5282,7 +5282,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "MiniMax-M2.7",
@@ -5320,7 +5320,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "deepseek-v4-1-flash-1017",
@@ -6498,7 +6498,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "minimax-m3",
@@ -6895,7 +6895,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-fable-5-1",
@@ -6904,7 +6904,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-haiku-4-5",
@@ -6920,7 +6920,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4-5",
@@ -6936,7 +6936,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-opus-4-7",
@@ -6945,7 +6945,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-4-8",
@@ -6954,7 +6954,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5",
@@ -6963,7 +6963,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-opus-5-5",
@@ -6972,7 +6972,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "claude-sonnet-4-5",
@@ -6988,7 +6988,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5",
@@ -6997,7 +6997,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "claude-sonnet-5-5",
@@ -7006,7 +7006,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "qwen3.5-plus",
@@ -7984,7 +7984,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "~anthropic/claude-haiku-latest",
@@ -8001,7 +8001,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "~anthropic/claude-opus-latest",
@@ -8018,7 +8018,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "~anthropic/claude-sonnet-latest",
@@ -8035,7 +8035,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-fable-5",
@@ -8052,7 +8052,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-fable-5.1",
@@ -8069,7 +8069,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-haiku-4.5",
@@ -8093,7 +8093,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.1",
@@ -8124,7 +8124,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-opus-4.7",
@@ -8141,7 +8141,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.8",
@@ -8158,7 +8158,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5",
@@ -8175,7 +8175,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5.5",
@@ -8192,7 +8192,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-sonnet-4.5",
@@ -8216,7 +8216,7 @@
       "xhigh": null,
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-sonnet-5",
@@ -8233,7 +8233,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-sonnet-5.5",
@@ -8250,7 +8250,7 @@
       "xhigh": "xhigh",
       "max": "max"
     },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "~deepseek/deepseek-flash-latest",
@@ -13691,7 +13691,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-fable-5-batch",
@@ -13700,7 +13700,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-fable-5.1",
@@ -13709,7 +13709,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-fable-5.1-batch",
@@ -13718,7 +13718,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "off": null, "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-haiku-4.5",
@@ -13743,7 +13743,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-haiku-5.5-batch",
@@ -13752,7 +13752,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.5",
@@ -13777,7 +13777,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-opus-4.6-batch",
@@ -13786,7 +13786,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-opus-4.7",
@@ -13795,7 +13795,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.7-batch",
@@ -13804,7 +13804,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.8",
@@ -13813,7 +13813,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.8-batch",
@@ -13822,7 +13822,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-4.8-fast",
@@ -13831,7 +13831,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5",
@@ -13840,7 +13840,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5-batch",
@@ -13849,7 +13849,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5-fast",
@@ -13858,7 +13858,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5.5",
@@ -13867,7 +13867,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5.5-batch",
@@ -13876,7 +13876,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-opus-5.5-fast",
@@ -13885,7 +13885,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-sonnet-4.5",
@@ -13910,7 +13910,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-sonnet-4.6-batch",
@@ -13919,7 +13919,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-sonnet-5",
@@ -13928,7 +13928,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-sonnet-5-batch",
@@ -13937,7 +13937,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true }
   },
   {
     "id": "anthropic/claude-sonnet-5.5",
@@ -13946,7 +13946,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "anthropic/claude-sonnet-5.5-batch",
@@ -13955,7 +13955,7 @@
     "api": "anthropic-messages",
     "reasoning": true,
     "thinkingLevelMap": { "xhigh": "xhigh", "max": "max" },
-    "compat": {}
+    "compat": { "forceAdaptiveThinking": true, "supportsTemperature": false }
   },
   {
     "id": "bytedance/seed-1.6",

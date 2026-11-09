@@ -3,6 +3,32 @@ import { resolveModelThinking } from "./modelThinking";
 
 describe("modelThinking", () => {
   describe("resolveModelThinking()", () => {
+    it("preserves installed Anthropic adaptive thinking and sampling capability without changing older model contracts https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const current = resolveModelThinking(
+        {
+          name: "claude-opus-4-7",
+          provider: ChatModelProviders.ANTHROPIC,
+          enabled: true,
+          providerCatalogId: "anthropic",
+        },
+        "anthropic-messages"
+      );
+      const older = resolveModelThinking(
+        {
+          name: "claude-sonnet-4-5",
+          provider: ChatModelProviders.ANTHROPIC,
+          enabled: true,
+          providerCatalogId: "anthropic",
+        },
+        "anthropic-messages"
+      );
+      expect(current.compat).toMatchObject({
+        forceAdaptiveThinking: true,
+        supportsTemperature: false,
+      });
+      expect(current.levels).toContain("xhigh");
+      expect(older.compat?.forceAdaptiveThinking).toBeUndefined();
+    });
     it("uses the installed provider contract for a reasoning model without an explicit effort list", () => {
       const result = resolveModelThinking(
         {
@@ -55,6 +81,28 @@ describe("modelThinking", () => {
         reasoningEfforts: ["none", "low", "high", "unsupported"],
       });
       expect(result.levels).toEqual(["off", "low", "high"]);
+    });
+
+    it("preserves a configured reasoning flag when image capabilities remain unknown https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const result = resolveModelThinking({
+        name: "private-reasoner",
+        provider: ChatModelProviders.OPENAI_FORMAT,
+        enabled: true,
+        reasoning: true,
+      });
+      expect(result.reasoning).toBe(true);
+      expect(result.levels).toContain("high");
+    });
+
+    it("keeps explicit reasoning disabled even when the bundled model metadata advertises it https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const result = resolveModelThinking({
+        name: "gpt-5",
+        provider: ChatModelProviders.OPENAI_FORMAT,
+        enabled: true,
+        reasoning: false,
+      });
+      expect(result.reasoning).toBe(false);
+      expect(result.levels).toEqual([]);
     });
 
     it("offers no reasoning control for an unknown model without a reasoning capability", () => {

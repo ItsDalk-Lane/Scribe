@@ -247,6 +247,17 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.capabilities).toEqual([ModelCapability.REASONING, ModelCapability.VISION]);
     });
 
+    it("preserves unknown image capabilities and explicit reasoning for a manually entered model https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: { id: "private-reasoner", displayName: "Private", reasoning: true },
+        }),
+      });
+      expect(custom.capabilities).toBeUndefined();
+      expect(custom).toHaveProperty("reasoning", true);
+    });
+
     it("copies the OpenAI organization id from provider extras", () => {
       const openai = configuredModelToCustomModel({
         provider: provider({

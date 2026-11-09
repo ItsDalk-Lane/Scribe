@@ -126,6 +126,8 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
           : 0),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     compat: {
+      // SDK 按目录中的协议能力选择自适应思考，不能在工厂里丢掉能力再退回旧式预算。https://github.com/ItsDalk-Lane/Scribe/issues/56
+      ...thinking.compat,
       supportsDeveloperRole: api === "openai-responses" && npm === "@ai-sdk/openai",
       supportsStore: false,
       supportsUsageInStreaming: openRouterOptions || (model.streamUsage ?? false),

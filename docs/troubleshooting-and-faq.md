@@ -121,6 +121,10 @@ Scribe waits for disk confirmation when accepting a message, before admitting an
 
 接收消息、操作获准即将执行及收到工具结果时，Scribe 会等待硬盘确认；保存失败会停止新请求和尚未开始的操作。突然断电仍可能丢失最近一次确认之后尚未确认保存的内容。
 
+If the disk stops responding, text already received remains visible. Save waits have a deadline, and Stop reports a save that could not be confirmed instead of waiting forever. Visible text may still be unsaved. Wait for the disk to recover before retrying; Scribe does not start another write over one that is still unfinished.
+
+如果硬盘一直没有响应，已经收到的回答仍可显示；保存等待有时限，“停止”也会结束等待并报告未能确认保存，不会一直转圈。看见文字不代表已经保存，请先等硬盘恢复再重试。原来的写入尚未结束时，Scribe 不会另开写入去覆盖它。
+
 Readable parts of a damaged chat remain available where possible. If safe continuation cannot be established, keep the original files and backups and start a new chat. Missing pictures show a notice; deleting one chat does not automatically remove shared pictures used by other chats.
 
 聊天部分损坏时，会尽量保留可读内容；无法安全继续时，请保留原件和备份，另开聊天。图片缺失会显示提示；删除单条聊天不会自动清理共享图片，以免影响其他聊天。

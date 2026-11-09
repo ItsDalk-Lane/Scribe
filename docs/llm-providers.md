@@ -80,10 +80,14 @@ send that chat's note content after authentication finishes. Each chat request p
 its own credentials; stopping one chat does not stop a live sibling request.
 Leaving reasoning effort unset uses the provider's default.
 
+请求准备和等待服务开始返回都有等待期限；鉴权长时间无响应时会结束等待，之后仍可重试。已经正常持续输出的回复不会因为等待服务开始返回的期限到达而被截断，长时间没有任何新内容时才会结束。超时或连接中断在重试后仍失败时会显示错误，只有你主动停止才作为取消处理。SAP 的不同部署、资源组和地址分别使用各自的连接设置。
+
 Google model IDs can be entered with or without the `models/` prefix. Gemma
 receives the same instructions within the conversation, and supported Google
 services can continue a long reply without losing its earlier text. For Vertex
 Anthropic, an omitted output limit remains 4096; an explicit limit takes priority.
+
+在同一聊天中切换到 Google 模型时，会保留普通对话和已有工具结果，移除来自其他供应商或模型的内部思考资料。继续使用同一 Google 模型时，会保留它要求回传的原始信息及分段，避免后续请求因记录格式不符而失败。
 
 Automated checks cover incremental HTTP replies, cancellation, follow-ups,
 connection errors, and mobile startup and first requests, including service-account

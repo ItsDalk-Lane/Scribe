@@ -14,7 +14,11 @@ interface ThinkingModel {
   compat?: Pick<
     NonNullable<Model<"openai-completions">["compat"]>,
     "supportsReasoningEffort" | "thinkingFormat"
-  >;
+  > &
+    Pick<
+      NonNullable<Model<"anthropic-messages">["compat"]>,
+      "forceAdaptiveThinking" | "supportsTemperature"
+    >;
 }
 
 const MODELS = catalog as unknown as readonly ThinkingModel[];
@@ -42,8 +46,12 @@ export function resolveModelThinking(input: CustomModel, api?: Api) {
     candidates.find((model) => model.provider === input.providerCatalogId) ??
     candidates.find((model) => host && urlHost(model.baseUrl) === host) ??
     candidates[0];
+  // 图片能力未知时仍保留单独声明的推理能力，显式配置优先于内置目录。https://github.com/ItsDalk-Lane/Scribe/issues/56
   const reasoning =
-    known?.reasoning ?? input.capabilities?.includes(ModelCapability.REASONING) ?? false;
+    input.reasoning ??
+    known?.reasoning ??
+    input.capabilities?.includes(ModelCapability.REASONING) ??
+    false;
   const thinkingLevelMap: ThinkingLevelMap = {
     ...(known?.thinkingLevelMap ?? { off: null }),
     ...(known ? THINKING_LEVEL_MAP_OVERRIDES[known.provider] : undefined),

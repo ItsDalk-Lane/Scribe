@@ -1,4 +1,5 @@
 import { Platform } from "obsidian";
+import { configuredModelToCustomModel } from "@/modelManagement";
 import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
 import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
 import {
@@ -138,6 +139,56 @@ describe("createProviderChatModel", () => {
       const unknown = await createProviderChatModel(wire({}));
       expect(unknown.model.input).toEqual(["text", "image"]);
     });
+    it.each([
+      ["unknown", undefined, true],
+      ["text only", ["text"], false],
+      ["vision", ["text", "image"], true],
+    ] as const)(
+      "sends configured %s image capability consistently from saved metadata to the request https://github.com/ItsDalk-Lane/Scribe/issues/56",
+      async (_label, input, includesImage) => {
+        const selected = configuredModelToCustomModel({
+          provider: {
+            providerId: "fixture",
+            providerType: "openai-compatible",
+            displayName: "Fixture",
+            origin: { kind: "byok" },
+            addedAt: 0,
+            baseUrl: "https://provider.invalid/v1",
+            apiKeyRef: null,
+          },
+          configuredModel: {
+            configuredModelId: "fixture-model",
+            providerId: "fixture",
+            configuredAt: 0,
+            info: {
+              id: "private-reasoner",
+              displayName: "Private",
+              reasoning: true,
+              modalities: input === undefined ? undefined : { input: [...input] },
+            },
+          },
+          apiKey: "fixture-key",
+        });
+        const client = await createProviderChatModel(selected);
+        expect(client.model.reasoning).toBe(true);
+        expect(
+          await collectText(client, {
+            messages: [
+              {
+                role: "user",
+                timestamp: 0,
+                content: [
+                  { type: "text", text: "Read the screenshot" },
+                  { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+                ],
+              },
+            ],
+          })
+        ).toBe("ok");
+        expect(requests[0].body?.includes("data:image/png;base64,aGVsbG8=")).toBe(includesImage);
+      }
+    );
+
     it("caps provider waits with the unified request deadline https://github.com/ItsDalk-Lane/Scribe/issues/59", async () => {
       await createProviderChatModel(
         wire({
@@ -294,6 +345,64 @@ describe("createProviderChatModel", () => {
       await model.agentStream({ messages: [] }, { reasoning: "high" }).result();
       expect(JSON.parse(requests[0].body!).reasoning_effort).toBe("default");
     });
+    it.each([
+      ["claude-opus-4-7", "low", "adaptive", "low"],
+      ["claude-opus-4-7", "high", "adaptive", "high"],
+      ["claude-opus-4-7", "minimal", "adaptive", "low"],
+      ["claude-opus-4-7", "xhigh", "adaptive", "xhigh"],
+      ["claude-opus-4-7", "max", "adaptive", "max"],
+      ["claude-sonnet-4-6", "high", "adaptive", "high"],
+      ["claude-sonnet-4-5", "low", "enabled", undefined],
+      ["claude-sonnet-4-5", "high", "enabled", undefined],
+      ["claude-opus-4-7", "default", undefined, undefined],
+      ["claude-opus-4-7", "off", "disabled", undefined],
+      ["claude-sonnet-4-5", "default", undefined, undefined],
+      ["claude-sonnet-4-5", "off", "disabled", undefined],
+    ] as const)(
+      "sends %s with %s effort using the installed thinking contract rather than an incompatible fixed budget https://github.com/ItsDalk-Lane/Scribe/issues/56",
+      async (name, effort, thinkingType, wireEffort) => {
+        const client = await createProviderChatModel(
+          wire({
+            name,
+            providerNpm: "@ai-sdk/anthropic",
+            providerCatalogId: "anthropic",
+            baseUrl: "https://api.anthropic.com",
+            maxTokens: 20_000,
+          })
+        );
+        const result = await client
+          .agentStream(
+            { messages: [{ role: "user", content: "Hello", timestamp: 0 }] },
+            {
+              temperature: 0.7,
+              ...(effort === "default"
+                ? {}
+                : effort === "off"
+                  ? { disableReasoning: true }
+                  : { reasoning: effort }),
+            }
+          )
+          .result();
+        expect(result.stopReason).toBe("stop");
+        const body = JSON.parse(requests[0].body!) as {
+          thinking?: { type: string; budget_tokens?: number };
+          output_config?: { effort: string };
+          max_tokens: number;
+          temperature?: number;
+        };
+        expect(body.thinking?.type).toBe(thinkingType);
+        expect(body.output_config?.effort).toBe(wireEffort);
+        expect(body.max_tokens).toBe(20_000);
+        expect(body.temperature).toBe(
+          name === "claude-sonnet-4-5" && (effort === "default" || effort === "off")
+            ? 0.7
+            : undefined
+        );
+        if (thinkingType === "enabled")
+          expect(body.thinking?.budget_tokens).toBe(effort === "low" ? 2048 : 16384);
+        else expect(body.thinking?.budget_tokens).toBeUndefined();
+      }
+    );
     it("refuses an incomplete compatible endpoint instead of sending its credential to OpenAI by default", async () => {
       await expect(createProviderChatModel(wire({ baseUrl: undefined }))).rejects.toThrow(
         /base URL/i
