@@ -37,6 +37,7 @@ describe("JournalStorage", () => {
   });
 
   afterEach(async () => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
     await rm(directory, { recursive: true, force: true });
   });
@@ -45,6 +46,30 @@ describe("JournalStorage", () => {
     describe("constructor()", () => {
       it("rejects a relative directory", () => {
         expect(() => new NodeJournalStorage("relative")).toThrow(/absolute/i);
+      });
+    });
+
+    describe("waitForOperation()", () => {
+      it("returns the completed result and removes its deadline", async () => {
+        jest.useFakeTimers();
+        const expire = jest.fn();
+        await expect(storage.waitForOperation(Promise.resolve("保存完成"), expire)).resolves.toBe(
+          "保存完成"
+        );
+        expect(expire).not.toHaveBeenCalled();
+        expect(jest.getTimerCount()).toBe(0);
+      });
+
+      it("ends a stalled wait at the deadline and identifies its expiration (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        jest.useFakeTimers();
+        const expire = jest.fn();
+        const outcome = expect(
+          storage.waitForOperation(new Promise<never>(() => {}), expire)
+        ).rejects.toBeInstanceOf(JournalConfirmationTimeout);
+        await jest.advanceTimersByTimeAsync(30_001);
+        await outcome;
+        expect(expire).toHaveBeenCalledWith(expect.any(JournalConfirmationTimeout));
+        expect(jest.getTimerCount()).toBe(0);
       });
     });
 
@@ -190,6 +215,71 @@ describe("JournalStorage", () => {
           [0, { text: "保留" }],
           [1, { text: "继续" }],
         ]);
+      });
+
+      it("times out a stalled usage write, skips expired queued facts, and resumes in sequence after the original write finishes (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        const quick = new NodeJournalStorage(directory, 20);
+        await quick.append(SESSION, "message", { text: "保留" });
+        let release!: () => void;
+        let started!: () => void;
+        let finished!: () => void;
+        const held = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const writing = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const completed = new Promise<void>((resolve) => {
+          finished = resolve;
+        });
+        const originalOpen = nodeFs.open;
+        let writes = 0;
+        jest
+          .spyOn(nodeFs, "open")
+          .mockImplementation(async (...args: Parameters<typeof nodeFs.open>) => {
+            const handle = await originalOpen(...args);
+            if (args[0] === file()) {
+              const write = handle.write.bind(handle);
+              jest
+                .spyOn(handle, "write")
+                .mockImplementation(async (...values: Parameters<typeof handle.write>) => {
+                  writes++;
+                  started();
+                  await held;
+                  const result = await write(...values);
+                  finished();
+                  return result;
+                });
+            }
+            return handle;
+          });
+        jest.useFakeTimers();
+        const usage = quick.append(SESSION, "usage", {}, { discardOnFailure: true });
+        const usageResult = expect(usage).rejects.toBeInstanceOf(JournalConfirmationTimeout);
+        await writing;
+        const queued = quick.append(SESSION, "message", { text: "过期，不能迟到保存" });
+        const queuedResult = expect(queued).rejects.toBeInstanceOf(JournalConfirmationTimeout);
+        await jest.advanceTimersByTimeAsync(21);
+        await Promise.all([usageResult, queuedResult]);
+        const blockedResult = expect(
+          quick.append(SESSION, "message", { text: "仍在等待" })
+        ).rejects.toBeInstanceOf(JournalConfirmationTimeout);
+        await jest.advanceTimersByTimeAsync(21);
+        await blockedResult;
+        expect(writes).toBe(1);
+        release();
+        await completed;
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+        const next = await quick.append(SESSION, "message", { text: "恢复后" });
+        expect(next.seq).toBe(2);
+        expect((await quick.read(SESSION)).records.map((entry) => [entry.seq, entry.kind])).toEqual(
+          [
+            [0, "message"],
+            [1, "usage"],
+            [2, "message"],
+          ]
+        );
       });
 
       it("keeps later records writable while a durable record waits for disk confirmation (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {

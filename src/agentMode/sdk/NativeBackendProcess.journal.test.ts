@@ -27,6 +27,8 @@ import type { SessionEvent } from "@/agentMode/session/types";
 import { AgentSession } from "@/agentMode/session/AgentSession";
 import { USER_SENDER } from "@/constants";
 
+const nodeFs = jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");
+
 const MODEL = {
   id: "journal-fixture",
   name: "Journal fixture",
@@ -496,6 +498,64 @@ describe("NativeBackendProcess.journal", () => {
         expect(f.entries.filter((entry) => entry.kind === "compaction")).toHaveLength(2);
       });
 
+      it.each([2, 3])(
+        "includes retained requirements after %i tool rounds and reopening the chat (https://github.com/ItsDalk-Lane/Scribe/issues/63)",
+        async (toolRounds) => {
+          const root = await mkdtemp(join(tmpdir(), "scribe-compaction-"));
+          const storage = new NodeNativeSessionStorage(root);
+          const summaries: string[] = [];
+          const requirement = "Keep original names; do not rename notes";
+          let normal = 0;
+          const f = fixture({
+            storage,
+            request: (context) => {
+              const content = JSON.stringify(context.messages);
+              if (content.includes("Summarize this recorded Obsidian")) {
+                summaries.push(content);
+                return reply(
+                  content.includes(requirement)
+                    ? `Merged summary: ${requirement}`
+                    : "Earlier tool work summary"
+                );
+              }
+              normal++;
+              if (normal <= toolRounds) {
+                return reply("", [{ id: `read-${normal}`, name: "read_note", arguments: {} }]);
+              }
+              return reply("Finished");
+            },
+            createTools: () => [
+              defineNativeTool("read_note", "Read", "Read fixture", obj({}), async (id) => ({
+                content: [{ type: "text", text: `${id}: ` + "earlier note contents ".repeat(160) }],
+                details: undefined,
+              })),
+            ],
+          });
+          try {
+            const id = await f.open();
+            await f.send(id, "original-requirement", requirement);
+            expect(summaries).toHaveLength(toolRounds - 1);
+            for (const summary of summaries) expect(summary).not.toContain(requirement);
+            const saved = await storage.load(id);
+            expect(
+              saved?.journalRecords?.findLast((entry) => entry.kind === "compaction")?.payload
+            ).toMatchObject({ preservedIndices: [0] });
+            await f.process.closeSession({ sessionId: id });
+            await f.process.loadSession({ sessionId: id, cwd: "/fixture/vault" });
+            await f.send(id, "manual-compact", "/compact");
+            expect(summaries).toHaveLength(toolRounds);
+            expect(summaries.at(-1)).toContain("Earlier tool work summary");
+            expect(summaries.at(-1)).toContain(requirement);
+            expect(summaries.at(-1)).not.toContain("read-1:");
+            await f.send(id, "continue", "Continue following my requirements");
+            expect(JSON.stringify(f.requests.at(-1)?.messages)).toContain(requirement);
+          } finally {
+            await f.process.shutdown();
+            await rm(root, { recursive: true, force: true });
+          }
+        }
+      );
+
       it("stops before a file change when its execution admission cannot be saved", async () => {
         let changed = false;
         const f = fixture({
@@ -540,6 +600,115 @@ describe("NativeBackendProcess.journal", () => {
         await expect(f.send(id, "second", "Again")).resolves.toBeUndefined();
         expect(usageAttempts).toBe(2);
         expect(f.requests).toHaveLength(2);
+      });
+
+      it("shows sixty streamed chunks and settles Stop within a fixed deadline while usage storage remains stalled, then recovers ordered storage (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "scribe-stalled-usage-"));
+        const journal = new NodeJournalStorage(directory, 100);
+        const storage = new NodeNativeSessionStorage(journal);
+        const f = fixture({
+          storage,
+          request: (_context, options) => {
+            for (let index = 0; index < 60; index++) reportUsageWithoutAwaiting(options);
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(MODEL);
+            message.content = [{ type: "text", text: "部分正文".repeat(60) }];
+            message.stopReason = "stop";
+            stream.push({ type: "start", partial: message });
+            for (let index = 0; index < 60; index++)
+              stream.push({
+                type: "text_delta",
+                contentIndex: 0,
+                delta: "部分正文",
+                partial: message,
+              });
+            stream.push({ type: "done", reason: "stop", message });
+            return stream;
+          },
+        });
+        const held = deferred();
+        const started = deferred();
+        const displayed = deferred();
+        const events: SessionEvent[] = [];
+        let running: Promise<unknown> | undefined;
+        try {
+          const id = await f.open();
+          const originalOpen = nodeFs.open;
+          let stalled = false;
+          jest
+            .spyOn(nodeFs, "open")
+            .mockImplementation(async (...args: Parameters<typeof nodeFs.open>) => {
+              const handle = await originalOpen(...args);
+              if (args[0] === join(directory, `${id}.jsonl`)) {
+                const write = handle.write.bind(handle);
+                jest
+                  .spyOn(handle, "write")
+                  .mockImplementation(async (...values: Parameters<typeof handle.write>) => {
+                    if (
+                      !stalled &&
+                      new TextDecoder()
+                        .decode(values[0] as unknown as Uint8Array)
+                        .includes('"sessionUpdate":"model_call_metrics"')
+                    ) {
+                      stalled = true;
+                      started.resolve();
+                      await held.promise;
+                    }
+                    return write(...values);
+                  });
+              }
+              return handle;
+            });
+          jest.useFakeTimers();
+          f.process.registerSessionHandler(id, (event) => {
+            events.push(event);
+            if (event.update.sessionUpdate === "agent_message_chunk") displayed.resolve();
+          });
+          running = f.send(id, "first", "Hello").catch((error: unknown) => error);
+          await started.promise;
+          await jest.advanceTimersByTimeAsync(101);
+          await displayed.promise;
+          const stopStartedAt = Date.now();
+          const stopping = f.process.cancel({ sessionId: id });
+          let stopSettledAt = Infinity;
+          const settled = Promise.allSettled([running, stopping]).then((results) => {
+            stopSettledAt = Date.now();
+            return results;
+          });
+          await jest.advanceTimersByTimeAsync(1_000);
+          const results = await settled;
+          expect(stopSettledAt - stopStartedAt).toBeLessThanOrEqual(400);
+          expect(results[1]).toMatchObject({
+            status: "rejected",
+            reason: expect.objectContaining({ name: "JournalConfirmationTimeout" }),
+          });
+          expect(
+            events.filter((event) => event.update.sessionUpdate === "agent_message_chunk")
+          ).toHaveLength(60);
+          expect(
+            events
+              .filter((event) => event.update.sessionUpdate === "agent_message_chunk")
+              .every((event) => event.seq === undefined)
+          ).toBe(true);
+          held.resolve();
+          jest.useRealTimers();
+          jest.restoreAllMocks();
+          await journal.flush(id);
+          await expect(f.send(id, "retry", "Continue")).resolves.toBeUndefined();
+          const restored = await new NodeJournalStorage(directory).read(id);
+          expect(restored.writable).toBe(true);
+          expect(restored.records.map((entry) => entry.seq)).toEqual(
+            restored.records.map((_entry, index) => index)
+          );
+          expect(f.requests).toHaveLength(2);
+        } finally {
+          held.resolve();
+          jest.useRealTimers();
+          jest.restoreAllMocks();
+          await running;
+          await f.process.shutdown();
+          await rm(directory, { recursive: true, force: true });
+        }
       });
 
       it("stops a request whose disk confirmation runs out of time and sends it after a retry (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {

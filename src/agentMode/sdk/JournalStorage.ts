@@ -26,10 +26,10 @@ export interface JournalAppendOptions {
   discardOnFailure?: boolean;
 }
 
-// 确认落盘超过时限：结果未知，本次操作应停止，但日志本身不因此冻结。https://github.com/ItsDalk-Lane/Scribe/issues/55
+// 排队、写入或确认超过时限都属于结果未知，原写入仍独占队列，不能另开并发写入。https://github.com/ItsDalk-Lane/Scribe/issues/55
 export class JournalConfirmationTimeout extends Error {
   constructor(readonly limitMs: number) {
-    super(`Journal confirmation did not finish within ${limitMs} ms.`);
+    super(`Journal operation did not finish within ${limitMs} ms.`);
     this.name = "JournalConfirmationTimeout";
   }
 }
@@ -369,24 +369,11 @@ export class NodeJournalStorage {
           })
           .catch(() => {});
     });
-    let timer: number | undefined;
-    try {
-      const result = await Promise.race([
-        outcome,
-        new Promise<never>((_, reject) => {
-          timer = window.setTimeout(
-            () => reject(new JournalConfirmationTimeout(this.confirmLimitMs)),
-            this.confirmLimitMs
-          );
-        }),
-      ]);
-      if (!result.ok) {
-        const state = await this.state(sessionId);
-        state.failure ??= result.error;
-        throw result.error;
-      }
-    } finally {
-      window.clearTimeout(timer);
+    const result = await this.waitForOperation(outcome, () => {});
+    if (!result.ok) {
+      const state = await this.state(sessionId);
+      state.failure ??= result.error;
+      throw result.error;
     }
   }
 
@@ -479,8 +466,11 @@ export class NodeJournalStorage {
 
   private enqueue<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
     const previous = this.queues.get(sessionId);
+    let expired = false;
     const pending = (async () => {
       if (previous) await previous.catch(() => {});
+      // 未开始的过期请求不能在磁盘恢复后迟到写入；已开始的请求则必须等真实结束才能放行队列。https://github.com/ItsDalk-Lane/Scribe/issues/55
+      if (expired) throw new JournalConfirmationTimeout(this.confirmLimitMs);
       return operation();
     })();
     this.queues.set(sessionId, pending);
@@ -488,7 +478,30 @@ export class NodeJournalStorage {
       if (this.queues.get(sessionId) === pending) this.queues.delete(sessionId);
     };
     void pending.then(finished, finished);
-    return pending;
+    return this.waitForOperation(pending, () => {
+      expired = true;
+    });
+  }
+
+  async waitForOperation<T>(
+    operation: Promise<T>,
+    expire: (failure: JournalConfirmationTimeout) => void
+  ): Promise<T> {
+    let timer: number | undefined;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<never>((_, reject) => {
+          timer = window.setTimeout(() => {
+            const failure = new JournalConfirmationTimeout(this.confirmLimitMs);
+            expire(failure);
+            reject(failure);
+          }, this.confirmLimitMs);
+        }),
+      ]);
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
 
   private path(sessionId: string): string {

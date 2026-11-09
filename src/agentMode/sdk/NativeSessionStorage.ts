@@ -872,8 +872,11 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
 
   private enqueue<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
     const previous = this.queues.get(sessionId);
+    let expired: Error | undefined;
     const pending = (async () => {
       if (previous) await previous.catch(() => {});
+      // 排队本身也计入期限，过期事实不能在磁盘恢复后迟到执行。https://github.com/ItsDalk-Lane/Scribe/issues/55
+      if (expired) throw expired;
       return operation();
     })();
     this.queues.set(sessionId, pending);
@@ -881,6 +884,8 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
       if (this.queues.get(sessionId) === pending) this.queues.delete(sessionId);
     };
     void pending.then(finished, finished);
-    return pending;
+    return this.journal.waitForOperation(pending, (failure) => {
+      expired = failure;
+    });
   }
 }

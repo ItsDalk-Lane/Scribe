@@ -1431,15 +1431,21 @@ export class NativeBackendProcess implements BackendProcess {
           typeof this.options.maxSteps === "function"
             ? this.options.maxSteps()
             : this.options.maxSteps;
-        if (
-          Number.isSafeInteger(maxSteps) &&
-          maxSteps! > 0 &&
-          run.steps >= maxSteps! &&
-          message.stopReason === "toolUse"
-        ) {
-          run.closing = true;
-          agent.clearSteeringQueue();
-          return { action: "continue" };
+        if (Number.isSafeInteger(maxSteps) && maxSteps! > 0 && run.steps >= maxSteps!) {
+          // 参数被截断时没有可总结的已执行工具，达到限制就停止，不能继续请求来修补残缺参数。https://github.com/ItsDalk-Lane/Scribe/issues/31
+          if (
+            message.stopReason === "length" &&
+            message.content.some((part) => part.type === "toolCall")
+          ) {
+            run.stopReason = "max_turn_requests";
+            if (!child) session.stepLimit = true;
+            return { action: "end" };
+          }
+          if (message.stopReason === "toolUse") {
+            run.closing = true;
+            agent.clearSteeringQueue();
+            return { action: "continue" };
+          }
         }
         if (
           !child &&
@@ -2055,15 +2061,14 @@ export class NativeBackendProcess implements BackendProcess {
     let failureReported = false;
     try {
       signal?.throwIfAborted();
-      // 常规压缩以「已验证摘要 + 新增区间」取料，不把早已摘要过的原始历史重新发给模型；
-      // 找不到可复用的匹配时回退完整取料。记录仍覆盖原始全量坐标。https://github.com/ItsDalk-Lane/Scribe/issues/63
+      // 旧区间内保留的原文尚未进入摘要，下次整理也必须取回，除非本次仍原样保留。https://github.com/ItsDalk-Lane/Scribe/issues/63
       const previous = this.findMatchingCompaction(session, original, taskId);
       const resummarizeFrom = previous ? previous.toIndex + 1 : 0;
       const selected = original
         .map((message, index) => ({ message, index }))
         .filter(
           ({ index }) =>
-            index >= resummarizeFrom &&
+            (index >= resummarizeFrom || previous?.preservedIndices?.includes(index)) &&
             index <= range.toIndex &&
             !range.preservedIndices.includes(index)
         )
@@ -3509,12 +3514,34 @@ export class NativeBackendProcess implements BackendProcess {
     };
     if (session.closed) return event;
     session.record.events.push(event);
+    const streamed =
+      update.sessionUpdate === "agent_message_chunk" ||
+      update.sessionUpdate === "agent_thought_chunk" ||
+      update.sessionUpdate === "agent_thought_ended";
+    // 已接收的正文先展示，磁盘卡住不能堵住阅读；可靠接收与工具准入仍须保存成功。https://github.com/ItsDalk-Lane/Scribe/issues/55
+    if (streamed) this.handlers.get(session.record.sessionId)?.(event);
     if (this.options.storage.append) {
       const observational = update.sessionUpdate === "model_call_metrics";
-      const record = await this.persist(session, "event", event, false, origin, observational);
-      event.seq = record?.seq;
+      try {
+        const record = await this.persist(session, "event", event, false, origin, observational);
+        event.seq = record?.seq;
+      } catch (failure) {
+        if (
+          !this.isConfirmationStopped(failure) ||
+          (!streamed &&
+            update.sessionUpdate !== "agent_segment_started" &&
+            update.sessionUpdate !== "busy_changed" &&
+            update.sessionUpdate !== "turn_ended")
+        )
+          throw failure;
+        // 超时展示不编造日志序号，也不承诺保存；后续可靠记录仍会把未确认保存报告为失败。https://github.com/ItsDalk-Lane/Scribe/issues/55
+        logWarn("[AgentMode] Displayed chat event was not confirmed as saved", {
+          parentSessionId: session.record.sessionId,
+          eventType: update.sessionUpdate,
+        });
+      }
     }
-    this.handlers.get(session.record.sessionId)?.(event);
+    if (!streamed) this.handlers.get(session.record.sessionId)?.(event);
     return event;
   }
 

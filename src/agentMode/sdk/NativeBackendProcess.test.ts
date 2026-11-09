@@ -1098,6 +1098,47 @@ describe("NativeBackendProcess", () => {
         expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Completed the note edit");
       });
 
+      it("stops at the configured request limit when tool arguments repeatedly hit the output limit without executing them (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let requests = 0;
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "must not run" }],
+          details: undefined,
+        }));
+        const f = fixture(
+          () => {
+            if (++requests > 4) return response("Finished");
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(model);
+            message.content = [
+              { type: "toolCall", id: `truncated-${requests}`, name: "write_note", arguments: {} },
+            ];
+            message.stopReason = "length";
+            stream.push({ type: "done", reason: "length", message });
+            return stream;
+          },
+          [
+            {
+              name: "write_note",
+              label: "Write",
+              description: "Write fixture",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          { maxSteps: 2 }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(requests).toBe(2);
+        expect(execute).not.toHaveBeenCalled();
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
+        );
+        expect(
+          f.records.get(id)?.messages.filter((message) => message.role === "toolResult")
+        ).toHaveLength(2);
+      });
+
       it("continues past fifty tool rounds when no limit was saved (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         let requests = 0;
         const execute = jest.fn(async () => ({
