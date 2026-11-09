@@ -410,6 +410,63 @@ describe("createHttpProviderChatModel", () => {
       }
     );
 
+    it("keeps SAP routes and resource groups isolated across models sharing credentials (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      const requests: Array<{ url: string; headers?: Record<string, string> }> = [];
+      setRequestUrlImpl(async (request: { url: string; headers?: Record<string, string> }) => {
+        requests.push(request);
+        const token = request.url.endsWith("/oauth/token");
+        const payload = token ? { access_token: "sap-token", expires_in: 3600 } : {};
+        const text = token
+          ? JSON.stringify(payload)
+          : `data: ${JSON.stringify({ final_result: { choices: [{ delta: { content: "answer" }, finish_reason: "stop" }] } })}\n\ndata: [DONE]\n\n`;
+        return {
+          status: 200,
+          text,
+          json: payload,
+          headers: { "content-type": token ? "application/json" : "text/event-stream" },
+          arrayBuffer: new ArrayBuffer(0),
+        };
+      });
+      const apiKey = JSON.stringify({
+        clientid: "client",
+        clientsecret: "secret",
+        url: "https://auth.fixture.invalid",
+        serviceurls: { AI_API_URL: "https://api.fixture.invalid" },
+      });
+      const first = await createProviderChatModel(
+        model("@jerome-benoit/sap-ai-provider-v2", {
+          apiKey,
+          name: "first",
+          baseUrl: "https://first.fixture.invalid",
+          providerOptions: {
+            AICORE_RESOURCE_GROUP: "first-group",
+            AICORE_DEPLOYMENT_ID: "first-deployment",
+          },
+        })
+      );
+      const second = await createProviderChatModel(
+        model("@jerome-benoit/sap-ai-provider-v2", {
+          apiKey,
+          name: "second",
+          baseUrl: "https://second.fixture.invalid",
+          providerOptions: {
+            AICORE_RESOURCE_GROUP: "second-group",
+            AICORE_DEPLOYMENT_ID: "second-deployment",
+          },
+        })
+      );
+      expect(await collectText(first, "hi")).toBe("answer");
+      expect(await collectText(second, "hi")).toBe("answer");
+      const inference = requests.filter((request) => !request.url.endsWith("/oauth/token"));
+      expect(inference.map((request) => request.url)).toEqual([
+        "https://first.fixture.invalid/v2/inference/deployments/first-deployment/v2/completion",
+        "https://second.fixture.invalid/v2/inference/deployments/second-deployment/v2/completion",
+      ]);
+      expect(
+        inference.map((request) => new Headers(request.headers).get("AI-Resource-Group"))
+      ).toEqual(["first-group", "second-group"]);
+    });
+
     it.each(["@jerome-benoit/sap-ai-provider-v2", "gitlab-ai-provider"])(
       "returns normal and streaming replies for %s on mobile without a Node runtime",
       async (npm) => {

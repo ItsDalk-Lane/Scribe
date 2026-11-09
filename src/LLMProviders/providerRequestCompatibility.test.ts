@@ -176,6 +176,40 @@ describe("createProviderChatModel", () => {
     });
 
     it.each([false, true])(
+      "retries an ordinary host connection error and delivers the healthy reply on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/58)",
+      async (mobile) => {
+        Platform.isMobile = mobile;
+        let attempts = 0;
+        const connect = (url: string, init: RequestInit) => {
+          if (++attempts === 1) throw new Error("Connection reset");
+          return serve(url, init);
+        };
+        window.fetch = jest.fn(async (input, init) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          const reply = connect(url, init ?? {});
+          return new Response(reply.text, { status: reply.status, headers: reply.headers });
+        });
+        setRequestUrlImpl(
+          async (input: { url: string; body?: string; headers?: Record<string, string> }) => ({
+            ...connect(input.url, input),
+            arrayBuffer: new ArrayBuffer(0),
+          })
+        );
+        const client = await createProviderChatModel(wire());
+        jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+        try {
+          const result = collectText(client, "Question", { maxRetries: 1 });
+          await jest.runAllTimersAsync();
+          expect(await result).toBe("ok");
+          expect(attempts).toBe(2);
+        } finally {
+          jest.useRealTimers();
+        }
+      }
+    );
+
+    it.each([false, true])(
       "verifies saved o3 with supplier-default effort on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51)",
       async (mobile) => {
         const saved = savedOpenAI(mobile);

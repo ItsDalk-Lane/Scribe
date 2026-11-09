@@ -276,7 +276,8 @@ describe("httpChatApis", () => {
         expect(requests[1].url).toBe(requests[0].url);
         expect(requests[1].body).toEqual({ ...requests[0].body, continuationToken: "next-1" });
         expect([...requests[1].headers.entries()]).toEqual([...requests[0].headers.entries()]);
-        if (!mobile) expect(requests[1].signal).toBe(requests[0].signal);
+        // 每次续请求分别等待响应头，不沿用已经解除的头部期限。https://github.com/ItsDalk-Lane/Scribe/issues/59
+        if (!mobile) expect(requests[1].signal).not.toBe(requests[0].signal);
         await collectReply(client, {
           ...context,
           messages: [

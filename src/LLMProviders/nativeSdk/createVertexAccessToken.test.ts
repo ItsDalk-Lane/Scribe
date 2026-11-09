@@ -134,15 +134,62 @@ describe("createVertexAccessToken", () => {
       const controller = new AbortController();
       const getToken = createVertexAccessToken("fixture@example.invalid", privateKey, transport);
 
-      const first = getToken(controller.signal);
+      const first = getToken(controller.signal).catch((error: unknown) => error);
       const second = getToken();
       await transportStarted;
       controller.abort();
       release?.(response({ access_token: "shared-token", expires_in: 3600 }));
 
-      await expect(Promise.all([first, second])).resolves.toEqual(["shared-token", "shared-token"]);
+      await expect(first).resolves.toMatchObject({ name: "AbortError" });
+      await expect(second).resolves.toBe("shared-token");
       expect(transport).toHaveBeenCalledTimes(1);
     });
+    it("expires a stalled token exchange and recovers without accepting its late credentials (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      let release!: (value: Response) => void;
+      let started!: () => void;
+      const requestStarted = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const transport = jest
+        .fn()
+        .mockImplementationOnce(() => {
+          started();
+          return new Promise<Response>((resolve) => {
+            release = resolve;
+          });
+        })
+        .mockResolvedValue(response({ access_token: "fresh-token", expires_in: 3600 }));
+      const getToken = createVertexAccessToken("fixture@example.invalid", privateKey, transport);
+      const outcomes: unknown[] = [];
+      const first = getToken().catch((error: unknown) => {
+        outcomes.push(error);
+      });
+      try {
+        await requestStarted;
+        await jest.advanceTimersByTimeAsync(15_000);
+        expect(outcomes).toEqual([expect.objectContaining({ name: "TimeoutError" })]);
+        await first;
+        expect(await getToken()).toBe("fresh-token");
+        let readLate!: () => void;
+        const lateRead = new Promise<void>((resolve) => {
+          readLate = resolve;
+        });
+        release({
+          ok: true,
+          json: async () => {
+            readLate();
+            return { access_token: "stale-token", expires_in: 3600 };
+          },
+        } as Response);
+        await lateRead;
+        expect(await getToken()).toBe("fresh-token");
+        expect(transport).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("clears failed authorization work so the following request can succeed", async () => {
       const transport = jest
         .fn()

@@ -1,3 +1,5 @@
+import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
+import { abortSignalWithDeadline } from "@/utils/abortDeadline";
 import {
   classifyProviderFailure,
   ProviderRequestError,
@@ -33,71 +35,77 @@ export function createVertexAccessToken(
 ): (signal?: AbortSignal) => Promise<string> {
   let cached: { value: string; expiresAt: number } | undefined;
   let pending: Promise<string> | undefined;
-  return async () => {
+  return async (signal) => {
+    signal?.throwIfAborted();
     if (cached && cached.expiresAt > Date.now()) return cached.value;
-    pending ??= (async () => {
-      const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), 15_000);
-      try {
-        const encoder = new TextEncoder();
-        const encode = (value: unknown) => base64Url(encoder.encode(JSON.stringify(value)));
-        const now = Math.floor(Date.now() / 1000);
-        const claims = `${encode({ alg: "RS256", typ: "JWT", ...(privateKeyId ? { kid: privateKeyId } : {}) })}.${encode({ iss: email, scope: "https://www.googleapis.com/auth/cloud-platform", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 })}`;
-        const keyBytes = Uint8Array.from(
-          atob(privateKey.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "")),
-          (character) => character.charCodeAt(0)
-        );
-        const key = await crypto.subtle.importKey(
-          "pkcs8",
-          keyBytes,
-          { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-          false,
-          ["sign"]
-        );
-        const signature = await crypto.subtle.sign(
-          "RSASSA-PKCS1-v1_5",
-          key,
-          encoder.encode(claims)
-        );
-        const response = await transport("https://oauth2.googleapis.com/token", {
-          method: "POST",
-          signal: controller.signal,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            assertion: `${claims}.${base64Url(new Uint8Array(signature))}`,
-          }).toString(),
-        });
-        const result = (await response.json()) as { access_token?: string; expires_in?: number };
-        if (
-          !response.ok ||
-          typeof result.access_token !== "string" ||
-          !ACCESS_TOKEN_PATTERN.test(result.access_token) ||
-          typeof result.expires_in !== "number" ||
-          !Number.isFinite(result.expires_in) ||
-          result.expires_in <= 0
-        )
-          throw new ProviderRequestError(
-            t("Google did not return an access token."),
-            response.ok
-              ? { kind: "auth", status: response.status }
-              : classifyProviderFailure({
-                  status: response.status,
-                  payload: result,
-                  headers: response.headers,
-                })
+    pending ??= (() => {
+      const deadline = abortSignalWithDeadline(undefined, 15_000);
+      // 共享刷新必须自行结束，且迟到响应不得覆盖后续刷新。https://github.com/ItsDalk-Lane/Scribe/issues/61
+      return raceWithAbortSignal(
+        (async () => {
+          const encoder = new TextEncoder();
+          const encode = (value: unknown) => base64Url(encoder.encode(JSON.stringify(value)));
+          const now = Math.floor(Date.now() / 1000);
+          const claims = `${encode({ alg: "RS256", typ: "JWT", ...(privateKeyId ? { kid: privateKeyId } : {}) })}.${encode({ iss: email, scope: "https://www.googleapis.com/auth/cloud-platform", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 })}`;
+          const keyBytes = Uint8Array.from(
+            atob(
+              privateKey.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "")
+            ),
+            (character) => character.charCodeAt(0)
           );
-        cached = {
-          value: result.access_token,
-          expiresAt: Date.now() + Math.max(0, result.expires_in * 1000 - 30000),
-        };
-        return result.access_token;
-      } finally {
-        window.clearTimeout(timer);
-      }
-    })().finally(() => {
-      pending = undefined;
-    });
-    return pending;
+          const key = await crypto.subtle.importKey(
+            "pkcs8",
+            keyBytes,
+            { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+            false,
+            ["sign"]
+          );
+          const signature = await crypto.subtle.sign(
+            "RSASSA-PKCS1-v1_5",
+            key,
+            encoder.encode(claims)
+          );
+          const response = await transport("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            signal: deadline.signal,
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+              assertion: `${claims}.${base64Url(new Uint8Array(signature))}`,
+            }).toString(),
+          });
+          const result = (await response.json()) as { access_token?: string; expires_in?: number };
+          if (
+            !response.ok ||
+            typeof result.access_token !== "string" ||
+            !ACCESS_TOKEN_PATTERN.test(result.access_token) ||
+            typeof result.expires_in !== "number" ||
+            !Number.isFinite(result.expires_in) ||
+            result.expires_in <= 0
+          )
+            throw new ProviderRequestError(
+              t("Google did not return an access token."),
+              response.ok
+                ? { kind: "auth", status: response.status }
+                : classifyProviderFailure({
+                    status: response.status,
+                    payload: result,
+                    headers: response.headers,
+                  })
+            );
+          deadline.signal.throwIfAborted();
+          cached = {
+            value: result.access_token,
+            expiresAt: Date.now() + Math.max(0, result.expires_in * 1000 - 30000),
+          };
+          return result.access_token;
+        })(),
+        deadline.signal
+      ).finally(() => {
+        deadline.dispose();
+        pending = undefined;
+      });
+    })();
+    return signal ? raceWithAbortSignal(pending, signal) : pending;
   };
 }

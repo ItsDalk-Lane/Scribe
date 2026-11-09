@@ -318,9 +318,20 @@ async function resolveHttpProviderRequest(
       )
         throw new Error(t("SAP service-key JSON requires serviceurls.AI_API_URL."));
       const apiUrl: string = serviceurls.AI_API_URL;
+      const resourceGroup = option(
+        model,
+        "AICORE_RESOURCE_GROUP",
+        option(model, "SAP_RESOURCE_GROUP", "default")
+      );
+      const deploymentId = option(
+        model,
+        "AICORE_DEPLOYMENT_ID",
+        option(model, "SAP_DEPLOYMENT_ID")
+      );
+      // 解析器持有部署与路由状态，跨连接复用会把请求送入其他资源组。https://github.com/ItsDalk-Lane/Scribe/issues/61
       const resolve = await sharedResolver(
         sapResolvers,
-        `${tokenUrl}|${clientId}`,
+        JSON.stringify([tokenUrl, clientId, model.baseUrl, apiUrl, resourceGroup, deploymentId]),
         model.apiKey || "",
         () =>
           Promise.resolve(
@@ -331,16 +342,8 @@ async function resolveHttpProviderRequest(
                 clientSecret,
                 tokenUrl,
                 apiUrl,
-                resourceGroup: option(
-                  model,
-                  "AICORE_RESOURCE_GROUP",
-                  option(model, "SAP_RESOURCE_GROUP", "default")
-                ),
-                deploymentId: option(
-                  model,
-                  "AICORE_DEPLOYMENT_ID",
-                  option(model, "SAP_DEPLOYMENT_ID")
-                ),
+                resourceGroup,
+                deploymentId,
               },
               transport
             )

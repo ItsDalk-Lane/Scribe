@@ -166,7 +166,7 @@ describe("providerTransport cancellation integration", () => {
 
   describe("createProviderChatModel()", () => {
     it.each([false, true])(
-      `returns a stopped turn before token release and sends only its live sibling on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      `returns a stopped turn before token release and sends only its live sibling through one shared token on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/61)`,
       async (mobile) => {
         const network = pausedNetwork();
         const model = await createProviderChatModel(githubProviderModel(mobile));
@@ -187,7 +187,7 @@ describe("providerTransport cancellation integration", () => {
         );
         expect(
           network.requests.filter((request) => request.url.includes("copilot_internal"))
-        ).toHaveLength(2);
+        ).toHaveLength(1);
         expect(
           inference.map((request) => (JSON.parse(request.body!) as { messages: unknown }).messages)
         ).toEqual([[{ role: "user", content: "Synthetic live note" }]]);

@@ -98,6 +98,34 @@ describe("providerTransport", () => {
       await expect(fetcher("invalid-url")).rejects.toThrow();
       expect(dispatched).toHaveBeenCalledTimes(1);
     });
+    it.each([false, true])(
+      "classifies a plain connection failure as transient on desktop=%s without changing caller cancellation (https://github.com/ItsDalk-Lane/Scribe/issues/58)",
+      async (desktop) => {
+        jest.mocked(isDesktopRuntime).mockReturnValue(desktop);
+        const transport = desktop ? nativeFetch : safeFetch;
+        transport.mockRejectedValueOnce(new Error("Connection reset"));
+        await expect(
+          createProviderFetch(model())("https://proxy.example/chat")
+        ).rejects.toMatchObject({ failure: { kind: "transient" } });
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+          createProviderFetch(model())("https://proxy.example/chat", { signal: controller.signal })
+        ).rejects.toMatchObject({ name: "AbortError" });
+        expect(transport).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it("classifies a plain token-exchange connection failure as transient (https://github.com/ItsDalk-Lane/Scribe/issues/58)", async () => {
+      safeFetch.mockRejectedValueOnce(new Error("Connection reset"));
+      await expect(
+        createProviderFetch(model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" }))(
+          "https://api.githubcopilot.com/responses"
+        )
+      ).rejects.toMatchObject({ failure: { kind: "transient" } });
+      expect(safeFetch).toHaveBeenCalledTimes(1);
+    });
+
     it("marks network-layer failures as transient while keeping invalid request configuration deterministic (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
       jest.mocked(isDesktopRuntime).mockReturnValue(true);
       nativeFetch.mockRejectedValueOnce(new TypeError("Network unavailable"));
@@ -290,6 +318,69 @@ describe("providerTransport", () => {
         "https://api.githubcopilot.com/responses",
       ]);
       expect(requestHeaders(4).get("Authorization")).toBe("Bearer service-refreshed");
+    });
+
+    it("lets a cancelled caller leave a shared token refresh without stopping another request (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      let release!: (value: Response) => void;
+      safeFetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+      );
+      const fetcher = createProviderFetch(
+        model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
+      );
+      const controller = new AbortController();
+      const first = fetcher("https://api.githubcopilot.com/responses", {
+        signal: controller.signal,
+      }).catch((error: unknown) => error);
+      const second = fetcher("https://api.githubcopilot.com/responses");
+      controller.abort();
+      await expect(first).resolves.toMatchObject({ name: "AbortError" });
+      expect(safeFetch.mock.calls[0][1]?.signal?.aborted).toBe(false);
+      release(
+        jsonResponse({ token: "shared-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      expect((await second).ok).toBe(true);
+      expect(requestHeaders(1).get("Authorization")).toBe("Bearer shared-token");
+      expect(safeFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps a refreshed credential's cache when an earlier credential exchange completes late (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      let release!: (value: Response) => void;
+      safeFetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+      );
+      const before = createProviderFetch(
+        model({
+          providerCatalogId: "github-copilot",
+          configuredModelId: "shared-model",
+          apiKey: "ghu_before",
+        })
+      );
+      const after = createProviderFetch(
+        model({
+          providerCatalogId: "github-copilot",
+          configuredModelId: "shared-model",
+          apiKey: "ghu_after",
+        })
+      );
+      const first = before("https://api.githubcopilot.com/responses");
+      safeFetch.mockResolvedValueOnce(
+        jsonResponse({ token: "after-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      await after("https://api.githubcopilot.com/responses");
+      release(
+        jsonResponse({ token: "before-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      await first;
+      await after("https://api.githubcopilot.com/responses");
+      expect(requestHeaders(4).get("Authorization")).toBe("Bearer after-token");
+      expect(safeFetch).toHaveBeenCalledTimes(5);
     });
 
     it("times out a stalled token exchange so a later request can retry", async () => {

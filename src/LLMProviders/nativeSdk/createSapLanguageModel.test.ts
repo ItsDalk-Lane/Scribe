@@ -145,6 +145,56 @@ describe("createSapLanguageModel", () => {
       expect(transport).toHaveBeenCalledTimes(2);
     });
 
+    it("expires a stalled exchange and ignores late credentials after recovery (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      let release!: (value: Response) => void;
+      transport.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+      );
+      const resolve = createSapLanguageModel(customModel, {
+        ...credentials,
+        deploymentId: "fixed",
+      });
+      const outcomes: unknown[] = [];
+      const first = resolve({}).catch((error: unknown) => {
+        outcomes.push(error);
+      });
+      try {
+        await jest.advanceTimersByTimeAsync(15_000);
+        expect(outcomes).toEqual([expect.objectContaining({ name: "TimeoutError" })]);
+        await first;
+        const chat = createPiChatModel(descriptor, async (options) => ({
+          stream: await resolve(options),
+          options: { fetch: transport },
+        }));
+        expect((await collectReply(chat)).content).toEqual([
+          { type: "text", text: "Stream reply" },
+        ]);
+        let readLate!: () => void;
+        const lateRead = new Promise<void>((finish) => {
+          readLate = finish;
+        });
+        release({
+          ok: true,
+          json: async () => {
+            readLate();
+            return { access_token: "stale-token", expires_in: 3600 };
+          },
+        } as Response);
+        await lateRead;
+        await collectReply(chat);
+        expect(new Headers(transport.mock.calls.at(-1)?.[1]?.headers).get("authorization")).toBe(
+          "Bearer fixture-token-1"
+        );
+        expect(tokenCount).toBe(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it(`keeps one shared credential refresh alive when a concurrent caller stops (${issue})`, async () => {
       let finishToken!: (response: Response) => void;
       const pendingToken = new Promise<Response>((resolve) => {
@@ -156,14 +206,14 @@ describe("createSapLanguageModel", () => {
         deploymentId: "fixed-deployment",
       });
       const controller = new AbortController();
-      const first = resolve({ signal: controller.signal });
+      const first = resolve({ signal: controller.signal }).catch((error: unknown) => error);
       const second = resolve({});
       controller.abort();
       expect(transport).toHaveBeenCalledTimes(1);
       expect(transport.mock.calls[0][1]?.signal?.aborted).toBe(false);
       finishToken(new Response(JSON.stringify({ access_token: "fixture", expires_in: 3600 })));
-      const streams = await Promise.all([first, second]);
-      expect(streams.every((stream) => typeof stream === "function")).toBe(true);
+      await expect(first).resolves.toMatchObject({ name: "AbortError" });
+      expect(typeof (await second)).toBe("function");
       expect(transport).toHaveBeenCalledTimes(1);
     });
   });

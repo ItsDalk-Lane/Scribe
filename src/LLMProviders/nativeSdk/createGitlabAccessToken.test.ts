@@ -53,6 +53,69 @@ describe("createGitlabAccessToken", () => {
       await expect(getToken()).rejects.toMatchObject({ statusCode: 401 });
       expect(await getToken()).toEqual({ token: "new-token", headers: {} });
     });
+    it("expires a stalled exchange, retries it and ignores its late result (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      jest.useFakeTimers();
+      let release!: (value: Response) => void;
+      const firstResponse = new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+      const transport = jest
+        .fn()
+        .mockReturnValueOnce(firstResponse)
+        .mockResolvedValue(response({ token: "fresh-token", headers: {} }));
+      const getToken = createGitlabAccessToken("https://gitlab.fixture.invalid", "key", transport);
+      const outcomes: unknown[] = [];
+      const first = getToken().catch((error: unknown) => {
+        outcomes.push(error);
+      });
+      try {
+        await jest.advanceTimersByTimeAsync(15_000);
+        expect(outcomes).toEqual([expect.objectContaining({ name: "TimeoutError" })]);
+        await first;
+        expect(await getToken()).toEqual({ token: "fresh-token", headers: {} });
+        let readLate!: () => void;
+        const lateRead = new Promise<void>((resolve) => {
+          readLate = resolve;
+        });
+        release({
+          ok: true,
+          json: async () => {
+            readLate();
+            return { token: "stale-token", headers: {} };
+          },
+        } as Response);
+        await lateRead;
+        expect(await getToken()).toEqual({ token: "fresh-token", headers: {} });
+        expect(transport).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("stops only a cancelled caller while another caller receives the shared token (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      let release!: (value: Response) => void;
+      const transport = jest.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+      );
+      const getToken = createGitlabAccessToken("https://gitlab.fixture.invalid", "key", transport);
+      const controller = new AbortController();
+      const first = getToken(controller.signal).catch((error: unknown) => error);
+      const second = getToken();
+      controller.abort();
+      const outcomes: unknown[] = [];
+      const observed = first.then((value) => {
+        outcomes.push(value);
+      });
+      release(response({ token: "shared-token", headers: {} }));
+      await observed;
+      expect(outcomes).toEqual([expect.objectContaining({ name: "AbortError" })]);
+      expect(await second).toEqual({ token: "shared-token", headers: {} });
+      expect(transport).toHaveBeenCalledTimes(1);
+    });
+
     it.each([{}, { token: "", headers: {} }, { token: "fixture", headers: { invalid: 42 } }])(
       "rejects malformed direct-access response %j",
       async (payload) => {

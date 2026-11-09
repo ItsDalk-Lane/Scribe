@@ -18,6 +18,8 @@ import { v4 as uuidv4 } from "uuid";
 export interface HttpChatDelta {
   text?: string;
   thinking?: string;
+  textSignature?: string;
+  thinkingSignature?: string;
   usage?: Partial<AssistantMessage["usage"]>;
   finishReason?: Extract<StopReason, "stop" | "length" | "toolUse">;
   toolCall?: {
@@ -82,24 +84,40 @@ export function streamHttpCompletion(
         }
         for (const type of ["thinking", "text"] as const) {
           const value = delta[type];
-          if (!value) continue;
-          let index = output.content.findIndex((part) => part.type === type);
-          if (index < 0) {
+          const signature = type === "text" ? delta.textSignature : delta.thinkingSignature;
+          if (value === undefined || (!value && !signature)) continue;
+          let index = output.content.length - 1;
+          const previous = output.content[index];
+          const previousSignature =
+            previous?.type === "text"
+              ? previous.textSignature
+              : previous?.type === "thinking"
+                ? previous.thinkingSignature
+                : undefined;
+          // 签名绑定原始内容段，合并签名段或跨工具合并正文都会破坏下一轮回传。https://github.com/ItsDalk-Lane/Scribe/issues/60
+          if (previous?.type !== type || signature || previousSignature) {
             index = output.content.length;
             output.content.push(
-              type === "text" ? { type: "text", text: "" } : { type: "thinking", thinking: "" }
+              type === "text"
+                ? { type: "text", text: "", ...(signature ? { textSignature: signature } : {}) }
+                : {
+                    type: "thinking",
+                    thinking: "",
+                    ...(signature ? { thinkingSignature: signature } : {}),
+                  }
             );
             events.push({ type: `${type}_start`, contentIndex: index, partial: output });
           }
           const part = output.content[index];
           if (part.type === "text") part.text += value;
           else if (part.type === "thinking") part.thinking += value;
-          events.push({
-            type: `${type}_delta`,
-            contentIndex: index,
-            delta: value,
-            partial: output,
-          });
+          if (value)
+            events.push({
+              type: `${type}_delta`,
+              contentIndex: index,
+              delta: value,
+              partial: output,
+            });
         }
         if (delta.usage) Object.assign(output.usage, delta.usage);
         if (delta.finishReason) {

@@ -1,3 +1,4 @@
+import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { t } from "@/lib/i18n";
 import type { CustomModel } from "@/aiParams";
 import { observeProviderResponse } from "@/LLMProviders/providerResponse";
@@ -30,6 +31,15 @@ function isGitHubInferenceHost(url: URL): boolean {
     !url.username &&
     !url.password
   );
+}
+
+// 宿主断网可能只抛普通异常，认证与推理必须在真实网络边界使用相同的可重试分类。https://github.com/ItsDalk-Lane/Scribe/issues/58
+function throwProviderTransportError(error: unknown, signal?: AbortSignal | null): never {
+  signal?.throwIfAborted();
+  if (error instanceof ProviderRequestError || error instanceof TimeoutError) throw error;
+  throw new ProviderRequestError(error instanceof Error ? error.message : String(error), {
+    kind: "transient",
+  });
 }
 
 async function requestProviderToken(
@@ -67,7 +77,7 @@ async function requestProviderToken(
             apikey: apiKey,
           }).toString(),
         }
-  );
+  ).catch((error: unknown) => throwProviderTransportError(error, signal));
   if (!response.ok) {
     let failure: ProviderRequestFailure | undefined;
     await observeProviderResponse(
@@ -211,19 +221,16 @@ export function createProviderFetch(
     model.providerNpm === "@ai-sdk/google-vertex/anthropic";
   let fallbackSession: string | undefined;
 
-  async function managedToken(): Promise<ProviderToken> {
+  async function managedToken(signal?: AbortSignal): Promise<ProviderToken> {
+    signal?.throwIfAborted();
     if (!apiKey)
       throw new ProviderRequestError(t("Provider credentials are missing."), { kind: "auth" });
     if (catalogId === "github-copilot" && !/^(?:gh[opusr]_|github_pat_)/.test(apiKey)) {
       return { value: apiKey, expiresAt: Infinity };
     }
     const key = sharedTokenKey(model);
-    const entry = sharedTokens.get(key) ?? { apiKey };
-    if (entry.apiKey !== apiKey) {
-      entry.apiKey = apiKey;
-      entry.token = undefined;
-      entry.pending = undefined;
-    }
+    const current = sharedTokens.get(key);
+    const entry: SharedTokenEntry = current?.apiKey === apiKey ? current : { apiKey };
     sharedTokens.set(key, entry);
     if (entry.token && entry.token.expiresAt > Date.now() + 60_000) return entry.token;
     entry.pending ??= (() => {
@@ -235,16 +242,17 @@ export function createProviderFetch(
           reject(new TimeoutError("Provider token request", PROVIDER_TOKEN_TIMEOUT_MS));
         }, PROVIDER_TOKEN_TIMEOUT_MS);
       });
-      return Promise.race([
-        requestProviderToken(model, apiKey, controller.signal),
-        timeout,
-      ]).finally(() => {
-        window.clearTimeout(timer);
-        entry.pending = undefined;
-      });
+      return Promise.race([requestProviderToken(model, apiKey, controller.signal), timeout])
+        .then((value) => {
+          entry.token = value;
+          return value;
+        })
+        .finally(() => {
+          window.clearTimeout(timer);
+          entry.pending = undefined;
+        });
     })();
-    entry.token = await entry.pending;
-    return entry.token;
+    return signal ? raceWithAbortSignal(entry.pending, signal) : entry.pending;
   }
 
   async function vertexToken(signal?: AbortSignal): Promise<string> {
@@ -365,7 +373,7 @@ export function createProviderFetch(
       headers.set("cf-aig-authorization", `Bearer ${apiKey}`);
     }
     if (catalogId === "github-copilot") {
-      const credential = await managedToken();
+      const credential = await managedToken(signal ?? undefined);
       if (credential.apiEndpoint && isGitHubInferenceHost(url)) {
         url.host = credential.apiEndpoint.host;
       }
@@ -380,7 +388,7 @@ export function createProviderFetch(
     }
     if (catalogId === "watsonx" || model.providerNpm === "watsonx-ai-provider") {
       body = watsonxRequest(url, body, model);
-      headers.set("Authorization", `Bearer ${(await managedToken()).value}`);
+      headers.set("Authorization", `Bearer ${(await managedToken(signal ?? undefined)).value}`);
       headers.set("Content-Type", "application/json");
     }
     const bearer = headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -403,19 +411,16 @@ export function createProviderFetch(
       signal,
     };
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const desktop = isDesktopRuntime();
+    const transport = desktop ? loadDesktopStreamingFetch(onDispatch) : safeFetchNoThrow;
     try {
       // 桌面浏览器请求会被部分模型服务的跨域限制拦截，缓冲连接又会丢失流式显示。https://github.com/ItsDalk-Lane/Scribe/issues/51
-      if (isDesktopRuntime())
-        return await loadDesktopStreamingFetch(onDispatch)(url.toString(), options);
-      const response = safeFetchNoThrow(url.toString(), options);
+      const response = transport(url.toString(), options);
       // 凭据解析和保存准备不是模型调用；只在实际传输启动后登记请求步数。https://github.com/ItsDalk-Lane/Scribe/issues/52
-      onDispatch?.();
+      if (!desktop) onDispatch?.();
       return await response;
     } catch (error) {
-      // 仅真实网络调用失败可重试；地址和请求配置错误不能反复发送。https://github.com/ItsDalk-Lane/Scribe/issues/31
-      if (error instanceof TypeError)
-        throw new ProviderRequestError(error.message, { kind: "transient" });
-      throw error;
+      throwProviderTransportError(error, signal);
     }
   };
 }
