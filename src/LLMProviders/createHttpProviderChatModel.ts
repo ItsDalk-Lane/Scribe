@@ -86,18 +86,14 @@ function sharedResolver<R>(
   return entry.resolver;
 }
 
+type GitlabTokenResolver = Awaited<ReturnType<typeof createGitlabAccessToken>>;
+type SapModelResolver = ReturnType<typeof createSapLanguageModel>;
 const vertexAccessResolvers = new Map<
   string,
   SharedResolverEntry<(signal?: AbortSignal) => Promise<string>>
 >();
-const gitlabResolvers = new Map<
-  string,
-  SharedResolverEntry<(signal?: AbortSignal) => Promise<{ token: string; headers: Headers }>>
->();
-const sapResolvers = new Map<
-  string,
-  SharedResolverEntry<(signal?: AbortSignal) => Promise<unknown>>
->();
+const gitlabResolvers = new Map<string, SharedResolverEntry<GitlabTokenResolver>>();
+const sapResolvers = new Map<string, SharedResolverEntry<SapModelResolver>>();
 
 export function clearProviderResolverCaches(): void {
   vertexAccessResolvers.clear();
@@ -228,26 +224,17 @@ async function resolveHttpProviderRequest(
       if (typeof credentials === "string") {
         accessToken = async () => credentials;
       } else {
-        if (
-          typeof credentials.client_email !== "string" ||
-          typeof credentials.private_key !== "string"
-        )
+        const clientEmail = credentials.client_email;
+        const privateKey = credentials.private_key;
+        const keyId =
+          typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined;
+        if (typeof clientEmail !== "string" || typeof privateKey !== "string")
           throw new Error(t("Google service-account JSON requires client_email and private_key."));
         accessToken = await sharedResolver(
           vertexAccessResolvers,
-          `${credentials.client_email}|${
-            typeof credentials.private_key_id === "string" ? credentials.private_key_id : ""
-          }`,
+          `${clientEmail}|${keyId ?? ""}`,
           secret,
-          async () =>
-            createVertexAccessToken(
-              credentials.client_email,
-              credentials.private_key,
-              transport,
-              typeof credentials.private_key_id === "string"
-                ? credentials.private_key_id
-                : undefined
-            )
+          async () => createVertexAccessToken(clientEmail, privateKey, transport, keyId)
         );
       }
       const token = await accessToken(options.signal);
@@ -284,10 +271,12 @@ async function resolveHttpProviderRequest(
         option(model, "GITLAB_INSTANCE_URL", model.baseUrl || "https://gitlab.com"),
         model.apiKey || "",
         () =>
-          createGitlabAccessToken(
-            option(model, "GITLAB_INSTANCE_URL", model.baseUrl || "https://gitlab.com"),
-            model.apiKey || "",
-            transport
+          Promise.resolve(
+            createGitlabAccessToken(
+              option(model, "GITLAB_INSTANCE_URL", model.baseUrl || "https://gitlab.com"),
+              model.apiKey || "",
+              transport
+            )
           )
       );
       const token = await getToken(options.signal);
@@ -311,10 +300,13 @@ async function resolveHttpProviderRequest(
     }
     case "@jerome-benoit/sap-ai-provider-v2": {
       const credentials = secretObject(model.apiKey || "");
+      const clientId = credentials.clientid;
+      const clientSecret = credentials.clientsecret;
+      const tokenUrl = credentials.url;
       if (
-        typeof credentials.clientid !== "string" ||
-        typeof credentials.clientsecret !== "string" ||
-        typeof credentials.url !== "string"
+        typeof clientId !== "string" ||
+        typeof clientSecret !== "string" ||
+        typeof tokenUrl !== "string"
       )
         throw new Error(t("SAP service-key JSON requires clientid, clientsecret and url."));
       const serviceurls = credentials.serviceurls;
@@ -325,19 +317,20 @@ async function resolveHttpProviderRequest(
         typeof serviceurls.AI_API_URL !== "string"
       )
         throw new Error(t("SAP service-key JSON requires serviceurls.AI_API_URL."));
+      const apiUrl: string = serviceurls.AI_API_URL;
       const resolve = await sharedResolver(
         sapResolvers,
-        `${credentials.url}|${credentials.clientid}`,
+        `${tokenUrl}|${clientId}`,
         model.apiKey || "",
         () =>
           Promise.resolve(
             createSapLanguageModel(
               model,
               {
-                clientId: credentials.clientid,
-                clientSecret: credentials.clientsecret,
-                tokenUrl: credentials.url,
-                apiUrl: serviceurls.AI_API_URL,
+                clientId,
+                clientSecret,
+                tokenUrl,
+                apiUrl,
                 resourceGroup: option(
                   model,
                   "AICORE_RESOURCE_GROUP",

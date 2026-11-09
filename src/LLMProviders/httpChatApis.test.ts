@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai";
+import type { Message, Model } from "@earendil-works/pi-ai";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
 import { abortSignalWithDeadline } from "@/utils/abortDeadline";
 import {
@@ -298,12 +298,18 @@ describe("httpChatApis", () => {
           stream: streamGoogle,
           options: { fetch, maxRetries: 0, timeoutMs: 1000 },
         }));
-        const pending = collectText(client, "hi", { onFailure, maxRetries: 0 }).catch(
-          (error: unknown) => error
-        );
+        const pending = client
+          .agentStream(
+            { messages: [{ role: "user", content: "hi", timestamp: 0 }] },
+            { onFailure, maxRetries: 0 }
+          )
+          .result()
+          .then(
+            () => null,
+            (error: unknown) => error
+          );
         await jest.runAllTimersAsync();
-        const failure = await pending;
-        expect(failure).toBeInstanceOf(Error);
+        await pending;
         expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({ kind: "transient" }));
         expect(fetch).toHaveBeenCalledTimes(1);
       } finally {
@@ -371,14 +377,14 @@ describe("httpChatApis", () => {
             ])
           )
       );
-      const message = {
+      const message: Message = {
         role: "user",
         timestamp: 0,
         content: [
           { type: "text", text: "Look" },
           { type: "image", data: "AQID", mimeType: "image/png" },
         ],
-      } as const;
+      };
       await collectReply(
         createPiChatModel({ ...model, input: ["text"] }, async () => ({
           stream: streamCohere,

@@ -185,7 +185,7 @@ interface SharedTokenEntry {
 const sharedTokens = new Map<string, SharedTokenEntry>();
 const vertexResolvers = new Map<
   string,
-  { apiKey: string; resolver?: Promise<(signal?: AbortSignal) => Promise<string>> }
+  { apiKey: string; resolver?: (signal?: AbortSignal) => Promise<string> }
 >();
 
 function sharedTokenKey(model: CustomModel): string {
@@ -274,7 +274,7 @@ export function createProviderFetch(
       typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
     );
     vertexResolvers.set(identity, shared);
-    const accessToken = await (await shared.resolver)(signal);
+    const accessToken = await shared.resolver(signal);
     if (!accessToken)
       throw new ProviderRequestError(t("Google did not return an access token."), { kind: "auth" });
     return accessToken;

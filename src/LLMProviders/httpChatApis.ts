@@ -256,17 +256,20 @@ export function streamGoogle(
           : {
               generationConfig: {
                 ...(scopedOptions?.maxTokens !== undefined
-                  ? { maxOutputTokens: options.maxTokens }
+                  ? { maxOutputTokens: scopedOptions.maxTokens }
                   : {}),
                 ...(scopedOptions?.reasoning !== undefined
                   ? {
                       thinkingConfig: {
                         includeThoughts: true,
                         thinkingBudget: Math.min(
-                          thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
-                          options.maxTokens === undefined
+                          thinkingBudgetForLevel(
+                            scopedOptions.reasoning,
+                            scopedOptions.thinkingBudgets
+                          ),
+                          scopedOptions.maxTokens === undefined
                             ? Infinity
-                            : Math.max(0, options.maxTokens - 1024)
+                            : Math.max(0, scopedOptions.maxTokens - 1024)
                         ),
                       },
                     }
@@ -418,15 +421,17 @@ export function streamCohere(
                 thinking: {
                   type: "enabled",
                   token_budget: Math.min(
-                    thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
-                    options.maxTokens === undefined
+                    thinkingBudgetForLevel(scopedOptions.reasoning, scopedOptions.thinkingBudgets),
+                    scopedOptions.maxTokens === undefined
                       ? Infinity
-                      : Math.max(0, options.maxTokens - 1024)
+                      : Math.max(0, scopedOptions.maxTokens - 1024)
                   ),
                 },
               }
             : {}),
-          ...(scopedOptions?.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
+          ...(scopedOptions?.maxTokens === undefined
+            ? {}
+            : { max_tokens: scopedOptions.maxTokens }),
         },
         options
       );
@@ -532,7 +537,9 @@ export function streamOllama(
           options: {
             ...(model.contextWindow > 0 ? { num_ctx: model.contextWindow } : {}),
             repeat_penalty: 1.1,
-            ...(scopedOptions?.maxTokens === undefined ? {} : { num_predict: options.maxTokens }),
+            ...(scopedOptions?.maxTokens === undefined
+              ? {}
+              : { num_predict: scopedOptions.maxTokens }),
           },
         },
         options
