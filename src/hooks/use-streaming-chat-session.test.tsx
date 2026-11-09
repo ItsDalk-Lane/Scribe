@@ -156,6 +156,32 @@ describe("use-streaming-chat-session", () => {
       expect(result.current.getIsFirstTurn()).toBe(false);
     });
 
+    it(`rebuilds the chain when the endpoint changes under one configuration id (https://github.com/ItsDalk-Lane/Scribe/issues/62)`, async () => {
+      const requested: string[] = [];
+      window.fetch = jest.fn(async (url: RequestInfo | URL) => {
+        requested.push(typeof url === "string" ? url : url instanceof URL ? url.href : url.url);
+        return new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      const { result, rerender } = renderHook(
+        ({ current }: { current: CustomModel }) =>
+          useStreamingChatSession({ model: current, systemPrompt: "Prompt." }),
+        { initialProps: { current: model } }
+      );
+      await act(async () => {
+        await result.current.runTurn(async () => "First");
+      });
+      rerender({ current: { ...model, baseUrl: "https://rotated.invalid/v1" } });
+      await act(async () => {
+        await result.current.runTurn(async () => "Second");
+      });
+      expect(requested).toHaveLength(2);
+      expect(new URL(requested[0]).host).toBe("fixture.invalid");
+      expect(new URL(requested[1]).host).toBe("rotated.invalid");
+    });
+
     it(`replays a stopped partial answer in the follow-up without duplicating text (${issue})`, async () => {
       const reply = controlledReply();
       const followUp = controlledReply();

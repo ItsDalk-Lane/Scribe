@@ -95,5 +95,40 @@ describe("providerResponse", () => {
       await response.body!.cancel("Stopped");
       expect(cancelled).toHaveBeenCalledWith("Stopped");
     });
+
+    it(`reports a body-read failure as a transient network failure before erroring the stream (https://github.com/ItsDalk-Lane/Scribe/issues/58)`, async () => {
+      const failed = jest.fn();
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            controller.error(new TypeError("network error"));
+          },
+        })
+      );
+      const observed = await observeProviderResponse(response, failed);
+      await expect(observed.text()).rejects.toBeInstanceOf(TypeError);
+      expect(failed).toHaveBeenCalledWith({ kind: "transient" });
+    });
+
+    it(`keeps the first structured provider failure when a later body-read failure would clobber it (https://github.com/ItsDalk-Lane/Scribe/issues/58)`, async () => {
+      const failed = jest.fn();
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(streamController) {
+            controller = streamController;
+          },
+        })
+      );
+      const observed = await observeProviderResponse(response, failed);
+      const reading = observed.text();
+      controller.enqueue(
+        new TextEncoder().encode('data: {"error":{"code":"insufficient_quota"}}\n\n')
+      );
+      controller.error(new TypeError("network error"));
+      await expect(reading).rejects.toBeInstanceOf(TypeError);
+      expect(failed).toHaveBeenNthCalledWith(1, expect.objectContaining({ kind: "quota" }));
+      expect(failed).toHaveBeenLastCalledWith({ kind: "transient" });
+    });
   });
 });

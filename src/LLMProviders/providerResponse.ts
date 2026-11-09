@@ -110,6 +110,12 @@ export async function observeProviderResponse(
           reader.releaseLock();
         } else controller.enqueue(next.value);
       } catch (error) {
+        // 正文读取失败在 SDK 丢失错误结构之前先给出类别；网络中断按暂时性处理，可由上层既有边界决定是否重试。https://github.com/ItsDalk-Lane/Scribe/issues/58
+        onFailure(
+          error instanceof TypeError
+            ? { kind: "transient" }
+            : classifyProviderFailure({ cause: error, callerAborted: operationSignal.aborted })
+        );
         controller.error(error);
         await reader.cancel().catch(() => {});
       }

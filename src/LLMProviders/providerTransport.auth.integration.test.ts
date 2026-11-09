@@ -1,4 +1,6 @@
 import { Platform } from "obsidian";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
+import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
 import { generateKeyPairSync, randomBytes, webcrypto } from "node:crypto";
 import { runInThisContext } from "node:vm";
 import type { App } from "obsidian";
@@ -170,6 +172,8 @@ async function attempt(model: CustomModel): Promise<{ reply: string; error?: Err
 
 describe("providerTransport authentication integration", () => {
   beforeEach(() => {
+    clearProviderTokenCaches();
+    clearProviderResolverCaches();
     Platform.isMobile = true;
   });
   afterEach(() => {

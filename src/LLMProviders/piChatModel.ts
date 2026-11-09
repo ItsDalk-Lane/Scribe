@@ -22,6 +22,10 @@ import {
   type ProviderRequestFailure,
 } from "@/LLMProviders/providerRequestFailure";
 import { RequestRedactor } from "@/LLMProviders/requestRedaction";
+import { logWarn } from "@/logger";
+import { TimeoutError } from "@/error";
+import { DEFAULT_PROVIDER_STREAM_IDLE_TIMEOUT_MS } from "@/constants";
+import { abortSignalWithDeadline } from "@/utils/abortDeadline";
 import { isRecord } from "@/utils/obsidianInternals";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -43,6 +47,8 @@ export interface AgentStreamOptions extends SimpleStreamOptions {
   onRequestUsage?: (requestId: string, usage: AssistantMessage["usage"]) => void | Promise<void>;
   onCallMetrics?: (metrics: ModelCallMetrics) => void | Promise<void>;
   onProviderDispatch?: () => void;
+  // SDK 的请求超时只保护到响应头，流式事件的空闲期限在统一调用层补足。https://github.com/ItsDalk-Lane/Scribe/issues/59
+  streamIdleTimeoutMs?: number;
 }
 
 export interface ProviderChatModel {
@@ -111,6 +117,17 @@ function visibleText(value: unknown): string {
     .join("");
 }
 
+// 用量统计只交给保存方排队处理：模型请求、取消和收尾都不等待它，保存失败只记日志，不改判模型调用。https://github.com/ItsDalk-Lane/Scribe/issues/55
+function reportCallMetrics(options: AgentStreamOptions, metrics: ModelCallMetrics): void {
+  const snapshot: ModelCallMetrics = { ...metrics, requestIds: [...metrics.requestIds] };
+  void new Promise<void>((resolve) => resolve(options.onCallMetrics?.(snapshot))).catch(
+    (failure: unknown) =>
+      logWarn("[AgentMode] Model call metrics could not be reported", {
+        errorType: failure instanceof Error ? failure.name : typeof failure,
+      })
+  );
+}
+
 export function createPiChatModel(
   model: Model<Api>,
   resolveRequest: (options: AgentStreamOptions) => Promise<PiRequest>,
@@ -137,7 +154,6 @@ export function createPiChatModel(
     >();
     let terminalUsage: AssistantMessage["usage"] | undefined;
     let recordDispatch: (() => void) | undefined;
-    let dispatchWrite: Promise<void> | undefined;
     let errorSecrets: string[] = [];
     let redactor = new RequestRedactor(errorSecrets);
     let failureStatus: number | undefined;
@@ -192,7 +208,7 @@ export function createPiChatModel(
             thinkingDurationMs?: number;
           } = { usage: {} };
           markPrepared();
-          await options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] });
+          reportCallMetrics(options, metrics);
           controller.signal.throwIfAborted();
           recordDispatch = () => {
             if (requests.has(nextRequestId)) return;
@@ -200,21 +216,17 @@ export function createPiChatModel(
             metrics.requestIds.push(nextRequestId);
             metrics.requestAttempts = { ...metrics.requestAttempts, [nextRequestId]: attemptId };
             metrics.startedAt ??= Date.now();
-            dispatchWrite = Promise.resolve(
-              options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] })
-            );
-            void dispatchWrite.catch(() => {});
+            reportCallMetrics(options, metrics);
           };
           const pending = transport(input, init);
           if (!request.observesDispatch) recordDispatch();
           const response = await raceWithAbortSignal(pending, controller.signal);
-          await dispatchWrite;
           failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
           return await observeProviderResponse(
             response,
             (failure) => {
-              capturedFailure = failure;
+              capturedFailure ??= failure;
             },
             controller.signal,
             (payload) => Object.assign(observation.usage, reportedTokenUsage(payload)),
@@ -334,7 +346,8 @@ export function createPiChatModel(
             isRecord(data) &&
             (data.error !== undefined || data.type === "response.failed" || data.type === "error")
           )
-            capturedFailure = classifyProviderFailure({ payload: data });
+            // 首个结构化供应商失败最接近原始现场，后续读取阶段的失败不得覆盖它。https://github.com/ItsDalk-Lane/Scribe/issues/58
+            capturedFailure ??= classifyProviderFailure({ payload: data });
           if (isRecord(data) && data.type === "response.refusal.delta") structuredRefusal = true;
           if (
             isRecord(data) &&
@@ -349,9 +362,18 @@ export function createPiChatModel(
       });
       const iterator = source[Symbol.asyncIterator]();
       let completed = false;
+      // 空闲期限覆盖 SDK 与自写全部路径：响应头之后正文持续静默时调用仍能结束。https://github.com/ItsDalk-Lane/Scribe/issues/59
+      const idleMs = options.streamIdleTimeoutMs ?? DEFAULT_PROVIDER_STREAM_IDLE_TIMEOUT_MS;
       try {
         while (true) {
-          const next = await raceWithAbortSignal(iterator.next(), controller.signal);
+          // 与外部取消组合成单一信号：到期以 TimeoutError 中止等待，事件到达后立即解除。https://github.com/ItsDalk-Lane/Scribe/issues/59
+          const idle = abortSignalWithDeadline(controller.signal, idleMs);
+          let next: IteratorResult<AssistantMessageEvent>;
+          try {
+            next = await raceWithAbortSignal(iterator.next(), idle.signal);
+          } finally {
+            idle.dispose();
+          }
           if (next.done) break;
           let event = next.value;
           if (
@@ -401,7 +423,13 @@ export function createPiChatModel(
             throw new PiStreamError(
               textSnapshot(event.error),
               error,
-              capturedFailure ?? classifyProviderFailure({ status: failureStatus, cause: error })
+              capturedFailure ??
+                classifyProviderFailure({
+                  status: failureStatus,
+                  cause: error,
+                  // 取消只认调用方信号：SDK 超时保存的中止异常不再是取消。https://github.com/ItsDalk-Lane/Scribe/issues/58
+                  callerAborted: options.signal?.aborted === true,
+                })
             );
           }
           if (event.type === "text_start") {
@@ -478,7 +506,15 @@ export function createPiChatModel(
       const classified =
         controller.signal.aborted && options.signal?.aborted
           ? { kind: "cancelled" as const }
-          : (capturedFailure ?? classifyProviderFailure({ status: failureStatus, cause: error }));
+          : // 统一期限的到期事实由本层主动产生：直接按暂时性处理，不被读取阶段的旁路失败覆盖。https://github.com/ItsDalk-Lane/Scribe/issues/59
+            error instanceof TimeoutError
+            ? { kind: "transient" as const }
+            : (capturedFailure ??
+              classifyProviderFailure({
+                status: failureStatus,
+                cause: error,
+                callerAborted: options.signal?.aborted === true,
+              }));
       const failure = {
         ...classified,
         ...(classified.code ? { code: redactor.redact(classified.code) } : {}),
@@ -500,7 +536,6 @@ export function createPiChatModel(
     } finally {
       options.signal?.removeEventListener("abort", abort);
       controller.abort();
-      await dispatchWrite;
       const observed = [...requests.values()];
       const reported = Object.assign(
         {},
@@ -601,13 +636,15 @@ export function createPiChatModel(
           }
           metrics.status = "completed";
           metrics.endedAt = Date.now();
-          if (prepared)
-            await options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] });
+          if (prepared) reportCallMetrics(options, metrics);
           metricsPublished = true;
           if (terminalEvent) yield terminalEvent;
           return;
         } catch (error) {
-          const failure = classifyProviderFailure({ cause: error });
+          const failure = classifyProviderFailure({
+            cause: error,
+            callerAborted: options.signal?.aborted === true,
+          });
           const delay = failure.retryAfterMs ?? Math.min(500 * 2 ** retries, 8000);
           const maxDelay = options.maxRetryDelayMs ?? 60000;
           if (
@@ -634,7 +671,7 @@ export function createPiChatModel(
     } finally {
       if (prepared && !metricsPublished) {
         metrics.endedAt = Date.now();
-        await options.onCallMetrics?.({ ...metrics, requestIds: [...metrics.requestIds] });
+        reportCallMetrics(options, metrics);
       }
     }
   }

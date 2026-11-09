@@ -110,6 +110,8 @@ export const agentTranslations: Record<string, string> = {
     "这段聊天的记录存在损坏。目前可以查看已恢复的内容，暂时无法继续发送或执行操作。",
   "An attached image is unavailable. Restore the image before continuing this chat.":
     "聊天中的一张图片无法读取，请恢复该图片后再继续。",
+  "The chat save was not confirmed in time, so this step was stopped before it ran. Check the disk, then try again.":
+    "聊天记录未能在时限内确认保存，本步已在执行前停止。请检查磁盘后再试。",
 
   "System recovery: this reply was interrupted. It was not automatically resumed.":
     "系统恢复说明：这次回复因意外中断而停止，系统没有自动继续执行。",

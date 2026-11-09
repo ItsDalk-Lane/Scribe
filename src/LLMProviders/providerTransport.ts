@@ -175,6 +175,28 @@ function watsonxRequest(url: URL, body: BodyInit | null | undefined, model: Cust
   return JSON.stringify(payload);
 }
 
+// 短期令牌与 Vertex 解析器按连接身份在调用之间共享；凭据值变更或整体失效后重新换取。
+// 仅保存在内存，不落盘。https://github.com/ItsDalk-Lane/Scribe/issues/61
+interface SharedTokenEntry {
+  apiKey: string;
+  token?: ProviderToken;
+  pending?: Promise<ProviderToken>;
+}
+const sharedTokens = new Map<string, SharedTokenEntry>();
+const vertexResolvers = new Map<
+  string,
+  { apiKey: string; resolver?: Promise<(signal?: AbortSignal) => Promise<string>> }
+>();
+
+function sharedTokenKey(model: CustomModel): string {
+  return `${model.providerCatalogId ?? "legacy"}|${model.configuredModelId ?? model.name}`;
+}
+
+export function clearProviderTokenCaches(): void {
+  sharedTokens.clear();
+  vertexResolvers.clear();
+}
+
 export function createProviderFetch(
   model: CustomModel,
   redactionValues?: string[],
@@ -188,9 +210,6 @@ export function createProviderFetch(
     model.providerNpm === "@ai-sdk/google-vertex" ||
     model.providerNpm === "@ai-sdk/google-vertex/anthropic";
   let fallbackSession: string | undefined;
-  let token: ProviderToken | undefined;
-  let pendingToken: Promise<ProviderToken> | undefined;
-  let vertexAuth: Promise<(signal?: AbortSignal) => Promise<string>> | undefined;
 
   async function managedToken(): Promise<ProviderToken> {
     if (!apiKey)
@@ -198,8 +217,16 @@ export function createProviderFetch(
     if (catalogId === "github-copilot" && !/^(?:gh[opusr]_|github_pat_)/.test(apiKey)) {
       return { value: apiKey, expiresAt: Infinity };
     }
-    if (token && token.expiresAt > Date.now() + 60_000) return token;
-    pendingToken ??= (() => {
+    const key = sharedTokenKey(model);
+    const entry = sharedTokens.get(key) ?? { apiKey };
+    if (entry.apiKey !== apiKey) {
+      entry.apiKey = apiKey;
+      entry.token = undefined;
+      entry.pending = undefined;
+    }
+    sharedTokens.set(key, entry);
+    if (entry.token && entry.token.expiresAt > Date.now() + 60_000) return entry.token;
+    entry.pending ??= (() => {
       const controller = new AbortController();
       let timer: number | undefined;
       const timeout = new Promise<never>((_, reject) => {
@@ -213,37 +240,41 @@ export function createProviderFetch(
         timeout,
       ]).finally(() => {
         window.clearTimeout(timer);
-        pendingToken = undefined;
+        entry.pending = undefined;
       });
     })();
-    token = await pendingToken;
-    return token;
+    entry.token = await entry.pending;
+    return entry.token;
   }
 
   async function vertexToken(signal?: AbortSignal): Promise<string> {
     if (!apiKey)
       throw new ProviderRequestError(t("Provider credentials are missing."), { kind: "auth" });
-    vertexAuth ??= (async () => {
-      const { createVertexAccessToken, parseVertexCredentials } =
-        await import("./nativeSdk/createVertexAccessToken");
-      const credentials = parseVertexCredentials(apiKey);
-      if (typeof credentials === "string") return async () => credentials;
-      if (
-        !isRecord(credentials) ||
-        credentials.type !== "service_account" ||
-        typeof credentials.client_email !== "string" ||
-        typeof credentials.private_key !== "string"
-      ) {
-        throw new Error(t("A Google service account JSON or access token is required."));
-      }
-      return createVertexAccessToken(
-        credentials.client_email,
-        credentials.private_key,
-        createProviderFetch(model, redactionValues),
-        typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
-      );
-    })();
-    const accessToken = await (await vertexAuth)(signal);
+    const { createVertexAccessToken, parseVertexCredentials } =
+      await import("./nativeSdk/createVertexAccessToken");
+    const credentials = parseVertexCredentials(apiKey);
+    if (typeof credentials === "string") return credentials;
+    if (
+      !isRecord(credentials) ||
+      credentials.type !== "service_account" ||
+      typeof credentials.client_email !== "string" ||
+      typeof credentials.private_key !== "string"
+    ) {
+      throw new Error(t("A Google service account JSON or access token is required."));
+    }
+    const identity = `${credentials.client_email}|${
+      typeof credentials.private_key_id === "string" ? credentials.private_key_id : ""
+    }`;
+    const entry = vertexResolvers.get(identity);
+    const shared = entry && entry.apiKey === apiKey ? entry : { apiKey };
+    shared.resolver ??= createVertexAccessToken(
+      credentials.client_email,
+      credentials.private_key,
+      createProviderFetch(model, redactionValues),
+      typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
+    );
+    vertexResolvers.set(identity, shared);
+    const accessToken = await (await shared.resolver)(signal);
     if (!accessToken)
       throw new ProviderRequestError(t("Google did not return an access token."), { kind: "auth" });
     return accessToken;

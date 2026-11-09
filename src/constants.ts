@@ -58,6 +58,11 @@ export enum ReasoningEffort {
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 20_000;
 
+// 供应商调用的统一等待期限：发出请求后等待响应的期限，以及流式过程中相邻事件间的空闲期限。
+// https://github.com/ItsDalk-Lane/Scribe/issues/59
+export const DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS = 600_000;
+export const DEFAULT_PROVIDER_STREAM_IDLE_TIMEOUT_MS = 300_000;
+
 export enum ChatModelProviders {
   OPENROUTERAI = "openrouterai",
   OPENAI = "openai",

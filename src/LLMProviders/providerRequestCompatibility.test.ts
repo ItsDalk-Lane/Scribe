@@ -1,4 +1,6 @@
 import { Platform } from "obsidian";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
+import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
 import { randomBytes } from "node:crypto";
 import * as obsidian from "obsidian";
 import type { CustomModel } from "@/aiParams";
@@ -114,6 +116,8 @@ function responseBody(url: string): string {
 
 describe("createProviderChatModel", () => {
   beforeEach(() => {
+    clearProviderTokenCaches();
+    clearProviderResolverCaches();
     Platform.isMobile = true;
   });
   afterEach(() => {

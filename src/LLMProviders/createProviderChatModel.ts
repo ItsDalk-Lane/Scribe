@@ -1,6 +1,12 @@
 import type { Api, Model, StreamOptions } from "@earendil-works/pi-ai";
 import type { CustomModel } from "@/aiParams";
-import { ChatModelProviders, ProviderInfo, ReasoningEffort } from "@/constants";
+import {
+  ChatModelProviders,
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  ModelCapability,
+  ProviderInfo,
+  ReasoningEffort,
+} from "@/constants";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
 import { createPiChatModel, type ProviderChatModel } from "@/LLMProviders/piChatModel";
 import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
@@ -103,7 +109,11 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
     api,
     provider: model.providerCatalogId || (openRouter ? "openrouter" : model.provider),
     baseUrl: model.baseUrl || "",
-    input: ["text", "image"],
+    // 能力未知的来源（手填、无目录元数据）保持宽松；已声明无视觉能力的模型必须如实声明，让下层降级历史图片。https://github.com/ItsDalk-Lane/Scribe/issues/56
+    input:
+      model.capabilities === undefined || model.capabilities.includes(ModelCapability.VISION)
+        ? ["text", "image"]
+        : ["text"],
     reasoning: thinking.reasoning,
     thinkingLevelMap: thinking.thinkingLevelMap,
     contextWindow: model.numCtx ?? 0,
@@ -127,6 +137,8 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
   const defaults: StreamOptions = {
     maxRetries: 3,
     cacheRetention: "none",
+    // SDK 的默认请求超时在此显式固化；SDK 的计时只保护到响应头，流空闲期限由统一调用层补足。https://github.com/ItsDalk-Lane/Scribe/issues/59
+    timeoutMs: DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
     ...((api === "openai-responses" || npm === "gitlab-ai-provider") && model.reasoningEffort
       ? { reasoningEffort: model.reasoningEffort }
       : {}),

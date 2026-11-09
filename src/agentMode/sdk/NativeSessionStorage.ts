@@ -491,12 +491,17 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
     options: JournalAppendOptions = {}
   ): Promise<JournalRecord> {
     const captured: unknown = JSON.parse(JSON.stringify(payload, serializable));
-    return this.enqueue(sessionId, async () => {
+    const written = this.enqueue(sessionId, async () => {
       const blocked = this.subagentWriteErrors.get(sessionId);
       if (blocked) throw blocked;
-      const written = await this.appendEncoded(sessionId, kind, captured, options);
-      return { ...written, payload: captured };
+      const stored = await this.appendEncoded(sessionId, kind, captured, options);
+      return { ...stored, payload: captured };
     });
+    if (!options.durable) return written;
+    const record = await written;
+    // 确认在存储队列外等待，同一聊天的后续事实不被一次 fsync 拖住。https://github.com/ItsDalk-Lane/Scribe/issues/55
+    await this.journal.flush(sessionId);
+    return record;
   }
 
   async flush(sessionId: string): Promise<void> {
@@ -527,7 +532,7 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
             record.sessionId,
             "session_created",
             { ...header, updatedAt: record.updatedAt, decisions: record.decisions },
-            { durable: true }
+            {}
           );
           for (const message of record.messages)
             await this.appendEncoded(record.sessionId, "protocol_message", { message }, {});
@@ -543,7 +548,7 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
           record.sessionId,
           "session_config",
           { ...header, updatedAt: record.updatedAt },
-          { durable: true }
+          {}
         );
       this.configurations.set(record.sessionId, encoded);
     });
@@ -753,7 +758,11 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
     payload: unknown,
     options: JournalAppendOptions
   ): Promise<JournalRecord> {
-    return this.journal.append(sessionId, kind, await this.dehydrate(payload), options);
+    // 落盘确认统一由调用点在写队列外用 journal.flush 执行，写入本身不等待。https://github.com/ItsDalk-Lane/Scribe/issues/55
+    return this.journal.append(sessionId, kind, await this.dehydrate(payload), {
+      ...options,
+      durable: false,
+    });
   }
 
   private async dehydrate(value: unknown): Promise<unknown> {

@@ -46,13 +46,24 @@ describe("providerRequestFailure", () => {
       [{ status: 400, payload: { error: { code: "context_length_exceeded" } } }, "context"],
       [{ status: 400 }, "request"],
       [{ status: 503 }, "transient"],
-      [{ cause: new DOMException("Stopped", "AbortError") }, "cancelled"],
+      [{ cause: new DOMException("Stopped", "AbortError"), callerAborted: true }, "cancelled"],
+      [{ cause: new DOMException("Stopped", "AbortError") }, "transient"],
     ])(
       `classifies structured failures without inspecting natural-language messages (${issue}): %j`,
       (input, kind) => {
         expect(classifyProviderFailure(input)).toMatchObject({ kind });
       }
     );
+
+    it(`stops treating an abort exception as a user cancellation unless the caller aborted (https://github.com/ItsDalk-Lane/Scribe/issues/58)`, () => {
+      const abort = new DOMException("Aborted", "AbortError");
+      expect(classifyProviderFailure({ cause: abort, callerAborted: true })).toMatchObject({
+        kind: "cancelled",
+      });
+      expect(classifyProviderFailure({ cause: abort, callerAborted: false })).toMatchObject({
+        kind: "transient",
+      });
+    });
 
     it(`gives deterministic structured failures priority over retry headers and HTTP status (${issue})`, () => {
       expect(

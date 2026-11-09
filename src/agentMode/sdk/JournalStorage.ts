@@ -22,6 +22,16 @@ export interface JournalReadResult {
 export interface JournalAppendOptions {
   durable?: boolean;
   origin?: JournalOrigin;
+  // 观察性事实写失败只丢弃这一条，不冻结整个日志。https://github.com/ItsDalk-Lane/Scribe/issues/55
+  discardOnFailure?: boolean;
+}
+
+// 确认落盘超过时限：结果未知，本次操作应停止，但日志本身不因此冻结。https://github.com/ItsDalk-Lane/Scribe/issues/55
+export class JournalConfirmationTimeout extends Error {
+  constructor(readonly limitMs: number) {
+    super(`Journal confirmation did not finish within ${limitMs} ms.`);
+    this.name = "JournalConfirmationTimeout";
+  }
 }
 
 interface JournalState {
@@ -104,7 +114,10 @@ export class NodeJournalStorage {
   private readonly queues = new Map<string, Promise<unknown>>();
   private readonly states = new Map<string, JournalState>();
 
-  constructor(directory: string) {
+  constructor(
+    directory: string,
+    private readonly confirmLimitMs = 30_000
+  ) {
     const path = requireNodeModule<typeof import("node:path")>("path");
     if (!path.isAbsolute(directory)) throw new Error("The journal directory must be absolute.");
     this.directory = path.resolve(directory);
@@ -121,7 +134,7 @@ export class NodeJournalStorage {
     const encodedPayload = JSON.stringify(payload, jsonValue);
     if (encodedPayload === undefined) throw new Error("A journal payload must be JSON data.");
     const captured: unknown = JSON.parse(encodedPayload);
-    return this.enqueue(sessionId, async () => {
+    const written = this.enqueue(sessionId, async () => {
       const state = await this.state(sessionId);
       this.assertWritable(state);
       const record: JournalRecord = {
@@ -158,7 +171,6 @@ export class NodeJournalStorage {
               if (!bytesWritten) throw new Error("The journal write made no progress.");
               offset += bytesWritten;
             }
-            if (options.durable) await handle.sync();
           } finally {
             await handle.close();
           }
@@ -168,9 +180,21 @@ export class NodeJournalStorage {
         state.totalBytes = state.completeBytes;
         return record;
       } catch (error) {
-        state.failure = error instanceof Error ? error : new Error(String(error));
-        throw state.failure;
+        const failure = error instanceof Error ? error : new Error(String(error));
+        // 残留字节不会被当作记录：下次追加前先截回这里记下的完整位置，序号也不前进。https://github.com/ItsDalk-Lane/Scribe/issues/55
+        if (options.discardOnFailure && state.exists) {
+          state.totalBytes = state.completeBytes + bytes.byteLength;
+          throw failure;
+        }
+        state.failure = failure;
+        throw failure;
       }
+    });
+    // 确认落盘在写队列外等待：后续事实的写入不必排在一次 fsync 后面。https://github.com/ItsDalk-Lane/Scribe/issues/55
+    if (!options.durable) return written;
+    return written.then(async (record) => {
+      await this.confirmWrites(sessionId, destination);
+      return record;
     });
   }
 
@@ -311,23 +335,59 @@ export class NodeJournalStorage {
 
   async flush(sessionId: string): Promise<void> {
     const destination = this.path(sessionId);
-    return this.enqueue(sessionId, async () => {
+    // 排空只等排进来的写入；确认同步在队列外执行，不拖住后面的写入。https://github.com/ItsDalk-Lane/Scribe/issues/55
+    const exists = await this.enqueue(sessionId, async () => {
       const state = await this.state(sessionId);
       this.assertWritable(state);
-      if (!state.exists) return;
-      const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
-      try {
-        const handle = await fs.open(destination, "r+");
+      return state.exists;
+    });
+    if (!exists) return;
+    await this.confirmWrites(sessionId, destination);
+  }
+
+  private async confirmWrites(sessionId: string, destination: string): Promise<void> {
+    const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+    const outcome = fs
+      .open(destination, "r+")
+      .then(async (handle) => {
         try {
           await handle.sync();
         } finally {
           await handle.close();
         }
-      } catch (error) {
-        state.failure = error instanceof Error ? error : new Error(String(error));
-        throw state.failure;
-      }
+      })
+      .then(
+        () => ({ ok: true as const }),
+        (error: unknown) => ({ ok: false as const, error: error as Error })
+      );
+    // 超时后才浮出的同步失败仍然冻结：磁盘恢复前不能继续追加。https://github.com/ItsDalk-Lane/Scribe/issues/55
+    void outcome.then((result) => {
+      if (!result.ok)
+        void this.state(sessionId)
+          .then((state) => {
+            state.failure ??= result.error;
+          })
+          .catch(() => {});
     });
+    let timer: number | undefined;
+    try {
+      const result = await Promise.race([
+        outcome,
+        new Promise<never>((_, reject) => {
+          timer = window.setTimeout(
+            () => reject(new JournalConfirmationTimeout(this.confirmLimitMs)),
+            this.confirmLimitMs
+          );
+        }),
+      ]);
+      if (!result.ok) {
+        const state = await this.state(sessionId);
+        state.failure ??= result.error;
+        throw result.error;
+      }
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
 
   private async state(sessionId: string): Promise<JournalState> {

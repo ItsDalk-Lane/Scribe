@@ -1,5 +1,9 @@
 import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
-import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
+import {
+  clearProviderResolverCaches,
+  createHttpProviderChatModel,
+} from "@/LLMProviders/createHttpProviderChatModel";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
 import { collectText, collectReply, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import type { CustomModel } from "@/aiParams";
 import * as obsidianModule from "obsidian";
@@ -27,6 +31,8 @@ jest.mock("@/utils/desktopStreamingFetch", () => ({
 }));
 
 beforeEach(() => {
+  clearProviderResolverCaches();
+  clearProviderTokenCaches();
   jest.mocked(isDesktopRuntime).mockReturnValue(false);
 });
 
@@ -223,7 +229,7 @@ describe("createHttpProviderChatModel", () => {
       }
     });
 
-    it("uses mobile WebCrypto authorization through provider transport and ignores a credential token_uri", async () => {
+    it("uses mobile WebCrypto authorization through provider transport and ignores a credential token_uri, sharing the resolver across calls (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
       const pair = generateKeyPairSync("rsa", { modulusLength: 2048 });
       const privateKey = pair.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
       const originalSubtle = Object.getOwnPropertyDescriptor(window.crypto, "subtle");
@@ -271,7 +277,7 @@ describe("createHttpProviderChatModel", () => {
         expect(await collectText(client, "Second mobile question")).toBe("Mobile Vertex reply");
         expect(
           requests.filter((request) => request.url === "https://oauth2.googleapis.com/token")
-        ).toHaveLength(2);
+        ).toHaveLength(1);
         expect(requests.some((request) => request.url.includes("untrusted.invalid"))).toBe(false);
         expect(
           requests.filter((request) => request.url.includes(":streamGenerateContent"))
@@ -557,7 +563,7 @@ describe("createHttpProviderChatModel", () => {
         )
       ).rejects.toThrow(/JSON object|requires clientid|requires serviceurls/);
     });
-    it("uses public GitLab direct access with a browser-safe Anthropic child and request-scoped tokens", async () => {
+    it("uses public GitLab direct access with a browser-safe Anthropic child and shares the connection token across requests (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
       const requests: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
       setRequestUrlImpl(async (request: (typeof requests)[number]) => {
         requests.push(request);
@@ -591,7 +597,7 @@ describe("createHttpProviderChatModel", () => {
       );
       expect(await collectText(client, "Original GitLab input")).toBe("GitLab fixture reply");
       expect(await collectText(client, "Second input")).toBe("GitLab fixture reply");
-      expect(requests.filter((request) => request.url.endsWith("direct_access"))).toHaveLength(2);
+      expect(requests.filter((request) => request.url.endsWith("direct_access"))).toHaveLength(1);
       const inference = requests.filter((request) => !request.url.endsWith("direct_access"));
       expect(inference).toHaveLength(2);
       expect(inference[0].url).toBe("https://cloud.gitlab.com/ai/v1/proxy/anthropic/v1/messages");

@@ -81,9 +81,10 @@ export function configuredModelToCustomModel(params: {
       : connection.npm === "@ai-sdk/google"
         ? ChatModelProviders.GOOGLE
         : mapProviderTypeToChatModelProvider(provider);
+  // 产品默认只是预算偏好，不能覆盖目录声明的模型能力上限。https://github.com/ItsDalk-Lane/Scribe/issues/56
   const maxTokens =
     chatProvider === ChatModelProviders.ANTHROPIC && info.limits?.output
-      ? DEFAULT_MAX_OUTPUT_TOKENS
+      ? Math.min(info.limits.output, DEFAULT_MAX_OUTPUT_TOKENS)
       : undefined;
 
   const capabilities: ModelCapability[] = [];

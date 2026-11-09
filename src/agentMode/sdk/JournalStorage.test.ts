@@ -1,12 +1,14 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 const nodeFs = jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");
 import {
   createDurableFile,
   getNodeJournalStorage,
+  JournalConfirmationTimeout,
   NodeJournalStorage,
 } from "@/agentMode/sdk/JournalStorage";
+import { stallConfirmations } from "@/agentMode/sdk/testing/diskConfirmation";
 
 const SESSION = "native-8c4529e7-6551-4f39-81b3-dbf5f8e716dd";
 const OTHER = "native-41d51594-f0e0-46b7-b770-a283c9f6405f";
@@ -146,6 +148,77 @@ describe("JournalStorage", () => {
         expect((await storage.read(SESSION)).records).toHaveLength(1);
       });
 
+      it("drops a failed usage fact without freezing, cuts its partial bytes, and reuses its sequence (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        await storage.append(SESSION, "message", { text: "保留" });
+        const originalOpen = nodeFs.open;
+        const spy = jest
+          .spyOn(nodeFs, "open")
+          .mockImplementation(async (...args: Parameters<typeof nodeFs.open>) => {
+            const handle = await originalOpen(...args);
+            if (args[0] === file()) {
+              const writeBytes = handle.write.bind(handle) as (
+                buffer: Uint8Array,
+                offset: number,
+                length: number,
+                position: number | null
+              ) => Promise<{ bytesWritten: number }>;
+              const tornWrite = async (
+                buffer: Uint8Array,
+                offset: number,
+                length: number,
+                position: number | null
+              ) => {
+                await writeBytes(buffer, offset, Math.floor(length / 2), position);
+                throw new Error("Disk write failed");
+              };
+              jest
+                .spyOn(handle, "write")
+                .mockImplementationOnce(tornWrite as unknown as typeof handle.write);
+            }
+            return handle;
+          });
+        await expect(
+          storage.append(SESSION, "usage", { totalTokens: 3 }, { discardOnFailure: true })
+        ).rejects.toThrow("Disk write failed");
+        spy.mockRestore();
+        const next = await storage.append(SESSION, "message", { text: "继续" }, { durable: true });
+        const restored = await storage.read(SESSION);
+        expect(next.seq).toBe(1);
+        expect(restored.writable).toBe(true);
+        expect(restored.warnings).toEqual([]);
+        expect(restored.records.map((record) => [record.seq, record.payload])).toEqual([
+          [0, { text: "保留" }],
+          [1, { text: "继续" }],
+        ]);
+      });
+
+      it("keeps later records writable while a durable record waits for disk confirmation (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        await storage.append(SESSION, "message", { text: "保留" });
+        const stall = stallConfirmations(file());
+        const durable = storage.append(SESSION, "message", { text: "确认" }, { durable: true });
+        const later = await storage.append(SESSION, "message", { text: "后续" });
+        expect(later.seq).toBe(2);
+        stall.release();
+        expect((await durable).seq).toBe(1);
+      });
+
+      it("drops a usage fact that the operating system refuses to write and keeps the journal writable (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        await storage.append(SESSION, "message", { text: "保留" });
+        await chmod(file(), 0o444);
+        await expect(
+          storage.append(SESSION, "usage", { totalTokens: 3 }, { discardOnFailure: true })
+        ).rejects.toThrow();
+        await chmod(file(), 0o644);
+        const next = await storage.append(SESSION, "message", { text: "继续" }, { durable: true });
+        const restored = await storage.read(SESSION);
+        expect(next.seq).toBe(1);
+        expect(restored.warnings).toEqual([]);
+        expect(restored.records.map((record) => [record.seq, record.payload])).toEqual([
+          [0, { text: "保留" }],
+          [1, { text: "继续" }],
+        ]);
+      });
+
       it("does not expose a final session file when initial persistence fails", async () => {
         const originalOpen = nodeFs.open;
         jest
@@ -228,6 +301,15 @@ describe("JournalStorage", () => {
         expect((await new NodeJournalStorage(directory).read(SESSION)).records).toEqual([
           await pending,
         ]);
+      });
+
+      it("reports a confirmation that runs past its limit without freezing later writes (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        const quick = new NodeJournalStorage(directory, 20);
+        await quick.append(SESSION, "message", { text: "保留" });
+        const stall = stallConfirmations(file());
+        await expect(quick.flush(SESSION)).rejects.toBeInstanceOf(JournalConfirmationTimeout);
+        stall.release();
+        expect((await quick.append(SESSION, "message", { text: "之后" })).seq).toBe(1);
       });
 
       it("freezes later writes when synchronization fails", async () => {

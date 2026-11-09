@@ -21,6 +21,7 @@ export interface ProviderFailureInput {
   payload?: unknown;
   cause?: unknown;
   headers?: Headers;
+  callerAborted?: boolean;
 }
 
 export class ProviderRequestError extends Error {
@@ -92,7 +93,9 @@ export function classifyProviderFailure(input: ProviderFailureInput): ProviderRe
   if (input.cause instanceof MissingApiKeyError) return { kind: "auth" };
   if (input.cause instanceof TimeoutError) return { kind: "transient" };
   const cause = isRecord(input.cause) ? input.cause : undefined;
-  if (cause?.name === "AbortError") return { kind: "cancelled" };
+  // 取消以调用方状态为准：SDK 超时等内部中止同样产生中止异常，不能凭异常名称归为取消。https://github.com/ItsDalk-Lane/Scribe/issues/58
+  if (cause?.name === "AbortError")
+    return input.callerAborted ? { kind: "cancelled" } : { kind: "transient" };
   const envelope = isRecord(input.payload) ? input.payload : cause;
   const response = isRecord(envelope?.response) ? envelope.response : undefined;
   const payload = isRecord(envelope?.error)

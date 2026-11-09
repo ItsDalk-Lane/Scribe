@@ -6,14 +6,20 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
-import type { ProviderChatModel } from "@/LLMProviders/piChatModel";
+import type { AgentStreamOptions, ProviderChatModel } from "@/LLMProviders/piChatModel";
+import type { ModelCallMetrics } from "@/LLMProviders/modelUsageMetrics";
 import {
   NativeBackendProcess,
   type NativeSessionStorage,
   type NativeToolContext,
 } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
-import type { JournalAppendOptions, JournalRecord } from "@/agentMode/sdk/JournalStorage";
+import {
+  JournalConfirmationTimeout,
+  type JournalAppendOptions,
+  type JournalRecord,
+} from "@/agentMode/sdk/JournalStorage";
+import { t } from "@/lib/i18n";
 import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import { NodeJournalStorage } from "@/agentMode/sdk/JournalStorage";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
@@ -59,15 +65,46 @@ function reply(
   return stream;
 }
 
+function usageFact(): ModelCallMetrics {
+  return {
+    id: "usage-call",
+    requestIds: ["usage-request"],
+    status: "completed",
+    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+  };
+}
+
+function isUsageFact(kind: string, payload: unknown): boolean {
+  return (
+    kind === "event" &&
+    (payload as { update: { sessionUpdate: string } }).update.sessionUpdate === "model_call_metrics"
+  );
+}
+
+function isTurnEnded(entry: JournalRecord): boolean {
+  return (
+    entry.kind === "event" &&
+    (entry.payload as { update: { sessionUpdate: string } }).update.sessionUpdate === "turn_ended"
+  );
+}
+
+const CONFIRMATION_STOPPED =
+  "The chat save was not confirmed in time, so this step was stopped before it ran. Check the disk, then try again.";
+
+function reportUsageWithoutAwaiting(agentOptions: AgentStreamOptions): void {
+  void Promise.resolve(agentOptions.onCallMetrics?.(usageFact())).catch(() => {});
+}
+
 function fixture(
   options: {
-    request?: (context: Context) => ReturnType<typeof reply>;
+    request?: (context: Context, agentOptions: AgentStreamOptions) => ReturnType<typeof reply>;
     beforeAppend?: (
       kind: string,
       payload: unknown,
       options?: JournalAppendOptions
     ) => Promise<void>;
     afterAppend?: (record: JournalRecord) => void;
+    beforeFlush?: () => Promise<void> | void;
     createTools?: (context: NativeToolContext) => AgentTool[];
     storage?: NativeSessionStorage;
   } = {}
@@ -78,7 +115,9 @@ function fixture(
   const storage: NativeSessionStorage = {
     load: async () => null,
     list: async () => [],
-    save: async () => {},
+    save: async () => {
+      await pending;
+    },
     append: (_id, kind, payload, appendOptions) => {
       const operation = pending.then(async () => {
         await options.beforeAppend?.(kind, payload, appendOptions);
@@ -94,19 +133,24 @@ function fixture(
         options.afterAppend?.(entry);
         return entry;
       });
-      pending = operation.then(() => {});
-      void pending.catch(() => {});
+      pending = operation.then(
+        () => {},
+        () => {}
+      );
       return operation;
     },
-    flush: async () => pending,
+    flush: async () => {
+      await options.beforeFlush?.();
+      return pending;
+    },
   };
   const provider: ProviderChatModel = {
     model: MODEL,
     stream: () => reply("unused"),
-    agentStream: (context) => {
+    agentStream: (context, agentOptions = {}) => {
       const captured: Context = JSON.parse(JSON.stringify(context));
       requests.push(captured);
-      return options.request?.(captured) ?? reply("Done");
+      return options.request?.(captured, agentOptions) ?? reply("Done");
     },
   };
   const createModel = jest.fn(async () => provider);
@@ -429,7 +473,7 @@ describe("NativeBackendProcess.journal", () => {
         ).toBe(true);
       });
 
-      it("recompresses original history instead of the earlier summary", async () => {
+      it("recompresses from the verified summary plus the new history suffix instead of the full original record (https://github.com/ItsDalk-Lane/Scribe/issues/63)", async () => {
         const summaries: string[] = [];
         const f = fixture({
           request: (context) => {
@@ -445,9 +489,10 @@ describe("NativeBackendProcess.journal", () => {
         await f.send(id, "compact-one", "/compact");
         await f.send(id, "compact-two", "/compact");
         expect(summaries).toHaveLength(2);
-        expect(summaries[1]).toContain("ORIGINAL USER REQUEST");
-        expect(summaries[1]).toContain("ORIGINAL ANSWER TO KEEP");
-        expect(summaries[1]).not.toContain("DERIVED SUMMARY 1");
+        // 第二次压缩以「已验证摘要 + 新增区间」取料；记录仍覆盖原始全量坐标供投影命中。https://github.com/ItsDalk-Lane/Scribe/issues/63
+        expect(summaries[1]).toContain("DERIVED SUMMARY 1");
+        expect(summaries[1]).not.toContain("ORIGINAL USER REQUEST");
+        expect(summaries[1]).not.toContain("ORIGINAL ANSWER TO KEEP");
         expect(f.entries.filter((entry) => entry.kind === "compaction")).toHaveLength(2);
       });
 
@@ -475,6 +520,120 @@ describe("NativeBackendProcess.journal", () => {
         expect(changed).toBe(false);
         expect(f.requests).toHaveLength(1);
         expect(f.entries.some((entry) => entry.kind === "tool_result")).toBe(false);
+      });
+
+      it("keeps the reply and later prompts running when a usage fact cannot be saved https://github.com/ItsDalk-Lane/Scribe/issues/55", async () => {
+        let usageAttempts = 0;
+        const f = fixture({
+          request: (_context, agentOptions) => {
+            reportUsageWithoutAwaiting(agentOptions);
+            return reply("Answer");
+          },
+          beforeAppend: async (kind, payload) => {
+            if (!isUsageFact(kind, payload)) return;
+            usageAttempts++;
+            throw new Error("Disk unavailable");
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "first", "Hello");
+        await expect(f.send(id, "second", "Again")).resolves.toBeUndefined();
+        expect(usageAttempts).toBe(2);
+        expect(f.requests).toHaveLength(2);
+      });
+
+      it("stops a request whose disk confirmation runs out of time and sends it after a retry (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        let stalled = false;
+        const f = fixture({
+          beforeFlush: () => {
+            if (!stalled) return;
+            stalled = false;
+            throw new JournalConfirmationTimeout(30_000);
+          },
+        });
+        const id = await f.open();
+        stalled = true;
+        await f.send(id, "first", "Hello");
+        expect(f.requests).toHaveLength(0);
+        expect(
+          f.entries.some((entry) => JSON.stringify(entry.payload).includes(t(CONFIRMATION_STOPPED)))
+        ).toBe(true);
+        await expect(f.send(id, "second", "Again")).resolves.toBeUndefined();
+        expect(f.requests).toHaveLength(1);
+      });
+
+      it("stops a file change whose admission confirmation runs out of time and keeps the chat usable (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        let changed = false;
+        let stalled = false;
+        let calls = 0;
+        const f = fixture({
+          request: () =>
+            calls++ === 0
+              ? reply("", [{ id: "write", name: "write_note", arguments: {} }])
+              : reply("Done"),
+          beforeAppend: async (kind) => {
+            if (!stalled || kind !== "tool_admitted") return;
+            stalled = false;
+            throw new JournalConfirmationTimeout(30_000);
+          },
+          createTools: (context) => [
+            defineNativeTool("write_note", "Write", "Write fixture", obj({}), async (id) => {
+              await context.requestPermission({
+                sessionId: context.sessionId,
+                toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
+                options: [...NATIVE_PERMISSION_OPTIONS],
+              });
+              changed = true;
+              return { content: [{ type: "text", text: "Saved" }], details: undefined };
+            }),
+          ],
+        });
+        const id = await f.open();
+        stalled = true;
+        await f.send(id, "write", "Write a note");
+        expect(changed).toBe(false);
+        expect(
+          f.requests.some((context) =>
+            JSON.stringify(context.messages).includes(t(CONFIRMATION_STOPPED))
+          )
+        ).toBe(true);
+        await expect(f.send(id, "again", "Again")).resolves.toBeUndefined();
+        expect(f.requests).toHaveLength(3);
+      });
+
+      it("starts a disk confirmation after a finished turn without holding the turn open (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        let turnEnded = false;
+        let backgroundConfirmations = 0;
+        const f = fixture({
+          afterAppend: (entry) => {
+            if (isTurnEnded(entry)) turnEnded = true;
+          },
+          beforeFlush: () => {
+            if (!turnEnded) return;
+            backgroundConfirmations++;
+            return new Promise<void>(() => {});
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "first", "Hello");
+        expect(backgroundConfirmations).toBeGreaterThan(0);
+      });
+
+      it("saves usage facts without forcing a disk sync https://github.com/ItsDalk-Lane/Scribe/issues/55", async () => {
+        const usageSaves: Array<JournalAppendOptions | undefined> = [];
+        const f = fixture({
+          request: (_context, agentOptions) => {
+            reportUsageWithoutAwaiting(agentOptions);
+            return reply("Answer");
+          },
+          beforeAppend: async (kind, payload, appendOptions) => {
+            if (isUsageFact(kind, payload)) usageSaves.push(appendOptions);
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "first", "Hello");
+        expect(usageSaves).toHaveLength(1);
+        expect(usageSaves[0]?.durable).not.toBe(true);
       });
     });
 

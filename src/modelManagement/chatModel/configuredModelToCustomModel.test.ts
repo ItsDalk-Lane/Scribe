@@ -146,6 +146,22 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.maxTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
     });
 
+    it("keeps a published output ceiling below the product default instead of raising it https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ providerType: "anthropic" }),
+        configuredModel: configuredModel({
+          info: {
+            id: "claude-3-5-haiku",
+            displayName: "Claude 3.5 Haiku",
+            limits: { context: 200000, output: 8192 },
+          },
+        }),
+        apiKey: "sk-ant",
+      });
+
+      expect(custom.maxTokens).toBe(8192);
+    });
+
     it("sends no output limit to a provider that accepts a request without one", () => {
       const openAiCompatible = configuredModelToCustomModel({
         provider: provider({ origin: { kind: "byok", catalogProviderId: "openai" } }),

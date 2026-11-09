@@ -490,6 +490,58 @@ describe("NativeBackendProcess", () => {
         expect(text).toContain("[Output truncated]");
       });
 
+      it("fails a skill-inflated request with a context error instead of dispatching it past the window (https://github.com/ItsDalk-Lane/Scribe/issues/57)", async () => {
+        const dispatched: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            dispatched.push(context);
+            return response("Hello");
+          },
+          [],
+          { getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(20000) }) }
+        );
+        const id = await f.open();
+        // 约 7,700 token 的首条输入低于预算线，但注入技能后组装结果超过 10,000 token 的窗口。https://github.com/ItsDalk-Lane/Scribe/issues/57
+        await f.send(id, "oversized", `/big-skill Explain\n${"H".repeat(27000)}`);
+        expect(dispatched).toEqual([]);
+        expect(
+          f.events.some(
+            (event) =>
+              event.update.sessionUpdate === "turn_ended" &&
+              (event.update as { stopReason?: string }).stopReason === "context_limit"
+          )
+        ).toBe(true);
+      });
+
+      it("compacts the history with the injection reserved so an assembled skill request still fits (https://github.com/ItsDalk-Lane/Scribe/issues/57)", async () => {
+        const dispatched: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            dispatched.push(context);
+            const last = context.messages.at(-1);
+            const text =
+              typeof last?.content === "string"
+                ? last.content
+                : JSON.stringify(last?.content ?? "");
+            if (text.startsWith("Summarize this recorded Obsidian conversation"))
+              return response("Summary of earlier work");
+            return response("Reply");
+          },
+          [],
+          { getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(20000) }) }
+        );
+        const id = await f.open();
+        await f.send(id, "history-turn", "H".repeat(27000));
+        await f.send(id, "skill-turn", "/big-skill Explain");
+        const summarized = dispatched.filter((context) =>
+          JSON.stringify(context.messages).includes("Summarize this recorded Obsidian conversation")
+        );
+        expect(summarized.length).toBeGreaterThan(0);
+        const final = dispatched.at(-1);
+        expect(JSON.stringify(final?.messages)).toContain("The user explicitly selected skill");
+        expect(JSON.stringify(final?.messages)).toContain("Recorded conversation summary");
+      });
+
       it("delivers transferred skills with dependency readiness and their support directory to the child (https://github.com/ItsDalk-Lane/Scribe/issues/46)", async () => {
         const contexts: Context[] = [];
         const f = fixture(
@@ -2153,6 +2205,37 @@ describe("NativeBackendProcess", () => {
         await f.send(id, "after-compact", "Continue");
         expect(JSON.stringify(contexts[2].messages)).toContain("Saved summary of the actual notes");
       });
+
+      it("re-summarizes from the verified summary plus new history instead of the full original record (https://github.com/ItsDalk-Lane/Scribe/issues/63)", async () => {
+        const summaryRequests: string[] = [];
+        const contexts: Context[] = [];
+        let summaries = 0;
+        const f = fixture((_model, context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          const last = context.messages.at(-1);
+          const text = typeof last?.content === "string" ? last.content : "";
+          if (text.startsWith("Summarize this recorded Obsidian conversation")) {
+            summaries++;
+            summaryRequests.push(text);
+            return response(summaries === 1 ? "First verified summary" : "Second merged summary");
+          }
+          return response("Reply");
+        });
+        const id = await f.open();
+        await f.send(id, "ancient", "ancient note about the forgotten vault");
+        await f.send(id, "compact-1", "/compact");
+        await f.send(id, "recent", "recent decision about the new vault layout");
+        await f.send(id, "compact-2", "/compact");
+        expect(summaries).toBe(2);
+        expect(summaryRequests[0]).toContain("ancient note about the forgotten vault");
+        // 第二次压缩以「已验证摘要 + 新增区间」取料，不把早已摘要过的原始历史再发给模型。https://github.com/ItsDalk-Lane/Scribe/issues/63
+        expect(summaryRequests[1]).toContain("First verified summary");
+        expect(summaryRequests[1]).toContain("recent decision about the new vault layout");
+        expect(summaryRequests[1]).not.toContain("ancient note about the forgotten vault");
+        // 记录形状保持不变：投影仍能命中最新的合并摘要。https://github.com/ItsDalk-Lane/Scribe/issues/63
+        await f.send(id, "after-second-compact", "Continue");
+        expect(JSON.stringify(contexts.at(-1)?.messages)).toContain("Second merged summary");
+      });
       it("keeps the original context when the manual compaction summary ends truncated", async () => {
         const contexts: Context[] = [];
         let round = 0;
@@ -3469,6 +3552,86 @@ describe("NativeBackendProcess", () => {
         await expect(
           f.proc.setSessionModel({ sessionId: id, modelId: "unregistered" })
         ).rejects.toThrow("unavailable");
+      });
+
+      it("defers a mid-turn switch to the next turn instead of swapping the running provider (https://github.com/ItsDalk-Lane/Scribe/issues/60)", async () => {
+        const used: string[] = [];
+        let started!: () => void;
+        let release!: () => void;
+        const seen = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const hold = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const otherModel = { ...model, id: "other-model", name: "Other model" };
+        let busyFirstRequestDone = false;
+        const busyProvider: ProviderChatModel = {
+          model,
+          stream: () => response("Idle"),
+          agentStream: () => {
+            if (!busyFirstRequestDone) {
+              busyFirstRequestDone = true;
+              used.push(model.id);
+              started();
+              return response("", [{ id: "call-1", name: "probe", arguments: {} }]);
+            }
+            used.push(model.id);
+            return response("Reply from busy");
+          },
+        };
+        const nextProvider: ProviderChatModel = {
+          model: otherModel,
+          stream: () => response("Second"),
+          agentStream: () => {
+            used.push(otherModel.id);
+            return response("Second");
+          },
+        };
+        const f = fixture(() => response("Idle"), [], {
+          createModel: async (id: string) => byId[id],
+          getModels: () => [
+            {
+              baseModelId: model.id,
+              name: model.name,
+              provider: model.provider,
+              effortOptions: [],
+            },
+            {
+              baseModelId: otherModel.id,
+              name: otherModel.name,
+              provider: otherModel.provider,
+              effortOptions: [],
+            },
+          ],
+          createTools: () => ({
+            tools: [
+              {
+                name: "probe",
+                label: "Probe",
+                description: "Probe",
+                parameters: { type: "object", properties: {} },
+                execute: async () => {
+                  await hold;
+                  return { content: [{ type: "text", text: "tool done" }], details: undefined };
+                },
+              },
+            ] as AgentTool[],
+          }),
+        });
+        const byId: Record<string, ProviderChatModel> = {
+          [model.id]: busyProvider,
+          [otherModel.id]: nextProvider,
+        };
+        const id = await f.open();
+        const turn = f.send(id, "turn-1", "hi");
+        await seen;
+        await f.proc.setSessionModel({ sessionId: id, modelId: otherModel.id });
+        expect(f.records.get(id)?.modelId).toBe(otherModel.id);
+        release();
+        await turn;
+        await f.send(id, "turn-2", "again");
+        expect(used).toEqual([model.id, model.id, otherModel.id]);
       });
     });
 

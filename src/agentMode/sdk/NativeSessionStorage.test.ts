@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
 import { NodeJournalStorage } from "@/agentMode/sdk/JournalStorage";
 import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
+import { stallConfirmations } from "@/agentMode/sdk/testing/diskConfirmation";
 import type { NativeSessionRecord } from "@/agentMode/sdk/NativeBackendProcess";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import type { Api, Model } from "@earendil-works/pi-ai";
@@ -236,6 +237,22 @@ describe("NativeSessionStorage", () => {
         ).rejects.toThrow(/Attachment storage/);
         const loaded = await storage.load(SESSION_ID);
         expect(loaded?.subagents ?? []).toEqual([]);
+      });
+
+      it("keeps later facts of the same chat writable while a durable fact waits for disk confirmation (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        const sessionId = "native-8c4529e7-6551-4f39-81b3-dbf5f8e716dd";
+        await storage.append(sessionId, "message", { text: "保留" });
+        const stall = stallConfirmations(join(directory, "sessions", `${sessionId}.jsonl`));
+        const durable = storage.append(
+          sessionId,
+          "tool_admitted",
+          { text: "确认" },
+          { durable: true }
+        );
+        const later = await storage.append(sessionId, "event", { text: "后续" });
+        expect(later.seq).toBe(2);
+        stall.release();
+        expect((await durable).seq).toBe(1);
       });
 
       it("persists a newly accepted protocol message once with its fact sequence", async () => {

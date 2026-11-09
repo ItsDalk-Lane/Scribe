@@ -32,7 +32,8 @@ export interface HttpChatDelta {
 export function streamHttpCompletion(
   model: Model<Api>,
   options: StreamOptions | undefined,
-  read: () => AsyncIterable<HttpChatDelta>
+  read: () => AsyncIterable<HttpChatDelta>,
+  onSettled?: () => void
 ) {
   const events = createAssistantMessageEventStream();
   const output = createAssistantMessage(model);
@@ -139,6 +140,7 @@ export function streamHttpCompletion(
       events.push({ type: "error", reason: output.stopReason, error: output });
     } finally {
       events.end();
+      onSettled?.();
     }
   })();
   return events;

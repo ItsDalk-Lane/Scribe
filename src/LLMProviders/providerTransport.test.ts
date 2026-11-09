@@ -1,7 +1,7 @@
 import { loadDesktopStreamingFetch } from "@/utils/desktopStreamingFetch";
 import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import type { CustomModel } from "@/aiParams";
-import { createProviderFetch } from "@/LLMProviders/providerTransport";
+import { clearProviderTokenCaches, createProviderFetch } from "@/LLMProviders/providerTransport";
 import { getInterfaceLocale, setInterfaceLocale } from "@/lib/i18n";
 import { safeFetchNoThrow } from "@/utils";
 import { runInThisContext } from "node:vm";
@@ -69,6 +69,7 @@ const serviceAccount = JSON.stringify({
 describe("providerTransport", () => {
   describe("createProviderFetch()", () => {
     beforeEach(() => {
+      clearProviderTokenCaches();
       safeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
       nativeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
       window.fetch = jest.fn(() => {

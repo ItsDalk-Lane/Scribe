@@ -1,5 +1,11 @@
 import { Platform } from "obsidian";
-import { ChatModelProviders } from "@/constants";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
+import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
+import {
+  ChatModelProviders,
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  ModelCapability,
+} from "@/constants";
 import type { CustomModel } from "@/aiParams";
 import { createProviderChatModel } from "./createProviderChatModel";
 import { createHttpProviderChatModel } from "./createHttpProviderChatModel";
@@ -8,6 +14,7 @@ import * as obsidian from "obsidian";
 
 jest.mock("./createHttpProviderChatModel", () => ({
   createHttpProviderChatModel: jest.fn().mockResolvedValue({}),
+  clearProviderResolverCaches: jest.fn(),
 }));
 const nativeFactory = createHttpProviderChatModel as jest.MockedFunction<
   typeof createHttpProviderChatModel
@@ -76,6 +83,8 @@ function reply(request: Request): Record<string, unknown> {
 
 describe("createProviderChatModel", () => {
   beforeEach(() => {
+    clearProviderTokenCaches();
+    clearProviderResolverCaches();
     Platform.isMobile = true;
   });
   afterEach(() => {
@@ -116,6 +125,29 @@ describe("createProviderChatModel", () => {
       expect(known.model.contextWindow).toBe(8192);
       const unknown = await createProviderChatModel(wire({}));
       expect(unknown.model.contextWindow).toBe(0);
+    });
+    it("declares image input only when the configured capability includes vision or is unknown https://github.com/ItsDalk-Lane/Scribe/issues/56", async () => {
+      const vision = await createProviderChatModel(
+        wire({ capabilities: [ModelCapability.REASONING, ModelCapability.VISION] })
+      );
+      expect(vision.model.input).toEqual(["text", "image"]);
+      const textOnly = await createProviderChatModel(
+        wire({ capabilities: [ModelCapability.REASONING] })
+      );
+      expect(textOnly.model.input).toEqual(["text"]);
+      const unknown = await createProviderChatModel(wire({}));
+      expect(unknown.model.input).toEqual(["text", "image"]);
+    });
+    it("caps provider waits with the unified request deadline https://github.com/ItsDalk-Lane/Scribe/issues/59", async () => {
+      await createProviderChatModel(
+        wire({
+          providerNpm: "@ai-sdk/google",
+          baseUrl: "https://generativelanguage.googleapis.com",
+        })
+      );
+      expect(nativeFactory.mock.calls.at(-1)?.[2].timeoutMs).toBe(
+        DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS
+      );
     });
     it.each([
       ["responses", "/responses"],

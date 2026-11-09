@@ -63,6 +63,48 @@ function vertexBaseUrl(model: CustomModel, publisher: string): string {
   return publisher === "anthropic" ? `${prefix}/models` : prefix;
 }
 
+// 供应商解析器按稳定身份跨调用复用：每次调用重建会丢失其内部的令牌缓存与进行中合并。
+// 键不含明文密钥，条目保存换取时所用的凭据值做一致性比较；仅保存在内存。https://github.com/ItsDalk-Lane/Scribe/issues/61
+interface SharedResolverEntry<R> {
+  apiKey: string;
+  resolver?: Promise<R>;
+}
+
+function sharedResolver<R>(
+  cache: Map<string, SharedResolverEntry<R>>,
+  identity: string,
+  apiKey: string,
+  build: () => Promise<R>
+): Promise<R> {
+  const entry = cache.get(identity) ?? { apiKey };
+  if (entry.apiKey !== apiKey) {
+    entry.apiKey = apiKey;
+    entry.resolver = undefined;
+  }
+  entry.resolver ??= build();
+  cache.set(identity, entry);
+  return entry.resolver;
+}
+
+const vertexAccessResolvers = new Map<
+  string,
+  SharedResolverEntry<(signal?: AbortSignal) => Promise<string>>
+>();
+const gitlabResolvers = new Map<
+  string,
+  SharedResolverEntry<(signal?: AbortSignal) => Promise<{ token: string; headers: Headers }>>
+>();
+const sapResolvers = new Map<
+  string,
+  SharedResolverEntry<(signal?: AbortSignal) => Promise<unknown>>
+>();
+
+export function clearProviderResolverCaches(): void {
+  vertexAccessResolvers.clear();
+  gitlabResolvers.clear();
+  sapResolvers.clear();
+}
+
 export async function createHttpProviderChatModel(
   model: CustomModel,
   descriptor: Model<Api>,
@@ -191,11 +233,21 @@ async function resolveHttpProviderRequest(
           typeof credentials.private_key !== "string"
         )
           throw new Error(t("Google service-account JSON requires client_email and private_key."));
-        accessToken = createVertexAccessToken(
-          credentials.client_email,
-          credentials.private_key,
-          transport,
-          typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
+        accessToken = await sharedResolver(
+          vertexAccessResolvers,
+          `${credentials.client_email}|${
+            typeof credentials.private_key_id === "string" ? credentials.private_key_id : ""
+          }`,
+          secret,
+          async () =>
+            createVertexAccessToken(
+              credentials.client_email,
+              credentials.private_key,
+              transport,
+              typeof credentials.private_key_id === "string"
+                ? credentials.private_key_id
+                : undefined
+            )
         );
       }
       const token = await accessToken(options.signal);
@@ -227,10 +279,16 @@ async function resolveHttpProviderRequest(
       const mapping = gitlabModelMappings[model.name as keyof typeof gitlabModelMappings];
       if (!mapping || mapping.provider === "workflow")
         throw new Error(t("Unsupported GitLab chat model: {model}", { model: model.name }));
-      const getToken = createGitlabAccessToken(
+      const getToken = await sharedResolver(
+        gitlabResolvers,
         option(model, "GITLAB_INSTANCE_URL", model.baseUrl || "https://gitlab.com"),
         model.apiKey || "",
-        transport
+        () =>
+          createGitlabAccessToken(
+            option(model, "GITLAB_INSTANCE_URL", model.baseUrl || "https://gitlab.com"),
+            model.apiKey || "",
+            transport
+          )
       );
       const token = await getToken(options.signal);
       redactionValues.push(token.token);
@@ -267,21 +325,33 @@ async function resolveHttpProviderRequest(
         typeof serviceurls.AI_API_URL !== "string"
       )
         throw new Error(t("SAP service-key JSON requires serviceurls.AI_API_URL."));
-      const resolve = createSapLanguageModel(
-        model,
-        {
-          clientId: credentials.clientid,
-          clientSecret: credentials.clientsecret,
-          tokenUrl: credentials.url,
-          apiUrl: serviceurls.AI_API_URL,
-          resourceGroup: option(
-            model,
-            "AICORE_RESOURCE_GROUP",
-            option(model, "SAP_RESOURCE_GROUP", "default")
-          ),
-          deploymentId: option(model, "AICORE_DEPLOYMENT_ID", option(model, "SAP_DEPLOYMENT_ID")),
-        },
-        transport
+      const resolve = await sharedResolver(
+        sapResolvers,
+        `${credentials.url}|${credentials.clientid}`,
+        model.apiKey || "",
+        () =>
+          Promise.resolve(
+            createSapLanguageModel(
+              model,
+              {
+                clientId: credentials.clientid,
+                clientSecret: credentials.clientsecret,
+                tokenUrl: credentials.url,
+                apiUrl: serviceurls.AI_API_URL,
+                resourceGroup: option(
+                  model,
+                  "AICORE_RESOURCE_GROUP",
+                  option(model, "SAP_RESOURCE_GROUP", "default")
+                ),
+                deploymentId: option(
+                  model,
+                  "AICORE_DEPLOYMENT_ID",
+                  option(model, "SAP_DEPLOYMENT_ID")
+                ),
+              },
+              transport
+            )
+          )
       );
       return { stream: await resolve(options), options: defaults };
     }

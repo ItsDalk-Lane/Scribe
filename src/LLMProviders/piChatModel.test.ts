@@ -18,6 +18,13 @@ const model: Model<"openai-completions"> = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 };
 
+function completedResponse(): Response {
+  return new Response(
+    'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}\n\ndata: [DONE]\n\n',
+    { headers: { "content-type": "text/event-stream" } }
+  );
+}
+
 describe("piChatModel", () => {
   describe("createAssistantMessage", () => {
     it("creates independent pending messages with the selected model identity", () => {
@@ -116,6 +123,73 @@ describe("piChatModel", () => {
           .result();
         expect(fetch).not.toHaveBeenCalled();
         expect(observations.at(-1)).toMatchObject({ requestIds: [], status: "cancelled" });
+      });
+
+      it("completes the reply without waiting for a usage callback that never finishes saving https://github.com/ItsDalk-Lane/Scribe/issues/55", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: {
+            fetch: jest.fn(async () => completedResponse()),
+            apiKey: "fixture",
+            maxRetries: 0,
+          },
+        }));
+        const result = await chat
+          .agentStream({ messages: [] }, { onCallMetrics: () => new Promise<void>(() => {}) })
+          .result();
+        expect(result).toMatchObject({
+          stopReason: "stop",
+          content: [{ type: "text", text: "Done" }],
+        });
+      });
+
+      it("finishes cancellation while a usage callback is still saving https://github.com/ItsDalk-Lane/Scribe/issues/55", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const controller = new AbortController();
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: {
+            fetch: jest.fn(async () => completedResponse()),
+            apiKey: "fixture",
+            maxRetries: 0,
+          },
+        }));
+        const result = await chat
+          .agentStream(
+            { messages: [] },
+            {
+              signal: controller.signal,
+              onCallMetrics: (metrics) => {
+                if (metrics.status === "running") controller.abort();
+                return new Promise<void>(() => {});
+              },
+            }
+          )
+          .result();
+        expect(result.stopReason).toBe("aborted");
+      });
+
+      it("keeps a completed reply when its usage callback rejects https://github.com/ItsDalk-Lane/Scribe/issues/55", async () => {
+        const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+        const chat = createPiChatModel(model, async () => ({
+          stream,
+          options: {
+            fetch: jest.fn(async () => completedResponse()),
+            apiKey: "fixture",
+            maxRetries: 0,
+          },
+        }));
+        const result = await chat
+          .agentStream(
+            { messages: [] },
+            { onCallMetrics: () => Promise.reject(new Error("Disk unavailable")) }
+          )
+          .result();
+        expect(result).toMatchObject({
+          stopReason: "stop",
+          content: [{ type: "text", text: "Done" }],
+        });
       });
 
       it.each(["text_delta", "text_start", "toolcall_start"] as const)(
@@ -476,6 +550,68 @@ describe("piChatModel", () => {
           expect(await pending).toMatchObject({ stopReason: "error" });
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(onFailure).toHaveBeenCalledWith({ kind: "request" });
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it("ends a stream that stays silent past its idle deadline and reports it as transient (https://github.com/ItsDalk-Lane/Scribe/issues/59)", async () => {
+        jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+        try {
+          const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+          const fetch = jest.fn(
+            async () =>
+              new Response(
+                new ReadableStream<Uint8Array>({
+                  start() {}, // 响应头已返回，但正文持续静默。https://github.com/ItsDalk-Lane/Scribe/issues/59
+                }),
+                { headers: { "content-type": "text/event-stream" } }
+              )
+          );
+          const onFailure = jest.fn();
+          const chat = createPiChatModel(model, async () => ({
+            stream,
+            options: { fetch, apiKey: "fixture", maxRetries: 0 },
+          }));
+          const pending = chat
+            .agentStream({ messages: [] }, { onFailure, streamIdleTimeoutMs: 1000 })
+            .result();
+          await jest.advanceTimersByTimeAsync(1000);
+          expect(await pending).toMatchObject({ stopReason: "error" });
+          expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({ kind: "transient" }));
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it("retries an SDK timeout abort as a transient failure instead of reporting a cancellation (https://github.com/ItsDalk-Lane/Scribe/issues/58)", async () => {
+        jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+        try {
+          const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+          // SDK 的超时控制先中止底层请求产生中止异常，随后把结果解释为超时错误事件；调用方并未取消。https://github.com/ItsDalk-Lane/Scribe/issues/58
+          const fetch = jest
+            .fn()
+            .mockImplementationOnce(async () => {
+              throw new DOMException("The operation was aborted due to timeouts.", "AbortError");
+            })
+            .mockImplementationOnce(async () => {
+              const response = completedResponse();
+              return response;
+            });
+          const onFailure = jest.fn();
+          const chat = createPiChatModel(model, async () => ({
+            stream,
+            options: { fetch, apiKey: "fixture", maxRetries: 3 },
+          }));
+          const pending = chat.agentStream({ messages: [] }, { onFailure }).result();
+          await jest.runAllTimersAsync();
+          const result = await pending;
+          expect(result).toMatchObject({
+            stopReason: "stop",
+            content: [{ type: "text", text: "Done" }],
+          });
+          expect(fetch).toHaveBeenCalledTimes(2);
+          expect(onFailure).not.toHaveBeenCalled();
         } finally {
           jest.useRealTimers();
         }

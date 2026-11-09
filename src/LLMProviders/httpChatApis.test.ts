@@ -1,5 +1,6 @@
 import type { Model } from "@earendil-works/pi-ai";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
+import { abortSignalWithDeadline } from "@/utils/abortDeadline";
 import {
   postChatRequest,
   streamGoogle,
@@ -12,6 +13,7 @@ import { collectReply, collectText, sse } from "@/LLMProviders/testing/piFixture
 
 jest.mock("@/logger");
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
+const issue56 = "https://github.com/ItsDalk-Lane/Scribe/issues/56";
 const model: Model<"google-generative-ai"> = {
   id: "private/model",
   name: "Private model",
@@ -97,6 +99,43 @@ describe("httpChatApis", () => {
       await expect(postChatRequest(model, "/chat", {})).rejects.toThrow(
         "A provider transport is required."
       );
+    });
+
+    it("aborts a hung request through the caller's deadline signal (https://github.com/ItsDalk-Lane/Scribe/issues/59)", async () => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      try {
+        const fetch = jest.fn(
+          (_url: unknown, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener(
+                "abort",
+                () => {
+                  const reason: unknown = init.signal?.reason;
+                  reject(
+                    reason instanceof Error ? reason : new DOMException("Aborted", "AbortError")
+                  );
+                },
+                { once: true }
+              );
+            })
+        );
+        const deadline = abortSignalWithDeadline(undefined, 1000);
+        const pending = postChatRequest(
+          model,
+          "/chat",
+          {},
+          {
+            fetch,
+            signal: deadline.signal,
+          }
+        ).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(1000);
+        deadline.dispose();
+        expect(await pending).toBeInstanceOf(DOMException);
+        expect(fetch).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -201,6 +240,76 @@ describe("httpChatApis", () => {
         await expect(collectText(client)).rejects.toThrow(String(message));
       }
     );
+
+    it(`replaces history images with placeholder text for a text-only model (${issue56})`, async () => {
+      const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
+        async () =>
+          new Response(
+            sse([
+              { candidates: [{ content: { parts: [{ text: "Answer" }] }, finishReason: "STOP" }] },
+            ])
+          )
+      );
+      const client = createPiChatModel({ ...model, input: ["text"] }, async () => ({
+        stream: streamGoogle,
+        options: { fetch },
+      }));
+      await collectReply(client, {
+        systemPrompt: "System",
+        messages: [
+          {
+            role: "user",
+            timestamp: 0,
+            content: [
+              { type: "text", text: "Look" },
+              { type: "image", data: "AQID", mimeType: "image/png" },
+            ],
+          },
+        ],
+      });
+      expect(JSON.parse(fetch.mock.calls[0][1]?.body as string).contents).toEqual([
+        {
+          role: "user",
+          parts: [{ text: "Look" }, { text: "(image omitted: model does not support images)" }],
+        },
+      ]);
+    });
+
+    it("ends a hung call at the call-level deadline and keeps continuation requests on one signal (https://github.com/ItsDalk-Lane/Scribe/issues/59)", async () => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      try {
+        const fetch = jest.fn(
+          (_url: unknown, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener(
+                "abort",
+                () => {
+                  const reason: unknown = init.signal?.reason;
+                  reject(
+                    reason instanceof Error ? reason : new DOMException("Aborted", "AbortError")
+                  );
+                },
+                { once: true }
+              );
+            })
+        );
+        const onFailure = jest.fn();
+        const client = createPiChatModel(model, async () => ({
+          stream: streamGoogle,
+          options: { fetch, maxRetries: 0, timeoutMs: 1000 },
+        }));
+        const pending = collectText(client, "hi", { onFailure, maxRetries: 0 }).catch(
+          (error: unknown) => error
+        );
+        await jest.runAllTimersAsync();
+        const failure = await pending;
+        expect(failure).toBeInstanceOf(Error);
+        expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({ kind: "transient" }));
+        expect(fetch).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   describe("streamCohere", () => {
@@ -243,6 +352,46 @@ describe("httpChatApis", () => {
         ],
         stream: true,
         max_tokens: 128,
+      });
+    });
+
+    it(`replaces history images with placeholder text for a text-only model (${issue56})`, async () => {
+      const fetch = jest.fn<ReturnType<typeof window.fetch>, Parameters<typeof window.fetch>>(
+        async () =>
+          new Response(
+            sse([
+              { type: "content-delta", delta: { message: { content: { text: "Reply" } } } },
+              {
+                type: "message-end",
+                delta: {
+                  finish_reason: "COMPLETE",
+                  usage: { tokens: { input_tokens: 1, output_tokens: 1 } },
+                },
+              },
+            ])
+          )
+      );
+      const message = {
+        role: "user",
+        timestamp: 0,
+        content: [
+          { type: "text", text: "Look" },
+          { type: "image", data: "AQID", mimeType: "image/png" },
+        ],
+      } as const;
+      await collectReply(
+        createPiChatModel({ ...model, input: ["text"] }, async () => ({
+          stream: streamCohere,
+          options: { fetch },
+        })),
+        { systemPrompt: "System", messages: [message] }
+      );
+      expect(JSON.parse(fetch.mock.calls[0][1]?.body as string).messages[1]).toEqual({
+        role: "user",
+        content: [
+          { type: "text", text: "Look" },
+          { type: "text", text: "(image omitted: model does not support images)" },
+        ],
       });
     });
   });
@@ -304,6 +453,41 @@ describe("httpChatApis", () => {
       expect(JSON.parse(fetch.mock.calls[0][1]?.body as string).options).toEqual({
         repeat_penalty: 1.1,
       });
+    });
+    it(`keeps image data only for a vision-capable model and sends none for a text-only one (${issue56})`, async () => {
+      const fetch = jest.fn(
+        async (_url: unknown, init?: { body?: string }) =>
+          new Response(
+            [{ message: { content: "reply" }, done: true, done_reason: "stop" }]
+              .map((chunk) => JSON.stringify(chunk))
+              .join("\n"),
+            { headers: { "content-type": "application/x-ndjson" } }
+          )
+      );
+      const sentImages = async (input: Array<"text" | "image">) => {
+        await streamOllama(
+          { ...model, input },
+          normalizeContext({
+            messages: [
+              {
+                role: "user",
+                timestamp: 0,
+                content: [
+                  { type: "text", text: "Look" },
+                  { type: "image", data: "AQID", mimeType: "image/png" },
+                ],
+              },
+            ],
+          }),
+          { fetch }
+        ).result();
+        const body = JSON.parse(fetch.mock.calls.at(-1)![1]?.body as string) as {
+          messages: Array<{ images: string[] }>;
+        };
+        return body.messages[0].images;
+      };
+      expect(await sentImages(["text"])).toEqual([]);
+      expect(await sentImages(["text", "image"])).toEqual(["AQID"]);
     });
   });
 });

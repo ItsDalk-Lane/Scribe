@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { isSensitiveKey } from "@/services/settingsSecretTransforms";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
+import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
 import { CURRENT_SETTINGS_VERSION } from "@/settings/migrations/version";
 import { sanitizeSettings, type ScribeSettings } from "@/settings/model";
 
@@ -115,6 +117,9 @@ export async function persistSettings(
     suppressNextPersist = false;
     return;
   }
+  // 设置变化可能更换供应商地址或凭据：共享的短期令牌与解析器整体失效，下一轮按新凭据重新换取。https://github.com/ItsDalk-Lane/Scribe/issues/61
+  clearProviderTokenCaches();
+  clearProviderResolverCaches();
   const epoch = transactionEpoch;
   const job = writeQueue.then(async () => {
     if (epoch !== transactionEpoch) return;

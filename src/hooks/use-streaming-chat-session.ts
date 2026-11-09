@@ -89,7 +89,25 @@ export function useStreamingChatSession(
   const currentModelKeyRef = useRef<string | null>(null);
   const currentSystemPromptRef = useRef<string | null>(null);
 
-  const modelKey = useMemo(() => model?.configuredModelId ?? null, [model]);
+  // 缓存键覆盖实际连接身份：同一配置项下修改地址、模型名或凭据时旧链路不能被复用。https://github.com/ItsDalk-Lane/Scribe/issues/62
+  const modelKey = useMemo(() => {
+    if (!model) return null;
+    const options = Object.entries(model.providerOptions ?? {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${key}=${String(value)}`)
+      .join("&");
+    return JSON.stringify([
+      model.configuredModelId,
+      model.name,
+      model.baseUrl ?? null,
+      model.credentialRef ?? model.apiKey ?? null,
+      model.providerNpm ?? null,
+      model.providerCatalogId ?? null,
+      model.openAIOrgId ?? null,
+      model.apiShape ?? null,
+      options,
+    ]);
+  }, [model]);
 
   const setStreamingTextThrottled = useRafThrottledCallback((text: string) => {
     if (!isMountedRef.current) return;
