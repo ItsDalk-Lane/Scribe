@@ -24,7 +24,10 @@ import {
 import { RequestRedactor } from "@/LLMProviders/requestRedaction";
 import { logWarn } from "@/logger";
 import { TimeoutError } from "@/error";
-import { DEFAULT_PROVIDER_STREAM_IDLE_TIMEOUT_MS } from "@/constants";
+import {
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  DEFAULT_PROVIDER_STREAM_IDLE_TIMEOUT_MS,
+} from "@/constants";
 import { abortSignalWithDeadline } from "@/utils/abortDeadline";
 import { isRecord } from "@/utils/obsidianInternals";
 import { v4 as uuidv4 } from "uuid";
@@ -73,7 +76,6 @@ class PiStreamError extends ProviderRequestError {
     failure: ProviderRequestFailure
   ) {
     super(source.message, failure);
-    this.name = source.name;
   }
 }
 
@@ -167,6 +169,11 @@ export function createPiChatModel(
     try {
       if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
       let request: PiRequest;
+      // 鉴权准备也可能遇到不响应中止的网络等待，必须由调用层主动结束等待。https://github.com/ItsDalk-Lane/Scribe/issues/59
+      const preparation = abortSignalWithDeadline(
+        controller.signal,
+        options.timeoutMs ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS
+      );
       try {
         request = await raceWithAbortSignal(
           resolveRequest({
@@ -174,12 +181,14 @@ export function createPiChatModel(
             signal: controller.signal,
             onProviderDispatch: () => recordDispatch?.(),
           }),
-          controller.signal
+          preparation.signal
         );
       } catch (error) {
         const data = error as { status?: number; statusCode?: number } | null;
         failureStatus = data?.status ?? data?.statusCode;
         throw error;
+      } finally {
+        preparation.dispose();
       }
       setRetryBudget(options.maxRetries ?? request.options.maxRetries ?? 0);
       errorSecrets = request.redactionValues ?? [];
@@ -220,7 +229,7 @@ export function createPiChatModel(
           };
           const pending = transport(input, init);
           if (!request.observesDispatch) recordDispatch();
-          const response = await raceWithAbortSignal(pending, controller.signal);
+          const response = await raceWithAbortSignal(pending, init?.signal ?? controller.signal);
           failureStatus = response.ok ? undefined : response.status;
           transportError = undefined;
           return await observeProviderResponse(
@@ -326,7 +335,10 @@ export function createPiChatModel(
               ...(model.api === "anthropic-messages"
                 ? {
                     thinkingEnabled: true,
-                    effort: options.reasoning,
+                    // Anthropic 没有 minimal 线值；目录映射优先，再按 SDK 的低档语义发送 low。https://github.com/ItsDalk-Lane/Scribe/issues/56
+                    effort:
+                      model.thinkingLevelMap?.[options.reasoning] ??
+                      (options.reasoning === "minimal" ? "low" : options.reasoning),
                     thinkingBudgetTokens: Math.min(
                       thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
                       Math.max(
@@ -526,8 +538,6 @@ export function createPiChatModel(
           undefined
         )
       );
-      safe.name =
-        failure.kind === "cancelled" ? "AbortError" : error instanceof Error ? error.name : "Error";
       throw new PiStreamError(
         error instanceof PiStreamError ? error.assistantMessage : undefined,
         safe,
@@ -695,8 +705,10 @@ export function createPiChatModel(
             events.push(event);
           }
         } catch (error) {
+          // SDK 内部中止仍是失败，只有调用方取消或已确认的取消类别可以结束为取消。https://github.com/ItsDalk-Lane/Scribe/issues/58
           const reason =
-            options.signal?.aborted || (error instanceof Error && error.name === "AbortError")
+            options.signal?.aborted ||
+            classifyProviderFailure({ cause: error }).kind === "cancelled"
               ? "aborted"
               : "error";
           const message: AssistantMessage = {

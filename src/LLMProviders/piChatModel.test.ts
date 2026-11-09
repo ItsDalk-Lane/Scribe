@@ -617,6 +617,63 @@ describe("piChatModel", () => {
         }
       });
 
+      it("reports exhausted SDK abort failures as errors when the caller did not cancel https://github.com/ItsDalk-Lane/Scribe/issues/58", async () => {
+        jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+        try {
+          const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+          const fetch = jest.fn(async () => {
+            throw new DOMException("SDK request timed out", "AbortError");
+          });
+          const onFailure = jest.fn();
+          const chat = createPiChatModel(model, async () => ({
+            stream,
+            options: { fetch, apiKey: "fixture", maxRetries: 1 },
+          }));
+          const pending = chat.agentStream({ messages: [] }, { onFailure }).result();
+          await jest.runAllTimersAsync();
+          expect(await pending).toMatchObject({ stopReason: "error" });
+          expect(fetch).toHaveBeenCalledTimes(2);
+          expect(onFailure).toHaveBeenCalledWith({ kind: "transient" });
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it("ends a preparation that ignores cancellation at the configured deadline without dispatching late work https://github.com/ItsDalk-Lane/Scribe/issues/59", async () => {
+        jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+        let finishPreparation!: () => void;
+        try {
+          const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
+          const fetch = jest.fn(async () => completedResponse());
+          const preparation = new Promise<void>((resolve) => {
+            finishPreparation = resolve;
+          });
+          const resolve = jest.fn(async () => {
+            await preparation;
+            return { stream, options: { fetch, apiKey: "fixture", maxRetries: 0 } };
+          });
+          const onFailure = jest.fn();
+          let settled = false;
+          const pending = createPiChatModel(model, resolve)
+            .agentStream({ messages: [] }, { timeoutMs: 100, maxRetries: 0, onFailure })
+            .result()
+            .then((reply) => {
+              settled = true;
+              return reply;
+            });
+          await jest.advanceTimersByTimeAsync(100);
+          expect(settled).toBe(true);
+          expect(await pending).toMatchObject({ stopReason: "error" });
+          expect(onFailure).toHaveBeenCalledWith({ kind: "transient" });
+          finishPreparation();
+          await resolve.mock.results[0].value;
+          expect(fetch).not.toHaveBeenCalled();
+        } finally {
+          finishPreparation?.();
+          jest.useRealTimers();
+        }
+      });
+
       it("bounds transient retries and reports only the final failure (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         const { stream } = await import("@earendil-works/pi-ai/api/openai-completions");
         const fetch = jest.fn(
