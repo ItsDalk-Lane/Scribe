@@ -1,3 +1,4 @@
+import { ProviderRequestError } from "@/LLMProviders/providerRequestFailure";
 import { t } from "@/lib/i18n";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Notice } from "obsidian";
@@ -28,7 +29,7 @@ interface QuickAskSessionApi {
   hasModel: boolean;
   messages: QuickAskMessage[];
   isStreaming: boolean;
-  sendMessage: (inputText: string) => Promise<void>;
+  sendMessage: (inputText: string) => Promise<boolean>;
   stop: () => void;
   clear: () => void;
 }
@@ -66,13 +67,22 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
     },
     onNonAbortError: (error) => {
       logError("Error generating response:", error);
-      new Notice(t("Error generating response. Please try again."));
+      new Notice(
+        error instanceof ProviderRequestError && error.failure.kind === "context"
+          ? error.message
+          : t("Error generating response. Please try again.")
+      );
+    },
+    onTruncated: () => {
+      new Notice(
+        t("The answer reached the model's output limit and may be incomplete. Ask to continue.")
+      );
     },
   });
 
   const sendMessage = useCallback(
     async (input: string) => {
-      if (!input.trim()) return;
+      if (!input.trim()) return false;
       if (resolvedModel?.credentialRef)
         await SecretStore.getInstance(app).withSecret(
           resolvedModel.credentialRef,
@@ -106,7 +116,7 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
       });
 
       if (!isMountedRef.current) {
-        return;
+        return false;
       }
 
       if (result) {
@@ -126,6 +136,7 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
           return prev;
         });
       }
+      return !!result;
     },
     [app, includeNoteContext, runTurn, selectedText, resolvedModel]
   );

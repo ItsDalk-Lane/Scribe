@@ -1,3 +1,4 @@
+import { ProviderRequestError } from "@/LLMProviders/providerRequestFailure";
 import React from "react";
 import { Notice } from "obsidian";
 import type { MenuCommandModal } from "@/components/command-ui";
@@ -19,6 +20,8 @@ const mockModels = {
   quick: { name: "quick", configuredModelId: "quick" },
   picked: { name: "picked", configuredModelId: "picked" },
 };
+let mockTurnGate: Promise<void> | undefined;
+let mockTurnOutcome: "normal" | "context" | "length" = "normal";
 const mockTurns: { model: string; prompt: string }[] = [];
 const mockStop = jest.fn();
 const mockReset = jest.fn();
@@ -56,10 +59,16 @@ jest.mock("@/hooks/use-streaming-chat-session", () => ({
   useStreamingChatSession: ({
     model,
     onNoModel,
+    onNonAbortError,
+    onTruncated,
   }: {
     model: { name: string } | null;
     onNoModel: () => void;
+    onNonAbortError: (error: unknown) => void;
+    onTruncated: () => void;
   }) => {
+    const callbacksRef = React.useRef({ onNonAbortError, onTruncated });
+    callbacksRef.current = { onNonAbortError, onTruncated };
     const onNoModelRef = React.useRef(onNoModel);
     onNoModelRef.current = onNoModel;
     const runTurn = React.useCallback(
@@ -70,6 +79,16 @@ jest.mock("@/hooks/use-streaming-chat-session", () => ({
         }
         const prompt = await getPrompt({ signal: new AbortController().signal, isFirstTurn: true });
         mockTurns.push({ model: model.name, prompt });
+        if (mockTurnGate) await mockTurnGate;
+        if (mockTurnOutcome === "context") {
+          callbacksRef.current.onNonAbortError(
+            new ProviderRequestError("Shorten this question or choose a larger model.", {
+              kind: "context",
+            })
+          );
+          return null;
+        }
+        if (mockTurnOutcome === "length") callbacksRef.current.onTruncated();
         return `Answer from ${model.name}`;
       },
       [model]
@@ -91,6 +110,11 @@ jest.mock("@/components/command-ui", () => ({
       <div>
         {props.contentState.type === "result" ? props.contentState.text : props.contentState.type}
       </div>
+      <input
+        aria-label="Result"
+        value={props.editableContent ?? ""}
+        onChange={(event) => props.onEditableContentChange?.(event.target.value)}
+      />
       <button type="button" onClick={() => props.onSelectModel("picked")}>
         Choose model
       </button>
@@ -150,6 +174,8 @@ describe("CustomCommandChatModal", () => {
   describe("CustomCommandChatModalContent", () => {
     beforeEach(() => {
       mockTurns.length = 0;
+      mockTurnOutcome = "normal";
+      mockTurnGate = undefined;
       mockModels.explicit.credentialRef = undefined;
       mockWithSecret.mockReset().mockResolvedValue(undefined);
       jest.clearAllMocks();
@@ -174,6 +200,75 @@ describe("CustomCommandChatModal", () => {
         expect(processCommandPrompt).not.toHaveBeenCalled();
       }
     );
+
+    it("keeps a locally rejected instruction until the user edits and successfully retries https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      mockTurnOutcome = "context";
+      renderCommand("explicit", false);
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Long instruction" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await waitFor(() =>
+        expect(Notice).toHaveBeenCalledWith("Shorten this question or choose a larger model.")
+      );
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe("Long instruction");
+      mockTurnOutcome = "normal";
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Short instruction" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await screen.findByText("Answer from explicit");
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe("");
+    });
+
+    it("keeps newer instruction edits when an older accepted request finishes https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      let finish!: () => void;
+      mockTurnGate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      renderCommand("explicit", false);
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Original instruction" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await waitFor(() => expect(mockTurns).toHaveLength(1));
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "New instruction draft" },
+      });
+      finish();
+      await screen.findByText("Answer from explicit");
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe(
+        "New instruction draft"
+      );
+    });
+
+    it("retains the previous visible answer and manual edits when a follow-up is rejected locally https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      renderCommand("explicit");
+      await screen.findByText("Answer from explicit");
+      fireEvent.change(screen.getByLabelText("Result"), { target: { value: "My edited answer" } });
+      mockTurnOutcome = "context";
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Too much follow-up content" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await waitFor(() =>
+        expect(Notice).toHaveBeenCalledWith("Shorten this question or choose a larger model.")
+      );
+      expect(screen.getByText("Answer from explicit")).not.toBeNull();
+      expect(screen.getByLabelText<HTMLInputElement>("Result").value).toBe("My edited answer");
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe(
+        "Too much follow-up content"
+      );
+    });
+
+    it("shows the output-limit notice while retaining the generated partial result https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      mockTurnOutcome = "length";
+      renderCommand("explicit");
+      await screen.findByText("Answer from explicit");
+      expect(Notice).toHaveBeenCalledWith(
+        "The answer reached the model's output limit and may be incomplete. Ask to continue."
+      );
+    });
 
     it("runs the saved command with its explicit model", async () => {
       renderCommand("explicit");

@@ -166,4 +166,8 @@ export const runtimeTranslations: Record<string, string> = {
     "SAP 认证没有返回有效的访问令牌和有效期。",
   "SAP AI Core has no running orchestration deployment in this resource group.":
     "此资源组中没有正在运行的 SAP AI Core 编排部署。",
+  "This conversation and output budget exceed the selected model's capacity. Reduce the input or output limit, start a new quick conversation, or choose a model with a larger context window.":
+    "这段对话与预留输出超过了所选模型可处理的容量。请缩短输入或减小输出上限、新开快捷对话，或换用能处理更长内容的模型。",
+  "The answer reached the model's output limit and may be incomplete. Ask to continue.":
+    "回答已达到模型的输出上限，内容可能还不完整。你可以追问让它继续。",
 };

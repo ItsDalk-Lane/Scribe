@@ -99,8 +99,8 @@ export function QuickAskPanel({
     const text = inputText;
     submissionPending.current = true;
     try {
-      await sendMessage(text);
-      setInputText((current) => (current === text ? "" : current));
+      // 本地拒绝或没有可接受回答时保留问题，用户可缩短内容或换模型后直接重试。https://github.com/ItsDalk-Lane/Scribe/issues/64
+      if (await sendMessage(text)) setInputText((current) => (current === text ? "" : current));
     } catch (error) {
       if (!(error instanceof Error && error.name === "AbortError"))
         new Notice(

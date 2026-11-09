@@ -1,3 +1,4 @@
+import { ProviderRequestError } from "@/LLMProviders/providerRequestFailure";
 import { isCustomCommandEnabled } from "@/commands/state";
 import { useChatBackendModelOptions } from "@/hooks/useChatBackendModelOptions";
 import { t } from "@/lib/i18n";
@@ -168,8 +169,17 @@ export function CustomCommandChatModalContent({
     },
     onNonAbortError: (error) => {
       logError("Error generating response:", error);
-      new Notice(t("Error generating response. Please try again."));
+      new Notice(
+        error instanceof ProviderRequestError && error.failure.kind === "context"
+          ? error.message
+          : t("Error generating response. Please try again.")
+      );
       setIsLoading(false);
+    },
+    onTruncated: () => {
+      new Notice(
+        t("The answer reached the model's output limit and may be incomplete. Ask to continue.")
+      );
     },
   });
 
@@ -199,11 +209,11 @@ export function CustomCommandChatModalContent({
   const [firstInstruction, setFirstInstruction] = useState<string | null>(null);
 
   const runPrompt = useCallback(
-    async (getPrompt: (ctx: StreamingChatTurnContext) => Promise<string>) => {
+    async (getPrompt: (ctx: StreamingChatTurnContext) => Promise<string>): Promise<boolean> => {
       if (!isCustomCommandEnabled(command)) {
         setIsLoading(false);
         new Notice(t("This command is disabled."));
-        return;
+        return false;
       }
       setIsLoading(true);
       try {
@@ -212,8 +222,6 @@ export function CustomCommandChatModalContent({
             resolvedModel.credentialRef,
             async () => undefined
           );
-        setFinalText("");
-        setEditedText("");
         const result = await runTurn(async (ctx: StreamingChatTurnContext) => {
           if (ctx.signal.aborted) return "";
           const prompt = await getPrompt(ctx);
@@ -223,14 +231,17 @@ export function CustomCommandChatModalContent({
 
         if (isMountedRef.current && result) {
           setFinalText(result);
+          setEditedText(result);
           lastInputPromptRef.current = "";
         }
+        return !!result;
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") return;
+        if (error instanceof Error && error.name === "AbortError") return false;
         logError("Error running command prompt:", error);
         if (isMountedRef.current) {
           new Notice(t("Failed to send message. Please try again."));
         }
+        return false;
       } finally {
         if (isMountedRef.current) {
           setIsLoading(false);
@@ -279,13 +290,14 @@ export function CustomCommandChatModalContent({
     const inputValue = followUpValue;
 
     try {
-      await runPrompt(async (ctx) => {
-        setFollowUpValue((current) => (current === inputValue ? "" : current));
+      const accepted = await runPrompt(async (ctx) => {
         if (!ctx.isFirstTurn)
           return processCommandPrompt(app, inputValue, originalText, true, enableTemplating);
         setFirstInstruction(inputValue);
         return buildFirstPrompt(inputValue);
       });
+      // 超长请求在本地拒绝后不能清掉追问，保留原文让用户调整后再试。https://github.com/ItsDalk-Lane/Scribe/issues/64
+      if (accepted) setFollowUpValue((current) => (current === inputValue ? "" : current));
     } catch (error) {
       if (!(error instanceof Error && error.name === "AbortError"))
         new Notice(

@@ -25,6 +25,7 @@ export interface UseStreamingChatSessionParams {
   excludeThinking?: boolean;
   onNoModel?: () => void;
   onNonAbortError?: (error: unknown) => void;
+  onTruncated?: () => void;
 }
 
 export interface StreamingChatSessionApi {
@@ -64,7 +65,14 @@ function shouldSkipPersistOnAbort(signal: AbortSignal): boolean {
 export function useStreamingChatSession(
   params: UseStreamingChatSessionParams
 ): StreamingChatSessionApi {
-  const { model, systemPrompt, excludeThinking = true, onNoModel, onNonAbortError } = params;
+  const {
+    model,
+    systemPrompt,
+    excludeThinking = true,
+    onNoModel,
+    onNonAbortError,
+    onTruncated,
+  } = params;
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -79,35 +87,20 @@ export function useStreamingChatSession(
 
   const onNoModelRef = useRef(onNoModel);
   const onNonAbortErrorRef = useRef(onNonAbortError);
+  const onTruncatedRef = useRef(onTruncated);
   useEffect(() => {
     onNoModelRef.current = onNoModel;
     onNonAbortErrorRef.current = onNonAbortError;
-  }, [onNoModel, onNonAbortError]);
+    onTruncatedRef.current = onTruncated;
+  }, [onNoModel, onNonAbortError, onTruncated]);
 
   const memoryRef = useRef<ChatMemory | null>(null);
   const chainRef = useRef<ChatChain | null>(null);
   const currentModelKeyRef = useRef<string | null>(null);
   const currentSystemPromptRef = useRef<string | null>(null);
 
-  // 缓存键覆盖实际连接身份：同一配置项下修改地址、模型名或凭据时旧链路不能被复用。https://github.com/ItsDalk-Lane/Scribe/issues/62
-  const modelKey = useMemo(() => {
-    if (!model) return null;
-    const options = Object.entries(model.providerOptions ?? {})
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, value]) => `${key}=${String(value)}`)
-      .join("&");
-    return JSON.stringify([
-      model.configuredModelId,
-      model.name,
-      model.baseUrl ?? null,
-      model.credentialRef ?? model.apiKey ?? null,
-      model.providerNpm ?? null,
-      model.providerCatalogId ?? null,
-      model.openAIOrgId ?? null,
-      model.apiShape ?? null,
-      options,
-    ]);
-  }, [model]);
+  // 完整模型快照覆盖连接、能力和预算，任何请求配置变化都应让下一轮重建链路。https://github.com/ItsDalk-Lane/Scribe/issues/62
+  const modelKey = useMemo(() => (model ? JSON.stringify(model) : null), [model]);
 
   const setStreamingTextThrottled = useRafThrottledCallback((text: string) => {
     if (!isMountedRef.current) return;
@@ -242,6 +235,7 @@ export function useStreamingChatSession(
       let chain: ChatChain | null = null;
       let prompt = "";
       let committed: string | null = null;
+      let stopReason: "stop" | "length" = "stop";
 
       try {
         const isFirstTurn = !hasSavedContextOnceRef.current;
@@ -272,11 +266,13 @@ export function useStreamingChatSession(
             thinkStreamer.processChunk({
               content: [{ type: "thinking", thinking: event.delta }],
             });
+          // 达到输出上限仍要保留已生成内容，但不能把终态改写成自然完成。https://github.com/ItsDalk-Lane/Scribe/issues/64
+          if (event.type === "done" && event.message.stopReason === "length") stopReason = "length";
           if (abortController.signal.aborted) break;
         }
       } catch (error) {
-        const isAbort =
-          (error instanceof Error && error.name === "AbortError") || abortController.signal.aborted;
+        // 供应商内部中止不能冒充用户停止，否则失败提示和重试入口都会丢失。https://github.com/ItsDalk-Lane/Scribe/issues/58
+        const isAbort = abortController.signal.aborted;
 
         if (!isAbort) {
           didNonAbortError = true;
@@ -296,7 +292,8 @@ export function useStreamingChatSession(
               const compactedResult = compactAssistantOutput(result);
               chain.saveContext(
                 prompt,
-                typeof compactedResult === "string" ? compactedResult : result
+                typeof compactedResult === "string" ? compactedResult : result,
+                stopReason
               );
               hasSavedContextOnceRef.current = true;
             } catch (error) {
@@ -304,6 +301,14 @@ export function useStreamingChatSession(
             }
           }
         }
+
+        if (
+          !didNonAbortError &&
+          !isStale &&
+          !abortController.signal.aborted &&
+          stopReason === "length"
+        )
+          onTruncatedRef.current?.();
 
         if (!isStale) {
           streamingTextRef.current = "";

@@ -182,6 +182,102 @@ describe("use-streaming-chat-session", () => {
       expect(new URL(requested[1]).host).toBe("rotated.invalid");
     });
 
+    it("uses an updated output ceiling under one model identity and retains accepted history https://github.com/ItsDalk-Lane/Scribe/issues/62", async () => {
+      const payloads: Array<{ max_tokens: number; messages: unknown[] }> = [];
+      window.fetch = jest.fn(async (_url, init) => {
+        payloads.push(
+          JSON.parse(init?.body as string) as { max_tokens: number; messages: unknown[] }
+        );
+        return new Response(
+          fixtureSse({
+            id: "msg",
+            type: "message",
+            role: "assistant",
+            model: "private-anthropic",
+            content: [{ type: "text", text: "Done" }],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
+          { headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      const selected: CustomModel = {
+        ...model,
+        providerNpm: "@ai-sdk/anthropic",
+        name: "private-anthropic",
+        maxTokens: 20000,
+      };
+      const { result, rerender } = renderHook(
+        ({ current }: { current: CustomModel }) =>
+          useStreamingChatSession({ model: current, systemPrompt: "System" }),
+        { initialProps: { current: selected } }
+      );
+      await act(async () => {
+        expect(await result.current.runTurn(async () => "First")).toBe("Done");
+      });
+      rerender({ current: { ...selected, maxTokens: 8192 } });
+      await act(async () => {
+        expect(await result.current.runTurn(async () => "Second")).toBe("Done");
+      });
+      expect(payloads.map((payload) => payload.max_tokens)).toEqual([20000, 8192]);
+      expect(payloads[1].messages).toEqual([
+        { role: "user", content: "First" },
+        { role: "assistant", content: [{ type: "text", text: "Done" }] },
+        { role: "user", content: "Second" },
+      ]);
+    });
+
+    it("shows a provider error when internal abort failures exhaust retries without a user stop https://github.com/ItsDalk-Lane/Scribe/issues/58", async () => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      try {
+        window.fetch = jest.fn(async () => {
+          throw new DOMException("SDK timeout", "AbortError");
+        });
+        const onNonAbortError = jest.fn();
+        const { result } = renderHook(() =>
+          useStreamingChatSession({ model, systemPrompt: "System", onNonAbortError })
+        );
+        await act(async () => {
+          const pending = result.current.runTurn(async () => "Question");
+          await jest.runAllTimersAsync();
+          expect(await pending).toBeNull();
+        });
+        expect(window.fetch).toHaveBeenCalledTimes(4);
+        expect(onNonAbortError).toHaveBeenCalledTimes(1);
+        expect(result.current.getMemory()?.chatHistory.messages).toEqual([]);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("keeps an output-limited answer, preserves its stop reason and reports truncation separately from failure https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      window.fetch = jest.fn(
+        async () =>
+          new Response(
+            fixtureSse({
+              choices: [
+                { index: 0, message: { content: "Partial answer" }, finish_reason: "length" },
+              ],
+            })
+          )
+      );
+      const onNonAbortError = jest.fn();
+      const onTruncated = jest.fn();
+      const { result } = renderHook(() =>
+        useStreamingChatSession({ model, systemPrompt: "System", onNonAbortError, onTruncated })
+      );
+      await act(async () => {
+        expect(await result.current.runTurn(async () => "Question")).toBe("Partial answer");
+      });
+      expect(onTruncated).toHaveBeenCalledTimes(1);
+      expect(onNonAbortError).not.toHaveBeenCalled();
+      expect(result.current.getMemory()?.chatHistory.messages[1]).toMatchObject({
+        stopReason: "length",
+        content: [{ type: "text", text: "Partial answer" }],
+      });
+      expect(result.current.isStreaming).toBe(false);
+    });
+
     it(`replays a stopped partial answer in the follow-up without duplicating text (${issue})`, async () => {
       const reply = controlledReply();
       const followUp = controlledReply();
