@@ -2,7 +2,7 @@ jest.mock("@/agentMode/subagents/SubagentManager", () => ({
   SubagentManager: { getInstance: () => ({ refresh: async () => [] }), reset: jest.fn() },
   getSubagents: () => [],
 }));
-import type { App } from "obsidian";
+import { FileSystemAdapter, type App } from "obsidian";
 import { join } from "node:path";
 import type ScribePlugin from "@/main";
 import { DEFAULT_SETTINGS } from "@/constants";
@@ -23,7 +23,7 @@ import { openScribeSettings } from "@/settings/openSettings";
 import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import type { BackendState } from "@/agentMode/session/types";
 import { createNativeModel } from "@/agentMode/backends/native/nativeModels";
-import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
+import { buildNativeSystemPromptState } from "@/agentMode/backends/native/nativeSystemPrompt";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
 import { EMPTY_PROJECT_CONFIG } from "@/projects/constants";
@@ -70,7 +70,9 @@ jest.mock("@/agentMode/mcp/mcpTools", () => ({
   createMcpTools: (...args: unknown[]) => mockCreateMcpTools(...args),
 }));
 jest.mock("@/agentMode/backends/native/nativeSystemPrompt", () => ({
-  buildNativeSystemPrompt: jest.fn().mockResolvedValue("Vault prompt"),
+  buildNativeSystemPromptState: jest
+    .fn()
+    .mockResolvedValue({ content: "Vault prompt", sections: {} }),
 }));
 jest.mock("@/agentMode/backends/native/nativeModels", () => ({
   ...jest.requireActual("@/agentMode/backends/native/nativeModels"),
@@ -365,6 +367,52 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("createBackendProcess()", () => {
+    it("rebuilds the request declaration from the current project selection and leaves global requests without project sources", () => {
+      const previous = getCachedProjectRecords();
+      const record = {
+        project: {
+          ...EMPTY_PROJECT_CONFIG,
+          id: "sources-live",
+          workspacePath: "Project",
+          contextSource: { webUrls: "https://old.example" },
+        },
+        filePath: ".scribe/projects/sources-live/project.md",
+        folderName: "sources-live",
+      };
+      const app = { vault: { adapter: {}, getFiles: () => [] } } as unknown as App;
+      try {
+        updateCachedProjectRecords([record]);
+        NativeBackendDescriptor.createBackendProcess({
+          app,
+          plugin: {} as ScribePlugin,
+          clientVersion: "test",
+          descriptor: NativeBackendDescriptor,
+        });
+        const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
+        const input = { cwd: "/synthetic-vault/Project", projectId: "sources-live" };
+        expect(options.getRequestContext?.(input)).toContain("https://old.example");
+        updateCachedProjectRecords([
+          {
+            ...record,
+            project: { ...record.project, contextSource: { webUrls: "https://new.example" } },
+          },
+        ]);
+        const replaced = options.getRequestContext?.(input);
+        expect(replaced).toContain("https://new.example");
+        expect(replaced).not.toContain("https://old.example");
+        updateCachedProjectRecords([
+          { ...record, project: { ...record.project, contextSource: {} } },
+        ]);
+        expect(options.getRequestContext?.(input)).toContain("No context sources are configured");
+        expect(options.getRequestContext?.({ cwd: "/synthetic-vault" })).toBe("");
+        expect(
+          options.getRequestContext?.({ cwd: "/synthetic-vault", projectId: "__global__" })
+        ).toBe("");
+      } finally {
+        updateCachedProjectRecords(previous);
+      }
+    });
+
     it("changes the capability revision when a scoped skill is disabled or updated https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
       const skill = {
         name: "scoped",
@@ -481,7 +529,7 @@ describe("nativeDescriptor", () => {
       await options.createModel("manual-model");
       expect(createNativeModel).toHaveBeenCalledWith(app, "manual-model");
       await options.getSystemPrompt({ cwd: "/vault" });
-      expect(buildNativeSystemPrompt).toHaveBeenCalledWith(app, { cwd: "/vault" });
+      expect(buildNativeSystemPromptState).toHaveBeenCalledWith(app, { cwd: "/vault" });
       const stepLimit = options.maxSteps;
       expect(typeof stepLimit).toBe("function");
       if (typeof stepLimit !== "function")
@@ -541,6 +589,49 @@ describe("nativeDescriptor", () => {
       await tools.shutdown?.();
       expect(mockStop).toHaveBeenCalledWith("command-id");
       expect(mockShutdown).toHaveBeenCalledTimes(1);
+    });
+    it("replaces a previously published skill catalog when all skills are removed https://github.com/ItsDalk-Lane/Scribe/issues/42", () => {
+      const actual = jest.requireActual<typeof import("@/agentMode/sdk/nativeAdvancedTools")>(
+        "@/agentMode/sdk/nativeAdvancedTools"
+      );
+      jest.mocked(createNativeAdvancedTools).mockImplementation(actual.createNativeAdvancedTools);
+      NativeBackendDescriptor.createBackendProcess({
+        app: { vault: { adapter: new FileSystemAdapter() } } as unknown as App,
+        plugin: {} as ScribePlugin,
+        clientVersion: "test",
+        descriptor: NativeBackendDescriptor,
+      });
+      const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
+      let published = false;
+      const context = toolContext({
+        skillCatalog: {
+          everPublished: () => published,
+          markPublished: () => {
+            published = true;
+          },
+        },
+      });
+      jest.mocked(getNativeScopedSkills).mockReturnValue([
+        {
+          name: "notes",
+          description: "Organize notes",
+          body: "Use headings",
+          enabledAgents: ["native"],
+          filePath: "/skills/notes/SKILL.md",
+          dirPath: "/skills/notes",
+          location: { kind: "canonical" },
+        },
+      ]);
+      expect(
+        options.createTools(context).tools.find((tool) => tool.name === "invoke_skill")?.description
+      ).toContain("notes");
+      jest.mocked(getNativeScopedSkills).mockReturnValue([]);
+      expect(
+        options.createTools(context).tools.find((tool) => tool.name === "invoke_skill")?.description
+      ).toContain("No skills are currently available");
+      jest
+        .mocked(createNativeAdvancedTools)
+        .mockReturnValue([{ name: "invoke_skill" }, { name: "excalidraw_read" }] as never);
     });
     describe("mcp integration", () => {
       function managerStub(overrides: {

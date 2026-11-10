@@ -33,6 +33,8 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import * as React from "react";
 
 import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
+import { createNativeAdvancedTools } from "@/agentMode/sdk/nativeAdvancedTools";
+import { sha256 } from "@/utils/hash";
 import { createNativeTools } from "@/agentMode/sdk/nativeTools";
 import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
@@ -104,7 +106,11 @@ function response(
 }
 
 function userText(context: TranscriptContext): string {
-  const user = context.messages.find((message) => message.role === "user");
+  const user = context.messages.find(
+    (message) =>
+      message.role === "user" &&
+      !(typeof message.content === "string" && message.content.startsWith("<runtime_context>"))
+  );
   return user?.role === "user"
     ? typeof user.content === "string"
       ? user.content
@@ -251,6 +257,864 @@ describe("NativeBackendProcess integration", () => {
     }
 
     describe("prompt", () => {
+      it("restores a model-invoked skill body after compaction and reopening https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "Important skill body for this task." };
+        const settings = {
+          getManuallyInvokedSkill: () => null,
+          getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+          createTools: (
+            context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+          ) => ({
+            tools: createNativeAdvancedTools({
+              ...context,
+              app: { vault: { adapter } } as unknown as App,
+              skills: () => [{ ...skill, description: "Review notes", status: "available" }],
+            }),
+          }),
+        };
+        const responder = (context: TranscriptContext) => {
+          const last = context.messages.at(-1);
+          const text = JSON.stringify(last?.content ?? "");
+          if (text.includes("Summarize this recorded Obsidian conversation"))
+            return response("Earlier work summarized.");
+          if (last?.role === "toolResult") return response("Read the skill.");
+          if (text.includes("Select the skill"))
+            return response("", [
+              { id: "skill-read", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          return response("Continued.");
+        };
+        const first = fixture(responder, undefined, undefined, settings);
+        const id = await first.open();
+        const send = (process: NativeBackendProcess, promptId: string, text: string) =>
+          process.prompt({ sessionId: id, promptId, prompt: [{ type: "text", text }] });
+        await send(first.process, "initial", "Select the skill");
+        expect(
+          first.contexts.some((context) =>
+            results(context).some((result) => JSON.stringify(result.content).includes(skill.body))
+          )
+        ).toBe(true);
+        await send(first.process, "compact", "/compact");
+        await first.process.closeSession({ sessionId: id });
+        const restored = fixture(responder, undefined, undefined, settings);
+        await restored.process.loadSession({ sessionId: id, cwd: root, projectId: "project-a" });
+        await send(restored.process, "continue", "Continue the task");
+        const context = restored.contexts.at(-1)!;
+        expect(
+          results(context).some((result) => JSON.stringify(result.content).includes(skill.body))
+        ).toBe(false);
+        expect(JSON.stringify(context.messages)).toContain(skill.body);
+      });
+
+      it("does not reactivate an old skill from visible history after starting an independent task https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "OLD-TASK-SKILL-INSTRUCTIONS" };
+        const summaries: TranscriptContext[] = [];
+        const settings = {
+          getManuallyInvokedSkill: () => null,
+          getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+          createTools: (
+            context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+          ) => ({
+            tools: createNativeAdvancedTools({
+              ...context,
+              app: { vault: { adapter } } as unknown as App,
+              skills: () => [{ ...skill, description: "Review", status: "available" }],
+            }),
+          }),
+        };
+        const responder = (context: TranscriptContext) => {
+          const last = context.messages.at(-1);
+          const text = JSON.stringify(last?.content ?? "");
+          if (text.includes("Summarize this recorded Obsidian conversation")) {
+            summaries.push(context);
+            return response("Summary of prior work.");
+          }
+          if (last?.role === "toolResult") return response("Read the skill.");
+          if (text.includes("Select the skill"))
+            return response("", [
+              { id: "old-skill", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          return response("New work.");
+        };
+        const first = fixture(responder, undefined, undefined, settings);
+        const id = await first.open();
+        const send = (process: NativeBackendProcess, promptId: string, text: string) =>
+          process.prompt({ sessionId: id, promptId, prompt: [{ type: "text", text }] });
+        await send(first.process, "initial", "Select the skill");
+        await first.process.startIndependentTask({ sessionId: id });
+        await send(first.process, "new-work", "Start unrelated work");
+        await send(first.process, "compact", "/compact");
+        expect(
+          summaries.every((context) => !JSON.stringify(context.messages).includes(skill.body))
+        ).toBe(true);
+        if (!summaries.length)
+          expect(first.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "compaction",
+                status: "failed",
+                error: expect.stringContaining("unavailable skill"),
+              }),
+            })
+          );
+        await first.process.closeSession({ sessionId: id });
+        const restored = fixture(responder, undefined, undefined, settings);
+        await restored.process.loadSession({ sessionId: id, cwd: root, projectId: "project-a" });
+        restored.process.registerSessionHandler(id, (event) => restored.events.push(event));
+        await send(restored.process, "continue", "Continue unrelated work");
+        if (restored.contexts.length) {
+          expect(JSON.stringify(restored.contexts.at(-1)?.messages)).not.toContain(skill.body);
+        } else {
+          expect(restored.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+        }
+      });
+
+      it("starts an independent task without checking dependencies of skills from the previous task https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "OLD-TASK-SKILL-INSTRUCTIONS" };
+        let independent = false;
+        const dependencyChecks = jest.fn(async () => {
+          if (independent) throw new Error("Old dependency is unavailable");
+          return [];
+        });
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (last?.role === "toolResult") return response("Read the skill.");
+            if (JSON.stringify(last?.content).includes("Select the skill"))
+              return response("", [
+                { id: "old-skill", name: "invoke_skill", arguments: { name: skill.name } },
+              ]);
+            return response("New work.");
+          },
+          undefined,
+          undefined,
+          {
+            getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+            resolveSkillDependencies: dependencyChecks,
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [{ ...skill, description: "Review", status: "available" }],
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "initial",
+          prompt: [{ type: "text", text: "Select the skill" }],
+        });
+        await f.process.startIndependentTask({ sessionId: id });
+        independent = true;
+        dependencyChecks.mockClear();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "new",
+          prompt: [{ type: "text", text: "New work" }],
+        });
+        expect(dependencyChecks).not.toHaveBeenCalled();
+        expect(JSON.stringify(f.contexts.at(-1)?.messages)).not.toContain(skill.body);
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            update: expect.objectContaining({
+              sessionUpdate: "turn_ended",
+              stopReason: "end_turn",
+            }),
+          })
+        );
+        dependencyChecks.mockClear();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "compact",
+          prompt: [{ type: "text", text: "/compact" }],
+        });
+        expect(dependencyChecks).not.toHaveBeenCalled();
+      });
+
+      it("never sends disabled skill instructions to the manual compaction model https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        let enabled = true;
+        const skill = { name: "model-only", body: "DISABLED-SKILL-SECRET" };
+        const summaries: TranscriptContext[] = [];
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (
+              JSON.stringify(last?.content).includes(
+                "Summarize this recorded Obsidian conversation"
+              )
+            ) {
+              summaries.push(context);
+              return response("Summary.");
+            }
+            if (last?.role === "toolResult") return response("Read the skill.");
+            return response("", [
+              { id: "read", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          },
+          undefined,
+          undefined,
+          {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) =>
+              enabled && name === skill.name ? skill : null,
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [
+                  { ...skill, description: "Review", status: enabled ? "available" : "disabled" },
+                ],
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "initial",
+          prompt: [{ type: "text", text: "Read the skill" }],
+        });
+        enabled = false;
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "compact",
+          prompt: [{ type: "text", text: "/compact" }],
+        });
+        expect(
+          summaries.every((context) => !JSON.stringify(context.messages).includes(skill.body))
+        ).toBe(true);
+        if (!summaries.length)
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "compaction",
+                status: "failed",
+                error: expect.stringContaining("unavailable skill"),
+              }),
+            })
+          );
+      });
+
+      it("does not restore a skill result when its model request failed before receiving a response https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "Unconfirmed skill instructions." };
+        const settings = {
+          getManuallyInvokedSkill: () => null,
+          getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+          createTools: (
+            context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+          ) => ({
+            tools: createNativeAdvancedTools({
+              ...context,
+              app: { vault: { adapter } } as unknown as App,
+              skills: () => [{ ...skill, description: "Review", status: "available" }],
+            }),
+          }),
+        };
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (last?.role === "toolResult") {
+              const stream = createAssistantMessageEventStream();
+              const message = createAssistantMessage(MODEL);
+              message.stopReason = "error";
+              message.errorMessage = "No model response";
+              stream.push({ type: "start", partial: message });
+              stream.push({ type: "error", reason: "error", error: message });
+              return stream;
+            }
+            return response("", [
+              { id: "skill-read", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          },
+          undefined,
+          undefined,
+          settings
+        );
+        const id = await f.open();
+        await f.send(id, "Read a skill");
+        expect(
+          f.contexts.some((context) =>
+            results(context).some((result) => JSON.stringify(result.content).includes(skill.body))
+          )
+        ).toBe(true);
+        const journal = await readFile(join(data, "sessions", `${id}.jsonl`), "utf8");
+        const facts = journal
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        expect(
+          facts.some(
+            (fact) => fact.kind === "tool_result" && JSON.stringify(fact).includes(skill.body)
+          )
+        ).toBe(true);
+        expect(facts.some((fact) => fact.kind === "skill_model_delivery")).toBe(false);
+      });
+
+      it("keeps a child agent's delivered skill body out of the parent request https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "Child-only skill instructions." };
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (
+              JSON.stringify(last?.content).includes(
+                "Summarize this recorded Obsidian conversation"
+              )
+            )
+              return response("Parent task summary.");
+            if (last?.role === "toolResult") return response("Finished.");
+            if (JSON.stringify(last?.content).includes("Child task"))
+              return response("", [
+                { id: "child-skill", name: "invoke_skill", arguments: { name: skill.name } },
+              ]);
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: { prompt: "Child task", description: "Review" },
+              },
+            ]);
+          },
+          undefined,
+          undefined,
+          {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+            createTools: (context) => ({
+              tools: [
+                ...createNativeAdvancedTools({
+                  ...context,
+                  app: { vault: { adapter } } as unknown as App,
+                  skills: () => [{ ...skill, description: "Review", status: "available" }],
+                }),
+                ...(context.executeSubagent
+                  ? [
+                      {
+                        name: "delegate_task",
+                        label: "Delegate",
+                        description: "Delegate",
+                        parameters: { type: "object", properties: {} },
+                        execute: (id: string, args: unknown, signal?: AbortSignal) =>
+                          context.executeSubagent!(
+                            id,
+                            args as { prompt: string; description: string },
+                            signal
+                          ),
+                      },
+                    ]
+                  : []),
+              ],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "Delegate a review");
+        const child = f.contexts.find((context) =>
+          results(context).some((result) => result.toolCallId === "child-skill")
+        );
+        const parent = f.contexts.find((context) =>
+          results(context).some((result) => result.toolCallId === "delegate")
+        );
+        expect(child).toBeDefined();
+        expect(JSON.stringify(child?.messages)).toContain(skill.body);
+        expect(parent).toBeDefined();
+        expect(JSON.stringify(parent?.messages)).not.toContain(skill.body);
+        const journal = await readFile(join(data, "sessions", `${id}.jsonl`), "utf8");
+        const facts = journal
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        const deliveries = facts.filter((fact) => fact.kind === "skill_model_delivery");
+        expect(deliveries).toHaveLength(1);
+        expect(JSON.stringify(deliveries[0])).not.toContain(skill.body);
+        expect(deliveries[0].payload).toMatchObject({
+          formatVersion: 2,
+          callSeq: expect.any(Number),
+          resultSeq: expect.any(Number),
+        });
+        expect(JSON.stringify(deliveries[0])).toContain("subagentId");
+        const [retainedChild] = await f.process.listSubagentSessions({ sessionId: id });
+        const after = Math.max(...retainedChild.messages.map((message) => message.sequence));
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "compact-parent",
+          prompt: [{ type: "text", text: "/compact" }],
+        });
+        await f.process.closeSession({ sessionId: id });
+        const reopened = fixture(() => response("Continued."), undefined, undefined, {
+          getModelInvocableSkill: (name) => (name === skill.name ? skill : null),
+        });
+        await reopened.process.loadSession({ sessionId: id, cwd: root, projectId: "project-a" });
+        await reopened.process.prompt({
+          sessionId: id,
+          promptId: "continued-parent",
+          prompt: [{ type: "text", text: "Continue parent work" }],
+        });
+        expect(JSON.stringify(reopened.contexts.at(-1)?.messages)).not.toContain(skill.body);
+        await reopened.process.sendSubagentMessage({
+          sessionId: id,
+          subagentId: retainedChild.id,
+          text: "Start a new child run",
+          mode: "wake",
+        });
+        await reopened.process.waitSubagents({
+          sessionId: id,
+          subagentIds: [retainedChild.id],
+          after,
+        });
+        const resumed = reopened.contexts.find((context) =>
+          JSON.stringify(context.messages).includes("Start a new child run")
+        );
+        expect(resumed).toBeDefined();
+        expect(
+          JSON.stringify(resumed?.messages.filter((message) => message.role === "user"))
+        ).not.toContain(skill.body);
+      });
+
+      it("restores a delivered skill through automatic compaction within one child run https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = {
+          name: "model-only",
+          body: "CHILD-SKILL-BEGIN" + "S".repeat(4000) + "CHILD-SKILL-END",
+        };
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            const content = JSON.stringify(last?.content ?? "");
+            if (content.includes("Summarize this recorded Obsidian conversation"))
+              return response("Child summary.");
+            if (last?.role === "toolResult" && last.toolCallId === "child-skill")
+              return response("", [{ id: "filler-1", name: "filler", arguments: {} }]);
+            if (last?.role === "toolResult" && last.toolCallId === "filler-1")
+              return response("", [{ id: "filler-2", name: "filler", arguments: {} }]);
+            if (last?.role === "toolResult") return response("Finished.");
+            if (content.includes("Child task"))
+              return response("", [
+                { id: "child-skill", name: "invoke_skill", arguments: { name: skill.name } },
+              ]);
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: { prompt: "Child task " + "X".repeat(3000), description: "Review" },
+              },
+            ]);
+          },
+          undefined,
+          undefined,
+          {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+            createTools: (context) => ({
+              tools: [
+                ...createNativeAdvancedTools({
+                  ...context,
+                  app: { vault: { adapter } } as unknown as App,
+                  skills: () => [{ ...skill, description: "Review", status: "available" }],
+                }),
+                {
+                  name: "filler",
+                  label: "Filler",
+                  description: "Filler",
+                  parameters: { type: "object", properties: {} },
+                  execute: async () => ({
+                    content: [{ type: "text", text: "F".repeat(20000) }],
+                    details: undefined,
+                  }),
+                },
+                ...(context.executeSubagent
+                  ? [
+                      {
+                        name: "delegate_task",
+                        label: "Delegate",
+                        description: "Delegate",
+                        parameters: { type: "object", properties: {} },
+                        execute: (id: string, args: unknown, signal?: AbortSignal) =>
+                          context.executeSubagent!(
+                            id,
+                            args as { prompt: string; description: string },
+                            signal
+                          ),
+                      },
+                    ]
+                  : []),
+              ],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "Delegate a review");
+        const compacted = f.contexts.find((context) =>
+          JSON.stringify(context.messages).includes("Child summary.")
+        );
+        expect(compacted).toBeDefined();
+        expect(results(compacted!).some((result) => result.toolCallId === "child-skill")).toBe(
+          false
+        );
+        expect(JSON.stringify(compacted?.messages)).toContain("CHILD-SKILL-BEGIN");
+        expect(JSON.stringify(compacted?.messages)).toContain("CHILD-SKILL-END");
+      });
+
+      it("does not present an unread final page as delivered after compaction and reopening https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "A".repeat(21000) + "UNREAD-TAIL" };
+        const settings = {
+          getManuallyInvokedSkill: () => null,
+          getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+          createTools: (
+            context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+          ) => ({
+            tools: createNativeAdvancedTools({
+              ...context,
+              app: { vault: { adapter } } as unknown as App,
+              skills: () => [{ ...skill, description: "Review", status: "available" }],
+            }),
+          }),
+        };
+        const responder = (context: TranscriptContext) => {
+          const last = context.messages.at(-1);
+          const text = JSON.stringify(last?.content ?? "");
+          if (text.includes("Summarize this recorded Obsidian conversation"))
+            return response("Summary.");
+          if (last?.role === "toolResult") return response("Read the first page.");
+          if (text.includes("Select the skill"))
+            return response("", [
+              { id: "skill-read", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          return response("Continued.");
+        };
+        const first = fixture(responder, undefined, undefined, settings);
+        const id = await first.open();
+        const send = (process: NativeBackendProcess, promptId: string, text: string) =>
+          process.prompt({ sessionId: id, promptId, prompt: [{ type: "text", text }] });
+        await send(first.process, "initial", "Select the skill");
+        await send(first.process, "compact", "/compact");
+        await first.process.closeSession({ sessionId: id });
+        const restored = fixture(responder, undefined, undefined, settings);
+        await restored.process.loadSession({ sessionId: id, cwd: root, projectId: "project-a" });
+        await send(restored.process, "continue", "Continue the task");
+        const text = JSON.stringify(restored.contexts.at(-1)?.messages);
+        expect(text).toContain("[Output truncated]");
+        expect(text).toContain("Continue with cursor:");
+        expect(text).not.toContain("UNREAD-TAIL");
+      });
+
+      it("restores both delivered pages of a skill after compaction and reopening https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = {
+          name: "model-only",
+          body: "FIRST-PAGE-START" + "A".repeat(21000) + "LAST-PAGE-END",
+        };
+        const settings = {
+          getManuallyInvokedSkill: () => null,
+          getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+          createTools: (
+            context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+          ) => ({
+            tools: createNativeAdvancedTools({
+              ...context,
+              app: { vault: { adapter } } as unknown as App,
+              skills: () => [{ ...skill, description: "Review", status: "available" }],
+            }),
+          }),
+        };
+        const responder = (context: TranscriptContext) => {
+          const last = context.messages.at(-1);
+          const text = JSON.stringify(last?.content ?? "");
+          if (text.includes("Summarize this recorded Obsidian conversation"))
+            return response("Summary.");
+          if (last?.role === "toolResult" && last.toolCallId === "first-page") {
+            const cursor = /Continue with cursor: (\d+:[a-f0-9]{64})/.exec(text)?.[1];
+            if (!cursor) throw new Error("Missing continuation cursor");
+            return response("", [
+              { id: "second-page", name: "invoke_skill", arguments: { name: skill.name, cursor } },
+            ]);
+          }
+          if (last?.role === "toolResult") return response("Read both pages.");
+          if (text.includes("Select the skill"))
+            return response("", [
+              { id: "first-page", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          return response("Continued.");
+        };
+        const first = fixture(responder, undefined, undefined, settings);
+        const id = await first.open();
+        const send = (process: NativeBackendProcess, promptId: string, text: string) =>
+          process.prompt({ sessionId: id, promptId, prompt: [{ type: "text", text }] });
+        await send(first.process, "initial", "Select the skill");
+        await send(first.process, "compact", "/compact");
+        await first.process.closeSession({ sessionId: id });
+        const restored = fixture(responder, undefined, undefined, settings);
+        await restored.process.loadSession({ sessionId: id, cwd: root, projectId: "project-a" });
+        await send(restored.process, "continue", "Continue the task");
+        const text = JSON.stringify(restored.contexts.at(-1)?.messages);
+        expect(text).toContain("FIRST-PAGE-START");
+        expect(text).toContain("LAST-PAGE-END");
+      });
+
+      it("refuses a later page when the skill changes between model reads https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        let body = "OLD-BEGIN" + "A".repeat(21000) + "OLD-END";
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (last?.role === "toolResult" && last.toolCallId === "first-page") {
+              const cursor = /Continue with cursor: (\d+:[a-f0-9]{64})/.exec(
+                JSON.stringify(last.content)
+              )?.[1];
+              if (!cursor) throw new Error("Missing continuation cursor");
+              body = "NEW-BEGIN" + "B".repeat(21000) + "NEW-END";
+              return response("", [
+                {
+                  id: "second-page",
+                  name: "invoke_skill",
+                  arguments: { name: "model-only", cursor },
+                },
+              ]);
+            }
+            if (last?.role === "toolResult") return response("Stopped after changed content.");
+            return response("", [
+              { id: "first-page", name: "invoke_skill", arguments: { name: "model-only" } },
+            ]);
+          },
+          undefined,
+          undefined,
+          {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) => ({ name, body }),
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [
+                  { name: "model-only", body, description: "Review", status: "available" },
+                ],
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "Read the skill");
+        const attempted = f.contexts
+          .flatMap(results)
+          .find((result) => result.toolCallId === "second-page");
+        expect(attempted?.isError).toBe(true);
+        expect(JSON.stringify(attempted?.content)).not.toContain("NEW-END");
+      });
+
+      it("rejects restoring noncontiguous delivered pages rather than merging them https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "A".repeat(45000) + "LAST-PAGE-END" };
+        const version = sha256(JSON.stringify([JSON.stringify([skill.name, null]), skill.body]));
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (last?.role === "toolResult") return response("Read noncontiguous pages.");
+            return response("", [
+              { id: "first-page", name: "invoke_skill", arguments: { name: skill.name } },
+              {
+                id: "third-page",
+                name: "invoke_skill",
+                arguments: { name: skill.name, cursor: `40000:${version}` },
+              },
+            ]);
+          },
+          undefined,
+          undefined,
+          {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [{ ...skill, description: "Review", status: "available" }],
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "initial",
+          prompt: [{ type: "text", text: "Read pages" }],
+        });
+        const count = f.contexts.length;
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "continue",
+          prompt: [{ type: "text", text: "Continue" }],
+        });
+        expect(f.contexts).toHaveLength(count);
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            update: expect.objectContaining({
+              sessionUpdate: "turn_ended",
+              stopReason: "request_error",
+            }),
+          })
+        );
+      });
+
+      it.each(["disabled", "changed"])(
+        "does not restore model-invoked skill instructions after the skill is %s https://github.com/ItsDalk-Lane/Scribe/issues/68",
+        async (change) => {
+          let skill = { name: "model-only", body: "Original private skill instructions." };
+          let enabled = true;
+          const settings = {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) =>
+              enabled && name === skill.name ? skill : null,
+            createTools: (
+              context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+            ) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [
+                  { ...skill, description: "Review", status: enabled ? "available" : "disabled" },
+                ],
+              }),
+            }),
+          };
+          const responder = (context: TranscriptContext) => {
+            const last = context.messages.at(-1);
+            const text = JSON.stringify(last?.content ?? "");
+            if (text.includes("Summarize this recorded Obsidian conversation"))
+              return response("Summary.");
+            if (last?.role === "toolResult") return response("Read the skill.");
+            if (text.includes("Select the skill"))
+              return response("", [
+                { id: "skill-read", name: "invoke_skill", arguments: { name: skill.name } },
+              ]);
+            return response("Continued.");
+          };
+          const first = fixture(responder, undefined, undefined, settings);
+          const id = await first.open();
+          const send = (process: NativeBackendProcess, promptId: string, text: string) =>
+            process.prompt({ sessionId: id, promptId, prompt: [{ type: "text", text }] });
+          await send(first.process, "initial", "Select the skill");
+          await send(first.process, "compact", "/compact");
+          await first.process.closeSession({ sessionId: id });
+          if (change === "disabled") enabled = false;
+          else skill = { ...skill, body: "Updated instructions." };
+          const restored = fixture(responder, undefined, undefined, settings);
+          await restored.process.loadSession({ sessionId: id, cwd: root, projectId: "project-a" });
+          restored.process.registerSessionHandler(id, (event) => restored.events.push(event));
+          await send(restored.process, "continue", "Continue the task");
+          expect(restored.contexts).toHaveLength(0);
+          expect(restored.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+        }
+      );
+
+      it("keeps the newly read version after revoking a previously delivered version https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        let body = "OLD-VERSION-INSTRUCTIONS";
+        const f = fixture(
+          (context) => {
+            const last = context.messages.at(-1);
+            if (last?.role === "toolResult") return response("Skill read.");
+            if (JSON.stringify(last?.content).includes("Read version"))
+              return response("", [
+                {
+                  id: body === "OLD-VERSION-INSTRUCTIONS" ? "old-read" : "new-read",
+                  name: "invoke_skill",
+                  arguments: { name: "model-only" },
+                },
+              ]);
+            return response("Continued.");
+          },
+          undefined,
+          undefined,
+          {
+            getManuallyInvokedSkill: () => null,
+            getModelInvocableSkill: (name: string) => ({ name, body }),
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [
+                  { name: "model-only", body, description: "Review", status: "available" },
+                ],
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "old",
+          prompt: [{ type: "text", text: "Read version" }],
+        });
+        body = "NEW-VERSION-INSTRUCTIONS";
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "new",
+          prompt: [{ type: "text", text: "Read version" }],
+        });
+        await f.process.prompt({
+          sessionId: id,
+          promptId: "followup",
+          prompt: [{ type: "text", text: "Continue" }],
+        });
+        const text = JSON.stringify(f.contexts.at(-1)?.messages);
+        expect(text).toContain("NEW-VERSION-INSTRUCTIONS");
+        expect(text).not.toContain("OLD-VERSION-INSTRUCTIONS");
+      });
+
+      it("recognizes a newly delivered result when a later task reuses a tool call id https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const skill = { name: "model-only", body: "CURRENT-TASK-INSTRUCTIONS" };
+        const settings = {
+          getManuallyInvokedSkill: () => null,
+          getModelInvocableSkill: (name: string) => (name === skill.name ? skill : null),
+          createTools: (
+            context: import("@/agentMode/sdk/NativeBackendProcess").NativeToolContext
+          ) => ({
+            tools: createNativeAdvancedTools({
+              ...context,
+              app: { vault: { adapter } } as unknown as App,
+              skills: () => [{ ...skill, description: "Review", status: "available" }],
+            }),
+          }),
+        };
+        const responder = (context: TranscriptContext) => {
+          const last = context.messages.at(-1);
+          const text = JSON.stringify(last?.content ?? "");
+          if (text.includes("Summarize this recorded Obsidian conversation"))
+            return response("Summary.");
+          if (last?.role === "toolResult") return response("Skill read.");
+          if (text.includes("Read skill"))
+            return response("", [
+              { id: "reused-call", name: "invoke_skill", arguments: { name: skill.name } },
+            ]);
+          return response("Continued.");
+        };
+        const f = fixture(responder, undefined, undefined, settings);
+        const id = await f.open();
+        const send = (process: NativeBackendProcess, promptId: string, text: string) =>
+          process.prompt({ sessionId: id, promptId, prompt: [{ type: "text", text }] });
+        await send(f.process, "old", "Read skill");
+        await f.process.startIndependentTask({ sessionId: id });
+        await send(f.process, "new", "Read skill");
+        const journal = await readFile(join(data, "sessions", `${id}.jsonl`), "utf8");
+        const facts = journal
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        const deliveries = facts.filter((fact) => fact.kind === "skill_model_delivery");
+        expect(deliveries).toHaveLength(2);
+        expect(deliveries[0].payload.resultSeq).not.toBe(deliveries[1].payload.resultSeq);
+      });
+
       it("rebuilds tools with the model context window and the catalog lifecycle each turn https://github.com/ItsDalk-Lane/Scribe/issues/42", async () => {
         const seen: Array<{ contextWindow?: number; everPublished: boolean }> = [];
         const { open, send } = fixture(() => response("ok"), undefined, undefined, {

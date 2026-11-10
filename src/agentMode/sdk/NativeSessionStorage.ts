@@ -707,6 +707,10 @@ export class NodeNativeSessionStorage implements NativeSessionStorage {
         "question",
         "event",
         "compaction",
+        "skill_model_delivery",
+        "request_context",
+        "skill_model_scope_reset",
+        "skill_model_skill_revoked",
       ]);
       await this.journal.redact(
         sessionId,

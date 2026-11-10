@@ -344,6 +344,45 @@ describe("nativeAdvancedTools", () => {
       ).rejects.toThrow("support-file reading is unavailable");
     });
 
+    it("continues long skill bodies without splitting emoji and rejects changed content (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+      let body = "a".repeat(19999) + "😀end";
+      options.skills = () => [{ name: "big", description: "Big", body, status: "available" }];
+      const first = await execute("invoke_skill", { name: "big" });
+      const cursor = (first.details as { nextCursor: string }).nextCursor;
+      expect(cursor).toBeTruthy();
+      const second = await execute("invoke_skill", { name: "big", cursor });
+      expect((second.content[0] as { text: string }).text).toContain("😀end");
+      body += "changed";
+      await expect(execute("invoke_skill", { name: "big", cursor })).rejects.toThrow("changed");
+    });
+
+    it("continues a long supporting file and rejects a cursor from another resource (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+      options.readSkillFile = async () => "x".repeat(20000) + "file end";
+      const first = await execute("invoke_skill", { name: "note-format", file: "a.md" });
+      const cursor = (first.details as { nextCursor: string }).nextCursor;
+      const second = await execute("invoke_skill", { name: "note-format", file: "a.md", cursor });
+      expect((second.content[0] as { text: string }).text).toContain("file end");
+      await expect(
+        execute("invoke_skill", { name: "note-format", file: "b.md", cursor })
+      ).rejects.toThrow("cursor");
+    });
+
+    it("continues a long registered skill list (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+      options.skills = () =>
+        Array.from({ length: 400 }, (_, i) => ({
+          name: `skill-${i}`,
+          description: "d".repeat(80),
+          body: "body",
+          status: "available" as const,
+        }));
+      const first = await execute("invoke_skill", {});
+      const cursor = (first.details as { nextCursor: string }).nextCursor;
+      const second = await execute("invoke_skill", { cursor });
+      const finalCursor = (second.details as { nextCursor: string }).nextCursor;
+      const last = await execute("invoke_skill", { cursor: finalCursor });
+      expect((last.content[0] as { text: string }).text).toContain("skill-399");
+    });
+
     it("truncates an oversized skill body with a clear marker", async () => {
       options.skills = () => [
         {
@@ -355,8 +394,9 @@ describe("nativeAdvancedTools", () => {
       ];
       const result = await execute("invoke_skill", { name: "big" });
       const text = (result.content[0] as { type: string; text: string }).text;
-      expect(text.endsWith("[Output truncated]")).toBe(true);
-      expect(text.length).toBeLessThan(20001 + 100);
+      expect(text).toContain("[Output truncated]");
+      expect(text).toContain("Continue with cursor:");
+      expect(text.length).toBeLessThan(20001 + 150);
       expect(result.details).toMatchObject({ truncated: true });
     });
 

@@ -12,6 +12,12 @@ import {
 } from "@/agentMode/sdk/NativeBackendProcess";
 import type { SessionEvent, PermissionPrompt } from "@/agentMode/session/types";
 import type { ProviderChatModel, AgentStreamOptions } from "@/LLMProviders/piChatModel";
+import { App, FileSystemAdapter } from "obsidian";
+import { createNativeAdvancedTools } from "@/agentMode/sdk/nativeAdvancedTools";
+import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const model = {
   id: "configured-model",
@@ -210,6 +216,278 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("prompt", () => {
+      it("captures rules after asynchronous skill preparation so the step uses the same current configuration", async () => {
+        let rules = "Rules before skill preparation";
+        const seen: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            seen.push(context);
+            return response("Prepared");
+          },
+          [],
+          {
+            getSystemPrompt: async () => rules,
+            getManuallyInvokedSkill: (name) => ({ name, body: "Read selected source" }),
+            resolveSkillDependencies: async () => {
+              rules = "Rules after skill preparation";
+              return [];
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "selected", "/review Inspect");
+        expect(JSON.stringify(seen[0])).toContain("Rules after skill preparation");
+        expect(JSON.stringify(seen[0])).not.toContain("Rules before skill preparation");
+      });
+
+      it("declares a newly admitted manual skill tool in the same model request that carries its instructions", async () => {
+        const received: string[][] = [];
+        const registered: string[][] = [];
+        const f = fixture(
+          (_model, context) => {
+            received.push(getCurrentTools(context.messages).map((tool) => tool.name));
+            return response("Selected skill is ready");
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({
+              name,
+              body: "Use invoke_skill to read the bundled template.",
+            }),
+            createTools: (context) => {
+              const tools: AgentTool[] = context.transferredSkills?.includes("manual-review")
+                ? [
+                    {
+                      name: "invoke_skill",
+                      label: "Use skill",
+                      description: "Read the selected skill template",
+                      parameters: { type: "object", properties: {} },
+                      execute: async () => ({ content: [], details: undefined }),
+                    },
+                  ]
+                : [];
+              registered.push(tools.map((tool) => tool.name));
+              return { tools };
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Prepare notes");
+        expect(registered[0]).toEqual([]);
+        expect(registered.at(-1)).toEqual(["invoke_skill"]);
+        expect(received).toEqual([["invoke_skill"]]);
+      });
+
+      it("records an empty tool set for the closing request that actually disables tools", async () => {
+        const snapshots: Array<{ tools: Array<{ name: string }> }> = [];
+        const received: string[][] = [];
+        let sequence = 0;
+        let request = 0;
+        const read: AgentTool = {
+          name: "read_note",
+          label: "Read",
+          description: "Read",
+          parameters: { type: "object", properties: {} },
+          execute: async () => ({ content: [], details: undefined }),
+        };
+        const f = fixture(
+          (_model, context, options) => {
+            received.push(getCurrentTools(context.messages).map((tool) => tool.name));
+            const current = ++request;
+            const stream = createAssistantMessageEventStream();
+            void (async () => {
+              try {
+                await options?.beforeRequest?.(`request-${current}`);
+                for await (const event of current === 1
+                  ? response("", [{ id: "read", name: "read_note", arguments: {} }])
+                  : response("Finished"))
+                  stream.push(event);
+              } catch (error) {
+                const message = createAssistantMessage(model);
+                message.stopReason = "error";
+                message.errorMessage = String(error);
+                stream.push({ type: "error", reason: "error", error: message });
+              } finally {
+                stream.end();
+              }
+            })();
+            return stream;
+          },
+          [read],
+          {
+            maxSteps: 1,
+            storage: {
+              load: async () => null,
+              list: async () => [],
+              save: async () => undefined,
+              append: async (_id, kind, payload, options) => {
+                if (kind === "request_context")
+                  snapshots.push(
+                    (payload as { snapshot: { tools: Array<{ name: string }> } }).snapshot
+                  );
+                return {
+                  version: 2,
+                  seq: ++sequence,
+                  kind,
+                  payload,
+                  occurredAt: Date.now(),
+                  origin: options?.origin ?? "observed",
+                };
+              },
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(received).toEqual([["read_note"], []]);
+        expect(snapshots.map((snapshot) => snapshot.tools.map((tool) => tool.name))).toEqual(
+          received
+        );
+      });
+
+      it("removes a cleared named rule before the next tool continuation", async () => {
+        let vaultRule: string | null = "Current vault rule";
+        const seen: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            seen.push(JSON.parse(JSON.stringify(context)));
+            return seen.length === 1
+              ? response("", [{ id: "clear", name: "read_note", arguments: {} }])
+              : response("Rule removed");
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                vaultRule = null;
+                return { content: [], details: undefined };
+              },
+            },
+          ],
+          {
+            getSystemPrompt: async () => ({
+              content: "Application defaults",
+              sections: { vault_instructions: vaultRule },
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(JSON.stringify(seen[0])).toContain("Current vault rule");
+        expect(JSON.stringify(seen[1])).not.toContain("Current vault rule");
+        expect(JSON.stringify(seen[1])).toContain("Application defaults");
+      });
+
+      it("stops a tool continuation when the current rule file cannot be read", async () => {
+        let readable = true;
+        let dispatches = 0;
+        const request = jest.fn(() =>
+          ++dispatches === 1
+            ? response("", [{ id: "unreadable", name: "read_note", arguments: {} }])
+            : response("Continued incorrectly")
+        );
+        const f = fixture(
+          request,
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                readable = false;
+                return { content: [], details: undefined };
+              },
+            },
+          ],
+          {
+            getSystemPrompt: async () => {
+              if (!readable) throw new Error("Rule file unavailable");
+              return "Existing rules";
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({
+          stopReason: "request_error",
+          error: expect.objectContaining({ message: "Rule file unavailable" }),
+        });
+      });
+
+      it("refreshes rules and complete project sources before a tool continuation without changing the user message", async () => {
+        let rules = "Original vault rules";
+        let sources = "Current project sources: A";
+        const seen: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            seen.push(JSON.parse(JSON.stringify(context)));
+            return seen.length === 1
+              ? response("", [{ id: "refresh", name: "read_note", arguments: {} }])
+              : response("Current sources received");
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read a note",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                rules = "Updated vault rules";
+                sources = "Current project sources: B; replaces A";
+                return { content: [{ type: "text", text: "Read complete" }], details: undefined };
+              },
+            },
+          ],
+          { getSystemPrompt: async () => rules, getRequestContext: () => sources }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(JSON.stringify(seen[0])).toContain("Original vault rules");
+        expect(JSON.stringify(seen[1])).toContain("Updated vault rules");
+        expect(JSON.stringify(seen[1])).toContain("Current project sources: B; replaces A");
+        expect(JSON.stringify(seen[1])).not.toContain("Original vault rules");
+        expect(
+          f.records.get(id)?.messages.find((message) => message.role === "user")?.content
+        ).toEqual([{ type: "text", text: "hi" }]);
+      });
+
+      it("rejects a larger rule set instead of trusting the earlier response's small usage", async () => {
+        let rules = "Short rules";
+        const request = jest.fn(() => {
+          const source = createAssistantMessageEventStream();
+          const message = createAssistantMessage(model);
+          message.content = [{ type: "text", text: "Earlier reply" }];
+          message.usage = { ...message.usage, input: 1000, totalTokens: 1000 };
+          message.stopReason = "stop";
+          source.push({ type: "done", reason: "stop", message });
+          return source;
+        });
+        const f = fixture(request, [], { getSystemPrompt: async () => rules });
+        const id = await f.open();
+        await f.send(id);
+        rules = "Long rules ".repeat(7000);
+        await f.send(id, "next", "Continue");
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({ stopReason: "context_limit" });
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(
+          f.records.get(id)?.messages.find((message) => message.role === "assistant")
+        ).toMatchObject({ usage: { input: 1000, totalTokens: 1000 } });
+      });
+
+      let skillTestDirectory: string | undefined;
+      afterEach(async () => {
+        if (skillTestDirectory) await rm(skillTestDirectory, { recursive: true, force: true });
+        skillTestDirectory = undefined;
+      });
       it.each(["thinking_end", "text_start", "toolcall_start"] as const)(
         "reports %s immediately while the response stream stays open for tool preparation https://github.com/ItsDalk-Lane/Scribe/issues/52",
         async (boundary) => {
@@ -482,12 +760,42 @@ describe("NativeBackendProcess", () => {
         const child = f.contexts.find((context) =>
           JSON.stringify(context.messages.at(-1)).includes("Child task")
         );
-        const text = child?.messages[0].content;
+        const text = (
+          child?.messages.find(
+            (message) =>
+              message.role === "user" &&
+              typeof message.content === "string" &&
+              message.content.startsWith("<runtime_context>")
+          )?.content as string
+        )
+          ?.split("</runtime_context>\n\n")
+          .at(-1);
         expect(typeof text).toBe("string");
-        expect((text as string).length).toBeLessThanOrEqual(
-          20000 + "\n\n[Output truncated]".length
-        );
+        expect((text as string).length).toBeLessThanOrEqual(20200);
         expect(text).toContain("[Output truncated]");
+      });
+
+      it("does not advertise an unavailable skill tool when transferred instructions are truncated https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const f = transferredSkillFixture({
+          getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(30000) }),
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = f.contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        const text = (
+          child?.messages.find(
+            (message) =>
+              message.role === "user" &&
+              typeof message.content === "string" &&
+              message.content.startsWith("<runtime_context>")
+          )?.content as string
+        )
+          ?.split("</runtime_context>\n\n")
+          .at(-1);
+        expect(text).toContain("[Output truncated]");
+        expect(text).not.toContain("invoke_skill");
       });
 
       it("fails a skill-inflated request with a context error instead of dispatching it past the window (https://github.com/ItsDalk-Lane/Scribe/issues/57)", async () => {
@@ -541,6 +849,61 @@ describe("NativeBackendProcess", () => {
         expect(JSON.stringify(final?.messages)).toContain("The user explicitly selected skill");
         expect(JSON.stringify(final?.messages)).toContain("Recorded conversation summary");
       });
+
+      it.each(["disabled", "body changed", "directory changed"])(
+        "does not send stale manual skill instructions when the skill is %s during context preparation (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (change) => {
+          const dispatched: Context[] = [];
+          const onManualSkillInvoked = jest.fn();
+          let skill: { name: string; body: string; dirPath: string } | null = {
+            name: "big-skill",
+            body: "X".repeat(20000),
+            dirPath: "/skills/original",
+          };
+          const f = fixture(
+            (_model, context) => {
+              dispatched.push(context);
+              if (
+                JSON.stringify(context.messages).includes(
+                  "Summarize this recorded Obsidian conversation"
+                )
+              ) {
+                if (change === "disabled") skill = null;
+                else if (change === "body changed") skill = { ...skill!, body: "New instructions" };
+                else skill = { ...skill!, dirPath: "/skills/new" };
+                return response("Summary of earlier work");
+              }
+              return response("Reply");
+            },
+            [],
+            { getManuallyInvokedSkill: () => skill, onManualSkillInvoked }
+          );
+          const id = await f.open();
+          await f.send(id, "history-turn", "H".repeat(27000));
+          await f.send(id, "skill-turn", "/big-skill Explain");
+          expect(
+            dispatched.some((context) =>
+              JSON.stringify(context.messages).includes(
+                "Summarize this recorded Obsidian conversation"
+              )
+            )
+          ).toBe(true);
+          expect(
+            dispatched.some((context) =>
+              JSON.stringify(context.messages).includes("The user explicitly selected skill")
+            )
+          ).toBe(false);
+          expect(onManualSkillInvoked).not.toHaveBeenCalled();
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+        }
+      );
 
       it("delivers transferred skills with dependency readiness and their support directory to the child (https://github.com/ItsDalk-Lane/Scribe/issues/46)", async () => {
         const contexts: Context[] = [];
@@ -606,6 +969,88 @@ describe("NativeBackendProcess", () => {
         expect(text).toContain("not available on this computer");
       });
 
+      it("identifies the skill tool and name when a manually selected skill is truncated https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "a".repeat(21000) }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const message = JSON.stringify(contexts[0].messages);
+        expect(message).toContain("[Output truncated]");
+        expect(message).toContain('\\"tool\\":\\"invoke_skill\\"');
+        expect(message).toContain('\\"name\\":\\"manual-review\\"');
+      });
+
+      it("identifies a transferred skill when its instructions are truncated https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            const last = context.messages.at(-1);
+            if (JSON.stringify(last).includes("Child task")) return response("Child done");
+            if (last?.role === "toolResult") return response("Parent done");
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: {
+                  prompt: "Child task",
+                  description: "Review",
+                  skills: ["manual-review"],
+                },
+              },
+            ]);
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "a".repeat(21000) }),
+            createTools: (context) => ({
+              tools: context.executeSubagent
+                ? [
+                    {
+                      name: "delegate_task",
+                      label: "Delegate",
+                      description: "Delegate",
+                      parameters: { type: "object", properties: {} },
+                      execute: (id, args, signal) =>
+                        context.executeSubagent!(
+                          id,
+                          args as { prompt: string; description: string; skills: string[] },
+                          signal
+                        ),
+                    },
+                  ]
+                : [
+                    {
+                      name: "invoke_skill",
+                      label: "Use skill",
+                      description: "Read a skill",
+                      parameters: { type: "object", properties: {} },
+                      execute: async () => ({ content: [], details: undefined }),
+                    },
+                  ],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        const message = JSON.stringify(child?.messages);
+        expect(message).toContain("[Output truncated]");
+        expect(message).toContain('\\"tool\\":\\"invoke_skill\\"');
+        expect(message).toContain('\\"name\\":\\"manual-review\\"');
+      });
+
       it("loads an explicitly named manual skill for this request without rewriting the original user message", async () => {
         const contexts: Context[] = [];
         const findSkill = jest.fn((name: string) =>
@@ -636,8 +1081,311 @@ describe("NativeBackendProcess", () => {
         expect(
           f.records.get(id)?.messages.find((message) => message.role === "user")?.content
         ).toEqual([{ type: "text", text: original }]);
-        await f.send(id, "ordinary", "Continue without a skill");
-        expect(JSON.stringify(contexts[1].messages)).not.toContain("Verify each quoted claim.");
+        await f.send(id, "ordinary", "Continue");
+        expect(JSON.stringify(contexts[1].messages)).toContain("Verify each quoted claim.");
+      });
+
+      it("lets a manually selected skill read its support file only during that user turn (https://github.com/ItsDalk-Lane/Scribe/issues/41)", async () => {
+        const calls: string[] = [];
+        let request = 0;
+        const f = fixture(
+          () => {
+            request++;
+            return request === 1 || request === 3
+              ? response("", [
+                  {
+                    id: "read",
+                    name: "invoke_skill",
+                    arguments: { name: "manual-review", file: "guide.md" },
+                  },
+                ])
+              : response("Done");
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) =>
+              name === "manual-review" ? { name, body: "Read guide.md" } : null,
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter: new FileSystemAdapter() } } as unknown as App,
+                skills: () => [
+                  {
+                    name: "manual-review",
+                    description: "Review",
+                    body: "Read guide.md",
+                    status: "manual-only",
+                  },
+                ],
+                readSkillFile: async (_name, path) => {
+                  calls.push(path);
+                  return "support instructions";
+                },
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        expect(calls).toEqual(["guide.md"]);
+        await f.send(id, "second", "Continue");
+        expect(calls).toEqual(["guide.md"]);
+      });
+
+      it("retains a successfully delivered manual skill for a follow-up and after reopening the chat (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        const contexts: Context[] = [];
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Reviewed");
+          },
+          [],
+          {
+            storage: new NodeNativeSessionStorage(skillTestDirectory),
+            getManuallyInvokedSkill: (name) =>
+              name === "manual-review"
+                ? { name, body: "Verify the unique skill instructions." }
+                : null,
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.send(id, "second", "Continue");
+        expect(JSON.stringify(contexts[1].messages)).toContain(
+          "Verify the unique skill instructions."
+        );
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "third", "Continue again");
+        expect(JSON.stringify(contexts[2].messages)).toContain(
+          "Verify the unique skill instructions."
+        );
+      });
+
+      it.each(["disabled", "changed"])(
+        "does not restore a manual skill that was %s after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (change) => {
+          const contexts: Context[] = [];
+          skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+          let skill: { name: string; body: string } | null = {
+            name: "manual-review",
+            body: "Original unique skill instructions.",
+          };
+          const f = fixture(
+            (_model, context) => {
+              contexts.push(context);
+              return response("Reviewed");
+            },
+            [],
+            {
+              storage: new NodeNativeSessionStorage(skillTestDirectory),
+              getManuallyInvokedSkill: () => skill,
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "first", "/manual-review Check");
+          await f.proc.closeSession({ sessionId: id });
+          skill =
+            change === "disabled"
+              ? null
+              : { name: "manual-review", body: "Changed skill instructions." };
+          await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+          await f.send(id, "second", "Continue");
+          expect(
+            contexts
+              .slice(1)
+              .every(
+                (context) =>
+                  !JSON.stringify(context.messages).includes("Original unique skill instructions.")
+              )
+          ).toBe(true);
+        }
+      );
+
+      it("does not authorize transferring a historical manual selection after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        let requests = 0;
+        let failure = "";
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const f = fixture(
+          () =>
+            ++requests === 2
+              ? response("", [{ id: "send", name: "send_subagent_message", arguments: {} }])
+              : response("Done"),
+          [],
+          {
+            storage: new NodeNativeSessionStorage(skillTestDirectory),
+            getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+            createTools: (context) => ({
+              tools: [
+                {
+                  name: "send_subagent_message",
+                  label: "Send",
+                  description: "Send",
+                  parameters: { type: "object", properties: {} },
+                  execute: async () => {
+                    try {
+                      await context.sendSubagentMessage!({
+                        subagentId: "unknown",
+                        text: "continue",
+                        mode: "wake",
+                        skills: ["manual-review"],
+                      });
+                    } catch (error) {
+                      failure = String(error);
+                    }
+                    return { content: [{ type: "text", text: "done" }], details: undefined };
+                  },
+                },
+              ] as AgentTool[],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "second", "Continue");
+        expect(failure).toContain("只能转交");
+      });
+
+      it("does not restore a previous skill after the user starts an independent task, including after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const storage = new NodeNativeSessionStorage(skillTestDirectory);
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            storage,
+            getManuallyInvokedSkill: (name) => ({ name, body: "Previous skill instructions" }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.proc.startIndependentTask({ sessionId: id });
+        await f.send(id, "second", "Start another task");
+        expect(JSON.stringify(contexts[1].messages)).not.toContain("Previous skill instructions");
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "third", "Continue");
+        expect(JSON.stringify(contexts[2].messages)).not.toContain("Previous skill instructions");
+      });
+
+      it("retains a saved skill and reports a failed restoration check so a later retry can recover it (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const storage = new NodeNativeSessionStorage(skillTestDirectory);
+        const contexts: Context[] = [];
+        let failing = false;
+        const skill = { name: "manual-review", body: "Saved skill instructions" };
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            storage,
+            getManuallyInvokedSkill: () => skill,
+            getRestorableSkill: () => {
+              if (failing) throw new Error("Skill lookup failed");
+              return skill;
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        failing = true;
+        await f.send(id, "failed", "Continue");
+        expect(contexts).toHaveLength(1);
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            update: expect.objectContaining({
+              sessionUpdate: "turn_ended",
+              stopReason: "request_error",
+            }),
+          })
+        );
+        expect(
+          (await storage.load(id))?.journalRecords?.some(
+            (fact) => fact.kind === "skill_delivery_revoked"
+          )
+        ).toBe(false);
+        failing = false;
+        await f.send(id, "retry", "Continue");
+        expect(JSON.stringify(contexts.at(-1)?.messages)).toContain("Saved skill instructions");
+      });
+
+      it.each(["changed", "failed"])(
+        "does not replay stale dependency information when the check %s, and recovers after a successful retry (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (condition) => {
+          const contexts: Context[] = [];
+          let state = "ready";
+          const f = fixture(
+            (_model, context) => {
+              contexts.push(context);
+              return response("Done");
+            },
+            [],
+            {
+              getManuallyInvokedSkill: (name) => ({ name, body: "Check instructions" }),
+              resolveSkillDependencies: async () => {
+                if (state === "failed") throw new Error("Dependency check failed");
+                return [
+                  { type: "command", name: "fixture", ready: state === "ready", detail: state },
+                ];
+              },
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "first", "/manual-review Check");
+          state = condition;
+          await f.send(id, "failed", "Continue");
+          expect(contexts).toHaveLength(1);
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+          state = "ready";
+          await f.send(id, "retry", "Continue");
+          expect(JSON.stringify(contexts.at(-1)?.messages)).toContain("Check instructions");
+        }
+      );
+
+      it("preserves an unsupported skill delivery record and refuses a new request after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const storage = new NodeNativeSessionStorage(skillTestDirectory);
+        const request = jest.fn(() => response("Reviewed"));
+        const f = fixture(request, [], { storage });
+        const id = await f.open();
+        await f.proc.closeSession({ sessionId: id });
+        await storage.append(
+          id,
+          "skill_delivery",
+          { version: 99, name: "future", instruction: "Preserve this" },
+          { durable: true }
+        );
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await expect(f.send(id, "second", "Continue")).rejects.toThrow("uncertain record sequence");
+        expect(request).not.toHaveBeenCalled();
+        const saved = await storage.load(id);
+        expect(saved?.journalRecords).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: "skill_delivery",
+              payload: { version: 99, name: "future", instruction: "Preserve this" },
+            }),
+          ])
+        );
       });
 
       it("counts one manual skill selection once across tool continuations and counts a new selection separately https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
@@ -687,6 +1435,41 @@ describe("NativeBackendProcess", () => {
         expect(request).not.toHaveBeenCalled();
         expect(onManualSkillInvoked).not.toHaveBeenCalled();
       });
+
+      it.each(["disabled", "body changed", "directory changed"])(
+        "does not send stale manual skill instructions when the skill is %s during dependency checks (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (change) => {
+          const request = jest.fn(() => response("unused"));
+          const onManualSkillInvoked = jest.fn();
+          let skill: { name: string; body: string; dirPath: string } | null = {
+            name: "manual-review",
+            body: "Original instructions",
+            dirPath: "/skills/original",
+          };
+          const f = fixture(request, [], {
+            getManuallyInvokedSkill: () => skill,
+            onManualSkillInvoked,
+            resolveSkillDependencies: async () => {
+              if (change === "disabled") skill = null;
+              else if (change === "body changed") skill = { ...skill!, body: "New instructions" };
+              else skill = { ...skill!, dirPath: "/skills/new" };
+              return [];
+            },
+          });
+          const id = await f.open();
+          await f.send(id, "manual", "/manual-review Check");
+          expect(request).not.toHaveBeenCalled();
+          expect(onManualSkillInvoked).not.toHaveBeenCalled();
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+        }
+      );
 
       it("does not count a manual selection cancelled before the model request https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
         const onManualSkillInvoked = jest.fn();
@@ -913,10 +1696,11 @@ describe("NativeBackendProcess", () => {
         const loading = new Promise<string>((resolve) => {
           finishLoading = resolve;
         });
-        let reads = 0;
+        let pauseInstructions = false;
         const f = fixture(undefined, [], {
           getSystemPrompt: async () => {
-            if (++reads === 3) {
+            if (pauseInstructions) {
+              pauseInstructions = false;
               startLoading();
               return loading;
             }
@@ -925,6 +1709,7 @@ describe("NativeBackendProcess", () => {
         });
         const id = await f.open();
         await f.send(id, "first", "Previous turn");
+        pauseInstructions = true;
         f.proc.refreshSessionConfiguration(id);
         const running = f.send(id, "second", "Main instruction");
         await loadingStarted;
@@ -1915,7 +2700,14 @@ describe("NativeBackendProcess", () => {
         });
         const f = fixture(
           (_model, context) => {
-            const task = context.messages.find((message) => message.role === "user");
+            const task = context.messages.find(
+              (message) =>
+                message.role === "user" &&
+                !(
+                  typeof message.content === "string" &&
+                  message.content.startsWith("<runtime_context>")
+                )
+            );
             return task?.role === "user" &&
               task.content === "Child A" &&
               !context.messages.some((message) => message.role === "toolResult")
@@ -2946,6 +3738,95 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("startIndependentTask()", () => {
+      it("waits for durable skill revocation before accepting a concurrent message (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "scribe-independent-"));
+        try {
+          const storage = new NodeNativeSessionStorage(directory);
+          const append = storage.append.bind(storage);
+          let started!: () => void;
+          let release!: () => void;
+          const entered = new Promise<void>((resolve) => {
+            started = resolve;
+          });
+          const blocked = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          const spy = jest.spyOn(storage, "append").mockImplementation(async (...args) => {
+            if (args[1] === "skill_delivery_revoked") {
+              started();
+              await blocked;
+            }
+            return append(...args);
+          });
+          const contexts: Context[] = [];
+          const f = fixture(
+            (_model, context) => {
+              contexts.push(context);
+              return response("Done");
+            },
+            [],
+            {
+              storage,
+              getManuallyInvokedSkill: (name) => ({ name, body: "Earlier skill instructions" }),
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "first", "/manual-review Check");
+          const independent = f.proc.startIndependentTask({ sessionId: id });
+          await entered;
+          const next = f.send(id, "second", "New task");
+          expect(contexts).toHaveLength(1);
+          release();
+          await Promise.all([independent, next]);
+          expect(contexts).toHaveLength(2);
+          expect(JSON.stringify(contexts[1].messages)).not.toContain("Earlier skill instructions");
+          const kinds = (await storage.load(id))!.journalRecords!.map((fact) => fact.kind);
+          expect(kinds.lastIndexOf("skill_delivery_revoked")).toBeLessThan(
+            kinds.lastIndexOf("user_accepted")
+          );
+          spy.mockRestore();
+          await f.proc.shutdown();
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      });
+
+      it("refuses to start an independent task while a message is being accepted (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "scribe-independent-"));
+        try {
+          const storage = new NodeNativeSessionStorage(directory);
+          const append = storage.append.bind(storage);
+          let started!: () => void;
+          let release!: () => void;
+          const entered = new Promise<void>((resolve) => {
+            started = resolve;
+          });
+          const blocked = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          const spy = jest.spyOn(storage, "append").mockImplementation(async (...args) => {
+            if (args[1] === "user_accepted") {
+              started();
+              await blocked;
+            }
+            return append(...args);
+          });
+          const f = fixture(undefined, [], { storage });
+          const id = await f.open();
+          const next = f.send(id, "first", "New task");
+          await entered;
+          await expect(f.proc.startIndependentTask({ sessionId: id })).rejects.toThrow(
+            "请等待当前主对话回复结束"
+          );
+          release();
+          await next;
+          spy.mockRestore();
+          await f.proc.shutdown();
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      });
+
       it("starts a distinct budget generation without rewriting the completed task (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const f = fixture();
         const id = await f.open();
@@ -2980,7 +3861,14 @@ describe("NativeBackendProcess", () => {
         const f = fixture((_model, context, options) => {
           contexts.push(context);
           const stream = createAssistantMessageEventStream();
-          const first = context.messages.find((message) => message.role === "user");
+          const first = context.messages.find(
+            (message) =>
+              message.role === "user" &&
+              !(
+                typeof message.content === "string" &&
+                message.content.startsWith("<runtime_context>")
+              )
+          );
           if (first?.role === "user" && first.content === "Archive child") {
             options?.signal?.addEventListener(
               "abort",

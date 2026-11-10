@@ -1,3 +1,5 @@
+import { buildCurrentProjectContext } from "@/context/manifestBuilder";
+import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import { reviewSkillDraft } from "@/agentMode/skills/ui/SkillDraftModal";
 import { publishSkillCatalogStatus } from "@/agentMode/skills/modelCatalogState";
 import { checkSkillDependencies } from "@/agentMode/skills/skillDependencyCheck";
@@ -34,7 +36,7 @@ import {
   getNativeModelEntries,
   getNativeModelReadiness,
 } from "@/agentMode/backends/native/nativeModels";
-import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
+import { buildNativeSystemPromptState } from "@/agentMode/backends/native/nativeSystemPrompt";
 import {
   createNativeExtensionManager,
   getNativeScopedSkills,
@@ -270,6 +272,16 @@ export const NativeBackendDescriptor: BackendDescriptor = {
           throw new Error(t("This skill is disabled or does not permit manual use."));
         return skill;
       },
+      getRestorableSkill: (name, cwd) => {
+        const skill = getNativeScopedSkills(cwd).find((entry) => entry.name === name);
+        return skill?.enabledAgents.includes("native") && skill.userInvocable !== false
+          ? skill
+          : null;
+      },
+      getModelInvocableSkill: (name, cwd) => {
+        const skill = skillToolEntries(cwd).find((entry) => entry.name === name);
+        return skill?.status === "available" ? skill : null;
+      },
       // 依赖就绪解析只做只读检测并按依赖缓存，绝不触发安装。https://github.com/ItsDalk-Lane/Scribe/issues/46
       resolveSkillDependencies: async (name) => {
         const skill = SkillManager.hasInstance()
@@ -286,10 +298,14 @@ export const NativeBackendDescriptor: BackendDescriptor = {
       getModels: () => getNativeModelEntries(getSettings()),
       getDefaultModelId: () => getNativeDefaultModelId(getSettings()),
       createModel: (id) => createNativeModel(app, id),
+      getRequestContext: (input) =>
+        input.projectId && input.projectId !== GLOBAL_SCOPE
+          ? buildCurrentProjectContext(app, input.projectId)
+          : "",
       getSystemPrompt: async (input) => {
         assertScope(input);
         await SubagentManager.getInstance(app).refresh();
-        return buildNativeSystemPrompt(app, input);
+        return buildNativeSystemPromptState(app, input);
       },
       createTools(context) {
         const commandTasks = new NativeCommandTasks({
@@ -303,6 +319,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
         });
         const advanced = createNativeAdvancedTools({
           ...context,
+          skillCatalogLifecycle: context.skillCatalog,
           app,
           reviewSkillDraft: (draft, signal) => reviewSkillDraft(app, draft, signal),
           skills: () => skillToolEntries(context.cwd),

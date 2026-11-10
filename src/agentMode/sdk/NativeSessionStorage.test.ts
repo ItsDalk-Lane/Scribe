@@ -354,6 +354,34 @@ describe("NativeSessionStorage", () => {
     });
 
     describe("load()", () => {
+      it("preserves delivered skill snapshots and revocations in order after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        await storage.save(record());
+        const delivery = {
+          version: 1,
+          name: "review",
+          bodyHash: "a".repeat(64),
+          instruction: "Original instructions",
+          dependencyBlock: "",
+          promptId: "turn-1",
+        };
+        const revocation = { version: 1, name: "review" };
+        await storage.append(SESSION_ID, "skill_delivery", delivery, { durable: true });
+        await storage.append(SESSION_ID, "skill_delivery_revoked", revocation, { durable: true });
+        const reopened = new NodeNativeSessionStorage(
+          new NodeJournalStorage(join(directory, "sessions"))
+        );
+        const loaded = await reopened.load(SESSION_ID);
+        expect(
+          loaded?.journalRecords
+            ?.filter((fact) => fact.kind.startsWith("skill_delivery"))
+            .map(({ kind, payload }) => ({ kind, payload }))
+        ).toEqual([
+          { kind: "skill_delivery", payload: delivery },
+          { kind: "skill_delivery_revoked", payload: revocation },
+        ]);
+        expect(loaded?.writable).toBe(true);
+      });
+
       it("restores accepted child reference content and image bytes from the attachment store https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
         await storage.save(record());
         const state = childState();
@@ -945,6 +973,18 @@ describe("NativeSessionStorage", () => {
         );
         await storage.append(
           SESSION_ID,
+          "request_context",
+          { taskId: "run-child-a", subagentId: "child-a", snapshot: "删除的请求快照" },
+          { durable: true }
+        );
+        await storage.append(
+          SESSION_ID,
+          "request_context",
+          { requestId: "main-request", snapshot: "保留的主请求快照" },
+          { durable: true }
+        );
+        await storage.append(
+          SESSION_ID,
           "tool_result",
           {
             taskId: "run-child-a",
@@ -977,6 +1017,8 @@ describe("NativeSessionStorage", () => {
         expect(text).not.toContain("子上下文-child-a");
         expect(text).not.toContain("需要删除的子指令");
         expect(text).not.toContain("删除的压缩上下文");
+        expect(text).not.toContain("删除的请求快照");
+        expect(text).toContain("保留的主请求快照");
         expect(text).not.toContain("删除的工具结果");
         expect(text).toContain("主聊天已引用的结论");
         const loaded = await new NodeNativeSessionStorage(journal).load(SESSION_ID);

@@ -9,7 +9,7 @@ import {
   buildEmptySkillCatalog,
   buildSkillCatalog,
   buildSkillDependencyBlock,
-  deliverSkillText,
+  SKILL_DELIVERY_MAX_CHARS,
   resolveSkillCatalogBudget,
   type SkillCatalogBuildStatus,
   type SkillDependencyDeliveryReading,
@@ -25,6 +25,7 @@ import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import { htmlToMarkdown } from "@/services/webViewerService/webViewerServiceHelpers";
 import { isRecord } from "@/utils/obsidianInternals";
 import { safeFetchNoThrow } from "@/utils";
+import { sha256 } from "@/utils/hash";
 
 export interface SkillDraftProposal {
   name: string;
@@ -133,18 +134,51 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
       : entry.body;
   }
 
-  function listSkillsResult(): AgentToolResult {
+  // 续读绑定内容和资源，避免文件变化后拼接不同版本。https://github.com/ItsDalk-Lane/Scribe/issues/68
+  function pageSkillText(text: string, identity: string, cursor?: string) {
+    const fingerprint = sha256(JSON.stringify([identity, text]));
+    const match = cursor?.match(/^(\d+):([a-f0-9]{64})$/);
+    if (cursor && (!match || match[2] !== fingerprint))
+      throw new Error("Skill content changed or the continuation cursor is invalid; start again.");
+    const offset = match ? Number(match[1]) : 0;
+    if (!Number.isSafeInteger(offset) || offset < 0 || (cursor && offset >= text.length))
+      throw new Error("Invalid skill continuation cursor; start again.");
+    let end = Math.min(offset + SKILL_DELIVERY_MAX_CHARS, text.length);
+    if (
+      end < text.length &&
+      /[\uD800-\uDBFF]/.test(text[end - 1]) &&
+      /[\uDC00-\uDFFF]/.test(text[end])
+    )
+      end--;
+    const truncated = end < text.length;
+    const nextCursor = truncated ? `${end}:${fingerprint}` : undefined;
+    return {
+      text:
+        text.slice(offset, end) +
+        (nextCursor ? `\n\n[Output truncated]\nContinue with cursor: ${nextCursor}` : ""),
+      truncated,
+      ...(nextCursor ? { nextCursor } : {}),
+    };
+  }
+
+  function listSkillsResult(cursor?: string): AgentToolResult {
     const lines = options
       .skills()
       .map((skill) => `- ${skill.name} (${skill.status}): ${skill.description}`);
-    const delivered = deliverSkillText(
+    const delivered = pageSkillText(
       lines.length
         ? `Registered skills:\n${lines.join("\n")}`
-        : "No skills are registered in this session."
+        : "No skills are registered in this session.",
+      "list",
+      cursor
     );
     return {
       content: [{ type: "text", text: delivered.text }],
-      details: { listed: lines.length, truncated: delivered.truncated },
+      details: {
+        listed: lines.length,
+        truncated: delivered.truncated,
+        ...(delivered.nextCursor ? { nextCursor: delivered.nextCursor } : {}),
+      },
     };
   }
 
@@ -188,17 +222,20 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
             obj({
               name: opt(str({ minLength: 1 })),
               file: opt(str({ minLength: 1 })),
+              cursor: opt(str({ minLength: 1 })),
             }),
             async (_id, args, signal) => {
-              if (args.name === undefined) return listSkillsResult();
+              if (args.name === undefined) return listSkillsResult(args.cursor);
               const entry = requireInvocableSkill(args.name);
               if (args.file !== undefined) {
                 // 支撑文件读取以技能名为锚点并复用管理器的路径防护与二进制判定。https://github.com/ItsDalk-Lane/Scribe/issues/41
                 if (!options.readSkillFile)
                   throw new Error("Skill support-file reading is unavailable in this session.");
                 const content = await options.readSkillFile(entry.name, args.file, signal);
-                const delivered = deliverSkillText(
-                  `Skill file ${entry.name}/${args.file}:\n\n${content}`
+                const delivered = pageSkillText(
+                  `Skill file ${entry.name}/${args.file}:\n\n${content}`,
+                  JSON.stringify([entry.name, args.file]),
+                  args.cursor
                 );
                 return {
                   content: [{ type: "text", text: delivered.text }],
@@ -206,6 +243,7 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
                     name: entry.name,
                     file: args.file,
                     truncated: delivered.truncated,
+                    ...(delivered.nextCursor ? { nextCursor: delivered.nextCursor } : {}),
                   },
                 };
               }
@@ -213,17 +251,20 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
               const dependencyReadings = options.resolveSkillDependencies
                 ? await options.resolveSkillDependencies(entry.name)
                 : [];
-              const delivered = deliverSkillText(
-                buildSkillDependencyBlock(dependencyReadings) + skillInvocationText(entry)
+              const delivered = pageSkillText(
+                buildSkillDependencyBlock(dependencyReadings) + skillInvocationText(entry),
+                JSON.stringify([entry.name, null]),
+                args.cursor
               );
               // 模型侧技能投递计入本地使用台账。https://github.com/ItsDalk-Lane/Scribe/issues/48
-              options.onSkillInvoked?.(entry.name);
+              if (!args.cursor) options.onSkillInvoked?.(entry.name);
               return {
                 content: [{ type: "text", text: delivered.text }],
                 details: {
                   name: entry.name,
                   ...(entry.dirPath ? { directory: entry.dirPath } : {}),
                   truncated: delivered.truncated,
+                  ...(delivered.nextCursor ? { nextCursor: delivered.nextCursor } : {}),
                 },
               };
             }
