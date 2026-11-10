@@ -27,15 +27,18 @@ Scribe. The selected model depends on the tool or chat you are using.
 4. Enter the credential, **基础地址** (**Base URL**), and any provider-specific fields, such
    as the account, project, or gateway ID. Keep JSON credentials in the credential
    field; public fields do not store a separate copy of your secret.
-5. Use **获取模型列表** (**Fetch models**) to read the provider's model directory, or choose from
-   the catalog and enter an exact model ID yourself. A directory error does not
-   prevent you from saving a valid configuration with a model selected.
+5. Use **获取模型列表** (**Fetch models**) to switch the dialog to the model list view and read
+   the provider's model directory, or choose from the catalog and enter an exact model ID there.
+   Models you have added stay at the top of the list with ticked boxes; unchecking one removes
+   it from this provider. Use **返回** (**Back**) to return to the configuration view; entered
+   values are kept. A directory error does not prevent you from saving a valid configuration
+   with a model selected.
 6. Select a chat model and click **测试聊天连接** (**Test chat connection**) if you want to check
    that it can answer. When several chat models are selected, choose the model
    to test. This sends one short message and may use the provider's quota.
 7. Click **保存** (**Save**). Opening or saving the form never sends a chat test.
 
-新建供应商时，表单可能根据当前输入自动获取模型列表；需要密钥时，会等你填写后再请求。编辑供应商不会自动读取已保存的密钥或自动请求模型列表。主动点击 **获取模型列表** 或 **测试聊天连接** 时，如果密钥尚未解锁，会先显示主密码窗口。模型页上每个供应商的检查结果会记住上次的结果：重新打开或重载插件后先直接显示上次的检查状态，不在打开页面时自动发起网络检查；修改了地址或重新填写密钥后，旧结果自动失效，需重新检查才会显示新状态。
+新建供应商时，表单可能根据当前输入自动获取模型列表；需要密钥时，会等你填写后再请求。获取到的模型显示在模型列表界面中；配置表单的“已选择的模型”区域只列出已添加的模型，取消勾选即移除。编辑供应商不会自动读取已保存的密钥或自动请求模型列表。主动点击 **获取模型列表** 或 **测试聊天连接** 时，如果密钥尚未解锁，会先显示主密码窗口。模型页上每个供应商的检查结果会记住上次的结果：重新打开或重载插件后先直接显示上次的检查状态，不在打开页面时自动发起网络检查；修改了地址或重新填写密钥后，旧结果自动失效，需重新检查才会显示新状态。
 
 Opening an existing provider never fills its saved key into the form or unlocks it. Use **Fetch models** or **Test chat connection** to make a request with the saved key. If needed, Scribe asks for the vault's master password first. New-provider discovery may use credentials you have just entered.
 

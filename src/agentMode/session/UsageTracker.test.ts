@@ -567,6 +567,70 @@ describe("UsageTracker", () => {
     });
 
     describe("applyCompactedUsage", () => {
+      it("updates only the compacted child's context and retains its consumption when later replies update occupancy https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+        const { tracker } = makeTracker();
+        tracker.applyUsageUpdate(WINDOWED);
+        const main = tracker.getSessionUsage();
+        tracker.applyCompactedUsage({
+          id: "child-compact",
+          status: "completed",
+          trigger: "manual",
+          subagentId: "child",
+          runId: "run",
+          postTokens: 1200,
+          contextWindow: 32000,
+        });
+        expect(tracker.getSessionUsage()).toBe(main);
+        expect(tracker.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 1200,
+          contextWindow: 32000,
+        });
+        expect(tracker.getSubagentUsage("sibling")).toBeNull();
+
+        tracker.applyModelCall({
+          id: "summary-call",
+          roundId: "round",
+          sourceId: "child",
+          sourceName: "Child",
+          subagentId: "child",
+          kind: "subagent",
+          purpose: "compaction",
+          modelId: "model",
+          modelName: "Model",
+          requestIds: ["summary-http"],
+          status: "completed",
+          usage: { inputTokens: 7000, outputTokens: 1000, totalTokens: 8000 },
+        });
+        expect(tracker.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 1200,
+          contextWindow: 32000,
+          metrics: { totalTokens: 8000, steps: 1 },
+        });
+        expect(tracker.getSessionUsage()?.usedTokens).toBe(WINDOWED.usedTokens);
+        tracker.applyUsageUpdate({ usedTokens: 1800, contextWindow: 32000, updatedAt: 2 }, "child");
+        expect(tracker.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 1800,
+          contextWindow: 32000,
+          metrics: { totalTokens: 8000, steps: 1 },
+        });
+        expect(tracker.getSessionUsage()?.usedTokens).toBe(WINDOWED.usedTokens);
+      });
+
+      it("uses the compacting model's window before any normal reply reports usage https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+        const { tracker } = makeTracker();
+        tracker.applyCompactedUsage({
+          id: "first-compact",
+          status: "completed",
+          trigger: "manual",
+          postTokens: 1000,
+          contextWindow: 64000,
+        });
+        expect(tracker.getSessionUsage()).toMatchObject({
+          usedTokens: 1000,
+          contextWindow: 64000,
+        });
+      });
+
       it("reduces current context after compaction while preserving cumulative parent and child consumption https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
         const { tracker } = makeTracker();
         tracker.applyUsageUpdate({

@@ -1,6 +1,13 @@
 import { PRESET_FAMILIES } from "./presetFamilies";
 import { getPresetIcon } from "./presetIcons";
-import { getProviderPreset, getProviderPresetVersions, PROVIDER_PRESETS } from "./providerPresets";
+import {
+  CATALOG_VENDOR_LINKS,
+  catalogToPseudoPreset,
+  catalogVendorLink,
+  getProviderPreset,
+  getProviderPresetVersions,
+  PROVIDER_PRESETS,
+} from "./providerPresets";
 
 describe("providerPresets", () => {
   describe("PROVIDER_PRESETS", () => {
@@ -27,9 +34,14 @@ describe("providerPresets", () => {
         expect(preset.websiteUrl.length).toBeGreaterThan(0);
         expect(preset.recommendedModelIds.length).toBeGreaterThan(0);
         expect(preset.recommendedModelIds.every((modelId) => modelId.length > 0)).toBe(true);
-        expect(["cn_official", "aggregator", "third_party", "cloud_provider", "local"]).toContain(
-          preset.category
-        );
+        expect([
+          "cn_official",
+          "intl_official",
+          "aggregator",
+          "third_party",
+          "cloud_provider",
+          "local",
+        ]).toContain(preset.category);
       }
     });
 
@@ -50,7 +62,7 @@ describe("providerPresets", () => {
         if (!preset.family) continue;
         expect(preset.family in PRESET_FAMILIES).toBe(true);
       }
-      expect(Object.keys(PRESET_FAMILIES)).toHaveLength(11);
+      expect(Object.keys(PRESET_FAMILIES)).toHaveLength(19);
     });
 
     it("groups the kimi family into four versions and the tencent family into eight", () => {
@@ -105,6 +117,112 @@ describe("providerPresets", () => {
         "kimi-for-coding",
         "kimi-for-coding-global",
       ]);
+    });
+  });
+
+  describe("CATALOG_VENDOR_LINKS", () => {
+    it("maps every catalog entry to a shipped family, an existing preset or a picker category", () => {
+      for (const [catalogId, link] of Object.entries(CATALOG_VENDOR_LINKS)) {
+        expect(catalogVendorLink(catalogId)).toBe(link);
+        if (link.family) expect(link.family in PRESET_FAMILIES).toBe(true);
+        if (link.presetId) expect(getProviderPreset(link.presetId)).toBeDefined();
+        if (link.category) {
+          expect([
+            "cn_official",
+            "intl_official",
+            "aggregator",
+            "third_party",
+            "cloud_provider",
+            "local",
+          ]).toContain(link.category);
+        }
+        expect(link.family || link.presetId || link.category).toBeTruthy();
+      }
+    });
+
+    it("classifies catalog-only vendor families into picker categories", () => {
+      for (const [familyId, category] of [
+        ["google", "intl_official"],
+        ["perplexity", "intl_official"],
+        ["azure", "cloud_provider"],
+        ["siliconflow", "aggregator"],
+        ["llm-gateway", "aggregator"],
+        ["umans-ai", "third_party"],
+        ["munito", "third_party"],
+      ] as const) {
+        expect(familyId in PRESET_FAMILIES).toBe(true);
+        const members = Object.entries(CATALOG_VENDOR_LINKS).filter(
+          ([, link]) => link.family === familyId
+        );
+        expect(members.length).toBeGreaterThan(0);
+        expect(members.every(([, link]) => link.category === category)).toBe(true);
+      }
+    });
+
+    it("covers the models.dev vendor variants that presets do not reach by endpoint host", () => {
+      for (const catalogId of [
+        "alibaba-cn",
+        "alibaba-coding-plan",
+        "xiaomi-token-plan-ams",
+        "xiaomi-token-plan-sgp",
+        "moonshotai-cn",
+        "kimi-code-plan-cn",
+        "kimi-code-plan-global",
+        "zhipuai",
+        "zhipuai-coding-plan",
+        "zai-coding-plan",
+        "tencent-tokenhub",
+        "minimax-cn-coding-plan",
+        "stepfun-ai-step-plan",
+        "volcengine-coding-plan",
+      ]) {
+        expect(CATALOG_VENDOR_LINKS[catalogId]?.family).toBeDefined();
+      }
+    });
+  });
+
+  describe("catalogToPseudoPreset()", () => {
+    it("wraps a catalog provider as a family version with a catalog-prefixed id", () => {
+      const pseudo = catalogToPseudoPreset(
+        {
+          id: "alibaba-cn",
+          displayName: "Alibaba Cloud (CN)",
+          providerType: "openai-compatible",
+          defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        },
+        CATALOG_VENDOR_LINKS["alibaba-cn"]
+      );
+      expect(pseudo?.id).toBe("catalog-alibaba-cn");
+      expect(pseudo?.family).toBe("alibaba");
+      expect(pseudo?.category).toBe("cn_official");
+      expect(pseudo?.catalogProviderId).toBe("alibaba-cn");
+      expect(pseudo?.recommendedModelIds).toEqual([]);
+      expect(pseudo?.baseUrl).toBe("https://dashscope.aliyuncs.com/compatible-mode/v1");
+    });
+
+    it("returns undefined for preset-targeted links or catalog providers without an endpoint", () => {
+      expect(
+        catalogToPseudoPreset(
+          {
+            id: "moark",
+            displayName: "Moark",
+            providerType: "openai-compatible",
+            defaultBaseUrl: "https://moark.com/v1",
+          },
+          CATALOG_VENDOR_LINKS["moark"]
+        )
+      ).toBeUndefined();
+    });
+
+    it("keeps catalog-only families without an endpoint as endpointless pseudo versions", () => {
+      const pseudo = catalogToPseudoPreset(
+        { id: "google", displayName: "Google", providerType: "google" },
+        CATALOG_VENDOR_LINKS["google"]
+      );
+      expect(pseudo?.id).toBe("catalog-google");
+      expect(pseudo?.family).toBe("google");
+      expect(pseudo?.baseUrl).toBe("");
+      expect(pseudo?.category).toBe("intl_official");
     });
   });
 });

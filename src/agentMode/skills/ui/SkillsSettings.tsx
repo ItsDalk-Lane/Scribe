@@ -184,7 +184,6 @@ export function SkillsSettings({
   const actionsFor = (skill: Skill | RejectedSkill) => ({
     skill,
     busy,
-    container: containerRef.current,
     onUse: () => {
       const current = selectedSkillRef.current ?? skill;
       if ("enabledAgents" in current) void perform(() => launchSkill(current));

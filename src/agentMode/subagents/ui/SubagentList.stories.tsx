@@ -14,7 +14,7 @@ export const Several: StoryObj<SubagentListProps> = {
       {
         id: "reviewer",
         name: "事实核查与资料来源审阅助手",
-        description: "检查长篇笔记中的事实、引用与论证。",
+        description: "检查长篇笔记中的事实、引用与论证，整理需要进一步核实的资料来源。",
         instructions: "Check facts",
         enabled: true,
       },

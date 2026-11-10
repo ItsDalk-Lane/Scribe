@@ -23,7 +23,7 @@ import { t } from "@/lib/i18n";
 import { NodeAttachmentStorage } from "@/agentMode/sdk/AttachmentStorage";
 import { NodeJournalStorage } from "@/agentMode/sdk/JournalStorage";
 import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
-import type { SessionEvent } from "@/agentMode/session/types";
+import type { CompactionSnapshot, SessionEvent } from "@/agentMode/session/types";
 import { AgentSession } from "@/agentMode/session/AgentSession";
 import { USER_SENDER } from "@/constants";
 
@@ -1271,6 +1271,82 @@ describe("NativeBackendProcess.journal", () => {
         expect((await readFile(join(directory, `${id}.jsonl`), "utf8")).startsWith(before)).toBe(
           true
         );
+      });
+
+      it("recovers one completed compression and its reduced occupancy when the display fact was lost after durable commit https://github.com/ItsDalk-Lane/Scribe/issues/66", async () => {
+        const original = fixture({
+          storage: new NodeNativeSessionStorage(new NodeJournalStorage(directory)),
+          request: (context) =>
+            JSON.stringify(context).includes("Summarize this recorded Obsidian")
+              ? reply("COMMITTED CONTINUATION SUMMARY")
+              : reply("Original answer before compression"),
+        });
+        const id = await original.open();
+        await original.send(id, "first", "Keep note paths and unfinished tasks");
+        await original.send(id, "manual-compress", "/compact");
+        await original.process.shutdown();
+        const file = join(directory, `${id}.jsonl`);
+        const records = (await readFile(file, "utf8"))
+          .trimEnd()
+          .split("\n")
+          .map((line) => JSON.parse(line) as JournalRecord);
+        const committedIndex = records.findLastIndex((record) => record.kind === "compaction");
+        const committed = records[committedIndex];
+        const expected = (committed.payload as { completion: CompactionSnapshot }).completion;
+        expect(expected).toMatchObject({
+          id: expect.any(String),
+          status: "completed",
+          postTokens: expect.any(Number),
+          summary: "COMMITTED CONTINUATION SUMMARY",
+        });
+        await writeFile(
+          file,
+          `${records
+            .slice(0, committedIndex + 1)
+            .map((record) => JSON.stringify(record))
+            .join("\n")}\n`
+        );
+
+        for (let restart = 0; restart < 2; restart++) {
+          const storage = new NodeNativeSessionStorage(new NodeJournalStorage(directory));
+          const restored = fixture({ storage });
+          const events: SessionEvent[] = [];
+          restored.process.registerSessionHandler(id, (event) => events.push(event));
+          await restored.process.loadSession({ sessionId: id, cwd: "/fixture/vault" });
+          const states = events.filter(
+            (event) =>
+              event.update.sessionUpdate === "compaction" && event.update.id === expected.id
+          );
+          expect(
+            states.filter(
+              (event) =>
+                event.update.sessionUpdate === "compaction" && event.update.status === "completed"
+            )
+          ).toHaveLength(1);
+          expect(states).not.toContainEqual(
+            expect.objectContaining({ update: expect.objectContaining({ status: "cancelled" }) })
+          );
+          expect(states.at(-1)?.update).toMatchObject({
+            status: "completed",
+            summary: expected.summary,
+            commitSeq: committed.seq,
+          });
+          expect(
+            events.findLast((event) => event.update.sessionUpdate === "usage_update")?.update
+          ).toMatchObject({
+            usage: { usedTokens: expected.postTokens, contextWindow: MODEL.contextWindow },
+          });
+          expect(restored.requests).toHaveLength(0);
+          const saved = await storage.load(id);
+          expect(
+            saved?.journalRecords?.filter((record) => {
+              if (record.kind !== "event") return false;
+              const update = (record.payload as SessionEvent).update;
+              return update.sessionUpdate === "compaction" && update.status === "completed";
+            })
+          ).toHaveLength(1);
+          await restored.process.shutdown();
+        }
       });
 
       it("does not apply an old summary to new input when an unsupported original message was skipped", async () => {

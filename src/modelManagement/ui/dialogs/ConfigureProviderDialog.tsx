@@ -17,11 +17,16 @@ import type { ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import type { ProviderDefinition, VerificationResult } from "@/modelManagement/types/runtime";
 import {
+  catalogToPseudoPreset,
+  catalogVendorLink,
   getProviderPreset,
-  getProviderPresetVersions,
+  isPseudoPresetId,
+  PROVIDER_PRESETS,
+  pseudoPresetCatalogId,
   type ProviderPreset,
 } from "@/modelManagement/catalog/presets/providerPresets";
 import type {
+  PresetFamilyId,
   PresetPlanKey,
   PresetRegionKey,
 } from "@/modelManagement/catalog/presets/presetFamilies";
@@ -31,6 +36,8 @@ import {
   presetVersionPickerModel,
 } from "@/modelManagement/catalog/presets/presetVersionLabels";
 import { ModelChecklist } from "@/modelManagement/ui/components/ModelChecklist";
+import { SelectedModelList } from "@/modelManagement/ui/components/SelectedModelList";
+import { ModelConfigForm } from "@/modelManagement/ui/dialogs/ModelConfigDialog";
 import {
   ModelManagementProvider,
   useModelManagement,
@@ -54,6 +61,15 @@ import {
 
 const EMPTY_METADATA: Record<string, ModelInfo> = Object.freeze({});
 const EMPTY_MODELS: readonly ConfiguredModel[] = Object.freeze([]);
+
+function hostOf(url: string | undefined): string {
+  if (!url) return "";
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
 
 export type ConfigureState =
   | { mode: "new"; source: ProviderDefinition }
@@ -130,7 +146,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const providerType: ProviderType | undefined =
     state.mode === "new" ? state.source.providerType : provider?.providerType;
 
-  const catalogProviderId: string | undefined =
+  const sourceCatalogProviderId =
     state.mode === "new"
       ? state.source.catalogProviderId
       : provider?.origin.kind === "byok"
@@ -154,12 +170,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     };
   }, [api]);
 
-  const catalogMetadata = useMemo<Record<string, ModelInfo>>(() => {
-    if (!catalogProviderId) return EMPTY_METADATA;
-    return api.catalogService.getProvider(catalogProviderId)?.models ?? EMPTY_METADATA;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion intentionally invalidates metadata read through catalogService
-  }, [catalogProviderId, api, catalogVersion]);
-
   const [displayName, setDisplayName] = useState(() =>
     state.mode === "new" ? state.source.displayName : (provider?.displayName ?? "")
   );
@@ -181,11 +191,53 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     return typeof saved === "string" ? saved : undefined;
   });
   const presetVersions = useMemo(() => {
-    const preset = presetId ? getProviderPreset(presetId) : undefined;
-    return preset ? getProviderPresetVersions(preset) : [];
-  }, [presetId]);
-  const versionPicker = useMemo(() => presetVersionPickerModel(presetVersions), [presetVersions]);
+    let familyId: PresetFamilyId | undefined;
+    let standalone: ProviderPreset | undefined;
+    if (presetId) {
+      const preset = getProviderPreset(presetId);
+      if (preset) {
+        familyId = preset.family;
+        standalone = preset.family ? undefined : preset;
+      } else if (isPseudoPresetId(presetId)) {
+        familyId = catalogVendorLink(pseudoPresetCatalogId(presetId))?.family;
+      }
+    }
+    const base = familyId
+      ? PROVIDER_PRESETS.filter((candidate) => candidate.family === familyId)
+      : standalone
+        ? [standalone]
+        : [];
+    if (!familyId) return base;
+    const pseudo = api.catalogService
+      .getAllProviders()
+      .map((provider) => {
+        const link = catalogVendorLink(provider.id);
+        if (!link || link.family !== familyId) return undefined;
+        return catalogToPseudoPreset(provider, link);
+      })
+      .filter((candidate): candidate is ProviderPreset => !!candidate)
+      .filter(
+        (candidate) => !base.some((preset) => hostOf(preset.baseUrl) === hostOf(candidate.baseUrl))
+      );
+    return [...base, ...pseudo];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion intentionally invalidates the getAllProviders read
+  }, [presetId, api, catalogVersion]);
+  const versionPicker = useMemo(
+    () =>
+      presetVersionPickerModel(
+        presetVersions,
+        presetVersions.some((version) => isPseudoPresetId(version.id))
+      ),
+    [presetVersions]
+  );
   const currentVersion = presetVersions.find((candidate) => candidate.id === presetId);
+  const catalogProviderId = currentVersion?.catalogProviderId ?? sourceCatalogProviderId;
+
+  const catalogMetadata = useMemo<Record<string, ModelInfo>>(() => {
+    if (!catalogProviderId) return EMPTY_METADATA;
+    return api.catalogService.getProvider(catalogProviderId)?.models ?? EMPTY_METADATA;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion intentionally invalidates metadata read through catalogService
+  }, [catalogProviderId, api, catalogVersion]);
   const initialPresetSelection = useMemo(() => {
     if (state.mode !== "new" || !state.source.presetId) return undefined;
     return getProviderPreset(state.source.presetId)?.recommendedModelIds;
@@ -199,7 +251,8 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const chatRequest = useRef(0);
   const chatController = useRef<{ key: string; controller: AbortController } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [modelQuery, setModelQuery] = useState("");
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [editingConfiguredId, setEditingConfiguredId] = useState<string | null>(null);
 
   const requiresApiKey =
     state.mode === "new" ? state.source.requiresApiKey : providerRequiresApiKey(provider!);
@@ -341,6 +394,10 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     chatController.current = null;
     setChatCheck(null);
   };
+  const handleModelToggle = (id: string, next: boolean): void => {
+    invalidateChatCheck();
+    pool.toggle(id, next);
+  };
   useEffect(
     () => () => {
       chatRequest.current++;
@@ -408,7 +465,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     setSaving(true);
     try {
       await api.setup.byok.setupProvider({
-        catalogProviderId: state.source.catalogProviderId,
+        catalogProviderId,
         providerType,
         displayName,
         baseUrl: storedBaseUrl || undefined,
@@ -495,6 +552,76 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     !missingRequiredBaseUrl && !missingRequiredKey && !missingParameters && !baseUrlError;
 
   const modelInputHint = state.mode === "new" ? state.source.modelInputHint : undefined;
+
+  if (modelPickerOpen) {
+    return (
+      <div className="tw-group/settings tw-flex tw-h-full tw-min-h-0 tw-flex-col tw-gap-4 tw-overflow-hidden">
+        <div className="tw-flex tw-shrink-0 tw-flex-col tw-gap-1 tw-border-b tw-border-border tw-px-2 tw-pb-3">
+          <div
+            role="heading"
+            aria-level={2}
+            className="tw-text-base tw-font-semibold tw-leading-normal"
+          >
+            {t("Model list")}
+          </div>
+          <div className="tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
+            {t("Uncheck a model to remove it from your added models.")}
+          </div>
+        </div>
+
+        <div
+          role="region"
+          aria-label={t("Model list")}
+          className="tw-min-h-0 tw-min-w-0 tw-flex-1 tw-overflow-y-auto tw-px-2 tw-py-1"
+        >
+          <ModelChecklist
+            availableModels={pool.availableModels}
+            selected={pool.selectedWireIds}
+            onToggle={handleModelToggle}
+            onAddId={(id) => {
+              invalidateChatCheck();
+              pool.addId(id);
+            }}
+            onRemoveId={(id) => {
+              invalidateChatCheck();
+              pool.removeId(id);
+            }}
+            customIds={pool.customIds}
+            modelInputHint={modelInputHint}
+            fetching={pool.fetching}
+            fetchError={
+              pool.fetchError ??
+              (!effectiveBaseUrl && !pool.fetching
+                ? t("Enter a base URL before fetching models.")
+                : null)
+            }
+          />
+        </div>
+
+        <div className="tw-flex tw-shrink-0 tw-justify-end tw-gap-2 tw-px-2">
+          <Button variant="secondary" onClick={() => setModelPickerOpen(false)}>
+            {t("Back")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 已保存服务商的模型行内「编辑」：原位切换到单模型配置视图，保存/返回后回到服务商配置。https://github.com/ItsDalk-Lane/Scribe/issues/67
+  const editingModel =
+    editingConfiguredId !== null
+      ? existingModels.find((m) => m.configuredModelId === editingConfiguredId)
+      : undefined;
+  if (editingModel) {
+    return (
+      <ModelConfigForm
+        provider={provider!}
+        configuredModel={editingModel}
+        onClose={() => setEditingConfiguredId(null)}
+        onSaved={onSaved}
+      />
+    );
+  }
 
   return (
     <div className="tw-group/settings tw-flex tw-h-full tw-min-h-0 tw-flex-col tw-gap-4 tw-overflow-hidden">
@@ -662,8 +789,11 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={saving || pool.fetching || !canTest || !effectiveBaseUrl}
-                onClick={safeAsyncHandler(pool.fetchModels)}
+                disabled={saving}
+                onClick={safeAsyncHandler(async () => {
+                  setModelPickerOpen(true);
+                  await pool.fetchModels();
+                })}
               >
                 {t("Fetch models")}
               </Button>
@@ -673,28 +803,22 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
                 "Fetching models only reads the directory; it does not test a chat or confirm access to every model."
               )}
             </p>
-            <ModelChecklist
-              availableModels={pool.availableModels}
-              selected={pool.selectedWireIds}
-              onToggle={(id, next) => {
-                invalidateChatCheck();
-                pool.toggle(id, next);
-              }}
-              onAddId={(id) => {
-                invalidateChatCheck();
-                pool.addId(id);
-              }}
-              onRemoveId={(id) => {
-                invalidateChatCheck();
-                pool.removeId(id);
-              }}
-              customIds={pool.customIds}
-              query={modelQuery}
-              onQueryChange={setModelQuery}
-              modelInputHint={modelInputHint}
-              fetching={pool.fetching}
-              fetchError={pool.fetchError}
-            />
+            <div className="tw-flex tw-flex-col tw-gap-2">
+              <div className="tw-text-sm tw-font-medium tw-text-normal">{t("Selected models")}</div>
+              <SelectedModelList
+                availableModels={pool.availableModels}
+                selected={pool.selectedWireIds}
+                onToggle={handleModelToggle}
+                onEdit={
+                  state.mode === "edit"
+                    ? (model) => {
+                        const configured = existingModels.find((m) => m.info.id === model.id);
+                        if (configured) setEditingConfiguredId(configured.configuredModelId);
+                      }
+                    : undefined
+                }
+              />
+            </div>
           </div>
           <ProviderChatConnectionTest
             models={testModels}

@@ -167,6 +167,66 @@ describe("catalogTransform", () => {
       expect(model.cost).toEqual({ input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 });
     });
 
+    it("carries lifecycle status, attachment, structured output, and temperature declarations into model metadata https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const wire = makeWire({
+        vendor: {
+          id: "vendor",
+          name: "Vendor",
+          models: {
+            retired: { id: "retired", name: "Retired", status: "deprecated" },
+            preview: { id: "preview", name: "Preview", status: "beta" },
+            experimental: { id: "experimental", name: "Experimental", status: "alpha" },
+            unknown: { id: "unknown", name: "Unknown", status: "archived" },
+            capable: {
+              id: "capable",
+              name: "Capable",
+              attachment: true,
+              structured_output: true,
+              temperature: false,
+            },
+          },
+        },
+      });
+      const [provider] = transformWireToCatalog(wire);
+      expect(provider.models.retired.status).toBe("deprecated");
+      expect(provider.models.preview.status).toBe("beta");
+      expect(provider.models.experimental.status).toBe("alpha");
+      expect(provider.models.unknown.status).toBeUndefined();
+      expect(provider.models.capable).toMatchObject({
+        attachment: true,
+        structuredOutput: true,
+        temperature: false,
+      });
+    });
+
+    it("flattens effort values from structured reasoning options into deduplicated efforts https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const wire = makeWire({
+        vendor: {
+          id: "vendor",
+          name: "Vendor",
+          models: {
+            tiers: {
+              id: "tiers",
+              name: "Tiers",
+              reasoning: true,
+              reasoning_options: [
+                { type: "toggle" },
+                { type: "effort", values: ["low", "medium", "high", "medium"] },
+                { type: "effort", values: ["max"] },
+                { type: "budget_tokens" },
+                { type: "effort", values: "invalid" },
+                "invalid",
+              ],
+            },
+            plain: { id: "plain", name: "Plain", reasoning: true },
+          },
+        },
+      });
+      const [provider] = transformWireToCatalog(wire);
+      expect(provider.models.tiers.reasoningEfforts).toEqual(["low", "medium", "high", "max"]);
+      expect(provider.models.plain.reasoningEfforts).toBeUndefined();
+    });
+
     it("omits optional fields when the wire lacks them", () => {
       const wire = makeWire({
         ollamaish: {
@@ -184,6 +244,11 @@ describe("catalogTransform", () => {
       expect(model.toolCall).toBeUndefined();
       expect(model.releaseDate).toBeUndefined();
       expect(model.isEmbedding).toBeUndefined();
+      expect(model.status).toBeUndefined();
+      expect(model.attachment).toBeUndefined();
+      expect(model.structuredOutput).toBeUndefined();
+      expect(model.temperature).toBeUndefined();
+      expect(model.reasoningEfforts).toBeUndefined();
     });
 
     it("flags embedding models from the `family` field", () => {

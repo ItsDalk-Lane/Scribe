@@ -456,6 +456,52 @@ export const CompletedWithOwnUsage: StoryObj<SubagentChatPanelProps> = {
   },
 };
 
+export const CompactedWithOwnContext: StoryObj<SubagentChatPanelProps> = {
+  render: (props) => {
+    const compacted: SubagentSessionSnapshot = {
+      ...session,
+      runs: [completedRun],
+      messages: [
+        {
+          ...session.messages[0],
+          sender: "user",
+          runId: completedRun.id,
+          text: "/compact 保留笔记路径、口径差异和未完成核对项",
+        },
+      ],
+    };
+    const reply: AgentChatMessage = {
+      ...runContent("compression-reply", ""),
+      parts: [
+        {
+          kind: "compaction",
+          id: "child-compression",
+          trigger: "manual",
+          status: "completed",
+          startedAtMs: 1000,
+          preTokens: 28000,
+          postTokens: 2400,
+          summary:
+            "目标：统一三份月度总结的统计口径。\n约束：保留原始笔记与所有路径。\n已完成：核对第一份总结，标出两处差异。\n继续位置：读取第二份总结，按新口径复核，保留尚未解决的异常清单。",
+        },
+      ],
+    };
+    return (
+      <PanelPreview
+        {...props}
+        parentBackend={{
+          ...createParentBackend(compacted),
+          getTaskMessages: (toolCallId) => (toolCallId === completedRun.toolCallId ? [reply] : []),
+          getSubagentUsage: (subagentId) =>
+            subagentId === compacted.id
+              ? { ...childUsage, usedTokens: 2400, contextWindow: 64000 }
+              : null,
+        }}
+      />
+    );
+  },
+};
+
 export const WaitingToRetry: StoryObj<SubagentChatPanelProps> = {
   render: (props) => (
     <PanelPreview

@@ -38,6 +38,7 @@ const meta = {
 } satisfies Meta<SkillDetailsViewProps>;
 export default meta;
 export const LocalPreview: StoryObj<SkillDetailsViewProps> = {};
+export const Busy: StoryObj<SkillDetailsViewProps> = { args: { busy: true } };
 export const Editable: StoryObj<SkillDetailsViewProps> = { args: { initialEditing: true } };
 export const BuiltinReadonly: StoryObj<SkillDetailsViewProps> = {
   args: { skill: { ...skill, source: { kind: "builtin" } } },

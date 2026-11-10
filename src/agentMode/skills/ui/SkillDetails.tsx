@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, FileText, Folder, MoreHorizontal, Play, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Folder, Play, Trash2 } from "lucide-react";
 import { SkillManager, getManagedSkills, useManagedSkills } from "@/agentMode/skills/SkillManager";
 import { parseSkillFile } from "@/agentMode/skills/skillFormat";
 import type { Skill } from "@/agentMode/skills/types";
@@ -12,12 +12,6 @@ import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { SettingSwitch } from "@/components/ui/setting-switch";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { debounce } from "@/lib/debounce";
@@ -138,7 +132,6 @@ export function SkillDetailsView({
   onRepair,
   onRestore,
   busy,
-  container,
   onUse,
   onToggle,
   onUninstall,
@@ -421,27 +414,16 @@ export function SkillDetailsView({
             <Play className="tw-size-3.5" />
             {t("Use now")}
           </Button>
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("More actions for {p0}", { p0: skill.name })}
-                disabled={disabled}
-              >
-                <MoreHorizontal className="tw-size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" container={container}>
-              <DropdownMenuItem
-                className="tw-text-error"
-                onSelect={() => void afterFlush(onUninstall)}
-              >
-                <Trash2 className="tw-size-4" />
-                {t("Uninstall")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            title={t("Uninstall")}
+            aria-label={`${t("Uninstall")} ${skill.name}`}
+            disabled={disabled}
+            onClick={() => void afterFlush(onUninstall)}
+          >
+            <Trash2 className="tw-size-4" />
+          </Button>
         </div>
       </div>
       {valid && skill.dependencies?.length ? (

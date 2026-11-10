@@ -276,6 +276,12 @@ export interface CompactionSnapshot {
   error?: string;
   preTokens?: number;
   postTokens?: number;
+  contextWindow?: number;
+  subagentId?: string;
+  runId?: string;
+  preservedIndices?: readonly number[];
+  reason?: string;
+  commitSeq?: number;
 }
 
 export interface AgentSegmentBlock {
@@ -320,7 +326,7 @@ export type SessionUpdate =
   | { sessionUpdate: "current_mode_update"; currentModeId: string }
   | { sessionUpdate: "config_option_update"; configOptions: BackendConfigOption[] }
   | { sessionUpdate: "state_changed"; state: BackendState }
-  | { sessionUpdate: "usage_update"; usage: SessionUsage }
+  | { sessionUpdate: "usage_update"; usage: SessionUsage; subagentId?: string }
   | { sessionUpdate: "plan_usage_update"; planUsage: PlanUsage | null }
   | { sessionUpdate: "message_delivered"; promptId: string; messageSeq?: number }
   | { sessionUpdate: "messages_withdrawn"; promptIds: string[] }

@@ -437,7 +437,7 @@ export function LocalSkillImportView({
         }}
         onDrop={importDropped}
         className={cn(
-          "tw-flex tw-w-full tw-cursor-pointer tw-flex-col tw-items-center tw-gap-2 tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-bg-transparent tw-px-6 tw-py-10 tw-text-center tw-transition-colors hover:tw-border-interactive-accent hover:tw-bg-modifier-hover focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-ring",
+          "tw-flex tw-w-full tw-cursor-pointer tw-flex-col tw-items-center tw-gap-2 !tw-whitespace-normal tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-bg-transparent tw-px-6 tw-py-10 tw-text-center tw-transition-colors hover:tw-border-interactive-accent hover:tw-bg-modifier-hover focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-ring",
           dragActive && "tw-border-interactive-accent tw-bg-modifier-hover"
         )}
       >

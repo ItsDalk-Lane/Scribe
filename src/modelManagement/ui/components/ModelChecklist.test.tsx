@@ -9,8 +9,6 @@ function renderList(overrides: Partial<React.ComponentProps<typeof ModelChecklis
     selected: new Set<string>(),
     onToggle: jest.fn(),
     onAddId: jest.fn(),
-    query: "",
-    onQueryChange: jest.fn(),
     ...overrides,
   };
   render(<ModelChecklist {...props} />);
@@ -83,17 +81,56 @@ describe("ModelChecklist", () => {
           selected={new Set<string>()}
           onToggle={jest.fn()}
           onAddId={jest.fn()}
-          query=""
-          onQueryChange={jest.fn()}
         />
       );
-      expect(screen.getByTestId("model-row-omni").querySelectorAll("svg").length).toBe(0);
+      // 视觉模型展示图片输入图标，纯文本模型保留无视觉图标，未知模态不显示任何图标。https://github.com/ItsDalk-Lane/Scribe/issues/67
+      expect(
+        screen.getByTestId("model-row-omni").querySelector('[data-testid="model-modality-image"]')
+      ).not.toBeNull();
       expect(
         screen
           .getByTestId("model-row-text-only")
           .querySelector('[data-testid="model-cap-no-vision"]')
       ).not.toBeNull();
+      expect(
+        screen
+          .getByTestId("model-row-text-only")
+          .querySelector('[data-testid="model-modality-image"]')
+      ).toBeNull();
       expect(screen.getByTestId("model-row-gpt-5").querySelectorAll("svg").length).toBe(0);
+    });
+
+    it("marks deprecated catalog models as non-selectable while keeping selected ones checkable https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const DEPRECATED: ModelInfo = { id: "old", displayName: "Old", status: "deprecated" };
+      render(
+        <ModelChecklist
+          availableModels={[DEPRECATED, PLAIN]}
+          selected={new Set<string>(["old"])}
+          onToggle={jest.fn()}
+          onAddId={jest.fn()}
+        />
+      );
+      const deprecatedCheckbox = screen
+        .getByTestId("model-row-old")
+        .querySelector("[role='checkbox']") as HTMLElement;
+      expect(deprecatedCheckbox.hasAttribute("data-disabled")).toBe(false);
+      expect(screen.getByText("Deprecated")).toBeTruthy();
+    });
+
+    it("keeps a deprecated unselected model's checkbox disabled https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const DEPRECATED: ModelInfo = { id: "old", displayName: "Old", status: "deprecated" };
+      render(
+        <ModelChecklist
+          availableModels={[DEPRECATED]}
+          selected={new Set<string>()}
+          onToggle={jest.fn()}
+          onAddId={jest.fn()}
+        />
+      );
+      const deprecatedCheckbox = screen
+        .getByTestId("model-row-old")
+        .querySelector("[role='checkbox']") as HTMLElement;
+      expect(deprecatedCheckbox.getAttribute("data-disabled")).toBe("");
     });
 
     it("calls onToggle with the wire id and true when a model checkbox is ticked", () => {
@@ -160,23 +197,16 @@ describe("ModelChecklist", () => {
       expect(screen.getByText("Authentication failed")).toBeTruthy();
     });
 
-    it("hides models whose name and id do not match the search query", () => {
+    it("hides models whose name and id do not match the typed search query", () => {
       renderList({
         availableModels: [RICH, PLAIN, { id: "gemini-2.0-flash", displayName: "Gemini 2 Flash" }],
-        query: "gemini",
+      });
+      fireEvent.change(screen.getByPlaceholderText("Search available models…"), {
+        target: { value: "gemini" },
       });
       expect(screen.queryByTestId("model-row-gemini-2.0-flash")).toBeTruthy();
       expect(screen.queryByTestId(`model-row-${RICH.id}`)).toBeNull();
       expect(screen.queryByTestId("model-row-gpt-5")).toBeNull();
-    });
-
-    it("calls onQueryChange with the text typed in the search box", () => {
-      const onQueryChange = jest.fn();
-      renderList({ onQueryChange });
-      fireEvent.change(screen.getByPlaceholderText("Search available models…"), {
-        target: { value: "qwen" },
-      });
-      expect(onQueryChange).toHaveBeenCalledWith("qwen");
     });
 
     it("lists checked models before unchecked ones", () => {

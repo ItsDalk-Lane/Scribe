@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import type { CatalogProvider, ProviderType } from "@/modelManagement/types/catalog";
 import type { ProviderDefinition } from "@/modelManagement/types/runtime";
 import {
+  catalogToPseudoPreset,
+  catalogVendorLink,
   PROVIDER_PRESETS,
   type ProviderPreset,
 } from "@/modelManagement/catalog/presets/providerPresets";
@@ -15,8 +17,6 @@ import { Plus } from "lucide-react";
 import { App } from "obsidian";
 import React, { useMemo, useState } from "react";
 
-const RECOMMENDED_IDS: readonly string[] = ["anthropic", "openai", "google"];
-
 const PROVIDER_TYPE_HINTS: Record<ProviderType, string> = {
   anthropic: "e.g. claude-sonnet-5",
   google: "e.g. gemini-2.5-pro",
@@ -26,6 +26,7 @@ const PROVIDER_TYPE_HINTS: Record<ProviderType, string> = {
 const PICKER_CATEGORY_ORDER = [
   "all",
   "cn_official",
+  "intl_official",
   "aggregator",
   "third_party",
   "cloud_provider",
@@ -38,6 +39,7 @@ type PickerCategory = (typeof PICKER_CATEGORY_ORDER)[number];
 const CATEGORY_LABEL_KEYS: Record<PickerCategory, string> = {
   all: "All providers",
   cn_official: "Domestic official",
+  intl_official: "International official",
   aggregator: "Aggregator platforms",
   third_party: "Third-party platforms",
   cloud_provider: "Cloud providers",
@@ -47,14 +49,13 @@ const CATEGORY_LABEL_KEYS: Record<PickerCategory, string> = {
 
 const SECTION_ORDER: readonly Exclude<PickerCategory, "all">[] = [
   "cn_official",
+  "intl_official",
   "aggregator",
   "third_party",
   "cloud_provider",
   "vendors",
   "local",
 ];
-
-const OFFICIAL_DIRECT_CATALOG_IDS: ReadonlySet<string> = new Set(["anthropic", "openai", "google"]);
 
 function catalogToDefinition(catalog: CatalogProvider): ProviderDefinition {
   return {
@@ -156,19 +157,49 @@ export const AddProviderContent: React.FC<AddProviderContentProps> = ({
       versionsByFamily.set(preset.family, versions);
     }
 
-    for (const [familyId, versions] of versionsByFamily) {
+    const presetHosts = new Set(
+      PROVIDER_PRESETS.map((preset) => hostOf(preset.baseUrl)).filter(Boolean)
+    );
+    const templateHosts = new Set(
+      localTemplates.map((template) => hostOf(template.defaultBaseUrl)).filter(Boolean)
+    );
+    const pseudoByFamily = new Map<PresetFamilyId, ProviderPreset[]>();
+    for (const provider of catalogProviders) {
+      const link = catalogVendorLink(provider.id);
+      if (link?.family) {
+        const pseudo = catalogToPseudoPreset(provider, link);
+        const host = hostOf(provider.defaultBaseUrl);
+        if (pseudo && !(host && presetHosts.has(host))) {
+          pseudoByFamily.set(link.family, [...(pseudoByFamily.get(link.family) ?? []), pseudo]);
+        }
+      }
+    }
+
+    for (const familyId of new Set([...versionsByFamily.keys(), ...pseudoByFamily.keys()])) {
+      const versions = [
+        ...(versionsByFamily.get(familyId) ?? []),
+        ...(pseudoByFamily.get(familyId) ?? []),
+      ];
       const representative = versions[0];
       const familyName = t(PRESET_FAMILIES[familyId].displayName);
-      const domain = hostOf(representative.websiteUrl) || hostOf(representative.baseUrl);
+      const domain =
+        hostOf(representative.websiteUrl) ||
+        hostOf(representative.baseUrl) ||
+        versions.map((preset) => hostOf(preset.baseUrl)).find(Boolean) ||
+        "";
       push(representative.category, {
         key: `family-${familyId}`,
         testId: `add-provider-family-${familyId}`,
         displayName: familyName,
         detail:
           versions.length > 1
-            ? `${domain} · ${t("{count} versions", { count: versions.length })}`
-            : domain,
-        searchText: [familyName, ...versions.map((preset) => preset.displayName), domain].join(" "),
+            ? `${domain ? `${domain} · ` : ""}${t("{count} versions", { count: versions.length })}`
+            : domain || familyName,
+        searchText: [
+          familyName,
+          ...versions.map((preset) => preset.displayName),
+          ...versions.map((preset) => hostOf(preset.baseUrl)),
+        ].join(" "),
         icon: representative.icon,
         iconColor: representative.iconColor,
         pick: () => onPick(presetToDefinition(representative, familyName)),
@@ -190,45 +221,23 @@ export const AddProviderContent: React.FC<AddProviderContentProps> = ({
       });
     }
 
-    const claimedCatalogIds = new Set<string>();
-    for (const preset of PROVIDER_PRESETS) {
-      if (!preset.catalogProviderId || OFFICIAL_DIRECT_CATALOG_IDS.has(preset.catalogProviderId)) {
-        continue;
-      }
-      const catalogProvider = catalogProviders.find(
-        (entry) => entry.id === preset.catalogProviderId
-      );
-      if (!catalogProvider?.defaultBaseUrl) continue;
-      if (hostOf(catalogProvider.defaultBaseUrl) === hostOf(preset.baseUrl)) {
-        claimedCatalogIds.add(preset.catalogProviderId);
-      }
+    for (const provider of catalogProviders) {
+      const link = catalogVendorLink(provider.id);
+      const host = hostOf(provider.defaultBaseUrl);
+      if (link?.family || link?.presetId) continue;
+      if (host && (presetHosts.has(host) || templateHosts.has(host))) continue;
+      if (localTemplates.some((template) => template.id === provider.id)) continue;
+      const domain = host || t("custom endpoint");
+      const card: PickerCard = {
+        key: `catalog-${provider.id}`,
+        testId: `add-provider-card-${provider.id}`,
+        displayName: provider.displayName,
+        detail: domain,
+        searchText: [provider.displayName, domain].join(" "),
+        pick: () => onPick(catalogToDefinition(provider)),
+      };
+      push(link?.category ?? "vendors", card);
     }
-
-    const catalogCards = catalogProviders
-      .filter((provider) => !claimedCatalogIds.has(provider.id))
-      .sort((a, b) => {
-        const recommendedA = RECOMMENDED_IDS.indexOf(a.id);
-        const recommendedB = RECOMMENDED_IDS.indexOf(b.id);
-        if (recommendedA !== recommendedB) {
-          return (
-            (recommendedA === -1 ? Number.MAX_SAFE_INTEGER : recommendedA) -
-            (recommendedB === -1 ? Number.MAX_SAFE_INTEGER : recommendedB)
-          );
-        }
-        return a.displayName.localeCompare(b.displayName);
-      })
-      .map((provider) => {
-        const domain = hostOf(provider.defaultBaseUrl) || t("custom endpoint");
-        return {
-          key: `catalog-${provider.id}`,
-          testId: `add-provider-card-${provider.id}`,
-          displayName: provider.displayName,
-          detail: domain,
-          searchText: [provider.displayName, domain].join(" "),
-          pick: () => onPick(catalogToDefinition(provider)),
-        };
-      });
-    for (const card of catalogCards) push("vendors", card);
 
     for (const template of localTemplates) {
       const descriptor = template.defaultBaseUrl
@@ -280,6 +289,10 @@ export const AddProviderContent: React.FC<AddProviderContentProps> = ({
     target === "all"
       ? visibleSections.reduce((sum, section) => sum + section.cards.length, 0)
       : (filteredSections.find((section) => section.category === target)?.cards.length ?? 0);
+  const totalCountFor = (target: PickerCategory): number =>
+    target === "all"
+      ? sections.reduce((sum, section) => sum + section.cards.length, 0)
+      : (sections.find((section) => section.category === target)?.cards.length ?? 0);
   const noMatches = countFor("all") === 0;
 
   const renderCard = (card: PickerCard): React.ReactElement => (
@@ -312,38 +325,40 @@ export const AddProviderContent: React.FC<AddProviderContentProps> = ({
 
       <SearchBar value={query} onChange={setQuery} placeholder={t("Search providers…")} />
 
-      <div className="tw-flex tw-min-h-0 tw-flex-1 tw-gap-4 tw-overflow-hidden">
+      <div className="tw-flex tw-min-h-0 tw-flex-1 tw-flex-col tw-gap-2 tw-overflow-hidden">
         <div
           role="group"
           aria-label={t("Provider categories")}
-          className="tw-flex tw-w-[168px] tw-shrink-0 tw-flex-col tw-gap-0.5 tw-overflow-y-auto"
+          className="tw-flex tw-flex-wrap tw-items-center tw-gap-1"
         >
-          {PICKER_CATEGORY_ORDER.map((key) => {
-            const count = countFor(key);
-            const active = category === key;
-            const dim = searching && count === 0 && !active;
-            return (
-              <button
-                key={key}
-                type="button"
-                data-testid={`add-provider-category-${key}`}
-                aria-pressed={active}
-                onClick={() => setCategory(key)}
-                className={cn(
-                  "tw-flex tw-h-8 tw-items-center tw-justify-between tw-gap-2 tw-rounded-md tw-px-2 tw-text-left tw-text-sm",
-                  active
-                    ? "tw-bg-base-25 tw-font-medium tw-text-normal"
-                    : "tw-text-normal hover:tw-bg-primary-alt/40",
-                  dim && "tw-text-muted"
-                )}
-              >
-                <span className="tw-truncate">{t(CATEGORY_LABEL_KEYS[key])}</span>
-                <span className="tw-shrink-0 tw-text-xs tw-tabular-nums tw-text-muted">
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+          {PICKER_CATEGORY_ORDER.filter((key) => key === "all" || totalCountFor(key) > 0).map(
+            (key) => {
+              const count = countFor(key);
+              const active = category === key;
+              const dim = searching && count === 0 && !active;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`add-provider-category-${key}`}
+                  aria-pressed={active}
+                  onClick={() => setCategory(key)}
+                  className={cn(
+                    "tw-flex tw-h-7 tw-items-center tw-gap-1.5 tw-rounded-md tw-px-2.5 tw-text-sm",
+                    active
+                      ? "!tw-bg-base-25 tw-font-medium tw-text-normal"
+                      : "!tw-bg-transparent tw-text-normal hover:!tw-bg-primary-alt/40",
+                    dim && "tw-text-muted"
+                  )}
+                >
+                  <span className="tw-whitespace-nowrap">{t(CATEGORY_LABEL_KEYS[key])}</span>
+                  <span className="tw-shrink-0 tw-text-xs tw-tabular-nums tw-text-muted">
+                    {count}
+                  </span>
+                </button>
+              );
+            }
+          )}
         </div>
 
         <div className="tw-min-w-0 tw-flex-1 tw-overflow-y-auto">

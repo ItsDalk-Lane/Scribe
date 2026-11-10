@@ -130,6 +130,46 @@ describe("configuredModelToCustomModel", () => {
       expect(unknown.numCtx).toBeUndefined();
     });
 
+    it("carries the declared capability contract onto the runtime model without inventing values https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const declared = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: {
+            id: "capable",
+            displayName: "Capable",
+            attachment: true,
+            toolCall: true,
+            structuredOutput: false,
+            temperature: true,
+            temperatureValue: 0.7,
+            cost: { input: 2.4, output: 9.6, cacheRead: 1.2, currency: "CNY" },
+          },
+        }),
+        apiKey: "fixture",
+      });
+      expect(declared).toMatchObject({
+        attachment: true,
+        toolCall: true,
+        structuredOutput: false,
+        temperatureSupport: true,
+        defaultTemperature: 0.7,
+        cost: { input: 2.4, output: 9.6, cacheRead: 1.2, currency: "CNY" },
+      });
+      const undeclared = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: { id: "bare", displayName: "Bare" },
+        }),
+        apiKey: "fixture",
+      });
+      expect(undeclared.attachment).toBeUndefined();
+      expect(undeclared.toolCall).toBeUndefined();
+      expect(undeclared.structuredOutput).toBeUndefined();
+      expect(undeclared.temperatureSupport).toBeUndefined();
+      expect(undeclared.defaultTemperature).toBeUndefined();
+      expect(undeclared.cost).toBeUndefined();
+    });
+
     it("caps an Anthropic model's published ceiling rather than passing it through", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),

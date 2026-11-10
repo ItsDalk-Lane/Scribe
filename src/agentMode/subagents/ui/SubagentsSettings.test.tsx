@@ -105,11 +105,7 @@ describe("SubagentsSettings", () => {
       cleanup();
       mockSave.mockRejectedValueOnce(new Error("Conflict"));
       render(<SubagentsSettings />);
-      fireEvent.pointerDown(screen.getByRole("button", { name: "More actions for Reviewer" }), {
-        button: 0,
-        ctrlKey: false,
-      });
-      fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+      fireEvent.click(screen.getByRole("button", { name: "Edit Reviewer" }));
       fireEvent.change(screen.getByLabelText("Instructions"), {
         target: { value: "Keep this draft" },
       });
@@ -127,11 +123,7 @@ describe("SubagentsSettings", () => {
     it("requires confirmation before deletion and displays removal failures", async () => {
       mockRemove.mockRejectedValueOnce(new Error("Removal failed"));
       render(<SubagentsSettings />);
-      fireEvent.pointerDown(screen.getByRole("button", { name: "More actions for Reviewer" }), {
-        button: 0,
-        ctrlKey: false,
-      });
-      fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Reviewer" }));
       expect(mockRemove).not.toHaveBeenCalled();
       await act(async () => {
         await mockConfirm();

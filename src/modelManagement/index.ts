@@ -1,4 +1,4 @@
-export type { ModelInfo, ProviderType } from "./types/catalog";
+export type { ModelCostCurrency, ModelInfo, ModelStatus, ProviderType } from "./types/catalog";
 export type {
   AgentType,
   BackendConfig,

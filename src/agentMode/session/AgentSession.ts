@@ -1464,6 +1464,10 @@ export class AgentSession {
       this.refreshMessageMetrics();
       return;
     }
+    if (update.sessionUpdate === "usage_update") {
+      this.usageTracker.applyUsageUpdate(update.usage, update.subagentId);
+      return;
+    }
     if (update.sessionUpdate === "turn_ended") {
       this.usageTracker.markMetricsRoundEnded(update.roundId);
       if (update.subagentId && update.roundId)
@@ -1558,6 +1562,13 @@ export class AgentSession {
       update.sessionUpdate === "agent_segment_finalized"
         ? this.store.findMessageIdWithSegment(update.segmentSeq)
         : undefined;
+    // 停止不能撤销已保存的摘要，迟到完成事实仍应回到原来的压缩卡片。https://github.com/ItsDalk-Lane/Scribe/issues/66
+    const compactionOwnerMessageId =
+      update.sessionUpdate === "compaction" &&
+      update.status === "completed" &&
+      update.commitSeq !== undefined
+        ? this.store.findMessageIdWithCompaction(update.id)
+        : undefined;
 
     if (this.turns.isStopping()) {
       switch (update.sessionUpdate) {
@@ -1575,7 +1586,12 @@ export class AgentSession {
           return;
         case "tool_call":
         case "plan":
+          logWarn(
+            `[AgentMode] dropping ${update.sessionUpdate} from cancelled turn ${this.internalId}`
+          );
+          return;
         case "compaction":
+          if (compactionOwnerMessageId) break;
           logWarn(
             `[AgentMode] dropping ${update.sessionUpdate} from cancelled turn ${this.internalId}`
           );
@@ -1608,10 +1624,6 @@ export class AgentSession {
       return;
     }
     if (update.sessionUpdate === "config_option_update") {
-      return;
-    }
-    if (update.sessionUpdate === "usage_update") {
-      this.usageTracker.applyUsageUpdate(update.usage);
       return;
     }
     if (update.sessionUpdate === "plan_usage_update") {
@@ -1664,6 +1676,7 @@ export class AgentSession {
 
     const targetMessageId =
       segmentOwnerMessageId ??
+      compactionOwnerMessageId ??
       this.turns.resolveToolTarget(isPriorToolUpdate ? toolOwnerMessageId : undefined);
     if (!targetMessageId) {
       logWarn(`[AgentMode] dropping session/update — no placeholder for ${this.internalId}`);
@@ -1992,6 +2005,11 @@ export class AgentSession {
           this.endUnstartedTasks();
           break;
         }
+        case "compaction":
+          changed = upsertCompactionPart(store, messageId, update);
+          // 压缩与普通子回复共用所属执行的展示流，不改写主聊天占用。https://github.com/ItsDalk-Lane/Scribe/issues/66
+          if (update.subagentId) changed = this.usageTracker.applyCompactedUsage(update) || changed;
+          break;
         default:
           return;
       }

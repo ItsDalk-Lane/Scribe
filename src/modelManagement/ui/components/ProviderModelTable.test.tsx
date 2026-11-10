@@ -65,6 +65,23 @@ describe("ProviderModelTable", () => {
       expect(screen.getByTestId("byok-table-empty")).toBeTruthy();
     });
 
+    it("offers provider configuration and removal without expanding its model list", () => {
+      const onConfigure = jest.fn();
+      const onRemove = jest.fn();
+      renderWithProvider(
+        <ProviderModelTable groups={[group]} onConfigure={onConfigure} onRemove={onRemove} />
+      );
+
+      const configure = screen.getByRole("button", { name: "Configure Anthropic" });
+      fireEvent.keyDown(configure, { key: "Enter" });
+      fireEvent.click(configure);
+      fireEvent.click(screen.getByRole("button", { name: "Remove Anthropic" }));
+
+      expect(onConfigure).toHaveBeenCalledWith("p1");
+      expect(onRemove).toHaveBeenCalledWith("p1");
+      expect(screen.queryByText("Claude Sonnet 4.5")).toBeNull();
+    });
+
     it("lists the provider's models after the provider card is expanded", () => {
       renderWithProvider(
         <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
@@ -74,6 +91,72 @@ describe("ProviderModelTable", () => {
       fireEvent.click(screen.getByText("Anthropic"));
       expect(screen.getByText("Claude Sonnet 4.5")).toBeTruthy();
       expect(screen.getByText("Claude Opus 4.5")).toBeTruthy();
+    });
+
+    it("shows the context and modality labels beside each model name https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const labeled: ProviderModelGroup = {
+        ...group,
+        models: [
+          {
+            configuredModelId: "m1",
+            providerId: "p1",
+            info: {
+              id: "claude-sonnet",
+              displayName: "Claude Sonnet 4.5",
+              limits: { context: 200000 },
+              modalities: { input: ["text", "image"], output: ["text"] },
+            },
+            configuredAt: 0,
+          },
+        ],
+      };
+      renderWithProvider(
+        <ProviderModelTable groups={[labeled]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+      );
+      fireEvent.click(screen.getByText("Anthropic"));
+      expect(screen.getByText("200K")).toBeTruthy();
+      expect(screen.getByTestId("model-modality-image")).toBeTruthy();
+    });
+
+    it("opens the per-model config from the edit button beside the remove action https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const onEditModel = jest.fn();
+      renderWithProvider(
+        <ProviderModelTable
+          groups={[group]}
+          onConfigure={jest.fn()}
+          onRemove={jest.fn()}
+          onEditModel={onEditModel}
+        />
+      );
+      fireEvent.click(screen.getByText("Anthropic"));
+      fireEvent.click(screen.getByLabelText("Configure Claude Sonnet 4.5"));
+      expect(onEditModel).toHaveBeenCalledWith("m1");
+    });
+
+    it("marks a deprecated configured model while keeping its actions available https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const deprecated: ProviderModelGroup = {
+        ...group,
+        models: [
+          {
+            configuredModelId: "m3",
+            providerId: "p1",
+            info: { id: "old-model", displayName: "Old Model", status: "deprecated" },
+            configuredAt: 0,
+          },
+        ],
+      };
+      renderWithProvider(
+        <ProviderModelTable
+          groups={[deprecated]}
+          onConfigure={jest.fn()}
+          onRemove={jest.fn()}
+          onEditModel={jest.fn()}
+        />
+      );
+      fireEvent.click(screen.getByText("Anthropic"));
+      expect(screen.getByText("Deprecated")).toBeTruthy();
+      expect(screen.getByLabelText("Configure Old Model")).toBeTruthy();
+      expect(screen.getByLabelText("Remove Old Model")).toBeTruthy();
     });
 
     it("names where each provider sends requests", () => {

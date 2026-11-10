@@ -262,13 +262,12 @@ describe("SkillsSettings", () => {
         });
         fireEvent.click(screen.getByText("review-notes"));
         fireEvent.click(screen.getByRole("button", { name: "Back to skills" }));
-        if (action === "uninstall") openMenu("More actions for other-skill");
         await act(async () => {
           if (action === "use")
             fireEvent.click(screen.getByRole("button", { name: "Use other-skill now" }));
           else if (action === "toggle")
             fireEvent.click(screen.getByRole("switch", { name: "Enable other-skill" }));
-          else fireEvent.click(screen.getByRole("menuitem", { name: "Uninstall" }));
+          else fireEvent.click(screen.getByRole("button", { name: "Uninstall other-skill" }));
         });
         if (action === "use") expect(mockCreateChat).toHaveBeenCalledWith("/other-skill ");
         if (action === "toggle") expect(mockToggle).toHaveBeenCalledWith(second, "native", false);
@@ -416,9 +415,8 @@ describe("SkillsSettings", () => {
       await act(async () => {
         render(<SkillsSettings />);
       });
-      openMenu("More actions for review-notes");
       await act(async () => {
-        fireEvent.click(screen.getByRole("menuitem", { name: "Uninstall" }));
+        fireEvent.click(screen.getByRole("button", { name: "Uninstall review-notes" }));
       });
       expect(mockConfirm.mock.calls[0][1].content).toContain("Restore built-in skills");
       expect(mockDelete).toHaveBeenCalledWith(mockSkills[0]);

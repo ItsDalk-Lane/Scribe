@@ -23,16 +23,11 @@ describe("SkillRow", () => {
     Element.prototype.scrollIntoView = () => {};
   });
   describe("SkillRow()", () => {
-    it("uninstalls from the real portalled menu without opening the detail view", () => {
+    it("uninstalls directly without opening the detail view", () => {
       const onOpen = jest.fn();
       const handlers = actions();
-      const view = render(<SkillRow skill={skill} onOpen={onOpen} {...handlers} />);
-      fireEvent.pointerDown(screen.getByRole("button", { name: "More actions for review-notes" }), {
-        button: 0,
-        ctrlKey: false,
-      });
-      expect(view.container.contains(screen.getByRole("menu"))).toBe(false);
-      fireEvent.click(screen.getByRole("menuitem", { name: "Uninstall" }));
+      render(<SkillRow skill={skill} onOpen={onOpen} {...handlers} />);
+      fireEvent.click(screen.getByRole("button", { name: "Uninstall review-notes" }));
       expect(handlers.onUninstall).toHaveBeenCalledTimes(1);
       expect(onOpen).not.toHaveBeenCalled();
     });
@@ -46,12 +41,12 @@ describe("SkillRow", () => {
       expect(handlers.onUse).toHaveBeenCalledTimes(1);
       expect(onOpen).toHaveBeenCalledTimes(1);
       const control = view.container.querySelectorAll(
-        '[aria-label="Use review-notes now"], [role="switch"], [aria-label="More actions for review-notes"]'
+        '[aria-label="Use review-notes now"], [role="switch"], [aria-label="Uninstall review-notes"]'
       );
       expect(Array.from(control).map((item) => item.getAttribute("aria-label"))).toEqual([
         "Use review-notes now",
         "Enable review-notes",
-        "More actions for review-notes",
+        "Uninstall review-notes",
       ]);
     });
     it("shows rejected skills as detail rows while disabling use and enablement", () => {
@@ -75,15 +70,10 @@ describe("SkillRow", () => {
     });
   });
   describe("SkillActions()", () => {
-    it("offers only Uninstall in the three-dot menu for every source", () => {
+    it("offers a direct uninstall action for built-in skills", () => {
       const handlers = actions();
       render(<SkillActions skill={{ ...skill, source: { kind: "builtin" } }} {...handlers} />);
-      fireEvent.pointerDown(screen.getByRole("button", { name: "More actions for review-notes" }), {
-        button: 0,
-        ctrlKey: false,
-      });
-      expect(screen.getAllByRole("menuitem")).toHaveLength(1);
-      fireEvent.click(screen.getByRole("menuitem", { name: "Uninstall" }));
+      fireEvent.click(screen.getByRole("button", { name: "Uninstall review-notes" }));
       expect(handlers.onUninstall).toHaveBeenCalledTimes(1);
     });
     it("preserves saved enablement and allows switching without runtime checks", () => {

@@ -23,6 +23,7 @@ const meta = {
 } satisfies Meta<SkillRowProps>;
 export default meta;
 export const Local: StoryObj<SkillRowProps> = {};
+export const Busy: StoryObj<SkillRowProps> = { args: { busy: true } };
 // 存在界面元数据时优先渲染显示名与短描述。https://github.com/ItsDalk-Lane/Scribe/issues/47
 export const WithInterfaceMetadata: StoryObj<SkillRowProps> = {
   args: {

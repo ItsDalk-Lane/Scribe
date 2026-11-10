@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { Plus, RefreshCw } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { useApp } from "@/context";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,7 @@ export function SubagentsSettings({ query = "", onChanged }: SubagentsSettingsPr
         <h3 className="tw-m-0 tw-text-sm tw-font-medium">{t("Custom subagents")}</h3>
         <div className="tw-flex tw-gap-2">
           <Button
-            variant="ghost"
-            size="sm"
+            variant="secondary"
             disabled={busy}
             onClick={() =>
               void mutate(async () => {
@@ -87,9 +87,11 @@ export function SubagentsSettings({ query = "", onChanged }: SubagentsSettingsPr
               })
             }
           >
+            <RefreshCw className="tw-size-4" />
             {t("Refresh")}
           </Button>
-          <Button size="sm" disabled={busy} onClick={() => edit()}>
+          <Button disabled={busy} onClick={() => edit()}>
+            <Plus className="tw-size-4" />
             {t("New subagent")}
           </Button>
         </div>

@@ -9,6 +9,7 @@ const sample = JSON.stringify(
         url: "https://example.com/mcp",
         headers: { Authorization: "Bearer example-key" },
       },
+      notes: { command: "notes-server", args: ["--read-only"] },
     },
   },
   null,

@@ -1,21 +1,13 @@
 import { t } from "@/lib/i18n";
-import { isChatModelInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { ModelCapabilityIcons, hasCapabilityIcons } from "@/components/ui/model-display";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { cn } from "@/lib/utils";
-import { capabilitiesFromConfiguredInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
 import type { ModelInfo } from "@/modelManagement/types/catalog";
-import {
-  formatContextWindow,
-  formatReleaseDate,
-} from "@/modelManagement/ui/utils/formatModelMetadata";
+import { ModelChecklistRow } from "@/modelManagement/ui/components/ModelChecklistRow";
 import { orderCatalogModels } from "@/modelManagement/ui/utils/orderCatalogModels";
-import { Loader2, X, XCircle } from "lucide-react";
+import { Loader2, XCircle } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 export interface ModelChecklistProps {
@@ -24,8 +16,6 @@ export interface ModelChecklistProps {
   onToggle: (id: string, next: boolean) => void;
   onAddId: (id: string) => void;
   onRemoveId?: (id: string) => void;
-  query: string;
-  onQueryChange: (query: string) => void;
   modelInputHint?: string;
   fetching?: boolean;
   fetchError?: string | null;
@@ -38,14 +28,13 @@ export const ModelChecklist: React.FC<ModelChecklistProps> = ({
   onToggle,
   onAddId,
   onRemoveId,
-  query,
-  onQueryChange,
   modelInputHint,
   fetching,
   fetchError,
   customIds,
 }) => {
   const [manualId, setManualId] = useState("");
+  const [query, setQuery] = useState("");
 
   const filtered = useMemo<readonly ModelInfo[]>(() => {
     const needle = query?.trim().toLowerCase();
@@ -89,11 +78,7 @@ export const ModelChecklist: React.FC<ModelChecklistProps> = ({
         </div>
       </FormField>
 
-      <SearchBar
-        value={query}
-        onChange={onQueryChange}
-        placeholder={t("Search available models…")}
-      />
+      <SearchBar value={query} onChange={setQuery} placeholder={t("Search available models…")} />
 
       {fetching && (
         <div className="tw-flex tw-items-center tw-gap-2 tw-text-xs tw-text-muted">
@@ -111,81 +96,21 @@ export const ModelChecklist: React.FC<ModelChecklistProps> = ({
 
       {filtered.length > 0 ? (
         <div
-          className={cn(
-            "tw-flex tw-max-h-[50vh] tw-flex-col tw-overflow-y-auto tw-rounded-md",
-            "tw-border tw-border-solid tw-border-border"
-          )}
+          className="tw-flex tw-flex-col tw-rounded-md tw-border tw-border-solid tw-border-border"
           role={"list"}
           data-testid={"model-checklist"}
         >
-          {filtered.map((model, index) => {
-            const checked = selected.has(model.id);
-            const contextLabel = formatContextWindow(model.limits?.context);
-            const releaseLabel = formatReleaseDate(model.releaseDate);
-            const isLastChecked = index === checkedCount - 1 && checkedCount < filtered.length;
-            const removable = onRemoveId !== undefined && customIds?.has(model.id) === true;
-            const capabilities = capabilitiesFromConfiguredInfo(model);
-            return (
-              <label
-                key={model.id}
-                role="listitem"
-                data-testid={`model-row-${model.id}`}
-                className={cn(
-                  "tw-group tw-grid tw-cursor-pointer tw-items-center tw-gap-2 tw-p-3 tw-text-sm",
-                  "hover:tw-bg-modifier-hover",
-                  removable
-                    ? "tw-grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]"
-                    : "tw-grid-cols-[auto_minmax(0,1fr)_auto_auto]",
-                  isLastChecked && "scribe-divider-b"
-                )}
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(next) => onToggle(model.id, next === true)}
-                />
-                <span className="tw-flex tw-min-w-0 tw-flex-wrap tw-items-center tw-gap-2">
-                  <span className="tw-min-w-0 tw-break-words tw-text-normal">
-                    {model.displayName}
-                  </span>
-                  {model.isEmbedding && (
-                    <Badge variant={"secondary"} className="tw-shrink-0 tw-text-ui-smaller">
-                      {t("Embedding")}
-                    </Badge>
-                  )}
-
-                  {!model.isEmbedding && !isChatModelInfo(model) && (
-                    <Badge variant={"secondary"} className="tw-shrink-0 tw-text-ui-smaller">
-                      {t("Non-chat")}
-                    </Badge>
-                  )}
-                  {hasCapabilityIcons(capabilities) && (
-                    <span className="tw-flex tw-shrink-0 tw-items-center tw-gap-0.5">
-                      <ModelCapabilityIcons capabilities={capabilities} iconSize={14} />
-                    </span>
-                  )}
-                </span>
-                <span className="tw-shrink-0 tw-text-xs tw-text-muted">{contextLabel}</span>
-                <span className="tw-w-16 tw-shrink-0 tw-text-right tw-text-xs tw-text-muted">
-                  {releaseLabel}
-                </span>
-                {removable && (
-                  <Button
-                    variant={"ghost"}
-                    size={"icon"}
-                    aria-label={t("Remove {id}", { id: model.id })}
-                    data-testid={`model-row-remove-${model.id}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onRemoveId(model.id);
-                    }}
-                  >
-                    <X className="tw-size-4" />
-                  </Button>
-                )}
-              </label>
-            );
-          })}
+          {filtered.map((model, index) => (
+            <ModelChecklistRow
+              key={model.id}
+              model={model}
+              checked={selected.has(model.id)}
+              onToggle={onToggle}
+              isLastChecked={index === checkedCount - 1 && checkedCount < filtered.length}
+              removable={onRemoveId !== undefined && customIds?.has(model.id) === true}
+              onRemoveId={onRemoveId}
+            />
+          ))}
         </div>
       ) : (
         <div

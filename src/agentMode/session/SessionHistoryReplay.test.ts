@@ -405,6 +405,51 @@ describe("SessionHistoryReplay", () => {
         expect(parts?.[0]).toMatchObject({ kind: "compaction", status: "completed" });
       });
 
+      it("restores a committed compression on its original card after the interrupted turn and newer replies https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "/compact", "u1"), 1000);
+        replay.append(
+          {
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "in_progress",
+            trigger: "manual",
+          },
+          1100
+        );
+        replay.append(
+          { sessionUpdate: "turn_ended", turnId: "u1", stopReason: "interrupted" },
+          1200
+        );
+        replay.append(replayText("user_message_chunk", "Continue reviewing", "u2"), 2000);
+        replay.append(replayText("agent_message_chunk", "Review complete", "a2"), 2100);
+        replay.append({ sessionUpdate: "turn_ended", turnId: "u2", stopReason: "end_turn" }, 2200);
+        replay.append(
+          {
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "completed",
+            trigger: "manual",
+            commitSeq: 12,
+            summary: "Prior goals and note references.",
+          },
+          3000
+        );
+        replay.end();
+
+        const messages = store.getDisplayMessages();
+        expect(messages).toHaveLength(4);
+        expect(messages[1].parts).toEqual([
+          expect.objectContaining({
+            kind: "compaction",
+            id: "committed",
+            status: "completed",
+            summary: "Prior goals and note references.",
+          }),
+        ]);
+        expect(messages[3].parts).toEqual([{ kind: "text", text: "Review complete" }]);
+      });
+
       it("settles a replayed compaction that never reports an end as cancelled so no spinner shows", () => {
         const { store, replay } = startReplay();
 

@@ -508,6 +508,12 @@ export class AgentMessageStore {
     return undefined;
   }
 
+  findMessageIdWithCompaction(compactionId: string): string | undefined {
+    return this.messages.findLast((message) =>
+      message.parts?.some((part) => part.kind === "compaction" && part.id === compactionId)
+    )?.id;
+  }
+
   markMessageError(id: string, errorText: string, durationMs?: number): boolean {
     const msg = this.messages.find((m) => m.id === id);
     if (!msg) return false;

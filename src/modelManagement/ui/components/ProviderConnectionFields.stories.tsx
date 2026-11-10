@@ -43,8 +43,6 @@ export const ChineseDirectoryUnavailable: StoryObj<ProviderParameterFieldsProps>
         selected={new Set(["model-a"])}
         onToggle={() => undefined}
         onAddId={() => undefined}
-        query=""
-        onQueryChange={() => undefined}
         fetchError="HTTP 403：此密钥没有模型目录读取权限。"
       />
       <ProviderChatConnectionTest

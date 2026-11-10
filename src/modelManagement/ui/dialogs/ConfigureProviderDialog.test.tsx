@@ -33,6 +33,7 @@ const mockApi = {
   coordinator: { removeProvider: jest.fn() },
   catalogService: {
     getProvider: mockGetProvider,
+    getAllProviders: jest.fn().mockReturnValue([]),
     ensureLoaded: jest.fn().mockResolvedValue(undefined),
     onChange: jest.fn().mockReturnValue(() => {}),
   },
@@ -91,6 +92,15 @@ jest.mock("@/modelManagement/state/atoms", () => {
         origin: { kind: "byok" },
         addedAt: 0,
       },
+      {
+        providerId: "p-alibaba",
+        providerType: "openai-compatible",
+        displayName: "阿里云百炼",
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        extras: { presetId: "catalog-alibaba-cn" },
+        origin: { kind: "byok", catalogProviderId: "alibaba-cn" },
+        addedAt: 0,
+      },
     ]),
     configuredModelsAtom: jotai.atom([
       {
@@ -127,6 +137,12 @@ jest.mock("@/modelManagement/state/atoms", () => {
         info: { id: "my-kimi-model", displayName: "My Kimi" },
         configuredAt: 0,
       },
+      {
+        configuredModelId: "cm-alibaba",
+        providerId: "p-alibaba",
+        info: { id: "my-qwen-model", displayName: "My Qwen" },
+        configuredAt: 0,
+      },
     ]),
   };
 });
@@ -157,6 +173,7 @@ jest.mock("@/modelManagement/providers/adapters/listProviderModels", () => ({
   listProviderModels: (...args: unknown[]) => mockListProviderModels(...args),
 }));
 
+import type { CatalogProvider } from "@/modelManagement/types/catalog";
 import type { ProviderDefinition } from "@/modelManagement/types/runtime";
 import { CUSTOM_OPENAI_DEFINITION } from "@/modelManagement/catalog/builtinDefinitions";
 import { ConfigureProviderForm } from "./ConfigureProviderDialog";
@@ -169,6 +186,7 @@ beforeEach(() => {
   mockListProviderModels.mockResolvedValue({ ok: true, modelIds: [] });
   mockChatConnection.mockReset().mockResolvedValue({ ok: true, checkedAt: 1 });
   mockGetProvider.mockReset();
+  mockApi.catalogService.getAllProviders.mockReturnValue([]);
   mockSetupProvider.mockClear();
   mockBulkSet.mockResolvedValue(["cm1", "cm2", "cm3"]);
 });
@@ -199,6 +217,25 @@ const ollamaSource: ProviderDefinition = {
   defaultBaseUrl: "http://localhost:11434/v1",
   requiresApiKey: false,
   modelInputHint: "e.g. llama3.2",
+};
+
+function makeCatalogEntry(
+  id: string,
+  displayName: string,
+  defaultBaseUrl: string
+): CatalogProvider {
+  return { id, displayName, providerType: "openai-compatible", defaultBaseUrl, models: {} };
+}
+
+const alibabaPseudoSource: ProviderDefinition = {
+  id: "catalog-alibaba-cn",
+  displayName: "阿里云百炼",
+  providerType: "openai-compatible",
+  defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  requiresApiKey: true,
+  modelInputHint: "e.g. qwen3-max",
+  catalogProviderId: "alibaba-cn",
+  presetId: "catalog-alibaba-cn",
 };
 
 const kimiSource: ProviderDefinition = {
@@ -237,13 +274,28 @@ const anthropicCatalogMetadata = {
   },
 };
 
+function openModelPicker(): void {
+  fireEvent.click(screen.getByRole("button", { name: "Fetch models" }));
+}
+
+function backFromModelList(): void {
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+}
+
 function manualAddId(id: string): void {
+  openModelPicker();
   fireEvent.change(screen.getByTestId("model-checklist-manual-input"), { target: { value: id } });
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  backFromModelList();
 }
 
 function rowCheckbox(id: string): HTMLElement {
-  const row = screen.getByTestId(`model-row-${id}`);
+  const row = within(screen.getByTestId("model-checklist")).getByTestId(`model-row-${id}`);
+  return within(row).getByRole("checkbox");
+}
+
+function selectedRowCheckbox(id: string): HTMLElement {
+  const row = within(screen.getByTestId("selected-model-list")).getByTestId(`model-row-${id}`);
   return within(row).getByRole("checkbox");
 }
 
@@ -270,8 +322,10 @@ describe("ConfigureProviderDialog", () => {
       "offers manual model entry and discovery for %s without automatically sending a chat",
       async (_name, source) => {
         render(<ConfigureProviderForm state={{ mode: "new", source }} onClose={jest.fn()} />);
-        expect(screen.getByTestId("model-checklist-manual-input")).toBeTruthy();
+        expect(screen.getByTestId("selected-model-list-empty")).toBeTruthy();
         expect(screen.getByRole("button", { name: "Fetch models" })).toBeTruthy();
+        openModelPicker();
+        expect(screen.getByTestId("model-checklist-manual-input")).toBeTruthy();
         expect(mockChatConnection).not.toHaveBeenCalled();
         await act(async () => {
           await mockApi.catalogService.ensureLoaded.mock.results[
@@ -280,6 +334,26 @@ describe("ConfigureProviderDialog", () => {
         });
       }
     );
+
+    it(`replaces the configuration view with the model list on fetch and restores the entered form on back`, () => {
+      render(
+        <ConfigureProviderForm
+          state={{ mode: "new", source: anthropicSource }}
+          onClose={jest.fn()}
+        />
+      );
+      fireEvent.change(screen.getByTestId("api-key"), { target: { value: "key-to-keep" } });
+      openModelPicker();
+      expect(screen.queryByRole("region", { name: "Settings" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+      expect(screen.getByRole("heading", { name: "Model list" })).toBeTruthy();
+      expect(screen.getByTestId("model-checklist-empty")).toBeTruthy();
+      backFromModelList();
+      expect(screen.getByRole("region", { name: "Settings" })).toBeTruthy();
+      expect(screen.getByTestId("selected-model-list-empty")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+      expect(screen.getByTestId("api-key")).toHaveProperty("value", "key-to-keep");
+    });
 
     it(`saves a hand-entered model without depending on a directory or chat check — https://github.com/ItsDalk-Lane/Scribe/issues/51`, async () => {
       const onSaved = jest.fn();
@@ -319,8 +393,10 @@ describe("ConfigureProviderDialog", () => {
         />
       );
       fireEvent.change(screen.getByTestId("api-key"), { target: { value: "chat-capable-key" } });
+      openModelPicker();
       expect(await screen.findByText("HTTP 403: listing is not permitted")).toBeTruthy();
       fireEvent.click(rowCheckbox("claude-sonnet"));
+      backFromModelList();
       expect(saveButton().disabled).toBe(false);
       fireEvent.click(saveButton());
       await waitFor(() => expect(mockSetupProvider).toHaveBeenCalledTimes(1));
@@ -389,11 +465,13 @@ describe("ConfigureProviderDialog", () => {
         />
       );
       fireEvent.change(screen.getByTestId("api-key"), { target: { value: "key" } });
+      openModelPicker();
       fireEvent.click(rowCheckbox("claude-sonnet"));
       fireEvent.click(rowCheckbox("claude-haiku"));
       fireEvent.click(rowCheckbox("voyage-embed"));
       for (const id of ["image-generator", "speech-model", "rerank-v3", "gpt-realtime"])
         fireEvent.click(rowCheckbox(id));
+      backFromModelList();
       const picker = screen.getByRole("combobox", { name: "Test model" });
       expect(
         within(picker)
@@ -538,7 +616,9 @@ describe("ConfigureProviderDialog", () => {
         npm: "@ai-sdk/openai-compatible",
         baseUrl: "https://proxy.example/compatibility/v1",
       });
-      fireEvent.change(apiFormat, { target: { value: "native" } });
+      fireEvent.change(screen.getByRole<HTMLSelectElement>("combobox", { name: "API format" }), {
+        target: { value: "native" },
+      });
       expect(screen.queryByText("Chat connection verified")).toBeNull();
       expect(baseUrlInput().value).toBe("https://proxy.example/compatibility/v1");
       fireEvent.change(baseUrlInput(), { target: { value: "https://api.cohere.com/v2" } });
@@ -635,7 +715,13 @@ describe("ConfigureProviderDialog", () => {
         render(<ConfigureProviderForm state={state} onClose={jest.fn()} />);
         const settings = await screen.findByRole("region", { name: "Settings" });
         expect(settings.contains(screen.getByTestId("api-key"))).toBe(true);
-        expect(settings.querySelectorAll('[data-testid^="model-row-"]')).toHaveLength(40);
+        if (state.mode === "edit") {
+          expect(
+            within(screen.getByTestId("selected-model-list")).getAllByRole("listitem")
+          ).toHaveLength(2);
+        } else {
+          expect(screen.getByTestId("selected-model-list-empty")).toBeTruthy();
+        }
         expect(
           settings.contains(screen.getByRole("heading", { name: "Configure Anthropic" }))
         ).toBe(false);
@@ -645,6 +731,15 @@ describe("ConfigureProviderDialog", () => {
           expect(settings.contains(screen.getByRole("button", { name: "Remove provider" }))).toBe(
             false
           );
+        openModelPicker();
+        expect(within(screen.getByTestId("model-checklist")).getAllByRole("listitem")).toHaveLength(
+          40
+        );
+        expect(screen.queryByRole("region", { name: "Settings" })).toBeNull();
+        expect(screen.queryByRole("heading", { name: "Configure Anthropic" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
         await act(async () => {
           await mockApi.catalogService.ensureLoaded.mock.results.at(-1)!.value;
         });
@@ -891,7 +986,9 @@ describe("ConfigureProviderDialog", () => {
         fireEvent.change(screen.getByTestId("api-key"), { target: { value: "fixture-key" } });
         for (const [label, value] of fields)
           fireEvent.change(screen.getByRole("textbox", { name: label }), { target: { value } });
+        openModelPicker();
         fireEvent.click(rowCheckbox(model.id));
+        backFromModelList();
         fireEvent.click(chatTestButton());
         await screen.findByText("Chat connection verified");
         const tested = mockChatConnection.mock.calls[0][0] as TestProviderConnectionInput;
@@ -1065,6 +1162,7 @@ describe("ConfigureProviderDialog", () => {
           expect.objectContaining({ apiKey: null })
         )
       );
+      backFromModelList();
       fireEvent.click(saveButton());
       await waitFor(() => expect(mockClearApiKey).toHaveBeenCalledWith("p-custom"));
       expect(mockGetApiKey).not.toHaveBeenCalled();
@@ -1099,11 +1197,13 @@ describe("ConfigureProviderDialog", () => {
         <ConfigureProviderForm state={{ mode: "edit", providerId: "p1" }} onClose={jest.fn()} />
       );
       await screen.findByTestId("api-key");
+      openModelPicker();
       fireEvent.click(rowCheckbox("claude-opus"));
       fireEvent.click(rowCheckbox("claude-haiku"));
       fireEvent.click(rowCheckbox("voyage-embed"));
       fireEvent.click(rowCheckbox("image-generator"));
       fireEvent.click(rowCheckbox("speech-model"));
+      backFromModelList();
       fireEvent.click(saveButton());
       await waitFor(() => expect(mockRemoveRefs).toHaveBeenCalledWith(["cm2"]));
       expect(mockEnableModel).toHaveBeenCalledWith("chat", "cm2");
@@ -1116,7 +1216,7 @@ describe("ConfigureProviderDialog", () => {
       );
       expect(screen.getByRole("radiogroup", { name: "Preset plan" })).toBeTruthy();
       expect(screen.getByRole("radiogroup", { name: "Preset region" })).toBeTruthy();
-      expect(rowCheckbox("kimi-k3.1-pro").getAttribute("aria-checked")).toBe("true");
+      expect(selectedRowCheckbox("kimi-k3.1-pro").getAttribute("aria-checked")).toBe("true");
     });
 
     it("switching the plan or region retargets the endpoint and replaces the recommended selection", () => {
@@ -1129,8 +1229,10 @@ describe("ConfigureProviderDialog", () => {
         })
       );
       expect(baseUrlInput().value).toBe("https://api.kimi.com/coding");
-      expect(rowCheckbox("kimi-for-coding").getAttribute("aria-checked")).toBe("true");
+      expect(selectedRowCheckbox("kimi-for-coding").getAttribute("aria-checked")).toBe("true");
+      openModelPicker();
       expect(rowCheckbox("kimi-k3.1-pro").getAttribute("aria-checked")).toBe("false");
+      backFromModelList();
       fireEvent.click(
         within(screen.getByRole("radiogroup", { name: "Preset region" })).getByRole("radio", {
           name: "International",
@@ -1156,15 +1258,113 @@ describe("ConfigureProviderDialog", () => {
       );
       expect(screen.getByRole("radiogroup", { name: "Preset plan" })).toBeTruthy();
       expect(baseUrlInput().value).toBe("https://api.moonshot.cn/v1");
-      expect(rowCheckbox("my-kimi-model").getAttribute("aria-checked")).toBe("true");
+      expect(selectedRowCheckbox("my-kimi-model").getAttribute("aria-checked")).toBe("true");
       fireEvent.click(
         within(screen.getByRole("radiogroup", { name: "Preset plan" })).getByRole("radio", {
           name: "Coding subscription",
         })
       );
       expect(baseUrlInput().value).toBe("https://api.kimi.com/coding");
-      expect(rowCheckbox("my-kimi-model").getAttribute("aria-checked")).toBe("true");
+      expect(selectedRowCheckbox("my-kimi-model").getAttribute("aria-checked")).toBe("true");
       expect(screen.queryByTestId("model-row-kimi-for-coding")).toBeNull();
+    });
+
+    it("lists catalog-backed pseudo versions for a mapped family and switching retargets the endpoint", () => {
+      mockApi.catalogService.getAllProviders.mockReturnValue([
+        makeCatalogEntry(
+          "alibaba",
+          "Alibaba Cloud Model Studio",
+          "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-cn",
+          "Alibaba Cloud (CN)",
+          "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-coding-plan",
+          "Alibaba Coding Plan",
+          "https://coding-intl.dashscope.aliyuncs.com/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-coding-plan-cn",
+          "Alibaba Coding Plan (CN)",
+          "https://coding.dashscope.aliyuncs.com/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-token-plan",
+          "Alibaba Token Plan",
+          "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-token-plan-cn",
+          "Alibaba Token Plan (CN)",
+          "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+      ]);
+      render(
+        <ConfigureProviderForm
+          state={{ mode: "new", source: alibabaPseudoSource }}
+          onClose={jest.fn()}
+        />
+      );
+      const versionGroup = screen.getByRole("radiogroup", { name: "Version" });
+      expect(within(versionGroup).getAllByRole("radio")).toHaveLength(6);
+      expect(baseUrlInput().value).toBe("");
+      fireEvent.click(
+        within(versionGroup).getByRole("radio", { name: "coding.dashscope.aliyuncs.com" })
+      );
+      expect(baseUrlInput().value).toBe("https://coding.dashscope.aliyuncs.com/v1");
+    });
+
+    it("restores catalog-backed pseudo versions from saved extras in edit mode without resetting models", () => {
+      mockApi.catalogService.getAllProviders.mockReturnValue([
+        makeCatalogEntry(
+          "alibaba",
+          "Alibaba Cloud Model Studio",
+          "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-cn",
+          "Alibaba Cloud (CN)",
+          "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-coding-plan",
+          "Alibaba Coding Plan",
+          "https://coding-intl.dashscope.aliyuncs.com/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-coding-plan-cn",
+          "Alibaba Coding Plan (CN)",
+          "https://coding.dashscope.aliyuncs.com/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-token-plan",
+          "Alibaba Token Plan",
+          "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+        makeCatalogEntry(
+          "alibaba-token-plan-cn",
+          "Alibaba Token Plan (CN)",
+          "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+      ]);
+      render(
+        <ConfigureProviderForm
+          state={{ mode: "edit", providerId: "p-alibaba" }}
+          onClose={jest.fn()}
+        />
+      );
+      const versionGroup = screen.getByRole("radiogroup", { name: "Version" });
+      expect(within(versionGroup).getAllByRole("radio")).toHaveLength(6);
+      expect(baseUrlInput().value).toBe("https://dashscope.aliyuncs.com/compatible-mode/v1");
+      expect(selectedRowCheckbox("my-qwen-model").getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(
+        within(versionGroup).getByRole("radio", { name: "coding.dashscope.aliyuncs.com" })
+      );
+      expect(baseUrlInput().value).toBe("https://coding.dashscope.aliyuncs.com/v1");
+      expect(selectedRowCheckbox("my-qwen-model").getAttribute("aria-checked")).toBe("true");
     });
 
     it("persists the chosen preset id in extras when saving a new provider", async () => {

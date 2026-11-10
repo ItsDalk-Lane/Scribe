@@ -150,7 +150,7 @@ export const McpJsonImportContent: React.FC<McpJsonImportContentProps> = ({
   };
 
   return (
-    <div className="tw-flex tw-min-h-0 tw-flex-1 tw-flex-col tw-gap-4">
+    <div className="tw-group/settings tw-flex tw-min-h-0 tw-flex-1 tw-flex-col tw-gap-4">
       <p className="tw-m-0 tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
         {t(
           "Paste an {mcpServers} JSON config, such as the one from Claude Desktop or Cherry Studio.",

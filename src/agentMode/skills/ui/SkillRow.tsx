@@ -4,14 +4,8 @@ import { SkillRowLayout } from "@/agentMode/skills/ui/SkillRowLayout";
 import { useSkillIcon } from "@/agentMode/skills/ui/useSkillIcon";
 import { Button } from "@/components/ui/button";
 import { SettingSwitch } from "@/components/ui/setting-switch";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { t } from "@/lib/i18n";
-import { MoreVertical, Play, Trash2 } from "lucide-react";
+import { Play, Trash2 } from "lucide-react";
 
 export function SkillSourceBadge({ source }: { source?: SkillSource }) {
   const labels = {
@@ -30,20 +24,12 @@ export function SkillSourceBadge({ source }: { source?: SkillSource }) {
 export interface SkillActionsProps {
   skill: Skill | RejectedSkill;
   busy?: boolean;
-  container?: HTMLElement | null;
   onUse: () => void;
   onToggle: (enabled: boolean) => void | Promise<void>;
   onUninstall: () => void;
 }
 
-export function SkillActions({
-  skill,
-  busy,
-  container,
-  onUse,
-  onToggle,
-  onUninstall,
-}: SkillActionsProps) {
+export function SkillActions({ skill, busy, onUse, onToggle, onUninstall }: SkillActionsProps) {
   const valid = "enabledAgents" in skill;
   return (
     <div className="tw-flex tw-shrink-0 tw-items-center tw-gap-2">
@@ -63,24 +49,16 @@ export function SkillActions({
         disabled={busy || !valid}
         onCheckedChange={(enabled) => void onToggle(enabled)}
       />
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("More actions for {p0}", { p0: skill.name })}
-            disabled={busy}
-          >
-            <MoreVertical className="tw-size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" container={container ?? undefined}>
-          <DropdownMenuItem className="tw-gap-2 tw-text-error" onSelect={onUninstall}>
-            <Trash2 className="tw-size-4" />
-            {t("Uninstall")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Button
+        variant="ghost"
+        size="icon"
+        title={t("Uninstall")}
+        aria-label={`${t("Uninstall")} ${skill.name}`}
+        disabled={busy}
+        onClick={onUninstall}
+      >
+        <Trash2 className="tw-size-4" />
+      </Button>
     </div>
   );
 }

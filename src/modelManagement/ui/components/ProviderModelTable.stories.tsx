@@ -8,7 +8,7 @@ const group: ProviderModelGroup = {
   provider: {
     providerId: "preview-provider",
     providerType: "openai-compatible",
-    displayName: "项目模型供应商 · 长名称与连接状态预览",
+    displayName: "项目模型供应商 · 长名称、连接状态和操作按钮预览",
     origin: { kind: "byok" },
     addedAt: 0,
     requiresApiKey: true,

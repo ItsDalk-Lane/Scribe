@@ -743,6 +743,23 @@ describe("AgentMessageStore", () => {
     });
   });
 
+  describe("findMessageIdWithCompaction()", () => {
+    it("finds a compression's owning reply after later messages while ignoring tool IDs https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+      const store = new AgentMessageStore();
+      const owner = store.addMessage(placeholder());
+      store.upsertAgentPart(owner, compaction({ id: "compression" }));
+      const later = store.addMessage(placeholder());
+      store.upsertAgentPart(later, {
+        kind: "tool_call",
+        id: "compression",
+        title: "Search",
+        status: "completed",
+      });
+      expect(store.findMessageIdWithCompaction("compression")).toBe(owner);
+      expect(store.findMessageIdWithCompaction("missing")).toBeUndefined();
+    });
+  });
+
   describe("markMessageError", () => {
     it("flags the message and appends formatted error text", () => {
       const store = new AgentMessageStore();

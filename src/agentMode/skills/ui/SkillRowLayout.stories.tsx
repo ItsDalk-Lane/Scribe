@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@/lib/story";
-import { MoreVertical } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ExtensionAvailabilityDot } from "@/components/ui/extension-availability-dot";
@@ -28,8 +28,8 @@ const args: SkillRowLayoutProps = {
     </div>
   ),
   actions: (
-    <Button variant="ghost" size="icon" aria-label="More actions">
-      <MoreVertical className="tw-size-4" />
+    <Button variant="ghost" size="icon" aria-label="Uninstall">
+      <Trash2 className="tw-size-4" />
     </Button>
   ),
 };

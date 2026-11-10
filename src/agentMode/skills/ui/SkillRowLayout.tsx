@@ -9,7 +9,6 @@ export interface SkillRowLayoutProps {
   annotations?: React.ReactNode;
   controls: React.ReactNode;
   actions: React.ReactNode;
-  menuOpen?: boolean;
   onOpen?: () => void;
 }
 
@@ -21,12 +20,10 @@ export function SkillRowLayout({
   annotations,
   controls,
   actions,
-  menuOpen,
   onOpen,
 }: SkillRowLayoutProps) {
   return (
     <div
-      data-menu-open={menuOpen ? "true" : undefined}
       onClick={(event) => {
         if (!event.currentTarget.contains(event.target as Node)) return;
         if (
@@ -38,8 +35,7 @@ export function SkillRowLayout({
         "tw-group/settings tw-flex tw-flex-wrap tw-items-center tw-gap-x-4 tw-gap-y-2",
         "tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-transparent",
         "tw-p-3",
-        "tw-transition-colors hover:tw-border-border-hover hover:tw-bg-modifier-hover",
-        "data-[menu-open=true]:tw-bg-modifier-hover data-[menu-open=true]:tw-border-normal/100"
+        "tw-transition-colors hover:tw-border-border-hover hover:tw-bg-modifier-hover"
       )}
     >
       <div className="tw-min-w-0 tw-max-w-full tw-flex-1 tw-basis-48 tw-@container/skill-title">

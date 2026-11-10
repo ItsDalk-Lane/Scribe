@@ -303,6 +303,7 @@ export class UsageTracker {
       ).length;
       this.childUsage.set(id, {
         usedTokens: 0,
+        ...this.childUsage.get(id),
         metrics: childMetrics,
         updatedAt: this.sessionUsage.updatedAt,
       });
@@ -334,17 +335,17 @@ export class UsageTracker {
     this.deps.notifyMessages();
   }
 
-  applyUsageUpdate(usage: SessionUsage): void {
-    if (this.sessionUsage?.metrics && this.sessionUsage.metrics !== usage.metrics)
-      usage = { ...usage, metrics: this.sessionUsage.metrics };
+  applyUsageUpdate(usage: SessionUsage, subagentId?: string): void {
+    const previous = subagentId ? this.childUsage.get(subagentId) : this.sessionUsage;
+    if (previous?.metrics && previous.metrics !== usage.metrics)
+      usage = { ...usage, metrics: previous.metrics };
     const onlyCumulative =
       !usage.usedTokens ||
-      (usage.contextWindow === undefined && this.sessionUsage?.contextWindow !== undefined);
+      (usage.contextWindow === undefined && previous?.contextWindow !== undefined);
     // 子请求的累计消耗不是父上下文占用；压缩和缺省读数也不能清掉已报告的累计。https://github.com/ItsDalk-Lane/Scribe/issues/50
     if (onlyCumulative && usage.cumulativeTotalTokens === undefined) return;
-    const previous = this.sessionUsage;
     if (onlyCumulative || previous?.cumulativeTotalTokens !== undefined) {
-      this.sessionUsage = {
+      usage = {
         ...(onlyCumulative ? (previous ?? usage) : usage),
         cumulativeInputTokens: usage.cumulativeInputTokens ?? previous?.cumulativeInputTokens,
         cumulativeOutputTokens: usage.cumulativeOutputTokens ?? previous?.cumulativeOutputTokens,
@@ -355,19 +356,32 @@ export class UsageTracker {
         cumulativeTotalTokens: usage.cumulativeTotalTokens ?? previous?.cumulativeTotalTokens,
         updatedAt: usage.updatedAt,
       };
-    } else this.sessionUsage = usage;
+    }
+    // 子回复后占用会继续增长，不能一直显示上次摘要的估算，也不能覆盖主会话。https://github.com/ItsDalk-Lane/Scribe/issues/66
+    if (subagentId) {
+      this.childUsage.set(subagentId, usage);
+      this.deps.notifyMessages();
+      return;
+    }
+    this.sessionUsage = usage;
     if (this.calls.size || this.roundPrompts.size) this.refreshMetrics();
     else this.deps.notifyMessages();
   }
 
   applyCompactedUsage(compaction: CompactionSnapshot): boolean {
     if (compaction.status !== "completed" || compaction.postTokens === undefined) return false;
-    this.sessionUsage = {
-      ...this.sessionUsage,
+    // 子会话摘要消费属于聊天累计，但压后占用只更新被压缩的会话。https://github.com/ItsDalk-Lane/Scribe/issues/66
+    const previous = compaction.subagentId
+      ? this.childUsage.get(compaction.subagentId)
+      : this.sessionUsage;
+    const usage = {
+      ...previous,
       usedTokens: compaction.postTokens,
-      contextWindow: this.sessionUsage?.contextWindow,
+      contextWindow: compaction.contextWindow ?? previous?.contextWindow,
       updatedAt: Date.now(),
     };
+    if (compaction.subagentId) this.childUsage.set(compaction.subagentId, usage);
+    else this.sessionUsage = usage;
     return true;
   }
 

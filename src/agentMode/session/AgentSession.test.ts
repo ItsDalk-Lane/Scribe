@@ -4774,6 +4774,54 @@ describe("AgentSession", () => {
         ]);
       });
 
+      it.each(["during cancellation", "after cancellation"])(
+        "shows a durably committed compression as completed %s without restarting work https://github.com/ItsDalk-Lane/Scribe/issues/66",
+        async (phase) => {
+          const mock = makeMockBackend();
+          const finishPrompt = holdPrompt(mock);
+          const session = makeSession(mock);
+          const { turn } = session.sendPrompt("/compact");
+          mock.emitUpdate({
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "in_progress",
+            trigger: "manual",
+          });
+          await session.cancel();
+          if (phase === "after cancellation") {
+            finishPrompt("cancelled");
+            await turn;
+          }
+          mock.emitUpdate({
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "completed",
+            trigger: "manual",
+            commitSeq: 12,
+            postTokens: 1200,
+            contextWindow: 32000,
+            summary: "Original history is preserved.",
+          });
+          if (phase === "during cancellation") {
+            finishPrompt("cancelled");
+            await turn;
+          }
+          expect(aiMessage(session)?.parts).toEqual([
+            expect.objectContaining({
+              kind: "compaction",
+              id: "committed",
+              status: "completed",
+              summary: "Original history is preserved.",
+            }),
+          ]);
+          expect(session.getSessionUsage()).toMatchObject({
+            usedTokens: 1200,
+            contextWindow: 32000,
+          });
+          expect(mock.prompt).toHaveBeenCalledTimes(1);
+        }
+      );
+
       it("reports cancellation failure, drops retry output, and holds the next prompt until the stopped turn ends https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
         const mock = makeMockBackend();
         let resolveBackingPrompt: ((value: { stopReason: "cancelled" }) => void) | null = null;
@@ -7327,6 +7375,75 @@ describe("AgentSession", () => {
     });
 
     describe("getTaskMessages", () => {
+      it("keeps child compression and later reply occupancy in that child's conversation https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock, { backendId: "native" });
+        mock.emitUpdate({
+          sessionUpdate: "usage_update",
+          usage: { usedTokens: 9000, contextWindow: 128000, updatedAt: 1 },
+        });
+        mock.emitUpdate({
+          sessionUpdate: "task_started",
+          taskId: "run-1",
+          toolCallId: "launch-child",
+          kind: "subagent",
+          subagentId: "child",
+          description: "Review notes",
+        });
+        const before = session.getSessionUsage();
+        for (const status of ["in_progress", "completed"] as const) {
+          mock.emit({
+            sessionId: "session-1",
+            taskToolCallId: "launch-child",
+            update: {
+              sessionUpdate: "compaction",
+              id: "child-compact",
+              trigger: "manual",
+              status,
+              subagentId: "child",
+              runId: "run-1",
+              preTokens: 8000,
+              ...(status === "completed"
+                ? { postTokens: 1500, contextWindow: 32000, summary: "Notes reviewed." }
+                : {}),
+            },
+          });
+        }
+        expect(session.getTaskMessages("launch-child")[0]?.parts).toEqual([
+          expect.objectContaining({
+            kind: "compaction",
+            id: "child-compact",
+            status: "completed",
+            postTokens: 1500,
+            summary: "Notes reviewed.",
+          }),
+        ]);
+        expect(session.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 1500,
+          contextWindow: 32000,
+        });
+        expect(session.getSessionUsage()).toBe(before);
+        mock.emit({
+          sessionId: "session-1",
+          taskToolCallId: "launch-child",
+          update: {
+            sessionUpdate: "usage_update",
+            subagentId: "child",
+            usage: { usedTokens: 2100, contextWindow: 32000, updatedAt: 2 },
+          },
+        });
+        expect(session.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 2100,
+          contextWindow: 32000,
+        });
+        expect(session.getSessionUsage()).toBe(before);
+        expect(
+          aiMessages(session).some((message) =>
+            message.parts?.some((part) => part.kind === "compaction")
+          )
+        ).toBe(false);
+      });
+
       it("retains the recorded order of child tool calls for interleaved instructions https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
         const mock = makeMockBackend();
         const session = makeSession(mock, { backendId: "native" });

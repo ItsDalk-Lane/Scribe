@@ -201,7 +201,10 @@ export class SessionHistoryReplay {
       case "compaction": {
         const settled: CompactionSnapshot =
           update.status === "in_progress" ? { ...update, status: "cancelled" } : update;
-        if (upsertCompactionPart(this.deps.store, this.aiBubbleId(occurredAt), settled)) {
+        // 恢复完成事实可能晚于回合结束，必须更新原卡，不能再生成一张相互矛盾的卡。https://github.com/ItsDalk-Lane/Scribe/issues/66
+        const id =
+          this.deps.store.findMessageIdWithCompaction(update.id) ?? this.aiBubbleId(occurredAt);
+        if (upsertCompactionPart(this.deps.store, id, settled)) {
           this.deps.scheduleNotifyMessages();
         }
         return true;

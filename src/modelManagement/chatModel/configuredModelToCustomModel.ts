@@ -103,6 +103,13 @@ export function configuredModelToCustomModel(params: {
     capabilities: capabilitiesFromConfiguredInfo(info),
     reasoning: info.reasoning,
     reasoningEfforts: info.reasoningEfforts,
+    // 能力契约只透传给运行时读取；具体业务由后续迭代逐项接入。https://github.com/ItsDalk-Lane/Scribe/issues/67
+    attachment: info.attachment,
+    toolCall: info.toolCall,
+    structuredOutput: info.structuredOutput,
+    temperatureSupport: info.temperature,
+    defaultTemperature: info.temperatureValue,
+    cost: info.cost,
     maxTokens,
     openAIOrgId: extraString(extras, "openAIOrgId"),
     numCtx: info.limits?.context,

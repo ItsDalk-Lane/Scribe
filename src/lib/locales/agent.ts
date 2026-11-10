@@ -1,4 +1,5 @@
 export const agentTranslations: Record<string, string> = {
+  "Context compacted.": "上下文已压缩。",
   Waiting: "等待中",
   "Waiting to run": "等待执行",
   "Reading files": "正在读取文件",

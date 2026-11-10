@@ -67,6 +67,18 @@ describe("SkillDetails", () => {
     mockSaveFile.mockResolvedValue({ ok: true });
   });
   describe("SkillDetailsView()", () => {
+    it("saves pending edits before the direct uninstall action", async () => {
+      const input = props();
+      render(<SkillDetailsView {...input} />);
+      fireEvent.click(screen.getByRole("radio", { name: "Edit" }));
+      const next = content + " unfinished";
+      fireEvent.change(screen.getByLabelText("File contents"), { target: { value: next } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Uninstall review-notes" }));
+      });
+      expect(input.onSave).toHaveBeenCalledWith(next, skill.name, content);
+      expect(input.onUninstall).toHaveBeenCalledTimes(1);
+    });
     it("automatically saves the complete draft after the editing pause without Save or Cancel controls", async () => {
       jest.useFakeTimers();
       try {

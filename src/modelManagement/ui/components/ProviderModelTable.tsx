@@ -3,21 +3,20 @@ import { ProviderVerificationStatus } from "@/modelManagement/ui/components/Prov
 import type { VerificationResult } from "@/modelManagement/types/runtime";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { DestinationIcon } from "@/components/ui/DestinationIcon";
 import { providerDestination } from "@/modelManagement/providers/providerDestination";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import { useModelManagement } from "@/modelManagement/ui/ModelManagementContext";
 import { providerRequiresApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
-import { ChevronRight, MoreVertical, Settings2, Trash2, XIcon } from "lucide-react";
+import { ChevronRight, Pencil, Settings2, Trash2, XIcon } from "lucide-react";
+import {
+  ModelModalityIcons,
+  ModelStatusBadge,
+} from "@/modelManagement/ui/components/ModelMetaBadges";
+import { formatContextWindow } from "@/modelManagement/ui/utils/formatModelMetadata";
 import { Notice } from "obsidian";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { useApp } from "@/context";
 import { logError } from "@/logger";
@@ -33,6 +32,7 @@ interface ProviderModelTableProps {
   groups: readonly ProviderModelGroup[];
   onConfigure: (providerId: string) => void;
   onRemove: (providerId: string) => void;
+  onEditModel?: (configuredModelId: string) => void;
   emptyMessage?: React.ReactNode;
 }
 
@@ -40,10 +40,9 @@ export const ProviderModelTable: React.FC<ProviderModelTableProps> = ({
   groups,
   onConfigure,
   onRemove,
+  onEditModel,
   emptyMessage,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
   if (groups.length === 0) {
     return (
       <div
@@ -60,18 +59,14 @@ export const ProviderModelTable: React.FC<ProviderModelTableProps> = ({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="tw-group/settings tw-flex tw-w-full tw-flex-col tw-gap-3"
-      role="list"
-    >
+    <div className="tw-group/settings tw-flex tw-w-full tw-flex-col tw-gap-3" role="list">
       {groups.map((group) => (
         <ProviderCard
           key={group.provider.providerId}
           group={group}
           onConfigure={() => onConfigure(group.provider.providerId)}
           onRemove={() => onRemove(group.provider.providerId)}
-          containerRef={containerRef}
+          onEditModel={onEditModel}
         />
       ))}
     </div>
@@ -82,14 +77,14 @@ interface ProviderCardProps {
   group: ProviderModelGroup;
   onConfigure: () => void;
   onRemove: () => void;
-  containerRef: React.RefObject<HTMLDivElement>;
+  onEditModel?: (configuredModelId: string) => void;
 }
 
 const ProviderCard: React.FC<ProviderCardProps> = ({
   group,
   onConfigure,
   onRemove,
-  containerRef,
+  onEditModel,
 }) => {
   const { provider, models } = group;
   const [isOpen, setIsOpen] = useState(false);
@@ -179,42 +174,34 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                 <ProviderVerificationStatus result={group.verification} />
               </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={t("More actions for {displayName}", {
-                    displayName: provider.displayName,
-                  })}
-                  className="tw-shrink-0"
-                >
-                  <MoreVertical className="tw-size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" container={containerRef.current}>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onConfigure();
-                  }}
-                >
-                  <Settings2 className="tw-mr-2 tw-size-4" />
-                  {t("Edit key")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemove();
-                  }}
-                  className="tw-text-error"
-                >
-                  <Trash2 className="tw-mr-2 tw-size-4" />
-                  {t("Remove")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="tw-shrink-0"
+              aria-label={t("Configure {displayName}", { displayName: provider.displayName })}
+              title={t("Edit key")}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onConfigure();
+              }}
+            >
+              <Settings2 className="tw-size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="tw-shrink-0 tw-text-muted hover:tw-text-error group-[]/settings:hover:!tw-text-error"
+              aria-label={t("Remove {displayName}", { displayName: provider.displayName })}
+              title={t("Remove")}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+            >
+              <Trash2 className="tw-size-4" />
+            </Button>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="tw-overflow-hidden tw-transition-all tw-duration-200 data-[state=open]:tw-animate-in data-[state=closed]:tw-animate-out data-[state=closed]:tw-fade-out-0 data-[state=open]:tw-fade-in-0 data-[state=closed]:tw-slide-out-to-top-1 data-[state=open]:tw-slide-in-from-top-1">
@@ -227,6 +214,7 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                   onRemove={safeAsyncHandler(() =>
                     handleRemoveModel(model.configuredModelId, model.info.displayName)
                   )}
+                  onEdit={onEditModel ? () => onEditModel(model.configuredModelId) : undefined}
                 />
               ))}
             </div>
@@ -237,10 +225,11 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
   );
 };
 
-const ModelRow: React.FC<{ model: ConfiguredModel; onRemove: () => void }> = ({
-  model,
-  onRemove,
-}) => {
+const ModelRow: React.FC<{
+  model: ConfiguredModel;
+  onRemove: () => void;
+  onEdit?: () => void;
+}> = ({ model, onRemove, onEdit }) => {
   return (
     <div
       role="listitem"
@@ -251,7 +240,35 @@ const ModelRow: React.FC<{ model: ConfiguredModel; onRemove: () => void }> = ({
         "tw-transition-colors hover:tw-bg-modifier-hover"
       )}
     >
-      <span className="tw-min-w-0 tw-flex-1 tw-break-words">{model.info.displayName}</span>
+      <span className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-wrap tw-items-center tw-gap-2 tw-break-words">
+        <span>{model.info.displayName}</span>
+        <ModelStatusBadge status={model.info.status} />
+        {formatContextWindow(model.info.limits?.context) && (
+          <span className="tw-shrink-0 tw-rounded tw-border tw-border-solid tw-border-border tw-bg-secondary tw-px-1.5 tw-text-ui-smaller tw-leading-5 tw-text-muted">
+            {formatContextWindow(model.info.limits?.context)}
+          </span>
+        )}
+        <ModelModalityIcons info={model.info} iconSize={13} />
+      </span>
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "tw-size-7 tw-shrink-0 tw-text-muted hover:tw-text-normal",
+            "tw-opacity-0 tw-transition-opacity group-hover:tw-opacity-100",
+            "focus-visible:tw-opacity-100 focus-visible:tw-ring-2 focus-visible:tw-ring-ring"
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          aria-label={t("Configure {displayName}", { displayName: model.info.displayName })}
+          tabIndex={0}
+        >
+          <Pencil className="tw-size-4" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"

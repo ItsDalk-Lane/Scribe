@@ -23,6 +23,30 @@ export interface ProviderPresetFamily {
 }
 
 export const PRESET_FAMILIES = {
+  alibaba: {
+    displayName: "Alibaba Cloud",
+  },
+  azure: {
+    displayName: "Azure AI",
+  },
+  google: {
+    displayName: "Google",
+  },
+  "llm-gateway": {
+    displayName: "LLM Gateway",
+  },
+  munito: {
+    displayName: "Munito",
+  },
+  perplexity: {
+    displayName: "Perplexity",
+  },
+  siliconflow: {
+    displayName: "SiliconFlow",
+  },
+  "umans-ai": {
+    displayName: "Umans AI",
+  },
   kimi: {
     displayName: "Kimi",
     planOrder: ["payg", "coding"],

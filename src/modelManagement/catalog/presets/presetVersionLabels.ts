@@ -30,12 +30,12 @@ export function presetRegionLabel(region: PresetRegionKey): string {
 
 export function presetVersionLabel(preset: ProviderPreset): string {
   const domain = presetDomain(preset);
-  if (!preset.planKey && !preset.regionKey) return domain;
+  if (!preset.planKey && !preset.regionKey) return domain || preset.displayName;
   const parts = [
     preset.planKey ? presetPlanLabel(preset.planKey) : "",
     preset.regionKey ? presetRegionLabel(preset.regionKey) : "",
   ].filter(Boolean);
-  return parts.join(" · ") || domain;
+  return parts.join(" · ") || domain || preset.displayName;
 }
 
 export function presetDomain(preset: ProviderPreset): string {
@@ -81,9 +81,16 @@ function orderedUnique<T extends string>(
 }
 
 export function presetVersionPickerModel(
-  versions: readonly ProviderPreset[]
+  versions: readonly ProviderPreset[],
+  forceList = false
 ): PresetVersionPickerModel | null {
   if (versions.length < 2) return null;
+  if (forceList) {
+    return {
+      kind: "list",
+      options: versions.map((version) => ({ id: version.id, label: presetVersionLabel(version) })),
+    };
+  }
   const family = versions[0].family ? PRESET_FAMILIES[versions[0].family] : undefined;
   const familyPlanOrder = family && "planOrder" in family ? family.planOrder : undefined;
   const plans = orderedUnique(

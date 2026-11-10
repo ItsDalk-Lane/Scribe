@@ -2247,6 +2247,248 @@ describe("NativeBackendProcess", () => {
         expect(JSON.stringify(contexts[2].messages)).toContain("Saved summary of the actual notes");
       });
 
+      it("passes manual retention priorities to the summary and publishes the new occupancy immediately (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const contexts: Context[] = [];
+        const options: AgentStreamOptions[] = [];
+        const f = fixture((_model, context, opts) => {
+          contexts.push(context);
+          options.push(opts ?? {});
+          return response(contexts.length === 2 ? "已保留笔记路径和待办" : "Earlier answer");
+        });
+        const id = await f.open();
+        await f.send(id);
+        await f.send(id, "focused-compact", "/compact 请保留所有笔记路径和未完成任务");
+        expect(JSON.stringify(contexts[1])).toContain("请保留所有笔记路径和未完成任务");
+        expect(options[1].maxTokens).toBeGreaterThan(0);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "compaction",
+            status: "completed",
+            trigger: "manual",
+            preTokens: expect.any(Number),
+            postTokens: expect.any(Number),
+            contextWindow: model.contextWindow,
+          })
+        );
+        const completed = f.events.findLast((event) => event.update.sessionUpdate === "compaction");
+        expect(completed?.update).toMatchObject({ postTokens: expect.any(Number) });
+      });
+
+      it.each([false, true])(
+        "recovers a context rejection once without replaying tools, repeated rejection=%s (https://github.com/ItsDalk-Lane/Scribe/issues/66)",
+        async (rejectAgain) => {
+          const contexts: Context[] = [];
+          let chats = 0;
+          let summaries = 0;
+          const execute = jest.fn(async () => ({
+            content: [{ type: "text" as const, text: "Read once" }],
+            details: undefined,
+          }));
+          const tool: AgentTool = {
+            name: "read_note",
+            label: "Read",
+            description: "Read",
+            parameters: { type: "object", properties: {} },
+            execute,
+          };
+          const f = fixture(
+            (_model, context, options) => {
+              contexts.push(JSON.parse(JSON.stringify(context)));
+              const last = context.messages.at(-1);
+              if (
+                typeof last?.content === "string" &&
+                last.content.startsWith("Summarize this recorded Obsidian conversation")
+              ) {
+                summaries++;
+                return response("Earlier goal and completed work");
+              }
+              chats++;
+              if (chats === 1) return response("Earlier reply");
+              if (chats === 2)
+                return response("", [{ id: "read-once", name: "read_note", arguments: {} }]);
+              if (chats === 3 || rejectAgain) {
+                options?.onFailure?.({ kind: "context" });
+                const stream = createAssistantMessageEventStream();
+                const error = createAssistantMessage(model);
+                error.stopReason = "error";
+                error.errorMessage = "Context rejected";
+                stream.push({ type: "error", reason: "error", error });
+                return stream;
+              }
+              return response("Continued successfully");
+            },
+            [tool]
+          );
+          const id = await f.open();
+          await f.send(id, "earlier", "Original task");
+          await f.send(id, "current", "Inspect the note once");
+          expect(summaries).toBe(1);
+          expect(chats).toBe(4);
+          expect(execute).toHaveBeenCalledTimes(1);
+          expect(JSON.stringify(contexts.at(-1))).toContain("Read once");
+          expect(JSON.stringify(contexts.at(-1))).toContain("Inspect the note once");
+          expect(
+            f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+          ).toMatchObject({ stopReason: rejectAgain ? "context_limit" : "end_turn" });
+        }
+      );
+
+      it("recovers a server context rejection with an unknown window without retaining the failed attempt's empty assistant (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const contexts: Context[] = [];
+        let chats = 0;
+        let summaries = 0;
+        const f = fixture(undefined, [], {
+          createModel: async () => ({
+            model: { ...model, contextWindow: 0 },
+            stream: () => response("unused"),
+            agentStream: (context, options) => {
+              contexts.push(JSON.parse(JSON.stringify(context)));
+              const last = context.messages.at(-1);
+              if (
+                typeof last?.content === "string" &&
+                last.content.startsWith("Summarize this recorded Obsidian conversation")
+              ) {
+                summaries++;
+                return response("Recovered note history");
+              }
+              if (++chats !== 2)
+                return response(chats === 1 ? "Earlier answer" : "Recovered answer");
+              const stream = createAssistantMessageEventStream();
+              const error = createAssistantMessage(model);
+              error.stopReason = "error";
+              options?.onFailure?.({ kind: "context" });
+              stream.push({ type: "start", partial: error });
+              stream.push({ type: "error", reason: "error", error });
+              return stream;
+            },
+          }),
+        });
+        const id = await f.open();
+        await f.send(id, "earlier", "Keep the original goal");
+        await f.send(id, "recover", "Continue with the same note");
+
+        expect(summaries).toBe(1);
+        expect(chats).toBe(3);
+        expect(JSON.stringify(contexts.at(-1))).toContain("Recovered note history");
+        expect(JSON.stringify(contexts.at(-1))).toContain("Continue with the same note");
+        expect(
+          f.records.get(id)?.messages.filter((message) => message.role === "assistant")
+        ).toHaveLength(2);
+        expect(
+          f.events.filter((event) => event.update.sessionUpdate === "agent_segment_started")
+        ).toHaveLength(2);
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({ stopReason: "end_turn" });
+      });
+
+      it.each([
+        {
+          kind: "context" as const,
+          partialText: "Already visible answer",
+          stopReason: "context_limit",
+        },
+        { kind: "request" as const, partialText: "", stopReason: "request_error" },
+      ])(
+        "does not compact or resend a $kind failure after visible text '$partialText' (https://github.com/ItsDalk-Lane/Scribe/issues/66)",
+        async ({ kind, partialText, stopReason }) => {
+          let calls = 0;
+          const f = fixture((_model, _context, options) => {
+            if (++calls === 1) return response("Earlier answer");
+            const stream = createAssistantMessageEventStream();
+            const partial = createAssistantMessage(model);
+            if (partialText) {
+              partial.content = [{ type: "text", text: partialText }];
+              stream.push({ type: "start", partial });
+              stream.push({ type: "text_delta", contentIndex: 0, delta: partialText, partial });
+            }
+            const error = createAssistantMessage(model);
+            error.stopReason = "error";
+            options?.onFailure?.({ kind });
+            stream.push({ type: "error", reason: "error", error });
+            return stream;
+          });
+          const id = await f.open();
+          await f.send(id, "earlier", "Original task");
+          await f.send(id, "failed", "Continue");
+
+          expect(calls).toBe(2);
+          expect(f.events.some((event) => event.update.sessionUpdate === "compaction")).toBe(false);
+          expect(
+            f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+          ).toMatchObject({ stopReason });
+          if (partialText)
+            expect(f.events.map((event) => event.update)).toContainEqual(
+              expect.objectContaining({
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: partialText },
+              })
+            );
+        }
+      );
+
+      it("counts the failed request and recovery summary against the task budget before permitting a resend (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const admitted: string[] = [];
+        let attempts = 0;
+        let chats = 0;
+        const f = fixture(
+          (_model, context, options) => {
+            const stream = createAssistantMessageEventStream();
+            const requestId = `recovery-request-${++attempts}`;
+            void (async () => {
+              try {
+                await options?.beforeRequest?.(requestId);
+                const last = context.messages.at(-1);
+                const summary =
+                  typeof last?.content === "string" &&
+                  last.content.startsWith("Summarize this recorded Obsidian conversation");
+                admitted.push(summary ? "summary" : "chat");
+                const message = createAssistantMessage(model);
+                if (!summary && ++chats === 2) {
+                  options?.onFailure?.({ kind: "context" });
+                  message.stopReason = "error";
+                  stream.push({ type: "error", reason: "error", error: message });
+                } else {
+                  message.content = [
+                    {
+                      type: "text",
+                      text: summary ? "Budgeted recovery summary" : "Earlier answer",
+                    },
+                  ];
+                  message.stopReason = "stop";
+                  stream.push({ type: "done", reason: "stop", message });
+                }
+              } catch (error) {
+                const message = createAssistantMessage(model);
+                message.stopReason = "error";
+                message.errorMessage = error instanceof Error ? error.message : String(error);
+                options?.onFailure?.({ kind: "request" });
+                stream.push({ type: "error", reason: "error", error: message });
+              }
+            })();
+            return stream;
+          },
+          [],
+          { getSubagentLimits: () => ({ maxConcurrent: 3, maxQueued: 20, maxTaskRequests: 2 }) }
+        );
+        const id = await f.open();
+        await f.send(id, "earlier", "Original task");
+        await f.send(id, "recover", "Continue");
+
+        expect(attempts).toBe(4);
+        expect(admitted).toEqual(["chat", "chat", "summary"]);
+        expect(f.records.get(id)?.taskGenerations?.at(-1)?.requestIds).toEqual([
+          "recovery-request-2",
+          "recovery-request-3",
+        ]);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "compaction", status: "completed" })
+        );
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({ stopReason: "max_task_requests" });
+      });
+
       it("re-summarizes from the verified summary plus new history instead of the full original record (https://github.com/ItsDalk-Lane/Scribe/issues/63)", async () => {
         const summaryRequests: string[] = [];
         const contexts: Context[] = [];
@@ -3126,6 +3368,193 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("sendSubagentMessage()", () => {
+      it("queues manual compression during a child reply and delivers it as one child-scoped operation after the reply completes (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const first = createAssistantMessageEventStream();
+        const requests: Context[] = [];
+        const f = fixture((_model, context) => {
+          requests.push(JSON.parse(JSON.stringify(context)));
+          if (requests.length === 1) {
+            started();
+            return first;
+          }
+          return response("Child note paths and unfinished work");
+        });
+        const id = await f.open();
+        const running = f.toolContexts[0].executeSubagent!("active-child", {
+          prompt: "Inspect the child note",
+          description: "Active child",
+        });
+        await ready;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "/compact 保留笔记路径和未完成工作",
+          mode: "enqueue",
+          messageId: "queued-child-compact",
+          payload: { content: [{ type: "text", text: "/compact 保留笔记路径和未完成工作" }] },
+        });
+        expect(requests).toHaveLength(1);
+        const message = createAssistantMessage(model);
+        message.content = [{ type: "text", text: "Original child work completed" }];
+        message.stopReason = "stop";
+        first.push({ type: "done", reason: "stop", message });
+        await running;
+
+        expect(requests).toHaveLength(2);
+        const summaryText = requests[1].messages.at(-1)?.content;
+        expect(summaryText).toEqual(
+          expect.stringContaining("Summarize this recorded Obsidian conversation")
+        );
+        expect(summaryText).toEqual(expect.stringContaining("Original child work completed"));
+        expect(summaryText).toEqual(expect.stringContaining("保留笔记路径和未完成工作"));
+        expect(JSON.stringify(requests[0])).not.toContain("/compact");
+        const [completedChild] = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(
+          completedChild.messages.find((entry) => entry.id === "queued-child-compact")?.state
+        ).toBe("delivered");
+        expect(completedChild.runs[0].status).toBe("completed");
+        expect(completedChild.runs[0].result).toContain("Original child work completed");
+        const compactions = f.events.filter(
+          (event) =>
+            event.update.sessionUpdate === "compaction" && event.update.status === "completed"
+        );
+        expect(compactions).toHaveLength(1);
+        expect(compactions[0]).toMatchObject({
+          taskToolCallId: completedChild.runs[0].toolCallId,
+          update: {
+            sessionUpdate: "compaction",
+            subagentId: child.id,
+            runId: completedChild.runs[0].id,
+            trigger: "manual",
+          },
+        });
+        await f.proc.shutdown();
+      });
+
+      it("ends each delivered user round once when a queued compact command separates two child reply batches (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        let admit!: (release: () => void) => void;
+        let acquiring!: () => void;
+        const admitted = new Promise<() => void>((resolve) => {
+          admit = resolve;
+        });
+        const slotRequested = new Promise<void>((resolve) => {
+          acquiring = resolve;
+        });
+        const requests: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            requests.push(JSON.parse(JSON.stringify(context)));
+            const text = context.messages.at(-1)?.content;
+            return response(
+              typeof text === "string" &&
+                text.startsWith("Summarize this recorded Obsidian conversation")
+                ? "The first user batch was completed; continue with the next queued request."
+                : "The requested child work is complete."
+            );
+          },
+          [],
+          {
+            acquireSubagentSlot: () => {
+              acquiring();
+              return admitted;
+            },
+          }
+        );
+        const id = await f.open();
+        const running = f.toolContexts[0].executeSubagent!("queued-child", {
+          prompt: "Inspect the child notes",
+          description: "Queued child",
+        });
+        await slotRequested;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        for (const [messageId, text] of [
+          ["child-user-a", "Complete the first ordinary request"],
+          ["child-compact-between", "/compact 保留已完成工作"],
+          ["child-user-b", "Complete the second ordinary request"],
+        ])
+          await f.proc.sendSubagentMessage({
+            sessionId: id,
+            subagentId: child.id,
+            text,
+            mode: "enqueue",
+            messageId,
+            payload: { content: [{ type: "text", text }] },
+          });
+        admit(() => {});
+        await running;
+
+        expect(requests).toHaveLength(3);
+        for (const turnId of ["child-user-a", "child-user-b"]) {
+          const endings = f.events.filter(
+            (event) => event.update.sessionUpdate === "turn_ended" && event.update.turnId === turnId
+          );
+          expect(endings).toHaveLength(1);
+          expect(endings[0].update).toMatchObject({
+            sessionUpdate: "turn_ended",
+            subagentId: child.id,
+            stopReason: "end_turn",
+          });
+        }
+        await f.proc.shutdown();
+      });
+
+      it("compacts only the addressed child with the user's preservation focus (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const requests: Context[] = [];
+        const f = fixture((_model, context) => {
+          requests.push(JSON.parse(JSON.stringify(context)));
+          const text = context.messages.at(-1)?.content;
+          return response(
+            typeof text === "string" &&
+              text.startsWith("Summarize this recorded Obsidian conversation")
+              ? "Child handoff"
+              : "Original child reply"
+          );
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Child original goal",
+          description: "Child",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const count = requests.length;
+        const after = Math.max(0, ...child.messages.map((message) => message.sequence));
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "/compact 保留子任务笔记路径",
+          mode: "wake",
+          messageId: "compact-child",
+          payload: { content: [{ type: "text", text: "/compact 保留子任务笔记路径" }] },
+        });
+        await f.proc.waitSubagents({ sessionId: id, subagentIds: [child.id], after });
+        const newRequests = requests.slice(count);
+        expect(newRequests).toHaveLength(1);
+        expect(JSON.stringify(newRequests[0])).toContain("Preservation focus");
+        expect(JSON.stringify(newRequests[0])).toContain("保留子任务笔记路径");
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            taskToolCallId: expect.any(String),
+            update: expect.objectContaining({
+              sessionUpdate: "compaction",
+              subagentId: child.id,
+              status: "completed",
+              postTokens: expect.any(Number),
+            }),
+          })
+        );
+        expect(
+          (await f.proc.listSubagentSessions({ sessionId: id }))[0].messages.find(
+            (message) => message.id === "compact-child"
+          )?.state
+        ).toBe("delivered");
+        await f.proc.shutdown();
+      });
+
       it("marks a delivered child round as failed when resource cleanup fails after a successful model reply https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         let started!: () => void;
         const ready = new Promise<void>((resolve) => {

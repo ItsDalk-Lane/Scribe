@@ -29,6 +29,7 @@ const fixtureApi = {
     ensureLoaded: async () => undefined,
     onChange: () => () => undefined,
     getProvider: (id: string) => (id === provider.id ? provider : undefined),
+    getAllProviders: () => [],
   },
   providerRegistry: { getApiKeyStatus: () => "missing" },
   setup: {

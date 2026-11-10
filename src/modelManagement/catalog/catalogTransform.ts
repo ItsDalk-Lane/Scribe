@@ -1,9 +1,16 @@
 import { logWarn } from "@/logger";
 
-import type { CatalogProvider, ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
+import type {
+  CatalogProvider,
+  ModelInfo,
+  ModelStatus,
+  ProviderType,
+} from "@/modelManagement/types/catalog";
 import { isPlainObject, type WireModel, type WireProvider } from "./modelsDevWire";
 
 const EMBEDDING_TOKEN = /(^|[-_/.\s])embed(ding)?($|[-_/.\s])/i;
+
+const MODEL_STATUSES: readonly ModelStatus[] = ["alpha", "beta", "deprecated"];
 
 export function looksLikeEmbeddingModel(idOrHaystack: string): boolean {
   return EMBEDDING_TOKEN.test(idOrHaystack);
@@ -69,6 +76,17 @@ function transformModel(wire: WireModel): ModelInfo | null {
 
   if (typeof wire.reasoning === "boolean") info.reasoning = wire.reasoning;
   if (typeof wire.tool_call === "boolean") info.toolCall = wire.tool_call;
+  if (typeof wire.attachment === "boolean") info.attachment = wire.attachment;
+  if (typeof wire.structured_output === "boolean") info.structuredOutput = wire.structured_output;
+  if (typeof wire.temperature === "boolean") info.temperature = wire.temperature;
+  const efforts = parseReasoningEffortValues(wire.reasoning_options);
+  if (efforts.length > 0) info.reasoningEfforts = efforts;
+  if (
+    typeof wire.status === "string" &&
+    (MODEL_STATUSES as readonly string[]).includes(wire.status)
+  ) {
+    info.status = wire.status as ModelStatus;
+  }
   if (looksLikeEmbeddingModel(`${wire.id} ${typeof wire.family === "string" ? wire.family : ""}`)) {
     info.isEmbedding = true;
   }
@@ -85,6 +103,21 @@ function transformModel(wire: WireModel): ModelInfo | null {
   }
 
   return info;
+}
+
+// 目录档位声明是结构化列表（effort 档位 / 开关 / 预算），编辑界面只呈现档位值，收集全部 effort 取值即可。https://github.com/ItsDalk-Lane/Scribe/issues/67
+function parseReasoningEffortValues(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+  const values: string[] = [];
+  for (const option of options) {
+    if (!isPlainObject(option) || option.type !== "effort") continue;
+    if (!Array.isArray(option.values)) continue;
+    for (const value of option.values) {
+      if (typeof value !== "string" || value.length === 0) continue;
+      if (!values.includes(value)) values.push(value);
+    }
+  }
+  return values;
 }
 
 function transformProvider(providerKey: string, wire: unknown): CatalogProvider | null {

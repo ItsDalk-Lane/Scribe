@@ -25,6 +25,7 @@ import {
 } from "@/modelManagement/providers/providerVerificationCache";
 import { AddProviderModal } from "@/modelManagement/ui/dialogs/AddProviderDialog";
 import { ConfigureProviderModal } from "@/modelManagement/ui/dialogs/ConfigureProviderDialog";
+import { ModelConfigModal } from "@/modelManagement/ui/dialogs/ModelConfigDialog";
 import { settingsStore } from "@/settings/model";
 import { useAtomValue } from "jotai";
 import { Plus } from "lucide-react";
@@ -205,6 +206,18 @@ export const ModelsAndProvidersPanel: React.FC = () => {
     modal.open();
   };
 
+  const handleEditModel = (configuredModelId: string): void => {
+    const configured = api.configuredModelRegistry.get(configuredModelId);
+    const provider = providers.find((p) => p.providerId === configured?.providerId);
+    if (!configured || !provider) return;
+    new ModelConfigModal(app, {
+      provider,
+      configuredModel: configured,
+      api,
+      onSaved: refreshVerification,
+    }).open();
+  };
+
   return (
     <div className="tw-relative tw-flex tw-flex-col tw-gap-4 tw-py-4">
       <ProviderVerificationProgress pending={pendingChecks} />
@@ -239,6 +252,7 @@ export const ModelsAndProvidersPanel: React.FC = () => {
             }).open()
           }
           onRemove={handleRemove}
+          onEditModel={handleEditModel}
         />
       </div>
     </div>
