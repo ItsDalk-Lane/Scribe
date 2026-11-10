@@ -34,6 +34,7 @@ import type {
 import { SecretStore } from "@/services/secretStore";
 import { useSettingsValue } from "@/settings/model";
 import { McpToolsSection } from "./McpToolsSection";
+import { isDeferredMcpLoadingActive } from "./mcpToolLoadingUi";
 import { useMcpServerRuntime, writeMcpServers } from "./mcpUiState";
 
 export interface McpServerDraft {
@@ -299,6 +300,7 @@ const McpServerEditorBridge: React.FC<{
       }}
       saving={saving}
       liveActive={server?.isActive}
+      deferred={isDeferredMcpLoadingActive(app)}
       onToggleActive={server ? handleToggleActive : undefined}
       onSave={handleSave}
       onDelete={server ? handleDelete : undefined}
@@ -319,6 +321,7 @@ export interface McpServerEditorContentProps {
   server: McpServerConfig | null;
   runtime: McpServerEditorRuntime;
   saving?: boolean;
+  deferred?: boolean;
   initialTab?: "general" | "tools";
   liveActive?: boolean;
   onToggleActive?: (checked: boolean) => void;
@@ -332,6 +335,7 @@ export const McpServerEditorContent: React.FC<McpServerEditorContentProps> = ({
   server,
   runtime,
   saving = false,
+  deferred = false,
   initialTab = "general",
   liveActive,
   onToggleActive,
@@ -549,6 +553,7 @@ export const McpServerEditorContent: React.FC<McpServerEditorContentProps> = ({
             disabled={saving}
             disabledTools={draft.disabledTools}
             autoApprovedTools={draft.autoApprovedTools}
+            deferred={deferred}
             onToggleTool={(name, enabled) =>
               patch({
                 disabledTools: enabled

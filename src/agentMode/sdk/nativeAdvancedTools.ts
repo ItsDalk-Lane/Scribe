@@ -45,7 +45,10 @@ export interface SkillToolEntry {
   builtin?: boolean;
 }
 
-export interface NativeAdvancedToolsOptions extends NativeToolContext {
+export interface NativeAdvancedToolsOptions extends Omit<
+  NativeToolContext,
+  "mcpToolSelections" | "registerTool"
+> {
   reviewSkillDraft?: (
     draft: SkillDraftProposal,
     signal?: AbortSignal

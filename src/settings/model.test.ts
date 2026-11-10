@@ -217,6 +217,31 @@ describe("model", () => {
       }
     });
 
+    it("keeps a valid MCP tool loading mode and threshold and falls back to defaults for invalid ones https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+      const sanitized = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          mcpToolLoading: "always",
+          mcpToolLoadingThresholdChars: 8000,
+        },
+      });
+      expect(sanitized.agentMode.mcpToolLoading).toBe("always");
+      expect(sanitized.agentMode.mcpToolLoadingThresholdChars).toBe(8000);
+      const invalid = sanitizeSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          mcpToolLoading: "sometimes",
+          mcpToolLoadingThresholdChars: 0,
+        } as unknown as ScribeSettings["agentMode"],
+      });
+      expect(invalid.agentMode.mcpToolLoading).toBe(DEFAULT_SETTINGS.agentMode.mcpToolLoading);
+      expect(invalid.agentMode.mcpToolLoadingThresholdChars).toBe(
+        DEFAULT_SETTINGS.agentMode.mcpToolLoadingThresholdChars
+      );
+    });
+
     it("preserves the native agent model, permission mode and step limit without changing BYOK connections", () => {
       const result = sanitizeSettings({
         ...DEFAULT_SETTINGS,
@@ -434,6 +459,8 @@ describe("model", () => {
         welcomeDismissed: false,
         subagentChatOpenArea: "right",
         skills: DEFAULT_SETTINGS.agentMode.skills,
+        mcpToolLoading: "auto",
+        mcpToolLoadingThresholdChars: DEFAULT_SETTINGS.agentMode.mcpToolLoadingThresholdChars,
       });
     });
 

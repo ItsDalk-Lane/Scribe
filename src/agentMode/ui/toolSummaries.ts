@@ -369,6 +369,29 @@ const SKILL_SUMMARY: ToolSummary = {
   },
 };
 
+function toolSearchTarget(part: ToolCallPart): string | null {
+  const input = part.input as { query?: unknown; select?: unknown } | null | undefined;
+  if (typeof input?.select === "string" && input.select.trim().length > 0)
+    return input.select.trim().replace(/^select:/, "");
+  if (typeof input?.query === "string" && input.query.trim().length > 0) return input.query.trim();
+  return null;
+}
+
+// 延迟加载下模型先检索目录再选取工具；摘要同时覆盖两种调用形态。https://github.com/ItsDalk-Lane/Scribe/issues/65
+const TOOL_SEARCH_SUMMARY: ToolSummary = {
+  icon: pickToolIcon({ toolKind: "search" }),
+  collapsedLine: (p) => {
+    const v = verb(p, t("Searching tools"), t("Searched tools"));
+    const target = toolSearchTarget(p);
+    return target ? `${v} · "${target}"` : `${v} · ${targetFromTitle(p)}`;
+  },
+  outcome: () => null,
+  expandedDetails: (p) => {
+    const target = toolSearchTarget(p);
+    return target ?? null;
+  },
+};
+
 export const SUBAGENT_INSPECTION_SUMMARIES: ReadonlyMap<string, ToolSummary> = new Map([
   [
     "list_subagent_sessions",
@@ -405,6 +428,7 @@ const VENDOR_SUMMARIES: Record<string, ToolSummary> = {
   AskUserQuestion: ASK_USER_QUESTION_SUMMARY,
   LS: LIST_SUMMARY,
   Skill: SKILL_SUMMARY,
+  ToolSearch: TOOL_SEARCH_SUMMARY,
 };
 
 const KIND_SEARCH_SUMMARY: ToolSummary = {

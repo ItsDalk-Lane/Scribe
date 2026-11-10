@@ -458,6 +458,8 @@ export const agentTranslations: Record<string, string> = {
   "Searched vault": "已搜索库",
   "Searching web": "正在搜索网页",
   "Searched web": "已搜索网页",
+  "Searching tools": "正在检索工具",
+  "Searched tools": "已检索工具",
   "Wait for the current agent to finish starting.": "请等待当前代理完成启动。",
   "What can I help with?": "有什么可以帮您？",
   "Where should we start?": "我们从哪里开始？",

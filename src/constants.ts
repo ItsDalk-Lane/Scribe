@@ -1,3 +1,4 @@
+import { DEFAULT_MCP_TOOL_LOADING_THRESHOLD_CHARS } from "@/agentMode/mcp/toolLoadingPolicy";
 import { type ScribeSettings } from "@/settings/model";
 
 export const BREVILABS_API_BASE_URL = "https://api.brevilabs.com/v1";
@@ -301,6 +302,8 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
       catalogBudgetPercent: DEFAULT_SKILL_CATALOG_BUDGET_PERCENT,
       catalogBudgetMaxTokens: DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS,
     },
+    mcpToolLoading: "auto",
+    mcpToolLoadingThresholdChars: DEFAULT_MCP_TOOL_LOADING_THRESHOLD_CHARS,
   },
   providers: {},
   configuredModels: [],

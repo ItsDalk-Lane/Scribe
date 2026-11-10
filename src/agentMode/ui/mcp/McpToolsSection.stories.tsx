@@ -104,3 +104,21 @@ export const Interactive: StoryObj<McpToolsSectionProps> = {
 export const Saving: StoryObj<McpToolsSectionProps> = {
   args: { tools: TOOLS, disabled: true, disabledTools: [], autoApprovedTools: [] },
 };
+
+export const DeferredLoading: StoryObj<McpToolsSectionProps> = {
+  args: {
+    tools: TOOLS,
+    disabledTools: [],
+    autoApprovedTools: ["read_file"],
+    deferred: true,
+  },
+};
+
+export const FullRegistration: StoryObj<McpToolsSectionProps> = {
+  args: {
+    tools: TOOLS,
+    disabledTools: ["run_query"],
+    autoApprovedTools: [],
+    deferred: false,
+  },
+};

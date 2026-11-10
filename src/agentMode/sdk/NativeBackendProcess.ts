@@ -57,6 +57,7 @@ import { getSettings } from "@/settings/model";
 import { EXCALIDRAW_TOOL_NAMES } from "@/excalidraw/excalidrawTools";
 import { SCRIBE_MCP_SERVER_NAME } from "@/agentMode/session/scribeToolDefinitions";
 import { resolveToolName } from "@/agentMode/session/toolName";
+import type { ToolSearchSelections } from "@/agentMode/sdk/nativeToolSearch";
 import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
 import { t } from "@/lib/i18n";
 import { v4 as uuidv4 } from "uuid";
@@ -154,6 +155,7 @@ export interface NativeSessionStorage {
 export interface NativeToolContext {
   projectId?: string;
   transferredSkills?: readonly string[];
+  allowedTools?: readonly string[];
   readSubagentResult?(id: string, runId?: string): AgentToolResult;
   assertCanExecute?(tool: string): void;
   subagentId?: string;
@@ -195,6 +197,8 @@ export interface NativeToolContext {
     outputFile: string;
   }): Promise<void>;
   subagents?: readonly { id: string; name: string; description: string }[];
+  mcpToolSelections: ToolSearchSelections;
+  registerTool(tool: AgentTool, autoApproved?: boolean): void;
   executeSubagent?: (
     toolCallId: string,
     input: {
@@ -303,6 +307,7 @@ interface NativeSessionContext {
   compactions: CompactionProjection[];
   provider: ProviderChatModel;
   tools: Set<NativeRuntimeTools>;
+  mcpToolSelections: Set<string>;
   pending: Map<string, UserMessage>;
   accepting: Map<string, Promise<void>>;
   messageIds: WeakMap<UserMessage, string>;
@@ -372,6 +377,7 @@ const TOOL_KINDS: Readonly<Record<string, AgentToolKind>> = Object.freeze({
   excalidraw_render: "read",
   ask_user: "think",
   invoke_skill: "read",
+  tool_search: "read",
   propose_skill: "think",
   send_subagent_message: "think",
   list_subagent_sessions: "read",
@@ -596,6 +602,7 @@ export class NativeBackendProcess implements BackendProcess {
       }),
       provider,
       tools: new Set(),
+      mcpToolSelections: new Set(),
       managedCommands: new Map(),
       releasingTools: new Map(),
       pending: new Map(),
@@ -729,6 +736,7 @@ export class NativeBackendProcess implements BackendProcess {
     const toolContext: NativeToolContext = {
       projectId: session.record.projectId,
       transferredSkills: child?.manualSkills,
+      allowedTools: child?.allowedTools,
       assertCanExecute,
       subagentId: child?.subagentId,
       runId: child?.taskId,
@@ -1023,6 +1031,16 @@ export class NativeBackendProcess implements BackendProcess {
               }),
             stopSubagent: (id: string) => session.subagentController!.stop(id),
           }),
+      // 选中集合仅存活于会话内存；恢复会话后目录重新可见，模型可再次选取。https://github.com/ItsDalk-Lane/Scribe/issues/65
+      mcpToolSelections: {
+        names: () => [...session.mcpToolSelections],
+        select: (qualifiedName: string) => {
+          session.mcpToolSelections.add(qualifiedName);
+        },
+      },
+      registerTool: (tool, autoApproved) => {
+        agent.state.tools = [...agent.state.tools, wrapToolForRun(tool, autoApproved === true)];
+      },
     };
     const tools = this.options.createTools(toolContext);
     if (child) {
@@ -1066,6 +1084,83 @@ export class NativeBackendProcess implements BackendProcess {
     const childEffort = child ? session.record.effort : undefined;
     let requestMessages: AgentMessage[] | undefined;
     let pendingManualSkill: { promptId: string; name: string } | undefined;
+    const wrapToolForRun = (tool: AgentTool, autoApproved: boolean): AgentTool => ({
+      ...tool,
+      execute: async (id, args, signal, onUpdate) => {
+        assertCanExecute(tool.name);
+        const key = viewId(id);
+        session.toolExecutions.set(key, {
+          id,
+          name: tool.name,
+          taskId: child?.taskId,
+          roundId: toolOwners.get(key),
+          sourceId: child?.subagentId ?? "main",
+          admitted: false,
+        });
+        if (
+          !(tool.name in TOOL_KINDS) &&
+          !autoApproved &&
+          ![
+            "ask_user",
+            "invoke_skill",
+            "propose_skill",
+            "send_subagent_message",
+            "list_subagent_sessions",
+            "wait_subagents",
+            "stop_subagent",
+            "send_parent_message",
+            "wait_for_message",
+          ].includes(tool.name)
+        ) {
+          const decision = await toolContext.requestPermission({
+            sessionId: session.record.sessionId,
+            requester,
+            toolCall: { toolCallId: key, title: tool.name, kind: "execute", rawInput: args },
+            options: [
+              { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+              { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+            ],
+            signal,
+          });
+          if (decision.outcome.outcome !== "selected" || decision.outcome.optionId !== "allow_once")
+            throw new Error("Permission denied.");
+        }
+        this.assertWritable(session);
+        if (TOOL_KINDS[tool.name] !== "edit" && TOOL_KINDS[tool.name] !== "execute")
+          await this.admitTool(session, key);
+        try {
+          const result = await tool.execute(key, args, signal, onUpdate);
+          await this.recordToolResult(
+            session,
+            id,
+            tool.name,
+            result as AgentToolResult,
+            "isError" in result && result.isError === true,
+            child?.taskId
+          );
+          return result;
+        } catch (error) {
+          if (!session.storageError)
+            await this.recordToolResult(
+              session,
+              id,
+              tool.name,
+              {
+                content: [
+                  {
+                    type: "text",
+                    text: error instanceof Error ? error.message : String(error),
+                  },
+                ],
+                details: undefined,
+              },
+              true,
+              child?.taskId
+            );
+          throw error;
+        }
+      },
+    });
     const wrapTools = (runtimeTools: NativeRuntimeTools): AgentTool[] =>
       runtimeTools.tools
         .filter(
@@ -1074,86 +1169,9 @@ export class NativeBackendProcess implements BackendProcess {
               SKILL_AUTHORING_TOOLS.has(tool.name)) &&
             (!child?.allowedTools || child.allowedTools.includes(tool.name))
         )
-        .map((tool) => ({
-          ...tool,
-          execute: async (id, args, signal, onUpdate) => {
-            assertCanExecute(tool.name);
-            const key = viewId(id);
-            session.toolExecutions.set(key, {
-              id,
-              name: tool.name,
-              taskId: child?.taskId,
-              roundId: toolOwners.get(key),
-              sourceId: child?.subagentId ?? "main",
-              admitted: false,
-            });
-            if (
-              !(tool.name in TOOL_KINDS) &&
-              !runtimeTools.autoApproveTools?.has(tool.name) &&
-              ![
-                "ask_user",
-                "invoke_skill",
-                "propose_skill",
-                "send_subagent_message",
-                "list_subagent_sessions",
-                "wait_subagents",
-                "stop_subagent",
-                "send_parent_message",
-                "wait_for_message",
-              ].includes(tool.name)
-            ) {
-              const decision = await toolContext.requestPermission({
-                sessionId: session.record.sessionId,
-                requester,
-                toolCall: { toolCallId: key, title: tool.name, kind: "execute", rawInput: args },
-                options: [
-                  { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
-                  { optionId: "reject_once", name: "Deny", kind: "reject_once" },
-                ],
-                signal,
-              });
-              if (
-                decision.outcome.outcome !== "selected" ||
-                decision.outcome.optionId !== "allow_once"
-              )
-                throw new Error("Permission denied.");
-            }
-            this.assertWritable(session);
-            if (TOOL_KINDS[tool.name] !== "edit" && TOOL_KINDS[tool.name] !== "execute")
-              await this.admitTool(session, key);
-            try {
-              const result = await tool.execute(key, args, signal, onUpdate);
-              await this.recordToolResult(
-                session,
-                id,
-                tool.name,
-                result as AgentToolResult,
-                "isError" in result && result.isError === true,
-                child?.taskId
-              );
-              return result;
-            } catch (error) {
-              if (!session.storageError)
-                await this.recordToolResult(
-                  session,
-                  id,
-                  tool.name,
-                  {
-                    content: [
-                      {
-                        type: "text",
-                        text: error instanceof Error ? error.message : String(error),
-                      },
-                    ],
-                    details: undefined,
-                  },
-                  true,
-                  child?.taskId
-                );
-              throw error;
-            }
-          },
-        }));
+        .map((tool) =>
+          wrapToolForRun(tool, runtimeTools.autoApproveTools?.has(tool.name) === true)
+        );
     const refreshCapabilities = (): void => {
       const currentCapabilityRevision =
         this.options.getCapabilityRevision?.(session.record.cwd) ?? "";

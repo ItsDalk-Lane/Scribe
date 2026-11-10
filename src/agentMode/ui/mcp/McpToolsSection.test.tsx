@@ -39,7 +39,7 @@ describe("McpToolsSection", () => {
   describe("McpToolsSection()", () => {
     it("keeps schemas collapsed until their tool is expanded and shows required fields and enum values", () => {
       mountTools();
-      const tool = screen.getByRole("button", { name: /search Find public information/ });
+      const tool = screen.getByRole("button", { name: /search.*Find public information/ });
       expect(tool.getAttribute("aria-expanded")).toBe("false");
       expect(screen.queryByText("query")).toBeNull();
       fireEvent.click(tool);
@@ -112,6 +112,36 @@ describe("McpToolsSection", () => {
       expect(
         screen.getByText("No tools available. Save and enable the server to load its tools.")
       ).toBeTruthy();
+    });
+
+    it("marks every enabled tool as deferred when deferred loading is active https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+      render(
+        <McpToolsSection
+          tools={tools}
+          disabledTools={[]}
+          autoApprovedTools={[]}
+          deferred
+          onToggleTool={jest.fn()}
+          onToggleAutoApprove={jest.fn()}
+        />
+      );
+      expect(screen.getAllByText("Deferred")).toHaveLength(tools.length);
+      expect(screen.getByText(/Deferred loading is active/)).toBeTruthy();
+    });
+
+    it("marks enabled tools as fully registered when deferred loading is off https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+      render(
+        <McpToolsSection
+          tools={tools}
+          disabledTools={["read"]}
+          autoApprovedTools={[]}
+          deferred={false}
+          onToggleTool={jest.fn()}
+          onToggleAutoApprove={jest.fn()}
+        />
+      );
+      expect(screen.getAllByText("Registered")).toHaveLength(1);
+      expect(screen.queryByText("Deferred")).toBeNull();
     });
   });
 

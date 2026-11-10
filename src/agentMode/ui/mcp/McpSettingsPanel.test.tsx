@@ -20,12 +20,16 @@ function server(
   };
 }
 
-const mockSettings = { mcp: { servers: [] as McpServerConfig[] } };
+const mockSettings = {
+  agentMode: { mcpToolLoading: "auto" as const },
+  mcp: { servers: [] as McpServerConfig[] },
+};
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- 模拟真实 Hook 导出，名称必须一致 */
 jest.mock("@/context", () => ({ useApp: () => ({}) }));
 jest.mock("@/settings/model", () => ({
   getSettings: () => mockSettings,
   useSettingsValue: () => mockSettings,
+  setSettings: jest.fn(),
 }));
 jest.mock("./mcpUiState", () => ({
   useMcpServerViews: (servers: McpServerConfig[]) =>

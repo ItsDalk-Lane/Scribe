@@ -9,7 +9,9 @@ import {
 } from "@/agentMode/skills/SkillManager";
 import { SubagentManager, getSubagents } from "@/agentMode/subagents/SubagentManager";
 import { getMcpServerManager } from "@/agentMode/mcp/McpServerManager";
-import { createMcpTools } from "@/agentMode/mcp/mcpTools";
+import { createMcpTools, MCP_TOOL_NAME_PREFIX } from "@/agentMode/mcp/mcpTools";
+import { DeferredMcpToolRegistry, resolveMcpLoadingState } from "@/agentMode/mcp/deferredMcpTools";
+import { createToolSearchTool } from "@/agentMode/sdk/nativeToolSearch";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
@@ -48,6 +50,7 @@ import { requireNodeModule } from "@/utils/desktopRuntime";
 import { providerDestination } from "@/modelManagement";
 import { isRecord } from "@/utils/obsidianInternals";
 import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCommandEnv";
+import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 
 const READY: InstallState = Object.freeze({ kind: "ready", source: "managed" });
 const SUBAGENT_SCHEDULERS = new WeakMap<App, SubagentScheduler>();
@@ -68,10 +71,28 @@ function toExtensionMcpStatus(
   return status;
 }
 
-function createMcpToolsBundle(app: App) {
+function createMcpToolsBundle(app: App, context: NativeToolContext) {
   const manager = getMcpServerManager(app);
   if (!manager) return { tools: EMPTY_MCP_TOOLS, autoApprovedTools: EMPTY_MCP_AUTO_APPROVE };
-  return createMcpTools(manager);
+  // 子代理角色显式点名 MCP 工具时保持全量注册；延迟检索无法表达点名资格。https://github.com/ItsDalk-Lane/Scribe/issues/65
+  if ((context.allowedTools ?? []).some((name) => name.startsWith(MCP_TOOL_NAME_PREFIX)))
+    return createMcpTools(manager);
+  const registry = DeferredMcpToolRegistry.fromManager(manager);
+  if (resolveMcpLoadingState(manager, getSettings().agentMode) === "full")
+    return createMcpTools(manager);
+  const selections = context.mcpToolSelections;
+  const bundle = createMcpTools(manager, { registry, selectedNames: selections.names() });
+  return {
+    ...bundle,
+    tools: [
+      ...bundle.tools,
+      createToolSearchTool({
+        catalog: registry,
+        registerTool: (tool, autoApproved) => context.registerTool(tool, autoApproved),
+        selections,
+      }),
+    ],
+  };
 }
 
 const EMPTY_MCP_AUTO_APPROVE: ReadonlySet<string> = Object.freeze(new Set<string>());
@@ -303,7 +324,7 @@ export const NativeBackendDescriptor: BackendDescriptor = {
         }).filter(
           (tool) => !EXCALIDRAW_TOOL_NAMES.has(tool.name) || getExcalidrawApi(app) !== null
         );
-        const mcpBundle = createMcpToolsBundle(app);
+        const mcpBundle = createMcpToolsBundle(app, context);
         return {
           tools: [
             ...createNativeTools({ ...context, app, commandTasks }),

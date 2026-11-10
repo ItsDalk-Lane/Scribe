@@ -549,6 +549,21 @@ export const settingsTranslations: Record<string, string> = {
   "MCP servers are available on desktop.": "MCP 服务器仅在桌面端可用。",
   "Connect Model Context Protocol servers and offer their tools to Scribe's agent.":
     "连接 MCP（模型上下文协议）服务器，把它们的工具提供给 Scribe 的代理使用。",
+  "MCP tool loading": "MCP 工具加载",
+  "Always deferred": "总是延迟",
+  Off: "关闭",
+  "Small setups register every MCP tool directly; large catalogs switch to tool search.":
+    "工具较少时直接全量注册；目录较大时切换为工具检索。",
+  "MCP tools are always listed as a catalog and registered through tool_search on demand.":
+    "MCP 工具始终以目录形式列出，需要时经 tool_search 选取后才注册。",
+  "Every enabled MCP tool is fully registered, matching previous behavior.":
+    "所有启用的 MCP 工具全量注册，与既有行为一致。",
+  "Threshold (characters, default {default}):": "阈值（字符，默认 {default}）：",
+  "Deferral threshold in characters": "延迟加载字符数阈值",
+  Deferred: "延迟",
+  Registered: "全量注册",
+  "Deferred loading is active: these tools stay in the catalog until the agent selects one with tool_search.":
+    "延迟加载已启用：这些工具先保留在目录中，代理通过 tool_search 选取后才注册。",
   "Add server": "添加服务器",
   "Quick create": "快速创建",
   "Import from JSON": "从 JSON 导入",

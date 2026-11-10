@@ -59,6 +59,31 @@ describe("toolSummaries", () => {
         expect(lookupToolSummary(pending).collapsedLine(pending, CTX)).not.toContain(expected);
       }
     );
+
+    it("summarizes tool_search by its query keyword https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+      const part = tool({
+        vendorToolName: "tool_search",
+        title: "tool_search",
+        status: "in_progress",
+        input: { query: "fetch page" },
+      });
+      expect(lookupToolSummary(part).collapsedLine(part, CTX)).toBe(
+        'Searching tools · "fetch page"'
+      );
+    });
+
+    it("summarizes a tool_search selection by the registered tool name https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+      const part = tool({
+        vendorToolName: "tool_search",
+        title: "tool_search",
+        status: "completed",
+        input: { select: "select:mcp__web__fetch_page" },
+      });
+      expect(lookupToolSummary(part).collapsedLine(part, CTX)).toBe(
+        'Searched tools · "mcp__web__fetch_page"'
+      );
+    });
+
     it.each([
       ["list_subagent_sessions", "Listed subagent sessions"],
       ["read_subagent_result", "Read subagent result"],

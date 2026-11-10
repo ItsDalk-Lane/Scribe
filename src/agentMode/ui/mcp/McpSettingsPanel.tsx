@@ -38,6 +38,8 @@ import { getSettings } from "@/settings/model";
 import { useSettingsValue } from "@/settings/model";
 import { McpJsonImportModal } from "./McpJsonImportDialog";
 import { McpServerEditorModal } from "./McpServerEditorDialog";
+import { McpToolLoadingSetting } from "./McpToolLoadingSetting";
+import { setMcpToolLoadingMode, setMcpToolLoadingThresholdChars } from "./mcpToolLoadingUi";
 import { useMcpServerViews, writeMcpServers, type McpServerView } from "./mcpUiState";
 
 const EMPTY_TYPE_FILTER: ReadonlySet<string> = Object.freeze(new Set<string>());
@@ -165,6 +167,13 @@ export const McpSettingsPanel: React.FC = () => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <McpToolLoadingSetting
+        mode={settings.agentMode.mcpToolLoading ?? "auto"}
+        thresholdChars={settings.agentMode.mcpToolLoadingThresholdChars}
+        onModeChange={setMcpToolLoadingMode}
+        onThresholdChange={setMcpToolLoadingThresholdChars}
+      />
 
       <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
         <SegmentedControl<McpStatusFilter>

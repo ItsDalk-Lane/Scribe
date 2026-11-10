@@ -66,6 +66,7 @@ const mockCreateMcpTools = jest.fn().mockReturnValue({
   autoApprovedTools: new Set<string>(),
 });
 jest.mock("@/agentMode/mcp/mcpTools", () => ({
+  ...jest.requireActual("@/agentMode/mcp/mcpTools"),
   createMcpTools: (...args: unknown[]) => mockCreateMcpTools(...args),
 }));
 jest.mock("@/agentMode/backends/native/nativeSystemPrompt", () => ({
@@ -112,6 +113,27 @@ function configure(): void {
 }
 
 describe("nativeDescriptor", () => {
+  function toolContext(overrides: Partial<NativeToolContext> = {}): NativeToolContext {
+    const selected = new Set<string>();
+    return {
+      sessionId: "native-session",
+      cwd: "/vault/project",
+      emit: jest.fn(),
+      getMode: () => "default",
+      requestPermission: jest.fn(),
+      askUser: jest.fn(),
+      onPlanApproved: jest.fn(),
+      requester: "main",
+      mcpToolSelections: {
+        names: () => [...selected],
+        select: (name) => {
+          selected.add(name);
+        },
+      },
+      registerTool: jest.fn(),
+      ...overrides,
+    };
+  }
   beforeEach(() => {
     resetSettings();
     jest.clearAllMocks();
@@ -471,16 +493,7 @@ describe("nativeDescriptor", () => {
         join("/synthetic-vault/.scribe", "chats", "v2"),
         expect.objectContaining({ directory: join("/synthetic-vault/.scribe", "attachments") })
       );
-      const context = {
-        sessionId: "native-session",
-        cwd: "/vault/project",
-        emit: jest.fn(),
-        getMode: () => "default",
-        requestPermission: jest.fn(),
-        askUser: jest.fn(),
-        onPlanApproved: jest.fn(),
-        requester: "main",
-      } as NativeToolContext;
+      const context = toolContext();
       jest.mocked(getNativeScopedSkills).mockReturnValue(
         [
           {
@@ -568,18 +581,75 @@ describe("nativeDescriptor", () => {
           autoApprovedTools: new Set(["mcp__files__search"]),
         });
         const options = createAndCaptureOptions();
-        const bundle = options.createTools({
-          sessionId: "s",
-          cwd: "/vault",
-          emit: jest.fn(),
-          getMode: () => "default",
-          requestPermission: jest.fn(),
-          askUser: jest.fn(),
-          onPlanApproved: jest.fn(),
-          requester: "main",
-        });
+        const bundle = options.createTools(toolContext({ sessionId: "s", cwd: "/vault" }));
         expect(bundle.tools).toContain(mcpTool);
         expect([...(bundle.autoApproveTools ?? [])]).toEqual(["mcp__files__search"]);
+      });
+
+      it("registers tool_search alongside selected tools when deferred loading is active https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+        const mcpTool = { name: "mcp__files__search" };
+        mockGetMcpServerManager.mockReturnValue(managerStub({}));
+        mockCreateMcpTools.mockReturnValue({
+          tools: [mcpTool],
+          autoApprovedTools: new Set<string>(),
+        });
+        setSettings({
+          agentMode: { ...getSettings().agentMode, mcpToolLoading: "always" },
+        });
+        const options = createAndCaptureOptions();
+        const bundle = options.createTools(toolContext());
+        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(
+          expect.anything(),
+          expect.objectContaining({ selectedNames: [] })
+        );
+        expect(bundle.tools).toContain(mcpTool);
+        expect(bundle.tools.map((tool) => tool.name)).toContain("tool_search");
+      });
+
+      it("hands the session's selected deferred tools back to the bundle on rebuild https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+        mockGetMcpServerManager.mockReturnValue(managerStub({}));
+        mockCreateMcpTools.mockReturnValue({
+          tools: [],
+          autoApprovedTools: new Set<string>(),
+        });
+        setSettings({
+          agentMode: { ...getSettings().agentMode, mcpToolLoading: "always" },
+        });
+        const options = createAndCaptureOptions();
+        const context = toolContext();
+        context.mcpToolSelections.select("mcp__files__search");
+        options.createTools(context);
+        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(
+          expect.anything(),
+          expect.objectContaining({ selectedNames: ["mcp__files__search"] })
+        );
+      });
+
+      it("keeps full registration below the auto threshold without registering tool_search https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+        mockGetMcpServerManager.mockReturnValue(managerStub({}));
+        mockCreateMcpTools.mockReturnValue({
+          tools: [],
+          autoApprovedTools: new Set<string>(),
+        });
+        const options = createAndCaptureOptions();
+        const bundle = options.createTools(toolContext());
+        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(expect.anything());
+        expect(bundle.tools.map((tool) => tool.name)).not.toContain("tool_search");
+      });
+
+      it("keeps full registration for children whose allowed tools name an mcp tool https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+        mockGetMcpServerManager.mockReturnValue(managerStub({}));
+        mockCreateMcpTools.mockReturnValue({
+          tools: [],
+          autoApprovedTools: new Set<string>(),
+        });
+        setSettings({
+          agentMode: { ...getSettings().agentMode, mcpToolLoading: "always" },
+        });
+        const options = createAndCaptureOptions();
+        const bundle = options.createTools(toolContext({ allowedTools: ["mcp__files__search"] }));
+        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(expect.anything());
+        expect(bundle.tools.map((tool) => tool.name)).not.toContain("tool_search");
       });
 
       it("rebuilds the tool list when the mcp signature changes", () => {
@@ -676,16 +746,9 @@ describe("nativeDescriptor", () => {
         descriptor: NativeBackendDescriptor,
       });
       const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
-      const tools = options.createTools({
-        cwd: "/vault/project",
-        sessionId: "source-chat",
-        requester: "main",
-        emit: jest.fn(),
-        getMode: () => "default",
-        requestPermission: jest.fn(),
-        askUser: jest.fn(),
-        onPlanApproved: jest.fn(),
-      });
+      const tools = options.createTools(
+        toolContext({ cwd: "/vault/project", sessionId: "source-chat" })
+      );
       expect(tools.tools.map((tool) => tool.name)).toContain("excalidraw_read");
     });
     it("constructs native runtime despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {

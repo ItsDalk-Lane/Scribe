@@ -14,6 +14,7 @@ export interface McpToolsSectionProps {
   disabled?: boolean;
   disabledTools: readonly string[];
   autoApprovedTools: readonly string[];
+  deferred?: boolean;
   onToggleTool: (name: string, enabled: boolean) => void;
   onToggleAutoApprove: (name: string, approved: boolean) => void;
 }
@@ -23,6 +24,7 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
   disabled: controlsDisabled = false,
   disabledTools,
   autoApprovedTools,
+  deferred = false,
   onToggleTool,
   onToggleAutoApprove,
 }) => {
@@ -60,6 +62,13 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
   return (
     <div className="tw-flex tw-flex-col tw-gap-3 tw-@container">
       <SearchBar value={query} onChange={setQuery} placeholder={t("Search tools…")} />
+      {deferred && (
+        <p className="tw-text-xs tw-text-muted">
+          {t(
+            "Deferred loading is active: these tools stay in the catalog until the agent selects one with tool_search."
+          )}
+        </p>
+      )}
       <div className="tw-overflow-hidden tw-rounded-lg tw-border tw-border-solid tw-border-border">
         <div className="tw-hidden tw-grid-cols-[minmax(0,1fr)_3rem_6rem] tw-items-center tw-gap-2 tw-border-x-0 tw-border-b tw-border-t-0 tw-border-solid tw-border-border tw-bg-secondary tw-px-3 tw-py-2 tw-text-xs tw-font-semibold tw-text-muted @sm:tw-grid">
           <span>{t("Available tools")}</span>
@@ -106,6 +115,18 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
                         )}
                       />
                       <span className="tw-truncate">{tool.name}</span>
+                      {isEnabled && (
+                        <span
+                          className={cn(
+                            "tw-shrink-0 tw-rounded tw-px-1.5 tw-py-0.5 tw-text-smallest tw-font-semibold",
+                            deferred
+                              ? "tw-bg-secondary-alt tw-text-muted"
+                              : "tw-bg-secondary tw-text-normal"
+                          )}
+                        >
+                          {deferred ? t("Deferred") : t("Registered")}
+                        </span>
+                      )}
                     </span>
                     {tool.description && (
                       <span className="tw-break-words tw-text-xs tw-leading-relaxed tw-text-muted [overflow-wrap:anywhere]">

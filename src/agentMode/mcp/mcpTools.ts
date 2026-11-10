@@ -3,6 +3,7 @@ import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { compile } from "@earendil-works/pi-schema";
 
 import type { McpServerManager } from "./McpServerManager";
+import type { DeferredMcpToolRegistry } from "./deferredMcpTools";
 import type { McpServerConfig, McpToolContentPart, McpToolInfo } from "./types";
 
 export const MCP_TOOL_NAME_PREFIX = "mcp__";
@@ -16,31 +17,65 @@ export interface McpToolsBundle {
   autoApprovedTools: ReadonlySet<string>;
 }
 
-const EMPTY_AUTO_APPROVED: ReadonlySet<string> = Object.freeze(new Set<string>());
+export interface McpToolsDeferredSelection {
+  registry: DeferredMcpToolRegistry;
+  selectedNames: readonly string[];
+}
 
-export function createMcpTools(manager: McpServerManager): McpToolsBundle {
+const EMPTY_AUTO_APPROVED: ReadonlySet<string> = Object.freeze(new Set<string>());
+const EMPTY_MCP_TOOLS = Object.freeze([]) as unknown as AgentTool[];
+
+export function createMcpTools(
+  manager: McpServerManager,
+  deferred?: McpToolsDeferredSelection
+): McpToolsBundle {
+  if (deferred) return createDeferredSelectedTools(deferred);
   const tools: AgentTool[] = [];
   const autoApproved = new Set<string>();
   for (const server of manager.listEnabledServers()) {
     for (const tool of manager.getTools(server.id)) {
       if (server.disabledTools?.includes(tool.name)) continue;
       const name = buildMcpToolName(server.name, tool.name);
-      tools.push(mcpAgentTool(server, tool, manager));
+      tools.push(buildMcpAgentTool(server, tool, manager));
       if (server.autoApprovedTools?.includes(tool.name)) autoApproved.add(name);
     }
   }
   return { tools, autoApprovedTools: autoApproved.size > 0 ? autoApproved : EMPTY_AUTO_APPROVED };
 }
 
-function mcpAgentTool(
+// 延迟模式下只注册模型已通过 tool_search 选中的工具，未选中的定义不进入请求。https://github.com/ItsDalk-Lane/Scribe/issues/65
+function createDeferredSelectedTools({
+  registry,
+  selectedNames,
+}: McpToolsDeferredSelection): McpToolsBundle {
+  const tools: AgentTool[] = [];
+  const autoApproved = new Set<string>();
+  for (const name of selectedNames) {
+    const entry = registry.find(name);
+    if (!entry) continue;
+    tools.push(registry.buildTool(entry));
+    if (entry.autoApproved) autoApproved.add(entry.qualifiedName);
+  }
+  return {
+    tools: tools.length > 0 ? tools : EMPTY_MCP_TOOLS,
+    autoApprovedTools: autoApproved.size > 0 ? autoApproved : EMPTY_AUTO_APPROVED,
+  };
+}
+
+export function normalizeMcpInputSchema(
+  inputSchema: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  return inputSchema && Object.keys(inputSchema).length > 0
+    ? inputSchema
+    : { type: "object", properties: {} };
+}
+
+export function buildMcpAgentTool(
   server: McpServerConfig,
   tool: McpToolInfo,
   manager: McpServerManager
 ): AgentTool {
-  const inputSchema: Record<string, unknown> =
-    Object.keys(tool.inputSchema ?? {}).length > 0
-      ? tool.inputSchema
-      : { type: "object", properties: {} };
+  const inputSchema = normalizeMcpInputSchema(tool.inputSchema);
   let checkArgs: ((args: unknown) => boolean) | null = null;
   try {
     checkArgs = compile(inputSchema).check;

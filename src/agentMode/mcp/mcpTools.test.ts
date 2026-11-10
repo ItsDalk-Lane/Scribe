@@ -1,4 +1,5 @@
 import { buildMcpToolName, createMcpTools } from "@/agentMode/mcp/mcpTools";
+import { DeferredMcpToolRegistry } from "@/agentMode/mcp/deferredMcpTools";
 import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerConfig, McpToolCallResult, McpToolInfo } from "@/agentMode/mcp/types";
 
@@ -109,6 +110,59 @@ describe("mcpTools", () => {
         })
       );
       expect([...bundle.autoApprovedTools]).toEqual(["mcp__files__search"]);
+    });
+  });
+
+  describe("createMcpTools() deferred registration", () => {
+    function deferredManager() {
+      return managerStub({
+        servers: [server({ autoApprovedTools: ["search"] })],
+        toolsByServer: { "srv-1": [SEARCH_TOOL, { name: "ping", inputSchema: {} }] },
+      });
+    }
+
+    it("registers nothing while no deferred tool has been selected", () => {
+      const manager = deferredManager();
+      const registry = DeferredMcpToolRegistry.fromManager(manager);
+      const bundle = createMcpTools(manager, { registry, selectedNames: [] });
+      expect(bundle.tools.map((tool) => tool.name)).toEqual([]);
+      expect(bundle.autoApprovedTools.size).toBe(0);
+    });
+
+    it("keeps unselected tool definitions out of the registered set", () => {
+      const manager = deferredManager();
+      const registry = DeferredMcpToolRegistry.fromManager(manager);
+      const bundle = createMcpTools(manager, {
+        registry,
+        selectedNames: ["mcp__files__ping"],
+      });
+      expect(bundle.tools.map((tool) => tool.name)).toEqual(["mcp__files__ping"]);
+    });
+
+    it("inherits the server's auto-approval when a selected tool is registered", () => {
+      const manager = deferredManager();
+      const registry = DeferredMcpToolRegistry.fromManager(manager);
+      const bundle = createMcpTools(manager, {
+        registry,
+        selectedNames: ["mcp__files__search", "mcp__files__ping"],
+      });
+      expect(bundle.tools.map((tool) => tool.name).sort()).toEqual([
+        "mcp__files__ping",
+        "mcp__files__search",
+      ]);
+      expect([...bundle.autoApprovedTools]).toEqual(["mcp__files__search"]);
+    });
+
+    it("matches the full registration set when every tool is selected", () => {
+      const manager = deferredManager();
+      const registry = DeferredMcpToolRegistry.fromManager(manager);
+      const deferred = createMcpTools(manager, {
+        registry,
+        selectedNames: registry.list().map((entry) => entry.qualifiedName),
+      });
+      const full = createMcpTools(manager);
+      expect(deferred.tools.map((tool) => tool.name)).toEqual(full.tools.map((tool) => tool.name));
+      expect([...deferred.autoApprovedTools].sort()).toEqual([...full.autoApprovedTools].sort());
     });
   });
 

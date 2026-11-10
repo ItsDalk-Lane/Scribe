@@ -2572,6 +2572,113 @@ describe("NativeBackendProcess", () => {
       });
     });
 
+    describe("deferred mcp tool registration", () => {
+      interface DeferredFixtureInput {
+        autoApproved: boolean;
+      }
+
+      // 夹具复刻 descriptor 的真实接线：选中集合在下一轮重建时回读。https://github.com/ItsDalk-Lane/Scribe/issues/65
+      function deferredFixture({ autoApproved }: DeferredFixtureInput) {
+        const mcpExecute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "ok" }],
+          details: undefined,
+        }));
+        const selectedTool = (): AgentTool => ({
+          name: "mcp__files__search",
+          label: "search",
+          description: "Search notes.",
+          parameters: { type: "object", properties: {} },
+          execute: mcpExecute,
+        });
+        const seen: string[][] = [];
+        let requests = 0;
+        const f = fixture(
+          (_model, context) => {
+            seen.push(getCurrentTools(context.messages).map((tool) => tool.name));
+            requests += 1;
+            if (requests === 1)
+              return response("", [
+                { id: "ts-1", name: "tool_search", arguments: { select: "mcp__files__search" } },
+              ]);
+            if (requests === 2)
+              return response("", [{ id: "mcp-1", name: "mcp__files__search", arguments: {} }]);
+            return response("Done");
+          },
+          [],
+          {
+            createTools: (context) => {
+              const selected = context.mcpToolSelections?.names().includes("mcp__files__search")
+                ? [selectedTool()]
+                : [];
+              return {
+                tools: [
+                  {
+                    name: "tool_search",
+                    label: "ToolSearch",
+                    description: "register deferred tools",
+                    parameters: { type: "object", properties: {} },
+                    execute: async () => {
+                      context.mcpToolSelections?.select("mcp__files__search");
+                      context.registerTool?.(selectedTool(), autoApproved);
+                      return {
+                        content: [{ type: "text" as const, text: "registered" }],
+                        details: undefined,
+                      };
+                    },
+                  },
+                  ...selected,
+                ],
+                autoApproveTools:
+                  autoApproved && selected.length > 0
+                    ? new Set(["mcp__files__search"])
+                    : new Set<string>(),
+              };
+            },
+          }
+        );
+        return { mcpExecute, seen, f };
+      }
+
+      it("runs a dynamically registered tool without a permission prompt when it is auto-approved", async () => {
+        const { mcpExecute, seen, f } = deferredFixture({ autoApproved: true });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).not.toHaveBeenCalled();
+        expect(mcpExecute).toHaveBeenCalledTimes(1);
+        expect(seen[1]).toContain("mcp__files__search");
+      });
+
+      it("prompts once for a dynamically registered tool that is not auto-approved", async () => {
+        const { mcpExecute, seen, f } = deferredFixture({ autoApproved: false });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).toHaveBeenCalledTimes(1);
+        expect(mcpExecute).toHaveBeenCalledTimes(1);
+        expect(seen[1]).toContain("mcp__files__search");
+      });
+
+      it("keeps selected tools registered on the following turn without another search", async () => {
+        const { mcpExecute, seen, f } = deferredFixture({ autoApproved: true });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        await f.send(id, "prompt-2");
+        expect(mcpExecute).toHaveBeenCalledTimes(1);
+        expect(seen[3]).toContain("mcp__files__search");
+      });
+    });
+
     describe("continueTaskBudget()", () => {
       it("adds the configured allowance to the exact task once per grant without starting a model (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const request = jest.fn(() => response("Done"));

@@ -3,6 +3,7 @@ import { atom, createStore, useAtomValue } from "jotai";
 
 import type { ScribeMode, ModelSelection } from "@/agentMode";
 import { sanitizeMcpSection } from "@/agentMode/mcp/configSchema";
+import { isMcpToolLoadingMode, type McpToolLoadingMode } from "@/agentMode/mcp/toolLoadingPolicy";
 import { AGENT_BUILTIN_COMMANDS } from "@/agentMode/agentCommands/builtinAgentCommands";
 import type { McpSettingsSection } from "@/agentMode/mcp/types";
 import type { BackendConfig, BackendType, ConfiguredModel, Provider } from "@/modelManagement";
@@ -82,6 +83,8 @@ export interface ScribeSettings {
       catalogBudgetPercent?: number;
       catalogBudgetMaxTokens?: number;
     };
+    mcpToolLoading?: McpToolLoadingMode;
+    mcpToolLoadingThresholdChars?: number;
   };
   providers: Record<string, Provider>;
   configuredModels: ConfiguredModel[];
@@ -455,6 +458,17 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
       subagents[key] = value;
   }
 
+  const mcpToolLoading = isMcpToolLoadingMode(r.mcpToolLoading)
+    ? r.mcpToolLoading
+    : DEFAULT_SETTINGS.agentMode.mcpToolLoading;
+  // 非法阈值回落默认预算，不拒收整个设置；零与负数都视为未配置。https://github.com/ItsDalk-Lane/Scribe/issues/65
+  const mcpToolLoadingThresholdChars =
+    typeof r.mcpToolLoadingThresholdChars === "number" &&
+    Number.isSafeInteger(r.mcpToolLoadingThresholdChars) &&
+    r.mcpToolLoadingThresholdChars > 0
+      ? r.mcpToolLoadingThresholdChars
+      : DEFAULT_SETTINGS.agentMode.mcpToolLoadingThresholdChars;
+
   return {
     activeBackend,
     backends,
@@ -465,6 +479,8 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     disabledBuiltinCommands,
     skills,
     subagents,
+    mcpToolLoading,
+    mcpToolLoadingThresholdChars,
   };
 }
 

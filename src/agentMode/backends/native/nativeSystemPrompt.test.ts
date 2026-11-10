@@ -2,6 +2,9 @@ import { FileSystemAdapter, type App } from "obsidian";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { setSettings } from "@/settings/model";
 import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
+import { getMcpServerManager } from "@/agentMode/mcp/McpServerManager";
+import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
+import type { McpServerConfig, McpToolInfo } from "@/agentMode/mcp/types";
 import { readAgentsFile } from "@/instructions/agentsFile";
 import { getCachedProjectRecordById } from "@/projects/state";
 
@@ -10,6 +13,9 @@ jest.mock("@/agentMode/backends/shared/agentSystemPrompt", () => ({
 }));
 jest.mock("@/instructions/agentsFile", () => ({ readAgentsFile: jest.fn() }));
 jest.mock("@/projects/state", () => ({ getCachedProjectRecordById: jest.fn() }));
+jest.mock("@/agentMode/mcp/McpServerManager", () => ({
+  getMcpServerManager: jest.fn(),
+}));
 jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 
 function app(): App {
@@ -24,6 +30,25 @@ function app(): App {
   } as unknown as App;
 }
 
+function mcpManagerStub(): McpServerManager {
+  const server: McpServerConfig = {
+    id: "srv-1",
+    name: "files",
+    type: "stdio",
+    command: "npx",
+    isActive: true,
+    createdAt: "",
+    updatedAt: "",
+  };
+  const tools: McpToolInfo[] = [
+    { name: "search", description: "Search notes.", inputSchema: { type: "object" } },
+  ];
+  return {
+    listEnabledServers: () => [server],
+    getTools: () => tools,
+  } as unknown as McpServerManager;
+}
+
 describe("nativeSystemPrompt", () => {
   describe("buildNativeSystemPrompt()", () => {
     beforeEach(() => {
@@ -34,6 +59,7 @@ describe("nativeSystemPrompt", () => {
           folder ? "Project directory rules" : "Vault rules"
         );
       jest.mocked(getCachedProjectRecordById).mockReturnValue(undefined);
+      jest.mocked(getMcpServerManager).mockReturnValue(null);
     });
     it("combines Scribe identity, vault rules and only the selected project's own instructions in a fixed order", async () => {
       const target = app();
@@ -95,6 +121,49 @@ describe("nativeSystemPrompt", () => {
         "must belong"
       );
       expect(readAgentsFile).not.toHaveBeenCalled();
+    });
+
+    it("appends the deferred MCP tool catalog when deferred loading is active https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
+      jest.mocked(getMcpServerManager).mockReturnValue(mcpManagerStub());
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "always" },
+      });
+      const prompt = await buildNativeSystemPrompt(app(), { cwd: "/vault" });
+      expect(prompt).toContain("<mcp_tool_catalog>");
+      expect(prompt).toContain("mcp__files__search — Search notes.");
+      expect(prompt).toContain("tool_search");
+    });
+
+    it("omits the MCP catalog below the auto threshold and when loading is off https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
+      jest.mocked(getMcpServerManager).mockReturnValue(mcpManagerStub());
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "auto" },
+      });
+      expect(await buildNativeSystemPrompt(app(), { cwd: "/vault" })).not.toContain(
+        "<mcp_tool_catalog>"
+      );
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "off" },
+      });
+      expect(await buildNativeSystemPrompt(app(), { cwd: "/vault" })).not.toContain(
+        "<mcp_tool_catalog>"
+      );
+    });
+
+    it("omits the MCP catalog for skill-authoring chats even when deferred loading is active https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
+      jest.mocked(getMcpServerManager).mockReturnValue(mcpManagerStub());
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "always" },
+      });
+      const prompt = await buildNativeSystemPrompt(app(), {
+        cwd: "/vault",
+        purpose: "skill-authoring",
+      });
+      expect(prompt).not.toContain("<mcp_tool_catalog>");
     });
   });
 });
