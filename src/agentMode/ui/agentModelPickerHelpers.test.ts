@@ -669,6 +669,42 @@ describe("agentModelPickerHelpers", () => {
       );
       expect(entries).toHaveLength(0);
     });
+
+    it("overrides the backend group with the provider label and keeps same-provider models contiguous https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const enabled: EnabledModelEntry[] = [
+        { baseModelId: "openrouter/z1", name: "Z1", credentialState: "ok", providerLabel: "Zeta" },
+        { baseModelId: "openrouter/a1", name: "A1", credentialState: "ok", providerLabel: "Alpha" },
+        { baseModelId: "openrouter/z2", name: "Z2", credentialState: "ok", providerLabel: "Zeta" },
+      ];
+      const entries: ModelSelectorEntry[] = [];
+      appendBackendSection(entries, opencodeWithEntries(enabled), {
+        backendModels: null,
+        settings: emptySettings,
+        useEnabledFallback: true,
+      });
+      expect(entries.map((entry) => [entry.name, entry._group])).toEqual([
+        ["openrouter/a1", "Alpha"],
+        ["openrouter/z1", "Zeta"],
+        ["openrouter/z2", "Zeta"],
+      ]);
+    });
+
+    it("keeps the backend group label and configured order when entries carry no provider label https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const enabled: EnabledModelEntry[] = [
+        { baseModelId: "openrouter/b", name: "B", credentialState: "ok" },
+        { baseModelId: "openrouter/a", name: "A", credentialState: "ok" },
+      ];
+      const entries: ModelSelectorEntry[] = [];
+      appendBackendSection(entries, opencodeWithEntries(enabled), {
+        backendModels: null,
+        settings: emptySettings,
+        useEnabledFallback: true,
+      });
+      expect(entries.map((entry) => [entry.name, entry._group])).toEqual([
+        ["openrouter/b", "opencode"],
+        ["openrouter/a", "opencode"],
+      ]);
+    });
   });
 
   describe("buildEffortSibling", () => {

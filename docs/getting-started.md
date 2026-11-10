@@ -38,7 +38,7 @@ The language choice affects interface text. If Scribe is enabled, reloading it c
 
 ## Set Up Your First Agent Chat
 
-打开 **Settings → Scribe → 模型**（英文为 **Settings → Scribe → Models**），配置供应商或本机模型。保存后即可在聊天中选择，无需另行启用。已有连接可能需要重新检查；不同设备的密钥不会自动共享。无需安装或登录外部代理程序。首次新聊天使用配置的第一个可运行模型和自动权限模式，之后记住你最近一次成功的模型、推理强度和权限选择。
+打开 **Settings → Scribe → 模型**（英文为 **Settings → Scribe → Models**），配置供应商或本机模型。保存后即可在聊天中选择，无需另行启用；模型选择器按供应商分组，供应商卡片上的开关可让该供应商的全部模型整体退出选择器。已有连接可能需要重新检查；不同设备的密钥不会自动共享。无需安装或登录外部代理程序。首次新聊天使用配置的第一个可运行模型和自动权限模式，之后记住你最近一次成功的模型、推理强度和权限选择。
 
 ## Start Your First Agent Chat
 

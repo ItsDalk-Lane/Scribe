@@ -11,6 +11,7 @@ import { useCallback, useMemo } from "react";
 export interface ChatBackendModelOption {
   label: string;
   value: string;
+  group?: string;
 }
 
 export interface ChatBackendModelOptions {
@@ -37,8 +38,15 @@ export function useChatBackendModelOptions(fallbackToFirst = true): ChatBackendM
       result.push({
         label: entry.configuredModel.info.displayName || entry.configuredModel.info.id,
         value: entry.configuredModelId,
+        group: entry.provider.displayName,
       });
     }
+    // 原生下拉按相邻同名分组渲染，先按供应商排序保证组内连续。https://github.com/ItsDalk-Lane/Scribe/issues/69
+    result.sort((a, b) => {
+      const aGroup = a.group ?? "";
+      const bGroup = b.group ?? "";
+      return aGroup === bGroup ? 0 : aGroup < bGroup ? -1 : 1;
+    });
     return result;
   }, [entries]);
 

@@ -28,6 +28,7 @@ const group: ProviderModelGroup = {
 };
 const api = {
   coordinator: { removeConfiguredModel: async () => undefined },
+  providerRegistry: { update: async () => undefined },
 } as unknown as ModelManagementApi;
 type Props = React.ComponentProps<typeof ProviderModelTable>;
 const meta = {
@@ -74,6 +75,13 @@ export const KeylessRemote: StoryObj<Props> = {
   },
 };
 export const Empty: StoryObj<Props> = { args: { groups: [] } };
+
+export const SelectorSwitchOff: StoryObj<Props> = {
+  ...Providers,
+  args: {
+    groups: [{ ...group, provider: { ...group.provider, enabled: false } }],
+  },
+};
 
 export const NotChecked: StoryObj<Props> = {
   ...Providers,

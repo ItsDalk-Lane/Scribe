@@ -11,6 +11,7 @@ import {
   configuredModelToCustomModel,
   isChatModelInfo,
   providerNeedsResolvedApiKey,
+  isProviderModelsEnabled,
   type ConfiguredModel,
   type Provider,
 } from "@/modelManagement";
@@ -35,7 +36,11 @@ function configuredModels(settings: ScribeSettings): ConfiguredModel[] {
     (model) =>
       settings.providers[model.providerId]?.origin.kind === "byok" && isChatModelInfo(model.info)
   );
-  return models.length ? models : EMPTY_MODELS;
+  // 关闭的供应商模型对代理整体不可见：默认模型解析、就绪状态与运行时实例化共用本清单。https://github.com/ItsDalk-Lane/Scribe/issues/69
+  const visible = models.filter((model) =>
+    isProviderModelsEnabled(settings.providers[model.providerId])
+  );
+  return visible.length ? visible : EMPTY_MODELS;
 }
 
 export function getNativeDefaultModelId(settings: ScribeSettings): string | undefined {
@@ -107,6 +112,7 @@ export function getNativeEnabledModelEntries(settings: ScribeSettings): EnabledM
       baseModelId: model.configuredModelId,
       name: model.info.displayName || model.info.id,
       description: model.info.description,
+      providerLabel: provider.displayName,
       credentialState: credentialState(provider),
       capabilities: capabilitiesFromConfiguredInfo(model.info),
     };

@@ -36,6 +36,35 @@ export default meta;
 
 export const ConfiguredModels: StoryObj<ModelSelectorProps> = {};
 
+export const GroupedByProvider: StoryObj<ModelSelectorProps> = {
+  args: {
+    value: "glm-5-3|openai-compatible",
+    models: [
+      {
+        name: "claude-sonnet-4-6",
+        provider: "anthropic",
+        displayName: "Claude Sonnet 4.5",
+        enabled: true,
+        _group: "Anthropic",
+      },
+      {
+        name: "glm-5-3",
+        provider: "openai-compatible",
+        displayName: "GLM-5.3",
+        enabled: true,
+        _group: "智谱",
+      },
+      {
+        name: "deepseek-v4-1",
+        provider: "openai-compatible",
+        displayName: "DeepSeek V4.1",
+        enabled: true,
+        _group: "智谱",
+      },
+    ],
+  },
+};
+
 export const NoModelsConfigured: StoryObj<ModelSelectorProps> = {
   args: { value: "", models: [] },
 };

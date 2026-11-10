@@ -95,6 +95,24 @@ describe("atoms", () => {
       expect(settingsStore.get(backendsAtom).chat?.enabledModels).toEqual(enabledModels);
     });
 
+    it("excludes every model of a provider switched off for selectors while keeping the provider listed for settings https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      setSettings({ providers: { cloud: { ...CLOUD, enabled: false }, local: LOCAL } });
+      expect(pickerIds()).toEqual(["local-m"]);
+      setSettings({ providers: { cloud: CLOUD, local: { ...LOCAL, enabled: true } } });
+      expect(pickerIds()).toEqual(["cloud-m", "local-m"]);
+      expect(settingsStore.get(visibleByokProvidersAtom).map((p) => p.providerId)).toEqual([
+        "cloud",
+        "local",
+      ]);
+    });
+
+    it("returns the canonical empty list when the only configured provider is switched off https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      setSettings({
+        providers: { cloud: { ...CLOUD, enabled: false }, local: { ...LOCAL, enabled: false } },
+      });
+      expect(settingsStore.get(chatBackendPickerAtom)).toEqual([]);
+    });
+
     it("returns the canonical empty list when enabled records are all non-chat models", () => {
       setSettings({
         configuredModels: [model("rerank-v3", "cloud")],

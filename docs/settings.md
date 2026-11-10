@@ -63,7 +63,7 @@ See [Troubleshooting and FAQ](troubleshooting-and-faq.md) before sharing logs or
 
 **模型** 是独立设置标签页，直接管理云端供应商、兼容网关和本机模型服务，不再设子标签页。需要密钥的服务使用你自己的密钥；Ollama、LM Studio 等本机服务可能无需密钥。云端费用及数据处理由对应供应商负责。
 
-模型配置保存后，直接供聊天与快捷工具选择，不再分别启用。新聊天沿用最近一次成功选择的模型、推理强度和权限模式；首次使用时采用配置顺序中第一个凭据可用的聊天模型，权限为 **自动模式**。原有选择继续保留。历史聊天仍使用其自己的选择。
+模型配置保存后，直接供聊天与快捷工具选择，不再分别启用。每个供应商卡片右侧、配置按钮左侧有一个开关，控制该供应商的全部模型是否进入聊天、代理聊天、快捷提问和命令的模型选择器；关闭只把这些模型从选择器隐藏，配置与密钥保持原样，随时可重新打开。各模型选择器中的模型按所属供应商分组显示。新聊天沿用最近一次成功选择的模型、推理强度和权限模式；首次使用时采用配置顺序中第一个凭据可用的聊天模型，权限为 **自动模式**。原有选择继续保留。历史聊天仍使用其自己的选择。
 
 Quick Ask、Quick Command 及未指定模型的编辑器指令，默认使用配置顺序中第一个可用聊天模型。弹窗中的临时选择仅对当前弹窗生效，单条指令指定的模型继续优先生效。
 
@@ -95,6 +95,7 @@ The configuration dialog contains:
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Search providers** | Filters by provider name, model name, or model ID.                                                                                                                                   |
 | **Provider card**    | Expand it to see configured models. A provider that needs no key says **无需 API 密钥**; a separate badge shows the connection check result, such as **接口可访问** or **检查失败**. |
+| **选择器开关**       | 供应商卡片右侧、配置按钮左侧的开关控制该供应商的全部模型是否出现在各界面的模型选择器中；关闭后供应商仍在此列表中显示（名称变淡），其模型从选择器隐藏，重新打开即恢复。               |
 | **Edit key**         | Reopens the full configuration dialog, where you can change the name, key, Base URL, and selected models.                                                                            |
 | **Remove provider**  | Removes the provider and all of its models from every model picker after confirmation.                                                                                               |
 | **移除模型**         | The remove button on an expanded model row removes that model from the provider and all model pickers after confirmation.                                                            |

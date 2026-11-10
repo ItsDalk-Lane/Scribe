@@ -32,6 +32,13 @@ const EMPTY_ENTRY: ModelSelectorEntry = {
 };
 const EMPTY_ENTRY_KEY = getModelKeyFromModel(EMPTY_ENTRY);
 
+// 稳定排序保持同组内的配置顺序，组间按显示名排列。https://github.com/ItsDalk-Lane/Scribe/issues/69
+function byGroupLabel(a: ModelSelectorEntry, b: ModelSelectorEntry): number {
+  const aGroup = a._group ?? "";
+  const bGroup = b._group ?? "";
+  return aGroup === bGroup ? 0 : aGroup < bGroup ? -1 : 1;
+}
+
 export function useChatModelPicker(params: {
   value: string | undefined;
   fallbackToFirst?: boolean;
@@ -54,6 +61,7 @@ export function useChatModelPicker(params: {
         displayName: configuredModel.info.displayName || configuredModel.info.id,
         enabled: true,
         capabilities,
+        _group: provider.displayName,
         _disabledReason: needsKey ? t("Add API key") : undefined,
       };
       const modelKey = getModelKeyFromModel(modelEntry);
@@ -61,6 +69,8 @@ export function useChatModelPicker(params: {
       byModelKey.set(modelKey, configuredModelId);
       idToModelKey.set(configuredModelId, modelKey);
     }
+    // 分组头只在相邻同名组渲染一次，这里预先按供应商排序保证组内连续。https://github.com/ItsDalk-Lane/Scribe/issues/69
+    models.sort(byGroupLabel);
     return { models, byModelKey, idToModelKey };
   }, [entries]);
 

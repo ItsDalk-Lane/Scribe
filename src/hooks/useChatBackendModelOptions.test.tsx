@@ -61,7 +61,7 @@ jest.mock("@/services/secretStore", () => ({
 
 describe("useChatBackendModelOptions", () => {
   describe("useChatBackendModelOptions", () => {
-    it("omits a saved key reference whose credential is unavailable on this device https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+    it("omits a saved key reference whose credential is unavailable on this device and orders options by provider group https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
       const provider = mockEntries[1].provider as (typeof mockEntries)[1]["provider"] & {
         apiKeyRef?: string;
       };
@@ -73,17 +73,23 @@ describe("useChatBackendModelOptions", () => {
         mockSecret.mockReturnValue("locked");
         const available = renderHook(() => useChatBackendModelOptions());
         expect(available.result.current.options.map((option) => option.value)).toEqual([
-          "model-a",
           "model-keyless",
+          "model-a",
+        ]);
+        expect(available.result.current.options.map((option) => option.group)).toEqual([
+          "Anthropic",
+          "OpenAI",
         ]);
       } finally {
         delete provider.apiKeyRef;
       }
     });
 
-    it("lists enabled models whose provider can authenticate and resolves a legacy selection", () => {
+    it("lists enabled models whose provider can authenticate, carries the provider group, and resolves a legacy selection", () => {
       const { result } = renderHook(() => useChatBackendModelOptions(false));
-      expect(result.current.options).toEqual([{ label: "GPT-4o", value: "model-a" }]);
+      expect(result.current.options).toEqual([
+        { label: "GPT-4o", value: "model-a", group: "OpenAI" },
+      ]);
       expect(result.current.resolveSelectionId("gpt-4o|openai")).toBe("model-a");
     });
     it("does not substitute the first model for a removed command selection", () => {

@@ -407,6 +407,8 @@ export const settingsTranslations: Record<string, string> = {
   "No providers yet — click + Add a provider to start.":
     "还没有供应商，点击“+ 添加供应商”开始配置。",
   "Failed to remove model.": "无法移除模型。",
+  "Failed to update provider.": "更新供应商设置失败。",
+  "Include {displayName} models in model selectors": "在模型选择器中包含 {displayName} 的模型",
   "Remove {modelName} from {displayName}?": "确定要从 {displayName} 中移除 {modelName} 吗？",
   "Remove model": "移除模型",
   "More actions for {displayName}": "{displayName} 的更多操作",

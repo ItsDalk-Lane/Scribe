@@ -6,6 +6,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { DestinationIcon } from "@/components/ui/DestinationIcon";
 import { providerDestination } from "@/modelManagement/providers/providerDestination";
+import { isProviderModelsEnabled } from "@/modelManagement/providers/providerEnablement";
+import { SettingSwitch } from "@/components/ui/setting-switch";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import { useModelManagement } from "@/modelManagement/ui/ModelManagementContext";
 import { providerRequiresApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
@@ -125,6 +127,19 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
       : t("{count} models", { count: models.length });
   };
 
+  const toggleProviderModels = (included: boolean): void => {
+    safeAsyncHandler(async () => {
+      try {
+        await api.providerRegistry.update(provider.providerId, { enabled: included });
+      } catch (err) {
+        logError("[ProviderModelTable] provider enablement update failed", err);
+        new Notice(t("Failed to update provider."));
+      }
+    })();
+  };
+
+  const included = isProviderModelsEnabled(provider);
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div
@@ -162,7 +177,12 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
             />
             <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-1">
               <span className="tw-flex tw-min-w-0 tw-items-center tw-gap-1">
-                <span className="tw-break-words tw-text-sm tw-font-medium tw-text-normal">
+                <span
+                  className={cn(
+                    "tw-break-words tw-text-sm tw-font-medium tw-text-normal",
+                    !included && "tw-opacity-60"
+                  )}
+                >
                   {provider.displayName}
                 </span>
                 <DestinationIcon destination={providerDestination(provider)} />
@@ -173,6 +193,23 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                 </span>
                 <ProviderVerificationStatus result={group.verification} />
               </div>
+            </div>
+            {/* 点击与键盘事件不外抛，避免开关误触卡片折叠。https://github.com/ItsDalk-Lane/Scribe/issues/69 */}
+            <div
+              className="tw-flex tw-shrink-0 tw-items-center"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <SettingSwitch
+                checked={included}
+                aria-label={t("Include {displayName} models in model selectors", {
+                  displayName: provider.displayName,
+                })}
+                title={t("Include {displayName} models in model selectors", {
+                  displayName: provider.displayName,
+                })}
+                onCheckedChange={(next) => toggleProviderModels(next)}
+              />
             </div>
             <Button
               variant="ghost"

@@ -104,6 +104,19 @@ describe("ProviderRegistry", () => {
         expect(registry.get(id)?.baseUrl).toBe("https://changed.example/v1");
         expect(listener).toHaveBeenCalledWith(id);
       });
+      it("persists the selector-inclusion switch and skips unchanged repeats https://github.com/ItsDalk-Lane/Scribe/issues/69", async () => {
+        const id = await registry.add(providerInput());
+        const listener = jest.fn();
+        registry.subscribe(listener);
+        await registry.update(id, { enabled: false });
+        expect(registry.get(id)?.enabled).toBe(false);
+        expect(listener).toHaveBeenCalledWith(id);
+        listener.mockClear();
+        await registry.update(id, { enabled: false });
+        expect(listener).not.toHaveBeenCalled();
+        await registry.update(id, { enabled: true });
+        expect(registry.get(id)?.enabled).toBe(true);
+      });
     });
     describe("setApiKey()", () => {
       it("finishes encrypted saving before publishing a new credential reference", async () => {

@@ -16,6 +16,7 @@ export {
   providerNeedsResolvedApiKey,
   providerRequiresApiKey,
 } from "./providers/providerRequiresApiKey";
+export { isProviderModelsEnabled } from "./providers/providerEnablement";
 export { BackendConfigRegistry } from "./backends/BackendConfigRegistry";
 export {
   configuredModelToCustomModel,

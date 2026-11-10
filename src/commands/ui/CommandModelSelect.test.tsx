@@ -26,5 +26,38 @@ describe("CommandModelSelect", () => {
       fireEvent.change(screen.getByLabelText("Model (optional)"), { target: { value: "gpt4o" } });
       expect(onChange).toHaveBeenCalledWith("gpt4o");
     });
+    it("renders contiguous same-provider options inside optgroups and selects through them https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const onChange = jest.fn();
+      render(
+        <CommandModelSelect
+          value=""
+          options={[
+            { label: "Alpha A", value: "a1", group: "Alpha" },
+            { label: "Alpha B", value: "a2", group: "Alpha" },
+            { label: "Zeta C", value: "z1", group: "Zeta" },
+          ]}
+          onChange={onChange}
+        />
+      );
+      const select = screen.getByLabelText<HTMLSelectElement>("Model (optional)");
+      const groups = select.querySelectorAll("optgroup");
+      expect(groups).toHaveLength(2);
+      expect(groups[0].label).toBe("Alpha");
+      expect(groups[0].querySelectorAll("option")).toHaveLength(2);
+      expect(groups[1].label).toBe("Zeta");
+      fireEvent.change(select, { target: { value: "a2" } });
+      expect(onChange).toHaveBeenCalledWith("a2");
+    });
+    it("keeps options without a provider group flat instead of rendering empty optgroups https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const { container } = render(
+        <CommandModelSelect
+          value=""
+          options={[{ label: "Only", value: "only" }]}
+          onChange={jest.fn()}
+        />
+      );
+      expect(container.querySelectorAll("optgroup")).toHaveLength(0);
+      expect(screen.getByRole("option", { name: "Only" })).not.toBeNull();
+    });
   });
 });

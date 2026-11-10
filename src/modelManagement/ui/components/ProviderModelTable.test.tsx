@@ -304,5 +304,58 @@ describe("ProviderModelTable", () => {
       expect(removeBtn).toBeTruthy();
       expect(removeBtn.getAttribute("tabindex")).toBe("0");
     });
+
+    it("reflects the selector switch and persists its change through the provider registry https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const update = jest.spyOn(api.providerRegistry, "update").mockResolvedValue(undefined);
+      try {
+        renderWithProvider(
+          <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        );
+        const toggle = screen.getByRole("switch", {
+          name: "Include Anthropic models in model selectors",
+        });
+        expect(toggle.getAttribute("aria-checked")).toBe("true");
+        fireEvent.click(toggle);
+        expect(update).toHaveBeenCalledWith("p1", { enabled: false });
+      } finally {
+        update.mockRestore();
+      }
+    });
+
+    it("renders a provider switched off for selectors as unchecked with a dimmed name https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const disabled: ProviderModelGroup = {
+        ...group,
+        provider: { ...group.provider, enabled: false },
+      };
+      renderWithProvider(
+        <ProviderModelTable groups={[disabled]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+      );
+      const toggle = screen.getByRole("switch", {
+        name: "Include Anthropic models in model selectors",
+      });
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
+      expect(screen.getByText("Anthropic").className).toContain("tw-opacity-60");
+    });
+
+    it("does not expand the card when toggling the selector switch by click or keyboard https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const update = jest.spyOn(api.providerRegistry, "update").mockResolvedValue(undefined);
+      try {
+        renderWithProvider(
+          <ProviderModelTable groups={[group]} onConfigure={jest.fn()} onRemove={jest.fn()} />
+        );
+        const toggle = screen.getByRole("switch", {
+          name: "Include Anthropic models in model selectors",
+        });
+        const header = screen.getByRole("button", { name: /2 models/i });
+        fireEvent.click(toggle);
+        expect(header.getAttribute("aria-expanded")).toBe("false");
+        expect(screen.queryByText("Claude Sonnet 4.5")).toBeNull();
+        fireEvent.keyDown(toggle, { key: "Enter" });
+        expect(header.getAttribute("aria-expanded")).toBe("false");
+        expect(screen.queryByText("Claude Sonnet 4.5")).toBeNull();
+      } finally {
+        update.mockRestore();
+      }
+    });
   });
 });

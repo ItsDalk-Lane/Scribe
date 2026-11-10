@@ -91,6 +91,22 @@ describe("model", () => {
       }
     );
 
+    it("keeps a provider's selector-inclusion switch through sanitization https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const provider = {
+        providerId: "saved-zhipu",
+        providerType: "openai-compatible" as const,
+        displayName: "Saved Zhipu",
+        baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
+        apiKeyRef: "encrypted-zhipu-key",
+        requiresApiKey: true,
+        enabled: false,
+        origin: { kind: "byok" as const, catalogProviderId: "zhipuai-coding-plan" },
+        addedAt: 1,
+      };
+      const input = { ...DEFAULT_SETTINGS, providers: { "saved-zhipu": provider } };
+      expect(sanitizeSettings(input).providers["saved-zhipu"]).toEqual(provider);
+    });
+
     it("defaults missing child limits and retains explicitly configured limits https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
       const input = {
         ...DEFAULT_SETTINGS,

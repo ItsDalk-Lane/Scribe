@@ -12,3 +12,13 @@ export const ExplicitModel: StoryObj<CommandModelSelectProps> = { args: { value:
 export const UnavailableModel: StoryObj<CommandModelSelectProps> = {
   args: { value: "disabled-model" },
 };
+export const GroupedByProvider: StoryObj<CommandModelSelectProps> = {
+  args: {
+    value: "",
+    options: [
+      { label: "Claude Sonnet 4.5", value: "sonnet", group: "Anthropic" },
+      { label: "GLM-5.3", value: "glm", group: "智谱" },
+      { label: "DeepSeek V4.1", value: "ds", group: "智谱" },
+    ],
+  },
+};

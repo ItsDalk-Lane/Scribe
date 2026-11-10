@@ -76,6 +76,8 @@ export interface EnabledModelEntry {
   name: string;
   label?: string;
   description?: string;
+  // 供应商显示名，供选择器把后端名分组覆盖为供应商分组。https://github.com/ItsDalk-Lane/Scribe/issues/69
+  providerLabel?: string;
   credentialState: EnabledModelCredentialState;
   capabilities?: ModelCapability[];
   isFree?: boolean;

@@ -51,12 +51,14 @@ export function appendBackendSection(
   if (!isAgentBackendEnabled(ctx.settings, descriptor.id)) return;
   const enabledEntries = descriptor.getEnabledModelEntries?.(ctx.settings) ?? null;
   if (!enabledEntries) return;
+  const sectionStart = entries.length;
   if (!ctx.backendModels) {
     if (!ctx.useEnabledFallback) return;
     appendEnabledFallbackEntries(entries, descriptor, enabledEntries);
-    return;
+  } else {
+    appendFromEnabledEntries(entries, descriptor, enabledEntries, ctx.backendModels);
   }
-  appendFromEnabledEntries(entries, descriptor, enabledEntries, ctx.backendModels);
+  sortSectionByGroup(entries, sectionStart);
 }
 
 function appendEnabledFallbackEntries(
@@ -73,6 +75,7 @@ function appendEnabledFallbackEntries(
       enabled.isFree,
       enabled.capabilities
     );
+    applyProviderGroup(entry, enabled);
     const reason = credentialDisabledReason(enabled.credentialState, true);
     if (reason) entry._disabledReason = reason;
     entries.push(entry);
@@ -99,10 +102,27 @@ function appendFromEnabledEntries(
       enabled.isFree,
       capabilities
     );
+    applyProviderGroup(entry, enabled);
     const reason = credentialDisabledReason(enabled.credentialState, !!reported);
     if (reason) entry._disabledReason = reason;
     entries.push(entry);
   }
+}
+
+// 模型选择器按供应商分组；来源缺失时回退到后端名分组。https://github.com/ItsDalk-Lane/Scribe/issues/69
+function applyProviderGroup(entry: ModelSelectorEntry, enabled: EnabledModelEntry): void {
+  if (enabled.providerLabel) entry._group = enabled.providerLabel;
+}
+
+// 分组头只在相邻同名组渲染一次；后端段内按供应商名排序保证组内连续，稳定排序保持原配置顺序。https://github.com/ItsDalk-Lane/Scribe/issues/69
+function sortSectionByGroup(entries: ModelSelectorEntry[], start: number): void {
+  const section = entries.splice(start);
+  section.sort((a, b) => {
+    const aGroup = a._group ?? "";
+    const bGroup = b._group ?? "";
+    return aGroup === bGroup ? 0 : aGroup < bGroup ? -1 : 1;
+  });
+  entries.push(...section);
 }
 
 function credentialDisabledReason(

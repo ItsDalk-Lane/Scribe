@@ -6,6 +6,7 @@ import {
   getNativeDefaultModelId,
   getNativeEnabledModelEntries,
   getNativeModelEntries,
+  getNativeModelReadiness,
 } from "@/agentMode/backends/native/nativeModels";
 
 const mockCreate = jest.fn().mockResolvedValue({ model: { id: "chosen" } });
@@ -106,6 +107,11 @@ describe("nativeModels", () => {
       value.configuredModels = [value.configuredModels[2], value.configuredModels[0]];
       expect(getNativeDefaultModelId(value)).toBe("manual");
     });
+    it("falls back past models of a provider switched off for selectors https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const value = settings();
+      value.providers.local.enabled = false;
+      expect(getNativeDefaultModelId(value)).toBe("reasoning");
+    });
   });
   describe("getNativeModelEntries()", () => {
     it("returns a stable empty list when no chat models are configured", () => {
@@ -150,6 +156,14 @@ describe("nativeModels", () => {
         "max",
       ]);
     });
+    it("hides every model of a provider switched off for selectors https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const value = settings();
+      value.providers.local.enabled = false;
+      expect(getNativeModelEntries(value).map((entry) => entry.baseModelId)).toEqual([
+        "reasoning",
+        "untagged",
+      ]);
+    });
   });
   describe("getNativeEnabledModelEntries()", () => {
     it("preserves configured order and marks required credentials missing without hiding the model", () => {
@@ -164,10 +178,37 @@ describe("nativeModels", () => {
         ["untagged", "missing_key"],
       ]);
     });
+    it("carries the provider display name for selector grouping and hides switched-off providers https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      expect(
+        getNativeEnabledModelEntries(settings()).map((model) => [
+          model.baseModelId,
+          model.providerLabel,
+        ])
+      ).toEqual([
+        ["manual", "Local"],
+        ["reasoning", "Cloud"],
+        ["untagged", "No key"],
+      ]);
+      const value = settings();
+      value.providers.local.enabled = false;
+      expect(getNativeEnabledModelEntries(value).map((model) => model.baseModelId)).toEqual([
+        "reasoning",
+        "untagged",
+      ]);
+    });
     it("returns the same empty reference when there are no configured models", () => {
       const value = settings();
       value.configuredModels = [];
       expect(getNativeEnabledModelEntries(value)).toBe(getNativeEnabledModelEntries(value));
+    });
+  });
+  describe("getNativeModelReadiness()", () => {
+    it("reports no_models when the only configured provider is switched off for selectors https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const value = settings();
+      value.providers.local.enabled = false;
+      value.providers.cloud.enabled = false;
+      value.providers.missing.enabled = false;
+      expect(getNativeModelReadiness(value)).toBe("no_models");
     });
   });
   describe("createNativeModel()", () => {
@@ -200,6 +241,13 @@ describe("nativeModels", () => {
     it("rejects a removed chosen model before creating any different model", async () => {
       setSettings(settings());
       await expect(createNativeModel({} as App, "removed-model")).rejects.toThrow("removed-model");
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+    it("rejects a chosen model whose provider was switched off for selectors before creating any model https://github.com/ItsDalk-Lane/Scribe/issues/69", async () => {
+      const value = settings();
+      value.providers.local.enabled = false;
+      setSettings(value);
+      await expect(createNativeModel({} as App, "manual")).rejects.toThrow("manual");
       expect(mockCreate).not.toHaveBeenCalled();
     });
   });

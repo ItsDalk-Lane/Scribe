@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { isProviderModelsEnabled } from "@/modelManagement/providers/providerEnablement";
 import { isChatModelInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
 
 import { settingsAtom } from "@/settings/model";
@@ -54,7 +55,8 @@ export const chatBackendPickerAtom = atom<readonly EnabledBackendEntry[]>((get) 
     const configuredModelId = configuredModel.configuredModelId;
     const provider = providers[configuredModel.providerId];
     if (!provider) entries.push({ configuredModelId, state: "broken" });
-    else if (provider.origin.kind === "byok")
+    // 关闭的供应商整体退出聊天选择器，配置本身不动，随时可重新打开。https://github.com/ItsDalk-Lane/Scribe/issues/69
+    else if (provider.origin.kind === "byok" && isProviderModelsEnabled(provider))
       entries.push({ configuredModelId, state: "ok", configuredModel, provider });
   }
   return entries.length ? entries : EMPTY_PICKER_ENTRIES;
