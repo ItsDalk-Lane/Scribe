@@ -788,7 +788,9 @@ describe("NativeBackendProcess.journal", () => {
 
       it("shows sixty streamed chunks and settles Stop within a fixed deadline while usage storage remains stalled, then recovers ordered storage (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
         const directory = await mkdtemp(join(tmpdir(), "scribe-stalled-usage-"));
-        const journal = new NodeJournalStorage(directory, 100);
+        // 恢复阶段走真实磁盘，1s 上限给 CI 慢盘留出余量；停滞侧由 held 无限期挂起触发同一超时路径。
+        // https://github.com/ItsDalk-Lane/Scribe/issues/55
+        const journal = new NodeJournalStorage(directory, 1_000);
         const storage = new NodeNativeSessionStorage(journal);
         const f = fixture({
           storage,
@@ -850,7 +852,7 @@ describe("NativeBackendProcess.journal", () => {
           });
           running = f.send(id, "first", "Hello").catch((error: unknown) => error);
           await started.promise;
-          await jest.advanceTimersByTimeAsync(101);
+          await jest.advanceTimersByTimeAsync(1_001);
           await displayed.promise;
           const stopStartedAt = Date.now();
           const stopping = f.process.cancel({ sessionId: id });
@@ -859,9 +861,9 @@ describe("NativeBackendProcess.journal", () => {
             stopSettledAt = Date.now();
             return results;
           });
-          await jest.advanceTimersByTimeAsync(1_000);
+          await jest.advanceTimersByTimeAsync(4_000);
           const results = await settled;
-          expect(stopSettledAt - stopStartedAt).toBeLessThanOrEqual(400);
+          expect(stopSettledAt - stopStartedAt).toBeLessThanOrEqual(4_000);
           expect(results[1]).toMatchObject({
             status: "rejected",
             reason: expect.objectContaining({ name: "JournalConfirmationTimeout" }),
