@@ -271,7 +271,8 @@ describe("JournalStorage", () => {
         await completed;
         jest.useRealTimers();
         jest.restoreAllMocks();
-        const next = await quick.append(SESSION, "message", { text: "恢复后" });
+        const recovered = new NodeJournalStorage(directory);
+        const next = await recovered.append(SESSION, "message", { text: "恢复后" });
         expect(next.seq).toBe(2);
         expect((await quick.read(SESSION)).records.map((entry) => [entry.seq, entry.kind])).toEqual(
           [
@@ -399,7 +400,8 @@ describe("JournalStorage", () => {
         const stall = stallConfirmations(file());
         await expect(quick.flush(SESSION)).rejects.toBeInstanceOf(JournalConfirmationTimeout);
         stall.release();
-        expect((await quick.append(SESSION, "message", { text: "之后" })).seq).toBe(1);
+        const recovered = new NodeJournalStorage(directory);
+        expect((await recovered.append(SESSION, "message", { text: "之后" })).seq).toBe(1);
       });
 
       it("freezes later writes when synchronization fails", async () => {
