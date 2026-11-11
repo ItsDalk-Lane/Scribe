@@ -42,7 +42,7 @@ jobs:
       - if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
       - name: Verify sanitization without regexp optimization
-        run: node --no-regexp-optimization node_modules/jest/bin/jest.js --runInBand --runTestsByPath src/utils/redactLog.test.ts
+        run: node --no-regexp-optimization node_modules/jest/bin/jest.js --runInBand --runTestsByPath src/LLMProviders/requestRedaction.test.ts
 
   # Native coverage is required to diagnose Windows-only fixture failures.
   # https://github.com/logancyang/obsidian-scribe/issues/2967
