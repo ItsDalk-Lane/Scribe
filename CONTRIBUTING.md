@@ -54,6 +54,12 @@ In the case of Scribe, you will need to:
 
 Try to be descriptive in your branch names and pull requests. Happy coding!
 
+### Branch protection and releases (maintainers)
+
+`main` is a protected branch. Every change lands through a merged pull request; direct pushes, force pushes, and branch deletion are rejected for everyone, including the maintainers. A pull request can merge only after all required checks are green: Bundle and smoke tests, Jest shards 1–4, Lint and PR size, Obsidian review, build, docs, label, publish-windows, and the four test-windows shards. No approving reviews are required, so once the checks pass, the author can merge their own pull request.
+
+Releases are triggered by merge, not by hand: a pull request whose title is a bare version (`X.Y.Z`, or `X.Y.Z-tag.N` for a prerelease) runs the release workflow when merged. The workflow re-runs the Windows suite pinned to the exact merge commit, builds, and publishes a GitHub Release with `main.js`, `manifest.json`, and `styles.css`. The pull request body becomes the release notes, so write them as user-facing release notes and keep `RELEASES.md` updated in the same pull request. Never give a feature pull request a version-only title — merging one would publish a release. If CI job names change (for example a Node version bump renames a check), update the required-check list on `main` in the same change so pull requests do not block on checks that never report.
+
 ### Obsidian community review preflight
 
 `npm run review:obsidian` reproduces the public Obsidian source, CSS, manifest/license, and runtime dependency checks. Errors fail the command; warnings remain visible for conservative follow-up work when an automatic cleanup could change plugin behavior or UI. The command rebuilds and scans the packaged `styles.css`, then runs rejection fixtures to ensure every guarded review family is still detected.
@@ -76,7 +82,7 @@ It takes a number (`2`) or a share of your CPU cores (`50%`). When it's unset, J
 
 #### Fast Iteration with `npm run test:vault` (macOS)
 
-If you work across multiple worktrees or just want one command to build and load the plugin into a test vault, use `npm run test:vault`. It runs `npm install`, builds, symlinks `main.js` / `manifest.json` / `styles.css` from the worktree into the vault's `.obsidian/plugins/scribe/` folder, and reloads the plugin in Obsidian via its CLI.
+If you work across multiple worktrees or just want one command to build and load the plugin into a test vault, use `npm run test:vault`. It runs `npm install`, builds, and copies `main.js` / `styles.css` plus a development-stamped `manifest.json` into the vault's `.obsidian/plugins/scribe/` folder, then reloads the plugin through the Obsidian CLI.
 
 **One-time setup:**
 
@@ -96,9 +102,9 @@ From any worktree, run:
 npm run test:vault
 ```
 
-The script installs deps, builds the plugin, symlinks the build artifacts into the vault, then calls `plugin:enable` and `plugin:reload` on the Obsidian CLI. If Obsidian isn't running, the symlinks are still in place — start Obsidian and the new build will load.
+The script installs deps, builds the plugin, copies the build artifacts into the vault, then re-runs onload with a `plugin:disable` → `plugin:enable` cycle (`plugin:reload` reports success but does not re-run onload). If Obsidian isn't running, the copied artifacts are already in place — start Obsidian and the new build will load.
 
-Because the script symlinks files (not the worktree root), the vault's plugin `data.json` (settings, chat history) stays vault-local and is preserved across worktrees and rebuilds.
+Because only the plugin artifacts are replaced (never the vault itself), the vault's plugin `data.json` (settings, chat history) stays vault-local and is preserved across worktrees and rebuilds.
 
 Requires macOS with Obsidian installed at `/Applications/Obsidian.app`.
 

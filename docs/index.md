@@ -36,7 +36,7 @@ Agent Chat 在 Obsidian 内直接运行，无需外部代理或其订阅账户�
 
 ## Settings
 
-[Scribe Settings](settings.md) walks through every tab in the order it appears in Obsidian: **Agent 配置**、**模型**、**我的指令**、**技能**、**命令**、**子代理** 和 **关于**.
+[Scribe Settings](settings.md) walks through every tab in the order it appears in Obsidian: **Agent 配置**、**模型**、**我的指令**、**技能**、**命令**、**子代理**、**MCP**（仅桌面端）和 **关于**.
 
 ## Help
 

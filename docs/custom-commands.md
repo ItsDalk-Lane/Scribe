@@ -10,9 +10,9 @@ The `/` menu in Agent Chat is grouped into **commands, skills, and subagents**. 
 
 | Use                | Best for                                                                     | Managed in                                               |
 | ------------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Scribe command** | A short, repeatable prompt with optional note variables                      | [**Settings → Scribe → 命令**](settings.md#命令)         |
+| **Scribe command** | A short, repeatable prompt with optional note variables                      | [**Settings → Scribe → 我的指令**](settings.md#我的指令) |
 | **Skill**          | A reusable agent workflow that can include instructions and supporting files | [**Settings → Scribe → 技能**](settings.md#技能)         |
-| **Subagent**       | Delegating a task to a dedicated agent with its own instructions             | [**Settings → Scribe → 代理扩展**](settings.md#代理扩展) |
+| **Subagent**       | Delegating a task to a dedicated agent with its own instructions             | [**Settings → Scribe → 子代理**](settings.md#代理扩展)   |
 
 Skills can be enabled for Scribe Agent Chat. Commands stay inside Scribe and also work from the editor and Obsidian command palette.
 
@@ -27,7 +27,7 @@ Choose **默认模型** to use the first available chat model configured under *
 
 If a saved command’s explicit model is unavailable, edit it under **Settings → Scribe → 我的指令** or repair its connection under **模型**, then rerun the command. A command with an explicit model does not silently switch to another one. Changing the popup picker does not retry the original saved-command run. Quick Ask and Quick Command keep your unsent input while you choose a model.
 
-**我的指令** 页提供新建、复制、拖动排序、单条模型选择、变量填充和菜单偏好。变量填充和默认指令生成直接显示在列表上方，不再有“指令选项”折叠标题。代理配置中的 **命令** 页只列出 Agent 内建的命令条目及其可用性，自定义指令的创建和编辑都在 **我的指令** 完成。
+**我的指令** 页提供新建、复制、拖动排序、单条模型选择和菜单偏好。默认指令生成显示在列表上方；指令变量替换在每条指令的编辑器中设置。「命令」页列出并管理 Agent 的斜杠命令（内置 `/compact` 与自定义 Agent 命令）；快捷指令（含变量与右键菜单偏好）的创建和编辑都在 **我的指令** 完成。
 
 每条 Scribe 指令都有独立的启用开关。关闭后不能从右键菜单、命令面板或快捷键调用。**在右键菜单中显示** 的偏好会保留，重新启用时恢复原样；隐藏右键菜单并不会停用整条指令。
 
@@ -81,7 +81,7 @@ Quick Command is also unavailable in Source mode.
 
 ## Where commands are stored
 
-Each command is a Markdown file in the fixed vault-root `.scribe/scribe-custom-prompts/` folder. The filename is the command name, and **命令** and **我的指令** share the same files. Deleting a command removes it from the list and shortcuts and moves its file to Scribe’s trash inside `.scribe`.
+Each command is a Markdown file in the fixed vault-root `.scribe/scribe-custom-prompts/` folder. The filename is the command name. These files belong to **我的指令**; the Agent slash commands on the **命令** tab are stored separately in `.scribe/agent-commands/`. Deleting a command removes it from the list and shortcuts and moves its file to Scribe’s trash inside `.scribe`.
 
 Isolated tests found that changing a command's enabled state or recording its use can alter high-precision numbers in additional properties in its file. Back up your files first and disable Scribe until this and the other [file safety issues](troubleshooting-and-faq.md) are fixed; pending saves may finish during shutdown.
 

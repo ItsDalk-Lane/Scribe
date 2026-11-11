@@ -65,7 +65,7 @@ Scribe 附带七个只读内置技能，默认启用，可卸载并恢复。通�
 
 ### Reuse Scribe Commands
 
-Create preset prompts under **Settings → Scribe → 命令** on desktop, or **我的指令** on desktop or mobile. Run them from the command palette, the editor's **Scribe** menu, or by typing `/` in Agent Chat. See [Scribe Commands and Quick Ask](custom-commands.md).
+Create preset prompts under **Settings → Scribe → 我的指令** on desktop or mobile, and run them from the command palette or the editor's **Scribe** menu. Agent 斜杠命令在 **命令** 页创建（仅桌面端），通过 Agent Chat 输入框的 `/` 菜单使用。 See [Scribe Commands and Quick Ask](custom-commands.md).
 
 ### Ask Without Leaving the Editor
 

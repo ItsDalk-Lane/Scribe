@@ -29,6 +29,8 @@ Remaining behavioral gaps include the complete Settings navigation/save/reopen j
 
 ### Files without adjacent stories at this snapshot
 
+Snapshot `20837e19`; several files listed below have since been removed from `src/` by later refactors. Re-run the inventory before acting on the counts above.
+
 - `src/agentMode/skills/ui/AgentIconButton.tsx`
 - `src/agentMode/skills/ui/DeleteConfirmDialog.tsx`
 - `src/agentMode/skills/ui/EmptyPlaceholder.tsx`

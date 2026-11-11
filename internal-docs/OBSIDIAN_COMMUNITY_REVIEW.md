@@ -52,12 +52,13 @@ npm audit --omit=dev --audit-level=critical
 
 Warnings remain for cases where automatic cleanup could change behavior or UI, including desktop Node imports, streaming `fetch`, async React callbacks, Obsidian DOM helpers, declarative settings search, `!important`, `:has()`, and manifest copy. Do not suppress them. Fix one warning family at a time with behavior-specific tests.
 
-### Permanent `fetch` disclosures
+### Reviewed `fetch` call sites
 
-`requestUrl` supports neither streaming responses nor AbortSignal, so the following call sites must keep `fetch` and carry a `// scorecard:` comment. Any remaining scorecard `fetch` warning must match this list:
+ESLint's `no-restricted-globals` rule warns on every `fetch` use ("Use Obsidian `requestUrl` instead of `fetch` unless a reviewed streaming adapter requires fetch."), and a bundled rejection fixture keeps that warning alive. The call sites below intentionally retain `fetch` — as the desktop streaming bridge or a type reference — because `requestUrl` supports neither streaming responses nor `AbortSignal`:
 
-- `src/LLMProviders/providerTransport.ts` — shared pi-ai provider transport, including keyless endpoints and LM Studio; desktop calls use the shared streaming bridge, while mobile uses buffered `requestUrl`.
-- `src/agentMode/mcp/McpConnection.ts` and `src/utils/desktopStreamingFetch.ts` — models and MCP share the desktop network bridge to preserve streaming, cancellation, system proxy settings and session response headers hidden by browser CORS. `requestUrl` cannot implement that transport. Legacy SSE remains available for servers that do not offer streamable HTTP.
+- `src/utils/desktopStreamingFetch.ts` — the shared desktop network bridge used by models and MCP: streaming, cancellation, system proxy settings, and session response headers hidden by browser CORS. `requestUrl` cannot implement that transport.
+- `src/LLMProviders/providerTransport.ts` — shared pi-ai provider transport, including keyless endpoints and LM Studio; desktop calls go through the streaming bridge, mobile uses buffered `requestUrl`, and the remaining `fetch` mention is a type check.
+- `src/agentMode/mcp/McpConnection.ts` — MCP connections share the same desktop bridge; legacy SSE remains available for servers that do not offer streamable HTTP.
 
 Non-streaming JSON requests route through `safeFetchNoThrow`, which uses `requestUrl`. Provider smoke tests are needed when their adapters or network boundaries change.
 
