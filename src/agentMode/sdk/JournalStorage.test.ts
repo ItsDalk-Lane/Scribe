@@ -483,23 +483,15 @@ describe("JournalStorage", () => {
         await expect(storage.append(SESSION, "message", {})).rejects.toThrow(/frozen|fail/i);
       });
 
-      it("retains a recoverable original beside the replacement if directory synchronization fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      it("retains a recoverable original beside the replacement when post-replace cleanup fails and freezes later writes (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         await storage.append(SESSION, "subagent_state", { text: "原件" });
         const original = await readFile(file(), "utf8");
-        const rename = nodeFs.rename;
-        let renamed = false;
-        jest.spyOn(nodeFs, "rename").mockImplementationOnce(async (...args) => {
-          await rename(...args);
-          renamed = true;
+        const realRm = nodeFs.rm;
+        jest.spyOn(nodeFs, "rm").mockImplementation(async (target, options) => {
+          if (String(target).includes(".redact.backup")) throw new Error("Backup cleanup failed");
+          return realRm(target, options);
         });
-        const open = nodeFs.open;
-        jest.spyOn(nodeFs, "open").mockImplementation(async (...args) => {
-          const handle = await open(...args);
-          if (args[0] === directory && renamed)
-            jest.spyOn(handle, "sync").mockRejectedValueOnce(new Error("Directory sync failed"));
-          return handle;
-        });
-        await expect(storage.redact(SESSION, () => true)).rejects.toThrow(/Directory sync failed/);
+        await expect(storage.redact(SESSION, () => true)).rejects.toThrow("Backup cleanup failed");
         const backup = (await readdir(directory)).find((name) => name.endsWith(".redact.backup"));
         expect(backup).toBeDefined();
         expect(await readFile(join(directory, backup!), "utf8")).toBe(original);

@@ -158,7 +158,10 @@ export class NodeJournalStorage {
         } else {
           const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
           const { constants } = requireNodeModule<typeof import("node:fs")>("fs");
-          const handle = await fs.open(destination, constants.O_WRONLY | constants.O_APPEND);
+          // An O_APPEND handle cannot be truncated on Windows (EPERM), so open without it
+          // and write at the explicit end-of-file position. POSIX behavior is unchanged.
+          // https://github.com/ItsDalk-Lane/Scribe/issues/76
+          const handle = await fs.open(destination, constants.O_WRONLY);
           try {
             if (state.totalBytes !== state.completeBytes) {
               await handle.truncate(state.completeBytes);
@@ -170,7 +173,7 @@ export class NodeJournalStorage {
                 bytes,
                 offset,
                 bytes.byteLength - offset,
-                null
+                state.completeBytes + offset
               );
               if (!bytesWritten) throw new Error("The journal write made no progress.");
               offset += bytesWritten;
