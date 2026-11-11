@@ -1,5 +1,50 @@
 # Release Notes
 
+# v1.1.2 - Agent Chat without an external runtime, and steadier long answers
+
+Agent Chat now runs inside Scribe itself, model calls share one streaming engine with real deadlines, and long answers render progressively without losing text. This release also brings per-skill dependency checks, MCP tool loading that stays out of the model's way until needed, and a single `.scribe` folder for everything the plugin saves.
+
+## ✨ Enhancements
+
+- **Agent Chat runs in-process.** Scribe no longer needs the external Claude runtime, CLI install or login. The native agent drives vault reads and writes, plan approval, permission cards, child chats and background commands inside Obsidian, and saved chats replay without re-running tools.
+- **Interactive child chats.** Open any child chat while it runs, send follow-up messages, queue work, and continue after a task request budget runs out instead of losing progress. Active children, queue depth and per-task request budgets are bounded.
+- **MCP servers.** Connect stdio, SSE or HTTP servers from Settings → MCP; their tools join chats, credentials are stored as encrypted references, and JSON server configs can be imported.
+- **Deferred MCP tools.** With the new auto/always/off preference, large MCP catalogs are registered on demand through a tool-search step (default threshold 4,000 characters) instead of crowding every request.
+- **Skills that explain themselves.** Skill details show each declared dependency's readiness on this computer, and every delivered skill body starts with that state. Optional display name, description, icon, color and default prompt are supported, and "Use now" fills the draft.
+- **Skill delivery stays within budget.** The model-visible catalog is capped at 2% of the model window (10,000 tokens maximum) and degrades to pruned entries, then names only. Skill bodies and supporting files share one delivery cap with an explicit truncation marker.
+- **Skill usage and scan honesty.** A local ledger counts deliveries, sorts by recent use, and flags skills unused for 90 days. Vault scans name incomplete sources instead of presenting a partial list as complete.
+- **Models and providers.** Provider presets with categories, versions and icons; a per-provider switch that includes or excludes its models in every selector, grouped by provider; per-model metadata and status badges.
+- **Reliable model calls.** Every BYOK call goes through one streaming engine with unified waits: a stalled response header or idle stream ends instead of hanging the chat, provider tokens are reused across calls, output limits and image support follow each catalog declaration, and switching models during a tool turn waits for the next turn.
+- **Context and compaction.** Automatic and manual compaction save their summary beside the original chat and reuse an already-verified summary instead of resending raw history; an incomplete summary keeps the original context. Request previews show exactly what was last sent, and instruction priority is current request → project → vault → app default.
+- **Long tool results stay usable.** Oversized results are split into pages with continuation cursors, the complete original stays saved, status and retry meaning reach the model, and continuation never re-runs writes, commands or remote actions.
+- **Safer file writes.** Native edits check that the whole original was received before replacing it, reject multi-linked files and symlink escapes, and keep a version record for each new file.
+- **Quick Ask with real budgets.** Quick Ask and custom commands now use the full chat context and check the input budget before sending; over-budget and provider failures surface as readable errors.
+- **A calmer chat renderer.** Completed blocks keep their place while the tail renders, code and math are highlighted only after they close, a single block over 50,000 characters keeps its complete source, and a failed enhancement falls back to readable, copyable text. Scrolling follows new content only when you are at the bottom, and links in chats resolve from the vault root.
+- **Everything in one folder.** Plugin data now lives in `.scribe/` — chats, skills, subagents, projects, attachments, secrets and logs. Secret values are encrypted behind a master password and never appear in requests, errors or saved history.
+
+## 🛠️ Bug Fixes
+
+- A stalled usage write no longer blocks or freezes a chat, and a failed save no longer ends the session.
+- Credential values cannot leak into provider errors, compaction input, logs or chat history.
+- Auto approval no longer covers edits inside the vault configuration folder.
+- A saved always-deny decision outranks Auto approval for the same target.
+- Stopping a command now stops its descendants too, including processes that tried to detach.
+- Queued messages that were never read are sent automatically once the cancelled turn settles, exactly once.
+- A truncated or tool-bearing summary never replaces the original context.
+- The configured model window now reaches usage reporting and automatic compaction; unknown windows stay unreported and Ollama keeps its own context size.
+- Dangling or linked symlinks are refused, write targets are re-checked after approval, and final writes are bound to the approved path.
+- Quick Ask answers no longer follow a newly opened note; links keep the note they were asked from.
+- Child chats no longer borrow an earlier reply's identity while a new reply is starting.
+- Message lists stop re-rendering when unrelated permissions refresh, and delivered child messages keep their identity.
+
+## ⚠️ Compatibility Notes
+
+- Requires Obsidian 1.11.4 or newer.
+- Agent Chat no longer uses the external Claude runtime; Claude subscription usage and its extension market are removed. Configure your own model provider under Settings → Models.
+- Plugin data is stored only in the vault-root `.scribe/` folder. Data in previous locations is not read, imported or cleaned automatically, so copy over chats, skills, projects or attachments you want to keep.
+- Service keys are encrypted with a vault master password. Keys saved in the old system keychain are not imported; re-enter them under Settings → Models. There is no master-password recovery.
+- Existing model and provider configurations keep their names, endpoints and protocols; only the saved keys need re-entry.
+
 # v1.0.2 - More reliable chats and extension checks
 
 This release makes Agent Chat safer around saving, stopping, permissions, and extension availability, and fixes a set of data-safety and startup problems found in a full repository review.

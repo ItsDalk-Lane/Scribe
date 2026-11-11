@@ -319,11 +319,12 @@ describe("systemSkillSearch", () => {
 
     it("stops at the global directory budget and explains that results are partial", async () => {
       const source = join(root, ".agents/skills");
+      const virtualPrefix = join(source, "virtual-");
       await mkdir(source, { recursive: true });
       const originalReaddir = fs.promises.readdir.bind(fs.promises);
       const originalRealpath = fs.promises.realpath.bind(fs.promises);
       const realpathSpy = jest.spyOn(fs.promises, "realpath").mockImplementation(async (path) => {
-        if (String(path).startsWith(`${source}/virtual-`)) return String(path);
+        if (String(path).startsWith(virtualPrefix)) return String(path);
         return originalRealpath(path);
       });
       const readdirSpy = jest.spyOn(fs.promises, "readdir").mockImplementation((async (
@@ -336,7 +337,7 @@ describe("systemSkillSearch", () => {
             isDirectory: () => true,
             isSymbolicLink: () => false,
           }));
-        if (String(path).startsWith(`${source}/virtual-`)) return [];
+        if (String(path).startsWith(virtualPrefix)) return [];
         return originalReaddir(path, options);
       }) as typeof fs.promises.readdir);
       try {

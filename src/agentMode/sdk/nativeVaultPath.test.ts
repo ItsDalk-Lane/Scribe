@@ -203,6 +203,7 @@ describe("nativeVaultPath", () => {
       jest.restoreAllMocks();
       await rm(root, { recursive: true, force: true });
     });
+    const posix = process.platform === "win32" ? it.skip : it;
     it("安全创建和替换文本，过期版本保留现有原件和库内暂存 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
       await writeNativeVaultTarget(root, "note.md", "A", null);
       await writeNativeVaultTarget(root, "note.md", "B", "A");
@@ -212,12 +213,15 @@ describe("nativeVaultPath", () => {
       expect(stages).toHaveLength(1);
       expect(await readFile(join(root, ".scribe/write-staging", stages[0]), "utf8")).toBe("C");
     });
-    it("替换现有文件保留常规权限位 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
-      await writeFile(join(root, "note.md"), "before");
-      await chmod(join(root, "note.md"), 0o640);
-      await writeNativeVaultTarget(root, "note.md", "after", "before");
-      expect((await stat(join(root, "note.md"))).mode & 0o777).toBe(0o640);
-    });
+    posix(
+      "替换现有文件保留常规权限位 https://github.com/ItsDalk-Lane/Scribe/issues/70",
+      async () => {
+        await writeFile(join(root, "note.md"), "before");
+        await chmod(join(root, "note.md"), 0o640);
+        await writeNativeVaultTarget(root, "note.md", "after", "before");
+        expect((await stat(join(root, "note.md"))).mode & 0o777).toBe(0o640);
+      }
+    );
 
     it("暂存写入失败不截断原件，也不退回裸覆盖 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
       await writeFile(join(root, "note.md"), "original");

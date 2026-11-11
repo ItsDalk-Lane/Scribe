@@ -77,9 +77,13 @@ export async function createDurableFile(
 ): Promise<boolean> {
   const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
   const path = requireNodeModule<typeof import("node:path")>("path");
+  const process = requireNodeModule<typeof import("node:process")>("process");
   const directory = path.dirname(destination);
   const created = await fs.mkdir(directory, { recursive: true });
-  if (created) {
+  // On Windows mkdir returns an extended-length "\\?\" path that never matches the
+  // target string, and syncDirectory is a no-op there, so only POSIX runs the fsync loop.
+  // https://github.com/ItsDalk-Lane/Scribe/issues/75
+  if (created && process.platform !== "win32") {
     let current = directory;
     for (;;) {
       await syncDirectory(path.dirname(current));
@@ -154,7 +158,10 @@ export class NodeJournalStorage {
         } else {
           const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
           const { constants } = requireNodeModule<typeof import("node:fs")>("fs");
-          const handle = await fs.open(destination, constants.O_WRONLY | constants.O_APPEND);
+          // An O_APPEND handle cannot be truncated on Windows (EPERM), so open without it
+          // and write at the explicit end-of-file position. POSIX behavior is unchanged.
+          // https://github.com/ItsDalk-Lane/Scribe/issues/76
+          const handle = await fs.open(destination, constants.O_WRONLY);
           try {
             if (state.totalBytes !== state.completeBytes) {
               await handle.truncate(state.completeBytes);
@@ -166,7 +173,7 @@ export class NodeJournalStorage {
                 bytes,
                 offset,
                 bytes.byteLength - offset,
-                null
+                state.completeBytes + offset
               );
               if (!bytesWritten) throw new Error("The journal write made no progress.");
               offset += bytesWritten;

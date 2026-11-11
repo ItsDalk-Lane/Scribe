@@ -218,8 +218,8 @@ describe("JournalStorage", () => {
       });
 
       it("times out a stalled usage write, skips expired queued facts, and resumes in sequence after the original write finishes (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
-        const quick = new NodeJournalStorage(directory, 20);
-        await quick.append(SESSION, "message", { text: "保留" });
+        const setup = new NodeJournalStorage(directory);
+        await setup.append(SESSION, "message", { text: "保留" });
         let release!: () => void;
         let started!: () => void;
         let finished!: () => void;
@@ -253,6 +253,7 @@ describe("JournalStorage", () => {
             }
             return handle;
           });
+        const quick = new NodeJournalStorage(directory, 20);
         jest.useFakeTimers();
         const usage = quick.append(SESSION, "usage", {}, { discardOnFailure: true });
         const usageResult = expect(usage).rejects.toBeInstanceOf(JournalConfirmationTimeout);
@@ -271,7 +272,8 @@ describe("JournalStorage", () => {
         await completed;
         jest.useRealTimers();
         jest.restoreAllMocks();
-        const next = await quick.append(SESSION, "message", { text: "恢复后" });
+        const recovered = new NodeJournalStorage(directory);
+        const next = await recovered.append(SESSION, "message", { text: "恢复后" });
         expect(next.seq).toBe(2);
         expect((await quick.read(SESSION)).records.map((entry) => [entry.seq, entry.kind])).toEqual(
           [
@@ -394,12 +396,14 @@ describe("JournalStorage", () => {
       });
 
       it("reports a confirmation that runs past its limit without freezing later writes (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        const setup = new NodeJournalStorage(directory);
+        await setup.append(SESSION, "message", { text: "保留" });
         const quick = new NodeJournalStorage(directory, 20);
-        await quick.append(SESSION, "message", { text: "保留" });
         const stall = stallConfirmations(file());
         await expect(quick.flush(SESSION)).rejects.toBeInstanceOf(JournalConfirmationTimeout);
         stall.release();
-        expect((await quick.append(SESSION, "message", { text: "之后" })).seq).toBe(1);
+        const recovered = new NodeJournalStorage(directory);
+        expect((await recovered.append(SESSION, "message", { text: "之后" })).seq).toBe(1);
       });
 
       it("freezes later writes when synchronization fails", async () => {
@@ -483,23 +487,15 @@ describe("JournalStorage", () => {
         await expect(storage.append(SESSION, "message", {})).rejects.toThrow(/frozen|fail/i);
       });
 
-      it("retains a recoverable original beside the replacement if directory synchronization fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+      it("retains a recoverable original beside the replacement when post-replace cleanup fails and freezes later writes (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         await storage.append(SESSION, "subagent_state", { text: "原件" });
         const original = await readFile(file(), "utf8");
-        const rename = nodeFs.rename;
-        let renamed = false;
-        jest.spyOn(nodeFs, "rename").mockImplementationOnce(async (...args) => {
-          await rename(...args);
-          renamed = true;
+        const realRm = nodeFs.rm;
+        jest.spyOn(nodeFs, "rm").mockImplementation(async (target, options) => {
+          if (String(target).includes(".redact.backup")) throw new Error("Backup cleanup failed");
+          return realRm(target, options);
         });
-        const open = nodeFs.open;
-        jest.spyOn(nodeFs, "open").mockImplementation(async (...args) => {
-          const handle = await open(...args);
-          if (args[0] === directory && renamed)
-            jest.spyOn(handle, "sync").mockRejectedValueOnce(new Error("Directory sync failed"));
-          return handle;
-        });
-        await expect(storage.redact(SESSION, () => true)).rejects.toThrow(/Directory sync failed/);
+        await expect(storage.redact(SESSION, () => true)).rejects.toThrow("Backup cleanup failed");
         const backup = (await readdir(directory)).find((name) => name.endsWith(".redact.backup"));
         expect(backup).toBeDefined();
         expect(await readFile(join(directory, backup!), "utf8")).toBe(original);
@@ -542,6 +538,27 @@ describe("JournalStorage", () => {
       expect(await createDurableFile(destination, new Uint8Array([9]))).toBe(false);
       expect(new Uint8Array(await readFile(destination))).toEqual(new Uint8Array([1, 2, 255]));
       expect(await readdir(join(directory, "nested", "data"))).toEqual(["content"]);
+    });
+
+    it("creates the file without looping when Windows mkdir returns a \\\\?\\ prefixed path (https://github.com/ItsDalk-Lane/Scribe/issues/75)", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+      const destination = join(directory, "win", "nested", "content");
+      const realMkdir = nodeFs.mkdir.bind(nodeFs);
+      const mkdirSpy = jest.spyOn(nodeFs, "mkdir").mockImplementation(async (target, options) => {
+        await realMkdir(target, options);
+        return `\\\\?\\${String(target)}`;
+      });
+      try {
+        expect(await createDurableFile(destination, new Uint8Array([4, 5]))).toBe(true);
+        expect(new Uint8Array(await readFile(destination))).toEqual(new Uint8Array([4, 5]));
+      } finally {
+        mkdirSpy.mockRestore();
+        Object.defineProperty(process, "platform", {
+          value: originalPlatform,
+          configurable: true,
+        });
+      }
     });
   });
 });

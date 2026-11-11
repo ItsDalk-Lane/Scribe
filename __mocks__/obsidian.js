@@ -63,7 +63,7 @@ module.exports = {
     }
     getFullPath(p) {
       const rel = String(p).replace(/\\/g, "/").replace(/^\/+/, "");
-      return rel ? `${this._basePath}/${rel}` : this._basePath;
+      return rel ? jest.requireActual("node:path").join(this._basePath, rel) : this._basePath;
     }
   },
   normalizePath: (p) => String(p).replace(/\\\\/g, "/").replace(/\/+/g, "/"),
