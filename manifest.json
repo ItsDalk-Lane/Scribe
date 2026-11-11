@@ -1,7 +1,7 @@
 {
   "id": "scribe",
   "name": "Scribe",
-  "version": "1.0.2",
+  "version": "1.1.2",
   "minAppVersion": "1.11.4",
   "isDesktopOnly": false,
   "description": "An AI notes assistant that runs inside Obsidian with your own models and tools.",

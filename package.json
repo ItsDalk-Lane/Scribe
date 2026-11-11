@@ -1,6 +1,6 @@
 {
   "name": "obsidian-scribe",
-  "version": "1.0.2",
+  "version": "1.1.2",
   "description": "An AI notes assistant that runs inside Obsidian with your own models and tools.",
   "main": "main.js",
   "scripts": {
