@@ -77,9 +77,13 @@ export async function createDurableFile(
 ): Promise<boolean> {
   const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
   const path = requireNodeModule<typeof import("node:path")>("path");
+  const process = requireNodeModule<typeof import("node:process")>("process");
   const directory = path.dirname(destination);
   const created = await fs.mkdir(directory, { recursive: true });
-  if (created) {
+  // On Windows mkdir returns an extended-length "\\?\" path that never matches the
+  // target string, and syncDirectory is a no-op there, so only POSIX runs the fsync loop.
+  // https://github.com/ItsDalk-Lane/Scribe/issues/75
+  if (created && process.platform !== "win32") {
     let current = directory;
     for (;;) {
       await syncDirectory(path.dirname(current));

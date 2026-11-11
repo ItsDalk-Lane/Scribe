@@ -543,5 +543,26 @@ describe("JournalStorage", () => {
       expect(new Uint8Array(await readFile(destination))).toEqual(new Uint8Array([1, 2, 255]));
       expect(await readdir(join(directory, "nested", "data"))).toEqual(["content"]);
     });
+
+    it("creates the file without looping when Windows mkdir returns a \\\\?\\ prefixed path (https://github.com/ItsDalk-Lane/Scribe/issues/75)", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+      const destination = join(directory, "win", "nested", "content");
+      const realMkdir = nodeFs.mkdir.bind(nodeFs);
+      const mkdirSpy = jest.spyOn(nodeFs, "mkdir").mockImplementation(async (target, options) => {
+        await realMkdir(target, options);
+        return `\\\\?\\${String(target)}`;
+      });
+      try {
+        expect(await createDurableFile(destination, new Uint8Array([4, 5]))).toBe(true);
+        expect(new Uint8Array(await readFile(destination))).toEqual(new Uint8Array([4, 5]));
+      } finally {
+        mkdirSpy.mockRestore();
+        Object.defineProperty(process, "platform", {
+          value: originalPlatform,
+          configurable: true,
+        });
+      }
+    });
   });
 });
