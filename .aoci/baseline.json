@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-11T12:39:27Z",
+  "updated_at": "2026-11-11T14:21:48Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -131,27 +131,27 @@
     },
     "AGENTS.md": {
       "role": "index",
-      "sha256": "6f86a2f7863df1ead283674acc8e99aad835f61d993bf3043eecb3cf4c066d17",
-      "size": 32114,
-      "normalized_sha256": "6f86a2f7863df1ead283674acc8e99aad835f61d993bf3043eecb3cf4c066d17"
+      "sha256": "c088a68213b3b6af54007aa37e02a6d9ae7a52fbf6ef78154e09a426ecd520cb",
+      "size": 33369,
+      "normalized_sha256": "c088a68213b3b6af54007aa37e02a6d9ae7a52fbf6ef78154e09a426ecd520cb"
     },
     "BLOCKED.md": {
       "role": "index",
-      "sha256": "013b43d1f6dfda1a8b1382cef912d7404ebf0368e1ef1816ce5afff909528bb5",
-      "size": 34849,
-      "normalized_sha256": "013b43d1f6dfda1a8b1382cef912d7404ebf0368e1ef1816ce5afff909528bb5"
+      "sha256": "2d429828e9c4259a3b0b8f001105d7fc8fec6d5799eb7a2d78d7b8e217c3ab80",
+      "size": 35020,
+      "normalized_sha256": "2d429828e9c4259a3b0b8f001105d7fc8fec6d5799eb7a2d78d7b8e217c3ab80"
     },
     "CONSISTENCY_MATRIX.md": {
       "role": "index",
-      "sha256": "c862596a9d277207cb0100be7ccba9c2bdb509d683c934f3d573f582b549a891",
-      "size": 25403,
-      "normalized_sha256": "c862596a9d277207cb0100be7ccba9c2bdb509d683c934f3d573f582b549a891"
+      "sha256": "b6e256df97746ae4def1268588709b91b37ad2e3d72a5a5064a18756dc61a9b3",
+      "size": 25728,
+      "normalized_sha256": "b6e256df97746ae4def1268588709b91b37ad2e3d72a5a5064a18756dc61a9b3"
     },
     "CONTRIBUTING.md": {
       "role": "index",
-      "sha256": "4b9d1a0a213815f4e4a34fcd7a7a06f9f5a2ccdc12d6f3d018f8d7be5369f4c0",
-      "size": 9295,
-      "normalized_sha256": "4b9d1a0a213815f4e4a34fcd7a7a06f9f5a2ccdc12d6f3d018f8d7be5369f4c0"
+      "sha256": "8cf65e95e93f7391ab5579b0c5817cbe3247b368378df6edf2c8195ea948b4b1",
+      "size": 10724,
+      "normalized_sha256": "8cf65e95e93f7391ab5579b0c5817cbe3247b368378df6edf2c8195ea948b4b1"
     },
     "LICENSE": {
       "role": "index",
@@ -161,15 +161,15 @@
     },
     "PROGRESS.md": {
       "role": "index",
-      "sha256": "3dc48fddb9c2d1f8751106fbd1f636dd5ea2d2f7a928d3cb25e2d548890e568e",
-      "size": 96407,
-      "normalized_sha256": "3dc48fddb9c2d1f8751106fbd1f636dd5ea2d2f7a928d3cb25e2d548890e568e"
+      "sha256": "55e972929964609d04aab16c651f0683ae1b59057905d051287a1b95399653ba",
+      "size": 96595,
+      "normalized_sha256": "55e972929964609d04aab16c651f0683ae1b59057905d051287a1b95399653ba"
     },
     "README.md": {
       "role": "index",
-      "sha256": "b07ec45f08f289e1072e06f177f28b759e9cdf88e4fcef041748b12ca06e2802",
-      "size": 7528,
-      "normalized_sha256": "b07ec45f08f289e1072e06f177f28b759e9cdf88e4fcef041748b12ca06e2802"
+      "sha256": "a04c4754c1c83634e21415376af83d86e6facc47f6afa568ad82c0fb86615ba1",
+      "size": 6579,
+      "normalized_sha256": "a04c4754c1c83634e21415376af83d86e6facc47f6afa568ad82c0fb86615ba1"
     },
     "RELEASES.md": {
       "role": "index",
@@ -203,9 +203,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "0bffec8ffa0e7edd303554fc999972136738b1446d5af8d9844ed8c3f64b46ca",
-      "size": 245649,
-      "normalized_sha256": "0bffec8ffa0e7edd303554fc999972136738b1446d5af8d9844ed8c3f64b46ca"
+      "sha256": "7a1cd8be3933cf64f370b515dab37e6cf7dda175fbc34e8d8c40d1743af7001c",
+      "size": 246014,
+      "normalized_sha256": "7a1cd8be3933cf64f370b515dab37e6cf7dda175fbc34e8d8c40d1743af7001c"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -335,9 +335,9 @@
     },
     "docs/agent-mode-and-tools.md": {
       "role": "index",
-      "sha256": "502b7e2f87f8568d1f93d924c5fd71bad6455cbc39c74c5c715df4d396788b79",
-      "size": 36805,
-      "normalized_sha256": "502b7e2f87f8568d1f93d924c5fd71bad6455cbc39c74c5c715df4d396788b79"
+      "sha256": "5ed824f0ccb74abae3a6a94fe26d9d90e8ddd98b98151cbd1a13515425b5c683",
+      "size": 36960,
+      "normalized_sha256": "5ed824f0ccb74abae3a6a94fe26d9d90e8ddd98b98151cbd1a13515425b5c683"
     },
     "docs/agent-mode-windows-setup.md": {
       "role": "index",
@@ -365,21 +365,21 @@
     },
     "docs/custom-commands.md": {
       "role": "index",
-      "sha256": "1270e71d0b90ea5e149cca80d7c9531a435aba35d764be537410b2ec1eb0acee",
-      "size": 7861,
-      "normalized_sha256": "1270e71d0b90ea5e149cca80d7c9531a435aba35d764be537410b2ec1eb0acee"
+      "sha256": "6754ee450fae879191c655cabe1a345348247d720386cb3ef11f783f9c8ed648",
+      "size": 7973,
+      "normalized_sha256": "6754ee450fae879191c655cabe1a345348247d720386cb3ef11f783f9c8ed648"
     },
     "docs/getting-started.md": {
       "role": "index",
-      "sha256": "fa7a0170ceb7e12ad7e0a25d254408a869ecf72e35f805ace69d8751371abf9a",
-      "size": 6907,
-      "normalized_sha256": "fa7a0170ceb7e12ad7e0a25d254408a869ecf72e35f805ace69d8751371abf9a"
+      "sha256": "7da4a74f9d7bd3c277af6541a4e215d009ba7a0f61bb11fe7469c522bed77fcc",
+      "size": 6969,
+      "normalized_sha256": "7da4a74f9d7bd3c277af6541a4e215d009ba7a0f61bb11fe7469c522bed77fcc"
     },
     "docs/index.md": {
       "role": "index",
-      "sha256": "8ba218914fa3ff9623cdb8a1486ed73af3da032a4652d93b7e186036c38f52f2",
-      "size": 2999,
-      "normalized_sha256": "8ba218914fa3ff9623cdb8a1486ed73af3da032a4652d93b7e186036c38f52f2"
+      "sha256": "e7c932d45a9d01c4d255466b19cf6cd3eb36f3c2566bf02bc01f3b252167ec60",
+      "size": 3026,
+      "normalized_sha256": "e7c932d45a9d01c4d255466b19cf6cd3eb36f3c2566bf02bc01f3b252167ec60"
     },
     "docs/install-claude-agent-mode-windows.ps1": {
       "role": "index",
@@ -389,9 +389,9 @@
     },
     "docs/llm-providers.md": {
       "role": "index",
-      "sha256": "fa387e951e0c81f8cf0d51466c57dbc819ebad618e3bffb8b30dd72b45f1633a",
+      "sha256": "87ffe92ac287d71b3f56d6903f7ce97511acdc4d34266ba2f76eec4f6a94324a",
       "size": 18531,
-      "normalized_sha256": "fa387e951e0c81f8cf0d51466c57dbc819ebad618e3bffb8b30dd72b45f1633a"
+      "normalized_sha256": "87ffe92ac287d71b3f56d6903f7ce97511acdc4d34266ba2f76eec4f6a94324a"
     },
     "docs/models-and-parameters.md": {
       "role": "index",
@@ -431,9 +431,9 @@
     },
     "docs/settings.md": {
       "role": "index",
-      "sha256": "fed9f5c1ceb23f67bc51317ce11b658f99675591eff4c43acbef61c807a435fd",
-      "size": 26233,
-      "normalized_sha256": "fed9f5c1ceb23f67bc51317ce11b658f99675591eff4c43acbef61c807a435fd"
+      "sha256": "4b7d1873d561fd928a762618402f799a57141fb93d1f298ef11d09e516cc118a",
+      "size": 25461,
+      "normalized_sha256": "4b7d1873d561fd928a762618402f799a57141fb93d1f298ef11d09e516cc118a"
     },
     "docs/src/analytics.mjs": {
       "role": "index",
@@ -497,9 +497,9 @@
     },
     "docs/troubleshooting-and-faq.md": {
       "role": "index",
-      "sha256": "02b0d0c386ad10c60b857de12b73682cbf6d4ede9146d708b84142972da68356",
-      "size": 12117,
-      "normalized_sha256": "02b0d0c386ad10c60b857de12b73682cbf6d4ede9146d708b84142972da68356"
+      "sha256": "0f35a1286059d4b9412861ab6ced324e5e72a5463ce30d581d9009815e180d15",
+      "size": 12058,
+      "normalized_sha256": "0f35a1286059d4b9412861ab6ced324e5e72a5463ce30d581d9009815e180d15"
     },
     "esbuild.config.mjs": {
       "role": "index",
@@ -521,9 +521,9 @@
     },
     "internal-docs/CONCEPT_GLOSSARY.md": {
       "role": "index",
-      "sha256": "7129cb8797742c8da47d0b58c24e322c04a4d9f5c60a1767f82d083d063b31d0",
-      "size": 40394,
-      "normalized_sha256": "7129cb8797742c8da47d0b58c24e322c04a4d9f5c60a1767f82d083d063b31d0"
+      "sha256": "4a57eeeaf38163a76d8ccf54931f7e8c91faaff5671f581c48cbe88364493f2b",
+      "size": 40402,
+      "normalized_sha256": "4a57eeeaf38163a76d8ccf54931f7e8c91faaff5671f581c48cbe88364493f2b"
     },
     "internal-docs/DATA_STORAGE.md": {
       "role": "index",
@@ -539,9 +539,9 @@
     },
     "internal-docs/GALLERY_REVIEW_COVERAGE.md": {
       "role": "index",
-      "sha256": "2d9efa50b9ba8461ddc84e7d4695e3344b38c14b63d15c04dc3a4ff9993a3720",
-      "size": 7514,
-      "normalized_sha256": "2d9efa50b9ba8461ddc84e7d4695e3344b38c14b63d15c04dc3a4ff9993a3720"
+      "sha256": "904319e06e7ee5da5afd076f93239edc4148eec1ba3b8c0ef8182338d6a44de3",
+      "size": 7675,
+      "normalized_sha256": "904319e06e7ee5da5afd076f93239edc4148eec1ba3b8c0ef8182338d6a44de3"
     },
     "internal-docs/NATIVE_AGENT_COVERAGE.md": {
       "role": "index",
@@ -563,15 +563,15 @@
     },
     "internal-docs/OBSIDIAN_COMMUNITY_REVIEW.md": {
       "role": "index",
-      "sha256": "82e79cdbc85b3f39f3f3fe2fddf85d954c6a58a579f6a98645e7d38beb1e7ad7",
-      "size": 7265,
-      "normalized_sha256": "82e79cdbc85b3f39f3f3fe2fddf85d954c6a58a579f6a98645e7d38beb1e7ad7"
+      "sha256": "55441a7a0b439886ea507c2a9823e1d981cd0abfdb3b9d0ae05c229a8ee46c72",
+      "size": 7556,
+      "normalized_sha256": "55441a7a0b439886ea507c2a9823e1d981cd0abfdb3b9d0ae05c229a8ee46c72"
     },
     "internal-docs/PLUGIN_DEV_GUIDE.md": {
       "role": "index",
-      "sha256": "5e0e4c025f4515ad0bacd0738884fdebc1cac767d2fc86f14b1a1f3c0b7d8afd",
-      "size": 4743,
-      "normalized_sha256": "5e0e4c025f4515ad0bacd0738884fdebc1cac767d2fc86f14b1a1f3c0b7d8afd"
+      "sha256": "2dcb6ad590b748cbad4d21a73ce7442ded0efb2c8ea5a95aee7bd5af17fb5ec0",
+      "size": 4943,
+      "normalized_sha256": "2dcb6ad590b748cbad4d21a73ce7442ded0efb2c8ea5a95aee7bd5af17fb5ec0"
     },
     "internal-docs/PROCESS_GUIDE.md": {
       "role": "index",
